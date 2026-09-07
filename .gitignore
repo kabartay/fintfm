@@ -7,3 +7,6 @@ runs/
 data/cache/
 *.pt
 !tests/fixtures/*.pt
+
+dist/
+*.egg-info/

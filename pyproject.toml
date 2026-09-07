@@ -1,12 +1,22 @@
 [project]
 name = "fintfm"
 version = "0.0.1"
-description = "A tabular foundation model specialized for financial risk, not general tables — pretrained on synthetic company financials"
+description = "A tabular foundation model for financial risk — pretrained on synthetic company financials, so it predicts credit default with no training on your data"
 readme = "README.md"
 authors = [
     { name = "Mukharbek Organokov", email = "mukharbek.organokov@gmail.com" }
 ]
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 requires-python = ">=3.13"
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Financial and Insurance Industry",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Typing :: Typed",
+]
 dependencies = [
     "numpy>=2.0",
     "pandas>=2.2",

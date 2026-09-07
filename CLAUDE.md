@@ -67,21 +67,27 @@ degenerate single-class splits) — that's informative, not noise to suppress.
 
 ## Licensing: what this repo carries
 
-**There is deliberately no `LICENSE` file, and none should be added without being asked for
-by name.** The repository is private, so it is already all-rights-reserved by default, which
-is the right position for a commercial PoC. Licensing is a one-way door: a permissive grant
-cannot be revoked from anyone who already holds a copy, while adding a licence later costs
-nothing. Every dependency is permissive (numpy/pandas/scikit-learn BSD-3, torch Apache-2.0,
-lightgbm MIT), so no copyleft obligation constrains the eventual choice — verified
-2026-09-08 from installed package metadata.
+**Apache-2.0**, chosen 2026-09-08. `LICENSE` holds the canonical text fetched from
+apache.org; `pyproject.toml` carries the SPDX expression and ships the file in the wheel.
+Every dependency is permissive (numpy/pandas/scikit-learn BSD-3, torch Apache-2.0, lightgbm
+MIT), so nothing constrained the choice — verified from installed package metadata.
 
-Two options when it goes public, neither yet chosen: **AGPLv3 + commercial dual licence**
-(the `finkele-axiom` structure — and note its trap, that accepting one outside contribution
-without a signed CLA permanently kills the relicensing right), or **Apache-2.0** if the moat
-is judged to be the weights and the prior rather than the training code.
+The reasoning, so it is not relitigated: **the moat is the trained weights and the mature
+prior, not the training code.** This architecture is reproducible from the public
+TabPFN/TabICL literature by any competent engineer in days, so protecting it buys little,
+while Apache's permissiveness and its patent grant buy adoption and clear the procurement
+review at exactly the banks and insurers this targets. AGPL-plus-dual-licence was considered
+and rejected: customers consume predictions through an API or licensed weights and never
+deploy the training code, so there is no copyleft obligation for them to pay to escape, and
+AGPL is blanket-banned at many of the target buyers.
 
-**Trained weights never enter git**, under any licence. `.gitignore` excludes `*.pt`; keep it
-that way.
+**The repository is still private, so the grant has reached nobody yet and the choice remains
+changeable until it goes public.** After that it is one-way for anyone holding a copy.
+
+**Trained weights never enter git**, and neither does the mature prior if it diverges from
+the reference version here — those are the private asset. `.gitignore` excludes `*.pt`; keep
+it that way. If outside contributions are ever accepted and relicensing might matter, a CLA
+has to be in place *before* the first pull request is merged, not after.
 
 ## Licensing boundary: what must never come in
 
