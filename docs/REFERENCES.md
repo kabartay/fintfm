@@ -52,12 +52,20 @@ measured effect sizes; 11 requirements for fair benchmarking. Fully worked throu
 `docs/FINDINGS.md` §1, including the caveat that limits how strongly this project may claim
 the advantage.
 
-**Makridakis et al. (2022, 2024).** The M-competitions, and **M6** in particular.
+**Makridakis, Spiliotis & Assimakopoulos (2022).** *The M5 competition: Background,
+organization, and implementation.* International Journal of Forecasting, 38(4):1325–1336.
+doi:[10.1016/j.ijforecast.2021.07.007](https://doi.org/10.1016/j.ijforecast.2021.07.007)
+
+**Makridakis, Spiliotis, Hollyman, Petropoulos, Swanson & Gaba (2024).** *The M6 forecasting
+competition: Bridging the gap between forecasting and investment decisions.* International
+Journal of Forecasting.
+doi:[10.1016/j.ijforecast.2024.11.002](https://doi.org/10.1016/j.ijforecast.2024.11.002)
+
 Cited within Meyer et al. above as the leakage-resistant evaluation design: forecasts are
-registered *before* the outcome exists, and M6 went further by using live data from 100
-financial assets with predictions registered into the real future. The critique noted there
-is administrative cost and long waiting periods. See `docs/FINDINGS.md` §3 for why this
-matters more to this project than to a forecasting vendor.
+registered *before* the outcome exists. **M6 went furthest** — live data from 100 financial
+assets, predictions registered into the real future. The critique noted there is
+administrative cost and long waiting periods between competitions. See `docs/FINDINGS.md` §3
+for why this design matters more to this project than to a forecasting vendor.
 
 ## Domain benchmarks (NOT yet verified — check before citing)
 
