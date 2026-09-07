@@ -10,7 +10,7 @@ will decay.
 
 | company | what they build | shape of the data | posture |
 | --- | --- | --- | --- |
-| **Fundamental** (NEXUS) | general tabular foundation model, "pretrained on billions of tables" | single tables | proprietary; $255M Series A per their site |
+| **Fundamental** (NEXUS) | general tabular foundation model, "pretrained on billions of tables"; **now verticalising** — sells NEXUS as purpose-built for oil & gas, in production | single tables | proprietary; $255M Series A per their site |
 | **Prior Labs** | tabular foundation models for spreadsheets/databases; the TabPFN lineage | single tables | open weights/code history, commercial company |
 | **Neuralk** (Seldon) | tabular foundation model, in-context, synthetic-prior pretraining | single tables | proprietary, API + self-hosted |
 | **Kumo** (KumoRFM-2) | relational foundation model, **in-context prediction at query time**, trained on real + synthetic relational data; PQL query language, NL coding agent, optional fine-tuning; Online Serving distills to sub-100 ms | **multi-table relational** | commercial platform; heavy press (AP, Forbes); **documented on docs.nvidia.com** |
@@ -69,6 +69,31 @@ hand. That argument is correct and it cuts *for* this project rather than agains
 corporate default on an annual company panel is genuinely a tabular problem. It becomes a
 problem the moment this repository drifts toward forecasting cash flows or market series,
 which would need a causal decoder, not this architecture.
+
+## The competitive bar in enterprise deals is the incumbent, not the SOTA
+
+Fundamental's oil & gas post (2026-09) reports NEXUS at **75% better MAE and 43% better
+RMSE across 13 regional markets, beating the prior approach in 70% of regions and moving to
+production** — and the baseline it beats is **linear regression**. Not gradient boosting,
+not another foundation model. That is the number a funded competitor chose to publish, so
+take it as the shape of what enterprise buyers actually compare against: whatever legacy
+model they run today.
+
+**This is unusually favourable for credit.** Bank credit scorecards genuinely are logistic
+regression, in large part *because* regulators demand interpretability. So the accuracy bar
+in this market is low and the real barrier is regulatory acceptance — the third independent
+signal pointing at validation evidence rather than prediction quality as the product.
+
+Consequence for `bench.py`: **keep both baselines and read them differently.** Logistic
+regression is the commercially realistic comparison (what a customer would actually
+replace); gradient boosting is the scientific one (what tells you whether the model is any
+good). Never report only the flattering one — see the claims section of `CLAUDE.md`.
+
+**Verticalisation is the confirmed playbook, and it is also the threat.** Fundamental going
+vertical validates specialising rather than chasing a general TFM. It also means financial
+services is an obvious next vertical for a company that already has the general model, the
+capital and the team, for whom entering it is a GTM motion rather than a research project.
+Assume the wedge is defended by regulatory depth and evidence, not by being first.
 
 ## Technical notes worth keeping
 
