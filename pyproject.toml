@@ -1,7 +1,7 @@
 [project]
 name = "fintfm"
 version = "0.0.1"
-description = "FinancialTFM: in-context tabular model for financial risk prediction — synthetic financial prior, no per-dataset training (research PoC)"
+description = "A tabular foundation model specialized for financial risk, not general tables — pretrained on synthetic company financials"
 readme = "README.md"
 authors = [
     { name = "Mukharbek Organokov", email = "mukharbek.organokov@gmail.com" }
