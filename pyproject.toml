@@ -1,0 +1,36 @@
+[project]
+name = "fintfm"
+version = "0.0.1"
+description = "FinancialTFM: a prior-fitted tabular foundation model for financial risk prediction (in-context, no per-dataset training)"
+readme = "README.md"
+authors = [
+    { name = "Mukharbek Organokov", email = "mukharbek.organokov@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "numpy>=2.0",
+    "pandas>=2.2",
+    "scikit-learn>=1.5",
+    "torch>=2.4",
+]
+
+[project.optional-dependencies]
+bench = ["lightgbm>=4.0"]
+
+[project.scripts]
+fintfm-train = "fintfm.train:main"
+fintfm-bench = "fintfm.bench:main"
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[build-system]
+requires = ["uv_build>=0.9.18,<0.10.0"]
+build-backend = "uv_build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+runs/
+data/cache/
+*.pt
+!tests/fixtures/*.pt
