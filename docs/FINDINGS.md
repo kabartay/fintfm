@@ -132,3 +132,51 @@ where the certificate is the product.
 model has not been pretrained. Recorded because the cheapest moment to start a clock is
 always now, and because this is the one strategy identified this session that a funded
 competitor cannot simply outspend.
+
+## 4. Energy dominates TSFM pretraining because its data is free; finance is empty because its data is not
+
+**Date:** 2026-09-08. **Status:** analysis of a published table; the explanation is inference,
+the absence is fact. **Source:** Table 5 of Meyer et al. (arXiv:2510.13654), which catalogues
+pretraining (P), train/test (T/T) and zero-shot (ZS) dataset use across 15 TSFMs.
+
+**The fact.** Energy is the most heavily represented domain in TSFM pretraining corpora.
+BuildingsBench alone contributes ~10 energy datasets (BDG-2 Bear/Fox/Panther/Rat, Borealis,
+Buildings900K, IDEAL, Low Carbon London, Sceaux, SMART), marked `P` across Moirai,
+Moirai-MoE and Time-MoE; ETT1/ETT2 appear in nearly every model in the table.
+
+**Why (inference, four compounding causes):**
+
+1. **Volume and regularity.** Smart meters emit gap-free series at 15-minute or hourly
+   resolution; one utility rollout yields millions of well-formed series.
+2. **It is publicly releasable.** Consumption data is far less sensitive than health or
+   financial records, and governments fund open trials (Low Carbon London) or simulate stock
+   at scale (Buildings900K). The open data exists because releasing it harms nobody.
+3. **Strong learnable structure.** Demand is driven by temperature, daylight and human
+   schedules — clean daily/weekly/annual seasonality, ideal pretraining signal.
+4. **Benchmark path dependence.** ETT (Electricity Transformer Temperature) came from the
+   Informer paper and became *the* long-sequence benchmark, so every subsequent model
+   included it — convergence by momentum rather than merit.
+
+**The finding that matters here is the absence.** The `Econ/Fin` rows in that table are Air
+Passengers, Aus Beer, Gas Rate CO2, Monthly Milk, Wooly (Darts — small classic teaching
+series), FRED (macro aggregates) and one stock ticker. **No firm-level financial data appears
+in any of the 15 models' pretraining corpora.**
+
+That is market structure, not oversight: company financials and default outcomes sit behind
+Bloomberg, S&P Capital IQ and Moody's — priced, licence-restricted, and with default labels
+commercially guarded. **Energy got foundation models because its data was free. Finance did
+not because its data is not.**
+
+**Three consequences for this project:**
+
+- It explains **why Fundamental went to oil & gas before finance** (`docs/LANDSCAPE.md`):
+  vendors follow available data, not the largest market.
+- **The synthetic prior is not a substitute for real data in this domain — it is the only
+  affordable, licence-clean route.** That is why this space is empty while energy is crowded,
+  and it converts the data scarcity from an obstacle into the reason the approach is correct.
+  This is the strongest available framing of the thesis; it is also the one that must not be
+  overstated, because "nobody has done it" is not evidence that it works (see §1).
+- It sharpens §1. The few finance series that *do* appear (FRED macro aggregates, a stock
+  ticker) are precisely those most exposed to **global-pattern memorisation** across shared
+  crises — the second leakage mode. A financial model pretrained on real panels spanning 2008
+  and 2020 inherits exactly that problem; one pretrained on a sampled macro regime does not.
