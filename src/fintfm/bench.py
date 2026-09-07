@@ -24,7 +24,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
-from fintfm.classifier import FinancialTFMClassifier
+from fintfm.classifier import ContextStrategy, FinancialTFMClassifier
+from fintfm.data import CreditDataset, load_polish_bankruptcy
 from fintfm.model import FinancialTFM
 from fintfm.prior import PriorConfig
 from fintfm.prior.mixture import sample_task
@@ -77,7 +78,7 @@ def run_one(name: str, X: np.ndarray, y: np.ndarray, model_path: str, seed: int 
             clf.fit(X_train, y_train)
             proba = clf.predict_proba(X_test)
             auc = _auc(y_test, proba, classes)
-        except Exception as exc:  # keep the benchmark going if one model errors
+        except Exception as exc:  # noqa: BLE001 - one model failing must not abort the sweep
             print(f"  [{name}] {model_name} failed: {exc}")
             continue
         results[model_name] = auc
@@ -132,12 +133,62 @@ def run_openml(model_path: str, dataset_ids: list[int]) -> None:
         run_one(f"openml-{did}", X, y, model_path)
 
 
+def run_credit(model_path: str, horizons: tuple[int, ...] = (1, 3, 5)) -> None:
+    """Benchmark on real corporate-default data across context-construction strategies.
+
+    This is the task the project exists for, so it is reported separately from the
+    synthetic sanity check. Every strategy is run against identical splits, because
+    Tanna et al. (arXiv:2605.18635) find context construction explains more AUC variance
+    than the choice of model family — a claim this harness is here to test rather than
+    assume.
+
+    Args:
+        model_path: Checkpoint to evaluate. Must have been pretrained with
+            ``--max-features`` at least as wide as the dataset (64 here).
+        horizons: Which bankruptcy forecast horizons (years) to evaluate.
+    """
+    cfg = FinancialTFM.load(model_path).cfg
+    for horizon in horizons:
+        ds = load_polish_bankruptcy(horizon)
+        print(f"\n=== {ds.name}: {ds.X.shape[0]} companies, {ds.X.shape[1]} features, "
+              f"default rate {ds.default_rate:.3%} ===")
+        print(f"    source: {ds.attribution}")
+        if ds.X.shape[1] > cfg.max_features:
+            print(f"    SKIPPED for fintfm: model takes {cfg.max_features} features, data has "
+                  f"{ds.X.shape[1]}. Pretrain with --max-features {ds.X.shape[1]} to evaluate it.")
+        run_one(ds.name, ds.X, ds.y, model_path)
+        if ds.X.shape[1] <= cfg.max_features:
+            strategies: tuple[ContextStrategy, ...] = ("uniform", "hybrid", "balanced")
+            _compare_context_strategies(ds, model_path, strategies)
+
+
+def _compare_context_strategies(
+    ds: CreditDataset, model_path: str, strategies: tuple[ContextStrategy, ...], seed: int = 0
+) -> None:
+    """Fit the same checkpoint under each context strategy on one fixed split."""
+    X_train, X_test, y_train, y_test = train_test_split(
+        ds.X, ds.y, test_size=0.3, random_state=seed, stratify=ds.y
+    )
+    classes = np.unique(ds.y)
+    for strategy in strategies:
+        clf = FinancialTFMClassifier(model_path, context_strategy=strategy)
+        clf.fit(X_train, y_train)
+        auc = _auc(y_test, clf.predict_proba(X_test), classes)
+        kept = int(clf._ctx_y.sum())
+        print(f"    [{ds.name}] fintfm context={strategy}: AUC={auc:.4f} "
+              f"({kept} defaults in a {clf._ctx_X.shape[0]}-row context)")
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--model", type=str, default="runs/v0.pt")
     p.add_argument("--synthetic-tasks", type=int, default=20)
     p.add_argument("--openml-id", type=int, action="append", default=[])
+    p.add_argument("--credit", action="store_true", help="benchmark on real corporate-default data")
     args = p.parse_args()
+    if args.credit:
+        run_credit(args.model)
+        return
     run_synthetic(args.model, n_tasks=args.synthetic_tasks)
     if args.openml_id:
         run_openml(args.model, args.openml_id)

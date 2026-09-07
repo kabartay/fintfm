@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 
-from fintfm.classifier import FinancialTFMClassifier
+from fintfm.classifier import FinancialTFMClassifier, _select_context
 from fintfm.model import FinancialTFM, ModelConfig
 
 
@@ -35,3 +35,47 @@ def test_rejects_too_many_classes():
         assert False, "expected ValueError"
     except ValueError:
         pass
+
+
+def test_balanced_context_lifts_minority_representation():
+    """Balanced selection must beat uniform on a realistically imbalanced credit table."""
+    rng = np.random.default_rng(0)
+    y = np.zeros(10_000, dtype=np.int64)
+    y[rng.choice(10_000, size=470, replace=False)] = 1  # ~4.7%, the Polish-bankruptcy rate
+
+    uniform = _select_context(y, 2000, "uniform", np.random.default_rng(1))
+    balanced = _select_context(y, 2000, "balanced", np.random.default_rng(1))
+    hybrid = _select_context(y, 2000, "hybrid", np.random.default_rng(1))
+
+    for idx in (uniform, balanced, hybrid):
+        assert idx.shape[0] == 2000
+        assert len(np.unique(idx)) == 2000  # no row selected twice
+
+    # balanced takes every positive available; uniform gets only the base rate
+    assert y[balanced].sum() == 470
+    assert y[uniform].sum() < 150
+    # hybrid sits between: all positives it can afford, but keeps a uniform tail
+    assert y[uniform].sum() < y[hybrid].sum() <= y[balanced].sum()
+
+
+def test_select_context_returns_everything_when_under_budget():
+    y = np.array([0, 1, 0, 1], dtype=np.int64)
+    idx = _select_context(y, 100, "balanced", np.random.default_rng(0))
+    np.testing.assert_array_equal(idx, np.arange(4))
+
+
+def test_context_strategy_reaches_stored_context():
+    torch.manual_seed(0)
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(500, 4))
+    y = np.zeros(500, dtype=np.int64)
+    y[rng.choice(500, size=25, replace=False)] = 1
+
+    balanced = FinancialTFMClassifier(_tiny_model(), max_context=100, context_strategy="balanced")
+    balanced.fit(X, y)
+    uniform = FinancialTFMClassifier(_tiny_model(), max_context=100, context_strategy="uniform")
+    uniform.fit(X, y)
+
+    assert balanced._ctx_y.sum() == 25  # every default kept
+    assert uniform._ctx_y.sum() < 15
+    assert balanced._ctx_X.shape[0] == uniform._ctx_X.shape[0] == 100

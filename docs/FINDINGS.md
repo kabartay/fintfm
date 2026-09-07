@@ -180,3 +180,50 @@ not because its data is not.**
   ticker) are precisely those most exposed to **global-pattern memorisation** across shared
   crises — the second leakage mode. A financial model pretrained on real panels spanning 2008
   and 2020 inherits exactly that problem; one pretrained on a sampled macro regime does not.
+
+## 5. Context-construction strategy affects credit AUC more than expected; verified on real data at smoke scale
+
+**Date:** 2026-09-08. **Status:** SMOKE-TEST-SCALE MEASURED. Real data
+(`data.py::load_polish_bankruptcy`), real benchmark run, but the checkpoint is a 400-step,
+64-dim, 2-layer toy — this is a directional check, not a claim about the architecture.
+
+**Source of the design.** Tanna, Solanki, Bouadi, Bouarour, Seth & Sankarapu (2026), *Data
+Presentation Over Architecture: Resampling Strategies for Credit Risk Prediction with Tabular
+Foundation Models* (arXiv:2605.18635) — verified from the abstract. They benchmark seven
+context-construction strategies across four classical models and five TFMs on Home Credit and
+Lending Club, and find balanced/hybrid sampling adds 3-4 AUC points over uniform, a gap wider
+than the spread between TFM families. With a balanced context of 5k-10k, the strongest TFMs
+match classical baselines trained on the full data.
+
+**What this repository had before today:** `classifier.py`'s `fit()` subsampled a table
+exceeding `max_context` uniformly at random. On a ~4% default rate, a 2000-row uniform sample
+keeps roughly 80 positives — most of the signal a credit model needs is discarded before the
+model ever sees it. This was a real defect, not a design choice; it existed only because the
+first pass never faced real class imbalance.
+
+**Fix:** `_select_context()` in `classifier.py` adds `"balanced"` (water-fill quotas so every
+class gets as even a share as its size allows — a rare class this small is kept in full),
+`"hybrid"` (half the budget balanced, half uniform, to retain some of the true base rate),
+and keeps `"uniform"` for comparison. Default is `"balanced"`.
+
+**Measured**, `uv run fintfm-bench --model runs/credit-smoke.pt --credit`, single seed:
+
+| horizon | default rate | uniform AUC | hybrid AUC | balanced AUC | defaults kept (uniform → hybrid/balanced) |
+| --- | --- | --- | --- | --- | --- |
+| 1 year | 3.86% | 0.596 | 0.638 | **0.645** | 71 → 190 |
+| 3 year | 4.71% | 0.598 | **0.680** | 0.603 | 90 → 346 |
+| 5 year | 6.94% | 0.486 | 0.572 | **0.596** | 150 → 287 |
+
+Read honestly rather than cherry-picked: **uniform is worst on all three horizons**, matching
+Tanna et al.'s direction. Balanced is not uniformly best, though — hybrid wins on the 3-year
+horizon by a wide margin (0.680 vs 0.603), which balanced sampling cannot explain by defaults
+kept alone (both keep the same count once the water-fill saturates). One seed, one toy
+checkpoint; do not conclude "balanced beats hybrid" or the reverse from this — rerun with
+multiple seeds once a real checkpoint exists before trusting the ranking between the two.
+
+**What this does not show:** gradient boosting (AUC 0.86-0.96) and random forest (0.85-0.94)
+dominate fintfm (0.60-0.65) by a wide margin at this scale, exactly as expected from a
+400-step model with no real pretraining. **The comparison that matters — fintfm at real
+pretraining scale against gradient boosting — has not been run.** This finding is about
+context construction being a real, measurable lever independent of that question, confirmed
+directionally on real data rather than merely cited from a paper.
