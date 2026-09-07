@@ -65,7 +65,25 @@ So: **run it, don't reason about it**, and say what kind of number you're report
 When a benchmark run reports `N/M scorable tasks`, `M > N` means tasks were skipped (currently:
 degenerate single-class splits) — that's informative, not noise to suppress.
 
-## Licensing boundary
+## Licensing: what this repo carries
+
+**There is deliberately no `LICENSE` file, and none should be added without being asked for
+by name.** The repository is private, so it is already all-rights-reserved by default, which
+is the right position for a commercial PoC. Licensing is a one-way door: a permissive grant
+cannot be revoked from anyone who already holds a copy, while adding a licence later costs
+nothing. Every dependency is permissive (numpy/pandas/scikit-learn BSD-3, torch Apache-2.0,
+lightgbm MIT), so no copyleft obligation constrains the eventual choice — verified
+2026-09-08 from installed package metadata.
+
+Two options when it goes public, neither yet chosen: **AGPLv3 + commercial dual licence**
+(the `finkele-axiom` structure — and note its trap, that accepting one outside contribution
+without a signed CLA permanently kills the relicensing right), or **Apache-2.0** if the moat
+is judged to be the weights and the prior rather than the training code.
+
+**Trained weights never enter git**, under any licence. `.gitignore` excludes `*.pt`; keep it
+that way.
+
+## Licensing boundary: what must never come in
 
 No code, model weights, or training/eval data from Neuralk (Seldon), Fundamental (NEXUS),
 Google TabFM, TabPFN/TabICL, or any other tabular-foundation-model product may enter this
