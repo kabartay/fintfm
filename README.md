@@ -41,7 +41,8 @@ uv run pytest
 ```
 
 A real pretraining run (tens of thousands of steps, larger `--d-model`)
-needs a GPU; `--device cuda` or `--device mps` on Apple Silicon.
+needs a GPU; `--device cuda` or `--device mps` on Apple Silicon. Don't run
+one on this machine without checking `uptime` first — see `CLAUDE.md`.
 
 ## Licensing / provenance
 
@@ -56,8 +57,17 @@ check its license against the intended commercial use.
 ## Status
 
 PoC skeleton: priors + architecture + training + benchmark harness are
-implemented and unit-tested. Not yet run at meaningful pretraining scale
-(that requires GPU hours this environment doesn't have). Next steps: run a
-real pretraining job, benchmark against public credit-risk datasets (e.g.
-V4FinBench-style corporate panels) with proper time-based splits, then
-iterate on the financial prior based on where it under/over-performs.
+implemented, unit-tested (10 tests, `uv run pytest`), and verified to run
+end-to-end on CPU (300-step, 172K-parameter smoke run; checkpoint not kept).
+That smoke run is a **pipeline check only** — it says the training loop
+converges on the synthetic prior and the benchmark harness produces sane,
+non-`NaN` numbers, not that the architecture is any good. Its AUC on
+held-out synthetic tasks was roughly at parity with the classical baselines,
+which is the expected result of a model 100–1000x smaller and shorter than
+a real pretraining run, not a finding.
+
+Not yet done, in order: a real pretraining run (needs GPU hours this
+environment doesn't have — see `CLAUDE.md`), benchmarking against public
+credit-risk datasets (e.g. a V4FinBench-style corporate panel) with proper
+time-based splits, then iterating on the financial prior based on where it
+under/over-performs against gradient-boosted trees.
