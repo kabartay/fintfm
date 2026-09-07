@@ -13,7 +13,7 @@ will decay.
 | **Fundamental** (NEXUS) | general tabular foundation model, "pretrained on billions of tables" | single tables | proprietary; $255M Series A per their site |
 | **Prior Labs** | tabular foundation models for spreadsheets/databases; the TabPFN lineage | single tables | open weights/code history, commercial company |
 | **Neuralk** (Seldon) | tabular foundation model, in-context, synthetic-prior pretraining | single tables | proprietary, API + self-hosted |
-| **Kumo** (KumoRFM-2) | relational foundation model over warehouse schemas, graph transformers, NL query interface; Online Serving distills to sub-100 ms | **multi-table relational** | commercial platform, heavy press (AP, Forbes) |
+| **Kumo** (KumoRFM-2) | relational foundation model, **in-context prediction at query time**, trained on real + synthetic relational data; PQL query language, NL coding agent, optional fine-tuning; Online Serving distills to sub-100 ms | **multi-table relational** | commercial platform; heavy press (AP, Forbes); **documented on docs.nvidia.com** |
 | **Feedzai** (RiskFM) | "universal tabular foundation model" for financial risk | transactional | direct competitor on **fraud** |
 | **Google** (TabFM) | general TFM, hundreds of millions of synthetic datasets | single tables | research release |
 | **The Forecasting Company** | time-series foundation model (t0-alpha), temporal engine, Retrocast UI | **temporal** | argues explicitly that time series are not tables |
@@ -21,8 +21,19 @@ will decay.
 
 ## What this means for this project
 
-**The "no feature engineering" pitch is spent.** Kumo has it in AP and Forbes. Leading with
-it now reads as derivative. It is table stakes messaging, not a differentiator.
+**The "no feature engineering" pitch is spent, and so is "in-context, no training".**
+Kumo has the first in AP and Forbes. The second is worse: NVIDIA's own docs describe KumoRFM
+as "performs in-context predictions... learns from your existing data at query time without
+training" — the same sentence this project would use about itself. Neither claim
+differentiates any more; both are table stakes messaging. **The repo description currently
+leads with "no training on your data" and should not survive into a pitch deck in that
+form.**
+
+**Distribution is the asymmetry, not the model.** KumoRFM appearing in NVIDIA's
+documentation puts it inside a stack enterprise buyers already run. That channel cannot be
+matched by a solo founder and it decides more outcomes than model quality does. Plan around
+it rather than against it: pick a buyer and a problem where a general platform's default
+presence is not sufficient.
 
 **Fraud is claimed; corporate credit is not.** Kumo (real-time serving, relational) and
 Feedzai (RiskFM) both target fraud with infrastructure that would have to be rebuilt to
@@ -37,6 +48,11 @@ should not point a relational platform at the warehouse instead. Have an answer.
 **Their latency moat does not transfer.** Sub-100 ms serving is decisive for fraud, where
 the model sits inside transaction authorization. Corporate credit underwriting takes days.
 Kumo's hardest engineering is on an axis this market does not price.
+
+**The financial prior is thinner protection than it first appears.** Kumo trains on real
+*and synthetic* relational data; synthetic-prior pretraining is not this project's private
+idea. The domain specificity is real but is a difference of degree, not of kind, and it
+should be argued with measured benchmark evidence on credit panels rather than asserted.
 
 **The gap nobody is filling: regulated model risk management.** A credit model at a bank
 does not win on accuracy; it wins on surviving validation — calibrated PD, stability across
