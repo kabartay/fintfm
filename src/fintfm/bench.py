@@ -25,6 +25,7 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
 from fintfm.classifier import FinancialTFMClassifier
+from fintfm.model import FinancialTFM
 from fintfm.prior import PriorConfig
 from fintfm.prior.mixture import sample_task
 
@@ -52,15 +53,19 @@ def _baselines() -> dict[str, object]:
 def _maybe_lightgbm() -> dict[str, object]:
     try:
         from lightgbm import LGBMClassifier
-    except ImportError:
+    except (ImportError, OSError):
+        # OSError covers e.g. a missing libomp shared library on macOS.
         return {}
     return {"lightgbm": make_pipeline(SimpleImputer(strategy="median"), LGBMClassifier(verbosity=-1))}
 
 
 def run_one(name: str, X: np.ndarray, y: np.ndarray, model_path: str, seed: int = 0) -> dict[str, float]:
     """Fit every model on a train split and report test AUC."""
+    values, counts = np.unique(y, return_counts=True)
+    # stratify requires >= 2 members per class; synthetic multiclass tasks can be this rare
+    can_stratify = len(values) > 1 and counts.min() >= 2
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.3, random_state=seed, stratify=y if len(np.unique(y)) > 1 else None
+        X, y, test_size=0.3, random_state=seed, stratify=y if can_stratify else None
     )
     classes = np.unique(y)
     results: dict[str, float] = {}
@@ -81,23 +86,36 @@ def run_one(name: str, X: np.ndarray, y: np.ndarray, model_path: str, seed: int 
 
 
 def run_synthetic(model_path: str, n_tasks: int = 20, n_rows: int = 1000, seed: int = 123) -> None:
-    """Held-out synthetic financial tasks with a fixed seed disjoint from pretraining."""
+    """Held-out synthetic financial tasks with a fixed seed disjoint from pretraining.
+
+    The task's feature/class width is capped at the loaded model's capacity,
+    otherwise a model pretrained with a small ``--max-features``/``--max-classes``
+    would reject most held-out tasks generated from the library defaults.
+    """
     rng = np.random.default_rng(seed)
-    cfg = PriorConfig()
+    model_cfg = FinancialTFM.load(model_path).cfg
+    cfg = PriorConfig(max_features=model_cfg.max_features, max_classes=model_cfg.max_classes)
     wins = {"fintfm": 0}
     totals: dict[str, list[float]] = {}
+    n_scored = 0
     for i in range(n_tasks):
         task = sample_task(rng, cfg, n_rows=n_rows)
         res = run_one(f"synthetic-{i}", task.X, task.y, model_path)
+        # a degenerate test split (single class in y_test) makes AUC undefined; skip it
+        # entirely rather than let one NaN silently poison every aggregate.
+        if any(np.isnan(v) for v in res.values()):
+            print(f"  [synthetic-{i}] skipped: degenerate test split (single class)")
+            continue
+        n_scored += 1
         best_other = max((v for k, v in res.items() if k != "fintfm"), default=0.0)
         if res.get("fintfm", -1) > best_other:
             wins["fintfm"] += 1
         for k, v in res.items():
             totals.setdefault(k, []).append(v)
-    print("\n=== mean AUC over synthetic held-out tasks ===")
+    print(f"\n=== mean AUC over {n_scored}/{n_tasks} scorable synthetic held-out tasks ===")
     for k, vs in totals.items():
         print(f"  {k}: {np.mean(vs):.4f}")
-    print(f"fintfm beats every baseline on {wins['fintfm']}/{n_tasks} tasks")
+    print(f"fintfm beats every baseline on {wins['fintfm']}/{n_scored} scorable tasks")
 
 
 def run_openml(model_path: str, dataset_ids: list[int]) -> None:
