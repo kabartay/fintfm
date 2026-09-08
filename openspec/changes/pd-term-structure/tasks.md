@@ -26,10 +26,14 @@
       **Done 2026-09-08, `FINDINGS` §21, `fintfm-termstruct`. Discrimination is a tie
       (+0.0039 at matched total, -0.0032 when the baseline gets 5x compute), coherence goes
       from 12-29% violations to 0%. Coherence is free. Paired test still owed - see 11.7.**
-- [ ] 11.7 Repeat §21 across >= 3 seeds with the paired bootstrap, since the AUC differences
-      (+/-0.004) are almost certainly within noise and "no difference" is currently an
-      inference rather than a measurement. Verify: mean +/- std per arm and a Holm-corrected
-      verdict in `docs/FINDINGS.md` §21.
+- [x] 11.7 Repeat §21 across >= 3 seeds, since the AUC differences were within noise and "no
+      difference" was an inference rather than a measurement. Verify: mean +/- std per arm in
+      `docs/FINDINGS.md` §21. **Done 2026-09-09. At matched total compute the difference is
+      +0.0008 +/- 0.0025 (no difference, confirmed). At 5x compute the baseline wins by
+      0.0084 +/- 0.0032 - a real effect the single seed under-stated - while still producing
+      incoherent curves for 2 firms in 3. The trade is now quantified.**
+- [ ] 11.8 Upgrade 11.7 to the Holm-corrected paired bootstrap used in §14, rather than
+      across-seed means. Verify: per-cell deltas with CIs and a corrected verdict in §21.
 - [ ] 11.6 Write the IFRS 9 framing down properly before any customer conversation: what
       lifetime ECL requires, what the model supplies, and what it does not (LGD, EAD,
       discounting). Verify: a section in `docs/STRATEGY.md` that states the gaps before the

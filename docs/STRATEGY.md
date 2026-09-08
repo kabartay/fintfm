@@ -32,10 +32,12 @@ Four claims, ordered by how much evidence each carries:
    — PD at 12 months, 24 months, lifetime — because IFRS 9 requires lifetime ECL. Independent
    per-horizon models contradict themselves 39% of the time on real data (§11) and 12-29% on
    synthetic (§21), while a hazard parameterisation is monotone **by construction** (§20).
-   Measured 2026-09-08: joint prediction shows **no measurable discrimination cost** (±0.004
-   AUC) while eliminating incoherence entirely, with **one model instead of five** (§21). So
-   this is not a trade-off to defend but a strict improvement, and no camp in the field
-   predicts the object at all (`docs/LANDSCAPE.md`).
+   Measured across three seeds (§21): at **equal compute** joint prediction costs nothing in
+   discrimination (+0.0008 ± 0.0025) while eliminating incoherence entirely, using **one
+   model instead of five**. Training five models at **5× compute** buys about **+0.008 AUC**
+   and returns curves that contradict themselves for two firms in three — a poor trade for a
+   regulated PD, and one that can now be *quantified* rather than asserted. No camp in the
+   field predicts this object at all (`docs/LANDSCAPE.md`).
 2. **Auditable provenance.** Nothing real reaches pretraining, checkable by grep and enforced
    in CI-in-waiting. Competitors training on real tables cannot retrofit this, and the
    leakage literature prices contamination at up to 32 MAPE points (§1).

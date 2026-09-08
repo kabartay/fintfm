@@ -21,6 +21,7 @@ from urllib.request import urlopen
 
 import numpy as np
 
+
 def _repo_root() -> Path:
     """Locate the repository root by walking up to the directory holding ``pyproject.toml``.
 

@@ -1350,14 +1350,35 @@ The prior was not built to reproduce this and no part of it was tuned toward it,
 credit data** — a form of prior validation that owes nothing to AUC, and one of the few
 positive signals today that is not about size.
 
-### What this does not establish
+### Confirmed across three seeds (added 2026-09-09), and it sharpens the claim
 
-- **Single seed, no significance test.** The AUC differences (±0.004) are almost certainly
-  within noise, which supports "no difference" but does not establish it. Three seeds and the
-  paired test before this is quoted.
+Task 11.7. Three seeds, 1,200 steps each, same held-out protocol:
+
+| arm | mean AUC | violations | fully monotone |
+| --- | --- | --- | --- |
+| joint | 0.7653 ± 0.0033 | **0.00% ± 0.00%** | **100.0%** |
+| per-horizon, matched total | 0.7645 ± 0.0008 | 19.05% ± 1.50% | 34.6% |
+| per-horizon, matched per-model (5× compute) | **0.7737 ± 0.0002** | 22.81% ± 4.26% | 32.0% |
+
+- **joint − matched total: +0.0008 ± 0.0025 → no difference.** Confirmed, not inferred.
+  At equal budget, coherence is genuinely free.
+- **joint − matched per-model: −0.0084 ± 0.0032 → the baseline is better**, and the tiny
+  standard deviation makes this a real effect rather than noise. The single-seed run had
+  shown −0.0032 and under-stated it.
+
+**So the honest trade is now quantified, and it is more useful than "a tie".** Training five
+models instead of one, at **five times the compute**, buys about **+0.008 AUC** — and returns
+a curve that contradicts itself for **two firms in three**. For a regulated PD used in
+provisioning that is a poor trade, and the point is that it can now be stated as a trade
+rather than asserted as a win.
+
+### What this still does not establish
 - **Synthetic evaluation only.** The term structure cannot be scored on the UCI panels at all
-  (no firm identifiers, §7). Real validation needs V4FinBench, whose loader now exists but
-  whose data needs Kaggle credentials.
+  (no firm identifiers, §7). Real validation needs V4FinBench; the loader and a
+  `fintfm-fetch v4finbench` path now exist and the data needs Kaggle credentials.
+- **No paired bootstrap on the AUC differences**, only across-seed means and standard
+  deviations. That is weaker than the Holm-corrected test used in §14 and should be upgraded
+  before any external use.
 - **Small models near a ceiling.** Giving the baseline 5× compute bought +0.003 AUC, which
   suggests every arm is close to what this size can do. The comparison may look different at
   scale, in either direction.

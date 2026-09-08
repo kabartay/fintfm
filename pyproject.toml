@@ -27,12 +27,16 @@ dependencies = [
 
 [project.optional-dependencies]
 bench = ["lightgbm>=4.0"]
+# V4FinBench data lives on Kaggle and needs an account. Data is CC BY 4.0; the
+# kagglehub client is Apache-2.0. See docs/FINDINGS.md §8.
+kaggle = ["kagglehub>=0.3", "pyarrow>=17"]
 
 [project.scripts]
 fintfm-train = "fintfm.modeling.train:main"
 fintfm-bench = "fintfm.evaluation.bench:main"
 fintfm-ablate = "fintfm.experiments.prior_ablation:main"
 fintfm-termstruct = "fintfm.experiments.term_structure:main"
+fintfm-fetch = "fintfm.evaluation.fetch:main"
 
 [dependency-groups]
 dev = ["pytest>=8", "ruff>=0.6"]
