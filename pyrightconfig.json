@@ -1,0 +1,14 @@
+{
+  "include": ["src", "tests"],
+  "exclude": [
+    "**/__pycache__",
+    "**/.venv",
+    ".ruff_cache",
+    ".pytest_cache",
+    "data",
+    "runs",
+    "dist"
+  ],
+  "typeCheckingMode": "standard",
+  "pythonVersion": "3.13"
+}

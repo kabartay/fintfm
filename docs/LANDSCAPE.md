@@ -145,3 +145,32 @@ becomes reproducible from open weights. Encountered via a DeFi credit-risk paper
 (arXiv:2602.03981) that fine-tunes open GraphPFN weights; **that paper has not been read
 beyond its related-work section**, and network contagion is systemic-risk modelling rather
 than single-obligor PD, so it is adjacent rather than a competitor.
+
+## Neuralk as a product and pricing reference
+
+Observed 2026-09-08 from their public site and a trial account.
+
+**Positioning:** "THE PREDICTIVE AI COMPANY" / **"Predict anything."** / "The Foundation
+Model for Prediction. No training. No pipelines."
+
+**Product surface:** a natural-language prompt box ("Predict customer…"), a CSV upload, and
+a Predict button, plus "try API for free". Model served as `nicl-small`.
+
+**Commercials:** credit-based. Roughly **2 credits per inference request of ~2,000 test
+rows**, observed latency ~250ms. A dashboard covers API keys, team members with
+owner/admin/member/viewer roles, usage charts and a voucher redemption box. Notably they
+**auto-refund** requests whose delivery is unconfirmed ("no SDK telemetry after 10m"), which
+implies they treat unverified delivery as a billing risk worth automating away.
+
+**Two things to take from it, and one not to.**
+
+Take the **pricing shape** as a reference point: per-request credits scaled by rows scored,
+not a seat licence. And take the **auto-refund** detail as a signal that inference-billing
+disputes are real enough to engineer around.
+
+Do **not** take the product framing. "Predict anything" from a CSV is the exact generic
+positioning `docs/STRATEGY.md` rules out: it competes with Neuralk, Kumo and Google BigQuery
+simultaneously on the one axis where this project has no advantage. An API is eventually the
+delivery mechanism for the certificate, but the thing delivered has to be narrow — a PD term
+structure with its interval, its calibration and its attributions — or it is a worse copy of
+something already shipping.
