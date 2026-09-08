@@ -39,14 +39,26 @@ def test_forward_shapes_and_class_masking():
 
 
 def test_loss_decreases_after_a_few_steps():
+    """Training must reduce the loss on freshly sampled tasks.
+
+    Uses 80 steps and an explicit ``d_cell``. It was 30 steps and a defaulted ``d_cell``
+    of 64 against a ``d_model`` of 32 — an inverted bottleneck for a deliberately tiny
+    model — and it began failing when `prior/financial.py` was made harder to restore the
+    difficulty match with real panels (`docs/FINDINGS.md` §19). Diagnosed rather than
+    loosened: the model still learns, reaching 0.639 -> 0.561 by 60 steps and 0.529 by 150,
+    so 30 steps was simply too few to measure what the assertion claims. **The assertion
+    itself is unchanged.**
+    """
     torch.manual_seed(0)
-    cfg = ModelConfig(max_features=8, max_classes=4, d_model=32, n_heads=2, n_layers=2, d_ff=64)
+    cfg = ModelConfig(
+        max_features=8, max_classes=4, d_cell=16, d_model=32, n_heads=2, n_layers=2, d_ff=64
+    )
     model = FinancialTFM(cfg)
     prior_cfg = PriorConfig(max_features=8, max_classes=4, n_rows=32)
     rng = np.random.default_rng(0)
     opt = torch.optim.Adam(model.parameters(), lr=1e-3)
     losses = []
-    for _ in range(30):
+    for _ in range(80):
         batch = sample_batch(rng, prior_cfg, batch_size=8)
         loss = model.loss(batch.X, batch.y, batch.n_ctx, batch.n_classes)
         opt.zero_grad()

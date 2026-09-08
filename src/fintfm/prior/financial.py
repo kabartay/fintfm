@@ -13,6 +13,19 @@ Observation noise is then applied: a random subset of the raw and ratio
 features is exposed, columns are randomly log/rank-transformed, some values go
 missing (MCAR and MNAR-on-distress), a few redundant/noisy columns are added
 and the column order is shuffled. Nothing here is fitted to real data.
+
+**Width comes from a derived ratio family, which is how real panels are wide.**
+Measured 2026-09-08 (``docs/FINDINGS.md`` §18): the earlier version was capped
+near 24 columns by a fixed dictionary of named quantities, while the real panels
+it must transfer to carry 64-95 features. Those real features are overwhelmingly
+*ratios over one balance sheet and P&L* — the UCI Polish panel's 64 columns are
+of exactly that kind. So :func:`_ratio_family` samples numerator/denominator
+pairs from a set of accounts that obey accounting identities, which fixes the
+width mismatch and makes the prior more faithful rather than merely padded.
+
+Difficulty was already well matched before this change (logistic-regression AUC
+0.761 synthetic against 0.769 real) and **that match is a property to preserve**:
+re-measure it after any change here, and treat a loss as a regression.
 """
 
 from __future__ import annotations
@@ -40,6 +53,154 @@ def _solve_intercept(z: np.ndarray, target_rate: float) -> float:
     return 0.5 * (lo + hi)
 
 
+def _accounts(rng: np.random.Generator, n: int, macro: dict, sector_of: np.ndarray,
+              sector_par: dict) -> dict[str, np.ndarray]:
+    """Generate a balance sheet and P&L per firm, respecting accounting identities.
+
+    Real credit datasets are wide because many ratios are computed over a few underlying
+    accounts, so the accounts are the right thing to generate and the ratios are derived.
+    Identities enforced here, because a ratio family over inconsistent accounts would teach
+    relationships that cannot occur in real filings:
+
+    ``total_assets = total_liabilities + equity``,
+    ``current_assets = cash + receivables + inventory``,
+    ``total_liabilities = short_term_liabilities + long_term_debt``,
+    ``working_capital = current_assets - short_term_liabilities``,
+    ``ebit = ebitda - depreciation``, ``net_profit = ebit - interest - tax``.
+
+    Args:
+        rng: Random generator.
+        n: Number of firms.
+        macro: Sampled macro regime (``rate``, ``cycle``).
+        sector_of: Sector index per firm.
+        sector_par: Sampled per-sector parameters.
+
+    Returns:
+        Mapping of account name to a length-``n`` array. All strictly level quantities;
+        ratios are derived from these by :func:`_ratio_family`.
+    """
+    log_assets = rng.normal(rng.uniform(13, 18), rng.uniform(0.8, 2.0), size=n)
+    total_assets = np.exp(log_assets)
+    age = np.exp(rng.normal(2.3, 0.8, size=n))
+
+    leverage = np.clip(
+        rng.beta(2, 3, size=n) * 0.6 + sector_par["leverage"][sector_of] * 0.6 - 0.15, 0.0, 0.98
+    )
+    total_liabilities = leverage * total_assets
+    equity = total_assets - total_liabilities
+    short_frac = np.clip(rng.beta(2, 2, size=n), 0.05, 0.95)
+    short_term_liabilities = short_frac * total_liabilities
+    long_term_debt = total_liabilities - short_term_liabilities
+
+    cash = np.clip(rng.beta(1.5, 8, size=n), 0.0, 0.8) * total_assets
+    receivables = np.clip(rng.beta(2, 6, size=n), 0.0, 0.6) * total_assets
+    inventory = np.clip(rng.beta(2, 7, size=n), 0.0, 0.6) * total_assets
+    current_assets = cash + receivables + inventory
+    working_capital = current_assets - short_term_liabilities
+    retained_earnings = equity * rng.uniform(-0.5, 0.9, size=n)
+
+    revenue = np.exp(rng.normal(0.0, 0.6, size=n)) * total_assets
+    margin = (
+        sector_par["margin"][sector_of]
+        + rng.normal(0, 0.08, size=n)
+        + 0.03 * macro["cycle"] * sector_par["cyclicality"][sector_of]
+        - 0.04 * np.log1p(1.0 / np.maximum(age, 0.5))
+    )
+    ebitda = margin * revenue
+    depreciation = rng.uniform(0.01, 0.09, size=n) * total_assets
+    ebit = ebitda - depreciation
+    interest = total_liabilities * (
+        macro["rate"] + rng.uniform(0.01, 0.08, size=n) * (0.5 + leverage)
+    )
+    tax = np.maximum(0.0, ebit - interest) * rng.uniform(0.0, 0.35)
+    net_profit = ebit - interest - tax
+    operating_expenses = revenue - ebitda
+    employees = np.maximum(1.0, revenue / np.exp(rng.normal(11.5, 0.5, size=n)))
+
+    return {
+        "total_assets": total_assets,
+        "current_assets": current_assets,
+        "cash": cash,
+        "receivables": receivables,
+        "inventory": inventory,
+        "working_capital": working_capital,
+        "total_liabilities": total_liabilities,
+        "short_term_liabilities": short_term_liabilities,
+        "long_term_debt": long_term_debt,
+        "equity": equity,
+        "retained_earnings": retained_earnings,
+        "revenue": revenue,
+        "ebitda": ebitda,
+        "ebit": ebit,
+        "net_profit": net_profit,
+        "operating_expenses": operating_expenses,
+        "depreciation": depreciation,
+        "interest": interest,
+        "employees": employees,
+        "age": age,
+    }
+
+
+#: Ratio classes a real credit panel computes. Numerator/denominator names index accounts.
+_RATIO_CLASSES: tuple[tuple[str, str], ...] = (
+    ("net_profit", "total_assets"), ("ebit", "total_assets"), ("ebitda", "total_assets"),
+    ("net_profit", "revenue"), ("ebit", "revenue"), ("ebitda", "revenue"),
+    ("net_profit", "equity"), ("retained_earnings", "total_assets"),
+    ("total_liabilities", "total_assets"), ("equity", "total_assets"),
+    ("equity", "total_liabilities"), ("long_term_debt", "equity"),
+    ("total_liabilities", "ebitda"), ("short_term_liabilities", "total_assets"),
+    ("current_assets", "short_term_liabilities"), ("cash", "short_term_liabilities"),
+    ("working_capital", "total_assets"), ("cash", "total_assets"),
+    ("receivables", "revenue"), ("inventory", "revenue"),
+    ("revenue", "total_assets"), ("revenue", "receivables"), ("revenue", "inventory"),
+    ("ebit", "interest"), ("ebitda", "interest"), ("operating_expenses", "revenue"),
+    ("depreciation", "total_assets"), ("net_profit", "total_liabilities"),
+    ("revenue", "employees"), ("total_assets", "employees"),
+)
+
+
+def _ratio_family(
+    rng: np.random.Generator, acc: dict[str, np.ndarray], n_wanted: int
+) -> tuple[list[np.ndarray], list[str]]:
+    """Derive up to ``n_wanted`` ratio columns from the accounts.
+
+    Canonical credit ratios come first, then arbitrary account pairs, which is a fair model
+    of how a real panel accumulates features: a core set everyone computes plus a long tail
+    of variations. Denominators are floored away from zero rather than dropped, because a
+    real filing with near-zero equity produces an extreme ratio and the model should see that.
+
+    Args:
+        rng: Random generator.
+        acc: Accounts from :func:`_accounts`.
+        n_wanted: Number of ratio columns to produce.
+
+    Returns:
+        A tuple of (columns, names), of length at most ``n_wanted``.
+    """
+    names = list(acc)
+    pairs = list(_RATIO_CLASSES)
+    rng.shuffle(pairs)
+    # a long tail of arbitrary pairs, as real panels have
+    extra = [
+        (names[i], names[j])
+        for i, j in rng.integers(0, len(names), size=(max(0, n_wanted) * 2, 2))
+        if i != j
+    ]
+    cols: list[np.ndarray] = []
+    used: list[str] = []
+    for num, den in pairs + extra:
+        if len(cols) >= n_wanted:
+            break
+        key = f"{num}/{den}"
+        if key in used:
+            continue
+        d = acc[den]
+        floor = np.maximum(np.abs(d), 1e-6 * (np.abs(d).mean() + 1e-12))
+        cols.append(acc[num] / np.where(d < 0, -floor, floor))
+        used.append(key)
+    return cols, used
+
+
 def sample_financial_task(
     rng: np.random.Generator,
     n_rows: int,
@@ -59,44 +220,40 @@ def sample_financial_task(
         quantities with random transforms and missingness.
     """
     # --- macro regime --------------------------------------------------------
-    rate = rng.uniform(0.005, 0.12)  # policy/base interest rate
-    cycle = rng.normal(0.0, 1.0)  # >0 boom, <0 recession
+    macro = {"rate": rng.uniform(0.005, 0.12), "cycle": rng.normal(0.0, 1.0)}
+    rate, cycle = macro["rate"], macro["cycle"]
     # --- sector structure ----------------------------------------------------
     n_sectors = int(rng.integers(2, _N_SECTORS + 1))
     sector = rng.integers(0, n_sectors, size=n_rows)
-    sector_margin = rng.normal(0.10, 0.06, size=n_sectors)
-    sector_leverage = rng.uniform(0.2, 0.7, size=n_sectors)
+    sector_par = {
+        "margin": rng.normal(0.10, 0.06, size=n_sectors),
+        "leverage": rng.uniform(0.2, 0.7, size=n_sectors),
+        "cyclicality": rng.uniform(0.0, 1.5, size=n_sectors),
+    }
     sector_hazard = rng.normal(0.0, 0.6, size=n_sectors)
-    sector_cyclicality = rng.uniform(0.0, 1.5, size=n_sectors)
-    # --- company scale & balance sheet --------------------------------------
-    log_assets = rng.normal(rng.uniform(13, 18), rng.uniform(0.8, 2.0), size=n_rows)
-    assets = np.exp(log_assets)
-    age = np.exp(rng.normal(2.3, 0.8, size=n_rows))  # years
-    leverage = np.clip(
-        rng.beta(2, 3, size=n_rows) * 0.6 + sector_leverage[sector] * 0.6 - 0.15, 0.0, 0.98
-    )
-    debt = leverage * assets
-    equity = assets - debt
-    cash_ratio = np.clip(rng.beta(1.5, 8, size=n_rows) + rng.normal(0, 0.02, n_rows), 0.0, 0.8)
-    cash = cash_ratio * assets
-    current_ratio = np.exp(rng.normal(0.3, 0.5, size=n_rows)) + cash_ratio
-    # --- P&L -----------------------------------------------------------------
-    turnover = np.exp(rng.normal(0.0, 0.6, size=n_rows))  # revenue / assets
-    revenue = turnover * assets
-    margin = (
-        sector_margin[sector]
-        + rng.normal(0, 0.08, size=n_rows)
-        + 0.03 * cycle * sector_cyclicality[sector]
-        - 0.04 * np.log1p(1.0 / np.maximum(age, 0.5))  # young firms less profitable
-    )
-    ebitda = margin * revenue
-    interest = debt * (rate + rng.uniform(0.01, 0.08, size=n_rows) * (0.5 + leverage))
-    coverage = ebitda / np.maximum(interest, 1e-6 * assets)
+    sector_cyclicality = sector_par["cyclicality"]
+    # --- accounts, obeying accounting identities -----------------------------
+    acc = _accounts(rng, n_rows, macro, sector, sector_par)
+    assets = acc["total_assets"]
+    log_assets = np.log(assets)
+    age = acc["age"]
+    debt = acc["total_liabilities"]
+    equity = acc["equity"]
+    cash = acc["cash"]
+    revenue = acc["revenue"]
+    ebitda = acc["ebitda"]
+    interest = acc["interest"]
+    employees = acc["employees"]
+    leverage = debt / np.maximum(assets, 1e-12)
+    cash_ratio = cash / np.maximum(assets, 1e-12)
+    current_ratio = acc["current_assets"] / np.maximum(acc["short_term_liabilities"], 1e-12)
+    turnover = revenue / np.maximum(assets, 1e-12)
+    margin = ebitda / np.where(np.abs(revenue) < 1e-12, 1e-12, revenue)
+    coverage = ebitda / np.maximum(np.abs(interest), 1e-6 * assets)
     growth = rng.normal(0.05 + 0.05 * cycle, 0.25, size=n_rows)
     payment_delay = np.maximum(
         0.0, rng.normal(15, 20, size=n_rows) + 30 * leverage - 20 * cash_ratio
     )
-    employees = np.maximum(1.0, revenue / np.exp(rng.normal(11.5, 0.5, size=n_rows)))
     # --- latent distress -----------------------------------------------------
     def z(v: np.ndarray) -> np.ndarray:
         s = v.std()
@@ -126,7 +283,15 @@ def sample_financial_task(
         idx = rng.choice(drivers.shape[1], size=k, replace=False)
         hidden = np.tanh(drivers[:, idx] @ rng.normal(0, 1, size=(k, 4)) + rng.normal(0, 0.5, 4))
         distress += hidden @ rng.normal(0, 1.0, size=4)
-    distress = z(distress) * rng.uniform(0.8, 3.0)  # sharpness = label noise level
+    # Sharpness = how deterministic default is given fundamentals. Lower means a larger
+    # idiosyncratic component, which is economically right: management quality, fraud,
+    # litigation and customer concentration drive real defaults and appear in no ratio.
+    # Widening the ratio family (docs/FINDINGS.md §18) gave a linear model more views of the
+    # same distress signal and made tasks too easy (AUC 0.815 against 0.769 real), so this
+    # range was reduced from (0.8, 3.0) to restore the difficulty match. Published credit
+    # scorecard performance sits around Gini 0.4-0.6, i.e. AUC 0.70-0.80, which is the
+    # target this range is set against — see the provenance note in §19.
+    distress = z(distress) * rng.uniform(0.7, 2.7)  # sharpness = label noise level
     base_rate = float(np.exp(rng.uniform(np.log(0.01), np.log(0.30))))
     b = _solve_intercept(distress, base_rate)
     p_default = _sigmoid(distress + b)
@@ -158,8 +323,12 @@ def sample_financial_task(
         "debt_to_ebitda": (debt / np.where(np.abs(ebitda) < 1e-6, 1e-6, ebitda), False),
     }
     names = list(candidates)
-    n_expose = int(rng.integers(min_features, min(max_features, len(names)) + 1))
-    chosen = rng.choice(len(names), size=n_expose, replace=False)
+    # Width: real panels carry 64-95 features because they compute many ratios over one
+    # balance sheet (docs/FINDINGS.md §18). Expose a sampled mix of named quantities and
+    # derived ratios up to max_features, rather than capping at the named set.
+    n_expose = int(rng.integers(min_features, max_features + 1))
+    n_named = int(min(len(names), max(1, round(n_expose * rng.uniform(0.2, 0.6)))))
+    chosen = rng.choice(len(names), size=n_named, replace=False)
     cols: list[np.ndarray] = []
     cats: list[bool] = []
     for j in chosen:
@@ -174,6 +343,19 @@ def sample_financial_task(
             v = v + rng.normal(0, rng.uniform(0.0, 0.1) * (v.std() + 1e-9), size=n_rows)
         cols.append(v)
         cats.append(is_cat)
+    # derived ratio family — the bulk of the width, as in a real panel
+    n_ratios = max(0, n_expose - len(cols))
+    ratio_cols, _ratio_names = _ratio_family(rng, acc, n_ratios)
+    for v in ratio_cols:
+        v = v.astype(np.float64).copy()
+        t = rng.random()
+        if t < 0.20 and np.all(v > 0):
+            v = np.log(v)
+        elif t < 0.28:
+            v = np.argsort(np.argsort(v)).astype(np.float64) / n_rows
+        v = v + rng.normal(0, rng.uniform(0.0, 0.05) * (np.nanstd(v) + 1e-9), size=n_rows)
+        cols.append(v)
+        cats.append(False)
     # redundant / pure-noise columns
     room = max_features - len(cols)
     n_extra = int(rng.integers(0, min(room, 4) + 1)) if room > 0 else 0
@@ -185,6 +367,11 @@ def sample_financial_task(
             cols.append(rng.normal(0, 1, size=n_rows))
         cats.append(False)
     X = np.stack(cols, axis=1)
+    # A ratio with a near-zero denominator is legitimate in a real filing but must not
+    # arrive as inf: NaN is reserved to mean "missing", and an inf would silently poison
+    # normalisation. Replace non-finite with a large finite sentinel of the right sign.
+    X = np.nan_to_num(X, nan=np.nan, posinf=1e12, neginf=-1e12)
+    X = np.clip(X, -1e12, 1e12)
     # missingness: MCAR everywhere plus MNAR concentrated on distressed firms
     mcar = rng.uniform(0.0, 0.15)
     mask = rng.random(X.shape) < mcar
