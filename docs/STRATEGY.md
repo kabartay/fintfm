@@ -127,13 +127,23 @@ calibration metrics, base-rate correction, paired significance testing, untraine
 sample-efficiency probe. 35 tests.
 
 ### Phase 1 — does the prior transfer, and in which regime?
-**Exit condition A met 2026-09-08** (`FINDINGS` §14): domain-specific pretraining transfers.
-The financial prior beats a generic one at matched compute, 3 of 6 cells significant after
-correction with none against, and **the mixture at p = 0.7 is the better operating point** —
-tied on discrimination, 2.5× better calibrated, best Brier. Exit condition B (does it beat
-gradient boosting anywhere) was answered in §12: only below a few hundred rows.
+**Exit condition A met 2026-09-08** (`FINDINGS` §14, **amended by §15**): domain-specific
+pretraining transfers. The financial prior beats a generic one at matched compute, 3 of 6
+cells significant after correction with none against, and the mixture at p = 0.7 is the
+better operating point on Brier.
 
-Remaining: the untrained control, three seeds, and independent panels.
+**But the untrained control reframed what that means** (§15). A random-weight model already
+ranks at AUC 0.726, so **ranking is largely architectural**; what pretraining buys is
+calibration, 7× on Brier and up to 130× on ECE. The domain prior adds a modest +0.031 AUC
+over random init. On Brier the three trained variants sit within 0.7% of each other, so
+meeting the exit condition matters less than the AUC table suggested.
+
+Exit condition B was answered in §12: the model beats gradient boosting only below a few
+hundred rows.
+
+Remaining: three seeds, independent panels, and — newly more interesting than another prior
+variant — an ablation of the architecture against a trivial baseline on the same normalised
+features, since the architecture may be carrying more than the prior.
 
 - **Exit condition A:** the financial prior beats a generic one at matched compute, and the
   difference survives the paired bootstrap with family-wise correction. A win count is not a

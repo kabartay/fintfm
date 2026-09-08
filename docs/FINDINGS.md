@@ -735,6 +735,12 @@ run currently in flight. Do not build a pitch on calibration until that comparis
 
 ## 14. Phase 1 verdict: the domain prior works, but pure financial is not the optimum
 
+> **AMENDED by §15 (same day).** This finding's framing — "financial buys discrimination,
+> generic buys calibration" — is **wrong**. An untrained control shows *all* pretraining buys
+> calibration, and that a random-weight model already ranks at AUC 0.726, so ranking is
+> largely architectural. The exit-condition verdict below stands; the mechanism explanation
+> does not. Read §15 with it.
+
 **Date:** 2026-09-08. **Status:** MEASURED. 5,000 steps × 3 variants at matched compute
 (2,175,234 parameters, identical across variants, enforced), Metal, seed 0, evaluated on
 three horizons × two context strategies of the UCI Polish panel. Resolves
@@ -798,9 +804,10 @@ can be made, and `docs/STRATEGY.md` has been amended accordingly.
 
 ### Limitations, and two are serious
 
-- **No untrained control.** It was added to the harness *after* this run launched, so
-  nothing here establishes that any variant beats random initialisation. Cheap to fix and
-  must be, before the AUC levels are quoted anywhere.
+- ~~**No untrained control.**~~ **Resolved by §15**, and it materially changed the reading:
+  the untrained model reaches AUC 0.7262, above the generic variant, so the
+  financial-versus-generic gap partly measures generic trading ranking for calibration
+  rather than financial being good. The load-bearing comparison is against the control.
 - **The six cells are not six independent tests.** They are three horizons × two context
   strategies of one panel, and the two strategies on a given horizon **share the same test
   rows**. Holm-Bonferroni treats them as a family of independent comparisons, which they are
@@ -810,3 +817,69 @@ can be made, and `docs/STRATEGY.md` has been amended accordingly.
 - **Under-trained by 5×.** 2.2M parameters and 5,000 steps against a stated target of 10-50M.
   The *ranking* of variants at matched compute is the claim here; the levels are not.
 - Horizon independence within the panel is unverifiable (§7).
+
+## 15. The untrained control reframes §14: pretraining buys calibration, and ranking is largely architectural
+
+**Date:** 2026-09-08. **Status:** MEASURED. Resolves `phase1-prior-ablation` task 1.8.
+**This finding corrects §14's central framing** — see the amendment note there.
+
+An untrained control (random initialisation, identical architecture and parameter count,
+2,175,234, zero gradient steps) was evaluated on the same six cells. Re-derivable from
+`runs/phase1-5k/results-paired.json`.
+
+| variant | steps | mean AUC | mean ECE | mean Brier | mean pred sd |
+| --- | --- | --- | --- | --- | --- |
+| **untrained** | **0** | **0.7262** | **0.53231** | **0.34663** | 0.0109 |
+| generic | 5,000 | 0.7081 | 0.00656 | 0.04850 | 0.0115 |
+| mixed | 5,000 | 0.7509 | 0.00424 | **0.04818** | 0.0117 |
+| financial | 5,000 | **0.7568** | 0.01060 | 0.04844 | 0.0146 |
+
+### Two facts that change the story
+
+**A randomly initialised model already ranks at AUC 0.726.** That is *better than the
+generic-prior model* (0.7081), and within 0.03 of the best trained variant. Ranking on this
+task is therefore substantially **architectural**, not learned: an in-context transformer
+over context-normalised features behaves like a similarity method even with random weights,
+which is unsurprising once stated — random projections approximately preserve distances.
+
+**Its probabilities are worthless.** ECE 0.532 and a predicted mean of **39.2% against an
+actual base rate of 4.7%**. Pretraining moves ECE from 0.532 to 0.004-0.011, a **50-130×
+improvement**, and Brier from 0.347 to 0.048, a **7× improvement**.
+
+### So what pretraining actually buys
+
+**Calibration, overwhelmingly.** Every trained variant is ~7× better than untrained on
+Brier, the proper scoring rule that respects level and ordering together. That is the real
+return on pretraining, and it is large and unambiguous.
+
+**§14 said "the financial prior buys discrimination, the generic prior buys calibration."
+That is wrong.** *All* pretraining buys calibration; the generic prior is not special in
+that respect. What the financial prior adds is a modest amount of **extra discrimination on
+top of an architecture that already ranks**: +0.031 mean AUC over untrained (2/6 cells
+significant) and +0.049 over generic.
+
+**And generic pretraining is not "worse than nothing".** It loses 0.018 AUC against
+untrained while gaining 80× on ECE and 7× on Brier. That is a trade, not a failure, and
+reading the AUC column alone would have mis-called it.
+
+### The deflating part, stated because it is true
+
+**On Brier, the three trained variants are within 0.7% of each other** — 0.04818, 0.04844,
+0.04850. The domain prior's advantage is real and it is measurable on AUC, but on the single
+metric that respects both properties the choice between financial, mixed and generic is
+nearly immaterial at this scale. §14's exit condition is still met, and the practical
+consequence of meeting it is smaller than that finding implied.
+
+The honest one-line summary of Phase 1 is therefore: **pretraining matters enormously and
+mostly through calibration; which prior you pretrain on matters much less, though the
+financial prior does measurably help ranking.**
+
+### What this implies for the next experiments
+
+- **Never report AUC without Brier again.** The untrained control would have looked
+  competitive on a discrimination-only table, and §14 nearly did read that way.
+- **The architecture may be carrying more than the prior.** An ablation of the architecture
+  against a trivial baseline (nearest neighbour, logistic regression on the same normalised
+  features) is now more informative than another prior variant, and is not yet proposed.
+- **Scale may change the ranking.** At 5× the parameters and 4× the steps the priors may
+  separate further on Brier, or may not. That is now a more interesting question than it was.
