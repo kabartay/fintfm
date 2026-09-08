@@ -72,6 +72,14 @@ a session ends with the queue reordered and nothing built. Triage happens when T
   their failures correlate, which is systemic risk (Bommasani et al.). Say it to a regulator
   before they say it to us. Belongs in the certificate's own caveats, so likely folds into
   `conformal-pd-certificate` rather than becoming its own change.
+- **The training loop's own eval metric is nearly uninformative.** `_eval_accuracy` reports
+  *accuracy* on synthetic tasks whose base rates are sampled between 1% and 30%. A model
+  predicting the majority class every time scores 0.70 to 0.99 there, so the 0.938 printed
+  during the first Phase 1 run says almost nothing about whether the model learned anything.
+  This is the same mistake `evaluation/metrics.py` exists to prevent, left in place in
+  `modeling/train.py` because that code predates it. Replace with AUC or balanced accuracy so
+  the training log is readable. Cheap; no proposal needed, but it should not be trusted in
+  the meantime.
 - **`max_context` default may be too low.** Tanna et al. report 5,000-10,000 as the sweet
   spot on credit data; the default here is 2,000, chosen for CPU cost before Metal was in
   use. Untested at the higher value.
