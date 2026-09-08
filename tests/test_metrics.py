@@ -95,3 +95,36 @@ def test_holm_bonferroni_is_stricter_than_raw_alpha():
     assert holm_bonferroni([]) == []
     # NaNs are non-significant, never silently significant
     assert holm_bonferroni([float("nan")]) == [False]
+
+
+def test_constant_base_rate_predictor_is_flagged_degenerate():
+    """Spec E9. The failure finding 17 exposed: perfect calibration, zero content.
+
+    A predictor returning the base rate for everyone has ECE near zero and AUC exactly 0.5.
+    It must never read as a success, and it beat every real model on ECE in this project's
+    own measurements before this guard existed.
+    """
+    y = np.r_[np.zeros(953), np.ones(47)].astype(int)
+    m = evaluate_binary(y, np.full(1000, 0.047))
+    assert m.roc_auc == 0.5
+    assert m.ece < 0.001  # better calibrated than any trained model here
+    assert m.is_degenerate, "a feature-free predictor must be flagged, not celebrated"
+    assert abs(m.brier_skill) < 0.01  # ~zero skill against its own reference
+    assert "DEGENERATE" in m.summary()
+
+
+def test_brier_skill_is_positive_only_for_a_model_with_content():
+    y = np.r_[np.zeros(953), np.ones(47)].astype(int)
+    rng = np.random.default_rng(0)
+    informative = np.clip(rng.uniform(size=1000) * 0.1 + y * 0.15, 0, 1)
+    m = evaluate_binary(y, informative)
+    assert m.brier_skill > 0.1
+    assert not m.is_degenerate
+
+
+def test_summary_always_shows_skill_beside_raw_brier():
+    """Raw Brier is misleading on an imbalanced base rate; skill must travel with it."""
+    y = np.r_[np.zeros(90), np.ones(10)].astype(int)
+    s = evaluate_binary(y, np.full(100, 0.1)).summary()
+    assert "skill=" in s
+    assert "Brier=" in s

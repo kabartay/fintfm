@@ -41,6 +41,15 @@ class CreditMetrics:
             operating point, since a credit team can only review so many files.
         n: Number of evaluation rows.
         n_positive: Number of positives, which sets how much any of this can be trusted.
+        brier_skill: Improvement over a **feature-free constant predictor** at the base rate,
+            ``1 - brier / brier_reference``. On an imbalanced problem raw Brier is dominated
+            by the negatives, so a trivial baseline scores well and the achievable range is
+            narrow — measured at 1-2% for this project's best model (``docs/FINDINGS.md``
+            §17). Skill is the number that means something; raw Brier is not.
+        is_degenerate: True when the model has essentially no discriminative content
+            (AUC at or below 0.55) *despite* possibly excellent calibration. A constant
+            base-rate predictor has ECE near zero and AUC exactly 0.5, so calibration alone
+            must never read as success.
     """
 
     roc_auc: float
@@ -51,15 +60,18 @@ class CreditMetrics:
     recall_at_base_rate: float
     n: int
     n_positive: int
+    brier_skill: float = float("nan")
+    is_degenerate: bool = False
     bins: list[tuple[float, float, int]] = field(default_factory=list)
 
     def summary(self) -> str:
         """One-line rendering for benchmark output."""
+        flag = "  [DEGENERATE: no discriminative content]" if self.is_degenerate else ""
         return (
-            f"AUC={self.roc_auc:.4f} Brier={self.brier:.4f} ECE={self.ece:.4f} "
-            f"recall@{self.base_rate:.1%}={self.recall_at_base_rate:.3f} "
+            f"AUC={self.roc_auc:.4f} Brier={self.brier:.4f} (skill={self.brier_skill:+.2%}) "
+            f"ECE={self.ece:.4f} recall@{self.base_rate:.1%}={self.recall_at_base_rate:.3f} "
             f"(pred mean {self.mean_predicted:.3%} vs actual {self.base_rate:.3%}, "
-            f"{self.n_positive}/{self.n} positive)"
+            f"{self.n_positive}/{self.n} positive){flag}"
         )
 
 
@@ -131,9 +143,16 @@ def evaluate_binary(y_true: np.ndarray, p: np.ndarray, n_bins: int = 10) -> Cred
     # AUC is undefined with a single class present; report NaN rather than inventing a value.
     auc = roc_auc_score(y_true, p) if len(np.unique(y_true)) > 1 else float("nan")
     ece, bins = expected_calibration_error(y_true, p, n_bins=n_bins)
+    brier = float(brier_score_loss(y_true, p)) if len(y_true) else float("nan")
+    # reference: predict the base rate for everyone, using no features at all
+    brier_ref = base_rate * (1.0 - base_rate) if len(y_true) else float("nan")
+    skill = 1.0 - brier / brier_ref if brier_ref and np.isfinite(brier) else float("nan")
+    degenerate = bool(np.isfinite(auc) and auc <= 0.55)
     return CreditMetrics(
         roc_auc=float(auc),
-        brier=float(brier_score_loss(y_true, p)) if len(y_true) else float("nan"),
+        brier=brier,
+        brier_skill=float(skill),
+        is_degenerate=degenerate,
         ece=float(ece),
         base_rate=base_rate,
         mean_predicted=float(p.mean()) if len(p) else float("nan"),

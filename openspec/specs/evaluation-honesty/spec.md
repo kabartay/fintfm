@@ -49,3 +49,17 @@ parameter counts diverge across variants.
 **E8 — An untrained control is included by default**, so a tie between priors can be read.
 
 - *Enforced by:* `tests/test_experiments.py` asserting the control exists with `steps == 0`.
+- *Earned its place:* the control showed a random-weight model reaches AUC 0.726, above the
+  generic-prior variant, which reframed the whole Phase 1 reading (`docs/FINDINGS.md` §15).
+
+**E9 — Calibration is reported as *skill against a feature-free baseline*, never raw, and a
+model with no discriminative content is flagged.** On a 4-7% base rate a constant
+base-rate predictor scores ECE 0.0002 — better than every trained model in this project —
+and Brier within 1-2% of the best. Raw calibration numbers therefore cannot carry an
+argument (`docs/FINDINGS.md` §17).
+
+- *Enforced by:* `CreditMetrics.brier_skill` and `.is_degenerate`, rendered by `summary()`;
+  `tests/test_metrics.py::test_constant_base_rate_predictor_is_flagged_degenerate` and
+  `::test_summary_always_shows_skill_beside_raw_brier`.
+- *This spec requirement is the direct result of four findings overstating their case* for
+  want of a reference row.

@@ -578,6 +578,10 @@ regression cannot pass unnoticed behind a healthy-looking aggregate.
 
 ## 12. The advantage is calibration, not ranking — and it holds at every dataset size
 
+> **ALSO WEAKENED by §17:** a feature-free constant predictor beats every model here on ECE
+> (0.0002 vs our 0.00255), so a low ECE is not by itself evidence of a good model. Report
+> Brier *skill* against that baseline, which for us is 1-2%.
+>
 > **TEMPERED by §16 (same day).** The 2.3-11.7× ratios below are against an **uncalibrated**
 > gradient boosting. Against a calibrated one the gap at n = 100 is roughly **2×**, and above
 > ~1,000 rows calibrated gradient boosting is the better model on both AUC and Brier. **Do
@@ -740,6 +744,10 @@ run currently in flight. Do not build a pitch on calibration until that comparis
 
 ## 14. Phase 1 verdict: the domain prior works, but pure financial is not the optimum
 
+> **ALSO WEAKENED by §17:** the Brier differences between variants here sit inside a 1-2%
+> band above a feature-free constant predictor, so "best Brier" carries far less weight than
+> written. The AUC result is unaffected.
+>
 > **AMENDED by §15 (same day).** This finding's framing — "financial buys discrimination,
 > generic buys calibration" — is **wrong**. An untrained control shows *all* pretraining buys
 > calibration, and that a random-weight model already ranks at AUC 0.726, so ranking is
@@ -956,3 +964,59 @@ is any general claim to beat gradient boosting, and any use of the 11.7× number
   crossover up. It may also not, since AUC is flat across sizes (§13).
 - Isotonic beat Platt on discrimination at n = 100 but was worse on ECE at n = 250. Neither
   is uniformly the right incumbent baseline, so report both rather than the flattering one.
+
+## 17. A feature-free constant predictor is within 1-2% of our best model on Brier, and beats every model on ECE
+
+**Date:** 2026-09-08. **Status:** MEASURED. Resolves `calibration-mechanism` task 14.4.
+**This finding weakens the metric basis of §12, §14, §15 and §16** and is the most important
+methodological correction so far. Amendment notes added to each.
+
+A predictor that ignores every feature and returns the training base rate for all firms:
+
+| horizon | constant@base Brier | mixed Brier | Brier skill | constant ECE | mixed ECE |
+| --- | --- | --- | --- | --- | --- |
+| 1 year | 0.03693 | 0.03653 | **1.1%** | **0.00023** | 0.00255 |
+| 3 year | 0.04505 | 0.04466 | **0.9%** | **0.00022** | 0.00255 |
+| 5 year | 0.06456 | 0.06317 | **2.2%** | **0.00000** | 0.00255 |
+
+The constant predictor has **AUC exactly 0.5000** — no discriminative content whatsoever.
+
+### Two conclusions, both uncomfortable
+
+**Our best model improves on a feature-free baseline by 1-2% of Brier.** Brier on a 4-7%
+base rate is dominated by the mass of negatives, so the *achievable range* of the metric is
+narrow and a trivial baseline occupies most of it. Every Brier comparison in §14, §15 and
+§16 lives inside that 1-2% band. Those comparisons are not wrong, but the effect sizes are
+far smaller relative to the achievable range than the tables implied, and describing Brier
+as "the honest single number" (§14) was itself misleading.
+
+**A constant predictor is better calibrated than every model here** — ECE 0.0002 against our
+best 0.00255, roughly 12× better. That is not a paradox, it is the definition: predicting the
+base rate is perfectly calibrated and completely useless. **So a low ECE is not evidence of a
+good model**, and §12's and §16's "best ECE at every size" claims cannot carry weight on
+their own. §13 flagged that our advantage was partly conservatism; this quantifies how far
+that goes.
+
+### What must change, and it is a real change
+
+1. **Report skill, not raw scores.** Brier skill score against the constant-base-rate
+   predictor, `1 − Brier_model / Brier_reference`, is the number that means something on an
+   imbalanced problem. Ours is 1-2%.
+2. **Never report calibration without discrimination.** A scorecard showing ECE and not AUC
+   would rank a useless model first. Enforced by spec E2, but E2 did not anticipate the
+   degenerate case, and the spec is being extended.
+3. **Include the constant baseline in every benchmark**, permanently, as the reference row.
+   Its absence is why four findings overstated their case.
+
+### What this does *not* overturn
+
+- §14's exit condition: the financial prior beats the generic one **on AUC**, and AUC is
+  immune to this critique, since the constant predictor scores 0.5 there. The domain prior
+  result stands.
+- §15's finding that pretraining buys calibration: the untrained model's ECE of 0.53 and
+  predicted mean of 39% against a 4.7% base rate are catastrophic by any reference.
+- §16's finding that calibrated gradient boosting wins above ~1,000 rows: that was decided
+  on AUC as well as Brier (0.8856 against 0.7159).
+
+**The honest summary is that our discrimination results are sound and our calibration results
+were measured on a scale too narrow to support the weight put on them.**
