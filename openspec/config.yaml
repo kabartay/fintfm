@@ -1,0 +1,94 @@
+schema: spec-driven
+
+context: |
+  PROJECT: FinancialTFM — a prior-fitted tabular foundation model for corporate credit
+  risk. Repo `fintfm`, package `fintfm`, CLIs `fintfm-train` / `fintfm-bench` /
+  `fintfm-ablate`. Apache-2.0, currently a private repository. Solo delivery: treat
+  one-person capacity as a real constraint on every scope decision.
+
+  ONE-SENTENCE PRODUCT: a credit-risk model that arrives with its own validation
+  evidence — calibrated probability of default, auditably free of benchmark
+  contamination, and eventually backed by a pre-registered forward track record.
+
+  WHAT IT IS NOT: not a general tabular foundation model, not a fraud system, not a
+  time-series forecaster, not a warehouse connector or an agent. Each is contested by
+  better-funded teams; see docs/STRATEGY.md "What we are deliberately not building".
+
+  POSITIONING — SETTLED, DO NOT RE-OPEN (docs/LANDSCAPE.md, docs/DECISIONS.md):
+
+  1. Every mechanism claim is already owned. "No feature engineering" is Kumo's, in AP
+     and Forbes. "In-context, no training on your data" is KumoRFM's, documented on
+     docs.nvidia.com. Synthetic-prior TFMs are Google TabFM, Neuralk, Prior Labs.
+     "Universal tabular FM for financial risk" is Feedzai RiskFM. NEVER pitch the
+     mechanism; competing there means competing on capital and distribution against a
+     $255M Series A.
+  2. The product is the VALIDATION EVIDENCE, not the prediction. Credit scorecards are
+     logistic regression because regulators demand interpretability, which is why
+     Fundamental's published result beats linear regression rather than gradient
+     boosting. The accuracy bar is low; the barrier is model risk management.
+  3. Never claim novelty on the PFN architecture. It is reproducible from the public
+     TabPFN/TabICL literature in days. The moat is the weights, the mature prior, the
+     certificate and the track record.
+  4. Fundamental is already verticalising (oil & gas, in production). Assume finance is
+     an obvious next vertical for them and that entering it is a go-to-market motion,
+     not research. Being first is not a defence; regulatory depth and elapsed track
+     record are.
+
+  ARCHITECTURE FACTS THAT CONSTRAIN EVERY DESIGN DECISION (docs/ARCHITECTURE.md):
+
+  1. NO REAL DATA MAY REACH PRETRAINING. It is the basis of the auditability claim and
+     it can be destroyed silently by a change that improves benchmarks. Real datasets
+     load only in `evaluation/`; the boundary is checkable by grep.
+  2. The financial prior stays PARAMETRIC — it samples a macro regime rather than
+     learning real crisis history. Conditioning the generator on a real panel would
+     reintroduce the global-pattern memorisation the leakage literature warns about.
+  3. Column identity comes from the data distribution, never from position. No
+     feature-index embeddings. Column-order and padding-width invariance are asserted
+     in tests and must stay asserted.
+  4. Queries never attend to other queries, so a prediction never depends on which rows
+     share its batch. Self-attention is allowed; it leaks nothing.
+  5. Calibration is not a secondary metric. AUC cannot see the failure that matters — a
+     stated 2% PD that occurs 15% of the time ranks perfectly. Every reported result
+     carries Brier, ECE and minority recall alongside AUC.
+  6. Trained weights never enter git.
+
+  EVIDENCE DISCIPLINE: every number is labelled SMOKE-TEST, MEASURED, SIMULATED or
+  ESTIMATED (CLAUDE.md). In an ML repo a wrong number does not crash, it looks like a
+  result. Findings live in docs/FINDINGS.md with the command that produced them, never
+  only in a commit message. Negative and superseded results are kept deliberately.
+
+  TECH STACK: Python 3.13, uv-managed. numpy/pandas/scikit-learn/scipy/torch; lightgbm
+  in the `bench` extra. ruff + pytest. Local training uses Metal (`--device mps`) — 3.5x
+  faster than CPU here and, more importantly, it leaves the CPU cores to the genomics
+  pipeline that shares this machine. See docs/COMPUTE.md.
+
+  CODE STYLE: comprehensive module and function docstrings, full type hints, explicit
+  naming, in the same pass the code is written.
+
+rules:
+  proposal:
+    - State explicitly whether the change is blocked by, or blocks, another change.
+    - Include a "Non-goals" section.
+    - If the change rests on an unverified assumption, name the cheapest experiment that would falsify it.
+    - State whether the change touches the no-real-data-in-pretraining invariant or a
+      published number. If it does, say why that is legitimate rather than convenient.
+  tasks:
+    - Break tasks into chunks of at most half a day for one engineer.
+    - Include a verification step that names the command to run.
+    - Any task that produces a number names where that number is re-derived from, so it is
+      never copied between documents.
+  design:
+    - Record what was rejected and why, not only what was chosen.
+    - Name the assumption each design choice rests on, and what would break it.
+
+operations:
+  apply:
+    guidance:
+      - Run `uv run ruff check src/ tests/` and `uv run pytest -q` before marking any task complete.
+      - Never weaken a test to make it pass; fix the code or argue the spec should change.
+      - Never pipe a training run through `tee` — tee's exit status masks a Python crash.
+        Redirect with `PYTHONUNBUFFERED=1` and check `$?`.
+      - Check `uptime` before launching a training run; this machine is shared and has been
+        frozen by the combination before.
+      - A change that alters an evaluation split or a metric after a headline number exists
+        is not a refactor. Argue it explicitly or it reads as result-driven.
