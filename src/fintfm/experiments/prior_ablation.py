@@ -367,7 +367,23 @@ def main() -> None:
         metavar="CHECKPOINT",
         help="skip training; run the sample-efficiency probe on an existing checkpoint",
     )
+    p.add_argument(
+        "--coherence",
+        type=str,
+        default=None,
+        metavar="CHECKPOINT",
+        help="skip training; check PD term-structure monotonicity on an existing checkpoint",
+    )
     args = p.parse_args()
+    if args.coherence:
+        print("=== PD term-structure coherence: is cumulative PD monotone in horizon? ===")
+        record = term_structure_coherence(args.coherence)
+        out = Path(args.out) / "coherence.json"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps(record, indent=2))
+        print(f"\n{json.dumps(record, indent=2)}")
+        print(f"wrote {out}")
+        return
     if args.sample_efficiency:
         print("=== sample-efficiency probe: where does the TFM beat gradient boosting? ===")
         record = sample_efficiency_probe(args.sample_efficiency)
@@ -484,3 +500,84 @@ def sample_efficiency_probe(
     out["crossover_size"] = max(leads) if leads else None
     out["leads_at"] = sorted(leads)
     return out
+
+
+def term_structure_coherence(
+    model_path: str,
+    query_horizon: int = 3,
+    horizons: tuple[int, ...] = (1, 2, 3, 4, 5),
+    seed: int = 0,
+    context_strategy: ContextStrategy = "balanced",
+) -> dict:
+    """Is the predicted PD term structure monotone across horizons?
+
+    Cumulative default probability **must not decrease** with the horizon: a firm that has
+    defaulted by year 3 has defaulted by year 5. A model claiming otherwise is incoherent,
+    and IFRS 9 lifetime expected credit loss consumes exactly this curve, so incoherence is
+    a product defect rather than a curiosity. See ``openspec/changes/pd-term-structure``.
+
+    **Design, and the constraint that forced it.** The UCI panels carry no company
+    identifiers (``docs/FINDINGS.md`` §7), so a firm cannot be followed across horizon
+    files. Instead the *query rows are held fixed* — one panel's held-out rows — and only
+    the labelled context varies, taking each horizon's data in turn. The same firms are
+    therefore scored under contexts meaning "defaults within 1 year" through "within 5
+    years", and their predicted PD should rise.
+
+    **The confound, stated rather than hidden:** the horizon files are different samples of
+    firms, so contexts differ in composition as well as in label meaning. Observed base
+    rates do rise with horizon (3.86%, 4.71%, 6.94% at 1, 3 and 5 years), so the expected
+    direction is unambiguous even though the samples are not nested.
+
+    Args:
+        model_path: Checkpoint to evaluate.
+        query_horizon: Which panel supplies the fixed query rows.
+        horizons: Horizons whose labelled data supplies the context, ascending.
+        seed: Split seed.
+        context_strategy: Context construction.
+
+    Returns:
+        A record with mean predicted PD per horizon, the per-row violation rate, and the
+        fraction of rows whose whole curve is monotone.
+    """
+    query_ds = load_polish_bankruptcy(query_horizon)
+    _pool, X_query, _y_pool, _y_query = train_test_split(
+        query_ds.X, query_ds.y, test_size=0.3, random_state=seed, stratify=query_ds.y
+    )
+
+    curves, used = [], []
+    for h in horizons:
+        ctx = load_polish_bankruptcy(h)
+        if ctx.X.shape[1] != X_query.shape[1]:
+            continue
+        clf = FinancialTFMClassifier(model_path, context_strategy=context_strategy).fit(
+            ctx.X, ctx.y
+        )
+        pd_h = clf.predict_proba(X_query)[:, 1]
+        curves.append(pd_h)
+        used.append(h)
+        print(
+            f"  context horizon {h}y (base rate {ctx.default_rate:.3%}): "
+            f"mean predicted PD {pd_h.mean():.4%}"
+        )
+
+    if len(curves) < 2:
+        return {"error": "fewer than two horizons evaluable", "horizons": used}
+
+    matrix = np.stack(curves, axis=1)  # (n_query, n_horizons)
+    diffs = np.diff(matrix, axis=1)
+    violations = diffs < 0
+    record = {
+        "query_dataset": query_ds.name,
+        "n_query_rows": int(matrix.shape[0]),
+        "horizons": used,
+        "mean_pd_by_horizon": {str(h): float(matrix[:, i].mean()) for i, h in enumerate(used)},
+        "violation_rate_per_step": float(violations.mean()),
+        "fully_monotone_row_fraction": float((~violations.any(axis=1)).mean()),
+        "mean_pd_is_monotone": bool(
+            all(
+                matrix[:, i].mean() <= matrix[:, i + 1].mean() + 1e-12
+                for i in range(matrix.shape[1] - 1)
+            )
+        ),
+    }
+    return record

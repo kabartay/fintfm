@@ -516,3 +516,60 @@ claim novelty on it**, and it is unlikely to be the thing that wins or loses.
 **Also noted:** TimesFM-3 outputs nine quantiles by default. Probabilistic output is the
 field standard now, not a differentiator, which raises the bar for what the certificate work
 must deliver — coverage guarantees and honest refusal, not merely intervals.
+
+## 11. Two firms in five get an incoherent PD term structure, and the aggregate hides it
+
+**Date:** 2026-09-08. **Status:** MEASURED on real data with a real (if under-trained)
+checkpoint. Resolves `openspec/changes/pd-term-structure` task 11.1 — **in favour of the
+change**. Re-derivable:
+
+```bash
+uv run fintfm-ablate --coherence runs/phase1-5k/financial.pt --out runs/coherence
+```
+
+Cumulative default probability must not decrease with the horizon: a firm that has defaulted
+by year 3 has defaulted by year 5. Measured on 3,151 held-out rows, scored under contexts
+drawn from each of the five UCI horizons in turn:
+
+| context horizon | observed base rate | mean predicted PD |
+| --- | --- | --- |
+| 1 year | 3.857% | 3.278% |
+| 2 year | 3.932% | 3.354% |
+| 3 year | 4.713% | 3.848% |
+| 4 year | 5.259% | 4.172% |
+| 5 year | 6.937% | 5.588% |
+
+**The aggregate is monotone and that is the trap.** Mean predicted PD rises at every step, so
+any report at portfolio level looks correct and this defect would never surface. Per firm:
+
+- **violation rate per step: 11.0%**
+- **fully monotone curves: 60.6%**
+
+So **two firms in five receive a term structure in which a longer horizon carries a lower
+default probability.** That is not a ranking imperfection; it is an incoherent object. An
+IFRS 9 lifetime expected-credit-loss calculation consumes this curve directly, and a
+provisioning number built on a decreasing cumulative hazard is indefensible in front of a
+reviewer.
+
+**Why it happens.** Nothing ties the horizons together. Each is an independent in-context
+prediction from an independent labelled context, with no shared parameters and no
+monotonicity constraint. The model is not doing anything wrong by its own objective — the
+objective simply never mentioned coherence. This is the defect
+`openspec/changes/pd-term-structure` predicted before it was measured.
+
+**Caveats, and one is substantial:**
+
+- The checkpoint is from a 5,000-step run that had not finished when this was measured, so
+  the *level* of these numbers is not a quality claim. The violation rate may improve with
+  training. **It cannot be driven to zero by training**, though, because nothing in the
+  architecture or loss forbids a violation — which is the point.
+- The horizon files are different firm samples (no identifiers, `FINDINGS` §7), so contexts
+  differ in composition as well as in label meaning. Base rates rise monotonically with
+  horizon, so the expected direction is unambiguous, but this is not a nested panel and a
+  clean version of this test needs V4FinBench.
+- Query rows are fixed and only the context varies, which is the strongest design available
+  given no identifiers, and it is stated in the function's docstring rather than buried.
+
+**Consequence:** the term-structure direction is founded rather than speculative, and the
+diagnostic should be permanent — `pd-term-structure` task 11.2 — so that a coherence
+regression cannot pass unnoticed behind a healthy-looking aggregate.

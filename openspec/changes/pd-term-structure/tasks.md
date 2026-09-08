@@ -1,9 +1,12 @@
 # Tasks
 
-- [ ] 11.1 Falsification test, no new modelling: score the existing per-horizon UCI panels
+- [x] 11.1 Falsification test, no new modelling: score the existing per-horizon UCI panels
       with one checkpoint and check whether cumulative PD is monotone across horizons 1-5 for
       each firm-like row. Verify: report the violation rate in `docs/FINDINGS.md`. A high rate
       is the argument for this change; a near-zero rate weakens it to an efficiency claim.
+      **Done 2026-09-08 — the change is FOUNDED. 11.0% violation rate per step; only 60.6%
+      of firms get a fully monotone curve, while the portfolio aggregate is monotone and
+      hides it entirely. `docs/FINDINGS.md` §11.**
 - [ ] 11.2 Add a monotonicity diagnostic to `evaluation/metrics.py` so term-structure
       incoherence is reported wherever multiple horizons are evaluated. Verify: a test with a
       deliberately inverted term structure that asserts it is flagged.
