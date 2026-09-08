@@ -21,7 +21,22 @@ from urllib.request import urlopen
 
 import numpy as np
 
-CACHE_DIR = Path(__file__).resolve().parents[2] / "data" / "cache"
+def _repo_root() -> Path:
+    """Locate the repository root by walking up to the directory holding ``pyproject.toml``.
+
+    Counting ``parents[n]`` breaks silently when a module moves. It did: the package
+    reorganisation shifted this file one level deeper, so ``parents[2]`` became ``src/`` and
+    every dataset was re-downloaded into ``src/data/cache`` — 13 MB duplicated, with nothing
+    failing to signal it. Anchoring on a marker file cannot break that way.
+    """
+    for candidate in (Path(__file__).resolve(), *Path(__file__).resolve().parents):
+        if (candidate / "pyproject.toml").exists():
+            return candidate
+    # installed as a package with no repo around it: fall back to the working directory
+    return Path.cwd()
+
+
+CACHE_DIR = _repo_root() / "data" / "cache"
 
 _POLISH_URL = "https://archive.ics.uci.edu/static/public/365/polish+companies+bankruptcy+data.zip"
 _TAIWAN_URL = (
@@ -176,4 +191,155 @@ def load_taiwan_bankruptcy() -> CreditDataset:
             "https://doi.org/10.24432/C5004D"
         ),
         has_period_labels=False,
+    )
+
+
+#: Kaggle dataset slug for V4FinBench, per its repository's ``DATA_LICENSE.md`` (CC BY 4.0).
+V4FINBENCH_KAGGLE = "sebastiantomczak10/v4-group-corporate-bankruptcy"
+
+#: Horizon files, in order. ``h1`` is the paper's ``h=0`` (current-year distress) through
+#: ``h6`` = ``h=5`` (five years ahead), so index ``k`` is distress by horizon ``k``.
+_V4_HORIZON_FILES = tuple(f"company_years_h{i}.parquet" for i in range(1, 7))
+
+
+@dataclass(frozen=True)
+class SurvivalDataset:
+    """A real corporate-default panel carrying a default **period**, not just a label.
+
+    This is the object the hazard head needs (``docs/FINDINGS.md`` §20) and the reason
+    V4FinBench matters: the UCI panels have no firm identifiers (§7), so no per-firm hazard
+    path can be scored against them at all.
+
+    Attributes:
+        X: Features ``(n, n_features)``, float32, NaN for missing.
+        y: Binary "distressed within the horizon grid" label ``(n,)``.
+        period: Zero-based first horizon at which distress is observed, or
+            :data:`fintfm.modeling.hazard.CENSORED` (-1) if never within the grid.
+        n_horizons: Length of the horizon grid.
+        year: Reporting year per row, enabling **time-based** splits — the thing no other
+            panel we hold supports.
+        name: Short identifier for benchmark output.
+        licence: SPDX identifier of the source data.
+        attribution: Text that must accompany any published use.
+        feature_names: Column names, in order.
+    """
+
+    X: np.ndarray
+    y: np.ndarray
+    period: np.ndarray
+    n_horizons: int
+    year: np.ndarray | None
+    name: str
+    licence: str
+    attribution: str
+    feature_names: tuple[str, ...] = ()
+
+    @property
+    def default_rate(self) -> float:
+        return float(self.y.mean())
+
+    @property
+    def has_period_labels(self) -> bool:
+        """True: this is the panel that supports out-of-time validation."""
+        return self.year is not None
+
+
+def load_v4finbench(
+    root: Path | str | None = None, id_cols: tuple[str, ...] = ("company_id", "year")
+) -> SurvivalDataset:
+    """Load V4FinBench and derive a default period from its six horizon files.
+
+    1,106,879 company-year observations over the Visegrád economies, 2006-2021, 131
+    features, positive rates 0.19-0.36%. Code MIT, **data CC BY 4.0** per the repository's
+    separate ``DATA_LICENSE.md`` — verified, not inferred from the code licence
+    (``docs/FINDINGS.md`` §8).
+
+    The period is derived rather than read: horizon file ``k`` carries "distressed by horizon
+    ``k``", so the first ``k`` whose label is 1 is the default period, and a row that is 0
+    everywhere is censored. Labels are cumulative by construction, so this derivation also
+    **checks** them: a row that is 1 at horizon 2 and 0 at horizon 4 is inconsistent and is
+    reported rather than silently coerced.
+
+    Args:
+        root: Directory holding the parquet files. Defaults to ``data/cache/v4finbench``.
+        id_cols: Columns identifying a company-year, excluded from features. Names are
+            checked against the actual columns and a clear error names what was found.
+
+    Returns:
+        A :class:`SurvivalDataset`.
+
+    Raises:
+        FileNotFoundError: If the files are absent, with instructions for obtaining them.
+            The data is on Kaggle and needs credentials, which only the repository owner can
+            supply; nothing here attempts to fetch it silently.
+    """
+    import pandas as pd
+
+    base = Path(root) if root is not None else CACHE_DIR / "v4finbench"
+    missing = [f for f in _V4_HORIZON_FILES if not (base / f).exists()]
+    if missing:
+        raise FileNotFoundError(
+            f"V4FinBench not found under {base}. Missing: {', '.join(missing)}.\n"
+            f"Obtain it one of two ways, both needing a Kaggle account:\n"
+            f"  1. pip install kagglehub, then\n"
+            f"     python -c \"import kagglehub; "
+            f"print(kagglehub.dataset_download('{V4FINBENCH_KAGGLE}'))\"\n"
+            f"     and copy the parquet files into {base}\n"
+            f"  2. download manually from "
+            f"https://www.kaggle.com/datasets/{V4FINBENCH_KAGGLE}\n"
+            f"Data is CC BY 4.0; attribution is required and is carried on the returned "
+            f"dataset."
+        )
+
+    frames = [pd.read_parquet(base / f) for f in _V4_HORIZON_FILES]
+    label_col = next(
+        (c for c in frames[0].columns if c.lower() in {"label", "target", "distress", "y"}),
+        None,
+    )
+    if label_col is None:
+        raise ValueError(
+            f"no label column found in {_V4_HORIZON_FILES[0]}; columns are "
+            f"{list(frames[0].columns)[:20]}"
+        )
+    keys = [c for c in id_cols if c in frames[0].columns]
+    if not keys:
+        raise ValueError(
+            f"none of {id_cols} present; columns are {list(frames[0].columns)[:20]}"
+        )
+
+    base_df = frames[0]
+    labels = np.stack(
+        [f.sort_values(keys)[label_col].to_numpy().astype(np.int64) for f in frames], axis=1
+    )
+    base_df = base_df.sort_values(keys).reset_index(drop=True)
+
+    # cumulative labels must be non-decreasing across horizons; report, never coerce
+    inconsistent = int((np.diff(labels, axis=1) < 0).any(axis=1).sum())
+    if inconsistent:
+        print(
+            f"    WARNING: {inconsistent} rows have non-cumulative horizon labels "
+            f"({inconsistent / len(labels):.3%}); periods derived from the first positive"
+        )
+
+    any_default = labels.any(axis=1)
+    period = np.where(any_default, labels.argmax(axis=1), -1).astype(np.int64)
+
+    feature_cols = [c for c in base_df.columns if c not in {*keys, label_col}]
+    X = base_df[feature_cols].to_numpy(dtype=np.float32)
+    year = base_df["year"].to_numpy() if "year" in base_df.columns else None
+
+    return SurvivalDataset(
+        X=X,
+        y=any_default.astype(np.int64),
+        period=period,
+        n_horizons=len(_V4_HORIZON_FILES),
+        year=year,
+        name="v4finbench",
+        licence="CC-BY-4.0",
+        attribution=(
+            "V4FinBench, Tomczak et al., 'V4FinBench: Benchmarking Tabular Foundation "
+            "Models, LLMs, and Standard Methods on Corporate Bankruptcy Prediction', "
+            "arXiv:2605.10896. Data CC BY 4.0."
+        ),
+        feature_names=tuple(feature_cols),
     )

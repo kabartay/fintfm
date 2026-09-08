@@ -128,3 +128,20 @@ def test_summary_always_shows_skill_beside_raw_brier():
     s = evaluate_binary(y, np.full(100, 0.1)).summary()
     assert "skill=" in s
     assert "Brier=" in s
+
+
+def test_cache_dir_is_anchored_on_the_repo_root_not_a_parent_count():
+    """Regression: the package move silently duplicated 13 MB of downloads.
+
+    `CACHE_DIR` used `parents[2]`, which pointed at the repo root while this module lived at
+    `src/fintfm/data.py` and at `src/` after it moved to `src/fintfm/evaluation/datasets.py`.
+    Nothing failed; datasets were simply re-downloaded to the wrong place. Anchoring on
+    `pyproject.toml` cannot break that way.
+    """
+    from fintfm.evaluation.datasets import CACHE_DIR
+
+    assert CACHE_DIR.parent.name == "data"
+    assert (CACHE_DIR.parent.parent / "pyproject.toml").exists(), (
+        f"CACHE_DIR {CACHE_DIR} is not under the repo root"
+    )
+    assert "src" not in CACHE_DIR.parts

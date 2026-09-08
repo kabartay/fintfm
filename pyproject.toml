@@ -32,6 +32,7 @@ bench = ["lightgbm>=4.0"]
 fintfm-train = "fintfm.modeling.train:main"
 fintfm-bench = "fintfm.evaluation.bench:main"
 fintfm-ablate = "fintfm.experiments.prior_ablation:main"
+fintfm-termstruct = "fintfm.experiments.term_structure:main"
 
 [dependency-groups]
 dev = ["pytest>=8", "ruff>=0.6"]
