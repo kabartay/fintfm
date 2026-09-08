@@ -1020,3 +1020,60 @@ that goes.
 
 **The honest summary is that our discrimination results are sound and our calibration results
 were measured on a scale too narrow to support the weight put on them.**
+
+## 18. The prior matches real difficulty but is 3-5× too narrow, and that is the biggest fixable gap
+
+**Date:** 2026-09-08. **Status:** MEASURED. Twelve sampled financial tasks against four real
+panels, probing each with the same logistic-regression pipeline as a difficulty yardstick.
+
+| property | real panels | synthetic prior | verdict |
+| --- | --- | --- | --- |
+| logistic-regression AUC | 0.7687 mean (0.697-0.899) | 0.7610 mean (0.565-0.981) | **well matched** |
+| **feature count** | **64, 64, 64, 95** | **9-21 (mean ~16)** | **3-5× too narrow** |
+| default rate | 3.2-6.9% | 1.0-16.4% | good coverage |
+| mean \|feature correlation\| | 0.081-0.110 | 0.096-0.220 | **too correlated** |
+| missingness | 0-1.5% | 0.08-13.0% | too much, probably harmless |
+
+### The good news, and it refutes the obvious worry
+
+**The prior is not too easy.** Mean logistic-regression AUC on synthetic tasks is 0.761
+against 0.769 on real panels — 0.008 apart. The hypothesis that transfer is modest because
+the model only ever saw easy problems is **refuted**. Difficulty is essentially calibrated,
+which is a non-trivial thing to have got right by construction.
+
+The spread is wider than real, though: synthetic tasks range from near-noise (0.565) to
+near-separable (0.981) where real panels sit in 0.697-0.899. Some breadth is deliberate and
+useful; tasks at 0.98 are probably teaching very little.
+
+### The defect: the prior structurally cannot generate a wide table
+
+Every synthetic task had **9 to 21 features even though `max_features=64` was requested.**
+`prior/financial.py` draws from a fixed dictionary of about 20 named quantities plus at most
+4 redundant or noise columns, so it is **hard-capped near 24 columns** regardless of the
+configuration. The model is therefore pretrained on ~16-feature problems and evaluated on
+64-95 feature ones.
+
+That is a 3-5× width mismatch on the single axis the architecture is most sensitive to, and
+it is the most plausible remaining explanation for why the trained model beats logistic
+regression by only ~0.033 AUC (§17's ablation).
+
+**The fix is also the realistic one.** Real credit datasets are wide *because they compute
+many ratios from a few underlying accounts* — the Polish panel's 64 features are ratios over
+one balance sheet and P&L. Our prior generates the accounts already; it simply does not
+derive the ratio family from them. Generating tens of ratios per synthetic firm is both the
+width fix and a more faithful model of how such datasets are actually built.
+
+### The secondary defect: over-correlated features
+
+Synthetic mean absolute inter-feature correlation runs 0.096-0.220 against 0.081-0.110 real,
+with most synthetic tasks above the entire real range. Our exposed features derive from a
+small set of latents (assets, revenue, debt, cash), so they are more mutually dependent than
+real ratios. Expanding the ratio family will change this, in an unknown direction, and it must
+be re-measured after — a wider set of ratios over the same latents could easily make it
+worse.
+
+### Consequence
+
+This is now the highest-value R&D direction: it is our own component, it is measurably
+mismatched to the target on a specific axis, and the fix is principled rather than a guess.
+See `openspec/changes/prior-width-and-fidelity`.
