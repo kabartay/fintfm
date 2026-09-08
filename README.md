@@ -15,27 +15,36 @@ gradient-boosted trees on financial tables.
    - `scm.py` — a generic random-MLP structural-causal-model prior (the
      TabPFN-style idea), for general nonlinear/multiclass structure.
    - `mixture.py` — samples from both and batches them for training.
-2. **Model** (`src/fintfm/model.py`): a from-scratch Transformer encoder.
-   Rows are tokens; context rows get a label embedding, query rows get a
-   learned "unknown" token; attention is masked so queries never attend to
-   each other, only to context. Independent implementation of the PFN idea
-   described in the public TabPFN/TabICL literature — no code or weights
-   from any existing project.
+2. **Model** (`src/fintfm/model.py`): a from-scratch Transformer in three
+   stages — cells are embedded individually, attend across *columns* within a
+   row, then pool into one vector per row before rows attend to context rows.
+   Predictions are provably invariant to column order and to padding width
+   (both asserted in tests), which a flat row-vector design cannot be.
+   Independent implementation of the alternating row/column attention idea in
+   the public TabPFN/TabICL/TabFM literature — no code or weights from any
+   existing project.
 3. **Training** (`src/fintfm/train.py`): infinite synthetic data, one
    gradient step per fresh batch, cosine LR schedule.
 4. **Inference** (`src/fintfm/classifier.py`): an sklearn-compatible
    `FinancialTFMClassifier` — `fit()` just stores the table as context,
    `predict_proba()` runs the frozen network.
-5. **Benchmark** (`src/fintfm/bench.py`): compares against logistic
-   regression, random forest, gradient boosting, and (if installed)
-   LightGBM, both on held-out synthetic financial tasks and on real OpenML
-   datasets.
+5. **Metrics** (`src/fintfm/metrics.py`): AUC alone is rank-only and cannot
+   see whether a stated 2% probability of default happens 2% of the time —
+   the number a lender actually prices against. Every result also reports
+   Brier score, expected calibration error, reliability bins, and recall at a
+   base-rate operating point.
+6. **Benchmark** (`src/fintfm/bench.py`): compares against logistic
+   regression, random forest, gradient boosting and (if installed) LightGBM,
+   on held-out synthetic tasks, real OpenML datasets, and real corporate
+   defaults (`--credit`, UCI Polish bankruptcy, CC-BY-4.0, evaluation only).
 
 ## Quickstart
 
 ```bash
 uv sync --extra bench
-uv run fintfm-train --steps 5000 --d-model 128 --n-layers 4 --out runs/v0-smoke.pt
+uv run fintfm-train --steps 5000 --d-model 128 --n-layers 4 --max-features 64 \
+    --max-classes 2 --out runs/v0-smoke.pt
+uv run fintfm-bench --model runs/v0-smoke.pt --credit      # real corporate defaults
 uv run fintfm-bench --model runs/v0-smoke.pt --synthetic-tasks 10
 uv run pytest
 ```
@@ -53,6 +62,20 @@ or any other tabular-foundation-model product are used. Those are cited in
 project discussion purely as public research/product context, not as a
 source of code or data. Before adding any third-party dataset or dependency,
 check its license against the intended commercial use.
+
+## Where this is going
+
+`docs/STRATEGY.md` is the plan of record: what is being built, in what order,
+with a falsifiable exit condition per phase, and what is deliberately not being
+built. `docs/FINDINGS.md` holds measured results and the reasoning behind design
+decisions; `docs/LANDSCAPE.md` the competitive picture; `docs/REFERENCES.md` the
+verified literature.
+
+Short version: the mechanism claims ("no training on your data", "no feature
+engineering") are already owned by better-funded competitors, so the thesis is
+not the mechanism. It is a credit model that arrives with its own validation
+evidence — calibrated, auditably free of benchmark contamination, and eventually
+backed by a pre-registered forward track record that cannot be bought.
 
 ## Status
 
