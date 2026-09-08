@@ -10,23 +10,42 @@ Opinionated on purpose. Where a claim rests on evidence, the evidence is in
 
 ## The thesis, in one sentence
 
-**A probability-of-default term-structure model for small and low-default credit portfolios,
-pretrained entirely on synthetic company financials, shipping calibrated hazard paths with
-their own validation evidence.**
+**A coherent, auditable probability-of-default term structure for small and low-default
+credit portfolios — pretrained entirely on synthetic company financials, and shipped with the
+validation evidence a model-risk committee needs.**
 
-Four claims, each load-bearing and each falsifiable:
+**Revised again 2026-09-08 (second revision of the day) on the strength of measurement, not
+argument.** The previous version led with accuracy and calibration. Both were measured and
+both are *small* (`docs/FINDINGS.md` "Where we stand"): +0.033 AUC over logistic regression,
+~2× calibration over a *calibrated* incumbent and only below ~250 rows, 1-2% Brier skill over
+a feature-free predictor. A sophisticated buyer finds that ceiling in an afternoon.
 
-1. **Term structure, not a label.** The object is a hazard path — PD at 12 months, 24 months,
-   lifetime — because IFRS 9 requires lifetime expected credit loss. A single-horizon
-   classifier is structurally insufficient for the rule every regulated lender is bound by.
-2. **Small and low-default portfolios.** Tabular foundation models measurably beat gradient
-   boosting below roughly 8,000 observations, and the advantage grows as data shrinks.
-   Above that, they lose.
-3. **Synthetic-only pretraining.** Not thrift: firm-level financial data sits behind
-   commercial licences, so it is the only licence-clean route, and it makes benchmark
-   contamination impossible to commit rather than merely unlikely.
-4. **The evidence is the product.** Calibration, conformal coverage, honest refusal, and a
-   forward track record — because in this market the certificate is what is bought.
+**What is large is the incoherence.** 39% of firms receive a term structure where a longer
+horizon carries a *lower* cumulative default probability, and the portfolio aggregate looks
+monotone and conceals it entirely (§11). That is not a ranking imperfection; it is an
+incoherent object that IFRS 9 lifetime expected credit loss consumes directly. So the thesis
+now leads with it.
+
+Four claims, ordered by how much evidence each carries:
+
+1. **Coherence, and it is the strongest card.** The object is a hazard path — PD at 12
+   months, 24 months, lifetime — because IFRS 9 requires lifetime ECL. Independent
+   per-horizon models produce curves that contradict themselves 39% of the time, **measured**,
+   and no camp in the field predicts this object at all (`docs/LANDSCAPE.md`).
+2. **Auditable provenance.** Nothing real reaches pretraining, checkable by grep and enforced
+   in CI-in-waiting. Competitors training on real tables cannot retrofit this, and the
+   leakage literature prices contamination at up to 32 MAPE points (§1).
+3. **Small and low-default portfolios**, but for a sharper reason than accuracy. It is where
+   the *incumbent's remedies fail*: post-hoc calibration needs held-out defaults and Platt
+   scaling at n=100 dropped gradient boosting's AUC from 0.632 to 0.545 (§16), and
+   per-horizon models multiply incoherence when each horizon has few events.
+4. **Synthetic-only pretraining as the only clean route**, since firm-level financial data is
+   licence-locked (§4, §8) — and pretraining is what buys calibration in the first place, 7×
+   on Brier over an untrained model (§15).
+
+**What we no longer claim:** more accurate than gradient boosting, best-calibrated as a
+standalone virtue, or calibration as a differentiator against other foundation models. All
+three were tested and all three failed or shrank.
 
 **Stated at the strength the evidence supports** (`FINDINGS` §16, which tempers §12 and §13):
 
@@ -176,13 +195,17 @@ Measured on 3,151 held-out rows across all five horizons (`FINDINGS` §11):
 - **Nothing in the architecture or the loss forbids a violation**, so training cannot drive
   this to zero. The term-structure direction is founded rather than speculative.
 
-### Phase 2 — the term structure
+### Phase 2 — the term structure. **Promoted to the critical path.**
 Hazard-path output, a survival process in the prior, monotonicity enforced or measured,
 joint versus per-horizon at matched compute.
 
 - **Exit condition:** joint prediction beats independent per-horizon models on AUC per
   horizon *and* on coherence, and the output is what an IFRS 9 provisioning calculation
   consumes.
+- **Why it moved up:** §11 measured a 39% incoherence rate, which is an order of magnitude
+  larger than any accuracy or calibration edge this project has measured. It is also the only
+  finding where the gap is structural rather than incremental — nothing in the architecture
+  or loss forbids a violation, so no amount of training or scale closes it.
 
 ### Phase 3 — the certificate
 Conformal PD intervals, coverage under regime shift, out-of-distribution refusal, and the

@@ -3,6 +3,50 @@
 Numbered, dated, with the source or command that produced each. A finding that lives only in
 a conversation is lost when the conversation compacts.
 
+## Where we stand — the honest scorecard
+
+Updated 2026-09-08 after nineteen findings in one day. **Read this before quoting any number
+below**, because several findings temper or amend earlier ones and the amendments matter more
+than the originals.
+
+### What is measured and large
+
+| claim | evidence | § |
+| --- | --- | --- |
+| **PD term structures are incoherent** — 39% of firms get a curve where a longer horizon carries *lower* default probability, while the portfolio aggregate looks monotone and hides it | measured, real data | §11 |
+| **Pretraining buys calibration** — 7× on Brier, up to 130× on ECE against an untrained model that predicts a 39% default rate against a 4.7% base | measured, untrained control | §15 |
+| **Firm-level financial data is licence-locked**, so synthetic pretraining is the only clean route into this domain, which is why the space is empty while energy is crowded | dataset census | §4, §8 |
+| **The prior matches real task difficulty** — logistic-regression AUC 0.743 synthetic against 0.769 real | measured, held-out seed | §18, §19 |
+
+### What is measured and small
+
+| claim | size | § |
+| --- | --- | --- |
+| Domain prior beats a generic one | **+0.049 AUC**, 3 of 6 cells significant | §14 |
+| Model beats logistic regression | **+0.033 AUC** | §17 |
+| Model beats an untrained model of the same architecture | **+0.031 AUC** | §15 |
+| Calibration advantage over a *calibrated* gradient boosting | **~2×**, and only below ~250 rows | §16 |
+| Brier skill over a feature-free constant predictor | **1-2%** | §17 |
+
+### What has been ruled out
+
+- **"More accurate than gradient boosting."** False above a few hundred rows; above ~1,000 a
+  calibrated gradient boosting wins on both AUC and Brier (§16).
+- **"Best calibrated" as a standalone claim.** A constant base-rate predictor beats every
+  model here on ECE, so calibration numbers cannot carry an argument alone (§17).
+- **Calibration as a differentiator against other foundation models.** It tracks prior
+  *breadth*, not our domain prior, so TabPFN and TabFM very likely share it (§14, §15).
+- **The 11.7× calibration figure.** Measured against an uncalibrated baseline. Do not use it.
+- **Scale as the lever.** Beyond IID finds TFMs lose on large, wide, non-IID data regardless
+  of size (§9).
+
+### What this implies
+
+**Do not lead with accuracy or calibration.** Both are real and both are small, and a
+sophisticated buyer will find the ceiling in an afternoon. Lead with the term-structure
+incoherence, which is large, unambiguous, regulatory-mandated by IFRS 9, and unaddressed by
+every camp in the field (`docs/LANDSCAPE.md`). See `docs/STRATEGY.md`.
+
 ## 1. Synthetic-only pretraining is an auditability property, not just a cost saving
 
 **Date:** 2026-09-08. **Status:** design invariant.

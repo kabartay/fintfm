@@ -20,20 +20,22 @@ finishing one item often discovers two, and that is the queue working.
 1. **`phase1-prior-ablation`** — the run deciding whether the central bet is real. Started
    14:36 on Metal, ~3 h for three variants plus an untrained control. Tasks 1.4-1.7.
 
-## Tier 1 — cheap, and they decide direction
+## Tier 1 — the thesis now rests on these
 
-These need **no GPU and no new training**, which is why they come before everything else.
+Reordered 2026-09-08 after the day's measurements. Accuracy and calibration were measured
+small; coherence was measured large. The queue follows the evidence.
 
-2. **`pd-term-structure` task 11.1** — check whether cumulative PD across the five UCI
-   horizons is even monotone. Hours of work, no training. A high violation rate founds the
-   whole term-structure direction; a low one deflates it to an efficiency claim. **This is
-   the single highest value-per-hour item in the queue.**
-3. **`sample-efficiency-regime` tasks 13.3-13.4** — run the probe the moment a checkpoint
-   exists. Every measurement so far was taken above the crossover, so this tests the regime
-   the thesis needs. Implemented already; only the run remains.
+2. **`pd-term-structure` tasks 11.2-11.6** — hazard-path output and a permanent coherence
+   diagnostic. §11 measured 39% of firms getting a self-contradicting curve, an order of
+   magnitude larger than any accuracy edge here, and structural rather than incremental:
+   nothing in the loss forbids a violation, so training cannot fix it. **This is now the
+   product.**
+3. **`prior-width-and-fidelity` task 15.5** — retrain at matched compute against the old
+   prior. The width fix (§19) is a fidelity improvement with **unmeasured** transfer impact,
+   and until this runs we do not know whether width was the binding constraint.
 4. **`forward-prediction-register` task 6.1** — establish a licensed data source with
-   observable outcomes. Pure licence reading. **Out of tier order deliberately: start now**,
-   because the asset is elapsed time and delay is the only way to lose it.
+   observable outcomes. Pure licence reading, no compute. **Out of tier order deliberately:
+   start now**, because the asset is elapsed time and delay is the only way to lose it.
 
 ## Tier 2 — blocks any external claim
 
