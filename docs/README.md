@@ -5,6 +5,7 @@
 | [STRATEGY.md](STRATEGY.md) | The plan of record: thesis, buyer, phases with falsifiable exit conditions, and what is deliberately not being built. Read this first. |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | How the system works: package layout, the three model stages, the two inference corrections, and the invariants that must not break. |
 | [DECISIONS.md](DECISIONS.md) | Decisions with the alternatives priced against them and **what would reverse each one**. |
+| [GLOSSARY.md](GLOSSARY.md) | The ubiquitous language. Credit-risk terms are legally loaded; `[verify]` marks what has not been checked against a primary source. A spec introducing a concept adds it here. |
 | [FINDINGS.md](FINDINGS.md) | Measured results and the reasoning they forced, numbered and dated, each labelled by how it was produced. |
 | [COMPUTE.md](COMPUTE.md) | Measured throughput, device guidance, what a real run costs, and the rules for running on this shared machine. |
 | [LANDSCAPE.md](LANDSCAPE.md) | Competitors, what each claims about itself, and what it implies for positioning. Claims are theirs, not verified. |

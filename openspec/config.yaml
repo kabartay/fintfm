@@ -1,6 +1,22 @@
 schema: spec-driven
 
 context: |
+  ## Domain
+
+  The **ubiquitous language** lives in `docs/GLOSSARY.md` and is the source of truth for it.
+  Credit-risk terminology is legally loaded: PD, LGD, EAD, ECL, IFRS 9, SICR, LDP,
+  point-in-time versus through-the-cycle are specific regulatory objects, and using one
+  loosely in a document a supervisor reads is a product defect rather than a style slip.
+
+  **A spec or proposal that introduces a domain concept adds it to the glossary**, and
+  corrects the glossary if it is wrong. Entries marked `[verify]` there have not been
+  confirmed against a primary regulatory source and must not be asserted to a customer.
+
+  The most load-bearing distinction: **PD is undefined without a horizon.** The target object
+  is the term structure, not a number.
+
+  ## Project
+
   PROJECT: FinancialTFM — a prior-fitted tabular foundation model for corporate credit
   risk. Repo `fintfm`, package `fintfm`, CLIs `fintfm-train` / `fintfm-bench` /
   `fintfm-ablate`. Apache-2.0, currently a private repository. Solo delivery: treat
@@ -57,10 +73,40 @@ context: |
   result. Findings live in docs/FINDINGS.md with the command that produced them, never
   only in a commit message. Negative and superseded results are kept deliberately.
 
-  TECH STACK: Python 3.13, uv-managed. numpy/pandas/scikit-learn/scipy/torch; lightgbm
-  in the `bench` extra. ruff + pytest. Local training uses Metal (`--device mps`) — 3.5x
-  faster than CPU here and, more importantly, it leaves the CPU cores to the genomics
-  pipeline that shares this machine. See docs/COMPUTE.md.
+  ## Repository structure
+
+  Single Python package, `src/fintfm/`, organised by pipeline stage with a one-way dependency
+  direction (see docs/ARCHITECTURE.md):
+
+  - `prior/`      synthetic task generation — the ONLY source of pretraining data
+  - `modeling/`   architecture (`model.py`) and the pretraining loop (`train.py`)
+  - `inference/`  in-context prediction, context construction, calibration correction
+  - `evaluation/` real datasets, calibration-aware metrics, benchmark harnesses
+  - `experiments/` designed experiments with pre-stated exit conditions
+
+  `prior/` and `modeling/` may never import `evaluation/`; that boundary is what makes the
+  provenance claim checkable and it is enforced by `openspec/tools/validate.py`.
+
+  Docs: `docs/` (STRATEGY, ARCHITECTURE, DECISIONS, FINDINGS, GLOSSARY, COMPUTE, LANDSCAPE,
+  REFERENCES, NEXT, CHANGELOG), indexed in `docs/README.md`.
+
+  ## Stack
+
+  - Python 3.13, uv-managed (`pyproject.toml` + `uv.lock`)
+  - numpy, pandas, scikit-learn, scipy, torch; lightgbm in the `bench` extra
+  - CLIs: `fintfm-train`, `fintfm-bench`, `fintfm-ablate`
+  - Tests: pytest (43 tests, including the repo's own conventions via
+    `tests/test_openspec.py`); lint: ruff; types: full hints, `py.typed`
+
+  ## Infrastructure
+
+  - **No CI yet** — `openspec/changes/ci-and-release-gates`. Do not describe a release as
+    verified until that lands.
+  - Local training on Apple Metal (`--device mps`): 3.5x faster than CPU here and, more
+    importantly, it leaves the CPU cores to the genomics pipeline sharing this machine.
+    See docs/COMPUTE.md for measured step times.
+  - Releases: git tag AND GitHub Release; changelog hard-wrapped, release body unwrapped.
+    See CLAUDE.md.
 
   CODE STYLE: comprehensive module and function docstrings, full type hints, explicit
   naming, in the same pass the code is written.
