@@ -37,12 +37,12 @@ import numpy as np
 import torch
 from sklearn.model_selection import train_test_split
 
-from fintfm.inference.classifier import ContextStrategy, FinancialTFMClassifier
 from fintfm.evaluation.datasets import load_polish_bankruptcy
 from fintfm.evaluation.metrics import evaluate_binary
+from fintfm.inference.classifier import ContextStrategy, FinancialTFMClassifier
 from fintfm.modeling.model import FinancialTFM, ModelConfig
-from fintfm.prior import PriorConfig
 from fintfm.modeling.train import TrainConfig, train
+from fintfm.prior import PriorConfig
 
 #: The one variable under test. Everything else is held fixed across variants.
 VARIANTS: dict[str, float] = {
