@@ -450,6 +450,7 @@ def sample_efficiency_probe(
         A record mapping each training size to metrics for the TFM and for gradient
         boosting, plus the crossover size if one is observed.
     """
+    from sklearn.calibration import CalibratedClassifierCV
     from sklearn.ensemble import GradientBoostingClassifier
     from sklearn.impute import SimpleImputer
     from sklearn.pipeline import make_pipeline
@@ -476,24 +477,46 @@ def sample_efficiency_probe(
             continue
 
         tfm = FinancialTFMClassifier(model_path, context_strategy=context_strategy).fit(Xs, ys)
-        tfm_metrics = evaluate_binary(y_test, tfm.predict_proba(X_test)[:, 1])
-        gbm = make_pipeline(SimpleImputer(strategy="median"), GradientBoostingClassifier(random_state=seed))
-        gbm.fit(Xs, ys)
-        gbm_metrics = evaluate_binary(y_test, gbm.predict_proba(X_test)[:, 1])
-
-        out["sizes"][str(size)] = {
-            "n_train": len(ys),
-            "n_positive_train": int(ys.sum()),
-            "fintfm": asdict(tfm_metrics),
-            "gboost": asdict(gbm_metrics),
-            "auc_delta": tfm_metrics.roc_auc - gbm_metrics.roc_auc,
+        arms: dict[str, object] = {
+            "fintfm": evaluate_binary(y_test, tfm.predict_proba(X_test)[:, 1])
         }
-        print(
-            f"  n={len(ys):>5} ({int(ys.sum())} defaults): "
-            f"fintfm AUC={tfm_metrics.roc_auc:.4f} ECE={tfm_metrics.ece:.4f} | "
-            f"gboost AUC={gbm_metrics.roc_auc:.4f} ECE={gbm_metrics.ece:.4f} | "
-            f"delta={tfm_metrics.roc_auc - gbm_metrics.roc_auc:+.4f}"
-        )
+
+        def _gbm():
+            return make_pipeline(
+                SimpleImputer(strategy="median"),
+                GradientBoostingClassifier(random_state=seed),
+            )
+
+        arms["gboost"] = evaluate_binary(y_test, _gbm().fit(Xs, ys).predict_proba(X_test)[:, 1])
+
+        # The calibrated arms are the honest comparison. Post-hoc calibration is cheap and
+        # standard, and it is the obvious rebuttal to our calibration advantage. Its
+        # *failure* at small n is itself the finding: Platt and isotonic both need held-out
+        # rows containing events, which is exactly what a low-default portfolio lacks.
+        for method in ("sigmoid", "isotonic"):
+            key = f"gboost_{method}"
+            try:
+                cal = CalibratedClassifierCV(_gbm(), method=method, cv=3)
+                cal.fit(Xs, ys)
+                arms[key] = evaluate_binary(y_test, cal.predict_proba(X_test)[:, 1])
+            except Exception as exc:  # noqa: BLE001 - the failure is data, not a defect
+                arms[key] = None
+                print(f"      {key}: could not be fitted ({type(exc).__name__})")
+
+        cell: dict = {"n_train": len(ys), "n_positive_train": int(ys.sum())}
+        for name, m in arms.items():
+            cell[name] = asdict(m) if m is not None else None
+        cell["auc_delta"] = arms["fintfm"].roc_auc - arms["gboost"].roc_auc
+        out["sizes"][str(size)] = cell
+
+        print(f"  n={len(ys):>5} ({int(ys.sum())} defaults):")
+        for name, m in arms.items():
+            if m is None:
+                continue
+            print(
+                f"      {name:<18} AUC={m.roc_auc:.4f} ECE={m.ece:.4f} "
+                f"Brier={m.brier:.4f} predmean={m.mean_predicted:.3%}"
+            )
 
     # the crossover is the largest size at which the TFM still leads
     leads = [int(k) for k, v in out["sizes"].items() if v["auc_delta"] > 0]

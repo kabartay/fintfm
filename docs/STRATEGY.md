@@ -28,12 +28,19 @@ Four claims, each load-bearing and each falsifiable:
 4. **The evidence is the product.** Calibration, conformal coverage, honest refusal, and a
    forward track record — because in this market the certificate is what is bought.
 
-**Stated as a frontier rather than a win** (`FINDINGS` §12, §13). At roughly 100 obligors we
-dominate gradient boosting on both discrimination and calibration, a genuine Pareto
-improvement. Above ~500 it is a trade-off: they rank better, we calibrate 2-6× better. For
-provisioning and low-default portfolios the level is the deliverable and a lender cannot
-provision against an ordering — but claiming only the favourable half is the failure this
-project's own conventions exist to prevent.
+**Stated at the strength the evidence supports** (`FINDINGS` §16, which tempers §12 and §13):
+
+> Below a few hundred obligors we produce the best probability estimates available on a
+> proper scoring rule, and at every portfolio size the best-calibrated ones. **Above roughly
+> a thousand rows a calibrated gradient boosting is the better model overall, and we say so.**
+
+The earlier 11.7× calibration figure was measured against an *uncalibrated* incumbent and
+**must not be used**. Against a calibrated one the gap at n = 100 is about 2×. What survives:
+best ECE at every size by 2-4×, and best Brier below ~250 rows.
+
+One real asymmetry remains in our favour: post-hoc calibration needs held-out events, and
+Platt scaling at n = 100 dropped gradient boosting's AUC from 0.632 to **0.545** — it damaged
+the ranking it was fixing. Thin books punish the incumbent's remedy.
 
 **One of those two questions is now answered, against us** (`FINDINGS` §14). Calibration is
 *not* a property of the financial prior — pure financial is the worst-calibrated variant, and

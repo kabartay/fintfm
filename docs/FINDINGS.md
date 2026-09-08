@@ -578,6 +578,11 @@ regression cannot pass unnoticed behind a healthy-looking aggregate.
 
 ## 12. The advantage is calibration, not ranking — and it holds at every dataset size
 
+> **TEMPERED by §16 (same day).** The 2.3-11.7× ratios below are against an **uncalibrated**
+> gradient boosting. Against a calibrated one the gap at n = 100 is roughly **2×**, and above
+> ~1,000 rows calibrated gradient boosting is the better model on both AUC and Brier. **Do
+> not quote 11.7× anywhere.** The surviving claim is in §16.
+
 **Date:** 2026-09-08. **Status:** MEASURED, 5 seeds, real data. The checkpoint is a
 5,000-step 2.2M-parameter model, so **absolute AUC is not a quality claim**; the
 model-versus-model *comparison* at matched conditions is. Resolves
@@ -883,3 +888,71 @@ financial prior does measurably help ranking.**
   features) is now more informative than another prior variant, and is not yet proposed.
 - **Scale may change the ranking.** At 5× the parameters and 4× the steps the priors may
   separate further on Brier, or may not. That is now a more interesting question than it was.
+
+## 16. Against a *calibrated* incumbent the advantage shrinks from 11.7× to ~2×, and holds only below a few hundred rows
+
+**Date:** 2026-09-08. **Status:** MEASURED, single seed, 3-year panel, `mixed` checkpoint.
+Resolves `sample-efficiency-regime` task 13.7 and `calibration-mechanism` task 14.1.
+**This finding tempers §12**, whose comparison was against an uncalibrated baseline — a
+limitation §12 itself flagged as the most important follow-up. It was right to.
+
+Gradient boosting with Platt (`sigmoid`) and isotonic calibration, fitted by
+`CalibratedClassifierCV(cv=3)` on the training data:
+
+| n (defaults) | model | AUC | ECE | Brier |
+| --- | --- | --- | --- | --- |
+| 100 (5) | fintfm | 0.6945 | **0.0070** | **0.0441** |
+| | gboost raw | 0.6315 | 0.0719 | 0.0686 |
+| | gboost Platt | **0.5446** | 0.0149 | 0.0451 |
+| | gboost isotonic | 0.6475 | 0.0127 | 0.0445 |
+| 250 (12) | fintfm | **0.6915** | **0.0028** | **0.0442** |
+| | gboost Platt | 0.6644 | 0.0117 | 0.0455 |
+| | gboost isotonic | 0.6688 | 0.0330 | 0.0480 |
+| 1,000 (47) | fintfm | 0.7062 | **0.0080** | 0.0446 |
+| | gboost isotonic | **0.8102** | 0.0137 | **0.0417** |
+| 4,000 (189) | fintfm | 0.7159 | **0.0017** | 0.0445 |
+| | gboost raw | **0.8856** | 0.0079 | **0.0333** |
+
+### What has to be conceded
+
+**Post-hoc calibration works, and the 11.7× headline does not survive it.** At n = 100 the
+calibration gap against the best calibrated arm is roughly **2×** (0.0070 against 0.0127),
+not tenfold. Any external use of the 11.7× figure would have been against a straw baseline.
+
+**Above roughly 1,000 rows, calibrated gradient boosting is simply the better model** — better
+AUC and better Brier. At n = 4,000 it wins Brier 0.0333 to 0.0445, which is not close.
+
+### What survives, and it is narrower but real
+
+**We hold the best ECE at every single size**, by 2× to 4× against the calibrated arms
+(0.0017-0.0080 against 0.0099-0.0330). Calibration remains our strongest metric.
+
+**On Brier — the proper scoring rule, and therefore the honest single number — we win below
+about 250 rows** and lose above about 1,000. The crossover sits in between, and pinning it
+needs seeds.
+
+**Post-hoc calibration has a real cost at very small n, and it is dramatic.** Platt scaling
+at n = 100 dropped AUC from 0.6315 to **0.5446** — barely above chance. Fitting a
+two-parameter map on five positive events distorted the ranking it was calibrating. So the
+§13 argument that "post-hoc calibration needs the events a low-default portfolio does not
+have" is **partly** vindicated: it does not fail outright, but it damages discrimination
+exactly where the portfolio is thinnest, and isotonic (0.6475) degraded less than Platt.
+
+### The claim, restated at the strength the evidence supports
+
+> Below a few hundred obligors we produce the best probability estimates available on a
+> proper scoring rule, and at every portfolio size the best-calibrated ones. Above roughly a
+> thousand rows a calibrated gradient boosting is the better model overall, and we should say
+> so.
+
+That is a smaller product than §12 implied and it is still a real one, because SME books,
+specialty portfolios and low-default portfolios live at the small end (§9). What it forbids
+is any general claim to beat gradient boosting, and any use of the 11.7× number.
+
+### Open
+
+- Single seed; the 250-1,000 crossover on Brier needs at least three.
+- The `mixed` checkpoint is under-trained by ~5×; a properly trained model may push the
+  crossover up. It may also not, since AUC is flat across sizes (§13).
+- Isotonic beat Platt on discrimination at n = 100 but was worse on ECE at n = 250. Neither
+  is uniformly the right incumbent baseline, so report both rather than the flattering one.
