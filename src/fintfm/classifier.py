@@ -94,6 +94,16 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             nothing in this repository has measured that trade-off yet on CPU.
         context_strategy: How to subsample when the training set exceeds ``max_context``.
             See :func:`_select_context`. Irrelevant when it does not.
+        correct_prior: Undo the base-rate distortion that resampling introduces. An
+            in-context model reads the class balance *out of its context*, so handing it a
+            balanced context tells it defaults are far commoner than they are, and its
+            probabilities come out inflated by roughly that factor. Measured on
+            ``polish-bankruptcy-3y``: balanced context predicted a 14.9% mean against a 4.7%
+            actual rate (ECE 0.10) where uniform predicted 2.9% (ECE 0.02). The correction
+            shifts the log-odds by the difference between the context prior and the true
+            training prior, which is exact under the standard label-shift assumption that
+            ``P(x | y)`` is unchanged by resampling — resampling selects on ``y`` alone, so
+            it holds by construction here. Leaves the ranking, and therefore AUC, untouched.
         random_state: Seed for context subsampling, so a stored context is reproducible.
     """
 
@@ -103,12 +113,14 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         device: str = "cpu",
         max_context: int = 2000,
         context_strategy: ContextStrategy = "balanced",
+        correct_prior: bool = True,
         random_state: int = 0,
     ) -> None:
         self.model = FinancialTFM.load(model, map_location=device) if isinstance(model, str) else model
         self.device = device
         self.max_context = max_context
         self.context_strategy = context_strategy
+        self.correct_prior = correct_prior
         self.random_state = random_state
         self.model.to(device).eval()
 
@@ -127,9 +139,19 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         idx = _select_context(
             y_coded, self.max_context, self.context_strategy, np.random.default_rng(self.random_state)
         )
+        n_classes = len(self.classes_)
+        full_prior = np.bincount(y_coded, minlength=n_classes) / len(y_coded)
         X, y_coded = X[idx], y_coded[idx]
+        ctx_prior = np.bincount(y_coded, minlength=n_classes) / len(y_coded)
         self._ctx_X = X
         self._ctx_y = y_coded
+        # log P_true(y) - log P_context(y), added to logits at predict time. Zero when the
+        # context was not resampled, so the correction is inert in that case.
+        with np.errstate(divide="ignore"):
+            self._log_prior_shift = np.where(
+                (full_prior > 0) & (ctx_prior > 0), np.log(np.maximum(full_prior, 1e-12))
+                - np.log(np.maximum(ctx_prior, 1e-12)), 0.0
+            )
         return self
 
     @torch.no_grad()
@@ -148,6 +170,9 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         yt = torch.from_numpy(yp).to(self.device)
         nc = torch.tensor([len(self.classes_)], device=self.device)
         logits = self.model(Xt, yt, n_ctx, nc)[0, n_ctx:, : len(self.classes_)]
+        if self.correct_prior:
+            shift = torch.from_numpy(self._log_prior_shift).to(logits.device, logits.dtype)
+            logits = logits + shift
         return torch.softmax(logits, dim=-1).cpu().numpy()
 
     def predict(self, X: np.ndarray) -> np.ndarray:

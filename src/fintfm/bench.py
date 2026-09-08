@@ -26,6 +26,7 @@ from sklearn.preprocessing import StandardScaler
 
 from fintfm.classifier import ContextStrategy, FinancialTFMClassifier
 from fintfm.data import CreditDataset, load_polish_bankruptcy
+from fintfm.metrics import evaluate_binary
 from fintfm.model import FinancialTFM
 from fintfm.prior import PriorConfig
 from fintfm.prior.mixture import sample_task
@@ -82,7 +83,11 @@ def run_one(name: str, X: np.ndarray, y: np.ndarray, model_path: str, seed: int 
             print(f"  [{name}] {model_name} failed: {exc}")
             continue
         results[model_name] = auc
-        print(f"  [{name}] {model_name}: AUC={auc:.4f}  ({time.time() - t0:.1f}s)")
+        if len(classes) == 2:
+            detail = evaluate_binary(y_test, proba[:, 1]).summary()
+            print(f"  [{name}] {model_name}: {detail}  ({time.time() - t0:.1f}s)")
+        else:
+            print(f"  [{name}] {model_name}: AUC={auc:.4f}  ({time.time() - t0:.1f}s)")
     return results
 
 
@@ -169,14 +174,14 @@ def _compare_context_strategies(
     X_train, X_test, y_train, y_test = train_test_split(
         ds.X, ds.y, test_size=0.3, random_state=seed, stratify=ds.y
     )
-    classes = np.unique(ds.y)
     for strategy in strategies:
         clf = FinancialTFMClassifier(model_path, context_strategy=strategy)
         clf.fit(X_train, y_train)
-        auc = _auc(y_test, clf.predict_proba(X_test), classes)
+        proba = clf.predict_proba(X_test)
+        metrics = evaluate_binary(y_test, proba[:, 1])
         kept = int(clf._ctx_y.sum())
-        print(f"    [{ds.name}] fintfm context={strategy}: AUC={auc:.4f} "
-              f"({kept} defaults in a {clf._ctx_X.shape[0]}-row context)")
+        print(f"    [{ds.name}] fintfm context={strategy}: {metrics.summary()}")
+        print(f"        {kept} defaults in a {clf._ctx_X.shape[0]}-row context")
 
 
 def main() -> None:

@@ -79,3 +79,43 @@ def test_context_strategy_reaches_stored_context():
     assert balanced._ctx_y.sum() == 25  # every default kept
     assert uniform._ctx_y.sum() < 15
     assert balanced._ctx_X.shape[0] == uniform._ctx_X.shape[0] == 100
+
+
+def test_prior_correction_preserves_ranking_but_shifts_probabilities():
+    """The correction must fix calibration without touching AUC.
+
+    Adding a constant per-class shift to the logits is a monotone transform of the
+    binary score, so the ordering of predictions cannot change.
+    """
+    torch.manual_seed(0)
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(600, 4))
+    y = np.zeros(600, dtype=np.int64)
+    y[rng.choice(600, size=30, replace=False)] = 1  # 5% base rate
+
+    model = _tiny_model()
+    corrected = FinancialTFMClassifier(
+        model, max_context=100, context_strategy="balanced", correct_prior=True
+    ).fit(X, y)
+    raw = FinancialTFMClassifier(
+        model, max_context=100, context_strategy="balanced", correct_prior=False
+    ).fit(X, y)
+
+    X_test = rng.normal(size=(50, 4))
+    p_corrected = corrected.predict_proba(X_test)[:, 1]
+    p_raw = raw.predict_proba(X_test)[:, 1]
+
+    # identical ordering
+    np.testing.assert_array_equal(np.argsort(p_corrected), np.argsort(p_raw))
+    # but the corrected probabilities are pulled down towards the true 5% base rate,
+    # because the balanced context claimed defaults were far more common than they are
+    assert p_corrected.mean() < p_raw.mean()
+
+
+def test_prior_correction_is_inert_when_context_is_not_resampled():
+    torch.manual_seed(0)
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(40, 4))
+    y = rng.integers(0, 2, size=40)
+    clf = FinancialTFMClassifier(_tiny_model(), max_context=1000, correct_prior=True).fit(X, y)
+    np.testing.assert_allclose(clf._log_prior_shift, 0.0, atol=1e-12)

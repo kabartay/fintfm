@@ -93,14 +93,21 @@ def main() -> None:
     p.add_argument("--max-features", type=int, default=24)
     p.add_argument("--max-classes", type=int, default=10)
     p.add_argument("--d-model", type=int, default=192)
-    p.add_argument("--n-layers", type=int, default=6)
+    p.add_argument("--d-cell", type=int, default=64)
+    p.add_argument("--n-layers", type=int, default=6, help="row-attention layers")
+    p.add_argument("--n-col-layers", type=int, default=2, help="column-attention layers")
     p.add_argument("--device", type=str, default="cpu")
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--out", type=str, default="runs/v0.pt")
     args = p.parse_args()
 
     model_cfg = ModelConfig(
-        max_features=args.max_features, max_classes=args.max_classes, d_model=args.d_model, n_layers=args.n_layers
+        max_features=args.max_features,
+        max_classes=args.max_classes,
+        d_cell=args.d_cell,
+        d_model=args.d_model,
+        n_col_layers=args.n_col_layers,
+        n_layers=args.n_layers,
     )
     prior_cfg = PriorConfig(max_features=args.max_features, max_classes=args.max_classes, n_rows=args.n_rows)
     train_cfg = TrainConfig(steps=args.steps, batch_size=args.batch_size, lr=args.lr, device=args.device, seed=args.seed)

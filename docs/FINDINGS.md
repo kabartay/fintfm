@@ -227,3 +227,54 @@ dominate fintfm (0.60-0.65) by a wide margin at this scale, exactly as expected 
 pretraining scale against gradient boosting — has not been run.** This finding is about
 context construction being a real, measurable lever independent of that question, confirmed
 directionally on real data rather than merely cited from a paper.
+
+## 6. Balanced context buys ranking at the cost of calibration; a prior correction recovers both
+
+**Date:** 2026-09-08. **Status:** SMOKE-TEST-SCALE MEASURED (200-step, 127k-parameter
+checkpoint on real data). The *mechanism* is confirmed and the correction is exact under a
+stated assumption; the *magnitudes* at real pretraining scale are unknown.
+
+Finding §5 adopted balanced context sampling on Tanna et al.'s AUC evidence. Adding
+calibration metrics (`metrics.py`) immediately showed what an AUC-only comparison cannot:
+
+| horizon | strategy | AUC | ECE | predicted mean | actual rate |
+| --- | --- | --- | --- | --- | --- |
+| 3 year | uniform | 0.652 | 0.020 | 2.9% | 4.7% |
+| 3 year | balanced, raw | 0.646 | **0.102** | **14.9%** | 4.7% |
+| 3 year | balanced, corrected | 0.646 | **0.007** | 4.0% | 4.7% |
+
+**The mechanism.** An in-context learner reads the class balance out of its context, because
+that context is the only evidence it has about how common the positive class is. Rebalancing
+the context therefore tells the model that defaults are roughly ten times commoner than they
+are, and its probabilities come out inflated by about that factor. Ranking survives, since
+every prediction is inflated alike — which is exactly why AUC cannot see the damage, and why
+a paper optimising AUC would not report it. For credit risk this is the wrong thing to
+break: a bank prices, provisions and holds capital against the *level*, not the ordering.
+
+**The correction.** Shift the logits by ``log P_true(y) − log P_context(y)``. This is exact
+under the label-shift assumption that ``P(x | y)`` is unchanged by resampling — which holds
+*by construction* here, since `_select_context` selects on ``y`` alone and never looks at
+``x``. It is a constant per-class shift, hence a monotone transform of the binary score, so
+AUC is provably unchanged (asserted in `tests/test_classifier.py`). Default is on.
+
+**Measured across all three horizons**, balanced context, raw → corrected:
+
+| horizon | ECE raw → corrected | Brier raw → corrected | predicted mean → actual |
+| --- | --- | --- | --- |
+| 1 year | 0.0151 → 0.0173 | 0.0371 → 0.0371 | 5.36% → 2.13% (actual 3.86%) |
+| 3 year | 0.1021 → **0.0071** | 0.0556 → **0.0449** | 14.94% → 4.02% (actual 4.71%) |
+| 5 year | 0.0350 → **0.0225** | 0.0642 → 0.0642 | 9.90% → 4.69% (actual 6.94%) |
+
+**Read honestly, including the case that disagrees.** The correction is a large win where the
+distortion is large (3-year: ECE improves 14×) and a modest one at 5-year. At 1-year it
+slightly *overcorrects*: ECE worsens from 0.0151 to 0.0173 and the predicted mean undershoots
+the true rate. So this is not a free lunch — where the raw distortion was already small, the
+shift can overshoot. The theory is exact only if the model reads the base rate *purely* from
+the context prior, and a 200-step model plainly does something messier. **Re-measure at real
+pretraining scale before treating "always correct" as settled**, and consider fitting the
+shift on a validation split instead of deriving it analytically, which would absorb whatever
+the model actually does rather than assuming.
+
+**Consequence for the project.** This is a small worked example of the thesis in
+`docs/LANDSCAPE.md`: the deliverable in regulated credit is the validation evidence, and the
+evidence only exists if the metrics can see the failure. Nothing here was visible in AUC.

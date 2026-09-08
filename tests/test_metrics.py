@@ -1,0 +1,43 @@
+import numpy as np
+import pytest
+
+from fintfm.metrics import evaluate_binary, expected_calibration_error, recall_at_top_k
+
+
+def test_perfect_calibration_has_near_zero_ece():
+    rng = np.random.default_rng(0)
+    p = rng.uniform(0, 1, size=200_000)
+    y = (rng.uniform(size=p.shape) < p).astype(int)  # outcomes drawn at the stated rate
+    ece, bins = expected_calibration_error(y, p)
+    assert ece < 0.01
+    assert len(bins) == 10
+
+
+def test_miscalibrated_model_is_caught_despite_perfect_auc():
+    """The point of tracking calibration: perfect ranking, badly wrong probabilities."""
+    y = np.array([0] * 900 + [1] * 100)
+    p = np.where(y == 1, 0.99, 0.5)  # ranks perfectly, wildly overstates risk
+    m = evaluate_binary(y, p)
+    assert m.roc_auc == 1.0
+    assert m.ece > 0.4
+    assert m.brier > 0.2
+    assert m.mean_predicted > 5 * m.base_rate
+
+
+def test_recall_at_top_k():
+    y = np.array([1, 1, 0, 0, 0, 0, 0, 0, 0, 0])
+    p = np.array([0.9, 0.8, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1])
+    assert recall_at_top_k(y, p, 2) == 1.0
+    assert recall_at_top_k(y, p, 1) == 0.5
+    assert recall_at_top_k(np.zeros(5, dtype=int), p[:5], 2) == 0.0
+
+
+def test_auc_is_nan_for_single_class_rather_than_invented():
+    m = evaluate_binary(np.zeros(10, dtype=int), np.full(10, 0.3))
+    assert np.isnan(m.roc_auc)
+    assert m.n_positive == 0
+
+
+def test_shape_mismatch_rejected():
+    with pytest.raises(ValueError, match="shape mismatch"):
+        evaluate_binary(np.array([0, 1]), np.array([0.5]))
