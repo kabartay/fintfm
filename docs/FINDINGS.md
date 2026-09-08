@@ -732,3 +732,81 @@ calibration is a property of the *method* — which means TabPFN, TabICL and Tab
 and our differentiator is the domain prior plus the certificate, **not** calibration itself.
 That would be a materially weaker position than §12 suggests, and it is answerable from the
 run currently in flight. Do not build a pitch on calibration until that comparison exists.
+
+## 14. Phase 1 verdict: the domain prior works, but pure financial is not the optimum
+
+**Date:** 2026-09-08. **Status:** MEASURED. 5,000 steps × 3 variants at matched compute
+(2,175,234 parameters, identical across variants, enforced), Metal, seed 0, evaluated on
+three horizons × two context strategies of the UCI Polish panel. Resolves
+`phase1-prior-ablation` tasks 1.4-1.5 and the discriminating test in §13.
+
+Re-derivable from `runs/phase1-5k/results-paired.json`:
+
+```bash
+uv run fintfm-ablate --steps 5000 --device mps --out runs/phase1-5k
+```
+
+### Exit condition A: met
+
+Mean over six cells, and **all three metrics matter**:
+
+| variant | p_financial | mean AUC | mean ECE | mean Brier |
+| --- | --- | --- | --- | --- |
+| financial | 1.0 | **0.7568** | 0.01060 | 0.04844 |
+| **mixed** | **0.7** | 0.7509 | **0.00424** | **0.04818** |
+| generic | 0.0 | 0.7081 | 0.00656 | 0.04850 |
+
+Paired bootstrap on AUC with Holm-Bonferroni across cells:
+
+- **financial − generic:** all six point estimates positive; **3/6 significant** after
+  correction (up to +0.070), **0/6 favouring generic**. Two further cells were significant
+  before correction.
+- **mixed − generic:** **4/6 significant**, all favouring mixed.
+- **financial − mixed:** **1/6 significant**. Five of six cells have intervals straddling
+  zero, so on discrimination these two are **statistically indistinguishable**.
+
+**Domain-specific pretraining transfers.** That is the central bet of the project and it is
+now measured rather than argued, with no cell pointing the other way.
+
+### The more useful finding: the two priors contribute different things
+
+**The financial prior buys discrimination. The generic prior buys calibration.**
+
+- Pure financial has the **worst ECE of the three** (0.0106) despite the best AUC.
+- Pure generic calibrates better (0.0066) while discriminating far worse.
+- The mixture at p = 0.7 gets **both**: AUC statistically tied with pure financial, ECE 2.5×
+  better than it, and the **best Brier score** — which matters most, because Brier is a
+  proper scoring rule and therefore the single number that respects both properties at once.
+
+So the library default of 0.7, chosen arbitrarily on day one, turns out to be the best of the
+three tested. **The operating point is a mixture, not a pure domain prior**, and the
+plausible reason is that prior breadth regularises the posterior: a narrow prior fits the
+domain and is overconfident off it.
+
+### It also settles §13's discriminating test, against us
+
+§13 asked whether the calibration advantage is ours or generic to prior-fitted networks.
+**It is not the financial prior's** — financial is the worst-calibrated variant here. Good
+calibration tracks prior *breadth*, which means it is a property of the method, so **TabPFN,
+TabICL and TabFM very likely share it.**
+
+Consequence, and it is a demotion: **calibration alone is not a differentiator.** The
+defensible position is the *combination* — domain prior for discrimination, mixture for
+calibration, and the certificate for evidence — not calibration as such. Any pitch resting
+on calibration versus other foundation models needs a head-to-head against TabPFN before it
+can be made, and `docs/STRATEGY.md` has been amended accordingly.
+
+### Limitations, and two are serious
+
+- **No untrained control.** It was added to the harness *after* this run launched, so
+  nothing here establishes that any variant beats random initialisation. Cheap to fix and
+  must be, before the AUC levels are quoted anywhere.
+- **The six cells are not six independent tests.** They are three horizons × two context
+  strategies of one panel, and the two strategies on a given horizon **share the same test
+  rows**. Holm-Bonferroni treats them as a family of independent comparisons, which they are
+  not, so "3/6 significant" is a rough guide and not a clean family-wise statement. A proper
+  version needs independent panels — Taiwan and V4FinBench.
+- **Single seed.** Task 1.7 requires at least three before any number leaves the repository.
+- **Under-trained by 5×.** 2.2M parameters and 5,000 steps against a stated target of 10-50M.
+  The *ranking* of variants at matched compute is the claim here; the levels are not.
+- Horizon independence within the panel is unverifiable (§7).

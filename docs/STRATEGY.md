@@ -35,9 +35,16 @@ provisioning and low-default portfolios the level is the deliverable and a lende
 provision against an ordering — but claiming only the favourable half is the failure this
 project's own conventions exist to prevent.
 
-**Two things must be established before any pitch rests on calibration**, and neither is:
-whether a *calibrated* gradient boosting closes the gap, and whether the property is generic
-to prior-fitted networks rather than ours. See `changes/calibration-mechanism`.
+**One of those two questions is now answered, against us** (`FINDINGS` §14). Calibration is
+*not* a property of the financial prior — pure financial is the worst-calibrated variant, and
+calibration tracks prior *breadth* instead. So it is a property of the method, and TabPFN,
+TabICL and TabFM very likely share it. **Calibration alone is not a differentiator.** The
+defensible position is the combination: the domain prior for discrimination, a prior mixture
+for calibration, and the certificate for evidence. A head-to-head against TabPFN is required
+before any calibration claim is made against other foundation models.
+
+Still open: whether a *calibrated* gradient boosting closes the gap in the small-n regime.
+See `changes/calibration-mechanism`.
 
 ## What this revision overturns
 
@@ -120,7 +127,13 @@ calibration metrics, base-rate correction, paired significance testing, untraine
 sample-efficiency probe. 35 tests.
 
 ### Phase 1 — does the prior transfer, and in which regime?
-Two questions, not one, and the second was missing until today.
+**Exit condition A met 2026-09-08** (`FINDINGS` §14): domain-specific pretraining transfers.
+The financial prior beats a generic one at matched compute, 3 of 6 cells significant after
+correction with none against, and **the mixture at p = 0.7 is the better operating point** —
+tied on discrimination, 2.5× better calibrated, best Brier. Exit condition B (does it beat
+gradient boosting anywhere) was answered in §12: only below a few hundred rows.
+
+Remaining: the untrained control, three seeds, and independent panels.
 
 - **Exit condition A:** the financial prior beats a generic one at matched compute, and the
   difference survives the paired bootstrap with family-wise correction. A win count is not a

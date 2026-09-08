@@ -9,14 +9,21 @@
 - [x] 1.3 Fix the device mismatch in the held-out eval path. Verify:
       `uv run pytest tests/test_model.py -q` passes the device-parametrised training test on
       both cpu and mps. **Done 2026-09-08 — this crashed the first run at step 500**
-- [ ] 1.4 Complete the 5,000-step × 3-variant run on Metal (~3 h). Verify:
+- [x] 1.4 Complete the 5,000-step × 3-variant run on Metal (~3 h). Verify:
       `runs/phase1-5k/results.json` exists and `summarise()` prints a verdict rather than
-      "cannot be evaluated".
+      "cannot be evaluated". **Done 2026-09-08. Note: launched before the untrained control
+      and paired test existed, so the control is absent and the paired test was run
+      post-hoc by re-evaluating the saved checkpoints into results-paired.json.**
 - [ ] 1.5 Record the outcome in `docs/FINDINGS.md` as MEASURED, with the delta between
       financial and generic and the honest read of whether the exit condition was met.
       Numbers re-derived from `runs/phase1-5k/results.json`, never retyped. Verify:
       `uv run python openspec/tools/validate.py --findings` passes and the finding cites the
-      paired test output rather than a win count.
+      paired test output rather than a win count. **Done 2026-09-08, `FINDINGS` §14: exit
+      condition A met (3/6 cells significant, 0/6 against), and the more useful result is
+      that mixed p=0.7 dominates on Brier.**
+- [ ] 1.8 Re-run with the untrained control included, since this run predates it. Verify:
+      `results.json` contains a variant with `steps == 0` and the finding states whether any
+      trained variant beats random initialisation.
 - [ ] 1.6 If the exit condition is met, rerun at ~12M parameters (`--d-model 384
       --n-layers 8 --steps 20000`, ~1.5-2 days on Metal) to check the effect survives scale.
       If it is not met, open a proposal for the validation-layer-only pivot instead. Verify:
