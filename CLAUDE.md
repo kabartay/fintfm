@@ -100,6 +100,38 @@ Verifying a run is alive by watching accumulated CPU time grow is still right, b
 proves the process was alive *at that moment* — it cannot distinguish training from a process
 about to hit an untested branch. Read the log.
 
+## Releases
+
+A release is a git tag **and** a GitHub Release. A bare tag ships nothing and, once a release
+workflow exists, fires nothing.
+
+**Title carries the version:** `vX.Y.Z — Title`, with an em dash.
+
+**Two documents, opposite conventions, on purpose:**
+
+| document | shape | why |
+| --- | --- | --- |
+| `docs/CHANGELOG.md` | hard-wrapped at ~90 columns | read in an editor and a diff |
+| the GitHub Release body | **unwrapped**, one paragraph per line | read in a browser at full width |
+
+**Never paste the changelog entry straight into the release body.** That is the specific way
+the rule gets broken while appearing to be followed — the wrapping comes along and the
+release renders as a narrow column of unstyled prose beside its neighbours. Write the body
+separately, or unwrap the changelog text. Check rather than eyeball it:
+
+```bash
+gh release view vX.Y.Z --json body -q .body | awk '{ if (length($0) > m) m = length($0) } END { print m }'
+```
+
+A correct body measures 300+. One at 80-95 is prose broken at a column.
+
+**Commit messages stay hard-wrapped** at ~78 columns, because they are read in a terminal by
+`git log`. The same text does not serve both, so never reuse a tag message as a release body.
+
+**Confirm the run is green afterwards.** Creating the release is not the end of the job. There
+is no CI in this repository yet (`openspec/changes/ci-and-release-gates`), so until there is,
+say so explicitly rather than implying a release was verified.
+
 ## Licensing: what this repo carries
 
 **Apache-2.0**, chosen 2026-09-08. `LICENSE` holds the canonical text fetched from
