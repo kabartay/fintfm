@@ -573,3 +573,72 @@ objective simply never mentioned coherence. This is the defect
 **Consequence:** the term-structure direction is founded rather than speculative, and the
 diagnostic should be permanent — `pd-term-structure` task 11.2 — so that a coherence
 regression cannot pass unnoticed behind a healthy-looking aggregate.
+
+## 12. The advantage is calibration, not ranking — and it holds at every dataset size
+
+**Date:** 2026-09-08. **Status:** MEASURED, 5 seeds, real data. The checkpoint is a
+5,000-step 2.2M-parameter model, so **absolute AUC is not a quality claim**; the
+model-versus-model *comparison* at matched conditions is. Resolves
+`sample-efficiency-regime` tasks 13.3-13.5. Re-derivable from
+`runs/probe-financial/sample_efficiency.json` and the seed sweep in this section.
+
+Finding §9 said our benchmark had only ever measured the regime the literature says we lose.
+Measuring the other end changes the thesis — not by confirming it, but by relocating it.
+
+| n train | defaults | AUC delta (fintfm − gboost) | verdict | fintfm ECE | gboost ECE | ECE ratio |
+| --- | --- | --- | --- | --- | --- | --- |
+| 100 | 5 | **+0.069 ± 0.040** | **TFM wins** | 0.0066 | 0.0781 | **11.7×** |
+| 250 | 12 | +0.024 ± 0.036 | inconclusive | 0.0050 | 0.0505 | **10.0×** |
+| 500 | 24 | −0.039 ± 0.035 | GBM wins | 0.0068 | 0.0415 | 6.1× |
+| 1,000 | 47 | −0.096 ± 0.015 | GBM wins | 0.0077 | 0.0303 | 3.9× |
+| 2,000 | 94 | −0.126 ± 0.018 | GBM wins | 0.0072 | 0.0168 | 2.3× |
+
+### The ranking advantage is real but narrow
+
+It survives five seeds only at **n = 100**, is inconclusive by 250, and is gone by 500. The
+crossover is therefore around 100-250 observations, **far below the ~8,000 that Baesens et
+al. report** for LGD. Two candidate explanations and they are not distinguishable yet: our
+checkpoint is heavily under-trained (AUC is roughly flat at 0.67-0.72 across every size,
+which is what a model that cannot use more data looks like), or corporate default at a
+3-year horizon simply crosses over earlier than consumer LGD. **Do not quote 100-250 as the
+product's crossover** until a properly trained model has been measured.
+
+### The calibration advantage is the finding
+
+Gradient boosting's expected calibration error is **2.3× to 11.7× worse at every size
+tested**, and worst exactly where it matters: 0.078 at n = 100, meaning a stated probability
+is off by nearly 8 percentage points on average. Our ECE is flat at 0.005-0.008 across all
+sizes with tiny variance, so this is a stable property rather than a lucky draw.
+
+The mechanism is not mysterious and that is what makes it credible: gradient boosting on 100
+rows with 5 defaults overfits into overconfident probabilities, while this model is trained
+under cross-entropy (a proper scoring rule), receives a balanced context, and has its base
+rate corrected analytically (§6). Note that **gradient boosting still wins AUC decisively at
+n = 2,000 while being 2.3× worse calibrated** — the two properties are genuinely separable,
+which is the whole reason §9's AUC-only framing was insufficient.
+
+### Consequence: the pitch is calibration, not accuracy
+
+This is the strongest evidence yet for `docs/DECISIONS.md` D3, and it sharpens it. The
+defensible claim is **not** "more accurate than gradient boosting" — that is false above a
+few hundred rows and would be caught immediately. It is:
+
+> Comparable ranking below a few hundred obligors, and a probability that means what it says
+> at every portfolio size, where the incumbent's is off by up to 8 points.
+
+For low-default portfolios, provisioning and capital, the level is the deliverable and the
+ranking is secondary. A lender cannot provision against an ordering. This also explains why
+Neuralk's demo showing a bare "Default risk 6%" (`LANDSCAPE.md`) is a weaker product than it
+appears: nothing in it establishes that 6% means 6%.
+
+### What would falsify or complicate this
+
+- **A tuned gradient boosting baseline with calibration applied.** Ours is out-of-the-box,
+  matching how Baesens et al. framed it, but Platt scaling or isotonic regression on a
+  validation split is cheap and standard practice, and it is the obvious counter. **Until
+  that comparison is run, the 11.7× is against an uncalibrated incumbent and must be
+  described that way.** This is the single most important follow-up.
+- One panel, one horizon, one architecture. Needs Taiwan and V4FinBench.
+- ECE with 5 defaults in the training set and ~3,150 test rows is measurable, but the
+  calibration of a 3% base rate estimated from 5 events deserves a conformal interval rather
+  than a point ECE.
