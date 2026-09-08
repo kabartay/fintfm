@@ -174,3 +174,57 @@ simultaneously on the one axis where this project has no advantage. An API is ev
 delivery mechanism for the certificate, but the thing delivered has to be narrow — a PD term
 structure with its interval, its calibration and its attributions — or it is a worse copy of
 something already shipping.
+
+## Neuralk's Financial Services page names the constraint and does not solve it
+
+Read 2026-09-08 from [neuralk.ai/solutions](https://www.neuralk.ai/solutions). This is the
+single most useful competitive document encountered, because it is a direct competitor
+describing our exact market in their own words.
+
+**Their structure is horizontal with vertical marketing.** Six verticals — financial
+services, telecom, industry and manufacturing, energy and utilities, commerce and retail,
+healthcare and life sciences — each with four use cases, all served by the same model. The
+messaging is explicit: *"one model, every industry"*, no retraining. The financial services
+page is generic capability with domain copy on top, not a purpose-built financial product.
+
+**They name the binding constraint themselves:**
+
+> "Financial institutions face two hard constraints: extreme accuracy requirements and
+> **tight regulatory scrutiny**."
+
+**And then address none of it.** The page has no mention of calibration, model validation,
+probability-of-default term structure, IFRS 9, Basel, low-default portfolios, uncertainty
+quantification, or AML. It names regulatory scrutiny as one of the two hard constraints and
+ships nothing for it.
+
+**Their own demo mockup is the argument.** The financial services illustration shows a
+personal loan applicant with a credit score of 721 and:
+
+> Default risk **6%** — Recommendation: **Approve at 4.9% APR**
+
+A bare point estimate, with a pricing decision attached, and no interval, no horizon, no
+calibration statement, no refusal path for an applicant unlike anything in the context. That
+is precisely the object `docs/STRATEGY.md` argues is insufficient: a single 6% carries no
+information about whether 6% means anything, and a model-risk function cannot validate it or
+provision against it.
+
+**Be fair about where the gap actually bites.** For a fast consumer-credit decision, a point
+PD at 250ms may be exactly what the buyer wants, and their retail traction is real (a
+reported 1.3M products at 89.8% zero-shot accuracy). The gap matters for **regulated PD used
+in provisioning and capital** — IFRS 9 lifetime ECL, Basel PD, low-default portfolios — where
+the number must be defensible rather than merely fast. That is a narrower market than
+"financial services" and it is the one this project targets.
+
+**Three further reads:**
+
+- **Their credit angle is consumer, not corporate.** The example is a €14,000 personal loan
+  with a credit-bureau-style score. SME and specialty corporate lending, where the
+  small-data advantage is strongest (`FINDINGS` §9), is not what this page is selling.
+- **They claim time series too** ("alpha generation", "time-series forecasting to power and
+  commodity price data"). Given Beyond IID on non-IID data and The Forecasting Company's
+  argument that time series are not tables, that is a broad claim for a tabular model and
+  not a fight worth joining on either side.
+- **Breadth across six verticals means depth in none** — the structural opening for a
+  specialist. But it cuts both ways: nothing stops them adding depth once a customer pays
+  for it, so the defence has to be regulatory substance and an accumulated track record, not
+  a head start.

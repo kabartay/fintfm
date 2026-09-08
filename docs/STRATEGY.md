@@ -90,6 +90,14 @@ The incumbent is not gradient boosting alone. Baesens et al. name the quasi-stan
 **gradient boosting paired with SHAP**, so the comparison includes explanations, and a model
 that wins on AUC but cannot say why loses anyway.
 
+**A competitor states the case for us.** Neuralk's financial services page opens by naming
+the two hard constraints as extreme accuracy *and tight regulatory scrutiny*, then addresses
+neither calibration, validation, PD term structure, IFRS 9, Basel nor low-default portfolios.
+Their own demo shows a bare "Default risk 6%" with "Approve at 4.9% APR" attached — a point
+estimate driving a pricing decision, with no interval, no horizon and no refusal path
+(`docs/LANDSCAPE.md`). The distance between naming regulatory scrutiny and shipping something
+a model-risk function can validate is the product.
+
 `finkele-axiom` transfers directly here: a validation protocol producing a certificate with
 conformal coverage and honest refusals is the same machinery pointed at a different domain.
 
