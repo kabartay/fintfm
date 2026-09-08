@@ -20,9 +20,16 @@
       **Done 2026-09-08. `HazardHead` + `FinancialTFM.term_structure`, 12 tests. Monotone by
       construction, including under weights scaled 500x. 0 violations in 12,000 steps
       against 11.0% for the per-horizon approach (`FINDINGS` §20).**
-- [ ] 11.5 Compare joint multi-horizon against independent per-horizon models at matched
+- [x] 11.5 Compare joint multi-horizon against independent per-horizon models at matched
       compute, on AUC per horizon and on coherence. Verify: numbers into `docs/FINDINGS.md`,
       re-derived from `results.json`, with the paired test from `metrics.py`.
+      **Done 2026-09-08, `FINDINGS` §21, `fintfm-termstruct`. Discrimination is a tie
+      (+0.0039 at matched total, -0.0032 when the baseline gets 5x compute), coherence goes
+      from 12-29% violations to 0%. Coherence is free. Paired test still owed - see 11.7.**
+- [ ] 11.7 Repeat §21 across >= 3 seeds with the paired bootstrap, since the AUC differences
+      (+/-0.004) are almost certainly within noise and "no difference" is currently an
+      inference rather than a measurement. Verify: mean +/- std per arm and a Holm-corrected
+      verdict in `docs/FINDINGS.md` §21.
 - [ ] 11.6 Write the IFRS 9 framing down properly before any customer conversation: what
       lifetime ECL requires, what the model supplies, and what it does not (LGD, EAD,
       discounting). Verify: a section in `docs/STRATEGY.md` that states the gaps before the

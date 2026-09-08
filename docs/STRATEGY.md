@@ -28,10 +28,14 @@ now leads with it.
 
 Four claims, ordered by how much evidence each carries:
 
-1. **Coherence, and it is the strongest card.** The object is a hazard path — PD at 12
-   months, 24 months, lifetime — because IFRS 9 requires lifetime ECL. Independent
-   per-horizon models produce curves that contradict themselves 39% of the time, **measured**,
-   and no camp in the field predicts this object at all (`docs/LANDSCAPE.md`).
+1. **Coherence, and it is the strongest card — and it is free.** The object is a hazard path
+   — PD at 12 months, 24 months, lifetime — because IFRS 9 requires lifetime ECL. Independent
+   per-horizon models contradict themselves 39% of the time on real data (§11) and 12-29% on
+   synthetic (§21), while a hazard parameterisation is monotone **by construction** (§20).
+   Measured 2026-09-08: joint prediction shows **no measurable discrimination cost** (±0.004
+   AUC) while eliminating incoherence entirely, with **one model instead of five** (§21). So
+   this is not a trade-off to defend but a strict improvement, and no camp in the field
+   predicts the object at all (`docs/LANDSCAPE.md`).
 2. **Auditable provenance.** Nothing real reaches pretraining, checkable by grep and enforced
    in CI-in-waiting. Competitors training on real tables cannot retrofit this, and the
    leakage literature prices contamination at up to 32 MAPE points (§1).

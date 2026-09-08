@@ -1302,3 +1302,64 @@ Two guards that matter more than they look:
 - **No real-data evaluation of the term structure.** The UCI panels have no firm identifiers
   (§7), so a per-firm hazard path cannot be scored against them. This needs V4FinBench, which
   is the only licensed panel with company-year rows.
+
+## 21. Coherence is free: joint prediction matches per-horizon on AUC and eliminates incoherence
+
+**Date:** 2026-09-08. **Status:** MEASURED on held-out synthetic survival tasks, single seed.
+Resolves `pd-term-structure` task 11.5. Re-derivable:
+
+```bash
+uv run fintfm-termstruct --steps 1500 --device mps --out runs/term-structure
+```
+
+§20 proved a hazard parameterisation makes the term structure monotone by construction. That
+left the question this experiment answers: **does fitting the whole curve cost discrimination?**
+
+| arm | models | total steps | mean AUC | violations | fully monotone |
+| --- | --- | --- | --- | --- | --- |
+| **joint** (hazard head, survival loss) | 1 | 1,500 | 0.7693 | **0.00%** | **100.0%** |
+| per-horizon, matched **total** compute | 5 | 1,500 | 0.7654 | 29.28% | 11.6% |
+| per-horizon, matched **per-model** compute | 5 | **7,500** | 0.7725 | 11.88% | 56.4% |
+
+### Discrimination: a tie, and that is the good news
+
+Joint beats per-horizon by **+0.0039** at equal budget and loses by **−0.0032** when the
+baseline is given **five times the compute**. Both differences are tiny and neither was
+significance-tested, so the honest statement is **no measurable difference in
+discrimination**.
+
+That is the ideal shape for this thesis. Coherence is not a trade-off that has to be argued
+against accuracy — it is **free**. And the joint model gets there with one model instead of
+five, so it is also five times cheaper to train and to serve.
+
+### Coherence: the gap is enormous and it worsens as budget shrinks
+
+Zero violations against 11.88% and 29.28%. Note the direction: **per-horizon incoherence gets
+worse as per-model compute falls** — 11.88% at 1,500 steps each, 29.28% at 300 steps each,
+with only 11.6% of firms getting a coherent curve in the cheaper arm. So the defect is worst
+exactly in the small-portfolio, limited-budget regime this project targets.
+
+### The synthetic prior reproduced the real defect, which is independent evidence for it
+
+The per-horizon arm at matched per-model compute measured **11.88% violations and 56.4%
+fully-monotone firms**. §11 measured **11.0% and 60.6%** on real UCI data with a real
+checkpoint. Those are close enough to be striking.
+
+The prior was not built to reproduce this and no part of it was tuned toward it, so this is
+**out-of-sample evidence that the synthetic prior captures a real structural property of
+credit data** — a form of prior validation that owes nothing to AUC, and one of the few
+positive signals today that is not about size.
+
+### What this does not establish
+
+- **Single seed, no significance test.** The AUC differences (±0.004) are almost certainly
+  within noise, which supports "no difference" but does not establish it. Three seeds and the
+  paired test before this is quoted.
+- **Synthetic evaluation only.** The term structure cannot be scored on the UCI panels at all
+  (no firm identifiers, §7). Real validation needs V4FinBench, whose loader now exists but
+  whose data needs Kaggle credentials.
+- **Small models near a ceiling.** Giving the baseline 5× compute bought +0.003 AUC, which
+  suggests every arm is close to what this size can do. The comparison may look different at
+  scale, in either direction.
+- **Nothing here is about calibration of the curve levels.** §17's warning applies: coherence
+  and calibration are independent, and a monotone curve can still state the wrong numbers.
