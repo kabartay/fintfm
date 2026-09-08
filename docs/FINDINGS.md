@@ -1219,3 +1219,63 @@ difficulty targets should be justified from the literature, never from the evalu
 - **Whether any of this improves transfer is unmeasured.** Task 15.5 retrains at matched
   compute against the old prior. Until then this is a fidelity improvement, not a
   performance one.
+
+## 20. The incoherence is fixed by construction, not by training
+
+**Date:** 2026-09-08. **Status:** MEASURED (0 violations in 12,000 horizon steps) and
+**PROVED** (structural, see below). Implements `pd-term-structure` tasks 11.2-11.4.
+
+§11 measured the defect: **11.0% of horizon steps and 39% of firms** received a cumulative
+PD that *fell* as the horizon grew, invisible behind a monotone portfolio aggregate. §19's
+"small because early or structural?" placed it firmly in the structural column — nothing in
+the architecture or loss forbade a violation, so no amount of training or scale would close
+it.
+
+`fintfm.modeling.hazard.HazardHead` closes it by changing what is predicted. Instead of a
+probability per horizon, the model emits a **per-period hazard**
+
+    h_k = P(default in period k | survived to k)  in (0, max_hazard]
+
+and the cumulative default probability is derived:
+
+    F_k = 1 - prod_{j<=k} (1 - h_j).
+
+Every factor `(1 - h_j)` lies in `(0, 1]`, so the survival function is non-increasing and
+`F_k` is **non-decreasing in k for any parameters whatsoever**.
+
+| | per-horizon (§11, real data) | hazard head |
+| --- | --- | --- |
+| step violations | **11.0%** | **0 / 12,000 (0.0%)** |
+| fully monotone firms | **60.6%** | **100.0%** |
+| guarantee | none | **structural** |
+
+### Why "proved" is the load-bearing word
+
+The guarantee does not depend on the weights being sensible. `test_monotone_even_with_adversarial_weights`
+scales the projection weights by 500 and spreads biases across ±400, then checks 400 rows:
+zero violations. A learned monotonicity *penalty* fails exactly there, and would also need
+tuning, and would still leave a residual violation rate to explain to a reviewer. A
+cumulative-product parameterisation has nothing to tune and nothing to explain.
+
+This matters strategically because it is the project's **first advantage that is not a
+scale advantage** (see §19's framing). A scale advantage must be bought and then defended
+against better-funded teams. This one is arithmetic.
+
+### The training objective changed too, and that is the deeper part
+
+The loss is now the discrete-time survival likelihood: `h_t · prod_{j<t}(1 - h_j)` for a
+firm defaulting in period `t`, and `prod_{j<=K}(1 - h_j)` for one that survives the grid.
+That fits **the whole curve at once** rather than each horizon separately, so the horizons
+become mutually *consistent* rather than merely non-contradictory. Independent per-horizon
+models cannot do this even in principle, because they share no parameters.
+
+### What is not yet true
+
+- **The prior still emits a binary label, not a default period.** Task 11.3. Until then the
+  hazard head can be exercised and its guarantee verified, but it cannot be *trained* on
+  synthetic survival data, so no accuracy claim attaches to it yet.
+- **Untrained curves are not calibrated.** The demonstration above shows a mean curve rising
+  0.44 → 0.95, which is a random-initialisation artefact and says nothing about levels.
+  Coherence and calibration are independent properties; this finding is only about the first.
+- **No comparison against per-horizon models on accuracy.** Task 11.5, and it needs 11.3
+  first.

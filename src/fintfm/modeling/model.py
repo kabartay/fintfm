@@ -38,6 +38,8 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
+from fintfm.modeling.hazard import HazardHead
+
 
 @dataclass
 class ModelConfig:
@@ -56,6 +58,11 @@ class ModelConfig:
         d_ff: Feed-forward width in the row stage.
         dropout: Dropout probability. Zero for pretraining, where data is effectively
             infinite and there is nothing to overfit.
+        n_horizons: When set, the model also carries a :class:`HazardHead` producing a
+            **provably monotone** cumulative-PD term structure over this many periods. The
+            object IFRS 9 lifetime expected credit loss consumes, and the fix for the 39%
+            incoherence measured in ``docs/FINDINGS.md`` §11. ``None`` keeps the model
+            classification-only.
     """
 
     max_features: int = 24
@@ -67,6 +74,7 @@ class ModelConfig:
     n_layers: int = 6
     d_ff: int = 512
     dropout: float = 0.0
+    n_horizons: int | None = None
 
 
 def normalize_features(
@@ -148,6 +156,9 @@ class FinancialTFM(nn.Module):
         )
         self.norm = nn.LayerNorm(cfg.d_model)
         self.head = nn.Linear(cfg.d_model, cfg.max_classes)
+        self.hazard = (
+            HazardHead(cfg.d_model, cfg.n_horizons) if cfg.n_horizons is not None else None
+        )
 
     @staticmethod
     def _row_mask(n_rows: int, n_ctx: int, device: torch.device) -> torch.Tensor:
@@ -253,3 +264,35 @@ class FinancialTFM(nn.Module):
         model = cls(ModelConfig(**ckpt["config"]))
         model.load_state_dict(ckpt["state_dict"])
         return model.eval()
+
+    def term_structure(
+        self, X: torch.Tensor, y: torch.Tensor, n_ctx: int
+    ) -> torch.Tensor:
+        """Cumulative PD across horizons for the query rows, monotone by construction.
+
+        Args:
+            X: ``(B, N, F)`` raw features, NaN for missing and padded.
+            y: ``(B, N)`` labels; only the first ``n_ctx`` are read.
+            n_ctx: Context/query split.
+
+        Returns:
+            ``(B, N - n_ctx, n_horizons)`` cumulative default probability, non-decreasing in
+            the horizon for every row. See ``fintfm.modeling.hazard``.
+
+        Raises:
+            RuntimeError: If the model was built without ``n_horizons``.
+        """
+        if self.hazard is None:
+            raise RuntimeError(
+                "this model has no hazard head; build it with ModelConfig(n_horizons=K)"
+            )
+        rows = self.encode_rows(X, n_ctx)
+        y_onehot = F.one_hot(
+            y[:, :n_ctx].clamp(0, self.cfg.max_classes - 1), self.cfg.max_classes
+        ).to(rows.dtype)
+        y_emb = torch.cat(
+            [self.y_proj(y_onehot), self.query_token.expand(X.shape[0], X.shape[1] - n_ctx, -1)],
+            dim=1,
+        )
+        h = self.encoder(rows + y_emb, mask=self._row_mask(X.shape[1], n_ctx, X.device))
+        return self.hazard.cumulative_pd(self.norm(h)[:, n_ctx:])

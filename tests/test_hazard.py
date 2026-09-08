@@ -1,0 +1,151 @@
+"""The monotonicity guarantee, and the survival likelihood that fits the whole curve.
+
+`docs/FINDINGS.md` §11 measured 39% of firms receiving a cumulative-PD curve that fell as
+the horizon grew. These tests assert the property that makes that impossible **by
+construction** rather than by training, which is the difference between a design advantage
+and a scale one.
+"""
+
+import pytest
+import torch
+
+from fintfm.modeling.hazard import CENSORED, HazardHead, coherence_violations
+
+
+def test_cumulative_pd_is_monotone_for_random_representations():
+    torch.manual_seed(0)
+    head = HazardHead(d_model=16, n_horizons=6)
+    pd = head.cumulative_pd(torch.randn(500, 16))
+    assert pd.shape == (500, 6)
+    assert coherence_violations(pd).item() == 0
+    assert (pd >= 0).all() and (pd <= 1).all()
+
+
+def test_monotone_even_with_adversarial_weights():
+    """The guarantee must not depend on the weights being reasonable.
+
+    A learned monotonicity penalty fails exactly here: extreme or hostile parameters break
+    it. A cumulative-product parameterisation cannot break, and that is the whole point.
+    """
+    torch.manual_seed(0)
+    head = HazardHead(d_model=8, n_horizons=8)
+    with torch.no_grad():
+        head.proj.weight.copy_(torch.randn_like(head.proj.weight) * 500)
+        head.proj.bias.copy_(torch.linspace(-400, 400, 8))
+    pd = head.cumulative_pd(torch.randn(400, 8) * 100)
+    assert coherence_violations(pd).item() == 0
+    assert torch.isfinite(pd).all()
+
+
+def test_hazards_stay_in_the_open_unit_interval():
+    torch.manual_seed(0)
+    head = HazardHead(d_model=8, n_horizons=4, max_hazard=0.9)
+    hz = head.hazards(torch.randn(200, 8) * 50)
+    assert (hz > 0).all(), "a zero hazard makes the log-likelihood infinite"
+    assert (hz <= 0.9).all(), "max_hazard must be respected so later horizons keep shape"
+
+
+def test_survival_loss_prefers_the_true_default_period():
+    """A model that puts its hazard mass in the right period must score better."""
+    torch.manual_seed(0)
+    head = HazardHead(d_model=4, n_horizons=5)
+    x = torch.zeros(1, 4)  # constant input, so the bias alone sets the hazards
+    with torch.no_grad():
+        head.proj.weight.zero_()
+        head.proj.bias.copy_(torch.tensor([-6.0, -6.0, 2.0, -6.0, -6.0]))  # mass in period 2
+    correct = head.loss(x, torch.tensor([2]))
+    wrong = head.loss(x, torch.tensor([0]))
+    assert correct < wrong
+
+
+def test_censored_rows_are_scored_on_survival_only():
+    torch.manual_seed(0)
+    head = HazardHead(d_model=4, n_horizons=4)
+    x = torch.zeros(2, 4)
+    with torch.no_grad():
+        head.proj.weight.zero_()
+        head.proj.bias.fill_(-5.0)  # low hazard everywhere: survival is likely
+    censored = head.loss(x, torch.tensor([CENSORED, CENSORED]))
+    defaulted = head.loss(x, torch.tensor([0, 0]))
+    assert censored < defaulted, "low hazards should favour survival, not early default"
+
+
+def test_survival_loss_decreases_under_optimisation():
+    torch.manual_seed(0)
+    head = HazardHead(d_model=12, n_horizons=5)
+    x = torch.randn(256, 12)
+    # firms with a large first feature default early; others are censored
+    period = torch.where(x[:, 0] > 0.5, torch.zeros(256, dtype=torch.long),
+                         torch.full((256,), CENSORED, dtype=torch.long))
+    opt = torch.optim.Adam(head.parameters(), lr=0.05)
+    losses = []
+    for _ in range(120):
+        loss = head.loss(x, period)
+        opt.zero_grad()
+        loss.backward()
+        opt.step()
+        losses.append(loss.item())
+    assert losses[-1] < losses[0]
+    # and the guarantee survives training
+    assert coherence_violations(head.cumulative_pd(x)).item() == 0
+
+
+def test_rejects_a_period_outside_the_grid():
+    head = HazardHead(d_model=4, n_horizons=3)
+    with pytest.raises(ValueError, match="outside grid"):
+        head.loss(torch.zeros(1, 4), torch.tensor([5]))
+
+
+def test_rejects_a_degenerate_horizon_grid():
+    with pytest.raises(ValueError, match="n_horizons"):
+        HazardHead(d_model=4, n_horizons=0)
+
+
+def test_coherence_violations_detects_a_broken_curve():
+    """The diagnostic must catch what §11 found, or it is not a guard."""
+    good = torch.tensor([[0.01, 0.02, 0.05]])
+    bad = torch.tensor([[0.05, 0.02, 0.01]])  # falls: a firm un-defaulting
+    assert coherence_violations(good).item() == 0
+    assert coherence_violations(bad).item() == 2
+
+
+def test_model_term_structure_is_monotone_end_to_end():
+    """The guarantee must survive the whole model, not just the head in isolation."""
+    from fintfm.modeling.hazard import coherence_violations as viol
+    from fintfm.modeling.model import FinancialTFM, ModelConfig
+
+    torch.manual_seed(0)
+    cfg = ModelConfig(max_features=8, max_classes=2, d_cell=16, d_model=32, n_heads=2,
+                      n_col_layers=1, n_layers=2, d_ff=64, n_horizons=5)
+    model = FinancialTFM(cfg).eval()
+    X = torch.randn(2, 20, 8)
+    X[0, 3, 4] = float("nan")
+    y = torch.randint(0, 2, (2, 20))
+    with torch.no_grad():
+        ts = model.term_structure(X, y, n_ctx=12)
+    assert ts.shape == (2, 8, 5)
+    assert viol(ts).item() == 0
+    assert torch.isfinite(ts).all()
+
+
+def test_model_without_hazard_head_refuses_clearly():
+    from fintfm.modeling.model import FinancialTFM, ModelConfig
+
+    cfg = ModelConfig(max_features=6, max_classes=2, d_cell=8, d_model=16, n_heads=2,
+                      n_col_layers=1, n_layers=1, d_ff=16)
+    model = FinancialTFM(cfg)
+    with pytest.raises(RuntimeError, match="no hazard head"):
+        model.term_structure(torch.randn(1, 4, 6), torch.zeros(1, 4, dtype=torch.long), n_ctx=2)
+
+
+def test_term_structure_checkpoint_roundtrip(tmp_path):
+    """n_horizons must survive save/load, or a served model silently loses the head."""
+    from fintfm.modeling.model import FinancialTFM, ModelConfig
+
+    cfg = ModelConfig(max_features=6, max_classes=2, d_cell=8, d_model=16, n_heads=2,
+                      n_col_layers=1, n_layers=1, d_ff=16, n_horizons=4)
+    path = str(tmp_path / "hz.pt")
+    FinancialTFM(cfg).save(path)
+    loaded = FinancialTFM.load(path)
+    assert loaded.cfg.n_horizons == 4
+    assert loaded.hazard is not None

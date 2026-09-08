@@ -7,15 +7,19 @@
       **Done 2026-09-08 — the change is FOUNDED. 11.0% violation rate per step; only 60.6%
       of firms get a fully monotone curve, while the portfolio aggregate is monotone and
       hides it entirely. `docs/FINDINGS.md` §11.**
-- [ ] 11.2 Add a monotonicity diagnostic to `evaluation/metrics.py` so term-structure
-      incoherence is reported wherever multiple horizons are evaluated. Verify: a test with a
-      deliberately inverted term structure that asserts it is flagged.
+- [x] 11.2 Add a monotonicity diagnostic so term-structure incoherence is reported wherever
+      multiple horizons are evaluated. Verify: a test with a deliberately inverted term
+      structure that asserts it is flagged. **Done 2026-09-08:
+      `hazard.coherence_violations`, and `test_coherence_violations_detects_a_broken_curve`.**
 - [ ] 11.3 Extend `prior/financial.py` to sample a survival process and emit a hazard path
       rather than one Bernoulli label, keeping the macro regime parametric. Verify:
       `uv run pytest tests/test_prior.py -q` plus a test that cumulative hazard is
       non-decreasing by construction.
-- [ ] 11.4 Add a multi-horizon head to the model, predicting K hazards per row. Verify: a
+- [x] 11.4 Add a multi-horizon head to the model, predicting K hazards per row. Verify: a
       test that cumulative PD is non-decreasing in the horizon for random inputs.
+      **Done 2026-09-08. `HazardHead` + `FinancialTFM.term_structure`, 12 tests. Monotone by
+      construction, including under weights scaled 500x. 0 violations in 12,000 steps
+      against 11.0% for the per-horizon approach (`FINDINGS` §20).**
 - [ ] 11.5 Compare joint multi-horizon against independent per-horizon models at matched
       compute, on AUC per horizon and on coherence. Verify: numbers into `docs/FINDINGS.md`,
       re-derived from `results.json`, with the paired test from `metrics.py`.
