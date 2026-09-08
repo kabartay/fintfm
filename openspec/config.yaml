@@ -65,7 +65,17 @@ context: |
   CODE STYLE: comprehensive module and function docstrings, full type hints, explicit
   naming, in the same pass the code is written.
 
+structure:
+  changes: proposals for work not yet done — intent
+  specs: numbered requirements describing what is currently true — the source of truth
+  tools: validate.py, which enforces these rules rather than trusting them
+
 rules:
+  spec:
+    - Every requirement names the test or command that enforces it. A requirement nothing
+      checks is a wish, and validate.py fails on one.
+    - A landed change updates the spec it touches in the SAME commit. A stale spec is worse
+      than no spec, because it is trusted.
   proposal:
     - State explicitly whether the change is blocked by, or blocks, another change.
     - Include a "Non-goals" section.

@@ -8,10 +8,19 @@ assumption it rests on.
 ```
 openspec/
   config.yaml          project context and the rules a proposal/tasks file must satisfy
-  changes/<slug>/
+  changes/<slug>/      what we INTEND to do
     proposal.md        Why / What / Non-goals / Blocked by-blocks / Falsified by
     tasks.md           half-day chunks, each with the command that verifies it
+  specs/<capability>/  what is CURRENTLY TRUE — the living source of truth
+    spec.md            numbered requirements, each naming what enforces it
+  tools/
+    validate.py        enforces these conventions; wired into tests/test_openspec.py
 ```
+
+**`changes/` versus `specs/`** is the distinction that makes this work. `changes/` is
+intent; `specs/` is current state. **A change that lands updates the spec it touches in the
+same commit** — a change that leaves the spec stale has not really landed, and the specs stop
+being trustworthy the first time that is allowed.
 
 **Workflow.** An idea becomes a proposal. A proposal becomes tasks. A task is ticked only
 when its stated verification passes, **with the result recorded next to it** rather than a

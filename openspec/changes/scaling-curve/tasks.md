@@ -10,3 +10,5 @@
 - [ ] 9.4 Run the grid on rented GPU. Verify: every cell has a `results.json` with its commit.
 - [ ] 9.5 Plot real-data performance against pretraining volume and record the verdict in
       `docs/FINDINGS.md`, explicitly stating whether it is monotone, saturating or flat.
+      Verify: the figure is regenerated from the per-cell `results.json` files by a script, so
+      no number in it is retyped.

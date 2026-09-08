@@ -14,4 +14,6 @@
       `uv run fintfm-bench --credit` prints both, and the gap is recorded in
       `docs/FINDINGS.md` re-derived from the run output.
 - [ ] 3.4 Update `docs/STRATEGY.md` Phase 1 to require the time-split number, since the phase
-      currently says "with time-based splits" while the harness does not do it.
+      currently says "with time-based splits" while the harness does not do it. Verify:
+      `grep -n "time-based" docs/STRATEGY.md` shows the requirement, and the harness refuses to
+      run a time split on a dataset with `has_period_labels=False`.

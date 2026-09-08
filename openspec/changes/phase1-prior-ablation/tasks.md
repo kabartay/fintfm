@@ -14,10 +14,15 @@
       "cannot be evaluated".
 - [ ] 1.5 Record the outcome in `docs/FINDINGS.md` as MEASURED, with the delta between
       financial and generic and the honest read of whether the exit condition was met.
-      Numbers re-derived from `runs/phase1-5k/results.json`, never retyped.
+      Numbers re-derived from `runs/phase1-5k/results.json`, never retyped. Verify:
+      `uv run python openspec/tools/validate.py --findings` passes and the finding cites the
+      paired test output rather than a win count.
 - [ ] 1.6 If the exit condition is met, rerun at ~12M parameters (`--d-model 384
       --n-layers 8 --steps 20000`, ~1.5-2 days on Metal) to check the effect survives scale.
-      If it is not met, open a proposal for the validation-layer-only pivot instead.
+      If it is not met, open a proposal for the validation-layer-only pivot instead. Verify:
+      a second `results.json` at the larger config, or a new directory under
+      `openspec/changes/` if the pivot is triggered.
 - [ ] 1.7 Repeat the winning configuration across at least 3 seeds before any number from it
       is quoted outside this repository. One seed cannot separate a 0.01 AUC difference from
-      noise.
+      noise. Verify: `results.json` per seed, and the finding reports mean +/- std rather than
+      a single value.

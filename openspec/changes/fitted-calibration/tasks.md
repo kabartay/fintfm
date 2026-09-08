@@ -8,4 +8,6 @@
       Verify: numbers into `docs/FINDINGS.md` §6, re-derived from the run, including the
       1-year case that motivated this change.
 - [ ] 4.4 Set the default to whichever wins and record the decision in `docs/DECISIONS.md`
-      D5, updating its reversal condition rather than appending a new decision.
+      D5, updating its reversal condition rather than appending a new decision. Verify:
+      `uv run python openspec/tools/validate.py` passes and D5 names the measurement that
+      settled it.

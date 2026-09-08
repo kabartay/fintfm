@@ -61,7 +61,8 @@ generator on a real dataset.
 
 ## 2. The enterprise competitive baseline is linear regression, not gradient boosting
 
-**Date:** 2026-09-08. **Status:** positioning input; see `docs/LANDSCAPE.md`.
+**Date:** 2026-09-08. **Status:** MEASURED by others (Fundamental's own published figure);
+our reading of what it implies is inference, not measurement. See `docs/LANDSCAPE.md`.
 
 Fundamental's published oil & gas result reports NEXUS beating **linear regression** by 75%
 MAE / 43% RMSE across 13 regional markets. That is the comparison a funded competitor chose
@@ -135,9 +136,10 @@ competitor cannot simply outspend.
 
 ## 4. Energy dominates TSFM pretraining because its data is free; finance is empty because its data is not
 
-**Date:** 2026-09-08. **Status:** analysis of a published table; the explanation is inference,
-the absence is fact. **Source:** Table 5 of Meyer et al. (arXiv:2510.13654), which catalogues
-pretraining (P), train/test (T/T) and zero-shot (ZS) dataset use across 15 TSFMs.
+**Date:** 2026-09-08. **Status:** the absence is MEASURED (read directly from a published
+table); the four-cause explanation for it is inference and labelled as such below.
+**Source:** Table 5 of Meyer et al. (arXiv:2510.13654), which catalogues pretraining (P),
+train/test (T/T) and zero-shot (ZS) dataset use across 15 TSFMs.
 
 **The fact.** Energy is the most heavily represented domain in TSFM pretraining corpora.
 BuildingsBench alone contributes ~10 energy datasets (BDG-2 Bear/Fox/Panther/Rat, Borealis,

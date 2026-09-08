@@ -10,4 +10,5 @@
 - [ ] 8.4 Add a release workflow firing on `release: published`, and record in `CLAUDE.md`
       that a bare tag ships nothing. Verify: the next release shows a green run.
 - [ ] 8.5 Retrospectively verify `v0.1.0` against the clean-clone procedure and note the
-      result on the release, since it was cut before any of this existed.
+      result on the release, since it was cut before any of this existed. Verify:
+      `gh release view v0.1.0` carries a note stating the clean-clone pass/skip counts.

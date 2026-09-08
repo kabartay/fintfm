@@ -20,7 +20,9 @@
 - [ ] 13.7 **Highest priority follow-up:** compare against a *calibrated* gradient boosting
       baseline (Platt or isotonic on a validation split). The 11.7x calibration advantage is
       currently measured against an uncalibrated incumbent, which is the obvious counter and
-      must be pre-empted rather than discovered by a reviewer.
+      must be pre-empted rather than discovered by a reviewer. Verify: the probe reports a
+      third arm (`gboost_calibrated`) and `docs/FINDINGS.md` §12 is updated with the ratio
+      against it, re-derived from the run.
 - [ ] 13.8 Extend the probe to the Taiwan panel and to V4FinBench once ingested. Verify: the
       calibration advantage reported per panel, and stated plainly if it does not replicate.
 - [ ] 13.6 Add the probe to `bench.py`'s default credit output, so full-panel-only numbers
