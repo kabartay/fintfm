@@ -26,7 +26,10 @@ def test_ablation_matches_compute_and_writes_rederivable_results(tmp_path: Path)
         variants={"financial": 1.0, "generic": 0.0},
         horizons=(),  # training-harness test; real-data scoring is exercised separately
     )
-    assert set(record["variants"]) == {"financial", "generic"}
+    # the untrained control is added by default and is what makes a tie interpretable
+    assert set(record["variants"]) == {"financial", "generic", "untrained"}
+    assert record["variants"]["untrained"]["steps"] == 0
+    assert record["variants"]["financial"]["steps"] == 2
     sizes = {v["n_parameters"] for v in record["variants"].values()}
     assert len(sizes) == 1, "compute must be matched across variants"
 
@@ -64,3 +67,26 @@ def test_summarise_says_so_rather_than_printing_nan_when_nothing_scored():
     assert "+nan" not in text
     assert "nan vs" not in text
     assert "delta" not in text
+
+
+def test_untrained_control_can_be_disabled(tmp_path: Path):
+    cfg = ModelConfig(max_features=6, max_classes=2, d_cell=8, d_model=16, n_heads=2,
+                      n_col_layers=1, n_layers=1, d_ff=16)
+    record = run_ablation(
+        out_dir=tmp_path, steps=1, batch_size=2, n_rows=16, model_cfg=cfg,
+        variants={"financial": 1.0}, horizons=(), include_untrained_control=False,
+    )
+    assert set(record["variants"]) == {"financial"}
+
+
+def test_sample_efficiency_sizes_are_ascending_and_documented():
+    """The probe must sweep upward from genuinely small n, which is the regime under test."""
+    import inspect
+
+    from fintfm.experiments.prior_ablation import sample_efficiency_probe
+
+    sig = inspect.signature(sample_efficiency_probe)
+    sizes = sig.parameters["train_sizes"].default
+    assert list(sizes) == sorted(sizes)
+    assert min(sizes) <= 250, "must probe below 1000 rows, where the TFM advantage is claimed"
+    assert max(sizes) >= 4000, "must reach the ~8000 crossover region to observe it"

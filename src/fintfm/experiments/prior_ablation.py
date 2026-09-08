@@ -62,6 +62,7 @@ class VariantResult:
         n_parameters: Model size, recorded to prove compute was matched.
         train_seconds: Wall-clock training time.
         final_loss: Mean training loss over the last logging window.
+        steps: Gradient steps actually taken. Zero identifies the untrained control.
         metrics: Real-data scores keyed by ``"<dataset>/<context_strategy>"``.
     """
 
@@ -70,6 +71,7 @@ class VariantResult:
     n_parameters: int
     train_seconds: float
     final_loss: float
+    steps: int = 0
     metrics: dict[str, dict] = field(default_factory=dict)
 
 
@@ -141,6 +143,7 @@ def run_ablation(
     threads: int | None = None,
     horizons: tuple[int, ...] = (1, 3, 5),
     device: str = "cpu",
+    include_untrained_control: bool = True,
 ) -> dict:
     """Train one model per variant at matched compute and score them identically.
 
@@ -157,14 +160,25 @@ def run_ablation(
         device: Training device. ``"mps"`` uses the Apple GPU, which is ~3.5x faster than
             CPU here *and* leaves the CPU cores to whatever else shares the machine — see
             ``docs/COMPUTE.md`` for measured step times.
+        include_untrained_control: Also evaluate a **randomly initialised, untrained** model.
+            Without this control the ablation is uninterpretable when the priors tie: "the
+            financial prior adds nothing over a generic one" and "no pretraining adds
+            anything at all" are very different conclusions and only the control separates
+            them. This is Marconi's Transfer-Gain Test (arXiv:2507.07296) and it costs no
+            training time.
 
     Returns:
         The results record that was written to ``out_dir / "results.json"``.
     """
     if threads is not None:
         torch.set_num_threads(threads)
-    variants = variants or VARIANTS
+    variants = dict(variants or VARIANTS)
     out_dir.mkdir(parents=True, exist_ok=True)
+    # steps per variant: every prior gets the same budget; the control gets none
+    budgets = {name: steps for name in variants}
+    if include_untrained_control:
+        variants["untrained"] = 0.7  # prior is irrelevant at zero steps
+        budgets["untrained"] = 0
 
     record: dict = {
         "created": datetime.now(UTC).isoformat(),
@@ -183,14 +197,18 @@ def run_ablation(
     }
 
     for name, p_financial in variants.items():
-        print(f"\n=== variant {name!r} (p_financial={p_financial}) ===")
+        label = "UNTRAINED CONTROL" if budgets[name] == 0 else f"p_financial={p_financial}"
+        print(f"\n=== variant {name!r} ({label}) ===")
         prior_cfg = PriorConfig(
             max_features=model_cfg.max_features,
             max_classes=model_cfg.max_classes,
             p_financial=p_financial,
             n_rows=n_rows,
         )
-        train_cfg = TrainConfig(steps=steps, batch_size=batch_size, seed=seed, device=device)
+        variant_steps = budgets[name]
+        train_cfg = TrainConfig(
+            steps=variant_steps, batch_size=batch_size, seed=seed, device=device
+        )
         ckpt = out_dir / f"{name}.pt"
         started = time.time()
         model = train(model_cfg, prior_cfg, train_cfg, str(ckpt))
@@ -202,6 +220,7 @@ def run_ablation(
             n_parameters=model.num_parameters(),
             train_seconds=elapsed,
             final_loss=float("nan"),
+            steps=variant_steps,
             metrics=evaluate_on_credit(str(ckpt), horizons=horizons, seed=seed),
         )
         record["variants"][name] = asdict(result)
@@ -341,7 +360,23 @@ def main() -> None:
         default="cpu",
         help="cpu, mps (Apple GPU, ~3.5x faster and spares the CPU cores), or cuda",
     )
+    p.add_argument(
+        "--sample-efficiency",
+        type=str,
+        default=None,
+        metavar="CHECKPOINT",
+        help="skip training; run the sample-efficiency probe on an existing checkpoint",
+    )
     args = p.parse_args()
+    if args.sample_efficiency:
+        print("=== sample-efficiency probe: where does the TFM beat gradient boosting? ===")
+        record = sample_efficiency_probe(args.sample_efficiency)
+        out = Path(args.out) / "sample_efficiency.json"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps(record, indent=2))
+        print(f"\ncrossover (largest n where fintfm still leads): {record['crossover_size']}")
+        print(f"wrote {out}")
+        return
 
     model_cfg = ModelConfig(
         max_features=args.max_features,
@@ -366,3 +401,86 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+def sample_efficiency_probe(
+    model_path: str,
+    train_sizes: tuple[int, ...] = (100, 250, 500, 1000, 2000, 4000),
+    horizon: int = 3,
+    seed: int = 0,
+    context_strategy: ContextStrategy = "balanced",
+) -> dict:
+    """Measure where the in-context model beats gradient boosting as training data shrinks.
+
+    **This is the experiment the benchmark was missing.** `bench.py` evaluates on the full
+    panel, which for the UCI sets is 6,000-10,500 rows. Baesens et al.
+    (arXiv:2605.18147) find the TFM advantage grows as data shrinks and put the LGD
+    crossover near **8,000 observations**, with substantial gains below 1,000 — so
+    evaluating only at full size measures the regime the literature says we lose, and never
+    the one the thesis depends on. Marconi (arXiv:2507.07296) calls this probe a
+    Sample-Efficiency Probe.
+
+    The test set is held **fixed** across all training sizes, so the only thing varying is
+    how much data each model gets to learn from.
+
+    Args:
+        model_path: Checkpoint to evaluate.
+        train_sizes: Training-set sizes to sweep, ascending.
+        horizon: Which bankruptcy horizon to use.
+        seed: Seed for the split and the subsampling.
+        context_strategy: Context construction for the in-context model.
+
+    Returns:
+        A record mapping each training size to metrics for the TFM and for gradient
+        boosting, plus the crossover size if one is observed.
+    """
+    from sklearn.ensemble import GradientBoostingClassifier
+    from sklearn.impute import SimpleImputer
+    from sklearn.pipeline import make_pipeline
+
+    ds = load_polish_bankruptcy(horizon)
+    X_pool, X_test, y_pool, y_test = train_test_split(
+        ds.X, ds.y, test_size=0.3, random_state=seed, stratify=ds.y
+    )
+    rng = np.random.default_rng(seed)
+    out: dict = {"dataset": ds.name, "test_rows": len(y_test), "sizes": {}}
+
+    for size in train_sizes:
+        if size > len(y_pool):
+            continue
+        # stratified subsample so tiny training sets still contain defaults at all
+        pos, neg = np.flatnonzero(y_pool == 1), np.flatnonzero(y_pool == 0)
+        n_pos = max(1, round(size * ds.default_rate))
+        n_pos, n_neg = min(n_pos, len(pos)), min(size - n_pos, len(neg))
+        idx = np.concatenate(
+            [rng.choice(pos, n_pos, replace=False), rng.choice(neg, n_neg, replace=False)]
+        )
+        Xs, ys = X_pool[idx], y_pool[idx]
+        if len(np.unique(ys)) < 2:
+            continue
+
+        tfm = FinancialTFMClassifier(model_path, context_strategy=context_strategy).fit(Xs, ys)
+        tfm_metrics = evaluate_binary(y_test, tfm.predict_proba(X_test)[:, 1])
+        gbm = make_pipeline(SimpleImputer(strategy="median"), GradientBoostingClassifier(random_state=seed))
+        gbm.fit(Xs, ys)
+        gbm_metrics = evaluate_binary(y_test, gbm.predict_proba(X_test)[:, 1])
+
+        out["sizes"][str(size)] = {
+            "n_train": len(ys),
+            "n_positive_train": int(ys.sum()),
+            "fintfm": asdict(tfm_metrics),
+            "gboost": asdict(gbm_metrics),
+            "auc_delta": tfm_metrics.roc_auc - gbm_metrics.roc_auc,
+        }
+        print(
+            f"  n={len(ys):>5} ({int(ys.sum())} defaults): "
+            f"fintfm AUC={tfm_metrics.roc_auc:.4f} ECE={tfm_metrics.ece:.4f} | "
+            f"gboost AUC={gbm_metrics.roc_auc:.4f} ECE={gbm_metrics.ece:.4f} | "
+            f"delta={tfm_metrics.roc_auc - gbm_metrics.roc_auc:+.4f}"
+        )
+
+    # the crossover is the largest size at which the TFM still leads
+    leads = [int(k) for k, v in out["sizes"].items() if v["auc_delta"] > 0]
+    out["crossover_size"] = max(leads) if leads else None
+    out["leads_at"] = sorted(leads)
+    return out

@@ -73,14 +73,14 @@ def test_paired_auc_difference_detects_a_real_gap_and_ignores_a_fake_one():
     strong = rng.uniform(size=1000) * 0.3 + y * 0.6  # clearly informative
     weak = rng.uniform(size=1000)  # pure noise
 
-    delta, (lo, hi), p = paired_auc_difference(y, strong, weak, n_boot=500)
+    delta, (lo, _hi), p = paired_auc_difference(y, strong, weak, n_boot=500)
     assert delta > 0.2
     assert lo > 0  # CI excludes zero
     assert p < 0.05
 
     # two draws of the same noise process: no real difference to find
     noise_a, noise_b = rng.uniform(size=1000), rng.uniform(size=1000)
-    d2, (lo2, hi2), p2 = paired_auc_difference(y, noise_a, noise_b, n_boot=500)
+    _d2, (lo2, hi2), p2 = paired_auc_difference(y, noise_a, noise_b, n_boot=500)
     assert lo2 < 0 < hi2  # CI straddles zero
     assert p2 > 0.05
 
