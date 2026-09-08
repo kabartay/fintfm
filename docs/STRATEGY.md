@@ -43,9 +43,21 @@ Four claims, ordered by how much evidence each carries:
    licence-locked (§4, §8) — and pretraining is what buys calibration in the first place, 7×
    on Brier over an untrained model (§15).
 
-**What we no longer claim:** more accurate than gradient boosting, best-calibrated as a
-standalone virtue, or calibration as a differentiator against other foundation models. All
-three were tested and all three failed or shrank.
+**What we do not claim *yet*:** more accurate than gradient boosting, best-calibrated as a
+standalone virtue, or calibration as a differentiator against other foundation models.
+
+The distinction between "not yet" and "not ever" is load-bearing (`FINDINGS` "Small because
+early, or small because structural?"). The accuracy gap is **provisional**: this checkpoint is
+2.2M parameters at 5,000 steps against a 10-50M target, the prior was 3-5× too narrow until
+the day these numbers were taken, AUC is flat across dataset sizes (the signature of a model
+that cannot yet use more data), and **Baesens et al. found properly trained TFMs beating 29
+competitors including tuned gradient boosting on real credit data.** The approach works at
+scale; ours is not there.
+
+What is *not* provisional is coherence, the metric-range problem, and calibration being a
+method property rather than a domain one. Those are design and measurement facts that scale
+does not touch — which is precisely why the thesis leads with the one of them that is a
+product opportunity rather than a constraint.
 
 **Stated at the strength the evidence supports** (`FINDINGS` §16, which tempers §12 and §13):
 

@@ -40,12 +40,50 @@ than the originals.
 - **Scale as the lever.** Beyond IID finds TFMs lose on large, wide, non-IID data regardless
   of size (§9).
 
+### Small because early, or small because structural?
+
+**This distinction matters more than the sizes**, and an earlier version of this scorecard
+ran the two together, which was itself a distortion. Not everything small is a ceiling.
+
+**Likely to improve with scale and work** — treat these as provisional, not as verdicts:
+
+- Every AUC comparison against gradient boosting and logistic regression. The checkpoint is
+  **2.2M parameters at 5,000 steps** against a stated target of 10-50M, in a field that
+  pretrains on hundreds of millions of synthetic datasets. **Baesens et al. found properly
+  trained TFMs beating 29 competitors including tuned XGBoost, LightGBM and CatBoost on real
+  credit data** (§9), and TabPFN v2 is in *Nature*. So the approach works at scale, and our
+  failure to beat gradient boosting above ~500 rows is evidence about **this checkpoint**,
+  not about the thesis.
+- The crossover point (~100-250 rows here against ~8,000 reported by Baesens). AUC is **flat
+  at 0.67-0.72 across every dataset size**, which is the signature of a model that cannot yet
+  exploit more data rather than one at its ceiling (§13).
+- Anything measured before 2026-09-08 evening: the prior was **3-5× too narrow** until then
+  and the width fix's transfer impact is **unmeasured** (§19).
+- Training loss was still declining when the 5,000-step run ended.
+
+**Will not improve with scale** — these are design or measurement facts:
+
+- **Term-structure incoherence (§11).** Nothing in the architecture or the loss forbids a
+  violation, so no amount of training closes it. It needs a design change, which is exactly
+  why it is now the plan rather than a complaint.
+- **A constant predictor beating every model on ECE (§17).** A property of the metric at a
+  4-7% base rate, not of the model.
+- **Calibration tracking prior *breadth* rather than the domain prior (§14, §15).**
+  Mechanistic, so TabPFN and TabFM plausibly share it however large ours gets.
+- **TFMs losing on large, wide, non-IID data (§9).** A field-wide result measured at full
+  scale by BeyondArena, not an artefact of our size.
+
 ### What this implies
 
-**Do not lead with accuracy or calibration.** Both are real and both are small, and a
-sophisticated buyer will find the ceiling in an afternoon. Lead with the term-structure
-incoherence, which is large, unambiguous, regulatory-mandated by IFRS 9, and unaddressed by
-every camp in the field (`docs/LANDSCAPE.md`). See `docs/STRATEGY.md`.
+**Lead with coherence, but not because the accuracy numbers are hopeless — because coherence
+is where a *design* advantage exists rather than a scale one.** A scale advantage has to be
+bought and defended against better-funded teams; a design advantage on an object nobody else
+predicts does not. The accuracy work stays on the roadmap and is expected to improve; it just
+should not be the pitch while it is unproven.
+
+**And do not quote the small numbers as ceilings.** They are one under-trained checkpoint on
+one panel family with a prior that was too narrow at the time. The honest form is "not yet
+demonstrated", not "does not work". See `docs/STRATEGY.md`.
 
 ## 1. Synthetic-only pretraining is an auditability property, not just a cost saving
 
