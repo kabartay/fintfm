@@ -41,3 +41,24 @@ def test_auc_is_nan_for_single_class_rather_than_invented():
 def test_shape_mismatch_rejected():
     with pytest.raises(ValueError, match="shape mismatch"):
         evaluate_binary(np.array([0, 1]), np.array([0.5]))
+
+
+def test_dataset_loaders_declare_period_labels_honestly():
+    """Both currently loadable panels are cross-sectional; nothing may claim otherwise.
+
+    `has_period_labels` gates time-based evaluation. If a loader wrongly claimed True, a
+    random split would be reported as out-of-time validation — which is the exact failure
+    a supervisory reviewer looks for. Guarded here rather than trusted.
+    """
+    from fintfm.evaluation.datasets import CACHE_DIR
+
+    if not (CACHE_DIR / "taiwan_bankruptcy.zip").exists():
+        pytest.skip("dataset not cached; loader test needs network")
+    from fintfm.evaluation import load_taiwan_bankruptcy
+
+    ds = load_taiwan_bankruptcy()
+    assert ds.has_period_labels is False
+    assert ds.X.shape == (6819, 95)
+    assert ds.licence == "CC-BY-4.0"
+    assert "CC BY 4.0" in ds.attribution  # attribution is a licence obligation, not a nicety
+    assert 0.02 < ds.default_rate < 0.05

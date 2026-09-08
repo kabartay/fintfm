@@ -24,7 +24,11 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
-from fintfm.evaluation.datasets import CreditDataset, load_polish_bankruptcy
+from fintfm.evaluation.datasets import (
+    CreditDataset,
+    load_polish_bankruptcy,
+    load_taiwan_bankruptcy,
+)
 from fintfm.evaluation.metrics import evaluate_binary
 from fintfm.inference.classifier import ContextStrategy, FinancialTFMClassifier
 from fintfm.modeling.model import FinancialTFM
@@ -153,8 +157,10 @@ def run_credit(model_path: str, horizons: tuple[int, ...] = (1, 3, 5)) -> None:
         horizons: Which bankruptcy forecast horizons (years) to evaluate.
     """
     cfg = FinancialTFM.load(model_path).cfg
-    for horizon in horizons:
-        ds = load_polish_bankruptcy(horizon)
+    panels = [load_polish_bankruptcy(h) for h in horizons]
+    # A second economy and accounting regime, so a result is not an artefact of one panel.
+    panels.append(load_taiwan_bankruptcy())
+    for ds in panels:
         print(f"\n=== {ds.name}: {ds.X.shape[0]} companies, {ds.X.shape[1]} features, "
               f"default rate {ds.default_rate:.3%} ===")
         print(f"    source: {ds.attribution}")

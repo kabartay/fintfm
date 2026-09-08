@@ -278,3 +278,94 @@ the model actually does rather than assuming.
 **Consequence for the project.** This is a small worked example of the thesis in
 `docs/LANDSCAPE.md`: the deliverable in regulated credit is the validation evidence, and the
 evidence only exists if the metrics can see the failure. Nothing here was visible in AUC.
+
+## 7. The only real dataset has no dates and no company identifiers, which blocks two changes
+
+**Date:** 2026-09-08. **Status:** MEASURED by inspection of the source files. Resolves
+`openspec/changes/time-based-evaluation` task 3.1 in the negative.
+
+The UCI Polish bankruptcy panels contain **64 anonymous numeric attributes** (`Attr1` to
+`Attr64`) plus a binary `class`. There is no date, no reporting period, and **no company
+identifier**. Re-derivable:
+
+```bash
+uv run python -c "
+import io,zipfile;from scipy.io import arff
+z=zipfile.ZipFile('data/cache/polish_bankruptcy.zip')
+raw=z.read('3year.arff').decode('utf-8','replace')
+print([l for l in raw.splitlines() if l.startswith('@attribute')][:3])"
+```
+
+**Consequence 1: time-based evaluation is impossible on this dataset.** Splitting train and
+test by observation period requires period labels. The dataset description gives ranges for
+the corpus as a whole (bankrupt firms 2000-2012, operating firms 2007-2013) but nothing
+per row. So `time-based-evaluation` cannot be done here at all, and is now **blocked on**
+`second-credit-panel` rather than merely sequenced after it.
+
+**Consequence 2: firm trajectories cannot be built from the five horizon files.** The
+`temporal-financial-prior` falsification test (task 2.1) planned to join them per company.
+Without identifiers there is nothing to join on.
+
+**Consequence 3, and the uncomfortable one: horizon independence is unverifiable, not
+verified.** Comparing row fingerprints across files shows near-zero overlap (1 shared
+fingerprint between `1year` and `3year`), but that is exactly what one expects *either* way
+— the same firm measured in a different year has different ratios. So the three horizons
+**may or may not** share companies, and nothing in the data can settle it.
+
+Every existing result reports all three horizons as if they were three evaluations. That is
+not wrong, but the independence it implies is an assumption, and any external presentation
+of those numbers must say so rather than implying three independent confirmations.
+
+**Also noted, minor:** the internal `@relation` names are unreliable — `2year.arff`,
+`3year.arff` and `4year.arff` all declare `'1year'`. Row and positive counts match the
+published per-horizon description exactly (e.g. 3-year: 10,503 rows, 495 positives), so the
+filenames are trustworthy and the relation strings are careless authoring in the source. The
+files also carry a Weka `SubsetByExpression` filter in that header, so the published data is
+already a filtered subset rather than the raw panel.
+
+## 8. Every free bankruptcy dataset is a cross-sectional ratio table, except one — and it is licensed
+
+**Date:** 2026-09-08. **Status:** MEASURED by inspection and licence verification. Resolves
+`second-credit-panel` tasks 7.1 and 7.2, and **unblocks** `time-based-evaluation` and
+`temporal-financial-prior`.
+
+Finding §7 established that the UCI Polish panels have no dates or identifiers. Checking the
+other candidates showed this is the norm rather than an accident of that dataset:
+
+| dataset | rows | features | positives | dates? | firm id? | licence |
+| --- | --- | --- | --- | --- | --- | --- |
+| UCI Polish bankruptcy | 5,910-10,503 per horizon | 64 | 3.9-6.9% | **no** | **no** | CC BY 4.0 |
+| UCI Taiwanese bankruptcy | 6,819 | 95 | 3.23% | **no** | **no** | CC BY 4.0 |
+| **V4FinBench** | **1,106,879 company-years** | **131** | **0.19-0.36%** | **yes (2006-2021)** | yes (company-year) | **CC BY 4.0** |
+
+Both UCI sets are anonymised cross-sectional ratio tables — usable for discrimination and
+calibration work, useless for anything temporal. Verified for Taiwan by download and column
+inspection; its only date-shaped column names are ratios containing the word "times".
+
+**V4FinBench is the dataset this project needs.** Tomczak et al., *V4FinBench: Benchmarking
+Tabular Foundation Models, LLMs, and Standard Methods on Corporate Bankruptcy Prediction*,
+[arXiv:2605.10896](https://arxiv.org/abs/2605.10896), May 2026. Visegrád Group economies
+(Czech Republic, Hungary, Poland, Slovakia), 2006-2021, six prediction horizons, a composite
+distress criterion covering solvency, profitability and liquidity. Code at
+[github.com/genwro-ai/V4FinBench](https://github.com/genwro-ai/V4FinBench) under MIT; **the
+data is CC BY 4.0**, hosted on Kaggle — verified from the repository's separate
+`DATA_LICENSE.md`, not assumed from the code licence. That distinction matters: Google's
+TabFM ships Apache-2.0 code with **non-commercial** weights, so "the repo is permissive" is
+never sufficient.
+
+**Why it changes the plan:**
+
+- **Temporal work becomes possible.** Company-year rows spanning 2006-2021 cover the
+  financial crisis *and* COVID, so out-of-time validation across genuine regime shift — the
+  thing a supervisor actually asks for — can finally be done.
+- **It carries published TabPFN reference evaluations**, giving a directly comparable
+  baseline without running anyone else's weights.
+- **The imbalance is an order of magnitude harsher**: 0.19-0.36% positives against 3-7% in
+  the UCI sets. At a 2,000-row context and 0.3% positives, *uniform* sampling would supply
+  about six defaulters. That makes the context-construction and base-rate-correction work
+  (§5, §6) load-bearing rather than a refinement, and it is the regime where those findings
+  should be re-measured.
+
+**Two practical consequences before it can be used:** the data is on Kaggle and needs
+credentials, and 131 features exceeds the current `max_features=64`, so a wider model must be
+pretrained rather than reusing existing checkpoints.

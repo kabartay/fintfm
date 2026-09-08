@@ -34,8 +34,9 @@ how large the gap is, and that is what the change measures.
 
 ## Blocked by / blocks
 
-- **Blocked by** the UCI panels carrying usable period information. The bankrupt firms span
-  2000-2012 and the operating firms 2007-2013, but it is unverified whether per-firm dates
-  are in the files. **Establish that first** — if they are not, this needs
-  `second-credit-panel` to land before it can be done at all.
+- **Blocked by `second-credit-panel` task 7.5 only.** Established 2026-09-08
+  (`docs/FINDINGS.md` §7): the UCI panels carry no dates, periods or identifiers, so this is
+  impossible on them. **Unblocked in principle by V4FinBench** (§8) — 1.1M company-year rows
+  spanning 2006-2021, CC BY 4.0 — which covers the financial crisis and COVID and therefore
+  supports out-of-time validation across genuine regime shift. Needs that ingest first.
 - **Blocks** any external claim about accuracy. Do not publish a headline AUC before this.

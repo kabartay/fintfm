@@ -24,6 +24,9 @@ import numpy as np
 CACHE_DIR = Path(__file__).resolve().parents[2] / "data" / "cache"
 
 _POLISH_URL = "https://archive.ics.uci.edu/static/public/365/polish+companies+bankruptcy+data.zip"
+_TAIWAN_URL = (
+    "https://archive.ics.uci.edu/static/public/572/taiwanese+bankruptcy+prediction.zip"
+)
 
 
 @dataclass(frozen=True)
@@ -37,6 +40,11 @@ class CreditDataset:
         horizon_years: Forecast horizon the label refers to.
         licence: SPDX-style licence identifier of the source data.
         attribution: Text that must accompany any published use of this data.
+        has_period_labels: Whether rows carry an observation date or period. **False for
+            every currently loadable panel** — both UCI sets are anonymised cross-sectional
+            ratio tables (``docs/FINDINGS.md`` §7, §8). Time-based evaluation must refuse to
+            run on a dataset where this is False rather than silently falling back to a
+            random split, which would look like out-of-time validation and not be.
     """
 
     X: np.ndarray
@@ -45,6 +53,7 @@ class CreditDataset:
     horizon_years: int
     licence: str
     attribution: str
+    has_period_labels: bool = False
 
     @property
     def default_rate(self) -> float:
@@ -129,4 +138,42 @@ def load_polish_bankruptcy(horizon_years: int = 3) -> CreditDataset:
             "UCI Machine Learning Repository (CC BY 4.0). "
             "https://doi.org/10.24432/C5F600"
         ),
+    )
+
+
+def load_taiwan_bankruptcy() -> CreditDataset:
+    """Load the UCI Taiwanese bankruptcy dataset.
+
+    A second, independent panel so results do not rest on one economy, one accounting regime
+    and one crisis. Taiwan Economic Journal data, 1999-2009, 95 financial ratios, no missing
+    values, 3.23% bankruptcy rate.
+
+    Like the Polish set it carries **no dates and no company identifiers** — verified by
+    column inspection, not assumed — so it supports discrimination and calibration work but
+    nothing temporal. See ``docs/FINDINGS.md`` §8.
+
+    Returns:
+        A :class:`CreditDataset` with ``has_period_labels=False``.
+    """
+    import pandas as pd
+
+    archive = _download(_TAIWAN_URL, CACHE_DIR / "taiwan_bankruptcy.zip")
+    with zipfile.ZipFile(archive) as z:
+        csv_name = next(n for n in z.namelist() if n.endswith(".csv"))
+        frame = pd.read_csv(io.BytesIO(z.read(csv_name)))
+    # the target is the first column, named "Bankrupt?"; every other column is a ratio
+    y = frame.iloc[:, 0].to_numpy(dtype=np.int64)
+    X = frame.iloc[:, 1:].to_numpy(dtype=np.float32)
+    return CreditDataset(
+        X=X,
+        y=y,
+        name="taiwan-bankruptcy",
+        horizon_years=1,
+        licence="CC-BY-4.0",
+        attribution=(
+            "Taiwanese bankruptcy prediction, Liang, Lu, Tsai & Shih, "
+            "UCI Machine Learning Repository (CC BY 4.0). "
+            "https://doi.org/10.24432/C5004D"
+        ),
+        has_period_labels=False,
     )

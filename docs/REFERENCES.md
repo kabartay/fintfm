@@ -67,14 +67,38 @@ assets, predictions registered into the real future. The critique noted there is
 administrative cost and long waiting periods between competitions. See `docs/FINDINGS.md` §3
 for why this design matters more to this project than to a forecasting vendor.
 
-## Domain benchmarks (NOT yet verified — check before citing)
+## Domain benchmarks and datasets
 
-Named in conversation but **not opened, so not usable as citations yet**:
+**Tanna, Solanki, Bouadi, Bouarour, Seth & Sankarapu (2026).** *Data Presentation Over
+Architecture: Resampling Strategies for Credit Risk Prediction with Tabular Foundation
+Models.* [arXiv:2605.18635](https://arxiv.org/abs/2605.18635)
+Seven context-construction strategies across four classical models and five TFMs on Home
+Credit and Lending Club. Balanced and hybrid sampling add 3-4 AUC points over uniform, a gap
+wider than the spread between TFM families. Acted on in `docs/FINDINGS.md` §5, and its
+AUC-only framing corrected by §6.
 
-- **V4FinBench** — a corporate-default panel described as ~1M company-year observations, 131
-  features, multiple horizons, severe class imbalance, with TabPFN baselines.
-- Credit-risk TFM evaluations reporting that context construction materially affects
-  performance, and that TFMs are strongest in small-data PD/LGD settings.
+**Tomczak et al. (2026).** *V4FinBench: Benchmarking Tabular Foundation Models, LLMs, and
+Standard Methods on Corporate Bankruptcy Prediction.*
+[arXiv:2605.10896](https://arxiv.org/abs/2605.10896)
+1,106,879 company-year observations, Visegrád Group economies, 2006-2021, 131 features, six
+horizons, 0.19-0.36% positive rate. Code [MIT](https://github.com/genwro-ai/V4FinBench);
+**data CC BY 4.0** on Kaggle per the repository's separate `DATA_LICENSE.md`. The dataset
+this project needs — see `docs/FINDINGS.md` §8.
 
-Open these and confirm title, authors, venue, licence and commercial-use terms before either
-citing them or ingesting the data. Licence matters as much as content — see `CLAUDE.md`.
+**Zieba, Tomczak & Tomczak.** *Polish companies bankruptcy data.* UCI Machine Learning
+Repository, CC BY 4.0. [doi:10.24432/C5F600](https://doi.org/10.24432/C5F600)
+In use via `evaluation/datasets.py`. 64 anonymous ratios, no dates, no identifiers (§7).
+
+**Liang, Lu, Tsai & Shih.** *Taiwanese bankruptcy prediction.* UCI Machine Learning
+Repository, CC BY 4.0. 6,819 firms, 95 features, 3.23% positive rate, 1999-2009, no missing
+values, and — verified by inspection — no dates or identifiers (§8).
+
+### Still unverified — do not cite
+
+- Credit-risk TFM evaluations reporting that TFMs are strongest in small-data PD/LGD
+  settings. Referred to in conversation; not opened.
+
+Confirm title, authors, venue, licence and commercial-use terms before citing or ingesting.
+**Check the data licence separately from the code licence** — Google's TabFM ships
+Apache-2.0 code with non-commercial weights, so a permissive repository proves nothing about
+what is inside it.

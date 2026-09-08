@@ -4,7 +4,11 @@ Datasets loaded here are for **evaluation only**. Nothing real may reach pretrai
 invariant is what makes a benchmark number auditable (``docs/FINDINGS.md`` §1).
 """
 
-from fintfm.evaluation.datasets import CreditDataset, load_polish_bankruptcy
+from fintfm.evaluation.datasets import (
+    CreditDataset,
+    load_polish_bankruptcy,
+    load_taiwan_bankruptcy,
+)
 from fintfm.evaluation.metrics import CreditMetrics, evaluate_binary
 
 __all__ = [
@@ -12,4 +16,5 @@ __all__ = [
     "CreditMetrics",
     "evaluate_binary",
     "load_polish_bankruptcy",
+    "load_taiwan_bankruptcy",
 ]
