@@ -142,3 +142,99 @@ def evaluate_binary(y_true: np.ndarray, p: np.ndarray, n_bins: int = 10) -> Cred
         n_positive=int(y_true.sum()),
         bins=bins,
     )
+
+
+def paired_auc_difference(
+    y_true: np.ndarray,
+    p_a: np.ndarray,
+    p_b: np.ndarray,
+    n_boot: int = 2000,
+    seed: int = 0,
+) -> tuple[float, tuple[float, float], float]:
+    """Bootstrap the AUC difference between two models scored on the *same* rows.
+
+    Comparing two models on one test set gives correlated AUCs, so an unpaired comparison
+    overstates uncertainty and a bare difference understates it. Resampling rows and
+    recomputing both AUCs on each resample keeps the pairing.
+
+    This exists because a benchmark that compares several variants across several panels
+    manufactures winners by chance. The credit-risk literature is explicit about it:
+    Baesens et al. (arXiv:2605.18147) found statistical significance in only 22 of 406
+    pairwise comparisons, and the finance forecasting literature routinely applies
+    data-snooping controls (White's Reality Check, Hansen's SPA) for the same reason. A
+    win count is not a result.
+
+    Args:
+        y_true: Binary outcomes, shape ``(n,)``.
+        p_a: Model A's predicted probability of the positive class.
+        p_b: Model B's predicted probability, on the same rows in the same order.
+        n_boot: Bootstrap resamples.
+        seed: Random seed.
+
+    Returns:
+        ``(delta, (lo, hi), p_two_sided)`` where ``delta`` is ``AUC(a) - AUC(b)`` on the
+        full sample, the interval is the 95% percentile bootstrap interval, and the p-value
+        is the two-sided bootstrap proportion of resamples whose sign disagrees with
+        ``delta``. Returns NaNs if either class is absent.
+
+    Raises:
+        ValueError: If the three arrays disagree in length.
+    """
+    y_true = np.asarray(y_true).astype(int)
+    p_a = np.asarray(p_a, dtype=float)
+    p_b = np.asarray(p_b, dtype=float)
+    if not (y_true.shape == p_a.shape == p_b.shape):
+        raise ValueError(
+            f"shape mismatch: y_true {y_true.shape}, p_a {p_a.shape}, p_b {p_b.shape}"
+        )
+    if len(np.unique(y_true)) < 2:
+        return float("nan"), (float("nan"), float("nan")), float("nan")
+
+    delta = float(roc_auc_score(y_true, p_a) - roc_auc_score(y_true, p_b))
+    rng = np.random.default_rng(seed)
+    n = len(y_true)
+    deltas = np.empty(n_boot)
+    drawn = 0
+    for _ in range(n_boot):
+        idx = rng.integers(0, n, size=n)
+        # a resample missing a class has no defined AUC; redraw rather than silently skew
+        if len(np.unique(y_true[idx])) < 2:
+            continue
+        deltas[drawn] = roc_auc_score(y_true[idx], p_a[idx]) - roc_auc_score(
+            y_true[idx], p_b[idx]
+        )
+        drawn += 1
+    if drawn < 100:  # too few usable resamples to say anything
+        return delta, (float("nan"), float("nan")), float("nan")
+    deltas = deltas[:drawn]
+    lo, hi = np.percentile(deltas, [2.5, 97.5])
+    # two-sided: how often the resampled difference contradicts the observed sign
+    p = 2.0 * min((deltas <= 0).mean(), (deltas >= 0).mean())
+    return delta, (float(lo), float(hi)), float(min(p, 1.0))
+
+
+def holm_bonferroni(p_values: list[float], alpha: float = 0.05) -> list[bool]:
+    """Holm-Bonferroni step-down correction for a family of comparisons.
+
+    Controls the family-wise error rate, which matters here because a benchmark sweeping
+    variants across panels and context strategies runs dozens of tests. Without a
+    correction, roughly one in twenty reads as significant by construction.
+
+    Args:
+        p_values: Raw two-sided p-values. NaNs are treated as non-significant.
+        alpha: Family-wise error rate.
+
+    Returns:
+        A list of booleans, aligned with ``p_values``, marking which survive.
+    """
+    n = len(p_values)
+    if n == 0:
+        return []
+    order = sorted(range(n), key=lambda i: (np.isnan(p_values[i]), p_values[i]))
+    verdict = [False] * n
+    for rank, i in enumerate(order):
+        p = p_values[i]
+        if np.isnan(p) or p > alpha / (n - rank):
+            break  # step-down: once one fails, all larger p-values fail too
+        verdict[i] = True
+    return verdict

@@ -93,6 +93,64 @@ In use via `evaluation/datasets.py`. 64 anonymous ratios, no dates, no identifie
 Repository, CC BY 4.0. 6,819 firms, 95 features, 3.23% positive rate, 1999-2009, no missing
 values, and — verified by inspection — no dates or identifiers (§8).
 
+**Baesens, Goethals, Lessmann, De Vos, Bravo, Martens, Medina-Olivares, Mues, Oskarsdóttir,
+vanden Broucke, Van Gestel, Verdonck & Verbeke (2026).** *Foundation Models for Credit Risk
+Prediction: A Game Changer?* [arXiv:2605.18147](https://arxiv.org/abs/2605.18147)
+**The single most important reference for this project.** Five TFMs (TabPFN, TabPFNv2,
+TabPFN-Real, MITRA, TabICL) against 29 PD and 22 LGD methods over 14 PD datasets
+(1,000-532,428 rows) and 7 LGD datasets. TFMs win more often and their advantage grows as
+data shrinks, with the LGD crossover near 8,000 observations. Read the caveats in
+`docs/FINDINGS.md` §9 before quoting it: margins are small, only 22 of 406 pairwise PD
+comparisons were significant, and the low-default-portfolio benefit is conjectured rather
+than tested.
+
+**Purucker, Tschalzev, Erickson et al. (2026).** *Beyond IID: How General Are Tabular
+Foundation Models, Really?* [arXiv:2606.30410](https://arxiv.org/abs/2606.30410)
+Introduces BeyondArena over IID, temporal and grouped tasks. TFMs excel on tiny-to-medium
+IID data; trees and deep learning still dominate on non-IID, large and high-dimensional
+data. Defines which half of credit risk is winnable (`docs/FINDINGS.md` §9).
+
+**Hollmann, Müller, Purucker, Krishnakumar, Körfer, Hoo, Schirrmeister & Hutter (2025).**
+*Accurate predictions on small data with a tabular foundation model.* Nature 637:319-326.
+[doi:10.1038/s41586-024-08328-6](https://doi.org/10.1038/s41586-024-08328-6)
+TabPFN v2. The canonical citation for the small-data strength this project is betting on.
+
+**Erickson, Purucker, Tschalzev, Holzmüller, Mutalik Desai, Salinas & Hutter (2025).**
+*TabArena: A Living Benchmark for Machine Learning on Tabular Data.* NeurIPS Datasets and
+Benchmarks Track.
+[proceedings](https://papers.neurips.cc/paper_files/paper/2025/hash/1697e3fb412da11dc9488249f9e7bbc9-Abstract-Datasets_and_Benchmarks_Track.html)
+51 datasets (38 classification, 13 regression). The standard leaderboard, and where Google's
+TabFM reports its results.
+
+**Fonseca & Stoyanovich (2026).** *ExplainerPFN: Towards tabular foundation models for
+model-free zero-shot feature importance estimations.*
+[arXiv:2601.23068](https://arxiv.org/abs/2601.23068)
+A TabPFN-based model pretrained on synthetic datasets with Shapley-value labels, predicting
+attributions with no model access, gradients or example explanations. Competitive with
+few-shot surrogates using 2-10 SHAP examples. Honest about the core limitation: several
+models can share predictions yet differ in Shapley decomposition, so attributions are "true
+to the data" rather than "true to the model". Underpins
+`openspec/changes/zero-shot-attribution`.
+
+**Rahimikia, Ni & Wang (2025).** *Re(Visiting) Time Series Foundation Models in Finance.*
+SSRN working paper, 138 pp.
+[record](https://research.manchester.ac.uk/en/publications/revisiting-time-series-foundation-models-in-finance/)
+Daily excess returns across global markets. **Off-the-shelf TSFMs performed poorly zero-shot
+and fine-tuned, while models pretrained from scratch on financial data improved
+substantially**, with synthetic augmentation helping further. Time-series rather than
+tabular, so suggestive rather than direct evidence — but it is the same hypothesis Phase 1
+tests, confirmed in an adjacent modality.
+
+**Lu, Juntong (2025).** *Time-Series Foundation Models in Finance: Pretraining Corpora,
+Architectures, Financial Benchmarks, and Risk-Aware Evaluation.* SSRN 5570099.
+[record](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=5570099)
+Read for its **evaluation discipline**, not its models: probabilistic scoring (CRPS, pinball
+loss) paired with supervisory backtests — Kupiec unconditional coverage, Christoffersen
+conditional coverage, Acerbi-Székely — plus data-snooping control via White's Reality Check
+and Hansen's SPA with family-wise error control. Directly motivated the paired bootstrap and
+Holm correction now in `evaluation/metrics.py`, and the coverage tests belong in
+`openspec/changes/conformal-pd-certificate`.
+
 ### Still unverified — do not cite
 
 - Credit-risk TFM evaluations reporting that TFMs are strongest in small-data PD/LGD

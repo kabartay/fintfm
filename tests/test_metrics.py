@@ -62,3 +62,36 @@ def test_dataset_loaders_declare_period_labels_honestly():
     assert ds.licence == "CC-BY-4.0"
     assert "CC BY 4.0" in ds.attribution  # attribution is a licence obligation, not a nicety
     assert 0.02 < ds.default_rate < 0.05
+
+
+def test_paired_auc_difference_detects_a_real_gap_and_ignores_a_fake_one():
+    """The guard against reading a win count as a result."""
+    from fintfm.evaluation.metrics import paired_auc_difference
+
+    rng = np.random.default_rng(0)
+    y = np.r_[np.zeros(900), np.ones(100)].astype(int)
+    strong = rng.uniform(size=1000) * 0.3 + y * 0.6  # clearly informative
+    weak = rng.uniform(size=1000)  # pure noise
+
+    delta, (lo, hi), p = paired_auc_difference(y, strong, weak, n_boot=500)
+    assert delta > 0.2
+    assert lo > 0  # CI excludes zero
+    assert p < 0.05
+
+    # two draws of the same noise process: no real difference to find
+    noise_a, noise_b = rng.uniform(size=1000), rng.uniform(size=1000)
+    d2, (lo2, hi2), p2 = paired_auc_difference(y, noise_a, noise_b, n_boot=500)
+    assert lo2 < 0 < hi2  # CI straddles zero
+    assert p2 > 0.05
+
+
+def test_holm_bonferroni_is_stricter_than_raw_alpha():
+    from fintfm.evaluation.metrics import holm_bonferroni
+
+    # 0.04 would pass a raw 0.05 test but must not survive 10 comparisons
+    assert holm_bonferroni([0.04] * 10) == [False] * 10
+    # a single very small p-value survives
+    assert holm_bonferroni([0.0001, 0.9, 0.9])[0] is True
+    assert holm_bonferroni([]) == []
+    # NaNs are non-significant, never silently significant
+    assert holm_bonferroni([float("nan")]) == [False]

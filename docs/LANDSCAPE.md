@@ -107,3 +107,41 @@ rather than a novel problem to solve.
 **Nothing in this file may be used as a source of code, weights, or data.** See the licensing
 boundary in `CLAUDE.md`. These are competitors read from public material, and that is the
 only relationship this project has with them.
+
+## Four camps, and the object each one predicts
+
+Added 2026-09-08. The clearest way to see where this project can win is to ask what *object*
+each camp's model actually predicts. They are not competing for the same target.
+
+| camp | who | object predicted | rows exchangeable? |
+| --- | --- | --- | --- |
+| **time series** | The Forecasting Company (t0-alpha), Google TimesFM-3, Chronos-2, Toto, Moirai, NXAI TiRex, Aionic (TSLMs) | future values of a sequence | no — order *is* the signal |
+| **tabular** | Neuralk (Seldon), Fundamental (NEXUS), Prior Labs (TabPFN), Google TabFM, Feedzai (RiskFM) | a label for one row | yes, assumed IID |
+| **relational / graph** | Kumo (KumoRFM), GraphPFN | a label for a node in a linked structure | no — edges carry information |
+| **panel hazard** | **nobody** | **the probability path of an event, per entity, over time, given time-varying covariates** | neither |
+
+Credit risk is the fourth row. Its object is a hazard path, and **IFRS 9 makes that path
+mandatory** by requiring lifetime expected credit loss rather than a single-horizon
+probability. See `openspec/changes/pd-term-structure`.
+
+**Why no camp takes it for free:**
+
+- **Time-series models forecast the covariates, not the event.** They have no notion of an
+  absorbing state, competing risks, or a cumulative probability that must not decrease. The
+  Forecasting Company's own argument that time series are not tables cuts both ways: a
+  hazard over a panel of firms is not a series to continue either.
+- **Tabular models predict one label at one horizon.** Multiple horizons become unrelated
+  tasks with no coherence constraint, which is exactly the defect
+  `pd-term-structure` task 11.1 is designed to expose in our own current output.
+- **Graph models add cross-entity structure but still emit a label**, not a path. Kumo's
+  relational framing is the strongest threat to the credit use case generally
+  (bank data *is* relational), but its object is still a prediction per node.
+
+**GraphPFN** is worth watching for a different reason: it extends the prior-data-fitted
+paradigm to attributed graphs, encoding tabular node features and graph structure in one
+transformer, and there is related work turning tabular foundation models into graph ones. If
+that line matures, the tabular and relational camps converge and Kumo's structural advantage
+becomes reproducible from open weights. Encountered via a DeFi credit-risk paper
+(arXiv:2602.03981) that fine-tunes open GraphPFN weights; **that paper has not been read
+beyond its related-work section**, and network contagion is systemic-risk modelling rather
+than single-obligor PD, so it is adjacent rather than a competitor.

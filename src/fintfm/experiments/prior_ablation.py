@@ -38,7 +38,7 @@ import torch
 from sklearn.model_selection import train_test_split
 
 from fintfm.evaluation.datasets import load_polish_bankruptcy
-from fintfm.evaluation.metrics import evaluate_binary
+from fintfm.evaluation.metrics import evaluate_binary, holm_bonferroni, paired_auc_difference
 from fintfm.inference.classifier import ContextStrategy, FinancialTFMClassifier
 from fintfm.modeling.model import FinancialTFM, ModelConfig
 from fintfm.modeling.train import TrainConfig, train
@@ -119,8 +119,14 @@ def evaluate_on_credit(
             clf = FinancialTFMClassifier(model_path, context_strategy=strategy).fit(
                 X_train, y_train
             )
-            metrics = evaluate_binary(y_test, clf.predict_proba(X_test)[:, 1])
-            out[f"{ds.name}/{strategy}"] = asdict(metrics)
+            proba = clf.predict_proba(X_test)[:, 1]
+            metrics = evaluate_binary(y_test, proba)
+            cell = asdict(metrics)
+            # keep predictions and labels so variants can be compared as PAIRED samples
+            # afterwards; a win count across cells is not a result (docs/FINDINGS.md §9).
+            cell["_y_true"] = y_test.tolist()
+            cell["_proba"] = proba.tolist()
+            out[f"{ds.name}/{strategy}"] = cell
     return out
 
 
@@ -253,16 +259,60 @@ def summarise(record: dict) -> str:
             "",
             (
                 f"financial vs generic: AUC better on {auc_wins}/{len(shared)}, "
-                f"ECE better on {ece_wins}/{len(shared)}"
+                f"ECE better on {ece_wins}/{len(shared)} (win counts only, NOT a result)"
             ),
             (
                 f"mean AUC: financial {mean_fin:.4f} vs generic {mean_gen:.4f} "
                 f"(delta {mean_fin - mean_gen:+.4f})"
             ),
+        ]
+
+        # Paired bootstrap per cell, then family-wise correction. Without this a sweep over
+        # panels and strategies produces a "winner" by chance roughly one time in twenty.
+        rows, pvals = [], []
+        for k in shared:
+            y = fin[k].get("_y_true")
+            if y is None or gen[k].get("_proba") is None:
+                continue
+            delta, (lo, hi), p = paired_auc_difference(
+                np.asarray(y), np.asarray(fin[k]["_proba"]), np.asarray(gen[k]["_proba"])
+            )
+            rows.append((k, delta, lo, hi, p))
+            pvals.append(p)
+        if rows:
+            survives = holm_bonferroni(pvals)
+            lines += [
+                "",
+                (
+                    "paired AUC difference (financial - generic), 95% bootstrap CI, "
+                    "Holm-corrected across cells:"
+                ),
+            ]
+            for (k, delta, lo, hi, p), ok in zip(rows, survives, strict=True):
+                mark = "significant" if ok else "not significant"
+                lines.append(
+                    f"  {k:38s} {delta:+.4f}  [{lo:+.4f}, {hi:+.4f}]  p={p:.4f}  {mark}"
+                )
+            n_sig = sum(survives)
+            n_sig_fav = sum(
+                ok and delta > 0 for (_k, delta, _lo, _hi, _p), ok in zip(rows, survives, strict=True)
+            )
+            lines += [
+                "",
+                (
+                    f"{n_sig}/{len(rows)} cells significant after correction; "
+                    f"{n_sig_fav} favour the financial prior."
+                ),
+            ]
+
+        lines += [
             "",
             "EXIT CONDITION (docs/STRATEGY.md Phase 1): the financial prior must beat the",
-            "generic one on real credit data. A delta at or below zero says domain-specific",
-            "pretraining buys nothing here and the thesis needs revising, not re-running.",
+            "generic one on real credit data, and the difference must survive the paired test",
+            "above with family-wise correction. Baesens et al. (arXiv:2605.18147) found only",
+            "22 of 406 pairwise comparisons significant in this domain, so expect small",
+            "effects and do not read a win count as a verdict. A null result says",
+            "domain-specific pretraining buys nothing here and the thesis needs revising.",
         ]
     return "\n".join(lines)
 

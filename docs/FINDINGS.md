@@ -369,3 +369,150 @@ never sufficient.
 **Two practical consequences before it can be used:** the data is on Kaggle and needs
 credentials, and 131 features exceeds the current `max_features=64`, so a wider model must be
 pretrained rather than reusing existing checkpoints.
+
+## 9. The winning niche is small and low-default portfolios, and this reverses §8's prioritisation
+
+**Date:** 2026-09-08. **Status:** MEASURED by others, verified to abstract level. Full PDFs
+not yet read, so the specifics flagged below are genuinely open.
+
+Two papers, read together, answer the question of where a specialist can beat both gradient
+boosting and a general TFM. They point the same way, and it is not where §8 was heading.
+
+**Baesens, Goethals, Lessmann, De Vos, Bravo, Martens, Medina-Olivares, Mues, Oskarsdóttir,
+vanden Broucke, Van Gestel, Verdonck & Verbeke (2026).** *Foundation Models for Credit Risk
+Prediction: A Game Changer?* [arXiv:2605.18147](https://arxiv.org/abs/2605.18147). An
+authoritative team in credit-risk benchmarking, testing TFMs against established and
+advanced ML on **PD and LGD**, out-of-the-box with no tuning:
+
+> "tabular foundation models generally perform best across datasets and tasks. Moreover, they
+> offer significant improvement in predictive performance **as dataset size shrinks**."
+
+They name the niche explicitly: *"small-data settings, such as SME lending or specialized
+corporate portfolios"*, and *"longstanding challenges including low default portfolios and
+class imbalance."* They also name the incumbent to displace: the quasi-standard is
+**gradient boosting paired with SHAP**.
+
+**Purucker, Tschalzev, Erickson et al. (2026).** *Beyond IID: How General Are Tabular
+Foundation Models, Really?* [arXiv:2606.30410](https://arxiv.org/abs/2606.30410). Introduces
+BeyondArena, covering IID, temporal and grouped tasks:
+
+> "existing tabular foundation models excel on tiny- to medium-sized IID data, while
+> traditional tree-based and deep learning models still dominate on **non-IID, large, and
+> high-dimensional** datasets."
+
+**The two together define the winnable ground.** TFMs win where data is small; they lose
+where it is large, wide, or shifted. Credit risk contains both regimes, and the project must
+choose one:
+
+| regime | who wins today | our position |
+| --- | --- | --- |
+| SME / specialty / low-default portfolios: thousands of rows, few defaults | **TFMs, and the margin grows as data shrinks** | **target this** |
+| Large national panels: 10^6 rows, 131 features, 15 years | gradient boosting | do not fight here |
+
+**This reverses §8's framing.** §8 called V4FinBench "the dataset this project needs" on the
+strength of its 1.1M company-year rows and 131 features. Per Beyond IID those are precisely
+the three conditions under which TFMs lose. V4FinBench remains valuable — it is the only
+licensed panel with dates, so it is the only way to do out-of-time validation and to test
+robustness under regime shift — but it is **a validation instrument, not the target market**.
+Chasing accuracy on it would be picking the fight the literature says we lose.
+
+**It also reframes our existing data as adequate rather than limiting.** The UCI Polish and
+Taiwanese panels are 6,000-10,000 rows with 3-7% default rates. That is the home turf, not a
+compromise forced by having no better source.
+
+**And it explains our own smoke-scale results.** Gradient boosting beat the model 0.86-0.96
+against 0.60-0.65 (§5). That was read as "expected from a 400-step model", which is true, but
+Beyond IID says the gap is also the field-wide pattern in this regime. **Do not assume scale
+alone closes it.** The honest test is whether the model wins in the *small*-data regime, and
+`bench.py` currently evaluates on the full panel every time — it never actually tests the
+condition where TFMs are supposed to win.
+
+**Why this is defensible rather than merely a smaller ambition:**
+
+- Google's TabFM ships inside BigQuery, aimed at enterprise warehouse scale. That is the
+  opposite end of the size axis from an SME lender with 2,000 obligors, and Beyond IID says
+  the big end is not winnable by a TFM anyway.
+- **Low Default Portfolios are a named regulatory category**, not just a small dataset. With a
+  handful of defaults you cannot estimate PD reliably by any method, so supervisors demand
+  uncertainty quantification and conservatism. That is exactly the conformal-certificate work
+  in `docs/DECISIONS.md` D3 — the niche where accuracy is hardest is the niche where the
+  certificate is worth most.
+- The incumbent is gradient boosting **plus SHAP**, so the comparison is not accuracy alone.
+  A single in-context model that returns PD *and* attributions would replace both halves; see
+  `openspec/changes/zero-shot-attribution`.
+
+### The specifics, from the full text — and they cut the headline down
+
+Read 2026-09-08 from [the HTML version](https://arxiv.org/html/2605.18147v1). Five TFMs
+(TabPFN, TabPFNv2, TabPFN-Real, MITRA, TabICL) against 29 PD methods and 22 LGD methods,
+including tuned XGBoost, LightGBM, CatBoost, FT-Transformer, TabNet and logistic regression.
+14 PD datasets (1,000 to 532,428 rows) and 7 LGD datasets (594 to 57,931 rows).
+
+**The crossover is roughly 8,000 observations.** For LGD, TabPFNv2 *"leads clearly at small
+sample sizes"* before tuned GBMs converge *"around 8,000 observations, where TabPFNv2's
+performance declines."* Learning curves show substantial TFM advantage **below 1,000
+observations**.
+
+Three caveats that change how much weight this can carry, none of them in the abstract:
+
+1. **The margins are small and mostly not significant.** *"Performance differences among top
+   methods were small in absolute terms"*, with statistical significance in only **22 of 406**
+   pairwise PD comparisons. TFMs won 44.3% of PD folds collectively; TabICL alone 25.7%. So
+   "foundation models generally perform best" means "win more often by a little", not
+   "dominate". Any pitch built on it must say so.
+2. **The low-default-portfolio benefit is conjectured, not demonstrated.** Their PD datasets
+   have default rates from 6.7% to 40%, **mean ≈22%** — consumer lending, not low-default
+   corporate books. The paper itself notes direct empirical validation of LDP and imbalance
+   *"wasn't extensively detailed"*. The niche they name is not the niche they tested.
+3. **Explainability is named as their future work**: comparing *"feature attributions derived
+   from PFN and GBM pipelines using SHAP"*. Open, by their own account.
+
+### Two consequences, one of which is a defect in our own harness
+
+**Our panels sit at or above the crossover, so we have not been testing the regime where TFMs
+win.** UCI Polish is 6,027-10,503 rows and Taiwan is 6,819 — right where Baesens et al. find
+GBMs converging and TFM advantage decaying. `bench.py` evaluates on the *full* panel every
+time. It therefore measures the regime the literature says we lose, and never the one where
+the thesis lives. **Fix: a learning-curve evaluation that subsamples training data** to a few
+hundred rows and up, and reports where the crossover falls for *this* model.
+
+**The gaps are the opportunity, and they are specific.** Not "a better TFM" but: does the TFM
+advantage hold on genuinely low-default corporate books (a named Basel category the field's
+own benchmark did not test), does it hold *calibrated* rather than merely ranked when there
+are twenty defaults, and can one in-context model return PD and attribution together. All
+three are open by the authoritative team's own admission, all three matter to a supervisor,
+and none is a size fight against BigQuery.
+
+## 10. Domain-specific pretraining beats general pretraining in finance, in an adjacent modality
+
+**Date:** 2026-09-08. **Status:** MEASURED by others, abstract level. Suggestive for this
+project rather than direct evidence, because the modality differs.
+
+Rahimikia, Ni & Wang (2025), *Re(Visiting) Time Series Foundation Models in Finance* (SSRN,
+138 pp.), ran the first comprehensive study of TSFMs on global financial markets using daily
+excess returns, comparing zero-shot inference, fine-tuning, and pretraining from scratch:
+
+> "off-the-shelf pre-trained TSFMs perform poorly in zero-shot and fine-tuning settings,
+> whereas models **pre-trained from scratch on financial data achieve substantial forecasting
+> and economic improvements**, underscoring the value of domain-specific adaptation.
+> Increasing the dataset size, incorporating **synthetic data augmentation**, and applying
+> hyperparameter tuning further enhance performance."
+
+**This is the Phase 1 hypothesis, confirmed in a neighbouring modality.** Our bet is that a
+financial prior beats a generic one; they found general pretraining insufficient for finance
+and domain pretraining substantially better, with synthetic augmentation helping. Two reasons
+not to overweight it: time series are not tables (the failure modes differ, and The
+Forecasting Company's argument on that is sound), and "pretrained from scratch on financial
+data" means real financial data, whereas this project deliberately uses none. So it supports
+the *domain-specificity* half of the thesis, not the *synthetic-only* half.
+
+**Architecture convergence, noted in passing.** TimesFM-3 (Google, Aug 2026) alternates
+causal temporal attention with full variate attention; TabFM alternates row and column
+attention; TabPFN v2 and TabICL do likewise in tabular form. This repository's design —
+attention across columns within a row, then across rows — is the same pattern arrived at
+independently. Two consequences: the design is unremarkable rather than novel, so **never
+claim novelty on it**, and it is unlikely to be the thing that wins or loses.
+
+**Also noted:** TimesFM-3 outputs nine quantiles by default. Probabilistic output is the
+field standard now, not a differentiator, which raises the bar for what the certificate work
+must deliver — coverage guarantees and honest refusal, not merely intervals.
