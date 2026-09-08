@@ -124,11 +124,16 @@ Two questions, not one, and the second was missing until today.
 - **If B fails:** the model is not the product. Pivot to the validation layer, which needs no
   model of our own, and say so publicly.
 
-### Phase 1.5 — term-structure coherence. **Cheap, do it next, no new modelling.**
-Score the existing per-horizon panels and check whether cumulative PD is monotone.
+### Phase 1.5 — term-structure coherence. **Done 2026-09-08. Exit condition met.**
+Measured on 3,151 held-out rows across all five horizons (`FINDINGS` §11):
 
-- **Exit condition:** a measured violation rate. A high rate is the argument for the whole
-  term-structure direction; a near-zero rate reduces it to an efficiency claim.
+- **11.0% violation rate per step; only 60.6% of firms get a fully monotone curve.**
+- Mean predicted PD *is* monotone at every step, so a portfolio-level report looks correct
+  and conceals it entirely. That is why the diagnostic must be permanent.
+- Two firms in five therefore receive a term structure where a longer horizon carries a
+  lower default probability, which an IFRS 9 lifetime ECL calculation consumes directly.
+- **Nothing in the architecture or the loss forbids a violation**, so training cannot drive
+  this to zero. The term-structure direction is founded rather than speculative.
 
 ### Phase 2 — the term structure
 Hazard-path output, a survival process in the prior, monotonicity enforced or measured,
