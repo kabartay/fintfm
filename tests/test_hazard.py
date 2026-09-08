@@ -149,3 +149,84 @@ def test_term_structure_checkpoint_roundtrip(tmp_path):
     loaded = FinancialTFM.load(path)
     assert loaded.cfg.n_horizons == 4
     assert loaded.hazard is not None
+
+
+def test_prior_emits_periods_consistent_with_the_binary_label():
+    """`y` must be exactly `period != CENSORED`, or the two objectives contradict."""
+    import numpy as np
+
+    from fintfm.prior.financial import sample_financial_task
+
+    rng = np.random.default_rng(0)
+    for _ in range(6):
+        t = sample_financial_task(rng, 800, max_features=32, n_horizons=5)
+        assert t.period is not None and t.n_horizons == 5
+        assert ((t.period != CENSORED) == (t.y == 1)).all()
+        assert t.period.max() < 5
+        assert t.period.min() >= CENSORED
+
+
+def test_prior_without_horizons_carries_no_period():
+    import numpy as np
+
+    from fintfm.prior.financial import sample_financial_task
+
+    t = sample_financial_task(np.random.default_rng(0), 100, max_features=16)
+    assert t.period is None and t.n_horizons is None
+
+
+def test_collate_refuses_to_mix_survival_and_binary_tasks():
+    """A padded period is indistinguishable from a real one, so refuse rather than pad."""
+    import numpy as np
+    import pytest as _pytest
+
+    from fintfm.prior.base import collate
+    from fintfm.prior.financial import sample_financial_task
+
+    rng = np.random.default_rng(0)
+    a = sample_financial_task(rng, 64, max_features=16, n_horizons=5)
+    b = sample_financial_task(rng, 64, max_features=16)
+    with _pytest.raises(ValueError, match="mixes survival and binary-only"):
+        collate([a, b], n_ctx=32, max_features=16)
+
+
+def test_mixture_refuses_horizons_with_a_generic_component():
+    import numpy as np
+    import pytest as _pytest
+
+    from fintfm.prior import PriorConfig
+    from fintfm.prior.mixture import sample_task
+
+    cfg = PriorConfig(max_features=16, max_classes=2, p_financial=0.7, n_horizons=5)
+    with _pytest.raises(ValueError, match="requires p_financial=1.0"):
+        sample_task(np.random.default_rng(0), cfg, n_rows=32)
+
+
+def test_survival_training_reduces_loss_and_keeps_the_guarantee():
+    """The end-to-end objective must train, and coherence must survive it."""
+    import numpy as np
+
+    from fintfm.modeling.hazard import coherence_violations as viol
+    from fintfm.modeling.model import FinancialTFM, ModelConfig
+    from fintfm.prior import PriorConfig
+    from fintfm.prior.mixture import sample_batch
+
+    torch.manual_seed(0)
+    cfg = ModelConfig(max_features=32, max_classes=2, d_cell=16, d_model=32, n_heads=2,
+                      n_col_layers=1, n_layers=2, d_ff=64, n_horizons=5)
+    model = FinancialTFM(cfg)
+    prior = PriorConfig(max_features=32, max_classes=2, p_financial=1.0, n_rows=64, n_horizons=5)
+    rng = np.random.default_rng(0)
+    opt = torch.optim.Adam(model.parameters(), lr=1e-3)
+    losses = []
+    for _ in range(60):
+        b = sample_batch(rng, prior, batch_size=8)
+        loss = model.survival_loss(b.X, b.y, b.period, b.n_ctx)
+        opt.zero_grad()
+        loss.backward()
+        opt.step()
+        losses.append(loss.item())
+    assert np.mean(losses[-5:]) < np.mean(losses[:5])
+    with torch.no_grad():
+        ts = model.term_structure(b.X, b.y, b.n_ctx)
+    assert viol(ts).item() == 0

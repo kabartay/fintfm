@@ -1269,13 +1269,36 @@ That fits **the whole curve at once** rather than each horizon separately, so th
 become mutually *consistent* rather than merely non-contradictory. Independent per-horizon
 models cannot do this even in principle, because they share no parameters.
 
-### What is not yet true
+### Now trainable end to end (added 2026-09-08, same day)
 
-- **The prior still emits a binary label, not a default period.** Task 11.3. Until then the
-  hazard head can be exercised and its guarantee verified, but it cannot be *trained* on
-  synthetic survival data, so no accuracy claim attaches to it yet.
-- **Untrained curves are not calibrated.** The demonstration above shows a mean curve rising
-  0.44 → 0.95, which is a random-initialisation artefact and says nothing about levels.
-  Coherence and calibration are independent properties; this finding is only about the first.
-- **No comparison against per-horizon models on accuracy.** Task 11.5, and it needs 11.3
-  first.
+Task 11.3 is done: `prior/financial.py` samples a **default period** rather than only a
+binary label. Per-period hazards are `sigmoid(b_k + shape_k + scale · distress)`, with the
+profile sampled per task from rising, falling, hump-shaped or flat — real credit hazards bend
+with seasoning, refinancing walls and cyclical exposure, and which way depends on the book.
+The intercept is solved so the *cumulative* rate over the grid still hits the sampled 1-30%
+target, so the base-rate range means what it did before.
+
+`y` is exactly `period != CENSORED` by construction, asserted in tests, so a survival task
+still trains a classifier unchanged. Measured end to end: **survival loss 2.091 → 0.530 over
+60 steps, with 0 coherence violations in 1,120 horizon steps after training.**
+
+Two guards that matter more than they look:
+
+- **`collate` refuses to mix survival and binary-only tasks.** A padded period is
+  indistinguishable from a real one and would train the likelihood against a fabrication.
+- **`n_horizons` requires `p_financial = 1.0`.** The generic SCM prior has no time axis, so a
+  mixed batch cannot carry a coherent survival likelihood. Refused with an explanation rather
+  than silently degraded.
+
+`fintfm-train --n-horizons 5` now trains the term structure.
+
+### What is still not true
+- **Untrained curves are not calibrated.** The 0.44 → 0.95 demonstration above is a
+  random-initialisation artefact and says nothing about levels. Coherence and calibration are
+  independent properties and this finding is only about the first.
+- **No comparison against per-horizon models on accuracy.** Task 11.5. The survival objective
+  is now trainable, so this is the next measurement, and it is the one that decides whether
+  fitting the whole curve *also* helps discrimination or merely makes it coherent.
+- **No real-data evaluation of the term structure.** The UCI panels have no firm identifiers
+  (§7), so a per-firm hazard path cannot be scored against them. This needs V4FinBench, which
+  is the only licensed panel with company-year rows.

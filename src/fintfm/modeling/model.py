@@ -296,3 +296,40 @@ class FinancialTFM(nn.Module):
         )
         h = self.encoder(rows + y_emb, mask=self._row_mask(X.shape[1], n_ctx, X.device))
         return self.hazard.cumulative_pd(self.norm(h)[:, n_ctx:])
+
+    def survival_loss(
+        self, X: torch.Tensor, y: torch.Tensor, period: torch.Tensor, n_ctx: int
+    ) -> torch.Tensor:
+        """Discrete-time survival negative log-likelihood over the query rows.
+
+        Fits the whole term structure at once rather than one horizon at a time, which is
+        what makes the horizons mutually consistent (``docs/FINDINGS.md`` §20). Independent
+        per-horizon models cannot do this in principle, since they share no parameters.
+
+        Args:
+            X: ``(B, N, F)`` raw features.
+            y: ``(B, N)`` binary labels, used only to embed the context.
+            period: ``(B, N)`` zero-based default period, ``-1`` for censored.
+            n_ctx: Context/query split.
+
+        Returns:
+            Scalar mean negative log-likelihood over query rows.
+
+        Raises:
+            RuntimeError: If the model has no hazard head.
+        """
+        if self.hazard is None:
+            raise RuntimeError(
+                "this model has no hazard head; build it with ModelConfig(n_horizons=K)"
+            )
+        rows = self.encode_rows(X, n_ctx)
+        y_onehot = F.one_hot(
+            y[:, :n_ctx].clamp(0, self.cfg.max_classes - 1), self.cfg.max_classes
+        ).to(rows.dtype)
+        y_emb = torch.cat(
+            [self.y_proj(y_onehot), self.query_token.expand(X.shape[0], X.shape[1] - n_ctx, -1)],
+            dim=1,
+        )
+        h = self.encoder(rows + y_emb, mask=self._row_mask(X.shape[1], n_ctx, X.device))
+        h = self.norm(h)[:, n_ctx:]
+        return self.hazard.loss(h.reshape(-1, self.cfg.d_model), period[:, n_ctx:].reshape(-1))

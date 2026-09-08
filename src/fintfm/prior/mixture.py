@@ -21,6 +21,11 @@ class PriorConfig:
         p_financial: Probability of drawing a financial task instead of an SCM task.
         n_rows: Rows per task (context + query).
         min_ctx_frac / max_ctx_frac: Range for the context fraction of ``n_rows``.
+        n_horizons: When set, financial tasks additionally carry a default **period** so a
+            hazard head can be trained on the survival likelihood (``docs/FINDINGS.md`` §20).
+            The generic SCM prior has no notion of time, so **``p_financial`` must be 1.0**
+            when this is set — a batch mixing survival and binary-only tasks is refused by
+            :func:`fintfm.prior.base.collate` rather than silently padded.
     """
 
     max_features: int = 24
@@ -29,13 +34,26 @@ class PriorConfig:
     n_rows: int = 256
     min_ctx_frac: float = 0.3
     max_ctx_frac: float = 0.9
+    n_horizons: int | None = None
 
 
 def sample_task(rng: np.random.Generator, cfg: PriorConfig, n_rows: int | None = None) -> Task:
-    """Draw one task from the mixture prior."""
+    """Draw one task from the mixture prior.
+
+    Raises:
+        ValueError: If ``n_horizons`` is set with ``p_financial < 1``, which would produce
+            batches mixing survival and binary-only tasks.
+    """
     n = cfg.n_rows if n_rows is None else n_rows
+    if cfg.n_horizons is not None and cfg.p_financial < 1.0:
+        raise ValueError(
+            "n_horizons requires p_financial=1.0; the SCM prior has no time axis and a "
+            "mixed batch cannot carry a coherent survival likelihood"
+        )
     if rng.random() < cfg.p_financial:
-        return sample_financial_task(rng, n, max_features=cfg.max_features)
+        return sample_financial_task(
+            rng, n, max_features=cfg.max_features, n_horizons=cfg.n_horizons
+        )
     return sample_scm_task(rng, n, max_features=cfg.max_features, max_classes=cfg.max_classes)
 
 

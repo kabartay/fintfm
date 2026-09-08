@@ -201,11 +201,76 @@ def _ratio_family(
     return cols, used
 
 
+def _sample_survival(
+    rng: np.random.Generator, distress: np.ndarray, target_rate: float, n_horizons: int
+) -> tuple[np.ndarray, np.ndarray]:
+    """Turn a latent distress score into a default *period* on a horizon grid.
+
+    A binary label discards the question IFRS 9 actually asks — *when* — so the prior emits
+    the period and lets the binary label fall out of it. Per-period hazards are
+
+        h_{i,k} = sigmoid(b_k + shape_k + scale * distress_i)
+
+    with the shape sampled per task so the model sees rising, falling, flat and hump-shaped
+    hazard profiles. Real credit hazards are not flat: seasoning, refinancing walls and
+    cyclical exposure all bend the curve, and which way depends on the book.
+
+    The intercept ``b`` is solved so that the **cumulative** default rate over the whole grid
+    hits ``target_rate``, which keeps the sampled 1-30% base-rate range meaning what it did
+    before this change.
+
+    Args:
+        rng: Random generator.
+        distress: ``(n,)`` standardised latent distress, higher meaning riskier.
+        target_rate: Desired cumulative default rate over the full grid.
+        n_horizons: Number of periods ``K``.
+
+    Returns:
+        ``(period, y)`` where ``period`` is the zero-based default period or ``-1`` for a
+        firm surviving the grid, and ``y`` is the binary "defaulted within the grid" label.
+    """
+    shape_kind = rng.integers(0, 4)
+    k = np.arange(n_horizons, dtype=np.float64)
+    if shape_kind == 0:  # rising: leverage and refinancing pressure accumulate
+        shape = rng.uniform(0.1, 0.6) * k
+    elif shape_kind == 1:  # falling: early seasoning, survivors are sturdier
+        shape = -rng.uniform(0.1, 0.5) * k
+    elif shape_kind == 2:  # hump: a refinancing wall mid-grid
+        shape = -rng.uniform(0.2, 0.8) * (k - rng.uniform(0.5, n_horizons - 0.5)) ** 2 / 2
+    else:
+        shape = np.zeros(n_horizons)
+    shape = shape - shape.mean()
+
+    scale = rng.uniform(0.4, 1.6)
+    z = scale * distress
+
+    def cumulative(b: float) -> np.ndarray:
+        h = _sigmoid(z[:, None] + shape[None, :] + b).clip(1e-7, 1 - 1e-7)
+        return 1.0 - np.cumprod(1.0 - h, axis=1)[:, -1]
+
+    lo, hi = -30.0, 30.0
+    for _ in range(60):
+        mid = 0.5 * (lo + hi)
+        if cumulative(mid).mean() < target_rate:
+            lo = mid
+        else:
+            hi = mid
+    b = 0.5 * (lo + hi)
+
+    h = _sigmoid(z[:, None] + shape[None, :] + b).clip(1e-7, 1 - 1e-7)
+    # walk the grid: default in the first period whose Bernoulli draw fires
+    fired = rng.random(h.shape) < h
+    any_default = fired.any(axis=1)
+    period = np.where(any_default, fired.argmax(axis=1), -1).astype(np.int64)
+    return period, any_default.astype(np.int64)
+
+
 def sample_financial_task(
     rng: np.random.Generator,
     n_rows: int,
     max_features: int = 24,
     min_features: int = 4,
+    n_horizons: int | None = None,
 ) -> Task:
     """Sample one synthetic corporate-default classification task.
 
@@ -214,10 +279,13 @@ def sample_financial_task(
         n_rows: Number of companies (rows) to generate.
         max_features: Upper bound on exposed columns (after redundant/noise columns).
         min_features: Lower bound on exposed columns.
+        n_horizons: When set, sample a **default period** on a grid of this many periods via
+            :func:`_sample_survival`, so a hazard head can be trained (``docs/FINDINGS.md``
+            §20). The binary label still falls out of it, so this is backwards compatible.
 
     Returns:
-        A binary :class:`Task` whose columns are a random subset of financial
-        quantities with random transforms and missingness.
+        A binary :class:`Task` whose columns are a random subset of financial quantities with
+        random transforms and missingness, carrying ``period`` when ``n_horizons`` is set.
     """
     # --- macro regime --------------------------------------------------------
     macro = {"rate": rng.uniform(0.005, 0.12), "cycle": rng.normal(0.0, 1.0)}
@@ -295,10 +363,20 @@ def sample_financial_task(
     base_rate = float(np.exp(rng.uniform(np.log(0.01), np.log(0.30))))
     b = _solve_intercept(distress, base_rate)
     p_default = _sigmoid(distress + b)
-    y = (rng.random(n_rows) < p_default).astype(np.int64)
+    if n_horizons is not None:
+        period, y = _sample_survival(rng, distress, base_rate, n_horizons)
+    else:
+        period = None
+        y = (rng.random(n_rows) < p_default).astype(np.int64)
     if y.min() == y.max():  # guarantee both classes are present
         flip = rng.choice(n_rows, size=max(1, n_rows // 50), replace=False)
         y[flip] = 1 - y[flip]
+        if period is not None:
+            # keep period consistent with the flipped label, or the survival likelihood
+            # would be trained against a contradiction
+            period[flip] = np.where(
+                y[flip] == 1, rng.integers(0, n_horizons, size=len(flip)), -1
+            )
     # --- observation model ---------------------------------------------------
     candidates: dict[str, tuple[np.ndarray, bool]] = {
         "sector": (sector.astype(np.float32), True),
@@ -386,4 +464,6 @@ def sample_financial_task(
         n_classes=2,
         is_categorical=np.array(cats)[perm],
         source="financial",
+        period=period,
+        n_horizons=n_horizons,
     )

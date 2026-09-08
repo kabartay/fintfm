@@ -74,7 +74,11 @@ def train(model_cfg: ModelConfig, prior_cfg: PriorConfig, train_cfg: TrainConfig
     running = 0.0
     for step in range(train_cfg.steps):
         batch = sample_batch(rng, prior_cfg, train_cfg.batch_size).to(train_cfg.device)
-        loss = model.loss(batch.X, batch.y, batch.n_ctx, batch.n_classes)
+        # survival objective when the model has a hazard head and the prior emits periods
+        if model.hazard is not None and batch.period is not None:
+            loss = model.survival_loss(batch.X, batch.y, batch.period, batch.n_ctx)
+        else:
+            loss = model.loss(batch.X, batch.y, batch.n_ctx, batch.n_classes)
         opt.zero_grad(set_to_none=True)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
@@ -102,6 +106,10 @@ def main() -> None:
     p.add_argument("--n-rows", type=int, default=256)
     p.add_argument("--max-features", type=int, default=24)
     p.add_argument("--max-classes", type=int, default=10)
+    p.add_argument(
+        "--n-horizons", type=int, default=None,
+        help="train a monotone PD term structure over K periods (requires p_financial=1.0)",
+    )
     p.add_argument("--d-model", type=int, default=192)
     p.add_argument("--d-cell", type=int, default=64)
     p.add_argument("--n-layers", type=int, default=6, help="row-attention layers")
@@ -124,8 +132,16 @@ def main() -> None:
         d_model=args.d_model,
         n_col_layers=args.n_col_layers,
         n_layers=args.n_layers,
+        n_horizons=args.n_horizons,
     )
-    prior_cfg = PriorConfig(max_features=args.max_features, max_classes=args.max_classes, n_rows=args.n_rows)
+    prior_cfg = PriorConfig(
+        max_features=args.max_features,
+        max_classes=args.max_classes,
+        n_rows=args.n_rows,
+        # the survival objective needs every task to carry a period
+        p_financial=1.0 if args.n_horizons else PriorConfig.p_financial,
+        n_horizons=args.n_horizons,
+    )
     train_cfg = TrainConfig(steps=args.steps, batch_size=args.batch_size, lr=args.lr, device=args.device, seed=args.seed)
     train(model_cfg, prior_cfg, train_cfg, args.out)
 
