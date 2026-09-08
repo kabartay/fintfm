@@ -93,10 +93,22 @@ boosting, LightGBM and CatBoost.
 - **Exit condition:** the financial prior beats a generic SCM-only prior of identical size and
   compute on credit tasks, and the model is within reach of gradient boosting on AUC while
   beating it on calibration.
+- **Harness: built and tested** (`src/fintfm/experiments.py`, `fintfm-ablate`). It trains one
+  model per prior mixture holding architecture, parameter count, optimiser, steps, batch,
+  seed and evaluation identical, refuses to report if parameter counts diverge, scores every
+  variant on the same paired splits, and writes `results.json` with the git commit so any
+  number is re-derivable. The run is one command:
+
+  ```bash
+  uv run fintfm-ablate --steps 20000 --out runs/phase1 --threads 8
+  ```
 - **If the financial prior does *not* beat the generic one**, the domain-specialisation thesis
   is dead and the honest move is to say so publicly and pivot to the validation layer alone,
   which does not require owning a model at all.
-- **Blocked on:** GPU. This machine shares 16 cores with a genomics pipeline (`CLAUDE.md`).
+- **Blocked on:** compute, not code. This machine shares 16 cores with a genomics pipeline
+  and was at load average 145 when the harness was finished (2026-09-08), which is the
+  condition `CLAUDE.md` records as having frozen it before. Run on a rented GPU, or on this
+  machine once the pipeline is idle and with `--threads` set below the free core count.
 
 ### Phase 2 — does it scale?
 Train at 100k, 1M, 10M synthetic tasks. Plot real-data performance against pretraining scale.

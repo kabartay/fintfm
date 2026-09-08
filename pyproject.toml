@@ -31,6 +31,7 @@ bench = ["lightgbm>=4.0"]
 [project.scripts]
 fintfm-train = "fintfm.train:main"
 fintfm-bench = "fintfm.bench:main"
+fintfm-ablate = "fintfm.experiments:main"
 
 [dependency-groups]
 dev = ["pytest>=8", "ruff>=0.6"]

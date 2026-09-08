@@ -97,9 +97,15 @@ def main() -> None:
     p.add_argument("--n-layers", type=int, default=6, help="row-attention layers")
     p.add_argument("--n-col-layers", type=int, default=2, help="column-attention layers")
     p.add_argument("--device", type=str, default="cpu")
+    p.add_argument(
+        "--threads", type=int, default=None,
+        help="cap torch CPU threads; set this on a shared machine (see CLAUDE.md)",
+    )
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--out", type=str, default="runs/v0.pt")
     args = p.parse_args()
+    if args.threads is not None:
+        torch.set_num_threads(args.threads)
 
     model_cfg = ModelConfig(
         max_features=args.max_features,
