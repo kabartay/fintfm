@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 
-from fintfm.model import FinancialTFM, ModelConfig, normalize_features
+from fintfm.modeling.model import FinancialTFM, ModelConfig, normalize_features
 from fintfm.prior import PriorConfig
 from fintfm.prior.mixture import sample_batch
 

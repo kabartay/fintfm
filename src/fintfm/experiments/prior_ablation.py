@@ -37,12 +37,12 @@ import numpy as np
 import torch
 from sklearn.model_selection import train_test_split
 
-from fintfm.classifier import ContextStrategy, FinancialTFMClassifier
-from fintfm.data import load_polish_bankruptcy
-from fintfm.metrics import evaluate_binary
-from fintfm.model import FinancialTFM, ModelConfig
+from fintfm.inference.classifier import ContextStrategy, FinancialTFMClassifier
+from fintfm.evaluation.datasets import load_polish_bankruptcy
+from fintfm.evaluation.metrics import evaluate_binary
+from fintfm.modeling.model import FinancialTFM, ModelConfig
 from fintfm.prior import PriorConfig
-from fintfm.train import TrainConfig, train
+from fintfm.modeling.train import TrainConfig, train
 
 #: The one variable under test. Everything else is held fixed across variants.
 VARIANTS: dict[str, float] = {
@@ -134,6 +134,7 @@ def run_ablation(
     variants: dict[str, float] | None = None,
     threads: int | None = None,
     horizons: tuple[int, ...] = (1, 3, 5),
+    device: str = "cpu",
 ) -> dict:
     """Train one model per variant at matched compute and score them identically.
 
@@ -147,6 +148,9 @@ def run_ablation(
         variants: Override :data:`VARIANTS`.
         threads: Cap on torch CPU threads. Set this on a shared machine.
         horizons: Bankruptcy horizons to evaluate on. Pass ``()`` to train only.
+        device: Training device. ``"mps"`` uses the Apple GPU, which is ~3.5x faster than
+            CPU here *and* leaves the CPU cores to whatever else shares the machine — see
+            ``docs/COMPUTE.md`` for measured step times.
 
     Returns:
         The results record that was written to ``out_dir / "results.json"``.
@@ -161,6 +165,7 @@ def run_ablation(
         "git_commit": _git_commit(),
         "platform": platform.platform(),
         "torch_threads": torch.get_num_threads(),
+        "device": device,
         "config": {
             "steps": steps,
             "batch_size": batch_size,
@@ -179,7 +184,7 @@ def run_ablation(
             p_financial=p_financial,
             n_rows=n_rows,
         )
-        train_cfg = TrainConfig(steps=steps, batch_size=batch_size, seed=seed)
+        train_cfg = TrainConfig(steps=steps, batch_size=batch_size, seed=seed, device=device)
         ckpt = out_dir / f"{name}.pt"
         started = time.time()
         model = train(model_cfg, prior_cfg, train_cfg, str(ckpt))
@@ -280,6 +285,12 @@ def main() -> None:
         default=None,
         help="cap torch CPU threads; set this on a shared machine (see CLAUDE.md)",
     )
+    p.add_argument(
+        "--device",
+        type=str,
+        default="cpu",
+        help="cpu, mps (Apple GPU, ~3.5x faster and spares the CPU cores), or cuda",
+    )
     args = p.parse_args()
 
     model_cfg = ModelConfig(
@@ -298,6 +309,7 @@ def main() -> None:
         model_cfg=model_cfg,
         seed=args.seed,
         threads=args.threads,
+        device=args.device,
     )
     print("\n" + summarise(record))
 

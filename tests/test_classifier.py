@@ -1,8 +1,8 @@
 import numpy as np
 import torch
 
-from fintfm.classifier import FinancialTFMClassifier, _select_context
-from fintfm.model import FinancialTFM, ModelConfig
+from fintfm.inference.classifier import FinancialTFMClassifier, _select_context
+from fintfm.modeling.model import FinancialTFM, ModelConfig
 
 
 def _tiny_model() -> FinancialTFM:

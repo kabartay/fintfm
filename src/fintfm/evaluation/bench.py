@@ -24,10 +24,10 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
-from fintfm.classifier import ContextStrategy, FinancialTFMClassifier
-from fintfm.data import CreditDataset, load_polish_bankruptcy
-from fintfm.metrics import evaluate_binary
-from fintfm.model import FinancialTFM
+from fintfm.inference.classifier import ContextStrategy, FinancialTFMClassifier
+from fintfm.evaluation.datasets import CreditDataset, load_polish_bankruptcy
+from fintfm.evaluation.metrics import evaluate_binary
+from fintfm.modeling.model import FinancialTFM
 from fintfm.prior import PriorConfig
 from fintfm.prior.mixture import sample_task
 

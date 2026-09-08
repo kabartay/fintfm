@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from fintfm.metrics import evaluate_binary, expected_calibration_error, recall_at_top_k
+from fintfm.evaluation.metrics import evaluate_binary, expected_calibration_error, recall_at_top_k
 
 
 def test_perfect_calibration_has_near_zero_ece():

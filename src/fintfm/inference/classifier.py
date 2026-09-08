@@ -21,7 +21,7 @@ import numpy as np
 import torch
 from sklearn.base import BaseEstimator, ClassifierMixin
 
-from fintfm.model import FinancialTFM
+from fintfm.modeling.model import FinancialTFM
 
 ContextStrategy = Literal["balanced", "hybrid", "uniform"]
 

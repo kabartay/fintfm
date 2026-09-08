@@ -8,8 +8,8 @@ model learns anything.
 import json
 from pathlib import Path
 
-from fintfm.experiments import VARIANTS, run_ablation, summarise
-from fintfm.model import ModelConfig
+from fintfm.experiments.prior_ablation import VARIANTS, run_ablation, summarise
+from fintfm.modeling.model import ModelConfig
 
 
 def test_variants_isolate_exactly_one_variable():

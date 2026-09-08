@@ -29,9 +29,9 @@ dependencies = [
 bench = ["lightgbm>=4.0"]
 
 [project.scripts]
-fintfm-train = "fintfm.train:main"
-fintfm-bench = "fintfm.bench:main"
-fintfm-ablate = "fintfm.experiments:main"
+fintfm-train = "fintfm.modeling.train:main"
+fintfm-bench = "fintfm.evaluation.bench:main"
+fintfm-ablate = "fintfm.experiments.prior_ablation:main"
 
 [dependency-groups]
 dev = ["pytest>=8", "ruff>=0.6"]
