@@ -2,84 +2,87 @@
 
 Ordered by urgency in tiers. Work it in tier order unless the conversation overrides that,
 and prefer the cheapest item that unblocks others. Proposals live in
-[`openspec/changes/`](../openspec/changes/); this file is the ordering, not the content.
+[`openspec/changes/`](../openspec/changes/); this file is the ordering.
 
-**Report the remaining count after finishing anything, and derive it rather than recalling
-it:**
+**Derive the count, do not recall it:**
 
 ```bash
 grep -c "^- \[ \]" openspec/changes/*/tasks.md | awk -F: '{s+=$2} END {print s" open tasks"}'
 ```
 
-As of 2026-09-08: **42 open tasks across 9 changes.** It is expected to go *up* sometimes —
-finishing one item often discovers two, and that is the queue working rather than failing.
+As of 2026-09-08, after the literature review: **12 changes.** Expect the count to rise —
+finishing one item often discovers two, and that is the queue working.
 
 ---
 
 ## Tier 0 — in flight
 
-1. **`phase1-prior-ablation`** — the experiment that decides whether the project has a
-   reason to exist. 5,000-step × 3-variant run on Metal, started 2026-09-08 14:36.
-   Tasks 1.4-1.7 open. Everything below is contingent on its result.
+1. **`phase1-prior-ablation`** — the run deciding whether the central bet is real. Started
+   14:36 on Metal, ~3 h for three variants plus an untrained control. Tasks 1.4-1.7.
 
-## Tier 1 — blocks any external claim
+## Tier 1 — cheap, and they decide direction
 
-2. **`time-based-evaluation`** — every existing number uses a random split, which for credit
-   data is optimistic in exactly the way a validation committee looks for. Do not publish a
-   headline AUC before this.
-3. **`second-credit-panel`** — all real-data results rest on one dataset, one economy, one
-   crisis. A single-panel result is a result about that panel.
-4. **`ci-and-release-gates`** — there is no CI. `v0.1.0` was cut from a locally-green tree
-   that carries files the repository does not.
+These need **no GPU and no new training**, which is why they come before everything else.
 
-## Tier 2 — the product
+2. **`pd-term-structure` task 11.1** — check whether cumulative PD across the five UCI
+   horizons is even monotone. Hours of work, no training. A high violation rate founds the
+   whole term-structure direction; a low one deflates it to an efficiency claim. **This is
+   the single highest value-per-hour item in the queue.**
+3. **`sample-efficiency-regime` tasks 13.3-13.4** — run the probe the moment a checkpoint
+   exists. Every measurement so far was taken above the crossover, so this tests the regime
+   the thesis needs. Implemented already; only the run remains.
+4. **`forward-prediction-register` task 6.1** — establish a licensed data source with
+   observable outcomes. Pure licence reading. **Out of tier order deliberately: start now**,
+   because the asset is elapsed time and delay is the only way to lose it.
 
-5. **`fitted-calibration`** — the analytic base-rate correction has a known counterexample in
-   its own evidence (1-year horizon, `FINDINGS` §6). Fix before building intervals on top.
-6. **`conformal-pd-certificate`** — this is what is being sold. A port of proven machinery
-   rather than research, but blocked on the two above being trustworthy first.
+## Tier 2 — blocks any external claim
 
-## Tier 3 — compounding, so start early
+5. **`second-credit-panel` task 7.5** — ingest V4FinBench. The only licensed panel with dates,
+   so it is the only route to temporal validation. **Not** the accuracy target (`FINDINGS` §9).
+6. **`time-based-evaluation`** — unblocked by the above. Every current split is random, which
+   for credit is optimistic in exactly the way a supervisory reviewer looks for.
+7. **`ci-and-release-gates`** — there is no CI, and `v0.1.0` was cut from a locally-green tree
+   carrying files the repository does not.
 
-7. **`forward-prediction-register`** — the only asset capital cannot buy, and its entire
-   value is elapsed time. **Deliberately out of tier order: start task 6.1 now**, in
-   parallel, because every week of delay is a week of the asset.
+## Tier 3 — the product
 
-## Tier 4 — scale and science
+8. **`pd-term-structure` tasks 11.2-11.6** — hazard-path output. IFRS 9 requires lifetime ECL,
+   so this is the object a regulated lender must buy rather than merely like.
+9. **`fitted-calibration`** — the analytic base-rate correction has a known counterexample in
+   its own evidence (`FINDINGS` §6, 1-year horizon).
+10. **`conformal-pd-certificate`** — what is actually sold. Add the supervisory coverage tests
+    the finance literature uses: Kupiec, Christoffersen.
+11. **`zero-shot-attribution`** — the incumbent is gradient boosting **plus SHAP**, so half a
+    replacement loses.
 
-8. **`temporal-financial-prior`** — the largest known gap between the prior and the real
-   task. Blocked on Phase 1: do not enrich a prior before knowing it transfers.
-9. **`scaling-curve`** — Phase 2. Justifies renting NVIDIA. Blocked on Phase 1.
+## Tier 4 — science, once direction is settled
+
+12. **`temporal-financial-prior`** — largest known gap between prior and task; needs
+    V4FinBench.
+13. **`scaling-curve`** — **demoted.** Beyond IID says scale does not fix the non-IID regime,
+    so this no longer justifies renting NVIDIA and is not on the critical path.
 
 ---
 
 ## Found while working
 
-Discoveries append here rather than into a tier. A defect found mid-task looks more urgent
-than it is because it is the thing in front of you, and stopping to re-rank the queue is how
-a session ends with the queue reordered and nothing built. Triage happens when Tier 0 empties.
+Discoveries append here rather than into a tier. Triage happens when Tier 0 empties.
 
-- **Model size is below the stated target.** `docs/STRATEGY.md` Phase 1 says 10-50M
-  parameters; the current config is 2.2M. Reaching ~12M needs `--d-model 384 --n-layers 8`,
-  about 1.5-2 days on Metal (ESTIMATED by scaling, not measured). Covered by task 1.6.
-- **Regression head for LGD.** The model is classification-only. Loss given default is a
-  regression problem, and PD alone does not give expected loss. No proposal yet.
-- **Distillation for serving.** In-context inference carries the context table on every
-  request and attention is quadratic in it. Kumo's published answer is a two-stage distil to
-  a light serving model. Only matters once latency is a customer requirement; noted so it is
-  not discovered under one.
-- **Homogenisation is a real risk of the category.** If many lenders score with one model,
-  their failures correlate, which is systemic risk (Bommasani et al.). Say it to a regulator
-  before they say it to us. Belongs in the certificate's own caveats, so likely folds into
-  `conformal-pd-certificate` rather than becoming its own change.
-- **The training loop's own eval metric is nearly uninformative.** `_eval_accuracy` reports
-  *accuracy* on synthetic tasks whose base rates are sampled between 1% and 30%. A model
-  predicting the majority class every time scores 0.70 to 0.99 there, so the 0.938 printed
-  during the first Phase 1 run says almost nothing about whether the model learned anything.
-  This is the same mistake `evaluation/metrics.py` exists to prevent, left in place in
-  `modeling/train.py` because that code predates it. Replace with AUC or balanced accuracy so
-  the training log is readable. Cheap; no proposal needed, but it should not be trusted in
-  the meantime.
-- **`max_context` default may be too low.** Tanna et al. report 5,000-10,000 as the sweet
-  spot on credit data; the default here is 2,000, chosen for CPU cost before Metal was in
-  use. Untested at the higher value.
+- **The training loop's eval metric is uninformative.** `_eval_accuracy` reports plain
+  accuracy on tasks whose base rates are 1-30%, so majority-class prediction scores 0.70-0.99.
+  Replace with AUC or balanced accuracy. Cheap; do not trust the training log meanwhile.
+- **Horizon independence is unverifiable.** The UCI files have no identifiers, so we cannot
+  tell whether the same firm appears across horizons (`FINDINGS` §7). Any external
+  presentation of "three horizons" must say the independence is assumed, not shown.
+- **`max_context` default may be too low.** Tanna et al. report 5,000-10,000 as the sweet spot;
+  the default here is 2,000, chosen for CPU cost before Metal was in use.
+- **Two papers are known only from abstracts** and both bear on scope: Baesens et al. for the
+  exact crossover and which TFMs, ExplainerPFN for how attribution targets are generated.
+- **Regression head for LGD.** Expected credit loss needs PD *and* LGD; the model is
+  classification-only. No proposal yet, and Baesens et al. benchmark LGD too.
+- **Distillation for serving.** In-context inference carries the context on every request.
+  Kumo's published answer is a two-stage distil. Only matters once latency is a requirement.
+- **GraphPFN convergence risk.** If tabular foundation models can be turned into graph ones,
+  Kumo's structural advantage becomes reproducible from open weights, which changes the
+  competitive picture (`LANDSCAPE.md`).
+- **Homogenisation** belongs in the certificate's own caveats rather than as a separate change.

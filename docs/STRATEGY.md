@@ -1,183 +1,205 @@
 # Strategy
 
-Written 2026-09-08, after a day of surveying the field. This is the plan of record. It is
-opinionated on purpose: a plan that keeps every option open is not a plan. Where a claim
-here rests on evidence, the evidence is in `docs/FINDINGS.md`; where it rests on judgment,
-the judgment is labelled as such.
+**Revised 2026-09-08**, after reading the credit-risk and tabular-foundation-model literature
+properly. The first version of this document survived nine hours. What changed is recorded in
+"What this revision overturns" below, because a plan that quietly rewrites itself is not a
+plan.
 
-## The one-sentence thesis
+Opinionated on purpose. Where a claim rests on evidence, the evidence is in
+`docs/FINDINGS.md`; where it rests on judgment, it says so.
 
-**A credit-risk model that arrives with its own validation evidence, built on a tabular
-foundation model pretrained entirely on synthetic company financials.**
+## The thesis, in one sentence
 
-The foundation model is *how* it is built cheaply. The evidence is *what* is sold.
+**A probability-of-default term-structure model for small and low-default credit portfolios,
+pretrained entirely on synthetic company financials, shipping calibrated hazard paths with
+their own validation evidence.**
 
-## Why not the obvious framing
+Four claims, each load-bearing and each falsifiable:
 
-The obvious framing — "a tabular foundation model for finance, no training on your data" — is
-dead on arrival, and it took one day of reading to establish why (`docs/LANDSCAPE.md`):
+1. **Term structure, not a label.** The object is a hazard path — PD at 12 months, 24 months,
+   lifetime — because IFRS 9 requires lifetime expected credit loss. A single-horizon
+   classifier is structurally insufficient for the rule every regulated lender is bound by.
+2. **Small and low-default portfolios.** Tabular foundation models measurably beat gradient
+   boosting below roughly 8,000 observations, and the advantage grows as data shrinks.
+   Above that, they lose.
+3. **Synthetic-only pretraining.** Not thrift: firm-level financial data sits behind
+   commercial licences, so it is the only licence-clean route, and it makes benchmark
+   contamination impossible to commit rather than merely unlikely.
+4. **The evidence is the product.** Calibration, conformal coverage, honest refusal, and a
+   forward track record — because in this market the certificate is what is bought.
 
-| the pitch | who already owns it |
-| --- | --- |
-| "no feature engineering" | Kumo, in AP and Forbes |
-| "in-context, no training on your data" | KumoRFM, documented on docs.nvidia.com |
-| "tabular foundation model, synthetic priors" | Google TabFM, Neuralk, Prior Labs |
-| "universal tabular FM for financial risk" | Feedzai RiskFM |
-| vertical specialisation of a general TFM | Fundamental, already shipping into oil & gas |
+## What this revision overturns
 
-Every mechanism claim is taken. Competing on mechanism means competing on capital and
-distribution against a company with a $255M Series A and another inside NVIDIA's docs. That
-is a losing fight and should not be picked.
+| the first version said | the evidence says | source |
+| --- | --- | --- |
+| V4FinBench is "the dataset this project needs" | 1.1M rows and 131 features are exactly where TFMs lose to trees. It is a **validation instrument** for temporal work, not the target market | `FINDINGS` §9 |
+| Phase 1 targets 10-50M parameters | Size is not the lever. Beyond IID finds TFMs lose on large/wide/non-IID data regardless of scale | `FINDINGS` §9 |
+| Beat gradient boosting on the panels we hold | Our panels (6,000-10,500 rows) sit **at or above** the crossover. Every measurement so far was taken in the regime we lose | `FINDINGS` §9 |
+| The product is single-horizon PD plus a certificate | Single-horizon PD does not satisfy IFRS 9. The term structure is the object, and no camp predicts it | `FINDINGS` §9, `LANDSCAPE.md` |
+| The exit condition is "financial beats generic" | A win count across cells manufactures winners. Only 22 of 406 pairwise comparisons were significant in this domain | `FINDINGS` §9 |
 
-## What is actually defensible
+## Why the obvious framings are dead
 
-Three things, in increasing order of durability.
+Every *mechanism* claim is owned (`docs/LANDSCAPE.md`): "no feature engineering" by Kumo in
+AP and Forbes, "in-context, no training on your data" by KumoRFM in NVIDIA's own
+documentation, synthetic-prior TFMs by Google TabFM and Prior Labs and Neuralk, "universal
+tabular FM for financial risk" by Feedzai. Competing on mechanism means competing on capital
+and distribution against a $255M Series A and a BigQuery integration. Do not pick that fight.
 
-**1. A financial prior, not a generic one.** Weak on its own — Kumo and TabFM also train on
-synthetic data, so this is a difference of degree. It has to be *demonstrated* on credit
-panels, never asserted. But there is a real asymmetry underneath it (§4 of FINDINGS):
-firm-level financial data is absent from every major foundation model's pretraining corpus
-because it sits behind Bloomberg, S&P and Moody's. Energy got foundation models because its
-data was free. Finance did not. **Synthetic generation is not a budget substitute here; it is
-the only licence-clean route into the domain**, which is why the space is empty.
+Every *size* claim is also dead. Google ships TabFM into BigQuery for warehouse-scale
+tables and TimesFM-3 at 330M parameters over 10^12 time points. The large end is not
+winnable, and Beyond IID says it is not winnable by a TFM by anyone.
 
-**2. Auditable provenance.** Nothing real touches pretraining, verified by inspection and
-enforced as an invariant (§1). Every competitor training on real tables has public-benchmark
-numbers open to the contamination critique that Meyer et al. quantify at up to 32 points of
-MAPE. A model that *cannot* have memorised the benchmark is a claim an auditor can check.
-This is cheap to hold and expensive to acquire later.
+What is left is a specific object, in a specific regime, with specific evidence. That is
+narrower than "a foundation model for financial data" and it is the only version that
+survives contact with the literature.
 
-**3. A pre-registered forward track record.** The only evaluation immune to both leakage
-modes is predicting outcomes that do not yet exist (§3). Corporate credit suits this better
-than forecasting does: the horizon is already 12-24 months, defaults are publicly observable
-in insolvency registers, and the cohort can be fixed today from public filings. **A track
-record cannot be bought or back-dated — it has to be lived.** This is the one axis where
-starting now beats being funded later, and it is the reason to start the clock before the
-model is good.
+## The gap, stated precisely
+
+Sort the field by *what object each model predicts* and the hole is obvious:
+
+| camp | object | who |
+| --- | --- | --- |
+| time series | future values of a sequence | TimesFM-3, Chronos, t0-alpha, Toto |
+| tabular | a label for one row | TabPFN, TabFM, NEXUS, Seldon, RiskFM |
+| relational | a label for a node in a graph | KumoRFM, GraphPFN |
+| **panel hazard** | **an event-probability path per entity over time** | **nobody** |
+
+Time-series models forecast the covariates, not the event, and have no notion of an absorbing
+state or a cumulative probability that must not decrease. Tabular models treat horizons as
+unrelated tasks with no coherence constraint. Graph models still emit a label.
+
+**And the datasets already carry it.** UCI Polish ships five horizons, V4FinBench six, and we
+have been evaluating them independently — which means our own output is probably already
+internally incoherent, and that is checkable today with no new modelling
+(`openspec/changes/pd-term-structure` task 11.1).
 
 ## Who this is for
 
-**Not** a data scientist who wants a better AutoML. That buyer compares AUC, is served by
-gradient boosting, and has no reason to switch.
+Not a data scientist wanting better AutoML; that buyer compares AUC and is served by
+gradient boosting.
 
-**The buyer is a credit risk function under supervisory obligation** — a bank, a lender, an
-insurer, a rating or trade-credit business. Their binding constraint is not accuracy. Their
-scorecards are logistic regression *because regulators demand interpretability*, which is why
-Fundamental's published benchmark beats linear regression rather than gradient boosting (§2).
-The accuracy bar is low. **The barrier is model risk management**: calibrated PD, stability
-across regimes, documented out-of-time backtesting, and evidence a validation committee
-accepts. Vendors selling "upload data, get predictions" structurally cannot ship that,
-because there the certificate is an afterthought and here it is the product.
+**A credit risk function under supervisory obligation, with a small book.** SME lenders,
+specialty and trade-credit finance, regional banks, credit insurers, and anyone managing a
+**low-default portfolio** — a named Basel category where a handful of defaults makes point
+estimation unreliable by any method, so supervisors demand uncertainty and conservatism.
+That is the one place where the hardest statistics and the highest willingness to pay for a
+certificate coincide.
 
-This is also where `finkele-axiom` transfers directly: a validation protocol producing a
-certificate with conformal coverage and honest refusals is the same machinery pointed at a
-different domain.
+The incumbent is not gradient boosting alone. Baesens et al. name the quasi-standard as
+**gradient boosting paired with SHAP**, so the comparison includes explanations, and a model
+that wins on AUC but cannot say why loses anyway.
 
-## What we are building, in order
+`finkele-axiom` transfers directly here: a validation protocol producing a certificate with
+conformal coverage and honest refusals is the same machinery pointed at a different domain.
 
-Each phase has a **falsifiable exit condition**. If the condition fails, that is a result, not
-a failure — and the next phase changes.
+## Phases, each with a falsifiable exit condition
 
-### Phase 0 — foundations (done, 2026-09-08)
-Priors, permutation-invariant architecture, training loop, sklearn-compatible in-context
-classifier, real credit evaluation on UCI Polish bankruptcy, calibration metrics, prior
-correction. 24 tests. **Exit: reached.**
+### Phase 0 — foundations. **Done.**
+Priors, permutation-invariant architecture, training, in-context classifier, two real panels,
+calibration metrics, base-rate correction, paired significance testing, untrained control,
+sample-efficiency probe. 35 tests.
 
-### Phase 1 — does the prior transfer at all?
-The single experiment that decides whether this is a company.
+### Phase 1 — does the prior transfer, and in which regime?
+Two questions, not one, and the second was missing until today.
 
-Pretrain at real scale (millions of synthetic tasks, 10-50M parameters) and measure on
-held-out real credit panels, with time-based splits, against logistic regression, gradient
-boosting, LightGBM and CatBoost.
+- **Exit condition A:** the financial prior beats a generic one at matched compute, and the
+  difference survives the paired bootstrap with family-wise correction. A win count is not a
+  verdict.
+- **Exit condition B:** the model beats gradient boosting **somewhere on the size sweep** —
+  most plausibly below 1,000 rows. If it loses at every size, the small-data thesis is dead
+  regardless of what the prior ablation says.
+- **The untrained control decides how to read a tie.** "The domain prior adds nothing" and
+  "no pretraining adds anything" are different results and only the control separates them.
+- **If A fails but B holds:** keep the model, drop the domain-prior story, compete on
+  calibration and the certificate.
+- **If B fails:** the model is not the product. Pivot to the validation layer, which needs no
+  model of our own, and say so publicly.
 
-- **Exit condition:** the financial prior beats a generic SCM-only prior of identical size and
-  compute on credit tasks, and the model is within reach of gradient boosting on AUC while
-  beating it on calibration.
-- **Harness: built and tested** (`src/fintfm/experiments.py`, `fintfm-ablate`). It trains one
-  model per prior mixture holding architecture, parameter count, optimiser, steps, batch,
-  seed and evaluation identical, refuses to report if parameter counts diverge, scores every
-  variant on the same paired splits, and writes `results.json` with the git commit so any
-  number is re-derivable. The run is one command:
+### Phase 1.5 — term-structure coherence. **Cheap, do it next, no new modelling.**
+Score the existing per-horizon panels and check whether cumulative PD is monotone.
 
-  ```bash
-  uv run fintfm-ablate --steps 20000 --out runs/phase1 --threads 8
-  ```
-- **If the financial prior does *not* beat the generic one**, the domain-specialisation thesis
-  is dead and the honest move is to say so publicly and pivot to the validation layer alone,
-  which does not require owning a model at all.
-- **Blocked on:** compute, not code. This machine shares 16 cores with a genomics pipeline
-  and was at load average 145 when the harness was finished (2026-09-08), which is the
-  condition `CLAUDE.md` records as having frozen it before. Run on a rented GPU, or on this
-  machine once the pipeline is idle and with `--threads` set below the free core count.
+- **Exit condition:** a measured violation rate. A high rate is the argument for the whole
+  term-structure direction; a near-zero rate reduces it to an efficiency claim.
 
-### Phase 2 — does it scale?
-Train at 100k, 1M, 10M synthetic tasks. Plot real-data performance against pretraining scale.
+### Phase 2 — the term structure
+Hazard-path output, a survival process in the prior, monotonicity enforced or measured,
+joint versus per-horizon at matched compute.
 
-- **Exit condition:** a monotone, non-saturating curve. That is the scientific result worth
-  publishing and the thing that makes this a foundation model rather than a neural network
-  with good marketing.
-- **If flat:** stop scaling, spend the compute on prior richness instead.
+- **Exit condition:** joint prediction beats independent per-horizon models on AUC per
+  horizon *and* on coherence, and the output is what an IFRS 9 provisioning calculation
+  consumes.
 
 ### Phase 3 — the certificate
-Port the axiom protocol: conformal PD intervals, coverage under regime shift, out-of-
-distribution detection with refusal, calibration stability across economic cycles.
+Conformal PD intervals, coverage under regime shift, out-of-distribution refusal, and the
+supervisory coverage tests the finance literature uses: Kupiec unconditional coverage,
+Christoffersen conditional coverage.
 
-- **Exit condition:** a document a model-risk reviewer reads without needing us in the room.
-- This is the product. Phases 1-2 exist to make it cheap to produce.
+- **Exit condition:** a document a model-risk reviewer reads without us in the room.
+- This is the product. Everything above exists to make it cheap to produce.
 
-### Phase 4 — the forward register
-Fix a public cohort, publish hashed timestamped PD predictions, wait.
+### Phase 4 — attribution
+PD and feature attributions from one forward pass, to displace GBM+SHAP rather than half of it.
 
-- **Exit condition:** twelve months of elapsed, unfalsifiable track record.
-- **Start it during Phase 1, not after.** It costs almost nothing and only time makes it
-  valuable. Sizing matters: at a few percent base rate, a few thousand firms yield only tens
-  of defaults a year, so state the statistical power up front rather than discovering later
-  that a null result was underpowered.
+- **Exit condition:** rank agreement with SHAP-on-GBM where both apply, plus a stability
+  advantage across context resamples.
+
+### Phase 5 — the forward register. **Start now, out of order.**
+A pre-registered cohort with hashed, timestamped predictions.
+
+- **Exit condition:** twelve months of elapsed, unfalsifiable record.
+- Its entire value is elapsed time and it cannot be bought or back-dated, so the cost of
+  delay is the whole asset. Begin task 6.1 in parallel with Phase 1.
+
+### Demoted: the scaling curve
+Was Phase 2. Beyond IID finds TFMs lose on large, wide, non-IID data, so scale does not buy
+the regime we need. Worth measuring eventually to know the shape; no longer on the critical
+path, and no longer the justification for renting NVIDIA.
 
 ## What we are deliberately not building
 
-- **A general tabular foundation model.** Contested by better-funded teams on every axis.
-- **Fraud.** Kumo and Feedzai own it, and it needs real-time serving infrastructure we would
-  have to rebuild from nothing.
-- **Market or trading prediction.** Harder science, severe temporal-validation traps, and
-  sophisticated proprietary competition.
-- **Time-series forecasting.** A different architecture family. The Forecasting Company's
-  argument that time series are not tables is correct, and corporate default on an annual
-  panel is genuinely a tabular problem — but only while we stay on that side of the line.
-- **Anything with a natural-language interface, an agent, or a warehouse connector**, until
-  the model is worth querying. That is Kumo's game and it is a distribution game.
+- A general tabular foundation model. Contested on every axis by better-funded teams.
+- Fraud. Owned by Kumo and Feedzai, and needs real-time serving infrastructure.
+- Time-series forecasting. Google has 330M parameters and 10^12 time points in BigQuery.
+- Market or return prediction. Harder science, severe validation traps, sophisticated
+  proprietary competition.
+- Systemic risk and contagion networks. A different problem (and a graph one).
+- Anything with a natural-language interface, an agent, or a warehouse connector. That is a
+  distribution game.
+- **Accuracy claims on large national panels.** The literature says we lose there. Do not
+  publish a headline that invites the comparison.
 
 ## How it kicks off
 
-The next action is unchanged and singular: **run Phase 1**. Everything else is preparation
-that has now been done.
-
-Concretely, in order:
-
-1. Rent GPU time. A single A100 for a few days is enough for a 10-50M-parameter model on
-   millions of synthetic tasks; this does not need a cluster.
-2. Run the generic-versus-financial prior comparison at matched compute. **This is the
-   experiment that decides whether the company exists**, so run it before anything cosmetic.
-3. Acquire a second, independent credit panel so results do not rest on one dataset. Check
-   licences for commercial use before ingesting anything (`CLAUDE.md`).
-4. Start the forward register in parallel, because its value is purely a function of elapsed
-   time.
+1. **Finish Phase 1** — the run in flight, then the sample-efficiency probe on the winning
+   checkpoint. The probe matters more than the ablation, because it tests the regime the
+   thesis needs.
+2. **Run the Phase 1.5 coherence test.** Hours of work, no training, and it either founds or
+   deflates the term-structure direction.
+3. **Start the forward register** (task 6.1: establish a licensed source with observable
+   outcomes). Parallel, because it only compounds.
+4. **Get V4FinBench** for temporal validation and regime-shift testing — not to chase
+   accuracy on it.
+5. **Read two full papers**: Baesens et al. for the exact size crossover and which TFMs, and
+   ExplainerPFN for how attribution targets are generated. Both are currently known only from
+   abstracts, and both bear directly on scope.
 
 Everything before a Phase 1 result is positioning, and positioning is not evidence.
 
 ## The honest risk register
 
-- **The prior may not transfer.** The core scientific bet, unmeasured. Phase 1 exit condition
-  exists to kill it fast rather than slowly.
-- **Fundamental verticalises into finance.** Entering is a go-to-market motion for them, not
-  research. Mitigated only by regulatory depth and an accumulated track record, never by
-  being first.
-- **Data access is the binding constraint.** Good public credit panels are few and the good
-  ones are licensed. This may cap what can be demonstrated without capital.
-- **Homogenisation is a real risk of the category, not just a talking point.** Bommasani et
-  al. warn that a foundation model's defects are inherited downstream; if many lenders score
-  with one model their failures correlate, which is systemic risk. Say this to regulators
-  before they say it to us — a vendor who has thought about it is more credible, and it is
-  also the argument for why per-deployment validation must exist.
-- **Solo founder against funded teams with distribution.** Unfixable head-on. The whole plan
-  above is an attempt to compete on an axis where that asymmetry does not decide the outcome.
+- **The prior may not transfer.** Unmeasured. Phase 1 exists to kill it fast.
+- **The margins in this domain are small.** Baesens et al. found significance in 22 of 406
+  comparisons. Even a positive Phase 1 may be a small effect, and a small effect cannot carry
+  a pitch built on accuracy — which is another reason the certificate is the product.
+- **Low-default-portfolio benefit is conjecture.** The field's own authoritative benchmark
+  named it and did not test it (mean default rate 22%). We would be first, which is the
+  opportunity and the risk in one sentence.
+- **Fundamental verticalises into finance.** A go-to-market motion for them, not research.
+  Only regulatory depth and elapsed track record answer it.
+- **Data access is the binding constraint**, and it may cap what can be shown without capital.
+- **Homogenisation is a real risk of the category**, not a talking point: if many lenders
+  score with one model their failures correlate, which is systemic risk. Say it to a
+  supervisor before they say it to us.
+- **Solo founder against funded teams with distribution.** Unfixable head-on; the whole plan
+  competes on axes where that asymmetry does not decide the outcome.
