@@ -65,6 +65,41 @@ So: **run it, don't reason about it**, and say what kind of number you're report
 When a benchmark run reports `N/M scorable tasks`, `M > N` means tasks were skipped (currently:
 degenerate single-class splits) — that's informative, not noise to suppress.
 
+## Two ways a long run lies about itself
+
+Both cost a three-hour Phase 1 run on 2026-09-08, and neither surfaced as a failure.
+
+**A pipe hides the exit status.** `uv run ... | tee run.log` reports *tee's* exit code, so a
+Python traceback arrives as **exit code 0** and the harness says "completed". Never pipe a
+run whose success you intend to believe. Redirect instead, and check the status:
+
+```bash
+PYTHONUNBUFFERED=1 uv run fintfm-ablate ... > run.log 2>&1; echo "EXIT=$?"
+```
+
+`PYTHONUNBUFFERED=1` matters for the same reason in reverse: without it, Python's stdout
+buffering plus a pipe hides every progress line until the process exits, so a run that died
+at step 500 looks identical to one that is working. The first Phase 1 attempt was
+unmonitorable for four hours for exactly this reason, and it had already been dead for
+almost all of it.
+
+**A code path that has only ever run on CPU is untested, not working.** `_eval_accuracy`
+sampled batches without moving them to the model's device. The training loop moved its own,
+so everything passed on CPU and everything passed in CI, and the crash landed at the first
+`eval_every` checkpoint — five minutes into the run, on the one path no test exercised off
+CPU. Two rules follow:
+
+- **Derive the device from the model** (`next(model.parameters()).device`) rather than passing
+  it alongside; two sources of the same fact will desynchronise.
+- **Parametrise device-sensitive tests over every device actually available** and skip rather
+  than omit. `tests/test_model.py::test_training_completes_on_each_available_device` is that
+  guard; it runs a four-step training with `eval_every` below `steps` so the evaluation path
+  is genuinely entered.
+
+Verifying a run is alive by watching accumulated CPU time grow is still right, but it only
+proves the process was alive *at that moment* — it cannot distinguish training from a process
+about to hit an untested branch. Read the log.
+
 ## Licensing: what this repo carries
 
 **Apache-2.0**, chosen 2026-09-08. `LICENSE` holds the canonical text fetched from

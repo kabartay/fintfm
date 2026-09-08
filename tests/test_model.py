@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 import torch
 
 from fintfm.modeling.model import FinancialTFM, ModelConfig, normalize_features
@@ -123,3 +124,36 @@ def test_query_rows_never_see_each_other():
         X2[0, 9] = torch.randn(6)  # perturb the last query row only
         after = model(X2, y, n_ctx=6, n_classes=torch.tensor([2]))
     torch.testing.assert_close(before[:, 6:9], after[:, 6:9], rtol=1e-4, atol=1e-5)
+
+
+@pytest.mark.parametrize(
+    "device",
+    [
+        "cpu",
+        pytest.param(
+            "mps",
+            marks=pytest.mark.skipif(
+                not torch.backends.mps.is_available(), reason="no Metal GPU here"
+            ),
+        ),
+    ],
+)
+def test_training_completes_on_each_available_device(device, tmp_path):
+    """Regression guard: the held-out eval path once crashed on any non-CPU device.
+
+    `_eval_accuracy` sampled batches on the CPU and handed them to a model on the GPU. The
+    training loop moved its own batches, so nothing failed until the first evaluation
+    checkpoint — five minutes into a three-hour run, on a path no test had ever exercised
+    off CPU. `eval_every` is set below `steps` here so that path actually runs.
+    """
+    from fintfm.modeling.train import TrainConfig, train
+
+    cfg = ModelConfig(max_features=6, max_classes=2, d_cell=8, d_model=16, n_heads=2,
+                      n_col_layers=1, n_layers=1, d_ff=16)
+    prior_cfg = PriorConfig(max_features=6, max_classes=2, n_rows=16)
+    train_cfg = TrainConfig(
+        steps=4, batch_size=2, device=device, log_every=2, eval_every=2, warmup_steps=1
+    )
+    model = train(cfg, prior_cfg, train_cfg, str(tmp_path / "ckpt.pt"))
+    assert str(next(model.parameters()).device).startswith(device)
+    assert (tmp_path / "ckpt.pt").exists()

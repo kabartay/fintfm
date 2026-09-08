@@ -38,11 +38,21 @@ def _lr_schedule(step: int, cfg: TrainConfig) -> float:
 
 
 @torch.no_grad()
-def _eval_accuracy(model: FinancialTFM, prior_cfg: PriorConfig, rng: np.random.Generator, n_batches: int = 5) -> float:
+def _eval_accuracy(
+    model: FinancialTFM, prior_cfg: PriorConfig, rng: np.random.Generator, n_batches: int = 5
+) -> float:
+    """Query accuracy on freshly sampled held-out synthetic tasks.
+
+    The device is read off the model rather than passed in. Taking it as an argument is how
+    this function shipped a crash: the training loop moved its batches and this path did not,
+    which nothing caught because the path had only ever run on CPU. Deriving it here means
+    the two cannot desynchronise.
+    """
+    device = next(model.parameters()).device
     model.eval()
     correct, total = 0, 0
     for _ in range(n_batches):
-        batch = sample_batch(rng, prior_cfg, batch_size=16)
+        batch = sample_batch(rng, prior_cfg, batch_size=16).to(device)
         logits = model(batch.X, batch.y, batch.n_ctx, batch.n_classes)[:, batch.n_ctx :]
         pred = logits.argmax(dim=-1)
         target = batch.y[:, batch.n_ctx :]
