@@ -644,3 +644,91 @@ appears: nothing in it establishes that 6% means 6%.
 - ECE with 5 defaults in the training set and ~3,150 test rows is measurable, but the
   calibration of a 3% base rate estimated from 5 events deserves a conformal interval rather
   than a point ECE.
+
+## 13. The calibration advantage is Bayesian shrinkage, and it is partly conservatism
+
+**Date:** 2026-09-08. **Status:** MEASURED (single seed, 3-year panel, under-trained
+checkpoint) plus a **theoretical mechanism that is inference, labelled as such**. Re-derivable
+from the script in this section's history; sweeps n against a fixed 3,151-row test set.
+
+§12 measured a calibration advantage of 2.3× to 11.7×. This asks *why*, because a mechanism
+that is understood can be defended and one that is a coincidence cannot.
+
+### The hypothesis
+
+Müller et al. (arXiv:2112.10510) show a prior-fitted network approximates the **posterior
+predictive** under its prior. If that is what this model does, two things follow as theory
+rather than tuning: a posterior predictive is **calibrated by construction** when the
+data-generating process lies in the prior's support, and at small *n* the posterior is
+**dominated by the prior**, so predictions shrink toward the prior's base rate.
+
+That predicts the advantage should **decay monotonically with n**. Measured ECE ratio
+(gboost/fintfm): 11.7×, 10.0×, 6.1×, 3.9×, 2.3× at n = 100, 250, 500, 1000, 2000. Monotone
+decay. This is what shrinkage predicts and not what "we happened to tune better" predicts.
+
+### The direct test, and it confirms the mechanism
+
+Panel base rate 4.713%. Distribution of predicted probabilities on a fixed test set:
+
+| n | model | pred mean | pred sd | p99/p50 | \|mean − base\| |
+| --- | --- | --- | --- | --- | --- |
+| 100 | fintfm | 5.03% | 0.024 | 2.8 | 0.32% |
+| 100 | gboost | 3.48% | 0.164 | **396,829** | 1.23% |
+| 250 | fintfm | 4.52% | 0.023 | 3.0 | 0.19% |
+| 250 | gboost | 1.95% | 0.104 | 1,609 | 2.76% |
+| 1000 | fintfm | 4.19% | 0.027 | 4.8 | 0.52% |
+| 1000 | gboost | 3.37% | 0.113 | 124 | 1.34% |
+| 4000 | fintfm | 3.98% | 0.017 | 3.2 | 0.73% |
+| 4000 | gboost | 4.14% | 0.103 | 49 | 0.58% |
+
+**Our mean tracks the base rate closely and our spread is small.** Gradient boosting at small
+n is not merely miscalibrated, it is **pathological**: a p99/p50 ratio of 396,829 means the
+median firm receives a probability near zero while the top percentile receives an enormous
+one. It says "almost nobody defaults, except these few who certainly will." For provisioning
+that is precisely the wrong shape, and it is why its ECE reaches 0.078.
+
+Both converge as n grows, and by n = 4,000 gradient boosting's mean is *closer* to the base
+rate than ours. The advantage is a small-sample phenomenon, exactly as the mechanism says.
+
+### The honest caveat, and it is substantial
+
+**Part of our calibration advantage is conservatism.** Our predicted spread is 0.013-0.028
+against gradient boosting's 0.084-0.164 — four to eight times narrower. A model that predicts
+the base rate for every firm is perfectly calibrated and completely useless, and we are closer
+to that end of the axis than the incumbent is. Our flat AUC across sizes (0.67-0.72) is the
+same fact seen from another direction: a model that cannot exploit more data.
+
+So the claim must be stated as a **frontier, not a win**:
+
+| regime | discrimination | calibration | honest verdict |
+| --- | --- | --- | --- |
+| n ≈ 100 | ours 0.689 vs 0.632 | ours 0.007 vs 0.078 | **we dominate on both** — a genuine Pareto improvement |
+| n ≥ 500 | theirs, decisively | ours, by 2-6× | **a real trade-off**, and which side matters depends on the use |
+
+For low-default portfolios, provisioning and capital, the level is the deliverable and a
+lender cannot provision against an ordering. For a ranking application, theirs is better.
+**Saying only the first half would be the kind of claim this repository exists to prevent.**
+
+### The strategic consequence: the obvious counter fails where we target
+
+The rebuttal to §12 is "just Platt-scale the gradient boosting", and it is correct in
+general. But **post-hoc calibration requires held-out data containing events.** At n = 100
+with 5 defaults, fitting a two-parameter calibration map means estimating it from a handful of
+positives, and splitting a calibration set off makes the base model worse. So:
+
+> Post-hoc calibration needs the one thing a low-default portfolio does not have: defaults to
+> calibrate on.
+
+Our calibration comes from the prior and costs no data. Theirs requires data they do not have
+in the regime we target. If that survives measurement it is the most defensible thing in the
+project — **and it is not yet measured**, which is why `sample-efficiency-regime` task 13.7
+is the highest-priority follow-up.
+
+### The discriminating test that must be run before any of this is claimed
+
+**Is this calibration property generic to prior-fitted networks, or specific to our financial
+prior?** If the `generic` variant from the Phase 1 ablation is equally well calibrated, then
+calibration is a property of the *method* — which means TabPFN, TabICL and TabFM have it too,
+and our differentiator is the domain prior plus the certificate, **not** calibration itself.
+That would be a materially weaker position than §12 suggests, and it is answerable from the
+run currently in flight. Do not build a pitch on calibration until that comparison exists.

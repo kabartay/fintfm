@@ -28,6 +28,17 @@ Four claims, each load-bearing and each falsifiable:
 4. **The evidence is the product.** Calibration, conformal coverage, honest refusal, and a
    forward track record — because in this market the certificate is what is bought.
 
+**Stated as a frontier rather than a win** (`FINDINGS` §12, §13). At roughly 100 obligors we
+dominate gradient boosting on both discrimination and calibration, a genuine Pareto
+improvement. Above ~500 it is a trade-off: they rank better, we calibrate 2-6× better. For
+provisioning and low-default portfolios the level is the deliverable and a lender cannot
+provision against an ordering — but claiming only the favourable half is the failure this
+project's own conventions exist to prevent.
+
+**Two things must be established before any pitch rests on calibration**, and neither is:
+whether a *calibrated* gradient boosting closes the gap, and whether the property is generic
+to prior-fitted networks rather than ours. See `changes/calibration-mechanism`.
+
 ## What this revision overturns
 
 | the first version said | the evidence says | source |
