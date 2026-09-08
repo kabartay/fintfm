@@ -65,11 +65,12 @@ check its license against the intended commercial use.
 
 ## Where this is going
 
-`docs/STRATEGY.md` is the plan of record: what is being built, in what order,
-with a falsifiable exit condition per phase, and what is deliberately not being
-built. `docs/FINDINGS.md` holds measured results and the reasoning behind design
-decisions; `docs/LANDSCAPE.md` the competitive picture; `docs/REFERENCES.md` the
-verified literature.
+[`docs/`](docs/) holds the project's reasoning, indexed in
+[docs/README.md](docs/README.md). Start with [STRATEGY.md](docs/STRATEGY.md)
+for the plan of record, [ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the
+model works, [DECISIONS.md](docs/DECISIONS.md) for why it is built this way and
+what would reverse each choice, and [FINDINGS.md](docs/FINDINGS.md) for measured
+results.
 
 Short version: the mechanism claims ("no training on your data", "no feature
 engineering") are already owned by better-funded competitors, so the thesis is
