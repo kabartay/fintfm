@@ -2355,3 +2355,116 @@ both explicitly to reproduce them.
 The mean-AUC gap has gone **0.142 → 0.048** over the day, and at the first horizon 0.132 →
 0.030 (0.942 against 0.9717). Still behind on both discrimination and calibration, and the
 remaining gap is now small enough that closing it is a plausible target rather than a hope.
+
+---
+
+## 36. V4FinBench's published protocol is not out-of-time, and their best method pre-empts our §29 mechanism
+
+**Date:** 2026-09-09. **Status:** MEASURED by others, read from the full PDF rather than an
+abstract or a summary — see the method note at the end, which is the reason that distinction is
+spelled out. **Source:** Kostrzewa, Tomczak, R. Furman, Poberezhna, Furgała, Farganus,
+O. Furman, Zięba, *V4FinBench: Benchmarking Tabular Foundation Models, LLMs, and Standard
+Methods on Corporate Bankruptcy Prediction*, arXiv:2605.10896v2, 13 May 2026.
+
+`public-benchmark-claim` task 33.1. Every number this project has produced on V4FinBench uses
+an out-of-time split of our own design, and the published results had never been read in. They
+have now, and **our numbers are not comparable to theirs for four independent reasons.**
+
+### Their protocol (§4 of the paper, quoted in substance)
+
+**5-fold stratified cross-validation with company-level grouping within country.** All
+observations from a company go to the same fold; country proportions are preserved across
+folds. Per iteration: one fold test, one validation, three training — approximately 60/20/20.
+**Fold indices are released and shared across all methods.** Missing values are imputed with
+training-set medians and features standardised with training-set statistics, computed
+separately within each fold. Metrics are accuracy, precision, recall, F₁ and ROC-AUC,
+fold-averaged with standard deviations; given the 0.19-0.36% positive rate, **F₁ and ROC-AUC
+are the primary metrics**. Decision thresholds are calibrated on the validation fold by
+maximising F₁ on the precision-recall curve, then applied unchanged to the test fold.
+
+### The four reasons our numbers cannot be placed against theirs
+
+1. **It is cross-validation, not out-of-time.** Grouping is by *company*, not by date, so a
+   fold can contain 2019 observations while predicting a 2008 one. Out-of-time is the harder
+   split, so reporting our numbers against theirs would understate us — but it would also be
+   the same category of error §26 made in the opposite direction, and "understates us" is not
+   a licence.
+2. **The horizon tasks are built on different rows.** For horizon *h*, a distressed company
+   has its **final *h* years of data removed** and the resulting final observation is labelled
+   positive. Our `_curve_truth` derives cumulative labels for a *fixed* row from its `period`.
+   Their horizon 3 and our horizon 3 are not the same prediction.
+3. **Their inference context is 10,000 rows**; ours is 2,000 (Table 3: `n_inference_context`
+   = 10 000). §33 measured our own model *degrading* past 2,000, so this is not a knob we can
+   simply match.
+4. **Their TabPFN is fine-tuned on V4FinBench** — 10 epochs, learning rate 5×10⁻⁶, batch 1024,
+   on an A100, taking 35:43 at horizon 0 (Tables 3 and 4). Ours never touches real data, which
+   is decision D2's entire point. Their number answers "can a TFM be adapted to this data";
+   ours answers "can a synthetic-only TFM transfer to it". Different questions.
+
+Their Table 1 does corroborate our ingestion exactly: 1,000,087 rows at horizon 0 falling to
+598,832 at horizon 5, distressed counts 3,587 → 1,154. §22's loader agrees with the paper.
+
+### The published numbers we can quote
+
+Table 2, QLoRA-finetuned Llama-3-8B against XGBoost on identical rows (a stratified
+20,000-observation training subset; test is all held-out positives plus sampled negatives):
+
+| horizon | Llama-3-8B ROC-AUC | XGBoost ROC-AUC | Llama F₁ | XGBoost F₁ |
+| --- | --- | --- | --- | --- |
+| 0 | 0.825 | **0.995** | 0.308 | 0.483 |
+| 1 | 0.568 | 0.937 | 0.095 | 0.218 |
+| 2 | 0.597 | 0.908 | 0.119 | 0.113 |
+| 3 | 0.517 | 0.879 | 0.042 | 0.055 |
+| 4 | 0.583 | 0.857 | 0.011 | 0.040 |
+| 5 | 0.553 | 0.811 | 0.030 | 0.037 |
+
+Figures 3 and 4 report the main comparison as plots rather than a table, so exact per-horizon
+values for fine-tuned TabPFN against the six classical baselines live in their Appendix D,
+which is not in the pages read. Read off the figures, ROC-AUC for prototype-undersampled
+TabPFN runs from about 0.995 at horizon 0 to about 0.86 at horizon 5, with XGBoost close
+beneath it and TabPFN without resampling at about 0.78 by horizon 5. **Those are figure
+readings, not quoted numbers, and must not be tabulated as if they were.**
+
+Their headline: prototype-undersampled TabPFN **matches or exceeds gradient boosting on
+ROC-AUC at every horizon**, and on F₁ from horizon 2 onward. Llama-3-8B trails XGBoost on
+ROC-AUC at every horizon.
+
+### Their best method is our §29 mechanism, published four months earlier
+
+This is the uncomfortable part and it goes at the top of any external claim.
+
+Their TabPFN context-construction ablation compares no resampling, **random undersampling**
+(minority-to-majority ratio 0.3), and **prototype undersampling** — the same class budget, but
+the majority subset chosen by clustering majority-class samples with **MiniBatchKMeans** and
+keeping, per cluster, the real observation closest to the centroid. Prototype undersampling
+wins, and their stated conclusion is:
+
+> The gap between prototype and random undersampling indicates that preserving majority-class
+> structure matters beyond simply increasing minority exposure.
+
+That is **exactly** §29's proposed mechanism — that balancing throws away the majority class,
+which is where a low-default portfolio's information lives — and it is exactly what §32 and
+§35's retrieval exploits. They published it in May 2026. Our sweep did not know that, which is
+the cost of not having read the benchmark's own paper before scoring on its data.
+
+**What survives as distinct.** Their context is built **once, globally**, by clustering the
+majority class. Ours is built **per query group**, conditioned on the queries being scored, and
+§32 measured grouping against blind sampling on the same data. Query-conditioned retrieval is
+a real difference from global prototype selection, and it is a narrower claim than "retrieval
+helps", which they had already shown in substance. It is also worth noting they used
+MiniBatchKMeans for the same reason we did, which is mild evidence the design is the obvious
+one rather than a contribution.
+
+### Method note: do not read a paper through a summariser
+
+The first pass at this finding used a fetched summary of the PDF rather than the PDF. That
+summary produced **a results table that does not exist in the paper**, invented per-horizon
+default rates of "4.2% at 1Y rising to 16.9% at 5Y" against the true 0.19-0.36%, and stated
+that **TabPFN was used zero-shot** when the abstract on the same page says it was fine-tuned.
+It was caught only because the fabricated default rates contradicted our own loader by tenfold
+and the fine-tuning claim contradicted the abstract.
+
+Had the protocol been slightly wrong rather than absurdly wrong, it would have been recorded.
+**A secondhand summary of a source is not the source**, and every number in this section came
+from reading the pages. This is the same failure family as §28 and §34: an interface that
+answers confidently without the thing behind it being what it claims.

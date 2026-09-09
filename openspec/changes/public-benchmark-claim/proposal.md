@@ -28,10 +28,19 @@ published table, on their protocol** is a credible public claim with no leaderbo
 
 ## What
 
-- Record V4FinBench's **published baseline table and protocol** in `docs/FINDINGS.md`. This is
-  the blocking gap: every number this project has produced on V4FinBench uses an out-of-time
-  split of our own design, and the published results have never been read into the repository.
-  Until that is done, we cannot say where we would place.
+**Updated 2026-09-09 after task 33.1 (`docs/FINDINGS.md` §36).** The published protocol has now
+been read, and it is further from ours than this proposal assumed: 5-fold company-grouped
+stratified cross-validation rather than out-of-time, horizon tasks built on *different rows*,
+a 10,000-row inference context, and a TabPFN **fine-tuned on their data**. Our numbers cannot
+be placed against theirs at all, in either direction. Reproducing their protocol is therefore
+the substance of this change rather than a validation step — and they release fold indices,
+which makes it possible.
+
+The other finding from 33.1 reshapes the claim itself: their best method, prototype
+undersampling, **is §29's mechanism published in May 2026**. "Context construction matters, and
+preserving majority-class structure is why" is theirs. What remains ours is that retrieval is
+*query-conditioned* rather than global, measured against blind sampling on the same data. Any
+public claim leads with that distinction or it is overclaiming.
 - Reproduce their protocol exactly as a second arm, keeping our out-of-time arm beside it.
   Out-of-time is the harder split, so reporting only ours understates us; reporting only
   theirs would drop the property a model-risk reviewer cares about. Report both.
@@ -55,6 +64,7 @@ position and would argue for delaying any public statement until the accuracy ga
 
 ## Blocked by
 
-- **`retrieval-context` task 17.5** — three seeds. A public number must not rest on one draw.
-- Reading the published paper's protocol and table, which is task 33.1 and blocks everything
-  else here.
+- **Task 33.2**, reproducing their protocol, now blocks every comparative claim — see §36.
+- ~~`retrieval-context` task 17.5 — three seeds~~. **Done** (§33): retrieval's worst seed beats
+  uniform's best at every context size.
+- ~~Reading the published protocol and table~~. **Done** (§36).

@@ -52,6 +52,7 @@ fintfm-ablate = "fintfm.experiments.prior_ablation:main"
 fintfm-termstruct = "fintfm.experiments.term_structure:main"
 fintfm-v4oot = "fintfm.experiments.v4_out_of_time:main"
 fintfm-ctxsweep = "fintfm.experiments.context_sweep:main"
+fintfm-retrgroup = "fintfm.experiments.retrieval_grouping:main"
 fintfm-fetch = "fintfm.evaluation.fetch:main"
 
 [dependency-groups]
