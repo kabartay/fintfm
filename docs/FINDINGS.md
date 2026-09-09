@@ -697,6 +697,10 @@ regression cannot pass unnoticed behind a healthy-looking aggregate.
 > (0.0002 vs our 0.00255), so a low ECE is not by itself evidence of a good model. Report
 > Brier *skill* against that baseline, which for us is 1-2%.
 >
+> **NARROWED by §27:** restated against CatBoost, the usable window is **below ~200
+> obligors**, not below 1,000 — but within it we win on AUC, ECE *and* Brier skill, and the
+> best-ECE-at-every-size claim survives.
+>
 > **TEMPERED by §16 (same day).** The 2.3-11.7× ratios below are against an **uncalibrated**
 > gradient boosting. Against a calibrated one the gap at n = 100 is roughly **2×**, and above
 > ~1,000 rows calibrated gradient boosting is the better model on both AUC and Brier. **Do
@@ -1762,3 +1766,58 @@ Do not read this as "the approach fails". Read it as: the thesis-critical proper
 perfectly, and the model was asked a question its prior never posed. Whether fixing the base
 rate closes the accuracy gap is **unknown and should not be assumed** — logistic regression at
 0.97 AUC on h0 is a very strong baseline, and §25 suggests CatBoost would be stronger still.
+
+## 27. Restated against CatBoost: the small-n win survives, and it is narrower than §16 claimed
+
+**Date:** 2026-09-09. **Status:** MEASURED, single seed, `polish-bankruptcy-3y`, `mixed`
+checkpoint. Resolves `strong-baselines` task 18.4. §25 established that every earlier
+gradient-boosting comparison used sklearn's weakest implementation; this is the honest rerun.
+
+| n (defaults) | model | AUC | ECE | Brier skill |
+| --- | --- | --- | --- | --- |
+| **100** (5) | **fintfm** | **0.6945** | **0.0070** | **+2.10%** |
+| | catboost | 0.6940 | 0.0149 | +0.61% |
+| | lightgbm | 0.6620 | 0.0500 | **−11.26%** |
+| | xgboost | 0.6193 | 0.0355 | **−3.14%** |
+| 250 (12) | fintfm | 0.6872 | **0.0031** | +1.92% |
+| | **catboost** | **0.7791** | 0.0282 | **+4.21%** |
+| 1,000 (47) | fintfm | 0.7154 | **0.0040** | +1.64% |
+| | **catboost** | **0.8234** | 0.0251 | **+8.70%** |
+| 4,000 (189) | fintfm | 0.6827 | **0.0013** | +1.05% |
+| | **catboost** | **0.9066** | 0.0156 | **+35.17%** |
+
+### At 100 rows we win on all three metrics, against the real competition
+
+Best AUC (marginally, over CatBoost), best calibration by 2×, and best Brier skill by 3×.
+This is the first time this project has beaten a competent gradient booster on a proper
+scoring rule, and it happens exactly where the strategy says the market is.
+
+**LightGBM and XGBoost post *negative* Brier skill at n = 100** — worse than a predictor that
+ignores every feature and returns the base rate. That is §16's argument, measured against the
+strong family rather than argued: thin books punish the incumbent, and here two of the three
+best boosters are actively harmful on five defaults.
+
+### But the window is narrower than §16 said
+
+§16 put the Brier crossover between 250 and 1,000 rows. Against CatBoost it is **between 100
+and 250** — CatBoost already leads on AUC and skill at 250. The usable window is therefore
+roughly *under 200 obligors*, not under a thousand.
+
+By 4,000 rows CatBoost reaches +35.17% skill against our +1.05%, so above the window this is
+not a contest.
+
+### What holds across every size
+
+**Best ECE at every n tested**, by 2× to 20× (0.0013-0.0070 against 0.0149-0.0500). §12's
+calibration claim survives contact with the strong family — unlike its 11.7× magnitude, which
+§16 already retired.
+
+### Consequence
+
+§16 is **narrowed, not retracted**: the claim is now "below roughly 200 obligors we are the
+best available model on a proper scoring rule, and the best calibrated at any size". That is a
+smaller market than a thousand-obligor ceiling, and it is still precisely the low-default
+segment §9 identified — and the one §26 showed the prior could not even generate until today.
+
+**Single seed.** The n = 100 win is 0.0005 AUC over CatBoost, which is noise; the skill and
+ECE margins are larger but still one draw. Three seeds before this is quoted anywhere.

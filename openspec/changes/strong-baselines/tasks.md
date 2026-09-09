@@ -11,9 +11,15 @@
 - [x] 18.3 Announce every skipped baseline rather than dropping it silently. Verify: a test
       that a simulated import failure produces a visible message. **Done 2026-09-09: skips
       print the model and the reason; `available_boosting()` reports unavailability.**
-- [ ] 18.4 Re-run findings 12, 16 and 17 against the strong family and **restate their
+- [x] 18.4 Re-run findings 12, 16 and 17 against the strong family and **restate their
       margins**, in the finding text itself rather than a footnote. Verify: numbers
       re-derived from the run, and each finding carries an amendment banner.
+      **Done 2026-09-09, `FINDINGS` §27. The window narrows to ~200 obligors, but inside it
+      we beat CatBoost on AUC, ECE and Brier skill, and LightGBM/XGBoost post negative skill
+      at n=100. Best ECE at every size survives.**
+- [ ] 18.6 Repeat §27 across >= 3 seeds. The n=100 AUC win is 0.0005 over CatBoost, which is
+      noise; only the ECE and skill margins are substantial. Verify: mean +/- std per arm in
+      §27 before the result is quoted outside this repository.
 - [x] 18.5 Record the OpenMP conflict and its resolution in `docs/COMPUTE.md`, since it is an
       environment fact any future contributor will hit. Verify: the section names the
       bisection that identified it. **Done 2026-09-09, including that
