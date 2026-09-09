@@ -90,3 +90,66 @@ def test_sample_efficiency_sizes_are_ascending_and_documented():
     assert list(sizes) == sorted(sizes)
     assert min(sizes) <= 250, "must probe below 1000 rows, where the TFM advantage is claimed"
     assert max(sizes) >= 4000, "must reach the ~8000 crossover region to observe it"
+
+
+# --- capability probes (docs/FINDINGS.md §42) --------------------------------------
+
+
+def test_probes_have_the_ceilings_they_claim():
+    """The probes are only diagnostic if their ceilings are what the docstring says.
+
+    §42 happened because every measurement was on a benchmark where a single column scores
+    0.9799, so a weak model looked competent. A probe whose ceiling is unknown repeats that.
+    """
+    from sklearn.ensemble import HistGradientBoostingClassifier
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.metrics import roc_auc_score
+
+    from fintfm.experiments.capability import make_probe
+
+    def fit(kind, model):
+        Xtr, ytr, Xte, yte = make_probe(kind, seed=0)
+        return roc_auc_score(yte, model.fit(Xtr, ytr).predict_proba(Xte)[:, 1])
+
+    # linear: a fitted linear model should essentially solve it
+    assert fit("linear", LogisticRegression(max_iter=1000)) > 0.98
+    # conjunction: trees represent an AND natively
+    assert fit("conjunction", HistGradientBoostingClassifier(max_iter=100)) > 0.90
+    # xor: no additive function separates parity, so logistic regression is pinned at chance
+    assert fit("xor", LogisticRegression(max_iter=1000)) < 0.60
+    assert fit("xor", HistGradientBoostingClassifier(max_iter=100)) > 0.80
+    # noise: nothing can beat chance, and an arm that does is leaking
+    assert fit("noise", HistGradientBoostingClassifier(max_iter=100)) < 0.60
+
+
+def test_probe_base_rate_is_respected():
+    from fintfm.experiments.capability import PROBES, make_probe
+
+    for kind in PROBES:
+        _, ytr, _, yte = make_probe(kind, rate=0.05, seed=1)
+        for y in (ytr, yte):
+            assert 0.02 < y.mean() < 0.09, (kind, y.mean())
+
+
+def test_unknown_probe_is_refused():
+    import pytest as _pytest
+
+    from fintfm.experiments.capability import make_probe
+
+    with _pytest.raises(ValueError, match="unknown probe"):
+        make_probe("quadratic")
+
+
+def test_run_includes_an_untrained_control(tmp_path):
+    """The floor must be present automatically, not remembered."""
+    from fintfm.experiments.capability import run
+    from fintfm.modeling.model import FinancialTFM, ModelConfig
+
+    ckpt = tmp_path / "m.pt"
+    FinancialTFM(ModelConfig(max_features=20, d_model=16, d_cell=8, n_layers=1,
+                             n_col_layers=1, max_classes=2)).save(
+        str(ckpt), trained_objectives=("classification",))
+    rec = run({"probe": str(ckpt)}, tmp_path, seeds=(0,), max_context=200, n_features=20)
+    arms = {r["arm"] for r in rec["results"]}
+    assert "untrained_control" in arms
+    assert "logistic_regression" in arms

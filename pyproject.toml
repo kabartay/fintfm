@@ -66,6 +66,7 @@ fintfm-v4oot = "fintfm.experiments.v4_out_of_time:main"
 fintfm-ctxsweep = "fintfm.experiments.context_sweep:main"
 fintfm-retrgroup = "fintfm.experiments.retrieval_grouping:main"
 fintfm-v4protocol = "fintfm.experiments.v4_protocol:main"
+fintfm-capability = "fintfm.experiments.capability:main"
 fintfm-fetch = "fintfm.evaluation.fetch:main"
 
 [dependency-groups]
