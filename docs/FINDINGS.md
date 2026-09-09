@@ -582,6 +582,12 @@ excess returns, comparing zero-shot inference, fine-tuning, and pretraining from
 > Increasing the dataset size, incorporating **synthetic data augmentation**, and applying
 > hyperparameter tuning further enhance performance."
 
+**Independently corroborated again 2026-09-09** by FinCast (arXiv:2508.19609), which
+motivates a purpose-built financial time-series foundation model on precisely the grounds
+that general ones "do not specifically address the idiosyncrasies of financial data", and
+reports 20-23% error reductions over TimesFM, Chronos and TimesMoE. Two independent groups
+in the adjacent modality now report what §14 measured for tabular credit.
+
 **This is the Phase 1 hypothesis, confirmed in a neighbouring modality.** Our bet is that a
 financial prior beats a generic one; they found general pretraining insufficient for finance
 and domain pretraining substantially better, with synthetic augmentation helping. Two reasons

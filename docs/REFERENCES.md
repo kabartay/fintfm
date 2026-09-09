@@ -164,6 +164,27 @@ That qualifies the Beyond IID reading (§9): ICL can scale, given the right arch
 Note also that TabPFNv2 is reported as excelling only up to ~10K samples because alternating
 column/row attention becomes prohibitive — the cost our row-pooling stage also avoids.
 
+**Zhu, Chen, Qu & Chung (2025).** *FinCast: A Foundation Model for Financial Time-Series
+Forecasting.* [arXiv:2508.19609](https://arxiv.org/abs/2508.19609)
+**The clearest published statement of this project's core bet, in the adjacent modality.**
+Their motivation is ours verbatim: general foundation models (TimesFM, Chronos, TimesMoE)
+"do not specifically address the idiosyncrasies of financial data, such as volatility, noise,
+and pattern shift". A 1B-parameter decoder trained on 20B+ financial time points reports
+20-23% error reductions over the general models — i.e. **domain-specific pretraining beats
+general pretraining in finance**, which is exactly what `docs/FINDINGS.md` §14 measured for
+tabular credit (+0.049 AUC, financial prior over generic).
+
+Two ideas worth borrowing as *concepts*, not code. Their **Point-Quantile loss** jointly fits
+a point forecast and quantiles, claimed to prevent forecast collapse under non-stationarity —
+relevant to `conformal-pd-certificate`, since our hazard head currently emits point
+probabilities and the certificate needs intervals. And their framing of the three shift
+sources (temporal non-stationarity, multi-domain diversity, varying resolution) maps cleanly
+onto credit: economic regimes, country and sector heterogeneity, and reporting frequency.
+
+**The caveat is the usual one:** 1B parameters on 20B time points against our 850K. The
+principle transfers; the scale does not, and their result is not evidence that a small model
+inherits the benefit.
+
 ### Still unverified — do not cite
 
 - Credit-risk TFM evaluations reporting that TFMs are strongest in small-data PD/LGD
