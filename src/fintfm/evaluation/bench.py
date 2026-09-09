@@ -24,6 +24,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
+from fintfm.evaluation.boosting import BOOSTING_MODELS, fit_predict_boosting
 from fintfm.evaluation.datasets import (
     CreditDataset,
     load_polish_bankruptcy,
@@ -56,45 +57,6 @@ def _baselines() -> dict[str, object]:
     }
 
 
-def _boosting_family() -> dict[str, object]:
-    """The gradient boosting baselines that actually matter.
-
-    **sklearn's ``GradientBoostingClassifier`` is the weakest member of this family** and was
-    for a long time the only one running here: LightGBM was silently skipped on every run
-    because of a missing ``libomp``, and CatBoost and XGBoost were never installed. Findings
-    12, 16 and 17 all compared against the weak baseline, so the real gap was understated.
-
-    Each import is guarded because these are optional and their native libraries fail in
-    ways an import guard alone does not catch — but a skip is now **announced**, not silent,
-    since a quietly absent baseline flatters us.
-    """
-    out: dict[str, object] = {}
-    imp = SimpleImputer(strategy="median")
-
-    try:
-        from lightgbm import LGBMClassifier
-
-        out["lightgbm"] = make_pipeline(imp, LGBMClassifier(verbosity=-1))
-    except (ImportError, OSError) as exc:
-        print(f"  baseline skipped: lightgbm ({type(exc).__name__}) — install libomp")
-
-    try:
-        from catboost import CatBoostClassifier
-
-        out["catboost"] = make_pipeline(imp, CatBoostClassifier(verbose=0, allow_writing_files=False))
-    except (ImportError, OSError) as exc:
-        print(f"  baseline skipped: catboost ({type(exc).__name__})")
-
-    try:
-        from xgboost import XGBClassifier
-
-        out["xgboost"] = make_pipeline(imp, XGBClassifier(verbosity=0, tree_method="hist"))
-    except (ImportError, OSError) as exc:
-        print(f"  baseline skipped: xgboost ({type(exc).__name__})")
-
-    return out
-
-
 def run_one(name: str, X: np.ndarray, y: np.ndarray, model_path: str, seed: int = 0) -> dict[str, float]:
     """Fit every model on a train split and report test AUC."""
     values, counts = np.unique(y, return_counts=True)
@@ -105,23 +67,40 @@ def run_one(name: str, X: np.ndarray, y: np.ndarray, model_path: str, seed: int 
     )
     classes = np.unique(y)
     results: dict[str, float] = {}
-    models = {**_baselines(), **_boosting_family()}
+
+    def _report(model_name: str, proba: np.ndarray, seconds: float) -> None:
+        auc = _auc(y_test, proba, classes)
+        results[model_name] = auc
+        if len(classes) == 2:
+            detail = evaluate_binary(y_test, proba[:, 1]).summary()
+            print(f"  [{name}] {model_name}: {detail}  ({seconds:.1f}s)")
+        else:
+            print(f"  [{name}] {model_name}: AUC={auc:.4f}  ({seconds:.1f}s)")
+
+    # in-process: classical baselines and our own model
+    models: dict[str, object] = dict(_baselines())
     models["fintfm"] = FinancialTFMClassifier(model_path)
     for model_name, clf in models.items():
         t0 = time.time()
         try:
             clf.fit(X_train, y_train)
             proba = clf.predict_proba(X_test)
-            auc = _auc(y_test, proba, classes)
         except Exception as exc:  # noqa: BLE001 - one model failing must not abort the sweep
             print(f"  [{name}] {model_name} failed: {exc}")
             continue
-        results[model_name] = auc
-        if len(classes) == 2:
-            detail = evaluate_binary(y_test, proba[:, 1]).summary()
-            print(f"  [{name}] {model_name}: {detail}  ({time.time() - t0:.1f}s)")
-        else:
-            print(f"  [{name}] {model_name}: AUC={auc:.4f}  ({time.time() - t0:.1f}s)")
+        _report(model_name, proba, time.time() - t0)
+
+    # Out-of-process: the boosting family. Fitting these in a process that has imported
+    # torch segfaults, because two OpenMP runtimes collide (docs/FINDINGS.md §25). These are
+    # the baselines that actually compete, so the process boundary is worth the cost.
+    if len(classes) == 2:
+        for model_name in BOOSTING_MODELS:
+            t0 = time.time()
+            p1 = fit_predict_boosting(model_name, X_train, y_train, X_test)
+            if p1 is None:
+                continue
+            _report(model_name, np.column_stack([1.0 - p1, p1]), time.time() - t0)
+
     return results
 
 

@@ -74,3 +74,35 @@ positive result.
 - **Verify a long run is alive by accumulated CPU time, not instantaneous `%CPU`** — read the
   `TIME` column of `ps -o pid,etime,time -p <pid>` twice and check it grew. An instantaneous
   reading on a wrapper shell says nothing about the worker.
+
+## The OpenMP conflict, and why boosting baselines run out-of-process
+
+Discovered 2026-09-09, and any contributor on macOS will hit it.
+
+**Symptom:** a process that has imported `torch` segfaults (exit 139) when it fits LightGBM,
+CatBoost or XGBoost. No Python traceback — the crash is below the interpreter.
+
+**Cause,** read directly from the macOS crash report, which lists two OpenMP runtimes mapped
+into one process:
+
+```
+.../site-packages/torch/lib/libomp.dylib      bundled with PyTorch
+/opt/homebrew/opt/libomp/lib/libomp.dylib     Homebrew, loaded by LightGBM
+```
+
+**Confirmed by bisection:** LightGBM alone works; `import torch` then LightGBM crashes.
+**`KMP_DUPLICATE_LIB_OK=TRUE` does not fix it** — still 139. That workaround is widely
+recommended and it is not sufficient here.
+
+**Fix:** `evaluation/boosting.py` fits these models in a subprocess that never imports torch,
+exchanging arrays through a temporary `.npz`. Heavy for a benchmark, and the only reliable
+separation for a native-library conflict we do not control. Guarded by
+`tests/test_metrics.py::test_boosting_baselines_fit_with_torch_loaded`, which imports torch
+deliberately.
+
+**Before this existed, LightGBM had never once run** and CatBoost and XGBoost were absent, so
+every gradient-boosting comparison used sklearn's weakest implementation and understated the
+field by 0.018-0.040 AUC (`docs/FINDINGS.md` §25).
+
+**The wider lesson:** an exception guard converted a crash into a silent skip, and a silently
+absent baseline flatters us. Skips are now announced.

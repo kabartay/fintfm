@@ -223,9 +223,11 @@ def run(
 def summarise(record: dict) -> str:
     """Render the comparison, with coherence beside discrimination."""
     lines = [
-        f"{record['dataset']}  train<={record['config']['train_until']}  "
-        f"test>={record['config']['test_from']}  "
-        f"({record['split']['n_train']:,} / {record['split']['n_test']:,} rows)",
+        (
+            f"{record['dataset']}  train<={record['config']['train_until']}  "
+            f"test>={record['config']['test_from']}  "
+            f"({record['split']['n_train']:,} / {record['split']['n_test']:,} rows)"
+        ),
         "",
         f"{'arm':>22} {'mean AUC':>9} {'violations':>11} {'monotone':>9}",
     ]

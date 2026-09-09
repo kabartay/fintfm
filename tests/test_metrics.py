@@ -171,3 +171,32 @@ def test_v4finbench_loader_joins_rather_than_stacks():
     defaulted = ds.period >= 0
     assert (ds.period[defaulted] < ds.n_observed[defaulted]).all()
     assert ((ds.period >= 0) == (ds.y == 1)).all()
+
+
+@pytest.mark.parametrize("model", ["lightgbm", "catboost", "xgboost"])
+def test_boosting_baselines_fit_with_torch_loaded(model):
+    """Regression: fitting these in a torch process segfaulted (docs/FINDINGS.md §25).
+
+    PyTorch bundles its own OpenMP runtime and the boosting libraries load the system one;
+    two in a process crash on macOS, and KMP_DUPLICATE_LIB_OK does not help. The subprocess
+    boundary is the fix, and this test is the guard — note it imports torch deliberately.
+    """
+    import torch  # noqa: F401 - present precisely because it used to cause the crash
+
+    from fintfm.evaluation.boosting import fit_predict_boosting
+
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(240, 5))
+    y = (rng.random(240) < 0.25).astype(int)
+    p = fit_predict_boosting(model, X[:180], y[:180], X[180:])
+    if p is None:
+        pytest.skip(f"{model} unavailable in this environment")
+    assert p.shape == (60,)
+    assert ((p >= 0) & (p <= 1)).all()
+
+
+def test_unknown_boosting_baseline_is_rejected():
+    from fintfm.evaluation.boosting import fit_predict_boosting
+
+    with pytest.raises(ValueError, match="unknown baseline"):
+        fit_predict_boosting("not_a_model", np.zeros((4, 2)), np.zeros(4), np.zeros((2, 2)))
