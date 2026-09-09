@@ -38,8 +38,13 @@ REAL_DATA_PATTERNS = (
     r"from fintfm\.evaluation",
 )
 
-STATUS_WORDS = ("MEASURED", "SMOKE-TEST", "SIMULATED", "ESTIMATED", "design invariant",
-                "proposed strategy", "not started")
+# "HYPOTHESIS" is for a finding that states a mechanism and a **pre-registered prediction**
+# before the experiment exists. It is not a weaker MEASURED: it carries a different obligation,
+# namely that the numbers testing it were fixed in advance and are quoted unchanged afterwards,
+# hit or miss. Added 2026-09-10 for §41, because labelling a hypothesis MEASURED would be the
+# exact mislabelling this check exists to prevent.
+STATUS_WORDS = ("MEASURED", "HYPOTHESIS", "SMOKE-TEST", "SIMULATED", "ESTIMATED",
+                "design invariant", "proposed strategy", "not started")
 
 
 def check_provenance() -> list[str]:

@@ -5,9 +5,19 @@ a conversation is lost when the conversation compacts.
 
 ## Where we stand — the honest scorecard
 
-Updated 2026-09-09 after thirty-eight findings. **Read this before quoting any number below**,
+Updated 2026-09-10 after forty-two findings. **Read this before quoting any number below**,
 because several findings temper, amend or outright retract earlier ones and the amendments
 matter more than the originals. §28 retracts §26's headline as our own bug.
+
+### Read this first
+
+**§42 puts every accuracy number in this repository in question.** Against an untrained model of
+the same architecture, pretraining is worth **+0.015 AUC** on a clean linear task that logistic
+regression solves at 0.9997; four times the context buys 0.014; and the training loop's only
+quality signal was *accuracy*, which a constant predictor beats at these base rates. The likely
+cause is that the prior was deliberately tuned to be hard (§19) and so contains almost no
+learnable tasks. Coherence (§11, §20, §26) is structural and unaffected. Everything about
+accuracy below should be read as provisional until the prior and the training metric are fixed.
 
 ### What is measured and large
 
@@ -2764,3 +2774,198 @@ weighted sum scores a firm extreme on one axis highly even when it fails the oth
 conditions, and those false positives land exactly where F₁ is decided. An in-context
 transformer *should* be able to represent a conjunction. At 847K parameters this one does not,
 and whether capacity is the reason is what the scaling curve measures next.
+
+---
+
+## 41. The prior teaches smooth additive boundaries; the benchmark's label is a hard conjunction
+
+> **FALSIFIED the same day by §42, before any of it was built.** The premise — that the model
+> can represent a smooth boundary but not a conjunction — is false: it scores 0.68 on *both*,
+> including a linear task logistic regression solves at 0.9997. Kept in full, unedited, because
+> the pre-registration is the point: a tidy mechanism explaining four observations was wrong,
+> and the five-minute premise check that killed it cost less than the 1.5-hour retrain it would
+> otherwise have justified. Read §42 instead.
+
+**Date:** 2026-09-10. **Status: HYPOTHESIS**, with a pre-registered prediction, recorded before the
+experiment was run. Not a measurement — see the provenance note in `openspec/tools/validate.py`. Derived from reading `prior/financial.py` against §39 and §40.
+
+### The mismatch
+
+The financial prior builds its label from a latent distress score:
+
+```python
+distress = drivers @ w                    # linear in nine standardised drivers
+distress += sector_hazard[sector] - cycle * sector_cyclicality[sector] * u   # additive
+distress += rate * u * leverage           # one multiplicative term
+if rng.random() < 0.7:                    # 70% of tasks
+    hidden = np.tanh(drivers[:, idx] @ W + b)
+    distress += hidden @ v                # smooth, MLP-shaped
+p_default = sigmoid(distress + b)
+```
+
+Every one of those terms is **smooth**. The only nonlinearity is `tanh`, which is the function
+class a neural network represents naturally.
+
+V4FinBench's label, from their `docs/benchmark_protocol.md`, is:
+
+```text
+Equity/total_assets < 0  AND  EBITDA/total_assets < 0  AND  Current_assets/short_term_liabilities <= 0.6
+```
+
+A hard **conjunction of three axis-aligned inequalities** — the function class a decision tree
+represents natively as a single root-to-leaf path, and that a smooth additive model
+approximates badly: a weighted sum scores a firm that is extreme on one axis highly even when
+it satisfies neither of the other two conditions, and those false positives land precisely
+where F₁ is decided at a 0.359% base rate.
+
+**The prior never generates a threshold conjunction.** Not once, in any task.
+
+### It explains every result of the last two days
+
+| observation | explanation under this hypothesis |
+| --- | --- |
+| fintfm 0.9811 / 0.2202 sits almost exactly on logistic regression's 0.9839 / 0.2439 (§39) | both are smooth and near-additive; the model was trained to be |
+| CatBoost reaches 0.9959 / 0.4275 (§39) | axis-aligned thresholds are a tree's native representation |
+| 847K → 14.5M parameters changes nothing (§42, pending) | more capacity executes the wrong inductive bias more precisely |
+| 66× more in-context positives makes it *worse* (§40) | the bias is wrong, not the evidence; more examples of a rule it cannot represent do not help |
+
+Compounded by a choice of mine: these checkpoints were trained with `--p-financial 1.0`, for
+comparability with the hazard checkpoint, so the model saw **only** the financial prior — not
+even the generic SCM prior's `relu`, the one piecewise-linear activation in the codebase.
+
+### Pre-registered prediction, recorded before implementing anything
+
+Adding threshold-conjunction labels to the prior — with some probability, generating `y` from a
+shallow axis-aligned rule over the drivers instead of `sigmoid(linear + tanh)` — will:
+
+1. **Narrow the horizon-0 ROC-AUC gap to CatBoost by at least half**, from 0.0148 to 0.0074 or
+   better, at matched compute and matched architecture.
+2. **Improve F₁ by more than it improves AUC in relative terms**, because the deficit is
+   concentrated at the top of the ranking rather than spread through it.
+3. **Not** materially change the out-of-time survival results (§38), whose label is a
+   *timing* construction rather than a threshold rule.
+
+If (1) fails, the limitation is architectural rather than in the prior — most likely the
+mean+max pooling over features, which is structurally additive and may be unable to express a
+conjunction whatever the training signal contains. That would be the more expensive finding and
+it is worth knowing either way.
+
+**Why this is written down first.** Over 2026-09-09 six diagnoses were wrong (`docs/POSTMORTEM.md`),
+including two that over-credited a result. A hypothesis this tidy — one mechanism explaining
+four separate observations — is exactly the kind that gets confirmed by a story rather than by
+evidence. The numbers above are the test, and they were fixed before the experiment existed.
+
+---
+
+## 42. §41 is falsified, and the real defect is far worse: the model barely learns in context at all
+
+**Date:** 2026-09-10. **MEASURED**, synthetic controls plus a feature audit.
+**This finding retracts §41 and puts every accuracy number in this project in question.**
+
+§41 predicted that a conjunction-capable prior would close the gap to CatBoost. Testing the
+premise first — can the model represent a conjunction at all? — cost five minutes and destroyed
+the hypothesis.
+
+### The model is equally bad on a task with a perfect linear boundary
+
+Synthetic, 20 features, 5% base rate, 1,000 context rows, three seeds:
+
+| label shape | fintfm (847K / 4.9M / 14.5M) | logistic regression | gradient boosting |
+| --- | --- | --- | --- |
+| smooth linear | 0.685 / 0.685 / 0.688 | **0.9997** | 0.972 |
+| threshold conjunction | 0.695 / 0.694 / 0.701 | 0.955 | 0.991 |
+
+**It is not a conjunction problem.** The model scores 0.68 on a clean linear task that logistic
+regression solves at 0.9997. Varying the input changed nothing that matters:
+
+- **Feature count** 5 / 10 / 20 / 60 / 130 → 0.643 / 0.553 / 0.700 / 0.576 / **0.505**. At 130
+  features it is at chance.
+- **Feature transform** none / winsor / rank → 0.7010 / 0.7019 / 0.7001. Irrelevant here.
+- **Context size** 200 / 500 / 1,000 / 2,000 → 0.687 / 0.696 / 0.700 / 0.701. **Four times the
+  context buys 0.014.** A working in-context learner improves with context; this one does not.
+
+### Pretraining bought almost nothing
+
+Against an untrained model of the same architecture, on a clean linear task:
+
+| | AUC |
+| --- | --- |
+| trained (6,000 steps) | 0.6334 |
+| **untrained, random weights** | **0.6180** |
+| logistic regression | 0.9999 |
+
+**+0.015 for the entire pretraining run.** §15 measured +0.031 against an untrained control and
+read it as "pretraining buys calibration more than ranking". The more economical reading, now
+that the ceiling is visible, is that pretraining bought very little of anything.
+
+### And V4FinBench horizon 0 is nearly solved by one column
+
+Auditing every feature's individual ability to separate the label:
+
+| single feature | AUC alone |
+| --- | --- |
+| `Working_capital/total_assets` | **0.9799** |
+| `Equity/long_term_liabilities` | 0.9759 |
+| `EBITDA/total_assets` | 0.9742 |
+| `Total_liabilities/total_assets` | 0.9738 |
+
+Eight individual columns exceed 0.972. Our headline 0.9811 (§39) is **0.0012 above the best
+single feature in the table.** The label is a deterministic rule on three ratios that are
+themselves present, so horizon 0 rewards reading one column, not modelling. That number was
+never evidence the model works — and neither was logistic regression's 0.9839.
+
+### The training loop's only quality signal was uninformative
+
+`_eval_accuracy` reports **accuracy**. Measured over 20 prior tasks, the mean base rate is
+0.047, so **always predicting the majority class scores 0.953**. The training logs reported
+"held-out synthetic query accuracy: 0.935 … 0.945" — *below the constant predictor*, presented
+as progress.
+
+`CLAUDE.md` already says accuracy is not a proper scoring rule and that this is why training
+uses cross-entropy. The evaluation inside the training loop did not follow its own rule, so
+three GPU runs reported a number that a constant predictor beats, and nothing flagged it.
+
+### The likely root cause, and why it was designed in
+
+The prior is **deliberately tuned to be hard**. §19 records the sharpness multiplier being
+narrowed to `rng.uniform(0.7, 2.7)` so that logistic regression scores ≈0.74 on synthetic tasks
+against 0.769 on real ones — an explicit "difficulty match", recorded as a success.
+
+The consequence, unnoticed until now: **the prior contains almost no learnable tasks.** Every
+task the model has ever seen has a label that is mostly noise, with a ceiling near 0.75. On a
+task from its own prior it scores 0.6607 against logistic regression's 0.6068 — respectable
+against that ceiling. It has learned to do as well as anything can on irreducibly noisy tasks,
+and has never been shown a task where a sharp boundary exists and can be extracted.
+
+So it does not know how to exploit clean signal, which is exactly what the controls show.
+TabPFN-style priors span difficulty from trivial to impossible; ours is clamped to hard. **§18
+and §19 optimised the prior to look realistic rather than to teach**, and recorded that as a
+finding in favour.
+
+### What this retracts or weakens
+
+- **§41** — retracted outright. The conjunction hypothesis was wrong; all three of its
+  pre-registered predictions are void because the premise was false.
+- **§39** — the 0.9811 stands as a number but not as evidence of capability. Horizon 0 is a
+  one-column task.
+- **§15** — "pretraining buys calibration" survives only as a statement about calibration;
+  its +0.031 ranking gain is of the same order as the +0.015 seen here between trained and
+  random weights.
+- **§16, §17, §27** — that gradient boosting overtakes us above a few hundred rows, and that a
+  constant predictor beats every model on ECE, are exactly what a barely-learning model
+  produces. They were read as properties of the regime; they are at least partly properties of
+  this checkpoint.
+- **The scaling result** (§43) is now unsurprising rather than informative: 17× the parameters
+  cannot help a model whose training signal is noise.
+
+### What to do, in order
+
+1. **Fix the training-loop metric.** Report AUC and a proper scoring rule against a constant
+   baseline, not accuracy. Cheap, and it is the instrument everything else is read through.
+2. **Widen the prior's difficulty range** to include learnable and near-deterministic tasks,
+   rather than clamping it to a realistic-looking band. This inverts §19's change and needs its
+   reasoning rewritten, not merely reversed — the difficulty match was aimed at a real property
+   and solved it in a way that removed the training signal.
+3. **Re-measure the untrained control on everything.** It is the only baseline that separates
+   "the model learned this" from "the architecture and context did".
+4. Only then revisit architecture and scale.
