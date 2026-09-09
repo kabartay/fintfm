@@ -205,9 +205,23 @@ has to be in place *before* the first pull request is merged, not after.
 
 ## Licensing boundary: what must never come in
 
-No code, model weights, or training/eval data from Neuralk (Seldon), Fundamental (NEXUS),
+No code, model weights, or **training** data from Neuralk (Seldon), Fundamental (NEXUS),
 Google TabFM, TabPFN/TabICL, or any other tabular-foundation-model product may enter this
 repository.
+
+**Training and evaluation are different questions, and the rule used to conflate them.**
+Training on such data would destroy decision D2's auditability claim — that the model cannot
+have memorised a benchmark because it never saw real data — and nothing would warn us.
+*Evaluating* on it does not: the model never learns from it and the provenance argument is
+untouched.
+
+So evaluation is permitted in principle, and gated on something else entirely: **whose data is
+it, and what did they agree to?** Data that reached us through a client engagement belongs to
+that client, and reusing it to benchmark a different commercial project is a permission
+question, not a contamination one. Before evaluating on any third-party data: confirm the
+engagement terms allow it, keep the data outside this repository, keep derived numbers
+internal, and do not publish a comparison without asking. Ask rather than assume — this is not
+a judgement call to make on the owner's behalf.
 
 **Check the weights licence separately from the code licence, every time.** Google's TabFM
 and TimesFM 3.0 both ship Apache-2.0 code with **non-commercial** weights, and TimesFM's
