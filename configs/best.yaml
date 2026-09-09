@@ -1,0 +1,21 @@
+# The best configuration measured to date on V4FinBench out of time (docs/FINDINGS.md §38):
+# mean AUC 0.8143 ± 0.0038, mean ECE 0.0072 ± 0.0005, 0% coherence violations, ~56 s.
+#
+# It uses `prototype` context construction, which is **not ours** -- it is Kostrzewa et al.'s
+# prototype undersampling (arXiv:2605.10896 §5.1), implemented here from their description.
+# It beat our query-conditioned retrieval on accuracy at the first horizon, on calibration,
+# on cost, and on batch independence (§38), so it is what we recommend.
+#
+# Supersedes configs/retrieval-best.yaml, which is kept so §32 and §35 stay reproducible.
+inference:
+  context_strategy: prototype
+  feature_transform: rank
+  max_context: 2000
+  prototype_minority_ratio: 0.3
+
+v4finbench:
+  hazard_arms:
+    - {name: fintfm_hazard_prototype, strategy: prototype, correct_prior: true}
+    - {name: fintfm_hazard_retrieval, strategy: retrieval, correct_prior: true}
+    - {name: fintfm_hazard_uniform, strategy: uniform, correct_prior: true}
+    - {name: fintfm_hazard_uncorrected, strategy: balanced, correct_prior: false}

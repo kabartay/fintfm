@@ -16,6 +16,7 @@ from fintfm.inference.retrieval import (
     distance_stats,
     group_queries,
     normalise_for_distance,
+    prototype_context,
     retrieve,
 )
 from fintfm.modeling.model import FinancialTFM, ModelConfig
@@ -254,3 +255,64 @@ def test_pooled_context_rate_weights_by_queries_served():
     assert 0.0 <= rate <= 1.0
     manual = sum(q.size * (y[c] == 1).mean() for q, c in plan) / sum(q.size for q, _ in plan)
     assert rate == pytest.approx(manual)
+
+
+# --- prototype undersampling, the published comparison (§36) -----------------------
+
+
+def test_prototype_context_respects_the_budget_and_keeps_the_ratio():
+    rng = np.random.default_rng(0)
+    Z = rng.normal(size=(5000, 6)).astype(np.float32)
+    y = np.zeros(5000, dtype=np.int64)
+    y[:200] = 1
+    got = prototype_context(Z, y, max_context=520, minority_ratio=0.3, rng=rng)
+    assert got.size <= 520
+    n_pos = int((y[got] == 1).sum())
+    n_neg = got.size - n_pos
+    assert 0.2 < n_pos / n_neg < 0.45, (n_pos, n_neg)
+
+
+def test_prototype_context_picks_real_rows_not_centroids():
+    """A synthetic mean row is not a company; the context must be actual observations."""
+    rng = np.random.default_rng(1)
+    Z = rng.normal(size=(800, 4)).astype(np.float32)
+    y = np.zeros(800, dtype=np.int64)
+    y[:40] = 1
+    got = prototype_context(Z, y, max_context=200, minority_ratio=0.3, rng=rng)
+    assert got.dtype.kind == "i"
+    assert got.max() < 800 and got.min() >= 0
+    assert len(set(got.tolist())) == got.size  # no duplicated rows
+
+
+def test_prototype_context_spans_the_majority_clusters():
+    """The point of clustering is coverage: prototypes must not all come from one blob."""
+    rng = np.random.default_rng(2)
+    blobs = [np.full((300, 2), c, dtype=np.float32) + rng.normal(scale=0.2, size=(300, 2))
+             for c in (-20.0, 0.0, 20.0)]
+    Z = np.concatenate(blobs).astype(np.float32)
+    y = np.zeros(len(Z), dtype=np.int64)
+    y[:30] = 1  # minority inside the first blob only
+    got = prototype_context(Z, y, max_context=60, minority_ratio=0.3, rng=rng)
+    majority = got[y[got] == 0]
+    which = np.digitize(Z[majority, 0], [-10.0, 10.0])
+    assert len(np.unique(which)) == 3, "prototypes drawn from fewer than all three clusters"
+
+
+def test_prototype_context_handles_a_single_class():
+    rng = np.random.default_rng(3)
+    Z = rng.normal(size=(200, 3)).astype(np.float32)
+    y = np.zeros(200, dtype=np.int64)
+    got = prototype_context(Z, y, max_context=50, minority_ratio=0.3, rng=rng)
+    assert got.size == 50
+
+
+def test_prototype_strategy_keeps_batch_independence():
+    """It is blind, so unlike retrieval it must give identical predictions when chunked."""
+    X, label = _clustered(n_per=60)
+    X = np.concatenate([X, X[:, :1] * 0.5, X[:, 1:] * -1], axis=1).astype(np.float32)
+    y = (label == 2).astype(np.int64)
+    model = _small_model()
+    kw = {"max_context": 60, "context_strategy": "prototype"}
+    whole = FinancialTFMClassifier(model, query_chunk=4096, **kw).fit(X, y)
+    split = FinancialTFMClassifier(model, query_chunk=13, **kw).fit(X, y)
+    np.testing.assert_allclose(whole.predict_proba(X), split.predict_proba(X), atol=1e-5)

@@ -21,3 +21,13 @@ Conventions, and the reason they exist:
   an asset; a commit message is where it goes to die.
 - **Negative and superseded results are kept**, because they are what stops the same wrong
   conclusion being reached twice.
+
+## paper/
+
+[`paper/`](paper/) is the workspace for a potential paper: a **claims ledger** mapping every
+candidate claim to its evidence and status, an outline, related work, limitations, and the
+figure list with the command behind each. Nothing enters it without a `FINDINGS.md` section
+number.
+
+Read [`paper/CLAIMS.md`](paper/CLAIMS.md) first — it is the file that decides what could
+honestly be written, and it records supersessions and retractions as prominently as wins.

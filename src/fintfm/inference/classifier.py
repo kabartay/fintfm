@@ -43,12 +43,13 @@ from fintfm.inference.retrieval import (
     distance_stats,
     group_queries,
     normalise_for_distance,
+    prototype_context,
     retrieve,
 )
 from fintfm.modeling.hazard import base_rate_shift, shift_cumulative_pd
 from fintfm.modeling.model import FinancialTFM
 
-ContextStrategy = Literal["balanced", "hybrid", "uniform", "retrieval"]
+ContextStrategy = Literal["balanced", "hybrid", "uniform", "retrieval", "prototype"]
 
 
 def _select_context(
@@ -150,6 +151,9 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             because 110 of 136 features here have a standard deviation more than ten times
             their interquartile range. Every number recorded before 2026-09-09 was produced
             with ``"none"``, so pass it explicitly to reproduce those.
+        prototype_minority_ratio: Target minority-to-majority ratio for
+            ``context_strategy="prototype"``, the published best method on this benchmark.
+            0.3 is the value Kostrzewa et al. use (``docs/FINDINGS.md`` §36).
         retrieval_min_positive: Floor on positive-class rows in a retrieved context. A
             nearest-neighbour draw at a 0.19% default rate can return **zero** defaults, and
             a context with no positives says nothing about default. Deliberately a floor and
@@ -168,6 +172,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         retrieval_groups: int = 64,
         retrieval_min_positive: int = 8,
         feature_transform: FeatureTransform = "rank",
+        prototype_minority_ratio: float = 0.3,
     ) -> None:
         self.model = FinancialTFM.load(model, map_location=device) if isinstance(model, str) else model
         self.device = device
@@ -179,6 +184,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         self.retrieval_groups = retrieval_groups
         self.retrieval_min_positive = retrieval_min_positive
         self.feature_transform = feature_transform
+        self.prototype_minority_ratio = prototype_minority_ratio
         self.model.to(device).eval()
 
     def fit(self, X: np.ndarray, y: np.ndarray) -> FinancialTFMClassifier:
@@ -204,6 +210,18 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             self._pool_X, self._pool_y = X, y_coded
             self._pool_Z = normalise_for_distance(X, self._centre, self._scale)
             idx = np.arange(len(y_coded))
+        elif self.context_strategy == "prototype":
+            # blind like the other strategies -- selected once, never query-dependent -- but
+            # it needs the distance space to cluster the majority class in
+            self._pool_Z = None
+            centre, scale = distance_stats(X)
+            idx = prototype_context(
+                normalise_for_distance(X, centre, scale),
+                y_coded,
+                self.max_context,
+                self.prototype_minority_ratio,
+                np.random.default_rng(self.random_state),
+            )
         else:
             self._pool_Z = None
             idx = _select_context(

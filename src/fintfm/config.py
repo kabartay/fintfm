@@ -62,6 +62,7 @@ class InferenceConfig:
     query_chunk: int = 2048
     retrieval_groups: int = 64
     retrieval_min_positive: int = 8
+    prototype_minority_ratio: float = 0.3
     winsor_quantile: float = 0.01
     transform_subsample: int = 20_000
 
@@ -255,6 +256,11 @@ def _validate(cfg: Config) -> None:
         raise ConfigError("evaluation.bootstrap_resamples must be at least 1")
     if cfg.evaluation.min_rows_per_horizon < 1:
         raise ConfigError("evaluation.min_rows_per_horizon must be at least 1")
+    if not 0.0 < cfg.inference.prototype_minority_ratio <= 1.0:
+        raise ConfigError(
+            "inference.prototype_minority_ratio must lie in (0, 1], got "
+            f"{cfg.inference.prototype_minority_ratio}"
+        )
     if not 0.0 <= cfg.inference.winsor_quantile < 0.5:
         raise ConfigError("inference.winsor_quantile must lie in [0, 0.5)")
     if any(n < 1 for n in cfg.context_sweep.context_sizes):

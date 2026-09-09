@@ -1,4 +1,4 @@
-# Postmortem: five wrong diagnoses in one day, and what they had in common
+# Postmortem: six wrong diagnoses in two days, and what they had in common
 
 **Date:** 2026-09-09. Companion to `docs/FINDINGS.md` §28-§32, which carry the numbers. This
 document exists for the *pattern*, because the individual findings each read as an isolated
@@ -21,6 +21,7 @@ Every number below is measured; the commands are in the findings.
 | 3 | The hazard head's decay across horizons is the signature of a context carrying no default *timing* (§30) | The baseline decays almost as fast (−0.2187 against −0.2429). **84% of the gap is horizon-independent** — a context-*size* limit, not a timing one (§31) | A proposal written and prioritised on a wrong premise |
 | 4 | Retrieval needs the base-rate correction, like every other strategy | Retrieval selects on `x`, so label shift **fails by construction**. Applied per group it drove AUC to **0.3679, below chance** (§32) | Nearly discarded the one change that worked |
 | 5 | Retrieval "rises monotonically" with context size, so more retrieved rows keep helping (§32) | On three seeds, 2,000 and 4,000 rows are **tied**. The single-seed 0.7934 was a favourable draw; retrieval raises the plateau's height, not where it starts (§33) | A recommendation to score at 4,000 rows for 1.7× the time and no gain |
+| 6 | Tightening retrieval groups from 740 to 185 firms per context is worth +0.008 AUC | On three seeds, **0.8130 ± 0.0069 against 0.8126** — the effect is smaller than the seed spread and the single-draw 0.8209 was noise with a direction (§38) | Two experiments run to chase it, and a claim briefly made to the user |
 
 And one defect that was not a diagnosis at all: a hazard checkpoint's **classification head is
 never trained**, and `predict_proba` served its random initialisation as a 69% default
@@ -85,6 +86,17 @@ result *worse* for the project's story before it made it better: §28 retracted 
 reversed a decision taken from the literature, §31 demoted a proposal written an hour earlier.
 Nothing here was caught by review or by reasoning about the code.
 
+**The sixth has a different shape from the first five, and it is the more dangerous one.**
+Failures 1 to 4 mis-attributed a *failure* — they were pessimistic about the wrong thing.
+Failure 5 and especially 6 over-credited a *result*: a single-seed sweep produced a +0.008
+"gain", and it was treated as a lever, reported as one, and used as the reason to re-run a
+comparison. Three seeds erased it.
+
+A single-seed sweep is not tuning; it is noise with a direction. And the direction is
+seductive precisely when it agrees with what you hoped. §33 had already established that
+hybrid at 1,000 rows spreads ±0.046 across seeds — the evidence that single draws were unsafe
+was on file, in this repository, written by the same process that then ignored it.
+
 **Two of the day's fixes came directly out of a failure.** §28's bypassed correction produced
 D8 — the corrected path is the only public path — and §34's untrained head produced D11: a head
 that was never trained is not reachable. Both are the same rule at different levels, and
@@ -99,5 +111,12 @@ morning**; all three came out of chasing a wrong diagnosis to its cause.
 
 **But the story moved further than the position.** After all four corrections, the
 measured position is that per-horizon logistic regression still leads on mean AUC 0.8616 to
-0.8118 and on calibration by roughly sevenfold. The gap is a third of what it was. It is not
-closed, and five fixed diagnoses do not close it.
+0.8143 and on calibration by roughly fourfold. The gap is a third of what it was. It is not
+closed, and six fixed diagnoses do not close it.
+
+**And the best configuration now uses a competitor's context construction.** §36 found that
+our headline context mechanism had been published four months earlier; §38 found their method
+beats ours on accuracy at the first horizon, calibration, cost and batch independence. Three
+of the eight candidate claims in `docs/paper/CLAIMS.md` were superseded or retracted by
+reading one paper and running one comparison — which is an argument for reading a benchmark's
+own paper *before* scoring on its data, not after.

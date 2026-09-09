@@ -83,6 +83,7 @@ def run(
     model_path: str,
     out_dir: Path,
     n_negatives: int = 2000,
+    n_positives: int = 0,
     group_sizes: tuple[int, ...] = (2, 8, 32, 128, 512),
     seed: int = 0,
     cfg: Config | None = None,
@@ -92,8 +93,13 @@ def run(
     Args:
         model_path: Checkpoint carrying a hazard head.
         out_dir: Directory for ``retrieval_grouping.json``.
-        n_negatives: Non-defaulting firms sampled into the subsample. Every defaulting firm
-            is kept regardless, so the subsample can carry an AUC at all.
+        n_negatives: Non-defaulting firms sampled into the subsample.
+        n_positives: Defaulting firms sampled in; ``0`` keeps every one of them. Capping
+            them is what makes a complete run affordable: the exact reference costs
+            **1.05 s per query** (measured), so the subsample size sets the wall clock almost
+            entirely. The primary metric here is per-row deviation from the reference, which
+            does not need positives at all; they are kept only so the secondary AUC column
+            means something between arms.
         group_sizes: Queries per shared context to test. Group *size* rather than group
             count, so the numbers mean the same thing at any subsample size.
         seed: Seed for the negative sample and for context selection.
@@ -111,6 +117,8 @@ def run(
     # few defaults to score, and an unscoreable reference measures nothing
     pos = te[ds.y[te] == 1]
     neg = te[ds.y[te] == 0]
+    if n_positives and n_positives < pos.size:
+        pos = rng.choice(pos, size=n_positives, replace=False)
     keep = np.sort(
         np.concatenate([pos, rng.choice(neg, size=min(n_negatives, neg.size), replace=False)])
     )
@@ -140,8 +148,8 @@ def run(
         reference, truth, seen, cfg.evaluation.min_rows_per_horizon
     )
     print(
-        f"  exact per-query reference: {ref_seconds:.0f}s for {len(keep):,} queries, "
-        f"mean AUC {ref_auc:.4f}"
+        f"  exact per-query reference: {ref_seconds:.0f}s for {len(keep):,} queries "
+        f"({ref_seconds / max(len(keep), 1):.3f} s/query), mean AUC {ref_auc:.4f}"
     )
 
     rows: list[GroupingScore] = []
@@ -231,6 +239,9 @@ def main() -> None:
     p.add_argument("--config", type=str, default=None, help="YAML overriding the defaults")
     p.add_argument("--n-negatives", type=int, default=2000)
     p.add_argument(
+        "--n-positives", type=int, default=0, help="0 keeps every defaulting firm"
+    )
+    p.add_argument(
         "--group-sizes", type=str, default="2,8,32,128,512", help="comma-separated"
     )
     p.add_argument("--seed", type=int, default=0)
@@ -240,6 +251,7 @@ def main() -> None:
         args.model,
         Path(args.out),
         n_negatives=args.n_negatives,
+        n_positives=args.n_positives,
         group_sizes=tuple(int(v) for v in args.group_sizes.split(",")),
         seed=args.seed,
         cfg=cfg,

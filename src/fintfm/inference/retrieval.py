@@ -167,3 +167,81 @@ def retrieve(
                 keep = picked[np.argsort(d[picked])][: max(k - extra.size, 0)]
                 picked = np.union1d(keep, extra)
     return np.sort(picked)
+
+
+def prototype_context(
+    Zt: np.ndarray,
+    yt: np.ndarray,
+    max_context: int,
+    minority_ratio: float,
+    rng: np.random.Generator,
+) -> np.ndarray:
+    """Majority-class prototypes plus every minority row, as a blind global context.
+
+    This is the published state of the art on V4FinBench, implemented **from its description**
+    for comparison. Kostrzewa et al. (arXiv:2605.10896, §5.1) compare three context
+    constructions for a fine-tuned TabPFN and find this one best: subsample the majority class
+    to a fixed minority-to-majority ratio, but choose the majority subset by clustering it with
+    MiniBatchKMeans and keeping, per cluster, **the real observation closest to the centroid**
+    rather than an arbitrary draw. Their conclusion — that preserving majority-class structure
+    matters beyond increasing minority exposure — is the mechanism ``docs/FINDINGS.md`` §29
+    arrived at independently and later (§36).
+
+    No code or data from that work is used here; only the method as described in the paper,
+    which ``CLAUDE.md``'s licensing boundary permits and copying would not.
+
+    **It is blind**: the context does not depend on the query, so unlike
+    :func:`retrieve` it keeps batch independence. That makes it the right comparison for
+    asking whether *query-conditioned* retrieval buys anything over global prototype
+    selection, which is the only part of §32 that §36 leaves as ours.
+
+    Args:
+        Zt: ``(n_train, F)`` normalised training features.
+        yt: ``(n_train,)`` coded training labels.
+        max_context: Context budget.
+        minority_ratio: Target minority-to-majority ratio after resampling. The paper uses
+            0.3.
+        rng: Random generator, for clustering initialisation and for the fallback draw.
+
+    Returns:
+        Sorted indices into ``Zt``.
+    """
+    pos_class = int(yt.max())
+    minority = np.flatnonzero(yt == pos_class)
+    majority = np.flatnonzero(yt != pos_class)
+    if minority.size == 0 or majority.size == 0:
+        return np.sort(rng.choice(len(yt), size=min(max_context, len(yt)), replace=False))
+
+    # budget split: keep the ratio, but never exceed the context or the rows available
+    n_major = int(min(majority.size, max_context / (1.0 + minority_ratio)))
+    n_minor = int(min(minority.size, max(1, round(n_major * minority_ratio))))
+    n_major = min(n_major, max(max_context - n_minor, 1))
+
+    kept_minor = (
+        minority
+        if minority.size <= n_minor
+        else rng.choice(minority, size=n_minor, replace=False)
+    )
+    if n_major >= majority.size:
+        kept_major = majority
+    else:
+        from sklearn.cluster import MiniBatchKMeans
+
+        km = MiniBatchKMeans(
+            n_clusters=n_major,
+            random_state=int(rng.integers(1 << 31)),
+            n_init=3,
+            batch_size=4096,
+        ).fit(Zt[majority])
+        labels = km.labels_
+        chosen: list[int] = []
+        for c in range(n_major):
+            members = majority[labels == c]
+            if members.size == 0:
+                continue
+            # the real observation closest to the centroid, not the centroid itself: a
+            # synthetic mean row is not a company and would carry no plausible feature vector
+            d = np.linalg.norm(Zt[members] - km.cluster_centers_[c], axis=1)
+            chosen.append(int(members[int(np.argmin(d))]))
+        kept_major = np.array(sorted(set(chosen)), dtype=np.int64)
+    return np.sort(np.concatenate([kept_major, kept_minor]).astype(np.int64))

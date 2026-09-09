@@ -29,3 +29,11 @@ Task 32.3's Holm-corrected bootstrap was run for the retrieval-versus-balanced c
 (significant on both panels) but **not** for every pairwise strategy comparison, so it stays
 open. 32.4's explicit gap-against-base-rate regression also stays open — §35 establishes the
 direction from two panels rather than fitting the relationship.
+
+- [ ] 32.6 Measure `prototype` on the **binary** path across Polish and Taiwan, three seeds,
+      before it becomes the class default. §38 establishes it as best on the V4FinBench
+      survival path only, and D9's lesson was that a context result on one path does not
+      transfer to the other — §35 found the blind strategies nearly tied on the binary panels
+      because "balanced" there cannot reach 50/50. Verify: AUC and ECE against `uniform` and
+      `retrieval` with a Holm-corrected paired bootstrap, and the class default changed or
+      explicitly left alone in `docs/DECISIONS.md`.

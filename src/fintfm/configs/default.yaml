@@ -34,6 +34,7 @@ inference:
   query_chunk: 2048
   retrieval_groups: 64
   retrieval_min_positive: 8
+  prototype_minority_ratio: 0.3   # Kostrzewa et al.'s value; docs/FINDINGS.md §38
   winsor_quantile: 0.01
   transform_subsample: 20000
 
@@ -57,9 +58,9 @@ v4finbench:
   # scored side by side; the uncorrected arm is permanent by decision D8, so that the
   # base-rate distortion of docs/FINDINGS.md §28 is measured rather than assumed absent
   hazard_arms:
-    - {name: fintfm_hazard, strategy: uniform, correct_prior: true}
+    - {name: fintfm_hazard, strategy: prototype, correct_prior: true}   # best, §38
     - {name: fintfm_hazard_uncorrected, strategy: balanced, correct_prior: false}
-    - {name: fintfm_hazard_retrieval, strategy: retrieval, correct_prior: true}
+    - {name: fintfm_hazard_uniform, strategy: uniform, correct_prior: true}
 
 # The context-strategy sweep behind docs/FINDINGS.md §29, §32 and §33.
 context_sweep:

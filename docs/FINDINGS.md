@@ -5,7 +5,7 @@ a conversation is lost when the conversation compacts.
 
 ## Where we stand — the honest scorecard
 
-Updated 2026-09-09 after thirty-five findings. **Read this before quoting any number below**,
+Updated 2026-09-09 after thirty-eight findings. **Read this before quoting any number below**,
 because several findings temper, amend or outright retract earlier ones and the amendments
 matter more than the originals. §28 retracts §26's headline as our own bug.
 
@@ -19,9 +19,10 @@ matter more than the originals. §28 retracts §26's headline as our own bug.
 | **The prior matches real task difficulty** — logistic-regression AUC 0.743 synthetic against 0.769 real | measured, held-out seed | §18, §19 |
 | **Coherence transfers to real out-of-time data** — 0% violations against 39% for per-horizon models, 98.6% of firms affected | measured, V4FinBench | §26 |
 | **A base-rate error is invisible to every guard we had** — a 27× level error passed AUC, passed the coherence check, and was not printed; the fix cut fourth-horizon ECE 32× | measured, same checkpoint | §28 |
-| **Retrieved context beats every blind strategy on all three panels and both prediction paths** — its worst seed beats uniform's best at every context size, and it beats balanced with Holm-corrected significance on both binary panels | measured, 3 seeds, paired bootstrap | §32, §33, §35 |
+| **Context construction dominates**: the best construction beats the worst by ~0.22 AUC out of time (0.8143 against 0.5938 for balanced), which is larger than any architectural change measured here | measured, 3 seeds | §29, §33, §35, §38 |
+| ~~Query-conditioned retrieval is our accuracy contribution~~ — **retired**: the published prototype context matches it on AUC, beats it significantly at horizon 0, is 1.6× better calibrated, 4× cheaper, and stays batch-independent | measured, 3 seeds, paired bootstrap | §32 → §36, §38 |
 | **Rank-transforming features is worth +0.086 AUC** — 110 of 136 features have a standard deviation above 10× their interquartile range, which the model's mean/std normalisation cannot survive | measured, 3 seeds, 3 panels | §35 |
-| **Out-of-time mean AUC 0.5869 → 0.8118 in one day**, closing the gap to the incumbent from 0.142 to 0.048, from three inference-time changes and no retraining | measured | §35 |
+| **Out-of-time mean AUC 0.5869 → 0.8143 in one day**, closing the gap to the incumbent from 0.142 to 0.047, from three inference-time changes and **no retraining** | measured | §35, §38 |
 | **Balanced context sampling costs 10-12 AUC points on the survival path**, reversing the default adopted from the literature; 12 in-context defaults outrank 1,122 | measured, 3 context sizes | §29 |
 | ~~The prior cannot generate the low-default regime~~ — **retracted**: the floor was 1% and is now 0.195%, but it was never what caused §26's failure | superseded | §26 → §28, §30 |
 
@@ -44,12 +45,13 @@ matter more than the originals. §28 retracts §26's headline as our own bug.
 - **"Best calibrated" as a standalone claim.** A constant base-rate predictor beats every
   model here on ECE, so calibration numbers cannot carry an argument alone (§17).
 - **"Ahead of the incumbent out of time."** False. On V4FinBench out of time, per-horizon
-  logistic regression leads on mean AUC 0.8616 to our best 0.8118 and on calibration by
-  roughly sevenfold. The gap is now **a third** of what it was this morning and it is not
+  logistic regression leads on mean AUC 0.8616 to our best 0.8143 and on calibration by
+  roughly fourfold. The gap is now **a third** of what it was this morning and it is not
   closed (§35). Only coherence favours us, and by construction.
 - **Single-seed comparisons between context strategies.** Hybrid at 1,000 rows spreads ±0.046
   across seeds, wide enough that any single-draw comparison between blind strategies was
-  never safe (§33).
+  never safe (§33). A single-seed sweep also manufactured a +0.008 "gain" from tightening
+  retrieval groups that three seeds erased entirely (§38).
 - **Calibration as a differentiator against other foundation models.** It tracks prior
   *breadth*, not our domain prior, so TabPFN and TabFM very likely share it (§14, §15).
 - **The 11.7× calibration figure.** Measured against an uncalibrated baseline. Do not use it.
@@ -2468,3 +2470,147 @@ Had the protocol been slightly wrong rather than absurdly wrong, it would have b
 **A secondhand summary of a source is not the source**, and every number in this section came
 from reading the pages. This is the same failure family as §28 and §34: an interface that
 answers confidently without the thing behind it being what it claims.
+
+---
+
+## 37. The retrieval grouping approximation costs about 0.012 AUC, and moves individual firms by up to 0.24
+
+**Date:** 2026-09-09. **MEASURED**, single seed. **Command:**
+
+```bash
+uv run fintfm-retrgroup --model runs/v4-hazard-ldp.pt --n-positives 150 --n-negatives 250 \
+    --group-sizes 2,8,32,128,400
+```
+
+§32 and §35 rest on an approximation that was documented as unmeasured. Per-query retrieval is
+the correct operation; queries are clustered instead and each **group** shares one retrieved
+context, so a firm's prediction depends on which other firms were scored beside it. This is
+`retrieval-context` task 17.6.
+
+Exact per-query retrieval as the reference, 400 test firms (150 defaulting, 250 not) against
+a 72,622-row pool:
+
+| queries per context | groups | seconds | mean abs deviation | max abs deviation | Spearman | mean AUC | vs exact |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| **1 (exact)** | 400 | **508** | — | — | — | **0.8449** | — |
+| 2 | 200 | 194 | 0.0032 | **0.6425** | 0.9898 | 0.8332 | −0.0118 |
+| 8 | 50 | 67 | 0.0021 | 0.1721 | 0.9757 | 0.8304 | −0.0146 |
+| 32 | 13 | 24 | 0.0013 | 0.0399 | 0.9850 | 0.8492 | +0.0042 |
+| 128 | 4 | 14 | 0.0028 | 0.0518 | 0.9605 | 0.8360 | −0.0089 |
+| **400 (one shared context)** | 1 | 7 | **0.0327** | 0.3165 | **0.8935** | **0.7688** | **−0.0762** |
+
+**Between 2 and 128 queries per context the portfolio-level cost is about 0.01 AUC**, and
+non-monotone across that range, so the honest reading is "roughly 0.01 somewhere in here"
+rather than a curve. Mean absolute deviation in cumulative PD is 0.0013-0.0032 and Spearman
+correlation with the exact prediction is 0.96 to 0.99.
+
+**A single shared context is a different animal: −0.076 AUC**, mean deviation 0.033 and
+Spearman 0.894. With one group there is no clustering at all — the context is retrieved around
+the mean of every query at once, which is closer to a global prototype than to retrieval. That
+result is what prompted the group-count sweep in §38, because §32 and §35 used 64 groups
+throughout and never varied it.
+
+A confirmatory run on a second, positive-heavy subsample (473 defaulting, 60 not) gave the
+same picture at 2/8/32 queries per context: deviations of 0.0004-0.0009, Spearman 0.982-0.997,
+AUC deltas of +0.002 to −0.014, and an exact reference costing 561 s for 533 queries.
+
+**Exact retrieval costs 1.05 s per query**, measured. Grouped scoring of the full 47,378-firm
+panel takes about 110 s in total (§32), which is 0.0023 s per firm, so the exact operation is
+roughly **450× more expensive** — confirming the "~500×" estimate the module docstring had
+been asserting without measurement.
+
+### The number that matters for the product is the maximum, not the mean
+
+At 2 queries per context — the *tightest* grouping tested, where the mean deviation is a
+harmless 0.0032 — **one firm's cumulative PD moved by 0.64**. The mean is reassuring and the
+maximum is not, and a credit decision is made per obligor rather than per portfolio. A model
+whose stated PD for a given firm can move by 64 percentage points depending on which other
+firms were in the scoring batch is not something to put in front of a model-risk function
+without saying so.
+
+Note the maximum does **not** shrink as groups tighten: 0.64 at 2 queries per context against
+0.05 at 128. Whatever produces the extreme cases is not simple group coarseness, and it is
+unexplained.
+
+That makes the batch-dependence trade a **product** constraint rather than an engineering
+detail, and it argues for exact retrieval on the obligors that matter — 1.05 s for a single
+firm is entirely affordable when scoring one firm, which is the actual decision context. Batch
+scoring for portfolio analytics can use groups; an individual credit decision should not.
+
+### Caveats, both material
+
+**The subsample is 37.5% defaulters**, against a true rate near 1%. Positives were capped and
+negatives sampled to keep the exact reference — at a measured **1.05 s per query** — inside ten
+minutes. The *deviation* and *Spearman* columns do not depend on the label and are trustworthy;
+the **AUC deltas are on an unrepresentative population and are not the cost on a real book.**
+A run at a realistic base rate is `retrieval-context` task 17.7.
+
+**Single seed, and non-monotone**: 32 queries per context beats exact by +0.004, which is
+noise, not a real gain from coarser grouping.
+
+---
+
+## 38. Query-conditioned retrieval loses to the published global prototype context, on every axis
+
+**Date:** 2026-09-09. **MEASURED**, three seeds, plus a Holm-corrected paired bootstrap.
+**This finding retires §32's contribution claim.**
+
+§36 established that our §29 context mechanism was published first, as prototype
+undersampling. What was left as arguably ours is that retrieval is **query-conditioned** —
+each group's context is retrieved around the firms being scored — where theirs is built once,
+globally, by clustering the majority class. This measures whether that distinction pays.
+Prototype undersampling was implemented from the paper's description (`prototype_context`),
+with no code or data from that work.
+
+| arm | mean AUC | mean ECE | seconds | blind? |
+| --- | --- | --- | --- | --- |
+| retrieval, 64 groups | 0.8118 ± 0.0032 | 0.0126 ± 0.0011 | 111 | no |
+| retrieval, 256 groups | 0.8130 ± 0.0069 | 0.0119 ± 0.0022 | 221 | no |
+| **prototype, minority ratio 0.3** | **0.8143 ± 0.0038** | **0.0072 ± 0.0005** | **56** | **yes** |
+| uniform | 0.7930 ± 0.0038 | 0.0073 ± 0.0006 | 31 | yes |
+
+Paired bootstrap, retrieval(256) − prototype, Holm-corrected across four horizons: **−0.0077
+at horizon 0, [−0.0136, −0.0020], adjusted p = 0.036 — significant against us.** Horizons 1, 2
+and 3 are inconclusive (+0.0053, +0.0229, −0.0071).
+
+**Prototype wins or ties on every axis that matters:**
+
+- **Accuracy**: equal within seed noise on the mean, significantly better at the first
+  horizon, which is the horizon with the most defaults and the most commercial weight.
+- **Calibration**: 0.0072 against 0.0119, non-overlapping across seeds — **1.6× better.**
+- **Cost**: 56 s against 221 s, roughly **4×** cheaper, because it selects once instead of
+  clustering queries and retrieving per group.
+- **Stability**: ±0.0038 against ±0.0069 across seeds.
+- **It is blind**, so it keeps the batch-independence property retrieval gives up — and §37
+  measured a single firm's cumulative PD moving by **0.64** under retrieval depending on its
+  scoring batch. That alone is disqualifying for per-obligor use.
+
+### Consequence: retrieval is retired as a contribution and as a recommendation
+
+§32 called retrieval "the first accuracy gain in this project to survive a family-wise
+correction". Against *blind uniform sampling* that remains true and replicated (§33). Against
+**the actual state of the art on this benchmark** it is not a gain at all, and it carries two
+real costs the alternative does not.
+
+So the honest position is: **context construction matters, Kostrzewa et al. showed why, and
+their construction is better than ours.** `prototype` is the recommended strategy; retrieval
+stays in the codebase as a measured arm and as the exact per-query reference of §37, not as
+the recommendation.
+
+### Two self-corrections inside this one finding
+
+**The group count does not help.** A single-seed sweep showed 64 → 256 groups worth +0.008
+(0.8126 → 0.8209) and I treated that as a real lever, including as the reason to re-run this
+comparison. On three seeds, 256 groups gives **0.8130 ± 0.0069** — the 0.8209 was a favourable
+draw, and the seed standard deviation is larger than the effect. Tightening groups from 740
+firms per context to 185 buys nothing measurable and costs 2× the time. 1,024 groups also gave
+0.8207 on a single seed, so that number is suspect for the same reason and was never
+replicated.
+
+**And the first version of this comparison was against an under-tuned arm.** Retrieval was run
+at its default 64 groups, prototype at its paper value; the rematch at 256 groups was the fix,
+and it changed nothing. Both arms were fine. The lesson is narrower than "tune before
+comparing": a single-seed sweep is not tuning, it is noise with a direction.
+
+**This is the sixth wrong diagnosis in two days** (`docs/POSTMORTEM.md`), and the first where
+the error was over-crediting our own result rather than mis-attributing a failure.

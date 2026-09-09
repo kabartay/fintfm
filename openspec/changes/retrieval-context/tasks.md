@@ -34,7 +34,21 @@
       because the contingency was pre-registered and resolving it explicitly is the point.
 - [ ] 17.5 Three seeds on §32, since a decision now rests on a single draw per cell. Verify:
       `uv run fintfm-ctxsweep --seeds 0,1,2` with the paired bootstrap re-run.
-- [ ] 17.6 Measure the grouped-versus-exact retrieval gap on a subsample. The grouped mode is
+- [x] 17.6 Measure the grouped-versus-exact retrieval gap on a subsample. The grouped mode is
       an approximation adopted for cost and its error has never been quantified. Verify:
       `retrieval_groups=0` against the grouped default on a few thousand queries, with the
       AUC and ECE difference recorded.
+      **Done 2026-09-09 (`docs/FINDINGS.md` §37), via `fintfm-retrgroup`.** About 0.012 AUC
+      at the portfolio level, mean absolute deviation 0.0004-0.0009 in cumulative PD, Spearman
+      0.98-0.997 — so grouping keeps roughly six-sevenths of retrieval's gain. Exact retrieval
+      costs 1.05 s/query, measured, against 0.0023 s/query grouped: ~450x, confirming the
+      "~500x" the module docstring had been asserting unmeasured.
+      **But one firm moved 0.238 in cumulative PD**, which makes batch dependence a product
+      constraint rather than an engineering detail: portfolio analytics can group, an
+      individual credit decision should use exact retrieval, and 1.05 s for one firm is
+      affordable in that context.
+- [ ] 17.7 Repeat §37 at a realistic base rate. §37's subsample is 89% defaulters, because
+      every positive was kept to keep the AUC column non-degenerate while the exact reference
+      stayed inside an hour. The deviation and Spearman columns do not depend on labels and
+      stand; the **AUC deltas do not transfer to a real book**. Verify: `fintfm-retrgroup
+      --n-positives 150 --n-negatives 3000`, three seeds, with the AUC delta re-derived.
