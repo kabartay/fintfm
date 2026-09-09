@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -36,8 +37,10 @@ from fintfm.evaluation.metrics import evaluate_binary
 from fintfm.experiments.v4_out_of_time import _curve_truth, time_split
 from fintfm.inference.classifier import ContextStrategy, FinancialTFMClassifier
 
-#: Strategies compared, in the order §29 reports them.
-STRATEGIES: tuple[ContextStrategy, ...] = ("balanced", "hybrid", "uniform")
+#: Strategies compared. The first three are blind — they never look at the query. §29
+#: reports them in this order; ``retrieval`` was added for §31, which showed *which*
+#: rows is the only remaining lever on the dominant term of the gap.
+STRATEGIES: tuple[ContextStrategy, ...] = ("balanced", "hybrid", "uniform", "retrieval")
 
 #: Context budgets. Three sizes give three replications of the strategy ordering, which is
 #: the only reason a single-seed result is reported at all.
@@ -57,6 +60,7 @@ class SweepCell:
     mean_auc: float
     mean_ece: float
     auc_by_horizon: list[float]
+    seconds: float
 
 
 def run(
@@ -66,6 +70,7 @@ def run(
     train_until: int = 2016,
     test_from: int = 2017,
     seeds: tuple[int, ...] = (0,),
+    retrieval_groups: int = 64,
 ) -> dict:
     """Sweep context strategy against context size on the out-of-time survival split.
 
@@ -77,6 +82,8 @@ def run(
         test_from: First test year, inclusive.
         seeds: Seeds per cell. §29 used one; three are needed before the result is promoted
             (``openspec/changes/revisit-context-strategy`` task 32.1).
+        retrieval_groups: Query groups sharing a retrieved context, for the ``retrieval``
+            strategy only. Ignored by the blind strategies.
 
     Returns:
         The recorded result dictionary.
@@ -91,14 +98,17 @@ def run(
     for max_context in CONTEXT_SIZES:
         for strategy in STRATEGIES:
             for seed in seeds:
+                started = time.perf_counter()
                 clf = FinancialTFMClassifier(
                     model_path,
                     max_context=max_context,
                     context_strategy=strategy,
                     correct_prior=True,  # never off; see the module docstring
                     random_state=seed,
+                    retrieval_groups=retrieval_groups,
                 ).fit(ds.X[tr], ds.y[tr])
                 curve = clf.predict_term_structure(ds.X[te])
+                elapsed = time.perf_counter() - started
                 aucs, eces = [], []
                 for k in range(curve.shape[1]):
                     m = seen[:, k]
@@ -107,22 +117,30 @@ def run(
                     met = evaluate_binary(truth[m, k], curve[m, k])
                     aucs.append(met.roc_auc)
                     eces.append(met.ece)
+                # for retrieval, _ctx_rate is the whole pool's rate and says nothing about
+                # what was actually retrieved; report the pooled context rate instead
+                if strategy == "retrieval":
+                    rate = clf._pooled_context_rate(clf._retrieval_plan(ds.X[te]))
+                    n_pos = round(rate * max_context)
+                else:
+                    rate, n_pos = clf._ctx_rate, int(clf._ctx_y.sum())
                 cell = SweepCell(
                     strategy=strategy,
                     max_context=max_context,
                     seed=seed,
-                    context_rate=clf._ctx_rate,
+                    context_rate=rate,
                     population_rate=clf._full_rate,
-                    n_context_positive=int(clf._ctx_y.sum()),
+                    n_context_positive=n_pos,
                     mean_auc=float(np.mean(aucs)),
                     mean_ece=float(np.mean(eces)),
                     auc_by_horizon=[float(a) for a in aucs],
+                    seconds=float(elapsed),
                 )
                 cells.append(cell)
                 print(
                     f"  {strategy:>9} ctx={max_context:<5} rate={cell.context_rate:>7.2%} "
                     f"pos={cell.n_context_positive:<5} AUC={cell.mean_auc:.4f} "
-                    f"ECE={cell.mean_ece:.4f}",
+                    f"ECE={cell.mean_ece:.4f} {cell.seconds:>6.0f}s",
                     flush=True,
                 )
 
@@ -135,6 +153,7 @@ def run(
             "train_until": train_until,
             "test_from": test_from,
             "seeds": list(seeds),
+            "retrieval_groups": retrieval_groups,
         },
         "cells": [asdict(c) for c in cells],
     }
@@ -152,14 +171,14 @@ def summarise(record: dict) -> str:
     """
     header = (
         f"{'ctx':>6} {'strategy':>9} {'seed':>5} {'ctx rate':>9} {'n_pos':>6} "
-        f"{'meanAUC':>8} {'meanECE':>8}"
+        f"{'meanAUC':>8} {'meanECE':>8} {'secs':>7}"
     )
     lines = [header]
     for c in record["cells"]:
         lines.append(
             f"{c['max_context']:>6} {c['strategy']:>9} {c['seed']:>5} "
             f"{c['context_rate']:>8.2%} {c['n_context_positive']:>6} "
-            f"{c['mean_auc']:>8.4f} {c['mean_ece']:>8.4f}"
+            f"{c['mean_auc']:>8.4f} {c['mean_ece']:>8.4f} {c['seconds']:>7.0f}"
         )
     best = max(record["cells"], key=lambda c: c["mean_auc"])
     verdict = (
@@ -178,6 +197,7 @@ def main() -> None:
     p.add_argument("--train-until", type=int, default=2016)
     p.add_argument("--test-from", type=int, default=2017)
     p.add_argument("--seeds", type=str, default="0", help="comma-separated")
+    p.add_argument("--retrieval-groups", type=int, default=64)
     args = p.parse_args()
     record = run(
         args.model,
@@ -186,6 +206,7 @@ def main() -> None:
         train_until=args.train_until,
         test_from=args.test_from,
         seeds=tuple(int(s) for s in args.seeds.split(",")),
+        retrieval_groups=args.retrieval_groups,
     )
     print("\n" + summarise(record))
     print(f"\n{record['attribution']}")

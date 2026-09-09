@@ -5,12 +5,26 @@
 alongside the query rows. This mirrors how TabPFN-style models are used.
 
 **How the context is chosen matters more than the architecture.** Tanna et al. (2026),
-*Data Presentation Over Architecture* (arXiv:2605.18635), benchmark seven context-construction
-strategies for credit-risk TFMs and find balanced and hybrid sampling worth 3-4 AUC points
-over uniform sampling — a gap wider than the spread between model families. Credit default
-rates run at a few percent, so uniform subsampling of a capped context spends almost all of
-it on non-defaulters. Hence :class:`ContextStrategy` and a default of ``"balanced"``.
-See ``docs/FINDINGS.md`` §5.
+*Data Presentation Over Architecture* (arXiv:2605.18635), benchmark seven
+context-construction strategies for credit-risk TFMs and find balanced and hybrid sampling
+worth 3-4 AUC points over uniform sampling — a gap wider than the spread between model
+families. That is why :class:`ContextStrategy` exists and why the default is ``"balanced"``
+(``docs/FINDINGS.md`` §5).
+
+**The premise held and the conclusion did not.** Measured on the V4FinBench out-of-time
+split, the ordering is reversed and three times larger: **uniform beats balanced by 10-12
+mean AUC points** at every context size tested, and twelve in-context defaults outrank 1,122
+(§29). The mechanism appears to be the *majority* class — a balanced 2,000-row context spends
+half its budget on 1,000 of 71,500 non-defaulters, so the model's picture of a healthy firm
+comes from 1.4% of that class. The default is unchanged only because §29 measured the
+six-horizon survival path and the binary evidence behind it has not been re-measured
+(decision D9, ``openspec/changes/revisit-context-strategy``). **Prefer ``"uniform"`` for a
+term structure until that resolves.**
+
+§31 then showed *which* rows is the only remaining lever on the dominant part of the
+out-of-time gap, since more rows do not help and larger pretraining tasks are priced out.
+Hence ``"retrieval"``; see :mod:`fintfm.inference.retrieval`, including the batch-independence
+property it deliberately trades away.
 """
 
 from __future__ import annotations
@@ -21,10 +35,16 @@ import numpy as np
 import torch
 from sklearn.base import BaseEstimator, ClassifierMixin
 
+from fintfm.inference.retrieval import (
+    distance_stats,
+    group_queries,
+    normalise_for_distance,
+    retrieve,
+)
 from fintfm.modeling.hazard import base_rate_shift, shift_cumulative_pd
 from fintfm.modeling.model import FinancialTFM
 
-ContextStrategy = Literal["balanced", "hybrid", "uniform"]
+ContextStrategy = Literal["balanced", "hybrid", "uniform", "retrieval"]
 
 
 def _select_context(
@@ -111,7 +131,17 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             exact, not an approximation**: the row mask already forbids a query from
             attending to any other query, so a prediction depends only on the context and
             itself. Splitting them changes nothing, which is a direct benefit of that design
-            choice and is asserted in the tests.
+            choice and is asserted in the tests. **Does not hold for
+            ``context_strategy="retrieval"``**, where the context is chosen per query group;
+            see :mod:`fintfm.inference.retrieval`.
+        retrieval_groups: Number of query groups sharing a retrieved context, used only by
+            ``context_strategy="retrieval"``. Set to 0 for exact per-query retrieval, which
+            is correct but costs one forward pass per query — usable for validating the
+            approximation on a subsample, not for scoring a book.
+        retrieval_min_positive: Floor on positive-class rows in a retrieved context. A
+            nearest-neighbour draw at a 0.19% default rate can return **zero** defaults, and
+            a context with no positives says nothing about default. Deliberately a floor and
+            not class balancing, which §29 measured as costing 10-12 AUC points.
     """
 
     def __init__(
@@ -123,6 +153,8 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         correct_prior: bool = True,
         random_state: int = 0,
         query_chunk: int = 2048,
+        retrieval_groups: int = 64,
+        retrieval_min_positive: int = 8,
     ) -> None:
         self.model = FinancialTFM.load(model, map_location=device) if isinstance(model, str) else model
         self.device = device
@@ -131,6 +163,8 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         self.correct_prior = correct_prior
         self.random_state = random_state
         self.query_chunk = query_chunk
+        self.retrieval_groups = retrieval_groups
+        self.retrieval_min_positive = retrieval_min_positive
         self.model.to(device).eval()
 
     def fit(self, X: np.ndarray, y: np.ndarray) -> FinancialTFMClassifier:
@@ -145,9 +179,20 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             raise ValueError(f"model supports at most {self.model.cfg.max_features} features, got {X.shape[1]}")
         label_map = {c: i for i, c in enumerate(self.classes_)}
         y_coded = np.array([label_map[v] for v in y], dtype=np.int64)
-        idx = _select_context(
-            y_coded, self.max_context, self.context_strategy, np.random.default_rng(self.random_state)
-        )
+        if self.context_strategy == "retrieval":
+            # keep the whole pool; the context is chosen per query group at predict time
+            self._centre, self._scale = distance_stats(X)
+            self._pool_X, self._pool_y = X, y_coded
+            self._pool_Z = normalise_for_distance(X, self._centre, self._scale)
+            idx = np.arange(len(y_coded))
+        else:
+            self._pool_Z = None
+            idx = _select_context(
+                y_coded,
+                self.max_context,
+                self.context_strategy,
+                np.random.default_rng(self.random_state),
+            )
         n_classes = len(self.classes_)
         full_prior = np.bincount(y_coded, minlength=n_classes) / len(y_coded)
         X, y_coded = X[idx], y_coded[idx]
@@ -157,6 +202,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         # positive-class rates, kept for the term-structure correction, which needs a
         # scalar log-odds shift rather than the per-class vector below
         pos = n_classes - 1
+        self._full_prior = full_prior
         self._full_rate = float(full_prior[pos])
         self._ctx_rate = float(ctx_prior[pos])
         # log P_true(y) - log P_context(y), added to logits at predict time. Zero when the
@@ -167,6 +213,116 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
                 - np.log(np.maximum(ctx_prior, 1e-12)), 0.0
             )
         return self
+
+    def _pooled_prior_shift(self, pooled_rate: float) -> np.ndarray:
+        """Class-prior correction from a pooled context rate, for the retrieval path.
+
+        One shift for every query, for the reason given on :meth:`_pooled_context_rate`: a
+        per-group shift inverts the cross-group ranking that retrieval exists to exploit.
+
+        Args:
+            pooled_rate: Positive-class rate across all retrieved contexts.
+
+        Returns:
+            ``(n_classes,)`` log-odds shift, zero for any class absent from either side.
+        """
+        n_classes = len(self.classes_)
+        ctx_prior = np.full(n_classes, (1.0 - pooled_rate) / max(n_classes - 1, 1))
+        ctx_prior[n_classes - 1] = pooled_rate
+        with np.errstate(divide="ignore"):
+            return np.where(
+                (self._full_prior > 0) & (ctx_prior > 0),
+                np.log(np.maximum(self._full_prior, 1e-12))
+                - np.log(np.maximum(ctx_prior, 1e-12)),
+                0.0,
+            )
+
+    def _pooled_context_rate(self, plan: list[tuple[np.ndarray, np.ndarray]]) -> float:
+        """Size-weighted positive rate across every retrieved context.
+
+        **Why one rate and not one per group.** The base-rate correction is exact under label
+        shift — ``P(x | y)`` unchanged by resampling — which holds by construction for the
+        blind strategies because they select on ``y`` alone. **Retrieval selects on ``x``, so
+        the assumption is violated by construction**, and applying the correction per group
+        does active harm: a risky cluster retrieves risky neighbours, so its context rate is
+        high and it is shifted *down* hardest, erasing exactly the between-group risk
+        differences that carry the signal. Measured on the V4FinBench out-of-time split, a
+        per-group correction drove mean AUC to **0.3679 — below chance** — where the same
+        contexts uncorrected score 0.7872 (``docs/FINDINGS.md`` §32).
+
+        A single pooled shift is applied to every query instead. Being constant it cannot
+        reorder anything, so it corrects the level while leaving ranking untouched.
+
+        Args:
+            plan: ``(query_indices, context_indices)`` pairs from :meth:`_retrieval_plan`.
+
+        Returns:
+            The positive-class rate over all retrieved contexts, weighted by how many queries
+            each context serves.
+        """
+        pos_class = len(self.classes_) - 1
+        weight = sum(q.size for q, _ in plan)
+        if weight == 0:
+            return self._full_rate
+        total = sum(
+            q.size * float((self._pool_y[c] == pos_class).mean()) for q, c in plan
+        )
+        return total / weight
+
+    def _retrieval_plan(self, X: np.ndarray) -> list[tuple[np.ndarray, np.ndarray]]:
+        """Group the queries and retrieve one context per group.
+
+        Args:
+            X: ``(n, F)`` query rows.
+
+        Returns:
+            A list of ``(query_indices, context_indices)`` pairs covering every query once.
+            With ``retrieval_groups == 0`` each group holds a single query, which is exact
+            per-query retrieval and costs one forward pass per row.
+        """
+        rng = np.random.default_rng(self.random_state)
+        Zq = normalise_for_distance(X, self._centre, self._scale)
+        if self.retrieval_groups == 0:
+            groups = [np.array([i]) for i in range(X.shape[0])]
+        else:
+            groups = group_queries(Zq, self.retrieval_groups, self.query_chunk, rng)
+        plan = []
+        for g in groups:
+            target = Zq[g].mean(axis=0)
+            plan.append(
+                (
+                    g,
+                    retrieve(
+                        self._pool_Z,
+                        self._pool_y,
+                        target,
+                        self.max_context,
+                        self.retrieval_min_positive,
+                    ),
+                )
+            )
+        return plan
+
+    def _run_retrieval(self, X: np.ndarray, chunk_fn, width: int) -> np.ndarray:
+        """Score every query under its group's retrieved context.
+
+        Args:
+            X: ``(n, F)`` query rows.
+            chunk_fn: Either :meth:`_predict_chunk` or :meth:`_term_structure_chunk`.
+            width: Output columns, so the result array can be allocated before scoring.
+
+        Returns:
+            ``(n, width)`` predictions in the original query order.
+        """
+        plan = self._retrieval_plan(X)
+        rate = self._pooled_context_rate(plan)
+        out = np.empty((X.shape[0], width), dtype=np.float32)
+        for q_idx, c_idx in plan:
+            ctx = (self._pool_X[c_idx], self._pool_y[c_idx])
+            for start in range(0, q_idx.size, self.query_chunk):
+                block = q_idx[start : start + self.query_chunk]
+                out[block] = chunk_fn(X[block], ctx, rate)
+        return out
 
     @torch.no_grad()
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
@@ -181,6 +337,8 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         X = np.asarray(X, dtype=np.float32)
         if X.shape[1] != self._ctx_X.shape[1]:
             raise ValueError("feature width at predict time must match fit time")
+        if self.context_strategy == "retrieval":
+            return self._run_retrieval(X, self._predict_chunk, len(self.classes_))
         if X.shape[0] > self.query_chunk:
             return np.concatenate(
                 [
@@ -191,20 +349,31 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         return self._predict_chunk(X)
 
     @torch.no_grad()
-    def _predict_chunk(self, X: np.ndarray) -> np.ndarray:
-        n_ctx = self._ctx_X.shape[0]
+    def _predict_chunk(
+        self,
+        X: np.ndarray,
+        ctx: tuple[np.ndarray, np.ndarray] | None = None,
+        pooled_rate: float | None = None,
+    ) -> np.ndarray:
+        ctx_X, ctx_y = ctx if ctx is not None else (self._ctx_X, self._ctx_y)
+        n_ctx = ctx_X.shape[0]
         cfg = self.model.cfg
         Xp = np.full((1, n_ctx + X.shape[0], cfg.max_features), np.nan, dtype=np.float32)
-        Xp[0, :n_ctx, : self._ctx_X.shape[1]] = self._ctx_X
+        Xp[0, :n_ctx, : ctx_X.shape[1]] = ctx_X
         Xp[0, n_ctx:, : X.shape[1]] = X
         yp = np.zeros((1, n_ctx + X.shape[0]), dtype=np.int64)
-        yp[0, :n_ctx] = self._ctx_y
+        yp[0, :n_ctx] = ctx_y
         Xt = torch.from_numpy(Xp).to(self.device)
         yt = torch.from_numpy(yp).to(self.device)
         nc = torch.tensor([len(self.classes_)], device=self.device)
         logits = self.model(Xt, yt, n_ctx, nc)[0, n_ctx:, : len(self.classes_)]
         if self.correct_prior:
-            shift = torch.from_numpy(self._log_prior_shift).to(logits.device, logits.dtype)
+            prior = (
+                self._log_prior_shift
+                if pooled_rate is None
+                else self._pooled_prior_shift(pooled_rate)
+            )
+            shift = torch.from_numpy(prior).to(logits.device, logits.dtype)
             logits = logits + shift
         return torch.softmax(logits, dim=-1).cpu().numpy()
 
@@ -239,6 +408,20 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         X = np.asarray(X, dtype=np.float32)
         if X.shape[1] != self._ctx_X.shape[1]:
             raise ValueError("feature width at predict time must match fit time")
+        if self.context_strategy == "retrieval":
+            plan = self._retrieval_plan(X)
+            out = np.empty((X.shape[0], self.model.hazard.n_horizons), dtype=np.float32)
+            for q_idx, c_idx in plan:
+                ctx = (self._pool_X[c_idx], self._pool_y[c_idx])
+                for start in range(0, q_idx.size, self.query_chunk):
+                    block = q_idx[start : start + self.query_chunk]
+                    out[block] = self._term_structure_chunk(X[block], ctx)
+            rate = self._pooled_context_rate(plan)
+            if self.correct_prior and 0.0 < rate < 1.0 and 0.0 < self._full_rate < 1.0:
+                out = shift_cumulative_pd(
+                    torch.from_numpy(out), base_rate_shift(rate, self._full_rate)
+                ).numpy()
+            return out
         curves = [
             self._term_structure_chunk(X[i : i + self.query_chunk])
             for i in range(0, X.shape[0], self.query_chunk)
@@ -251,15 +434,18 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         return curve.numpy()
 
     @torch.no_grad()
-    def _term_structure_chunk(self, X: np.ndarray) -> np.ndarray:
+    def _term_structure_chunk(
+        self, X: np.ndarray, ctx: tuple[np.ndarray, np.ndarray] | None = None
+    ) -> np.ndarray:
         """Uncorrected cumulative PD for one chunk of queries."""
-        n_ctx = self._ctx_X.shape[0]
+        ctx_X, ctx_y = ctx if ctx is not None else (self._ctx_X, self._ctx_y)
+        n_ctx = ctx_X.shape[0]
         cfg = self.model.cfg
         Xp = np.full((1, n_ctx + X.shape[0], cfg.max_features), np.nan, dtype=np.float32)
-        Xp[0, :n_ctx, : self._ctx_X.shape[1]] = self._ctx_X
+        Xp[0, :n_ctx, : ctx_X.shape[1]] = ctx_X
         Xp[0, n_ctx:, : X.shape[1]] = X
         yp = np.zeros((1, n_ctx + X.shape[0]), dtype=np.int64)
-        yp[0, :n_ctx] = self._ctx_y
+        yp[0, :n_ctx] = ctx_y
         out = self.model.term_structure(
             torch.from_numpy(Xp).to(self.device), torch.from_numpy(yp).to(self.device), n_ctx
         )

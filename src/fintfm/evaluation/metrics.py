@@ -232,6 +232,39 @@ def paired_auc_difference(
     return delta, (float(lo), float(hi)), float(min(p, 1.0))
 
 
+def holm_adjusted_p(p_values: list[float]) -> list[float]:
+    """Holm-adjusted p-values, aligned with the input.
+
+    Companion to :func:`holm_bonferroni`, which returns *booleans*. Reporting a family of
+    comparisons usually wants the adjusted p-value itself, and reading a boolean list as
+    though it held p-values silently inverts every verdict — ``True`` formats as ``1.0000``
+    and reads as "not significant". That happened once here, in the write-up of
+    ``docs/FINDINGS.md`` §32, so both forms now exist and are named for what they return.
+
+    Adjusted values are made monotone in the step-down order, as the method requires, and
+    capped at 1.
+
+    Args:
+        p_values: Raw two-sided p-values. NaN is carried through as NaN.
+
+    Returns:
+        Adjusted p-values, comparable directly against ``alpha``.
+    """
+    n = len(p_values)
+    if n == 0:
+        return []
+    order = sorted(range(n), key=lambda i: (np.isnan(p_values[i]), p_values[i]))
+    adjusted = [float("nan")] * n
+    running = 0.0
+    for rank, i in enumerate(order):
+        p = p_values[i]
+        if np.isnan(p):
+            continue
+        running = max(running, min(1.0, p * (n - rank)))
+        adjusted[i] = running
+    return adjusted
+
+
 def holm_bonferroni(p_values: list[float], alpha: float = 0.05) -> list[bool]:
     """Holm-Bonferroni step-down correction for a family of comparisons.
 
@@ -244,7 +277,8 @@ def holm_bonferroni(p_values: list[float], alpha: float = 0.05) -> list[bool]:
         alpha: Family-wise error rate.
 
     Returns:
-        A list of booleans, aligned with ``p_values``, marking which survive.
+        A list of **booleans**, aligned with ``p_values``, marking which survive. Not
+        p-values — see :func:`holm_adjusted_p` if you want those.
     """
     n = len(p_values)
     if n == 0:

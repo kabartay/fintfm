@@ -19,6 +19,7 @@ matter more than the originals. §28 retracts §26's headline as our own bug.
 | **The prior matches real task difficulty** — logistic-regression AUC 0.743 synthetic against 0.769 real | measured, held-out seed | §18, §19 |
 | **Coherence transfers to real out-of-time data** — 0% violations against 39% for per-horizon models, 98.6% of firms affected | measured, V4FinBench | §26 |
 | **A base-rate error is invisible to every guard we had** — a 27× level error passed AUC, passed the coherence check, and was not printed; the fix cut fourth-horizon ECE 32× | measured, same checkpoint | §28 |
+| **Retrieved context beats the best blind strategy by +0.066 to +0.095 AUC**, Holm-significant at three horizons — the first accuracy gain here to survive a family-wise correction | measured, paired bootstrap | §32 |
 | **Balanced context sampling costs 10-12 AUC points on the survival path**, reversing the default adopted from the literature; 12 in-context defaults outrank 1,122 | measured, 3 context sizes | §29 |
 | ~~The prior cannot generate the low-default regime~~ — **retracted**: the floor was 1% and is now 0.195%, but it was never what caused §26's failure | superseded | §26 → §28, §30 |
 
@@ -41,8 +42,10 @@ matter more than the originals. §28 retracts §26's headline as our own bug.
 - **"Best calibrated" as a standalone claim.** A constant base-rate predictor beats every
   model here on ECE, so calibration numbers cannot carry an argument alone (§17).
 - **"Ahead of the incumbent out of time."** False. On V4FinBench out of time, per-horizon
-  logistic regression leads on mean AUC 0.8616 to 0.7192 and on ECE 0.0018 to 0.0077. Only
-  coherence favours us, and by construction (§30).
+  logistic regression leads on mean AUC 0.8616 to our best 0.7934 and on ECE 0.0018 to 0.0111,
+  with three of four horizon differences significant after Holm correction. The gap has
+  **halved** since §30 and it is not closed (§32). Only coherence favours us, and by
+  construction.
 - **Calibration as a differentiator against other foundation models.** It tracks prior
   *breadth*, not our domain prior, so TabPFN and TabFM very likely share it (§14, §15).
 - **The 11.7× calibration figure.** Measured against an uncalibrated baseline. Do not use it.
@@ -2072,3 +2075,98 @@ was a context bug. §30's wrong diagnosis blamed the context labels for what is 
 limit. Both times the story was built from a pattern in the numbers before the pattern was
 decomposed. **Decompose before diagnosing**: a monotone trend and a constant offset look
 identical in a summary table and imply completely different work.
+
+---
+
+## 32. Retrieval is the first change that moves accuracy: +0.066 to +0.095 AUC over the best blind strategy, Holm-significant
+
+**Date:** 2026-09-09. **MEASURED**, single seed. **Command:**
+
+```bash
+uv run fintfm-ctxsweep --model runs/v4-hazard-ldp.pt --out runs/context-sweep-retrieval
+```
+
+§31 concluded that *which* rows enter the context was the only remaining lever on the
+horizon-independent part of the out-of-time gap. It is, and it is a large one.
+
+| max context | balanced | hybrid | uniform | **retrieval** | seconds (uniform → retrieval) |
+| --- | --- | --- | --- | --- | --- |
+| 1,000 | 0.6255 | 0.6794 | 0.6921 | **0.7507** | 24 → 44 |
+| 2,000 | 0.5967 | 0.6468 | 0.7192 | **0.7872** | 33 → 73 |
+| 4,000 | 0.6013 | 0.6118 | 0.6986 | **0.7934** | 61 → 155 |
+
+Paired bootstrap against uniform at matched protocol, Holm-corrected across four horizons:
+
+| horizon | retrieval − uniform | 95% CI | Holm p | verdict |
+| --- | --- | --- | --- | --- |
+| 0 | **+0.0665** | [+0.0539, +0.0801] | 0.0000 | significant |
+| 1 | **+0.0632** | [+0.0408, +0.0867] | 0.0000 | significant |
+| 2 | **+0.0952** | [+0.0501, +0.1408] | 0.0000 | significant |
+| 3 | +0.0719 | [−0.0311, +0.1703] | 0.1510 | not significant |
+
+The fourth horizon has 18 positives among 23,099 observed rows, so its interval spans zero
+regardless of the effect. **This is the first accuracy improvement in the project that
+survives a family-wise correction.**
+
+### It also corrects §31: more rows do help, if they are the right rows
+
+§31 stated that supplying more context does not work, from uniform peaking at 2,000 rows and
+falling at 4,000. Retrieval **rises monotonically** across the same sizes — 0.7507, 0.7872,
+0.7934 — and its calibration improves with size too (ECE 0.0257 → 0.0169 → 0.0111). So the
+ceiling §31 identified was a property of *random* rows going out of distribution, not of
+context size. The corrected statement: **beyond about 2,000 rows, additional context only
+helps when it is selected for relevance.**
+
+### The bug this produced first, and why it was inevitable
+
+Retrieval initially scored **0.3679 mean AUC — far below chance**, which is the signature of
+inverted ranking rather than of a weak method. The cause was applying the base-rate correction
+**per query group**.
+
+That correction is exact under label shift, and the docstring stating so is explicit about
+why it holds: "resampling selects on ``y`` alone, so it holds by construction here."
+**Retrieval selects on ``x``, so the assumption is violated by construction** — and the
+failure is not subtle. A risky cluster retrieves risky neighbours, so its context rate is
+high, so it receives the *largest downward* shift. The correction was systematically pushing
+the riskiest firms down hardest, erasing exactly the between-group differences retrieval
+exists to find.
+
+Turning it off restored 0.7872. The fix in the code is a **single pooled shift** applied to
+every query, which is constant and therefore cannot reorder anything, asserted in
+`tests/test_retrieval.py`. Note the pooled correction costs a little calibration and buys no
+ranking (ECE 0.0119 uncorrected against 0.0169 pooled at 2,000 rows), because there is not
+much left to correct once the context is no longer resampled on the label.
+
+**This is the third time today that a documented assumption was carried into a context where
+it did not hold** — §28 bypassed the correction, §30 misattributed a level error, and here the
+correction was applied where its own stated precondition fails. The pattern is not
+carelessness about the assumption; it is that each new code path silently inherits it.
+
+### Where it leaves the comparison
+
+| arm | mean AUC | mean ECE | coherence violations |
+| --- | --- | --- | --- |
+| **fintfm, retrieval, 4,000** | **0.7934** | 0.0111 | **0.00%** |
+| fintfm, uniform, 2,000 | 0.7192 | 0.0077 | 0.00% |
+| per-horizon logistic regression | **0.8616** | **~0.0018** | 39.06% |
+
+Against the incumbent, Holm-corrected: **−0.0654, −0.0716, −0.0516 at the first three
+horizons, all significant**; the fourth is inconclusive. The mean AUC gap has closed from
+0.142 to 0.068 and the first-horizon gap from 0.132 to 0.066 — **halved, not closed.** We are
+still behind a logistic regression fitted on 72,622 rows, and saying otherwise would require
+ignoring three significant negative differences.
+
+**Cost:** roughly 2.5× the scoring time of blind sampling, and it gives up batch independence
+— a query's prediction depends on its group-mates. Both are documented in
+`fintfm.inference.retrieval`; neither is fatal for a batch scoring job, and both would matter
+for a real-time API.
+
+### A trap in our own API, recorded because it corrupted a write-up
+
+`holm_bonferroni` returns **booleans**, and the first version of this finding printed them as
+if they were adjusted p-values. `True` formatted as `1.0000` and read as "not significant",
+inverting every verdict — so the first pass at these numbers concluded retrieval's wins were
+insignificant and its one *insignificant* horizon was the significant one. Caught only because
+the pattern was backwards on inspection: the horizon with the widest confidence interval was
+the one being reported as significant. `holm_adjusted_p` now exists beside it, and both are
+named for what they return.

@@ -135,3 +135,23 @@ expected count rather than grow the task. At two expected defaults, a **512-row 
 
 Also worth knowing: check CPU time on the **worker**, not the `uv` wrapper. The wrapper shows
 near-zero CPU while the worker runs at 88%, which briefly read as a stalled job here.
+
+## Retrieved contexts cost about 2.5x blind ones
+
+Measured 2026-09-09 on the V4FinBench out-of-time split, 47,378 queries scored against a
+72,622-row training pool, 64 query groups, CPU inference (`docs/FINDINGS.md` §32):
+
+| context rows | uniform | retrieval | ratio |
+| --- | --- | --- | --- |
+| 1,000 | 24 s | 44 s | 1.8× |
+| 2,000 | 33 s | 73 s | 2.2× |
+| 4,000 | 61 s | 155 s | 2.5× |
+
+The extra time is k-means over the queries plus one distance pass over the pool per group,
+and it buys +0.066 to +0.095 AUC. **Affordable for batch scoring.** The cost that matters is
+not the seconds: retrieval makes a query's prediction depend on its group-mates, which is fine
+for scoring a book overnight and wrong for a per-request API.
+
+`retrieval_groups=0` gives exact per-query retrieval. It is priced for validation on a
+subsample only — one forward pass per query, roughly 500× the grouped cost at a 2,000-row
+context.

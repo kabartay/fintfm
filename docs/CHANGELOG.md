@@ -21,6 +21,14 @@ not paste one into the other. See `CLAUDE.md`.
 
 ### Added
 
+- **A `retrieval` context strategy**, building each query group's context from its nearest
+  training rows instead of a blind sample. **+0.066 to +0.095 AUC over the best blind
+  strategy** on the V4FinBench out-of-time split, Holm-significant at three of four horizons
+  — the first accuracy gain in this project to survive a family-wise correction. Costs about
+  2.5× the scoring time and gives up batch independence: a query's prediction depends on its
+  group-mates. `docs/FINDINGS.md` §32.
+- `holm_adjusted_p`, beside `holm_bonferroni`, which returns booleans. Reading those booleans
+  as p-values inverted every verdict in the first write-up of §32.
 - `FinancialTFMClassifier.predict_term_structure`, the corrected public path for a PD term
   structure, chunked exactly and coherence-preserving. Calling
   `FinancialTFM.term_structure` directly is now a documented defect.
@@ -38,6 +46,13 @@ not paste one into the other. See `CLAUDE.md`.
   out-of-time survival split, at every context size tested, reversing the ordering this
   project adopted from the literature. Twelve in-context defaults outrank 1,122. The class
   default is unchanged pending re-measurement on the binary path (decision D9).
+- The base-rate correction is **not applied per query group** under retrieval. It is exact
+  under label shift, which holds by construction only when context selection looks at `y`
+  alone; retrieval selects on features. Applied per group it pushed the riskiest clusters
+  down hardest and drove mean AUC to **0.3679, below chance**. A single pooled shift replaces
+  it, which cannot reorder anything.
+- §31's "more context does not help" is **corrected**: it does, if the rows are retrieved.
+  Uniform peaks at 2,000 rows and falls at 4,000; retrieval rises monotonically to 4,000.
 - §26's headline is **retracted**: the synthetic prior's 1% base-rate floor was real and is
   now 0.195%, but it was never what caused the out-of-time failure. The retrain it prompted
   is worth +0.023 mean AUC and 2.7× better calibration, which the broken evaluation
