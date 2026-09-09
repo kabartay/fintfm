@@ -139,3 +139,45 @@ def test_drop_list_matches_their_released_schema():
     assert "emis_id" in DROP_COLUMNS and "company" in DROP_COLUMNS
     assert "Revenue/employee" in DROP_COLUMNS  # an excluded released-schema field, not an id
     assert len(DROP_COLUMNS) == 11
+
+
+# --- their Table 5 baseline grids -------------------------------------------------
+
+
+def test_grid_expands_every_combination():
+    from fintfm.experiments.v4_protocol import _grid
+
+    got = _grid({"a": [1, 2], "b": ["x", "y", "z"]})
+    assert len(got) == 6
+    assert {"a": 1, "b": "x"} in got and {"a": 2, "b": "z"} in got
+    assert len({tuple(sorted(d.items())) for d in got}) == 6  # no duplicates
+
+
+def test_grids_match_the_papers_table_5():
+    """Their grids, not ours. Getting these wrong makes the baselines unfaithful."""
+    from fintfm.experiments.v4_protocol import BOOSTING_GRIDS, CLASSICAL_GRIDS, _grid
+
+    assert CLASSICAL_GRIDS["logistic_regression"]["C"] == [1e-3, 1e-2, 1e-1, 1.0]
+    assert CLASSICAL_GRIDS["random_forest"]["max_depth"] == [5, 10, None]
+    assert BOOSTING_GRIDS["xgboost"]["max_depth"] == [3, 5, 7]
+    assert BOOSTING_GRIDS["catboost"]["depth"] == [4, 6, 8]
+    assert BOOSTING_GRIDS["lightgbm"]["max_depth"] == [-1, 5, 10]
+    # the cost that makes tuning opt-in, asserted so it cannot drift unnoticed
+    total = sum(len(_grid(g)) for g in (*CLASSICAL_GRIDS.values(), *BOOSTING_GRIDS.values()))
+    assert total == 76, total
+
+
+def test_classical_estimators_build_with_grid_parameters():
+    from fintfm.experiments.v4_protocol import CLASSICAL_GRIDS, _classical_estimator, _grid
+
+    for name, space in CLASSICAL_GRIDS.items():
+        for params in _grid(space)[:2]:
+            est = _classical_estimator(name, params)
+            assert hasattr(est, "fit") and hasattr(est, "predict_proba")
+
+
+def test_unknown_classical_baseline_is_refused():
+    from fintfm.experiments.v4_protocol import _classical_estimator
+
+    with pytest.raises(ValueError, match="unknown classical baseline"):
+        _classical_estimator("svm", {})

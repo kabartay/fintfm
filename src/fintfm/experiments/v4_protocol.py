@@ -68,6 +68,64 @@ DROP_COLUMNS: tuple[str, ...] = (
 #: Their target column.
 TARGET = "main_label"
 
+#: Hyperparameter grids from V4FinBench's Table 5, searched on the **validation fold** as
+#: their protocol specifies. Reproducing their baselines means reproducing their tuning:
+#: measured here, default LightGBM and XGBoost score *below* logistic regression on ROC-AUC
+#: (0.95 and 0.81-0.96 against 0.98), which would understate the field in a comparison we
+#: intend to publish — the same defect as ``docs/FINDINGS.md`` §25, pointed the other way.
+#:
+#: Searching this is expensive: roughly 76 fits per fold on ~600,000 rows, and the boosters
+#: fit out-of-process one configuration at a time. It is therefore opt-in via ``--tune``,
+#: and an untuned run says so in its output rather than presenting defaults as baselines.
+CLASSICAL_GRIDS: dict[str, dict[str, list]] = {
+    "logistic_regression": {"C": [1e-3, 1e-2, 1e-1, 1.0]},
+    "mlp": {
+        "hidden_layer_sizes": [(64, 64), (128, 128), (256, 256)],
+        "alpha": [1e-4, 1e-3],
+        "learning_rate_init": [1e-3, 1e-2],
+    },
+    "random_forest": {"n_estimators": [100, 300], "max_depth": [5, 10, None]},
+}
+
+#: Boosting grids from the same table. Applied through the out-of-process worker.
+BOOSTING_GRIDS: dict[str, dict[str, list]] = {
+    "xgboost": {
+        "n_estimators": [100, 200], "max_depth": [3, 5, 7],
+        "learning_rate": [0.05, 0.1, 0.2],
+    },
+    "catboost": {
+        "iterations": [100, 200], "depth": [4, 6, 8],
+        "learning_rate": [0.01, 0.05, 0.1],
+    },
+    "lightgbm": {
+        "n_estimators": [100, 200], "max_depth": [-1, 5, 10],
+        "learning_rate": [0.05, 0.1, 0.2],
+    },
+}
+
+
+def _grid(space: dict[str, list]) -> list[dict]:
+    """Every combination in a hyperparameter grid, as a list of keyword dicts."""
+    from itertools import product
+
+    keys = sorted(space)
+    return [dict(zip(keys, combo)) for combo in product(*(space[k] for k in keys))]
+
+
+def _classical_estimator(name: str, params: dict):
+    """Build one of the paper's non-boosting baselines."""
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.neural_network import MLPClassifier
+
+    if name == "logistic_regression":
+        return LogisticRegression(max_iter=1000, **params)
+    if name == "mlp":
+        return MLPClassifier(max_iter=300, early_stopping=True, **params)
+    if name == "random_forest":
+        return RandomForestClassifier(n_jobs=-1, random_state=0, **params)
+    raise ValueError(f"unknown classical baseline {name!r}")
+
 #: Fold-assignment parameters, fixed by their protocol.
 N_SPLITS = 5
 FOLD_SEED = 42
@@ -224,6 +282,8 @@ def run(
     max_rows: int | None = None,
     root: Path | None = None,
     with_boosting: bool = True,
+    tune: bool = False,
+    classical: tuple[str, ...] = ("logistic_regression",),
     cfg: Config | None = None,
 ) -> dict:
     """Score arms under V4FinBench's published protocol.
@@ -242,13 +302,16 @@ def run(
             out-of-process because of the macOS OpenMP conflict (``docs/COMPUTE.md``), and
             they are the baselines that actually compete — the paper reports gradient-boosted
             trees as its strongest classical cluster.
+        tune: Grid-search each baseline on the validation fold, per their protocol and
+            Table 5. **Off by default because it is expensive** — roughly 76 fits per fold on
+            600,000 rows — and an untuned run labels itself as such.
+        classical: Which non-boosting baselines to run, from :data:`CLASSICAL_GRIDS`.
         cfg: Configuration; loaded from the packaged default when omitted.
 
     Returns:
         The recorded result dictionary.
     """
     from sklearn.impute import SimpleImputer
-    from sklearn.linear_model import LogisticRegression
     from sklearn.metrics import f1_score, roc_auc_score
     from sklearn.preprocessing import StandardScaler
 
@@ -283,8 +346,20 @@ def run(
         Xtr, Xva, Xte = (scaler.transform(imputer.transform(X[i])) for i in (tr, va, te))
 
         arms: dict[str, tuple[np.ndarray, np.ndarray]] = {}
-        lr = LogisticRegression(max_iter=1000).fit(Xtr, y[tr])
-        arms["logistic_regression"] = (lr.predict_proba(Xva)[:, 1], lr.predict_proba(Xte)[:, 1])
+        for name in classical:
+            configs = _grid(CLASSICAL_GRIDS[name]) if tune else [{}]
+            best, best_auc = None, -np.inf
+            for params in configs:
+                est = _classical_estimator(name, params).fit(Xtr, y[tr])
+                p_val = est.predict_proba(Xva)[:, 1]
+                # selected on the validation fold, as their protocol specifies
+                auc = roc_auc_score(y[va], p_val) if len(np.unique(y[va])) > 1 else 0.0
+                if auc > best_auc:
+                    best, best_auc = (est, params), auc
+            est, params = best
+            arms[name] = (est.predict_proba(Xva)[:, 1], est.predict_proba(Xte)[:, 1])
+            if tune:
+                print(f"    {name} best params: {params} (val AUC {best_auc:.4f})")
 
         if model.cfg.max_features >= Xtr.shape[1]:
             clf = FinancialTFMClassifier(
@@ -309,11 +384,22 @@ def run(
         if boosters:
             both = np.vstack([Xva, Xte])
             for name in boosters:
-                p_both = fit_predict_boosting(name, Xtr, y[tr], both)
-                if p_both is None:
+                configs = _grid(BOOSTING_GRIDS[name]) if tune else [None]
+                best_pred, best_auc, best_params = None, -np.inf, None
+                for params in configs:
+                    p_both = fit_predict_boosting(name, Xtr, y[tr], both, params=params)
+                    if p_both is None:
+                        continue
+                    p_val = p_both[: len(va)]
+                    auc = roc_auc_score(y[va], p_val) if len(np.unique(y[va])) > 1 else 0.0
+                    if auc > best_auc:
+                        best_pred, best_auc, best_params = p_both, auc, params
+                if best_pred is None:
                     print(f"  {name} failed on fold {fold}; excluded from this fold")
                     continue
-                arms[name] = (p_both[: len(va)], p_both[len(va) :])
+                arms[name] = (best_pred[: len(va)], best_pred[len(va) :])
+                if tune:
+                    print(f"    {name} best params: {best_params} (val AUC {best_auc:.4f})")
 
         for arm, (p_val, p_test) in arms.items():
             thr, _ = best_f1_threshold(y[va], p_val)
@@ -356,6 +442,8 @@ def run(
             "max_rows": max_rows, "n_features": int(X.shape[1]),
             "fold_seed": FOLD_SEED, "n_splits": N_SPLITS,
             "boosting": boosters,
+            "classical": list(classical),
+            "tuned": tune,
             "context_strategy": cfg.inference.context_strategy,
             "feature_transform": cfg.inference.feature_transform,
             "max_context": cfg.inference.max_context,
@@ -381,7 +469,16 @@ def summarise(record: dict) -> str:
             f"{a['arm']:>22}   {a['roc_auc_mean']:.4f} ± {a['roc_auc_std']:.4f}"
             f"   {a['f1_mean']:.4f} ± {a['f1_std']:.4f}"
         )
+    tuned = c.get("tuned", False)
     lines += [
+        "",
+        (
+            "Baselines were grid-searched on the validation fold, per their Table 5."
+            if tuned
+            else "*** BASELINES ARE UNTUNED (library defaults). Their protocol grid-searches "
+                 "every baseline on the validation fold, so these are NOT their baselines "
+                 "and understate the field -- re-run with --tune before quoting. ***"
+        ),
         "",
         "Their published reference at this horizon is in docs/FINDINGS.md §36. Their TabPFN is",
         "fine-tuned on this data and ours never sees real data, so the like-for-like comparison",
@@ -399,6 +496,16 @@ def main() -> None:
     p.add_argument("--folds", type=str, default="0,1,2,3,4", help="comma-separated")
     p.add_argument("--max-rows", type=int, default=None, help="development cap")
     p.add_argument(
+        "--tune", action="store_true",
+        help="grid-search every baseline on the validation fold, as their protocol and "
+             "Table 5 specify. Expensive: ~76 fits per fold on 600k rows. Without it, the "
+             "baselines run at library defaults and the output says so",
+    )
+    p.add_argument(
+        "--classical", type=str, default="logistic_regression",
+        help="comma-separated, from logistic_regression, mlp, random_forest",
+    )
+    p.add_argument(
         "--no-boosting", action="store_true",
         help="skip LightGBM/CatBoost/XGBoost; they are the baselines that compete, so this "
              "is for quick development runs only",
@@ -408,7 +515,9 @@ def main() -> None:
     record = run(
         args.model, Path(args.out), horizon=args.horizon,
         folds=tuple(int(v) for v in args.folds.split(",")),
-        max_rows=args.max_rows, with_boosting=not args.no_boosting, cfg=cfg,
+        max_rows=args.max_rows, with_boosting=not args.no_boosting, tune=args.tune,
+        classical=tuple(v.strip() for v in args.classical.split(",") if v.strip()),
+        cfg=cfg,
     )
     print("\n" + summarise(record))
     print(f"\nconfig: {cfg.provenance()}")
