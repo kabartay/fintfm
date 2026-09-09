@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      # The `bench` extra carries LightGBM, CatBoost and XGBoost. They are the baselines
+      # that actually compete, and they were silently absent from every comparison until
+      # docs/FINDINGS.md #25 - so CI installs them rather than letting them skip quietly.
+      # Linux uses libgomp and does not hit the macOS OpenMP conflict (docs/COMPUTE.md).
+      - name: Sync dependencies
+        run: uv sync --extra bench
+
+      - name: Lint
+        run: uv run ruff check src/ tests/ scripts/ openspec/tools/
+
+      # Enforces this repository's own conventions: every spec requirement names what
+      # enforces it, every proposal carries its required sections, every open task states a
+      # verification, and every finding declares whether its numbers are MEASURED,
+      # SMOKE-TEST, SIMULATED or ESTIMATED. It found ten violations the first time it ran.
+      - name: Validate openspec and findings provenance
+        run: uv run python openspec/tools/validate.py
+
+      # Tests that need a licensed dataset skip rather than fail; a clean checkout has no
+      # data/ directory. Verified locally: 72 passed, 2 skipped on a fresh clone.
+      - name: Tests
+        run: uv run pytest -q
+
+      - name: Build wheel and sdist
+        run: uv build
+
+      - name: Check the licence ships in the wheel
+        run: |
+          python - <<'PY'
+          import glob, zipfile
+          whl = sorted(glob.glob("dist/*.whl"))[-1]
+          names = zipfile.ZipFile(whl).namelist()
+          assert any("LICENSE" in n for n in names), "Apache-2.0 licence missing from wheel"
+          assert any(n.endswith("py.typed") for n in names), "py.typed marker missing"
+          print(f"{whl}: licence and typing marker present")
+          PY
