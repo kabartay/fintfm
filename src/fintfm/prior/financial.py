@@ -36,9 +36,20 @@ from fintfm.prior.base import Task
 
 _N_SECTORS = 12
 
-#: Expected defaults per synthetic task. Below about three, a task teaches almost nothing
-#: about the minority class and the both-classes guard starts fabricating positives.
-MIN_EXPECTED_POSITIVES = 3.0
+#: Expected defaults per synthetic task. This is the knob that decides how imbalanced a task
+#: of a given size can be, since the base-rate floor is ``MIN_EXPECTED_POSITIVES / n_rows``.
+#:
+#: Set to 2.0, not 3.0, for a measured reason. Step cost is **worse than quadratic** in task
+#: size on Metal — 0.62 s at 256 rows, 1.61 s at 1,024, 19.76 s at 2,048 and 310.71 s at
+#: 4,096 (``docs/COMPUTE.md``) — so reaching a low base rate by growing the task is
+#: prohibitively expensive past about 1,024 rows. Lowering the expected count instead puts a
+#: 0.195% floor within reach of a 1,024-row task, which covers V4FinBench's lowest
+#: cumulative rate of 0.19% (``docs/FINDINGS.md`` §26) at roughly a twelfth of the cost.
+#:
+#: Two defaults per task is thin, and it is also what a real low-default portfolio looks
+#: like: a Basel LDP may carry two defaults in a thousand obligors. Below two the
+#: both-classes guard starts fabricating positives and the task teaches nothing.
+MIN_EXPECTED_POSITIVES = 2.0
 
 #: Hard floor on the sampled base rate, reached only when the task is large enough to carry
 #: it. Chosen to cover Basel low-default portfolios, whose rates run well below 1%.

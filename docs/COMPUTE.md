@@ -106,3 +106,32 @@ field by 0.018-0.040 AUC (`docs/FINDINGS.md` §25).
 
 **The wider lesson:** an exception guard converted a crash into a silent skip, and a silently
 absent baseline flatters us. Skips are now announced.
+
+## Step cost is worse than quadratic in task size on Metal
+
+Measured 2026-09-09, `max_features=136`, `d_cell=48`, `d_model=128`, 4 row layers, 2 column
+layers, hazard head over 6 horizons, **batch 4 held constant**:
+
+| task rows | s/step | vs 256 rows | 6,000 steps |
+| --- | --- | --- | --- |
+| 256 | 0.62 | — | 1.0 h |
+| 1,024 | 1.61 | 2.6× | 2.7 h |
+| 2,048 | **19.76** | **32×** | 33 h |
+| 4,096 | **310.71** | **500×** | 518 h |
+
+Sixteen times the rows costs **500×** the time. Quadratic attention alone predicts 256×, so
+something further degrades past ~1,024 rows — almost certainly unified-memory pressure
+forcing fallback, since the row-attention matrix at 4,096 rows is 16.7M entries per task.
+
+**The practical rule: keep synthetic task size at or below about 1,024 rows.** Reaching a low
+base rate by growing the task does not work past that point, and the measurement above was
+itself abandoned once for exceeding a 600 s timeout — which was the finding rather than a
+failure to obtain one.
+
+**The consequence for low-default pretraining.** The base-rate floor is
+`MIN_EXPECTED_POSITIVES / n_rows`, so the cheap way to reach a 0.2% rate is to lower the
+expected count rather than grow the task. At two expected defaults, a **512-row task reaches
+0.195%** — covering V4FinBench's 0.19% floor — for about 1 s/step instead of 19.76.
+
+Also worth knowing: check CPU time on the **worker**, not the `uv` wrapper. The wrapper shows
+near-zero CPU while the worker runs at 88%, which briefly read as a stalled job here.
