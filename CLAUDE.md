@@ -218,6 +218,31 @@ discussion, never a source to copy from. Before adding any third-party dataset o
 check its license against commercial use — see `README.md`'s licensing section for the current
 policy and add a line there when a new source is added.
 
+## Secrets: `.env`, and never anywhere else
+
+`.env` holds credentials and is gitignored; `.env.example` documents every key it may contain
+and is committed. Same convention as `finkele-axiom`.
+
+**Nothing loads `.env` automatically, on purpose.** A file sourced implicitly is a file nobody
+re-reads. Source it for the call that needs it:
+
+```bash
+set -a; . ./.env; set +a
+```
+
+Two rules that cost someone a debugging session already:
+
+- **The negation must follow the pattern it exempts.** `.env.*` swallows `!.env.example` if
+  the negation comes first, silently. That happened in `finkele-axiom`.
+- **`git check-ignore -v` does not answer this question.** It exits 0 when *any* pattern
+  matches, negations included, so a correctly-exempted file looks ignored. Use
+  `git status --porcelain --ignored`: `!!` means ignored, `??` means visible.
+
+Never paste a token into chat, a commit, a config under `configs/`, or a run log. Note that
+credential *scope* cannot enforce this repository's licensing boundary — Hugging Face grants
+every token read access to all public repo contents, so no scope prevents pulling
+TabPFN-family weights. That boundary stays a policy rule enforced by review.
+
 ## Configuration, not constants — and not everything
 
 Experiment numbers live in `src/fintfm/configs/default.yaml`, layered as packaged default →

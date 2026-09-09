@@ -14,3 +14,11 @@ dist/
 # never commit credentials
 kaggle.json
 .kaggle/
+# Local env / secrets
+.env
+.env.*
+# The negation must follow the pattern it exempts, or `.env.*` swallows it silently. That
+# happened in finkele-axiom and was caught by `git check-ignore -v .env.example`, not by
+# noticing the file had stopped being tracked.
+!.env.example
+
