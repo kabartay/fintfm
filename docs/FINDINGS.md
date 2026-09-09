@@ -2969,3 +2969,97 @@ finding in favour.
 3. **Re-measure the untrained control on everything.** It is the only baseline that separates
    "the model learned this" from "the architecture and context did".
 4. Only then revisit architecture and scale.
+
+---
+
+## 43. We have never trained this model properly: 48,000 tasks against a field norm of ~10⁷
+
+**Date:** 2026-09-10. **MEASURED** (the count and the cost), **ESTIMATED** (the field norm).
+
+Every checkpoint in this project comes from **6,000 steps × batch 8 = 48,000 synthetic tasks**.
+Published prior-fitted networks train on the order of **10⁷** synthetic datasets. We are two to
+three orders of magnitude short, and have been reasoning about architecture and scale on that
+basis for two days.
+
+**The remedy is compute, not research**, and it is cheap. Measured throughput on a T4 is
+0.64 s/step at 847K parameters and batch 8 (`docs/HF_JOBS.md`), i.e. 12.5 tasks per second:
+
+| tasks seen | GPU-hours (T4) | approx cost |
+| --- | --- | --- |
+| **48,000** — every checkpoint to date | 1.1 | $0.70 |
+| 500,000 | 11 | ~$7 |
+| **1,000,000** | **22** | **~$13** |
+
+**A 20× increase in training data costs about $13.** Until that is run, "the architecture is
+wrong" is an untested claim, and so is "scale does not help" — §42's scaling result compared
+three model sizes that were each trained on 48,000 tasks, which measures capacity at a fixed,
+tiny data budget rather than a scaling law.
+
+This reorders the queue. `adopt-published-methods` task 36.3 (context scaling) and any
+architectural work sit behind simply training the model once at a defensible volume, because
+every measurement taken before that is a measurement of an undertrained model.
+
+**The uncomfortable part:** this was always visible. The step count was in every command, and
+`docs/COMPUTE.md` has priced runs since day one. Nobody multiplied 6,000 by 8 and compared it
+to the literature the architecture was copied from.
+
+---
+
+## 44. The prior-difficulty fix changed nothing, and the real defect is generalisation across feature distributions
+
+**Date:** 2026-09-10. **MEASURED**, capability probes, three seeds.
+**This falsifies §42's second remedy as a sufficient fix.**
+
+§42 diagnosed a prior clamped to a narrow difficulty band and predicted that widening it would
+let the model learn. The prior was widened — learnable tasks went from 8% to 42%, the ceiling
+from 0.945 to 1.000 — a checkpoint was retrained on it, and the probes say it made **no
+difference at all**:
+
+| arm | linear | conjunction | xor | noise |
+| --- | --- | --- | --- | --- |
+| **fixed prior** | **0.685 ± 0.119** | 0.692 ± 0.005 | 0.530 | 0.490 |
+| old prior | 0.684 ± 0.119 | 0.695 ± 0.005 | 0.537 | 0.492 |
+| untrained control | 0.367 ± 0.129 | 0.298 ± 0.004 | 0.517 | 0.496 |
+| logistic regression | **1.000** | 0.955 | 0.522 | 0.502 |
+| gradient boosting | 0.983 | 0.989 | **0.997** | 0.517 |
+
+0.685 against 0.684. The two checkpoints are indistinguishable.
+
+### But the same run shows the model learning perfectly well
+
+The new training metric (§42's first remedy, which *did* work) reports held-out **AUC 0.83-0.88
+with Brier skill +0.16 to +0.18** throughout the run — on tasks drawn from its own prior. So
+the model does in-context learning competently on data that looks like its training
+distribution, and collapses to 0.685 on iid Gaussian features.
+
+**That is a generalisation failure across feature distributions, not a failure to learn.** It
+also explains §42's confusing pattern — more context and more capacity cannot help a model
+whose problem is that the test features are unlike anything it has seen.
+
+### The likely cause is a flag I set myself
+
+Every checkpoint in §39-§44 was trained with **`--p-financial 1.0`**, chosen for comparability
+with the hazard checkpoint. That disables the generic SCM prior entirely, so the model has only
+ever seen financial-statement features: heavy-tailed, accounting-linked, strongly correlated
+ratios. The default is 0.7, and the 30% generic component is precisely where distributional
+diversity comes from — it is why TabPFN-style priors use structural causal models rather than
+one domain generator.
+
+I removed the component that teaches the model to handle unfamiliar tabular distributions, and
+then measured it failing on unfamiliar tabular distributions.
+
+### Consequence for §43
+
+§43 argued that 48,000 tasks against a field norm of 10⁷ is the biggest untapped lever, and
+that remains true — but it is now **second** in order. Training 20× longer on a distribution
+the model already fits, and still cannot generalise from, would buy a better fit to the same
+narrow distribution. Prior *diversity* is cheaper to test and more likely to be the binding
+constraint, and it is a $0.70 experiment against $13.
+
+### Untrained control at 0.367 is itself a finding
+
+The untrained control scores **below chance** on `linear` and `conjunction` (0.367, 0.298),
+where it scored 0.618 on an earlier balanced version of the same task. Random weights produce
+predictions anti-correlated with the label at a 5% base rate. So "trained beats untrained" is
+satisfied here trivially and is *not* evidence of learning — the floor is unstable and must be
+read alongside the fitted baselines, never alone.

@@ -257,6 +257,46 @@ credential *scope* cannot enforce this repository's licensing boundary — Huggi
 every token read access to all public repo contents, so no scope prevents pulling
 TabPFN-family weights. That boundary stays a policy rule enforced by review.
 
+## Measuring a model that might not work
+
+Five rules, each of which cost real time before it was written down
+(`docs/FINDINGS.md` §42, §43).
+
+**A prior must span difficulty.** Ours was clamped so synthetic difficulty *matched* real
+difficulty, which sounds correct and left only 8% of tasks with a learnable boundary. The model
+learned to do as well as anything can on noise and never learned to extract a clean boundary,
+scoring 0.68 on a linear task logistic regression solves at 0.9997. A prior's job is to teach,
+not to resemble the test set. Now 42%, and `tests/test_prior.py` pins the span in both
+directions — a prior of only *easy* tasks would never teach the model to abstain.
+
+**Every evaluation needs a floor.** Without an untrained model of the same architecture, a
+number like "0.66 on prior tasks" cannot be read: competence and "the architecture plus the
+context did it" look identical. `fintfm-capability` builds the control automatically for this
+reason. **A trained model scoring *below* its untrained control is a specific signature** — it
+means training actively steered the model wrong, which points at the training signal rather
+than at the architecture.
+
+**A benchmark that one column solves cannot diagnose anything.** V4FinBench horizon 0 gives
+0.9811, and `Working_capital/total_assets` alone gives 0.9799. Keep probes with *known*
+ceilings alongside any real benchmark, or a broken model will look competent for days.
+
+**The training metric must be a proper scoring rule against a baseline.** The loop reported
+accuracy, which at a 4.7% base rate a constant predictor scores 0.953 on; three runs logged
+"0.935-0.945" as progress. This file already said accuracy is not a proper scoring rule and
+the training loop did not follow it.
+
+**ROC-AUC hides failure at the top of the ranking**, which is usually the part that matters —
+a top-K credit decision, a top-K dispatch. Report average precision and precision@K beside it.
+Twice in one day a model with ~0.88 AUC was near-useless where it counted.
+
+## Count the tasks, not the steps
+
+Training volume is `steps × batch_size`, and that number belongs in every discussion of whether
+the model works. Every checkpoint here has come from **48,000 tasks** against a field norm
+around 10⁷ (§43) — visible in every command for two days, and never once multiplied out.
+Before concluding anything about architecture or scale, check that the model has been trained
+at a defensible volume. On a T4 it is roughly $13 for a million tasks.
+
 ## Configuration, not constants — and not everything
 
 Experiment numbers live in `src/fintfm/configs/default.yaml`, layered as packaged default →
