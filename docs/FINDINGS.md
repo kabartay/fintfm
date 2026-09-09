@@ -17,6 +17,8 @@ than the originals.
 | **Pretraining buys calibration** — 7× on Brier, up to 130× on ECE against an untrained model that predicts a 39% default rate against a 4.7% base | measured, untrained control | §15 |
 | **Firm-level financial data is licence-locked**, so synthetic pretraining is the only clean route into this domain, which is why the space is empty while energy is crowded | dataset census | §4, §8 |
 | **The prior matches real task difficulty** — logistic-regression AUC 0.743 synthetic against 0.769 real | measured, held-out seed | §18, §19 |
+| **Coherence transfers to real out-of-time data** — 0% violations against 39% for per-horizon models, 98.6% of firms affected | measured, V4FinBench | §26 |
+| **The prior cannot generate the low-default regime the strategy targets** — floor 1%, target 0.2-0.4% | measured | §26 |
 
 ### What is measured and small
 
@@ -1683,3 +1685,80 @@ worse**. Specifically:
 What survives untouched is coherence (§20, §21), which is a property no gradient booster has
 at all, and provenance (§1). Those were already the thesis; this finding is why they must
 remain it.
+
+## 26. First out-of-time result on real corporate data: coherence holds, everything else fails — and the prior cannot generate the target regime
+
+**Date:** 2026-09-09. **Status:** MEASURED on V4FinBench, out-of-time. The first evaluation
+in this project that tests the actual thesis on real corporate panels with a date-based split.
+Re-derivable:
+
+```bash
+uv run fintfm-v4oot --model runs/v4-hazard-136f.pt --max-rows 120000 \
+    --train-until 2016 --test-from 2017
+```
+
+120,000 company-years: **72,622 train (≤2016), 47,378 test (≥2017)**, no year in both.
+Train default rate 1.545%, test 0.998% — the split crosses a real change in conditions.
+
+| arm | mean AUC | violations | fully monotone |
+| --- | --- | --- | --- |
+| **fintfm hazard head** | **0.5869** | **0.00%** | **100.0%** |
+| per-horizon logistic regression | **0.8616** | 39.06% | 1.4% |
+
+Per horizon:
+
+| arm | h0 | h1 | h2 | h3 |
+| --- | --- | --- | --- | --- |
+| fintfm AUC | 0.6539 | 0.6020 | 0.5662 | 0.5257 |
+| logreg AUC | **0.9717** | **0.8908** | **0.8310** | **0.7530** |
+| fintfm ECE | 0.1085 | 0.1853 | 0.2519 | **0.3322** |
+| logreg ECE | **0.0028** | **0.0014** | **0.0002** | **0.0016** |
+
+### The one thing that held, and it held completely
+
+**Coherence: 0.00% violations and 100% monotone curves, against logistic regression's 39.06%
+and 1.4%.** Independent per-horizon models produced a self-contradicting term structure for
+**98.6% of firms** on real out-of-time data. The structural guarantee (§20) transferred from
+synthetic to real without qualification, and it is the only claim in this project that did.
+
+### Everything else failed, and by a wide margin
+
+Logistic regression — not CatBoost, not a tuned anything, **plain logistic regression** —
+beat us by **0.27 mean AUC**, and its calibration is 40× to 200× better. Our ECE degrades
+from 0.11 at the first horizon to **0.33 at the fourth**, meaning stated probabilities are off
+by thirty-three percentage points against a base rate near 1%.
+
+### The cause is diagnosed, specific, and embarrassing
+
+`prior/financial.py` samples the base rate as `exp(U(log 0.01, log 0.30))`. Measured over
+20,000 draws: **minimum 1.0003%, and exactly 0% of tasks fall below 1%**.
+
+V4FinBench's cumulative default rates by horizon are **0.36%, 0.30%, 0.25%, 0.23%, 0.21%,
+0.19%**.
+
+**The model has never once seen a task as imbalanced as the target** — not in any of the
+~96,000 synthetic tasks it trained on. Its entire calibration behaviour is anchored to a
+1-30% regime and it is being asked about a 0.2-0.4% one. That explains the ECE rising with
+horizon, since the cumulative rate *falls* with horizon here and the model pushes it up.
+
+### The strategic problem this exposes
+
+`docs/STRATEGY.md` targets **low-default portfolios** — a Basel category defined by having
+very few defaults — and §9 named them as the wedge because that is where the incumbent's
+remedies fail.
+
+**Our prior cannot generate a low-default portfolio.** The floor is 1%; the regime we claim
+starts an order of magnitude below it. The strategy and the prior have been pointing at
+different problems since the prior was written, and nothing surfaced it until a real
+low-default panel was scored.
+
+This is the most actionable finding so far, and it is a one-line change to the sampling range
+followed by a retrain — with §19's lesson attached: **widening the range will move task
+difficulty, and difficulty must be re-measured, not assumed.**
+
+### Honest reading
+
+Do not read this as "the approach fails". Read it as: the thesis-critical property transferred
+perfectly, and the model was asked a question its prior never posed. Whether fixing the base
+rate closes the accuracy gap is **unknown and should not be assumed** — logistic regression at
+0.97 AUC on h0 is a very strong baseline, and §25 suggests CatBoost would be stronger still.
