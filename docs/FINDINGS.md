@@ -890,6 +890,25 @@ three tested. **The operating point is a mixture, not a pure domain prior**, and
 plausible reason is that prior breadth regularises the posterior: a narrow prior fits the
 domain and is overconfident off it.
 
+### An independent team landed on almost the same mixture ratio
+
+**Added 2026-09-09.** FinCast's pretraining corpus (arXiv:2508.19609, Table 1) is 20B time
+points, of which **22.48% is deliberately non-financial** — 4.61B points from general
+time-series sources — with the stated reason that "high-quality financial data is scarce".
+So their mix is roughly **78% domain / 22% general**.
+
+Ours, chosen arbitrarily on day one and then *measured* as the best of three on Brier, is
+**70% financial / 30% generic** (`p_financial = 0.7`).
+
+Two independent teams, different modalities, different reasoning — they from data scarcity,
+we from a matched-compute ablation — arrived within eight points of the same ratio. That is
+not proof of an optimum, and neither team searched the space finely. But it is meaningful
+corroboration that **a purely domain-specific pretraining mixture is the wrong choice**, which
+is the counter-intuitive half of this finding and the half most likely to be argued with.
+
+It also echoes §4 and §8 from the other modality: they call financial data scarce for exactly
+the reason we found firm-level panels licence-locked.
+
 ### It also settles §13's discriminating test, against us
 
 §13 asked whether the calibration advantage is ours or generic to prior-fitted networks.
