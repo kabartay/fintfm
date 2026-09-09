@@ -119,3 +119,23 @@ def test_prior_correction_is_inert_when_context_is_not_resampled():
     y = rng.integers(0, 2, size=40)
     clf = FinancialTFMClassifier(_tiny_model(), max_context=1000, correct_prior=True).fit(X, y)
     np.testing.assert_allclose(clf._log_prior_shift, 0.0, atol=1e-12)
+
+
+def test_chunked_prediction_is_exact_not_approximate():
+    """Queries cannot attend to each other, so chunking must change nothing at all.
+
+    This is what makes scoring 48,000 rows feasible without a 50k x 50k attention matrix,
+    and it is a direct consequence of the row mask rather than a tolerated approximation.
+    """
+    torch.manual_seed(0)
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(200, 4))
+    y = rng.integers(0, 2, size=200)
+    X_test = rng.normal(size=(97, 4))
+
+    model = _tiny_model()
+    whole = FinancialTFMClassifier(model, max_context=50, query_chunk=10_000).fit(X, y)
+    chunked = FinancialTFMClassifier(model, max_context=50, query_chunk=8).fit(X, y)
+    np.testing.assert_allclose(
+        whole.predict_proba(X_test), chunked.predict_proba(X_test), rtol=1e-5, atol=1e-6
+    )

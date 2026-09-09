@@ -105,6 +105,12 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             ``P(x | y)`` is unchanged by resampling — resampling selects on ``y`` alone, so
             it holds by construction here. Leaves the ranking, and therefore AUC, untouched.
         random_state: Seed for context subsampling, so a stored context is reproducible.
+        query_chunk: Queries scored per forward pass. Attention cost grows with the square
+            of (context + queries), so 48,000 queries at once is not feasible. **Chunking is
+            exact, not an approximation**: the row mask already forbids a query from
+            attending to any other query, so a prediction depends only on the context and
+            itself. Splitting them changes nothing, which is a direct benefit of that design
+            choice and is asserted in the tests.
     """
 
     def __init__(
@@ -115,6 +121,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         context_strategy: ContextStrategy = "balanced",
         correct_prior: bool = True,
         random_state: int = 0,
+        query_chunk: int = 2048,
     ) -> None:
         self.model = FinancialTFM.load(model, map_location=device) if isinstance(model, str) else model
         self.device = device
@@ -122,6 +129,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         self.context_strategy = context_strategy
         self.correct_prior = correct_prior
         self.random_state = random_state
+        self.query_chunk = query_chunk
         self.model.to(device).eval()
 
     def fit(self, X: np.ndarray, y: np.ndarray) -> FinancialTFMClassifier:
@@ -156,9 +164,28 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
 
     @torch.no_grad()
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
+        """Class probabilities for every row, scored in exact chunks.
+
+        Args:
+            X: ``(n, n_features)`` query rows, matching the width seen by :meth:`fit`.
+
+        Returns:
+            ``(n, n_classes)`` probabilities.
+        """
         X = np.asarray(X, dtype=np.float32)
         if X.shape[1] != self._ctx_X.shape[1]:
             raise ValueError("feature width at predict time must match fit time")
+        if X.shape[0] > self.query_chunk:
+            return np.concatenate(
+                [
+                    self._predict_chunk(X[i : i + self.query_chunk])
+                    for i in range(0, X.shape[0], self.query_chunk)
+                ]
+            )
+        return self._predict_chunk(X)
+
+    @torch.no_grad()
+    def _predict_chunk(self, X: np.ndarray) -> np.ndarray:
         n_ctx = self._ctx_X.shape[0]
         cfg = self.model.cfg
         Xp = np.full((1, n_ctx + X.shape[0], cfg.max_features), np.nan, dtype=np.float32)
