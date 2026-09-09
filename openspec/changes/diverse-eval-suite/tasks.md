@@ -16,4 +16,5 @@
       Verify: standard deviation and per-dataset range quoted in the finding.
 - [ ] 37.5 Use this suite as the standing gate for every future prior or architecture change,
       replacing "does V4FinBench go up" — a benchmark one column solves cannot diagnose
-      anything (§42).
+      anything (§42). Verify: the gate written into `CLAUDE.md` as a standing rule, and the
+      next prior or architecture change records its suite-wide spread before and after.

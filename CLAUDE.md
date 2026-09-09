@@ -289,6 +289,15 @@ the training loop did not follow it.
 a top-K credit decision, a top-K dispatch. Report average precision and precision@K beside it.
 Twice in one day a model with ~0.88 AUC was near-useless where it counted.
 
+## Never truncate a validator's output
+
+`uv run python openspec/tools/validate.py | tail -2` prints the task count and hides every
+`FAIL` line above it. That is how a failing `test_openspec` reached a push on 2026-09-10: the
+validator had been reporting three malformed tasks for an hour and the pipe cut them off.
+
+Read the whole output, or grep for what you want to see rather than for where it ends. Same
+family as the `| tee` trap above — a pipe that quietly discards the part that says "no".
+
 ## Count the tasks, not the steps
 
 Training volume is `steps × batch_size`, and that number belongs in every discussion of whether

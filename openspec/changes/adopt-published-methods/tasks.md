@@ -16,9 +16,12 @@
 - [ ] 36.4 **Report native coverage** — the fraction of datasets or tasks scored without
       falling back — alongside accuracy, everywhere. Seldon running 100% of TabBench while two
       of eight models silently failed on 19% and 29% is a real result, and an average over
-      only the easy cases flatters a model exactly as §25 warned.
+      only the easy cases flatters a model exactly as §25 warned. Verify: every experiment
+      harness reports a coverage fraction beside its aggregate, and a test asserts that
+      attempted tasks equal scored plus explicitly-skipped.
 - [ ] 36.5 **Record the fine-tuned-variant decision in `docs/DECISIONS.md`**, either way. D2
       forbids training on real data because auditability is the product; Kostrzewa et al. show
       fine-tuning works and transfers across economies. Whether both offerings can coexist is
       a founder's call, and the task is only to write the answer and its reversal condition
-      down rather than leave it implicit.
+      down rather than leave it implicit. Verify: a numbered decision in `docs/DECISIONS.md`
+      with its alternatives and reversal condition, cross-referenced from D2.
