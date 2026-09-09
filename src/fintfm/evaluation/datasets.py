@@ -215,7 +215,11 @@ class SurvivalDataset:
         X: Features ``(n, n_features)``, float32, NaN for missing.
         y: Binary "distressed within the horizon grid" label ``(n,)``.
         period: Zero-based first horizon at which distress is observed, or
-            :data:`fintfm.modeling.hazard.CENSORED` (-1) if never within the grid.
+            :data:`fintfm.modeling.hazard.CENSORED` (-1) if never observed within this row's
+            observation window.
+        n_observed: How many horizons each row actually carries a label for. Real panels are
+            ragged — a company-year near the end of the data has fewer future labels — and
+            treating that as survival would bias every hazard downward.
         n_horizons: Length of the horizon grid.
         year: Reporting year per row, enabling **time-based** splits — the thing no other
             panel we hold supports.
@@ -228,6 +232,7 @@ class SurvivalDataset:
     X: np.ndarray
     y: np.ndarray
     period: np.ndarray
+    n_observed: np.ndarray
     n_horizons: int
     year: np.ndarray | None
     name: str
@@ -246,95 +251,108 @@ class SurvivalDataset:
 
 
 def load_v4finbench(
-    root: Path | str | None = None, id_cols: tuple[str, ...] = ("company_id", "year")
+    root: Path | str | None = None,
+    max_rows: int | None = None,
+    columns: tuple[str, ...] | None = None,
 ) -> SurvivalDataset:
-    """Load V4FinBench and derive a default period from its six horizon files.
+    """Load V4FinBench and derive a per-firm default period from its six horizon files.
 
-    1,106,879 company-year observations over the Visegrád economies, 2006-2021, 131
-    features, positive rates 0.19-0.36%. Code MIT, **data CC BY 4.0** per the repository's
-    separate ``DATA_LICENSE.md`` — verified, not inferred from the code licence
-    (``docs/FINDINGS.md`` §8).
+    1,000,087 company-year rows over 188,338 companies in the Visegrád economies, 2006-2020,
+    137 numeric features, positive rate 0.19-0.36%. Code MIT, **data CC BY 4.0** per the
+    repository's separate ``DATA_LICENSE.md`` (``docs/FINDINGS.md`` §8).
 
-    The period is derived rather than read: horizon file ``k`` carries "distressed by horizon
-    ``k``", so the first ``k`` whose label is 1 is the default period, and a row that is 0
-    everywhere is censored. Labels are cumulative by construction, so this derivation also
-    **checks** them: a row that is 1 at horizon 2 and 0 at horizon 4 is inconsistent and is
-    reported rather than silently coerced.
+    **The horizon files are joined, never stacked.** They have different row counts —
+    1,000,087 at h=0 falling to 598,832 at h=5 — because a five-year-ahead label requires
+    five more years of data. Stacking them positionally silently misaligns companies, which
+    is the bug this implementation exists to avoid.
+
+    **Missing horizons are administrative censoring, not survival.** A company-year with no
+    h=5 label because the panel ends in 2020 was observed for fewer horizons; it did not
+    survive six. ``n_observed`` records how many horizons each row actually carries, and
+    :meth:`fintfm.modeling.hazard.HazardHead.loss` uses it so short-observed firms are not
+    scored as long-run survivors.
 
     Args:
         root: Directory holding the parquet files. Defaults to ``data/cache/v4finbench``.
-        id_cols: Columns identifying a company-year, excluded from features. Names are
-            checked against the actual columns and a clear error names what was found.
+        max_rows: Optionally subsample to this many company-years, for development against a
+            4.8 GB dataset without loading all of it.
+        columns: Restrict the feature set. ``None`` takes every numeric column.
 
     Returns:
-        A :class:`SurvivalDataset`.
+        A :class:`SurvivalDataset` carrying ``period``, ``n_observed`` and ``year``.
 
     Raises:
-        FileNotFoundError: If the files are absent, with instructions for obtaining them.
-            The data is on Kaggle and needs credentials, which only the repository owner can
-            supply; nothing here attempts to fetch it silently.
+        FileNotFoundError: If the files are absent, with instructions for fetching them.
     """
-    import pandas as pd
+    import numpy as _np
+    import pyarrow.parquet as pq
 
     base = Path(root) if root is not None else CACHE_DIR / "v4finbench"
     missing = [f for f in _V4_HORIZON_FILES if not (base / f).exists()]
     if missing:
         raise FileNotFoundError(
             f"V4FinBench not found under {base}. Missing: {', '.join(missing)}.\n"
-            f"Obtain it one of two ways, both needing a Kaggle account:\n"
-            f"  1. pip install kagglehub, then\n"
-            f"     python -c \"import kagglehub; "
-            f"print(kagglehub.dataset_download('{V4FINBENCH_KAGGLE}'))\"\n"
-            f"     and copy the parquet files into {base}\n"
-            f"  2. download manually from "
-            f"https://www.kaggle.com/datasets/{V4FINBENCH_KAGGLE}\n"
-            f"Data is CC BY 4.0; attribution is required and is carried on the returned "
-            f"dataset."
+            f"Fetch it with:  uv run fintfm-fetch v4finbench\n"
+            f"That needs a Kaggle account; the data is CC BY 4.0."
         )
 
-    frames = [pd.read_parquet(base / f) for f in _V4_HORIZON_FILES]
-    label_col = next(
-        (c for c in frames[0].columns if c.lower() in {"label", "target", "distress", "y"}),
-        None,
-    )
-    if label_col is None:
-        raise ValueError(
-            f"no label column found in {_V4_HORIZON_FILES[0]}; columns are "
-            f"{list(frames[0].columns)[:20]}"
-        )
-    keys = [c for c in id_cols if c in frames[0].columns]
-    if not keys:
-        raise ValueError(
-            f"none of {id_cols} present; columns are {list(frames[0].columns)[:20]}"
-        )
+    key_cols, label_col = ["emis_id", "year"], "main_label"
+    # identifiers, free-text and leakage-prone columns are never features
+    drop = {*key_cols, label_col, "num", "company", "industry", "link"}
 
-    base_df = frames[0]
-    labels = np.stack(
-        [f.sort_values(keys)[label_col].to_numpy().astype(np.int64) for f in frames], axis=1
-    )
-    base_df = base_df.sort_values(keys).reset_index(drop=True)
+    base_tbl = pq.read_table(base / _V4_HORIZON_FILES[0])
+    names = list(base_tbl.schema.names)
+    for col in (*key_cols, label_col):
+        if col not in names:
+            raise ValueError(f"expected column {col!r}; found {names[:15]}")
 
-    # cumulative labels must be non-decreasing across horizons; report, never coerce
-    inconsistent = int((np.diff(labels, axis=1) < 0).any(axis=1).sum())
+    feature_cols = [
+        f.name
+        for f in base_tbl.schema
+        if f.name not in drop and str(f.type).startswith(("int", "double", "float", "bool"))
+    ]
+    if columns is not None:
+        feature_cols = [c for c in feature_cols if c in set(columns)]
+
+    frame = base_tbl.select([*key_cols, label_col, *feature_cols]).to_pandas()
+    if max_rows is not None and len(frame) > max_rows:
+        frame = frame.sample(n=max_rows, random_state=0).reset_index(drop=True)
+    frame = frame.rename(columns={label_col: "h0"})
+
+    # join each later horizon's label on (company, year); a missing join means the horizon
+    # was never observed for that row, which is censoring rather than survival
+    for i, fname in enumerate(_V4_HORIZON_FILES[1:], start=1):
+        lab = pq.read_table(base / fname, columns=[*key_cols, label_col]).to_pandas()
+        lab = lab.rename(columns={label_col: f"h{i}"})
+        frame = frame.merge(lab, on=key_cols, how="left")
+
+    horizon_names = [f"h{i}" for i in range(len(_V4_HORIZON_FILES))]
+    labels = frame[horizon_names].to_numpy(dtype=float)
+    observed = ~_np.isnan(labels)
+    n_observed = observed.sum(axis=1).astype(_np.int64)
+
+    positive = _np.nan_to_num(labels, nan=0.0) > 0.5
+    any_default = positive.any(axis=1)
+    period = _np.where(any_default, positive.argmax(axis=1), -1).astype(_np.int64)
+
+    # cumulative labels must be non-decreasing where observed; report, never coerce
+    seq = _np.where(observed, _np.nan_to_num(labels), _np.nan)
+    with _np.errstate(invalid="ignore"):
+        inconsistent = int(_np.nansum(_np.diff(seq, axis=1) < 0, axis=1).astype(bool).sum())
     if inconsistent:
         print(
-            f"    WARNING: {inconsistent} rows have non-cumulative horizon labels "
-            f"({inconsistent / len(labels):.3%}); periods derived from the first positive"
+            f"    NOTE: {inconsistent:,} rows ({inconsistent / len(frame):.3%}) have "
+            f"non-cumulative horizon labels; period taken from the first positive"
         )
 
-    any_default = labels.any(axis=1)
-    period = np.where(any_default, labels.argmax(axis=1), -1).astype(np.int64)
-
-    feature_cols = [c for c in base_df.columns if c not in {*keys, label_col}]
-    X = base_df[feature_cols].to_numpy(dtype=np.float32)
-    year = base_df["year"].to_numpy() if "year" in base_df.columns else None
-
+    X = frame[feature_cols].to_numpy(dtype=_np.float32)
     return SurvivalDataset(
         X=X,
-        y=any_default.astype(np.int64),
+        y=any_default.astype(_np.int64),
         period=period,
+        n_observed=n_observed,
         n_horizons=len(_V4_HORIZON_FILES),
-        year=year,
+        year=frame["year"].to_numpy(),
         name="v4finbench",
         licence="CC-BY-4.0",
         attribution=(

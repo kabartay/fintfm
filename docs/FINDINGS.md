@@ -1384,3 +1384,58 @@ rather than asserted as a win.
   scale, in either direction.
 - **Nothing here is about calibration of the curve levels.** §17's warning applies: coherence
   and calibration are independent, and a monotone curve can still state the wrong numbers.
+
+## 22. V4FinBench ingested, and its shape corrected two assumptions in our own code
+
+**Date:** 2026-09-09. **Status:** MEASURED by inspection of the real files. Resolves
+`second-credit-panel` task 7.5. Data CC BY 4.0, 4.8 GB, fetched with
+`uv run fintfm-fetch v4finbench`.
+
+| property | value |
+| --- | --- |
+| company-years (h=0) | **1,000,087** |
+| unique companies | **188,338** |
+| numeric features | **136** |
+| years | **2006-2020** |
+| per-horizon positive rate | 0.36% (h=0) to 0.19% (h=5) |
+| cumulative default rate | ~1.4% across the grid |
+
+**This is the first panel we hold with dates and firm identifiers**, so it is the first that
+supports out-of-time validation and per-firm hazard paths at all (§7 established the UCI
+panels support neither).
+
+### Two bugs it caught in code already written
+
+**The horizon files must be joined, not stacked.** Row counts fall from 1,000,087 at h=0 to
+598,832 at h=5, because a five-year-ahead label requires five further years of data. The
+first loader stacked them positionally after a sort, which would have **silently misaligned
+companies** — every feature row paired with another firm's label. Caught only by inspecting
+the real files rather than trusting the documented schema.
+
+**Missing horizons are administrative censoring, not survival.** A company-year near the end
+of the panel simply has fewer future labels. Measured on a 60,000-row sample, the
+observation counts are `[0, 212, 5923, 6341, 5595, 6069, 35860]` for 0 through 6 horizons —
+so only 60% of rows carry the full grid. Scoring the other 40% as long-run survivors would
+bias every hazard downward. `HazardHead.loss` now takes a per-row `n_observed`, and a test
+asserts that surviving five observed periods costs more likelihood than surviving two.
+
+Neither error would have failed loudly. Both would have produced a trained model and
+plausible numbers.
+
+### Also worth noting
+
+The real feature names are ratios — `Working_capital/total_assets`,
+`Current_assets/short_term_liabilities`, `Equity/long_term_liabilities`. That is exactly the
+account-and-ratio structure §19 rebuilt the prior around, arrived at independently from
+reasoning about how such panels are constructed. Modest corroboration that the reasoning was
+right.
+
+The observed period histogram on that sample is `[212, 192, 134, 121, 82, 72]` — a declining
+hazard, which is the seasoning shape `_sample_survival` already samples among its profiles.
+
+### What this unblocks
+
+- **Real-data evaluation of the term structure** (`pd-term-structure`), which was impossible
+  on any panel we held.
+- **`time-based-evaluation`**, blocked since §7 for want of dates.
+- A second economy and accounting regime for every existing result.

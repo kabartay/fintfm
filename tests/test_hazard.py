@@ -230,3 +230,40 @@ def test_survival_training_reduces_loss_and_keeps_the_guarantee():
     with torch.no_grad():
         ts = model.term_structure(b.X, b.y, b.n_ctx)
     assert viol(ts).item() == 0
+
+
+def test_censoring_is_per_row_not_global():
+    """A firm observed for 2 horizons must not be scored as surviving all 5.
+
+    Real panels are ragged: V4FinBench falls from 1,000,087 rows at h=0 to 598,832 at h=5
+    because a 5-year-ahead label needs five more years of data. Scoring a short-observed
+    firm as a long-run survivor biases every hazard downward.
+    """
+    torch.manual_seed(0)
+    head = HazardHead(d_model=4, n_horizons=5)
+    x = torch.zeros(1, 4)
+    with torch.no_grad():
+        head.proj.weight.zero_()
+        head.proj.bias.fill_(-2.0)
+
+    short = head.loss(x, torch.tensor([CENSORED]), n_observed=torch.tensor([2]))
+    full = head.loss(x, torch.tensor([CENSORED]), n_observed=torch.tensor([5]))
+    # surviving 5 periods is stronger evidence than surviving 2, so it costs more likelihood
+    assert short < full
+    # and the default (no n_observed) must equal the full-grid case
+    assert torch.isclose(head.loss(x, torch.tensor([CENSORED])), full)
+
+
+def test_per_row_censoring_ignores_horizons_beyond_observation():
+    """Hazards past a row's observation window must not affect its likelihood."""
+    torch.manual_seed(0)
+    head = HazardHead(d_model=4, n_horizons=4)
+    x = torch.zeros(1, 4)
+    with torch.no_grad():
+        head.proj.weight.zero_()
+        head.proj.bias.copy_(torch.tensor([-3.0, -3.0, 5.0, 5.0]))  # huge late hazards
+    observed_two = head.loss(x, torch.tensor([CENSORED]), n_observed=torch.tensor([2]))
+    with torch.no_grad():
+        head.proj.bias.copy_(torch.tensor([-3.0, -3.0, -5.0, -5.0]))  # tiny late hazards
+    observed_two_again = head.loss(x, torch.tensor([CENSORED]), n_observed=torch.tensor([2]))
+    assert torch.isclose(observed_two, observed_two_again, atol=1e-6)

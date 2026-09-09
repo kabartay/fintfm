@@ -79,7 +79,12 @@ class HazardHead(nn.Module):
         survival = torch.cumprod(1.0 - self.hazards(h), dim=-1)
         return 1.0 - survival
 
-    def loss(self, h: torch.Tensor, period: torch.Tensor) -> torch.Tensor:
+    def loss(
+        self,
+        h: torch.Tensor,
+        period: torch.Tensor,
+        n_observed: torch.Tensor | None = None,
+    ) -> torch.Tensor:
         """Discrete-time survival negative log-likelihood.
 
         For a firm defaulting in period ``t`` the likelihood is
@@ -88,10 +93,19 @@ class HazardHead(nn.Module):
         one horizon at a time, which is what makes the horizons mutually consistent instead
         of merely non-contradictory.
 
+        **Censoring is per row, not global.** A firm observed for only three horizons because
+        the panel ends has not "survived five"; it contributed evidence about three. Real
+        panels are ragged this way — V4FinBench drops from 1,000,087 rows at h=0 to 598,832
+        at h=5 for exactly this reason — and scoring a short-observed firm as a long-run
+        survivor would bias every hazard downward.
+
         Args:
             h: ``(N, d_model)`` row representations.
             period: ``(N,)`` zero-based default period, or :data:`CENSORED` for no default
-                within the grid.
+                observed within that row's observation window.
+            n_observed: ``(N,)`` number of horizons actually observed for each row. Defaults
+                to the full grid for every row, which is correct only for synthetic tasks
+                where every firm is followed for the whole grid.
 
         Returns:
             Scalar mean negative log-likelihood.
@@ -107,8 +121,13 @@ class HazardHead(nn.Module):
         log_surv = torch.log1p(-hz)  # log(1 - h_j), numerically safer than log(1-h)
         idx = torch.arange(k, device=hz.device).expand(n, k)
         censored = period.view(-1, 1) == CENSORED
-        # survived strictly before the default period; for censored rows, all periods
-        before = idx < torch.where(censored, torch.full_like(period.view(-1, 1), k), period.view(-1, 1))
+        if n_observed is None:
+            observed = torch.full_like(period.view(-1, 1), k)
+        else:
+            observed = n_observed.view(-1, 1).clamp(0, k)
+        # survived strictly before the default period; for a censored row, survived only
+        # through the horizons it was actually observed for
+        before = idx < torch.where(censored, observed, period.view(-1, 1))
         ll = (log_surv * before).sum(dim=-1)
         # plus the hazard of defaulting in that period, for uncensored rows only
         at = F.one_hot(period.clamp(min=0), num_classes=k).to(hz.dtype)

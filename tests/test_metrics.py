@@ -145,3 +145,29 @@ def test_cache_dir_is_anchored_on_the_repo_root_not_a_parent_count():
         f"CACHE_DIR {CACHE_DIR} is not under the repo root"
     )
     assert "src" not in CACHE_DIR.parts
+
+
+def test_v4finbench_loader_joins_rather_than_stacks():
+    """Regression: the horizon files have different row counts and must be joined.
+
+    h=0 has 1,000,087 rows and h=5 has 598,832, because a five-year-ahead label needs five
+    more years of data. Stacking them positionally silently misaligns companies. Missing
+    horizons are administrative censoring, not survival, so `n_observed` must vary.
+    """
+    from fintfm.evaluation.datasets import CACHE_DIR
+
+    if not (CACHE_DIR / "v4finbench" / "company_years_h6.parquet").exists():
+        pytest.skip("V4FinBench not fetched; run `uv run fintfm-fetch v4finbench`")
+    from fintfm.evaluation import load_v4finbench
+
+    ds = load_v4finbench(max_rows=5000)
+    assert ds.has_period_labels and ds.year is not None
+    assert ds.licence == "CC-BY-4.0" and "CC BY 4.0" in ds.attribution
+    assert ds.X.shape[0] == ds.period.shape[0] == ds.n_observed.shape[0]
+    # ragged observation is the point: not every row carries all six horizons
+    assert ds.n_observed.min() < ds.n_horizons, "no censoring found; the join likely failed"
+    assert ds.n_observed.max() <= ds.n_horizons
+    # a defaulting row must default within its observed window
+    defaulted = ds.period >= 0
+    assert (ds.period[defaulted] < ds.n_observed[defaulted]).all()
+    assert ((ds.period >= 0) == (ds.y == 1)).all()
