@@ -23,6 +23,7 @@ than the originals.
 | claim | size | § |
 | --- | --- | --- |
 | Domain prior beats a generic one | **+0.049 AUC**, 3 of 6 cells significant | §14 |
+| **Gap to a competent gradient booster** | **CatBoost 40-60% Brier skill against our 1-2%** | **§25** |
 | Model beats logistic regression | **+0.033 AUC** | §17 |
 | Model beats an untrained model of the same architecture | **+0.031 AUC** | §15 |
 | Calibration advantage over a *calibrated* gradient boosting | **~2×**, and only below ~250 rows | §16 |
@@ -1648,8 +1649,37 @@ silent absence, and a silently absent baseline flatters us. Skips must be *annou
 `CLAUDE.md` and it still caught me, which is an argument for the harness enforcing it rather
 than a human remembering.
 
-### Consequence
+### Measured, once the subprocess fix made it possible
 
-**No comparison against gradient boosting should be quoted until this lands.** The direction
-of the error is known — against us — so the existing findings are not retracted, but their
-margins are optimistic and every one of them says so now.
+Fitting the family out-of-process (`evaluation/boosting.py`) works with torch loaded. On the
+UCI Polish panels, 30% held out, out-of-the-box on every side:
+
+| panel | logreg | RF | **sklearn gboost** | lightgbm | **catboost** | xgboost |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1-year | 0.6974 | 0.9400 | **0.9624** | 0.9799 | **0.9864** | 0.9761 |
+| 3-year | 0.6990 | 0.8552 | **0.8953** | 0.9316 | **0.9353** | 0.9245 |
+| 5-year | 0.7793 | 0.8824 | **0.9252** | 0.9426 | **0.9432** | 0.9390 |
+
+**The weak baseline understated the field by +0.018 to +0.040 AUC.** CatBoost wins every
+panel.
+
+**The Brier-skill comparison is the one that hurts.** Against the feature-free reference
+(§17), CatBoost scores **+59.9%, +41.7%, +46.4%** skill. This project's best model scores
+**1-2%** (§17). That is not a narrow gap and no amount of framing closes it.
+
+### Consequence, restated at the strength this evidence supports
+
+Findings 12, 16 and 17 compared against a baseline 0.02-0.04 AUC weaker than the real field,
+so **their margins are optimistic and their conclusions are directionally unchanged but
+worse**. Specifically:
+
+- §16's "above ~1,000 rows a calibrated gradient boosting is the better model" holds *more
+  strongly*, and the crossover is probably lower than 1,000.
+- §17's 1-2% Brier skill now has a reference point: a competent gradient booster achieves
+  40-60% on the same panels. **Our headline calibration story does not survive contact with
+  CatBoost's skill scores**, and the honest position is that the model is not yet competitive
+  on discrimination *or* on proper-scoring-rule terms at these dataset sizes.
+
+What survives untouched is coherence (§20, §21), which is a property no gradient booster has
+at all, and provenance (§1). Those were already the thesis; this finding is why they must
+remain it.
