@@ -37,6 +37,12 @@ bench = [
     # finding depends on, while CI stayed green because CI has no data and skips the test.
     "pyarrow>=17",
 ]
+# Hugging Face Jobs, for GPU pretraining runs. huggingface_hub is Apache-2.0.
+# See docs/HF_JOBS.md; secrets go through `--secrets`, never `-e`.
+hf = [
+    "huggingface_hub[cli]>=0.34",
+]
+
 # V4FinBench data lives on Kaggle and needs an account. Data is CC BY 4.0; the
 # kagglehub client is Apache-2.0. See docs/FINDINGS.md §8.
 kaggle = [
