@@ -281,6 +281,29 @@ path, and no longer the justification for renting NVIDIA.
 
 Everything before a Phase 1 result is positioning, and positioning is not evidence.
 
+## Two structural plays, borrowed as inspiration rather than method
+
+Neither of these is about tabular models, and neither involves using anyone's code. Both are
+about *how a small team competes with a frontier lab*, which is our actual situation.
+
+**Compete on cost and access, not capability.** FinGPT's published benchmark leads on price,
+not quality: 0.882 weighted F1 for **$17** of GPU time on one consumer card, against
+BloombergGPT's **$2.67M** and Llama-2-7B's **$4.23M**. They did not beat Bloomberg by having
+more compute; they made the compute irrelevant. Our position is the same shape — Google
+pretrains TabFM on hundreds of millions of synthetic datasets and we have a laptop GPU — so
+"as good, vastly cheaper, and deployable" is a more winnable claim than "better".
+
+**Deployability is the gap the frontier labs are opening themselves** (`FINDINGS` §24).
+Google ships Apache-2.0 code with non-commercial weights for both TabFM and TimesFM 3.0, and
+TimesFM's weights were permissive through 2.5 and are not at 3.0. A regulated lender
+therefore **cannot deploy the best available models at all**. That is not a quality gap and
+no amount of their accuracy work closes it. It is the same opening FinGPT took against
+Bloomberg's privileged data and closed APIs.
+
+Combined with the coherence guarantee, the honest pitch shape is: *a model a lender can
+actually run in production, whose PD curve cannot contradict itself, with the evidence to
+show a validator* — rather than a claim to be more accurate than Google.
+
 ## The honest risk register
 
 - **The prior may not transfer.** Unmeasured. Phase 1 exists to kill it fast.
