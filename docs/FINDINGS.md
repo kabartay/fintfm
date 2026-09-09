@@ -2635,12 +2635,29 @@ at 199,392-200,822, which is the even split their company-grouped assignment sho
 
 | arm | ROC-AUC | F₁ |
 | --- | --- | --- |
-| **fintfm** (847K params, synthetic-only) | **0.9811 ± 0.0008** | 0.2202 ± 0.0129 |
-| logistic regression (fitted on ~600k rows) | 0.9839 ± 0.0013 | 0.2439 ± 0.0177 |
+| **CatBoost** | **0.9959 ± 0.0002** | **0.4275 ± 0.0135** |
+| logistic regression | 0.9839 ± 0.0013 | 0.2439 ± 0.0177 |
+| **fintfm** (847K params, synthetic-only) | 0.9811 ± 0.0008 | 0.2202 ± 0.0129 |
+| LightGBM | 0.9649 ± 0.0148 | 0.3727 ± 0.0080 |
+| XGBoost | 0.8873 ± 0.0752 | 0.3379 ± 0.0131 |
 
-**We are 0.0028 AUC behind logistic regression**, consistently — every one of the five folds,
-with a fold-to-fold spread of ±0.0008 that is smaller than the gap. So the deficit is real and
-it is small.
+**The baselines here are untuned**, and that is a defect rather than a footnote. Their
+protocol grid-searches every baseline on the validation fold (their Table 5); these run at
+library defaults. It shows: default XGBoost lands at 0.8873 with a ±0.0752 fold spread, and
+default LightGBM at 0.9649, **both below logistic regression**, while the paper reports
+gradient-boosted trees as its strongest classical cluster. So two of the three boosting arms
+above are broken rather than beaten, and the field is understated — the same defect as §25,
+pointed the other way. The harness now carries their grids behind `--tune` and prints a
+warning when they are not used.
+
+**CatBoost is the arm that matters, and it lands at 0.9959** — within 0.0009 of the ~0.995 the
+paper reports for its strongest methods, which is the best evidence yet that this reproduction
+is faithful. CatBoost happens to be well-configured out of the box; the other two boosters are
+not.
+
+Against it we are **0.0148 AUC and roughly half the F₁ behind**. Against logistic regression we
+are 0.0028 behind on AUC, consistently across all five folds, with a fold spread of ±0.0008
+that is smaller than the gap — so even that small deficit is real rather than noise.
 
 That is a materially better showing than out-of-time, where the gap to per-horizon logistic
 regression is 0.047 (§38). Two protocols, two answers, and the difference is the protocol: this
@@ -2657,14 +2674,9 @@ a different sub-protocol: a 20,000-observation training subset, and a test set b
 held-out positives plus sampled negatives. F₁ depends directly on class balance, so enriching
 the test set with positives inflates it. Our 0.2202 is on the full fold at a 0.359% base rate.
 
-What *is* comparable is that their Figure 4 shows gradient-boosted trees well above logistic
-regression on F₁ under the main protocol, and our logistic regression (0.2439) sits close to
-where theirs should. **The gap is therefore to gradient boosting, not to their protocol** — and
-we cannot quantify it from a figure. Their per-horizon table is in an appendix not yet read,
-and the direct route is to run the boosters ourselves on these folds, which
-`evaluation/boosting.py` already supports out-of-process but the protocol harness does not yet
-call. That is the next task, and §25 is the standing reminder of what happens when a comparison
-omits the strong baseline.
+Running the boosters ourselves settles it without needing their figure: **CatBoost reaches
+0.4275 F₁ on these folds against our 0.2202.** The gap is to gradient boosting, it is roughly
+a factor of two, and it is not an artefact of their test-set construction.
 
 **Separately, AUC 0.981 with F₁ 0.220 is itself informative.** Ranking is excellent and the
 operating point is poor, which is a threshold and probability-shape problem rather than a
