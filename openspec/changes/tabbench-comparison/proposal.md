@@ -15,9 +15,11 @@ or data of theirs — which is exactly the line `CLAUDE.md` draws: *"Evaluating 
 published numbers is always fine; running someone's checkpoint inside anything commercial is
 not."*
 
-**What is explicitly excluded:** the Neuralk-provided data from the unrelated solar engagement.
-Data handed over for one engagement does not become another project's benchmark, and it is a
-different domain besides.
+**What is explicitly excluded:** any third-party data received through a client engagement.
+Such data belongs to the client, and reusing it to benchmark a different commercial project is
+a permission question — see `CLAUDE.md`'s licensing boundary, which requires confirming the
+terms, keeping the data outside this repository, and asking before publishing anything derived
+from it.
 
 ## What
 
