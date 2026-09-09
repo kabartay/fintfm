@@ -293,6 +293,14 @@ more compute; they made the compute irrelevant. Our position is the same shape �
 pretrains TabFM on hundreds of millions of synthetic datasets and we have a laptop GPU — so
 "as good, vastly cheaper, and deployable" is a more winnable claim than "better".
 
+**Out-of-time evaluation is rarer than it should be, even at the top.** BloombergGPT's corpus
+is timestamped 2007-2022 and the paper states plainly that "we do not utilize date
+information in this work", deferring temporal evaluation to future work. FinCast evaluates
+zero-shot but splits 7:1:2 rather than by date. A field where the best-resourced model had
+forty years of timestamped data and did not split on it is a field where **"validated out of
+time, across the 2008 and 2020 regimes" is a differentiator rather than table stakes** — and
+it is precisely what a supervisory validator asks for first.
+
 **Deployability is the gap the frontier labs are opening themselves** (`FINDINGS` §24).
 Google ships Apache-2.0 code with non-commercial weights for both TabFM and TimesFM 3.0, and
 TimesFM's weights were permissive through 2.5 and are not at 3.0. A regulated lender
