@@ -80,23 +80,44 @@ def _eval_quality(
     for _ in range(n_batches):
         batch = sample_batch(rng, prior_cfg, batch_size=16).to(device)
         logits = model(batch.X, batch.y, batch.n_ctx, batch.n_classes)[:, batch.n_ctx :]
-        p_pos = torch.softmax(logits.float(), dim=-1)[..., 1]
-        probs.append(p_pos.reshape(-1).cpu().numpy())
+        p_all = torch.softmax(logits.float(), dim=-1)
+        probs.append(p_all.reshape(-1, p_all.shape[-1]).cpu().numpy())
         targets.append(batch.y[:, batch.n_ctx :].reshape(-1).cpu().numpy())
     model.train()
 
     p = np.concatenate(probs)
-    y = np.concatenate(targets).astype(np.float64)
-    base = float(y.mean())
-    out = {"auc": float("nan"), "brier_skill": float("nan"), "base_rate": base}
-    if len(np.unique(y)) < 2:
+    y = np.concatenate(targets).astype(np.int64)
+    present = np.unique(y)
+    out = {"auc": float("nan"), "brier_skill": float("nan"), "base_rate": float("nan")}
+    if len(present) < 2:
         return out
     from sklearn.metrics import roc_auc_score
 
-    out["auc"] = float(roc_auc_score(y, p))
-    # skill against the feature-free predictor that returns the base rate
-    brier = float(np.mean((p - y) ** 2))
-    reference = float(np.mean((base - y) ** 2))
+    # The generic SCM prior emits multi-class tasks whenever max_classes > 2, and scoring the
+    # class-1 column alone raises "multi_class must be in ('ovo', 'ovr')". That crash killed a
+    # pretraining run, which is the right failure mode -- a silently wrong AUC here would have
+    # been far worse, since this metric is the instrument everything else is read through
+    # (docs/FINDINGS.md §42).
+    k = p.shape[-1]
+    onehot = np.zeros((len(y), k), dtype=np.float64)
+    onehot[np.arange(len(y)), y] = 1.0
+    if len(present) == 2 and set(present.tolist()) <= {0, 1}:
+        out["base_rate"] = float((y == 1).mean())
+        out["auc"] = float(roc_auc_score(y, p[:, 1]))
+    else:
+        # macro one-vs-rest over the classes actually present; columns for absent classes
+        # would make the average meaningless rather than merely noisy
+        out["base_rate"] = float((y == present[0]).mean())
+        cols = p[:, present]
+        cols = cols / np.clip(cols.sum(axis=1, keepdims=True), 1e-12, None)
+        out["auc"] = float(
+            roc_auc_score(y, cols, multi_class="ovr", average="macro", labels=present)
+        )
+    # Brier skill against the feature-free predictor returning the class frequencies. The
+    # multi-class form reduces to the binary one when k == 2, so both paths are comparable.
+    freq = onehot.mean(axis=0)
+    brier = float(np.mean(np.sum((p - onehot) ** 2, axis=1)))
+    reference = float(np.mean(np.sum((freq - onehot) ** 2, axis=1)))
     out["brier_skill"] = 1.0 - brier / reference if reference > 0 else float("nan")
     return out
 

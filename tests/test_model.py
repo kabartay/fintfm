@@ -219,3 +219,32 @@ def test_predict_proba_refuses_a_survival_only_checkpoint(tmp_path):
     with pytest.raises(RuntimeError, match="not on 'classification'"):
         clf.predict_proba(X)
     clf.predict_term_structure(X)  # the trained head still works
+
+
+def test_eval_quality_handles_multi_class_tasks():
+    """A multi-class prior crashed the training metric mid-run (docs/FINDINGS.md §44).
+
+    `roc_auc_score` on the class-1 column alone raises "multi_class must be in ('ovo','ovr')"
+    as soon as the generic SCM prior emits more than two classes, which is any run with
+    `--p-financial < 1` and `max_classes > 2`.
+    """
+    import numpy as np
+
+    from fintfm.modeling.model import FinancialTFM, ModelConfig
+    from fintfm.modeling.train import _eval_quality
+    from fintfm.prior import PriorConfig
+
+    for max_classes in (2, 5):
+        model = FinancialTFM(
+            ModelConfig(max_features=16, d_model=32, d_cell=16, n_layers=1,
+                        n_col_layers=1, max_classes=max_classes)
+        )
+        cfg = PriorConfig(max_features=16, max_classes=max_classes, p_financial=0.5, n_rows=200)
+        q = _eval_quality(model, cfg, np.random.default_rng(0), n_batches=2)
+        assert set(q) == {"auc", "brier_skill", "base_rate"}
+        for key, value in q.items():
+            assert np.isnan(value) or np.isfinite(value), (max_classes, key, value)
+        if np.isfinite(q["auc"]):
+            assert 0.0 <= q["auc"] <= 1.0
+            # skill against the class-frequency predictor is bounded above by 1
+            assert q["brier_skill"] <= 1.0
