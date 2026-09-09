@@ -1,9 +1,15 @@
 # Tasks
 
-- [ ] 31.1 Cheapest falsification first: score the existing checkpoint with contexts filtered
+- [x] 31.1 Cheapest falsification first: score the existing checkpoint with contexts filtered
       to firms whose outcome is known across the whole grid, versus unfiltered. Verify: if
       horizon-3 AUC moves materially on filtering alone, timing evidence in the context is
       confirmed to matter before any architecture work is done.
+      **Done 2026-09-09: confounded, not supportive (`docs/FINDINGS.md` §31).** The filter
+      moved mean AUC +0.006 but the gain was largest at h0 (+0.0102) and smallest at h3
+      (+0.0018) — the opposite of the prediction. `n_observed` is censored by default itself,
+      so the filter removes defaulters and drops the context rate from 1.54% to 0.19%; the
+      gain is §29's base-rate effect, not an observation-depth effect. No cheap unconfounded
+      test exists. Tasks 31.2+ now sit behind `retrieval-context`.
 - [ ] 31.2 Extend `FinancialTFMClassifier.fit` to accept `period` and `n_observed`, carried
       through context selection intact. Verify: a test asserting the selected context's period
       distribution matches the selected rows, and that omitting them leaves the binary path

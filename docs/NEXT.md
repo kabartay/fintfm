@@ -22,16 +22,23 @@ missing base-rate correction; fixing it cut fourth-horizon calibration error 32�
 untouched, and revealed that the context default rate — not the architecture, not the prior —
 was driving the ranking. The queue follows that.
 
-1. **`survival-context-labels`** — the largest identified unfixed defect. The context carries
-   binary `y` and never the default *period*, so the hazard head shapes a six-horizon curve
-   with no timing evidence in context, and its AUC decays 0.8398 → 0.5968 across the grid
-   while the per-horizon baseline holds up. The data, the prior and the loss all already carry
-   `period`; only the context path discards it. Task 31.1 tests the premise before any
-   architecture is touched.
+1. **`retrieval-context`** — §31 decomposed the out-of-time gap and **84% of it is
+   horizon-independent**: a constant 0.132 AUC deficit against a baseline fitted on 72,622
+   rows while the model sees a 2,000-row context. That is §16's crossover on real data. It
+   cannot be closed by supplying more rows — uniform context peaks at 2,000 and *falls* at
+   4,000, because pretraining used 256-1,024-row tasks — and pretraining on bigger tasks is
+   priced out at 32× per step for 2,048 rows (`docs/COMPUTE.md`). **Choosing which 2,000 rows
+   is therefore the only remaining lever on the dominant term.**
 
 2. **`revisit-context-strategy`** — §29 reversed a published default by 10-12 AUC points on
    one seed. Task 32.1 (three seeds) is cheap and either promotes the finding or closes the
-   proposal; the class default should not stay in a state one experiment contradicts.
+   proposal; the class default should not stay in a state one experiment contradicts. It also
+   feeds item 1: §29 says the context's composition dominates, and retrieval is a claim about
+   composition.
+
+3. **`survival-context-labels`** — **demoted the same day it was written** (§31). Its honest
+   ceiling is the 0.024 of excess horizon decay, not the 0.03+ its pre-registration claimed,
+   and its cheap premise test came back confounded. Worth doing, second-order.
 
 ## Tier 1 — the thesis now rests on these
 

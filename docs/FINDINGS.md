@@ -2004,3 +2004,71 @@ curve with no timing evidence in context whatsoever. That is consistent with wha
 column does: 0.8398 at the first horizon, decaying to 0.5968 by the fourth. Supplying
 per-horizon context labels is `openspec/changes/survival-context-labels`, and it is now the
 top-priority change in the queue.
+
+---
+
+## 31. Correcting §30's own diagnosis: 84% of the out-of-time gap is horizon-independent, so it is a context-size problem, not a timing one
+
+**Date:** 2026-09-09. **MEASURED**, from `runs/v4-oot-corrected/v4_out_of_time.json` and the
+context sweep. **This finding corrects a claim made in §30 and in
+`openspec/changes/survival-context-labels` earlier the same day.**
+
+§30 read the hazard head's decay across horizons — 0.8398 at the first, 0.5968 at the fourth
+— as the signature of a context that says *who* defaulted and never *when*, and the proposal
+written from it called the widening gap "the signature of missing timing evidence". Decomposing
+the gap shows that framing is wrong:
+
+| horizon | ours (uniform) | per-horizon logreg | gap | our decay from h0 | its decay from h0 |
+| --- | --- | --- | --- | --- | --- |
+| 0 | 0.8398 | 0.9717 | 0.1319 | — | — |
+| 1 | 0.7559 | 0.8908 | 0.1348 | −0.0838 | −0.0809 |
+| 2 | 0.6842 | 0.8310 | 0.1468 | −0.1556 | −0.1407 |
+| 3 | 0.5968 | 0.7530 | 0.1561 | −0.2429 | −0.2187 |
+
+**The baseline decays almost exactly as fast as we do** — −0.2187 against −0.2429 across the
+grid. Far horizons are simply harder for everyone, which is what a five-year default forecast
+should look like. Our *excess* decay is 0.0242 over three steps.
+
+So the gap decomposes into a **constant 0.132 deficit present already at the first horizon**
+plus a 0.024 widening. **84% of the deficit is horizon-independent.** Fixing the term
+structure's timing information addresses, at most, the 16%.
+
+### Task 31.1's test was confounded, and the confound is instructive
+
+The cheap premise test — restrict the context to firms observed across the whole grid — moved
+mean AUC by +0.006, but the effect was **largest at the first horizon** (+0.0102) and smallest
+at the fourth (+0.0018), the opposite of what the timing hypothesis predicts.
+
+The reason is that `n_observed` is censored *by default itself*: a firm defaulting in year two
+has two observed horizons. So filtering to full-grid observation removes the defaulters, and
+it took the context's default rate from 1.54% to **0.19%**. That is not an observation-depth
+manipulation, it is a base-rate manipulation, and the AUC it bought is what §29 already
+predicts from a lower context rate. **No cheap unconfounded test of the timing hypothesis
+exists**, because the only available proxy for observation depth is entangled with the label.
+
+### What the constant deficit actually is
+
+It is §16 and §27 restated on real data. Per-horizon logistic regression is *fitted on all
+72,622 training rows*; the hazard head sees a **2,000-row context**. That is the known
+crossover — above a few hundred rows a fitted model wins — appearing exactly where it should.
+
+**And it cannot be closed by enlarging the context.** From the sweep, uniform context at
+1,000/2,000/4,000 rows scores 0.6921 / **0.7192** / 0.6986 mean AUC. It peaks at 2,000 and
+*falls* at 4,000, because the model was pretrained on tasks of 256-1,024 rows and a 4,000-row
+context is out of distribution. Pretraining on larger tasks is the obvious response and
+`docs/COMPUTE.md` prices it out: 2,048-row tasks cost 32× per step and 4,096-row tasks 500×.
+
+### Consequence for the queue
+
+**Choosing *which* 2,000 rows enter the context is the lever; supplying more rows is not.**
+That promotes `retrieval-context` to the top of the queue and demotes
+`survival-context-labels`, which now has an honest expected ceiling of roughly 0.024 AUC rather
+than the 0.03+ its pre-registered prediction claimed. The pre-registration stands as written —
+it was recorded before the run and it is now expected to fail, which is the point of writing
+it down.
+
+**The lesson, and it is the second one today.** §28's wrong diagnosis blamed the prior for what
+was a context bug. §30's wrong diagnosis blamed the context labels for what is a context *size*
+limit. Both times the story was built from a pattern in the numbers before the pattern was
+decomposed. **Decompose before diagnosing**: a monotone trend and a constant offset look
+identical in a summary table and imply completely different work.

@@ -14,14 +14,23 @@ The out-of-time AUC column is exactly what that predicts (`docs/FINDINGS.md` §3
 | fintfm hazard | 0.8398 | 0.7559 | 0.6842 | 0.5968 |
 | per-horizon logreg | 0.9717 | 0.8908 | 0.8310 | 0.7530 |
 
-The first horizon is respectable and the curve decays toward chance, while the baseline — which
-gets a *separate fitted model per horizon, each one seeing that horizon's labels* — holds up.
-The gap widens monotonically with the horizon, which is the signature of missing timing
-evidence rather than of a weaker model.
+**Corrected 2026-09-09 by `docs/FINDINGS.md` §31, before any work started.** This proposal
+was originally written claiming the widening gap was "the signature of missing timing
+evidence". Decomposition shows otherwise: the baseline decays almost as fast as we do (−0.2187
+against −0.2429 across the grid), so the gap is a **constant 0.132 deficit present already at
+the first horizon** plus a 0.024 widening. **84% of the deficit is horizon-independent** and
+belongs to `retrieval-context`, not here.
 
-This is now the largest identified, unfixed defect on the path the strategy depends on. The
-whole IFRS 9 lifetime-ECL argument (D3) rests on the far end of the curve, which is precisely
-where this model is currently worst.
+What survives is the 16%: our excess decay of 0.0242 over three steps is real, and a context
+carrying no timing information is a plausible cause of it. The IFRS 9 lifetime-ECL argument
+(D3) does rest on the far end of the curve, so 0.024 there is worth having — but this is a
+second-order change on a first-order problem, and it should not be worked before
+`retrieval-context`.
+
+Task 31.1's cheap premise test came back **confounded rather than supportive**: `n_observed`
+is censored by default itself, so filtering to full-grid observation removes the defaulters
+and changes the context base rate 8×. There is no cheap unconfounded test, which is a further
+argument for sequencing this behind cheaper work.
 
 ## What
 
@@ -54,6 +63,11 @@ explanation is wrong and the gap is about capacity or the prior instead.
 **Pre-registered prediction, recorded before running:** mean AUC improves by at least 0.03 and
 the largest gain lands at horizons 2 and 3. Writing this down first is what makes the result
 evidence rather than a story fitted afterwards.
+
+**Left exactly as written, and now expected to fail.** §31 caps the horizon-dependent share of
+the gap at about 0.024, below this prediction's 0.03 threshold. The prediction is not being
+revised to match later evidence — that would defeat its purpose. If the change lands above
+0.03 anyway, §31's decomposition is wrong and that is worth more than the accuracy.
 
 ## Blocked by
 
