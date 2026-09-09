@@ -26,7 +26,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-bench = ["lightgbm>=4.0"]
+bench = [
+    "catboost>=1.2",
+    "lightgbm>=4.0",
+    "xgboost>=2.0",
+]
 # V4FinBench data lives on Kaggle and needs an account. Data is CC BY 4.0; the
 # kagglehub client is Apache-2.0. See docs/FINDINGS.md §8.
 kaggle = [

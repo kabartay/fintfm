@@ -56,13 +56,43 @@ def _baselines() -> dict[str, object]:
     }
 
 
-def _maybe_lightgbm() -> dict[str, object]:
+def _boosting_family() -> dict[str, object]:
+    """The gradient boosting baselines that actually matter.
+
+    **sklearn's ``GradientBoostingClassifier`` is the weakest member of this family** and was
+    for a long time the only one running here: LightGBM was silently skipped on every run
+    because of a missing ``libomp``, and CatBoost and XGBoost were never installed. Findings
+    12, 16 and 17 all compared against the weak baseline, so the real gap was understated.
+
+    Each import is guarded because these are optional and their native libraries fail in
+    ways an import guard alone does not catch — but a skip is now **announced**, not silent,
+    since a quietly absent baseline flatters us.
+    """
+    out: dict[str, object] = {}
+    imp = SimpleImputer(strategy="median")
+
     try:
         from lightgbm import LGBMClassifier
-    except (ImportError, OSError):
-        # OSError covers e.g. a missing libomp shared library on macOS.
-        return {}
-    return {"lightgbm": make_pipeline(SimpleImputer(strategy="median"), LGBMClassifier(verbosity=-1))}
+
+        out["lightgbm"] = make_pipeline(imp, LGBMClassifier(verbosity=-1))
+    except (ImportError, OSError) as exc:
+        print(f"  baseline skipped: lightgbm ({type(exc).__name__}) — install libomp")
+
+    try:
+        from catboost import CatBoostClassifier
+
+        out["catboost"] = make_pipeline(imp, CatBoostClassifier(verbose=0, allow_writing_files=False))
+    except (ImportError, OSError) as exc:
+        print(f"  baseline skipped: catboost ({type(exc).__name__})")
+
+    try:
+        from xgboost import XGBClassifier
+
+        out["xgboost"] = make_pipeline(imp, XGBClassifier(verbosity=0, tree_method="hist"))
+    except (ImportError, OSError) as exc:
+        print(f"  baseline skipped: xgboost ({type(exc).__name__})")
+
+    return out
 
 
 def run_one(name: str, X: np.ndarray, y: np.ndarray, model_path: str, seed: int = 0) -> dict[str, float]:
@@ -75,7 +105,7 @@ def run_one(name: str, X: np.ndarray, y: np.ndarray, model_path: str, seed: int 
     )
     classes = np.unique(y)
     results: dict[str, float] = {}
-    models = {**_baselines(), **_maybe_lightgbm()}
+    models = {**_baselines(), **_boosting_family()}
     models["fintfm"] = FinancialTFMClassifier(model_path)
     for model_name, clf in models.items():
         t0 = time.time()

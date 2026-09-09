@@ -1604,3 +1604,52 @@ checkpoints inside anything commercial is not. Recorded in `CLAUDE.md`'s licensi
 
 **Caveat:** licences change, in both directions. Re-read before relying on any of this, and
 treat the table as of 2026-09-09.
+
+## 25. Every gradient boosting comparison so far used the weakest member of the family
+
+**Date:** 2026-09-09. **Status:** MEASURED by audit. **This weakens findings 12, 16 and 17
+in our favour, so it is recorded prominently rather than quietly fixed.**
+
+An audit of what `bench.py` actually runs found:
+
+- **LightGBM has never executed once.** The import fails with `OSError` on a missing
+  `libomp`, and §5's fix guarded the crash — which meant it was **silently skipped on every
+  run**, exactly the failure that guard was added to prevent, one layer up.
+- **CatBoost and XGBoost were never installed.** Not skipped: absent.
+
+So every statement in this project of the form "gradient boosting beats us above N rows"
+compared against **sklearn's `GradientBoostingClassifier`**, the weakest of the family. The
+real gap against a tuned CatBoost or LightGBM is very likely **larger**, not smaller.
+
+### And fixing it produced a harder problem
+
+Installing Homebrew's `libomp` fixed the import and introduced a **segfault**. The crash
+report shows two OpenMP runtimes in one process:
+
+```
+/Users/.../site-packages/torch/lib/libomp.dylib     (bundled with PyTorch)
+/opt/homebrew/opt/libomp/lib/libomp.dylib           (Homebrew, loaded by LightGBM)
+```
+
+Confirmed by bisection: LightGBM alone works; `import torch` followed by LightGBM segfaults
+(exit 139). **`KMP_DUPLICATE_LIB_OK=TRUE` does not fix it** — still 139.
+
+The robust answer is process isolation: fit the boosting baselines in a subprocess that never
+imports torch. Tracked in `openspec/changes/strong-baselines`.
+
+### Two process notes worth keeping
+
+**A guarded exception is not a passing test.** The guard added in §5 turned a crash into a
+silent absence, and a silently absent baseline flatters us. Skips must be *announced*, which
+`_boosting_family()` now does.
+
+**I fell into the pipe trap again** while diagnosing this — `python ... | grep` reported
+`exit=0` for a segfaulting process, because that is grep's status. It is written down in
+`CLAUDE.md` and it still caught me, which is an argument for the harness enforcing it rather
+than a human remembering.
+
+### Consequence
+
+**No comparison against gradient boosting should be quoted until this lands.** The direction
+of the error is known — against us — so the existing findings are not retracted, but their
+margins are optimistic and every one of them says so now.
