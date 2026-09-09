@@ -924,11 +924,23 @@ So their mix is roughly **78% domain / 22% general**.
 Ours, chosen arbitrarily on day one and then *measured* as the best of three on Brier, is
 **70% financial / 30% generic** (`p_financial = 0.7`).
 
-Two independent teams, different modalities, different reasoning — they from data scarcity,
-we from a matched-compute ablation — arrived within eight points of the same ratio. That is
-not proof of an optimum, and neither team searched the space finely. But it is meaningful
-corroboration that **a purely domain-specific pretraining mixture is the wrong choice**, which
-is the counter-intuitive half of this finding and the half most likely to be argued with.
+**BloombergGPT is a third data point** (arXiv:2303.17564): 363B financial tokens against
+345B general-purpose tokens, i.e. **51% domain / 49% general**, with the stated result that
+mixed training "outperforms existing models on financial tasks by significant margins
+**without sacrificing performance on general LLM benchmarks**".
+
+| project | modality | domain share | reason given |
+| --- | --- | --- | --- |
+| BloombergGPT | language | **51%** | preserve general capability |
+| **this project** | **tabular** | **70%** | **measured best of three on Brier** |
+| FinCast | time series | 78% | domain data is scarce |
+
+Three teams, three modalities, three different reasons — preserving general ability, an
+ablation, and scarcity — and **not one went pure-domain.** The range is wide (51-78%), so
+this says nothing about an optimum and none of us searched finely. What it does support is
+the counter-intuitive half of this finding, and the half most likely to be argued with:
+**a purely domain-specific pretraining mixture is the wrong choice.** Our own §15 gives the
+mechanism for the tabular case — the generic prior is where calibration comes from.
 
 It also echoes §4 and §8 from the other modality: they call financial data scarce for exactly
 the reason we found firm-level panels licence-locked.

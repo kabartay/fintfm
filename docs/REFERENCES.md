@@ -185,6 +185,15 @@ onto credit: economic regimes, country and sector heterogeneity, and reporting f
 principle transfers; the scale does not, and their result is not evidence that a small model
 inherits the benefit.
 
+**Wu et al. (2023).** *BloombergGPT: A Large Language Model for Finance.*
+[arXiv:2303.17564](https://arxiv.org/abs/2303.17564)
+50B parameters, 363B financial tokens plus 345B general-purpose. The landmark
+domain-specific financial model, and the third independent data point on pretraining
+mixture (see `docs/FINDINGS.md` §14): its **51% domain / 49% general** split was chosen to
+avoid sacrificing general capability. Also the cost benchmark the FinGPT line defines itself
+against — ~$2.67M of compute, which is the asymmetry `docs/STRATEGY.md` argues not to fight
+head-on.
+
 ### Still unverified — do not cite
 
 - Credit-risk TFM evaluations reporting that TFMs are strongest in small-data PD/LGD
