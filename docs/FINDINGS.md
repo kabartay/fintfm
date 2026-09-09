@@ -2699,3 +2699,68 @@ side by side without that sentence attached would be misleading.
 baselines we do not run, and the boosters. Horizon 0 is also the easiest horizon — the label is
 a deterministic rule on three features that are present in the feature set, so 0.98 here is
 closer to rule recovery than to forecasting.
+
+---
+
+## 40. Context strategy does not transfer between protocols, for the fourth time
+
+**Date:** 2026-09-09. **MEASURED**, 5 folds. **Command:**
+
+```bash
+uv run fintfm-v4protocol --model runs/v4-clf-small.pt --horizon 0 --folds 0,1,2,3,4 \
+    --no-boosting --config configs/best.yaml
+```
+
+§39's protocol run used `uniform` context, the class default. That looked like an oversight:
+at a 0.359% base rate a 2,000-row uniform context holds about **7 positive examples**, and the
+horizon-0 label is a *conjunction* of three thresholds, so seven examples to infer an AND from
+seemed obviously too few. `prototype` context supplies about **462**, and §38 had measured it
+as the best strategy on the out-of-time survival path.
+
+It made things **worse**, consistently:
+
+| context | ROC-AUC | F₁ |
+| --- | --- | --- |
+| **uniform** (~7 in-context positives) | **0.9811 ± 0.0008** | **0.2202 ± 0.0129** |
+| prototype (~462 in-context positives) | 0.9687 ± 0.0015 | 0.1967 ± 0.0168 |
+
+**−0.0124 AUC and −0.024 F₁**, on all five folds, with fold spreads far smaller than the gap.
+Sixty-six times the positive examples in context makes the model worse. Whatever limits it
+here, it is not a shortage of positives.
+
+### The pattern this completes
+
+Four settings, four different answers about which context construction wins:
+
+| setting | result |
+| --- | --- |
+| survival, out-of-time, V4FinBench | balanced loses to uniform by 10-12 AUC points (§29, §33) |
+| binary, Polish and Taiwan panels | strategies nearly tied; the effect scales with how extreme the rebalancing actually is (§35) |
+| survival, out-of-time, V4FinBench | prototype beats uniform and beats retrieval (§38) |
+| **binary, their cross-validation protocol** | **prototype loses to uniform by 0.012 AUC** |
+
+**Context construction is protocol-dependent and does not transfer.** Not between prediction
+paths, not between split designs, and not from the literature — §29 already contradicted the
+published ordering it was adopted from. This is now a standing result rather than a series of
+surprises, and it has two consequences:
+
+- **A context strategy must be re-measured in the setting it will be used in.** Carrying one
+  over is how §39's headline nearly got run on a configuration chosen for a different protocol
+  — in the direction that would have understated us by 0.012 AUC had the default gone the
+  other way.
+- **Decision D10's caution was right.** The class default was left at `uniform` pending
+  per-path measurement rather than flipped to the strategy that won once. Had it been flipped,
+  this benchmark would have silently used the worse option.
+
+### What it rules out, and what it leaves
+
+**Ruled out:** that the model's weak F₁ at horizon 0 is caused by too few positive examples in
+context. That was the obvious hypothesis and it is wrong.
+
+**Left standing:** that fintfm (0.9811 / 0.2202) sits almost exactly where logistic regression
+does (0.9839 / 0.2439), while CatBoost reaches 0.9959 / 0.4275. The horizon-0 label is an AND
+of three thresholds, which a tree path represents natively and an additive model cannot — a
+weighted sum scores a firm extreme on one axis highly even when it fails the other two
+conditions, and those false positives land exactly where F₁ is decided. An in-context
+transformer *should* be able to represent a conjunction. At 847K parameters this one does not,
+and whether capacity is the reason is what the scaling curve measures next.
