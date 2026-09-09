@@ -31,6 +31,14 @@ legally deploy at all.
 - Measure whether an adapter beats in-context conditioning at all. It may not: the whole
   premise of in-context learning is that conditioning already does this work.
 
+## A concrete recipe exists, and it is cheaper than expected
+
+FinCast (arXiv:2508.19609 §4.2) fine-tunes for **one epoch**, with gradient updates
+restricted to the output block and the **last 10% of layers**, describing this as "minimal
+task-specific tuning". That is a smaller intervention than a full low-rank adapter and it is
+a reasonable first thing to try here: freeze everything except the head and the final block,
+one pass over the lender's book. If that is enough, the adapter machinery is unnecessary.
+
 ## Non-goals
 
 - Not fine-tuning the whole model per lender; that is the cost this exists to avoid.

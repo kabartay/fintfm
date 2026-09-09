@@ -123,6 +123,30 @@ which leaves their public-benchmark numbers open to exactly this critique. In a 
 the deliverable is validation evidence (see `docs/LANDSCAPE.md`), this is a rare defensible
 property.
 
+### A published paper now uses provenance as a competitive claim (added 2026-09-09)
+
+FinCast (arXiv:2508.19609 §4.1) excludes its benchmark from pretraining and then says of its
+competitors:
+
+> "existing general-purpose time series models may benefit from inadvertent overlap between
+> their pretraining datasets and our benchmark, potentially inflating their performance due
+> to information leakage."
+
+That is this finding's argument, deployed in publication as a competitive differentiator
+against better-resourced labs. It confirms provenance is a *claimable* advantage rather than
+mere hygiene.
+
+**And our version is strictly stronger.** FinCast trains on 20B real financial time points
+and must therefore *curate* an exclusion, which is a promise about their pipeline that a
+reader has to take on trust. This project trains on **no real data at all**, so contamination
+is not excluded — it is impossible, and checkable by grep in seconds
+(`openspec/tools/validate.py --provenance`). The distinction is between "we were careful"
+and "we could not have done it even by accident", and only the second survives an adversarial
+reviewer.
+
+That is worth stating plainly in any external material, because it is one of the few claims
+here that does not depend on model scale.
+
 **The caveat, and it is the important half.** The paper's authors are only *cautiously*
 optimistic about synthetic pretraining, and they name the tension this project's roadmap
 walks straight into: *"as the generation process becomes more similar to actual historical
