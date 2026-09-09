@@ -36,6 +36,17 @@ from fintfm.prior.base import Task
 
 _N_SECTORS = 12
 
+#: Expected defaults per synthetic task. Below about three, a task teaches almost nothing
+#: about the minority class and the both-classes guard starts fabricating positives.
+MIN_EXPECTED_POSITIVES = 3.0
+
+#: Hard floor on the sampled base rate, reached only when the task is large enough to carry
+#: it. Chosen to cover Basel low-default portfolios, whose rates run well below 1%.
+_ABSOLUTE_RATE_FLOOR = 0.001
+
+#: Upper end of the base-rate range, covering consumer-credit-like books.
+_RATE_CEILING = 0.30
+
 
 def _sigmoid(z: np.ndarray) -> np.ndarray:
     return 1.0 / (1.0 + np.exp(-z))
@@ -360,7 +371,25 @@ def sample_financial_task(
     # scorecard performance sits around Gini 0.4-0.6, i.e. AUC 0.70-0.80, which is the
     # target this range is set against — see the provenance note in §19.
     distress = z(distress) * rng.uniform(0.7, 2.7)  # sharpness = label noise level
-    base_rate = float(np.exp(rng.uniform(np.log(0.01), np.log(0.30))))
+    # Base rate range, and why the floor is not a constant.
+    #
+    # This floor was 1% and V4FinBench's cumulative default rates are 0.36% down to 0.19%
+    # (docs/FINDINGS.md §26), so the model had never seen a task as imbalanced as the
+    # low-default portfolios docs/STRATEGY.md targets — a contradiction between the prior and
+    # the strategy that stood until a real panel was scored.
+    #
+    # But a low rate is only *learnable* if the task actually contains defaults. At 0.2% with
+    # 256 rows the expected count is 0.5, so most tasks would have none, and the
+    # both-classes-present guard below would then flip rows up to ~2% and quietly undo the
+    # change. The floor is therefore derived from the task size so that a task carries at
+    # least `MIN_EXPECTED_POSITIVES` defaults in expectation.
+    #
+    # The consequence is a real cost, stated rather than hidden: **reaching a 0.2% base rate
+    # requires ~1,500+ rows per task**, and attention is quadratic in that. Low-default
+    # pretraining is expensive, and no choice of floor avoids it.
+    rate_floor = max(_ABSOLUTE_RATE_FLOOR, MIN_EXPECTED_POSITIVES / max(n_rows, 1))
+    rate_ceiling = max(rate_floor * 2.0, _RATE_CEILING)
+    base_rate = float(np.exp(rng.uniform(np.log(rate_floor), np.log(rate_ceiling))))
     b = _solve_intercept(distress, base_rate)
     p_default = _sigmoid(distress + b)
     if n_horizons is not None:

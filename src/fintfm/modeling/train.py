@@ -104,6 +104,12 @@ def main() -> None:
     p.add_argument("--batch-size", type=int, default=64)
     p.add_argument("--lr", type=float, default=3e-4)
     p.add_argument("--n-rows", type=int, default=256)
+    p.add_argument(
+        "--n-rows-choices", type=str, default=None,
+        help="comma-separated task sizes sampled per batch, e.g. 256,1024,2048. The "
+             "base-rate floor scales with task size, so a fixed small value caps how "
+             "imbalanced any task can be (docs/FINDINGS.md #26)",
+    )
     p.add_argument("--max-features", type=int, default=24)
     p.add_argument("--max-classes", type=int, default=10)
     p.add_argument(
@@ -138,6 +144,9 @@ def main() -> None:
         max_features=args.max_features,
         max_classes=args.max_classes,
         n_rows=args.n_rows,
+        n_rows_choices=(
+            tuple(int(v) for v in args.n_rows_choices.split(",")) if args.n_rows_choices else None
+        ),
         # the survival objective needs every task to carry a period
         p_financial=1.0 if args.n_horizons else PriorConfig.p_financial,
         n_horizons=args.n_horizons,
