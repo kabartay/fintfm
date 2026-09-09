@@ -58,6 +58,14 @@ _ABSOLUTE_RATE_FLOOR = 0.001
 #: Upper end of the base-rate range, covering consumer-credit-like books.
 _RATE_CEILING = 0.30
 
+#: Sharpness bounds: how deterministic the label is given the drivers, sampled log-uniformly.
+#: The low end is near-pure noise (a task with almost nothing to learn); the high end is
+#: near-deterministic (a task with a boundary that can be extracted exactly). **The span is
+#: the point** — a model trained only on hard tasks never learns to exploit clean signal
+#: (``docs/FINDINGS.md`` §42), and one trained only on easy tasks never learns to abstain.
+_SHARPNESS_MIN = 0.3
+_SHARPNESS_MAX = 12.0
+
 
 def _sigmoid(z: np.ndarray) -> np.ndarray:
     return 1.0 / (1.0 + np.exp(-z))
@@ -391,12 +399,27 @@ def sample_financial_task(
     # Sharpness = how deterministic default is given fundamentals. Lower means a larger
     # idiosyncratic component, which is economically right: management quality, fraud,
     # litigation and customer concentration drive real defaults and appear in no ratio.
-    # Widening the ratio family (docs/FINDINGS.md §18) gave a linear model more views of the
-    # same distress signal and made tasks too easy (AUC 0.815 against 0.769 real), so this
-    # range was reduced from (0.8, 3.0) to restore the difficulty match. Published credit
-    # scorecard performance sits around Gini 0.4-0.6, i.e. AUC 0.70-0.80, which is the
-    # target this range is set against — see the provenance note in §19.
-    distress = z(distress) * rng.uniform(0.7, 2.7)  # sharpness = label noise level
+    #
+    # This range was (0.7, 2.7), chosen in §18/§19 so that logistic regression would score
+    # ~0.74 on synthetic tasks against 0.769 on real ones — an explicit "difficulty match",
+    # recorded as a success. **It was the project's most expensive mistake** (§42). Clamping
+    # every task to a realistic difficulty band meant the prior contained almost no learnable
+    # tasks: every label the model ever saw was mostly noise with a ceiling near 0.75, so it
+    # learned to do as well as anything can on irreducibly noisy data and never learned to
+    # extract a sharp boundary when one exists. Measured consequence: 0.68 AUC on a clean
+    # linear task that logistic regression solves at 0.9997, and +0.015 over random weights
+    # for a whole pretraining run.
+    #
+    # A prior's job is to teach, not to look like the test set. TabPFN-style priors span
+    # difficulty from trivial to impossible; the model then learns *how much* signal a task
+    # contains and calibrates accordingly. So sharpness is now sampled log-uniformly across
+    # two orders of magnitude, spanning near-pure-noise to near-deterministic.
+    #
+    # The realism concern §19 was addressing is real and is not abandoned: matching the
+    # difficulty of the *deployment* distribution is a property of the evaluation and of the
+    # macro/base-rate sampling, not something to enforce on every training task.
+    sharpness = float(np.exp(rng.uniform(np.log(_SHARPNESS_MIN), np.log(_SHARPNESS_MAX))))
+    distress = z(distress) * sharpness
     # Base rate range, and why the floor is not a constant.
     #
     # This floor was 1% and V4FinBench's cumulative default rates are 0.36% down to 0.19%

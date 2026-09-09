@@ -39,28 +39,66 @@ def _lr_schedule(step: int, cfg: TrainConfig) -> float:
 
 
 @torch.no_grad()
-def _eval_accuracy(
+def _eval_quality(
     model: FinancialTFM, prior_cfg: PriorConfig, rng: np.random.Generator, n_batches: int = 5
-) -> float:
-    """Query accuracy on freshly sampled held-out synthetic tasks.
+) -> dict[str, float]:
+    """Held-out quality on freshly sampled synthetic tasks, against a constant baseline.
+
+    **Not accuracy.** This function used to report query accuracy, and at the prior's mean base
+    rate of about 0.047 a constant majority-class predictor scores 0.953 — so three pretraining
+    runs logged "held-out accuracy 0.935-0.945", *below the constant predictor*, and it read as
+    progress (``docs/FINDINGS.md`` §42). ``CLAUDE.md`` already said accuracy is not a proper
+    scoring rule and that this is why training optimises cross-entropy; the evaluation inside
+    the training loop did not follow the repository's own rule for three runs.
+
+    Reports instead:
+
+    - **AUC**, which is base-rate independent and says whether the model ranks at all;
+    - **Brier skill** against a predictor that ignores every feature and returns the context's
+      base rate. Zero means "no better than knowing the base rate"; negative means worse.
+
+    The baseline is the point. A metric with no floor underneath it cannot distinguish a model
+    that learned something from one that learned the class balance.
 
     The device is read off the model rather than passed in. Taking it as an argument is how
     this function shipped a crash: the training loop moved its batches and this path did not,
-    which nothing caught because the path had only ever run on CPU. Deriving it here means
-    the two cannot desynchronise.
+    which nothing caught because the path had only ever run on CPU.
+
+    Args:
+        model: The model being trained.
+        prior_cfg: Prior configuration, so held-out tasks match training tasks.
+        rng: Random generator.
+        n_batches: Held-out batches to average over.
+
+    Returns:
+        ``{"auc": ..., "brier_skill": ..., "base_rate": ...}``. AUC is NaN when no held-out
+        batch contained both classes, which is itself worth seeing rather than hiding.
     """
     device = next(model.parameters()).device
     model.eval()
-    correct, total = 0, 0
+    probs, targets = [], []
     for _ in range(n_batches):
         batch = sample_batch(rng, prior_cfg, batch_size=16).to(device)
         logits = model(batch.X, batch.y, batch.n_ctx, batch.n_classes)[:, batch.n_ctx :]
-        pred = logits.argmax(dim=-1)
-        target = batch.y[:, batch.n_ctx :]
-        correct += (pred == target).sum().item()
-        total += target.numel()
+        p_pos = torch.softmax(logits.float(), dim=-1)[..., 1]
+        probs.append(p_pos.reshape(-1).cpu().numpy())
+        targets.append(batch.y[:, batch.n_ctx :].reshape(-1).cpu().numpy())
     model.train()
-    return correct / total
+
+    p = np.concatenate(probs)
+    y = np.concatenate(targets).astype(np.float64)
+    base = float(y.mean())
+    out = {"auc": float("nan"), "brier_skill": float("nan"), "base_rate": base}
+    if len(np.unique(y)) < 2:
+        return out
+    from sklearn.metrics import roc_auc_score
+
+    out["auc"] = float(roc_auc_score(y, p))
+    # skill against the feature-free predictor that returns the base rate
+    brier = float(np.mean((p - y) ** 2))
+    reference = float(np.mean((base - y) ** 2))
+    out["brier_skill"] = 1.0 - brier / reference if reference > 0 else float("nan")
+    return out
 
 
 def train(model_cfg: ModelConfig, prior_cfg: PriorConfig, train_cfg: TrainConfig, out_path: str) -> FinancialTFM:
@@ -97,8 +135,11 @@ def train(model_cfg: ModelConfig, prior_cfg: PriorConfig, train_cfg: TrainConfig
                   f"lr {sched.get_last_lr()[0]:.2e}  {elapsed:.0f}s")
             running = 0.0
         if (step + 1) % train_cfg.eval_every == 0:
-            acc = _eval_accuracy(model, prior_cfg, rng)
-            print(f"  held-out synthetic query accuracy: {acc:.3f}")
+            q = _eval_quality(model, prior_cfg, rng)
+            print(
+                f"  held-out: AUC {q['auc']:.3f}  Brier skill vs base rate "
+                f"{q['brier_skill']:+.3f}  (base rate {q['base_rate']:.3f})"
+            )
     model.save(out_path, trained_objectives=tuple(sorted(objectives)))
     print(f"saved checkpoint to {out_path}")
     return model
