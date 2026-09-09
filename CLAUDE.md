@@ -100,6 +100,52 @@ Verifying a run is alive by watching accumulated CPU time grow is still right, b
 proves the process was alive *at that moment* — it cannot distinguish training from a process
 about to hit an untested branch. Read the log.
 
+## A correction that lives in one method will be bypassed by the next caller
+
+Cost a 6,000-step retrain and a wrong root-cause diagnosis on 2026-09-09
+(`docs/FINDINGS.md` §28, decision D8).
+
+The base-rate correction of decision D5 was implemented in `predict_proba` and only there. The
+term-structure path was added later, built its own forward pass through
+`FinancialTFM.term_structure`, and walked straight past it — so the out-of-time evaluation
+reported a **12.8% default rate against a 0.47% truth** and stated it as a finding. The cause
+was diagnosed as the synthetic prior being unable to reach low default rates, and a retrain was
+spent widening the prior before anyone checked the context's base rate against the
+population's.
+
+- **Never call a model's forward method directly when a wrapper exists.** If you find yourself
+  reaching into `_ctx_X`, `_ctx_y` or any other private on a fitted estimator, you are building
+  a second inference path that will diverge from the corrected one. Add a public method
+  instead.
+- **A level error is a context problem before it is a prior problem.** Print the context's base
+  rate beside the population's. One line, and it is now printed on every out-of-time run.
+- **Print the level, not only the score.** Three guards each failed to see a 27× error: AUC
+  cannot see it because every prediction inflates alike, the coherence check cannot see it
+  because a wrong curve can be perfectly monotone, and `mean_predicted` was computed, stored in
+  the JSON, and never rendered. Any harness reporting a probability reports its **mean beside
+  the observed rate**.
+- **Keep the broken configuration as an arm.** The uncorrected context is now a permanent arm
+  of the out-of-time harness, so the distortion is measured next to the fix instead of being
+  assumed absent.
+
+## Sync with the extras, and distrust a jump in the skip count
+
+`uv sync` without `--extra bench` silently *uninstalls* the benchmark dependencies, and the
+suite then reports skips rather than failures — which reads as success. On 2026-09-09 a bare
+`uv sync -q` in the middle of a session took the skip count from 1 to 4 and broke the
+V4FinBench loader that every out-of-time finding depends on.
+
+```bash
+uv sync --extra bench          # not a bare `uv sync`
+uv run pytest -q               # 1 skip is the expected count; more means look
+```
+
+That incident also surfaced a real defect: `pyarrow` was declared only in the `kaggle` extra,
+so reading already-fetched parquet worked solely by accident of a previous sync. **CI stayed
+green throughout**, because CI has no data and the test skips — a dependency that only the
+data-carrying machine needs is invisible to CI by construction. Declare a read dependency in
+every extra whose code path reads.
+
 ## Releases
 
 A release is a git tag **and** a GitHub Release. A bare tag ships nothing and, once a release

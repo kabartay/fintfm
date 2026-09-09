@@ -5,9 +5,9 @@ a conversation is lost when the conversation compacts.
 
 ## Where we stand — the honest scorecard
 
-Updated 2026-09-08 after nineteen findings in one day. **Read this before quoting any number
-below**, because several findings temper or amend earlier ones and the amendments matter more
-than the originals.
+Updated 2026-09-09 after thirty findings. **Read this before quoting any number below**,
+because several findings temper, amend or outright retract earlier ones and the amendments
+matter more than the originals. §28 retracts §26's headline as our own bug.
 
 ### What is measured and large
 
@@ -18,7 +18,9 @@ than the originals.
 | **Firm-level financial data is licence-locked**, so synthetic pretraining is the only clean route into this domain, which is why the space is empty while energy is crowded | dataset census | §4, §8 |
 | **The prior matches real task difficulty** — logistic-regression AUC 0.743 synthetic against 0.769 real | measured, held-out seed | §18, §19 |
 | **Coherence transfers to real out-of-time data** — 0% violations against 39% for per-horizon models, 98.6% of firms affected | measured, V4FinBench | §26 |
-| **The prior cannot generate the low-default regime the strategy targets** — floor 1%, target 0.2-0.4% | measured | §26 |
+| **A base-rate error is invisible to every guard we had** — a 27× level error passed AUC, passed the coherence check, and was not printed; the fix cut fourth-horizon ECE 32× | measured, same checkpoint | §28 |
+| **Balanced context sampling costs 10-12 AUC points on the survival path**, reversing the default adopted from the literature; 12 in-context defaults outrank 1,122 | measured, 3 context sizes | §29 |
+| ~~The prior cannot generate the low-default regime~~ — **retracted**: the floor was 1% and is now 0.195%, but it was never what caused §26's failure | superseded | §26 → §28, §30 |
 
 ### What is measured and small
 
@@ -29,6 +31,7 @@ than the originals.
 | Model beats logistic regression | **+0.033 AUC** | §17 |
 | Model beats an untrained model of the same architecture | **+0.031 AUC** | §15 |
 | Calibration advantage over a *calibrated* gradient boosting | **~2×**, and only below ~250 rows | §16 |
+| Low-default retrain, under the configuration that works | **+0.023 AUC, 2.7× ECE** | §30 |
 | Brier skill over a feature-free constant predictor | **1-2%** | §17 |
 
 ### What has been ruled out
@@ -37,6 +40,9 @@ than the originals.
   calibrated gradient boosting wins on both AUC and Brier (§16).
 - **"Best calibrated" as a standalone claim.** A constant base-rate predictor beats every
   model here on ECE, so calibration numbers cannot carry an argument alone (§17).
+- **"Ahead of the incumbent out of time."** False. On V4FinBench out of time, per-horizon
+  logistic regression leads on mean AUC 0.8616 to 0.7192 and on ECE 0.0018 to 0.0077. Only
+  coherence favours us, and by construction (§30).
 - **Calibration as a differentiator against other foundation models.** It tracks prior
   *breadth*, not our domain prior, so TabPFN and TabFM very likely share it (§14, §15).
 - **The 11.7× calibration figure.** Measured against an uncalibrated baseline. Do not use it.
@@ -1821,3 +1827,180 @@ segment §9 identified — and the one §26 showed the prior could not even gene
 
 **Single seed.** The n = 100 win is 0.0005 AUC over CatBoost, which is noise; the skill and
 ECE margins are larger but still one draw. Three seeds before this is quoted anywhere.
+
+---
+
+## 28. §26's headline was our own bug: the term-structure path skipped the base-rate correction
+
+**Date:** 2026-09-09. **MEASURED.** **Command:**
+
+```bash
+uv run fintfm-v4oot --model runs/v4-hazard-ldp.pt --max-rows 120000 \
+    --train-until 2016 --test-from 2017 --out runs/v4-oot-corrected
+```
+
+§26 reported the hazard head stating a **12.8% mean default probability against a 0.47%
+observed rate** out of time, with ECE degrading to 0.3322 by the fourth horizon. It
+diagnosed the cause as the synthetic prior being unable to generate default rates below 1%,
+and a 6,000-step retrain was spent widening the prior's floor to 0.195%.
+
+**The diagnosis was wrong, and the retrain was not what fixed it.** The out-of-time harness
+constructed its own forward pass — it fitted the classifier, reached into `_ctx_X`/`_ctx_y`,
+and called `FinancialTFM.term_structure` directly. That call bypasses `predict_proba`, which
+is the only place the base-rate correction of §6 and decision D5 was ever applied. So the
+context was **resampled to 50% defaulters against a 1.545% population** and the model, doing
+exactly what an in-context model is supposed to do, read the base rate out of its context and
+reported it.
+
+### The correction, applied on the same checkpoint and the same split
+
+| horizon | observed | uncorrected | corrected | ECE uncorrected | ECE corrected |
+| --- | --- | --- | --- | --- | --- |
+| 0 | 0.47% | 12.78% | **0.25%** | 0.1231 | **0.0023** |
+| 1 | 0.34% | 21.49% | **0.48%** | 0.2115 | **0.0014** |
+| 2 | 0.20% | 29.03% | **0.76%** | 0.2883 | **0.0056** |
+| 3 | 0.08% | 36.85% | **1.22%** | 0.3677 | **0.0114** |
+
+A **32× reduction in calibration error at the fourth horizon**, from one inference-time line.
+At the first two horizons the corrected curve is now as well calibrated as per-horizon
+logistic regression (0.0023 against 0.0028, and 0.0014 against 0.0014).
+
+**Mean AUC did not move at all** — 0.5967 before and after, identical to four decimals. That
+is not luck: the correction is a strictly increasing map applied elementwise, so it cannot
+reorder rows at a fixed horizon, and it cannot break monotonicity either. Both properties are
+now asserted rather than argued (`tests/test_hazard.py`).
+
+### Why it went undetected
+
+Three separate safeguards each failed to see a 27× level error:
+
+- **AUC could not see it.** Every prediction inflates alike, which is the same blindness §5
+  found and D5 was written to address.
+- **The coherence check could not see it.** The curve was 100% monotone throughout. A
+  perfectly coherent curve can state perfectly wrong levels.
+- **The harness summary did not print the level.** `mean_predicted` was computed, stored in
+  the JSON, and never rendered. It now prints beside the observed rate, because the one
+  number that would have caught this was one column away from being visible.
+
+### What changed, so it cannot recur
+
+`FinancialTFMClassifier.predict_term_structure` is now the public path and applies the
+correction itself; `base_rate_shift` and `shift_cumulative_pd` live in
+`fintfm.modeling.hazard` with the monotonicity and rank-preservation properties tested. The
+harness keeps an **uncorrected arm permanently**, so the distortion is measured beside the fix
+rather than reasoned about.
+
+### The rule this earns
+
+**A correction that lives in one method will be bypassed by the next caller.** D5's base-rate
+correction was implemented, tested, documented and reversed a decision — and then a second
+entry point walked straight past it. The correction belongs on the object, not in one of its
+methods, and an alternative forward path through a model is a defect even when it produces
+numbers.
+
+**And: a level error is a context problem before it is a prior problem.** The cheap check —
+compare the context's base rate against the population's — takes one line and would have
+saved 6,372 seconds of retraining. It is now printed by the harness on every run.
+
+---
+
+## 29. Balanced context sampling costs 10-12 AUC points here, reversing the default we adopted from the literature
+
+**Date:** 2026-09-09. **MEASURED**, single seed per cell. **Command:**
+
+```bash
+uv run fintfm-ctxsweep --model runs/v4-hazard-ldp.pt --out runs/context-sweep
+```
+
+
+D5 adopted `context_strategy="balanced"` as the default on published evidence: Tanna et al.
+(2026) benchmark seven context-construction strategies for credit-risk TFMs and report
+balanced and hybrid sampling worth 3-4 AUC points over uniform. Once §28's correction made
+the levels readable, the strategies could be compared on the real out-of-time split, and the
+ordering is **the reverse of the published one, by three times the published margin**:
+
+| max context | strategy | context rate | positives in context | mean AUC | AUC h0 | mean ECE |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1,000 | balanced | 50.00% | 500 | 0.6255 | 0.7143 | 0.0041 |
+| 1,000 | hybrid | 25.60% | 256 | 0.6794 | 0.8253 | 0.0045 |
+| 1,000 | **uniform** | 1.20% | **12** | **0.6921** | 0.8026 | 0.0081 |
+| 2,000 | balanced | 50.00% | 1,000 | 0.5967 | 0.6839 | 0.0052 |
+| 2,000 | hybrid | 25.40% | 508 | 0.6468 | 0.7435 | 0.0051 |
+| 2,000 | **uniform** | 1.55% | **31** | **0.7192** | **0.8398** | 0.0077 |
+| 4,000 | balanced | 28.05% | 1,122 | 0.6013 | 0.7007 | 0.0051 |
+| 4,000 | hybrid | 25.07% | 1,003 | 0.6118 | 0.7149 | 0.0052 |
+| 4,000 | **uniform** | 1.73% | 69 | 0.6986 | 0.8168 | 0.0073 |
+
+**Uniform wins at every context size, and the ordering uniform > hybrid > balanced holds in
+all three.** Three context sizes give three replications of the ordering, which is why this is
+reported at all from a single seed.
+
+**It is not about how many defaults the context contains.** Uniform with **12** positives
+(0.6921) beats balanced with **1,122** positives (0.6013). Mean AUC tracks the context's
+*default rate* monotonically and ignores the positive count, which rules out the obvious
+"balanced supplies more signal about the rare class" mechanism.
+
+**The likely mechanism is the majority class, not the minority one.** A balanced 2,000-row
+context spends half its budget on 1,000 of 71,500 non-defaulters — 1.4% of that class — so
+the model's picture of a *healthy* firm is drawn from a thin and unrepresentative sample.
+Uniform preserves the covariate distribution of both classes. In a low-default portfolio the
+majority class is where nearly all the information about the decision boundary lives, and
+balancing is precisely the operation that throws it away.
+
+**Calibration goes the other way, mildly.** Balanced-plus-correction is slightly better
+calibrated (mean ECE 0.0041-0.0052 against 0.0073-0.0081). So the choice is a real trade, not
+a free win: roughly 10 AUC points for roughly 0.003 ECE. At that exchange rate, uniform.
+
+**Scope, honestly.** One dataset, one checkpoint, one seed, and the *survival* path only. The
+binary-classification evidence behind D5 has not been re-measured under uniform sampling, so
+the class default is unchanged pending that; see
+`openspec/changes/revisit-context-strategy`. Tanna et al. are not contradicted on their own
+setting — theirs is single-horizon classification on different panels, and this is a
+six-horizon hazard model evaluated out of time.
+
+---
+
+## 30. The low-default retrain did pay off — in calibration, and only once §28's bug was out of the way
+
+**Date:** 2026-09-09. **MEASURED.** **Command:** `fintfm-ctxsweep` run against each
+checkpoint in turn, identical split and protocol.
+
+§26 concluded the prior's 1% base-rate floor was the problem and drove a 6,000-step retrain
+that lowered it to 0.195%. §28 showed the floor was not what caused the reported failure. The
+fair question is then whether the retrain bought anything at all, and it did:
+
+| checkpoint | strategy | mean AUC | AUC h0 | mean ECE |
+| --- | --- | --- | --- | --- |
+| old, 1% floor | balanced | 0.5869 | 0.6539 | 0.0055 |
+| old, 1% floor | uniform | 0.6965 | 0.8018 | 0.0209 |
+| **LDP, 0.195% floor** | balanced | 0.5967 | 0.6839 | 0.0052 |
+| **LDP, 0.195% floor** | **uniform** | **0.7192** | **0.8398** | **0.0077** |
+
+Under the configuration that actually works, the retrain is worth **+0.023 mean AUC, +0.038
+at the first horizon, and 2.7× better calibration** (ECE 0.0209 → 0.0077). The calibration
+gain is the one that matches the mechanism: a prior that can generate a 0.2% default rate
+produces a model that can state one.
+
+**Note what this says about the previous configuration.** Under balanced-plus-uncorrected the
+retrain looked worth +0.010 AUC and nothing else — a broken evaluation configuration hid a
+2.7× improvement and made a correct change look like a null result. Both arms had to be right
+before either effect was visible.
+
+### Where this leaves the out-of-time standing
+
+Best configuration to date on V4FinBench out of time: LDP checkpoint, uniform context,
+corrected. **Mean AUC 0.7192, mean ECE 0.0077, 0% coherence violations.** Per-horizon logistic
+regression on the same split: **mean AUC 0.8616, mean ECE ~0.0018, 39.06% violations** with
+only 1.4% of firms fully monotone.
+
+**We are still behind on both discrimination and calibration on this benchmark.** The AUC gap
+narrowed from 0.27 to 0.14 and the calibration disaster is gone, but §26's honest conclusion
+stands in weakened form: coherence is the only dimension where this model leads, and it leads
+there by construction rather than by learning.
+
+**The largest remaining defect is identified and unfixed.** The context is labelled with
+binary `y` only — who defaulted, never *when* — so the hazard head must shape a six-horizon
+curve with no timing evidence in context whatsoever. That is consistent with what the AUC
+column does: 0.8398 at the first horizon, decaying to 0.5968 by the fourth. Supplying
+per-horizon context labels is `openspec/changes/survival-context-labels`, and it is now the
+top-priority change in the queue.

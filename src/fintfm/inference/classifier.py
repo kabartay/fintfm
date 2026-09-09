@@ -21,6 +21,7 @@ import numpy as np
 import torch
 from sklearn.base import BaseEstimator, ClassifierMixin
 
+from fintfm.modeling.hazard import base_rate_shift, shift_cumulative_pd
 from fintfm.modeling.model import FinancialTFM
 
 ContextStrategy = Literal["balanced", "hybrid", "uniform"]
@@ -153,6 +154,11 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         ctx_prior = np.bincount(y_coded, minlength=n_classes) / len(y_coded)
         self._ctx_X = X
         self._ctx_y = y_coded
+        # positive-class rates, kept for the term-structure correction, which needs a
+        # scalar log-odds shift rather than the per-class vector below
+        pos = n_classes - 1
+        self._full_rate = float(full_prior[pos])
+        self._ctx_rate = float(ctx_prior[pos])
         # log P_true(y) - log P_context(y), added to logits at predict time. Zero when the
         # context was not resampled, so the correction is inert in that case.
         with np.errstate(divide="ignore"):
@@ -201,6 +207,63 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             shift = torch.from_numpy(self._log_prior_shift).to(logits.device, logits.dtype)
             logits = logits + shift
         return torch.softmax(logits, dim=-1).cpu().numpy()
+
+    @torch.no_grad()
+    def predict_term_structure(self, X: np.ndarray) -> np.ndarray:
+        """Cumulative PD across horizons for every row, corrected and coherent.
+
+        **Use this rather than calling** :meth:`FinancialTFM.term_structure` **directly.**
+        Doing the latter bypasses the base-rate correction, which cost this project a whole
+        pretraining run and a wrong diagnosis: the term-structure arm of the out-of-time
+        harness reached into the fitted context and ran the model itself, so it reported a
+        12.8% default rate against a 0.47% truth and the error was misread as the synthetic
+        prior being unable to reach low default rates (``docs/FINDINGS.md`` §28).
+
+        Chunked exactly, for the reason given on :meth:`predict_proba`.
+
+        Args:
+            X: ``(n, n_features)`` query rows, matching the width seen by :meth:`fit`.
+
+        Returns:
+            ``(n, n_horizons)`` cumulative PD, non-decreasing in the horizon for every row.
+            Coherence survives the correction because the shift is strictly increasing.
+
+        Raises:
+            RuntimeError: If the model has no hazard head.
+            ValueError: If the feature width does not match :meth:`fit`.
+        """
+        if self.model.hazard is None:
+            raise RuntimeError(
+                "this checkpoint has no hazard head; pretrain with --n-horizons K"
+            )
+        X = np.asarray(X, dtype=np.float32)
+        if X.shape[1] != self._ctx_X.shape[1]:
+            raise ValueError("feature width at predict time must match fit time")
+        curves = [
+            self._term_structure_chunk(X[i : i + self.query_chunk])
+            for i in range(0, X.shape[0], self.query_chunk)
+        ]
+        curve = torch.from_numpy(np.concatenate(curves)) if curves else torch.empty(0)
+        if self.correct_prior and 0.0 < self._ctx_rate < 1.0 and 0.0 < self._full_rate < 1.0:
+            curve = shift_cumulative_pd(
+                curve, base_rate_shift(self._ctx_rate, self._full_rate)
+            )
+        return curve.numpy()
+
+    @torch.no_grad()
+    def _term_structure_chunk(self, X: np.ndarray) -> np.ndarray:
+        """Uncorrected cumulative PD for one chunk of queries."""
+        n_ctx = self._ctx_X.shape[0]
+        cfg = self.model.cfg
+        Xp = np.full((1, n_ctx + X.shape[0], cfg.max_features), np.nan, dtype=np.float32)
+        Xp[0, :n_ctx, : self._ctx_X.shape[1]] = self._ctx_X
+        Xp[0, n_ctx:, : X.shape[1]] = X
+        yp = np.zeros((1, n_ctx + X.shape[0]), dtype=np.int64)
+        yp[0, :n_ctx] = self._ctx_y
+        out = self.model.term_structure(
+            torch.from_numpy(Xp).to(self.device), torch.from_numpy(yp).to(self.device), n_ctx
+        )
+        return out[0].cpu().numpy()
 
     def predict(self, X: np.ndarray) -> np.ndarray:
         proba = self.predict_proba(X)

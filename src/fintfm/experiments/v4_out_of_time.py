@@ -29,7 +29,6 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 import numpy as np
-import torch
 
 from fintfm.evaluation.datasets import SurvivalDataset, load_v4finbench
 from fintfm.evaluation.metrics import evaluate_binary
@@ -166,25 +165,30 @@ def run(
         )
 
     # --- the hazard head, if this checkpoint has one -------------------------------
+    # Three arms, not one. The first out-of-time run scored only a balanced, *uncorrected*
+    # context and reported a 12.8% mean PD against a 0.47% truth; that was misread as the
+    # prior failing to reach low default rates, and a 6,000-step retrain was spent on it
+    # before the cause turned out to be the missing correction (docs/FINDINGS.md §28). The
+    # uncorrected arm stays in the harness permanently so the distortion is measured beside
+    # the fix rather than argued about.
     if model.hazard is not None:
-        clf = FinancialTFMClassifier(model, max_context=max_context, random_state=seed)
-        clf.fit(ds.X[tr], ds.y[tr])
-        ctx_X, ctx_y = clf._ctx_X, clf._ctx_y
-        curves = []
-        for start in range(0, len(te), clf.query_chunk):
-            q = ds.X[te][start : start + clf.query_chunk]
-            Xp = np.full((1, len(ctx_X) + len(q), model.cfg.max_features), np.nan, np.float32)
-            Xp[0, : len(ctx_X), : ctx_X.shape[1]] = ctx_X
-            Xp[0, len(ctx_X) :, : q.shape[1]] = q
-            yp = np.zeros((1, len(ctx_X) + len(q)), dtype=np.int64)
-            yp[0, : len(ctx_X)] = ctx_y
-            with torch.no_grad():
-                curves.append(
-                    model.term_structure(torch.from_numpy(Xp), torch.from_numpy(yp), len(ctx_X))[0]
-                    .cpu()
-                    .numpy()
-                )
-        arms.append(score_curve("fintfm_hazard", np.concatenate(curves), truth, seen))
+        for name, strategy, correct in (
+            ("fintfm_hazard", "balanced", True),
+            ("fintfm_hazard_uncorrected", "balanced", False),
+            ("fintfm_hazard_uniform_ctx", "uniform", True),
+        ):
+            clf = FinancialTFMClassifier(
+                model,
+                max_context=max_context,
+                context_strategy=strategy,
+                correct_prior=correct,
+                random_state=seed,
+            ).fit(ds.X[tr], ds.y[tr])
+            print(
+                f"  {name}: context {len(clf._ctx_X):,} rows at "
+                f"{clf._ctx_rate:.3%} vs population {clf._full_rate:.3%}"
+            )
+            arms.append(score_curve(name, clf.predict_term_structure(ds.X[te]), truth, seen))
 
     # --- per-horizon logistic regression, the field's construction ------------------
     cols = []
@@ -229,19 +233,29 @@ def summarise(record: dict) -> str:
             f"({record['split']['n_train']:,} / {record['split']['n_test']:,} rows)"
         ),
         "",
-        f"{'arm':>22} {'mean AUC':>9} {'violations':>11} {'monotone':>9}",
+        f"{'arm':>26} {'mean AUC':>9} {'violations':>11} {'monotone':>9}",
     ]
     for a in record["arms"]:
         lines.append(
-            f"{a['name']:>22} {a['mean_auc']:>9.4f} {a['violation_rate']:>11.2%} "
+            f"{a['name']:>26} {a['mean_auc']:>9.4f} {a['violation_rate']:>11.2%} "
             f"{a['fully_monotone']:>9.1%}"
         )
-    lines += ["", f"{'arm':>22} " + " ".join(f"{'h'+str(k):>8}" for k in range(6))]
+    lines += ["", f"{'arm':>26} " + " ".join(f"{'h'+str(k):>8}" for k in range(6))]
     for a in record["arms"]:
-        lines.append(f"{a['name']:>22} " + " ".join(f"{h['auc']:>8.4f}" for h in a["horizons"]))
+        lines.append(f"{a['name']:>26} " + " ".join(f"{h['auc']:>8.4f}" for h in a["horizons"]))
     lines += ["", "calibration (ECE) by horizon:"]
     for a in record["arms"]:
-        lines.append(f"{a['name']:>22} " + " ".join(f"{h['ece']:>8.4f}" for h in a["horizons"]))
+        lines.append(f"{a['name']:>26} " + " ".join(f"{h['ece']:>8.4f}" for h in a["horizons"]))
+    # The level, printed beside the truth. A term structure can be perfectly monotone and
+    # perfectly ranked while stating a default rate 27x too high, and AUC and the violation
+    # rate both report that curve as healthy (docs/FINDINGS.md §28).
+    obs = record["arms"][0]["horizons"]
+    lines += ["", "mean predicted PD by horizon (observed in the last row):"]
+    for a in record["arms"]:
+        lines.append(
+            f"{a['name']:>26} " + " ".join(f"{h['mean_predicted']:>8.4f}" for h in a["horizons"])
+        )
+    lines.append(f"{'OBSERVED':>26} " + " ".join(f"{h['observed_rate']:>8.4f}" for h in obs))
     return "\n".join(lines)
 
 

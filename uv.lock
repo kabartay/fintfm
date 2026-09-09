@@ -369,6 +369,7 @@ dependencies = [
 bench = [
     { name = "catboost" },
     { name = "lightgbm" },
+    { name = "pyarrow" },
     { name = "xgboost" },
 ]
 kaggle = [
@@ -391,6 +392,7 @@ requires-dist = [
     { name = "lightgbm", marker = "extra == 'bench'", specifier = ">=4.0" },
     { name = "numpy", specifier = ">=2.0" },
     { name = "pandas", specifier = ">=2.2" },
+    { name = "pyarrow", marker = "extra == 'bench'", specifier = ">=17" },
     { name = "pyarrow", marker = "extra == 'kaggle'", specifier = ">=17" },
     { name = "scikit-learn", specifier = ">=1.5" },
     { name = "scipy", specifier = ">=1.18.1" },

@@ -15,3 +15,9 @@
 - [ ] 15.5 Retrain at matched compute against the current prior and compare on real panels
       with the paired test. Verify: `results.json` for both, and a finding stating whether
       width was the binding constraint — including if it was not.
+      **Partially done 2026-09-09 (`docs/FINDINGS.md` §30):** the low-default prior was
+      compared against the previous one on a real panel out of time, and is worth +0.023 mean
+      AUC and 2.7x better calibration under the configuration that works. **Not matched
+      compute** — the two checkpoints differ in step count as well as prior — so the
+      attribution to the prior alone is not yet clean, and this task stays open for the
+      matched-compute run.

@@ -10,15 +10,28 @@ and prefer the cheapest item that unblocks others. Proposals live in
 grep -c "^- \[ \]" openspec/changes/*/tasks.md | awk -F: '{s+=$2} END {print s" open tasks"}'
 ```
 
-As of 2026-09-08, after the literature review: **12 changes.** Expect the count to rise —
-finishing one item often discovers two, and that is the queue working.
+As of 2026-09-09: **78 open tasks across 19 changes.** Expect the count to rise — finishing
+one item often discovers two, and that is the queue working.
 
 ---
 
-## Tier 0 — in flight
+## Tier 0 — the top of the queue, reordered 2026-09-09
 
-1. **`phase1-prior-ablation`** — the run deciding whether the central bet is real. Started
-   14:36 on Metal, ~3 h for three variants plus an untrained control. Tasks 1.4-1.7.
+Reordered after §28-§30. The out-of-time failure that §26 blamed on the prior was our own
+missing base-rate correction; fixing it cut fourth-horizon calibration error 32×, left AUC
+untouched, and revealed that the context default rate — not the architecture, not the prior —
+was driving the ranking. The queue follows that.
+
+1. **`survival-context-labels`** — the largest identified unfixed defect. The context carries
+   binary `y` and never the default *period*, so the hazard head shapes a six-horizon curve
+   with no timing evidence in context, and its AUC decays 0.8398 → 0.5968 across the grid
+   while the per-horizon baseline holds up. The data, the prior and the loss all already carry
+   `period`; only the context path discards it. Task 31.1 tests the premise before any
+   architecture is touched.
+
+2. **`revisit-context-strategy`** — §29 reversed a published default by 10-12 AUC points on
+   one seed. Task 32.1 (three seeds) is cheap and either promotes the finding or closes the
+   proposal; the class default should not stay in a state one experiment contradicts.
 
 ## Tier 1 — the thesis now rests on these
 

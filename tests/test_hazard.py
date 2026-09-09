@@ -6,10 +6,19 @@ construction** rather than by training, which is the difference between a design
 and a scale one.
 """
 
+import numpy as np
 import pytest
 import torch
 
-from fintfm.modeling.hazard import CENSORED, HazardHead, coherence_violations
+from fintfm.inference.classifier import FinancialTFMClassifier
+from fintfm.modeling.hazard import (
+    CENSORED,
+    HazardHead,
+    base_rate_shift,
+    coherence_violations,
+    shift_cumulative_pd,
+)
+from fintfm.modeling.model import FinancialTFM, ModelConfig
 
 
 def test_cumulative_pd_is_monotone_for_random_representations():
@@ -267,3 +276,89 @@ def test_per_row_censoring_ignores_horizons_beyond_observation():
         head.proj.bias.copy_(torch.tensor([-3.0, -3.0, -5.0, -5.0]))  # tiny late hazards
     observed_two_again = head.loss(x, torch.tensor([CENSORED]), n_observed=torch.tensor([2]))
     assert torch.isclose(observed_two, observed_two_again, atol=1e-6)
+
+
+# --- base-rate correction on the term structure ------------------------------------
+# §28: the out-of-time harness ran the model directly and skipped the correction, so it
+# reported a 12.8% default rate against a 0.47% truth and the error was diagnosed as the
+# prior's fault. These guard the correction itself and the path that must apply it.
+
+
+def test_base_rate_shift_is_inert_when_the_context_matches_the_population():
+    assert base_rate_shift(0.2, 0.2) == pytest.approx(0.0)
+
+
+def test_base_rate_shift_is_negative_for_an_over_balanced_context():
+    # a balanced context against a 1.5% portfolio must pull predictions down
+    assert base_rate_shift(0.5, 0.015) < -4.0
+
+
+def test_base_rate_shift_refuses_a_degenerate_rate():
+    for bad in (0.0, 1.0, -0.1):
+        with pytest.raises(ValueError):
+            base_rate_shift(bad, 0.5)
+        with pytest.raises(ValueError):
+            base_rate_shift(0.5, bad)
+
+
+def test_shift_preserves_monotonicity_and_ranking():
+    # the structural guarantee must survive the correction, at any shift magnitude
+    torch.manual_seed(0)
+    curve = torch.cumsum(torch.rand(64, 6) * 0.1, dim=1).clamp(1e-6, 1 - 1e-6)
+    assert (curve.diff(dim=-1) >= 0).all()
+    for delta in (-8.0, -4.15, -0.5, 0.5, 4.0):
+        shifted = shift_cumulative_pd(curve, delta)
+        assert coherence_violations(shifted).item() == 0
+        # rank-preserving at every horizon, so AUC cannot move
+        for k in range(curve.shape[1]):
+            assert torch.equal(curve[:, k].argsort(), shifted[:, k].argsort())
+
+
+def test_shift_moves_levels_towards_the_true_rate():
+    curve = torch.full((256, 4), 0.5)
+    shifted = shift_cumulative_pd(curve, base_rate_shift(0.5, 0.01))
+    assert shifted.mean().item() < 0.02
+
+
+def test_classifier_term_structure_applies_the_correction():
+    """The regression guard for §28: the public path must not restate the context's rate."""
+    rng = np.random.default_rng(0)
+    n = 3000
+    X = rng.normal(size=(n, 8)).astype(np.float32)
+    y = (rng.random(n) < 0.02).astype(np.int64)
+    model = FinancialTFM(ModelConfig(max_features=8, d_model=32, d_cell=16, n_layers=1,
+                                     n_col_layers=1, max_classes=2, n_horizons=4))
+    corrected = FinancialTFMClassifier(model, max_context=200, context_strategy="balanced",
+                                       correct_prior=True).fit(X, y)
+    raw = FinancialTFMClassifier(model, max_context=200, context_strategy="balanced",
+                                 correct_prior=False).fit(X, y)
+    assert corrected._ctx_rate > 5 * corrected._full_rate  # balancing really did distort
+    c, r = corrected.predict_term_structure(X[:200]), raw.predict_term_structure(X[:200])
+    assert c.mean() < r.mean()
+    assert coherence_violations(torch.from_numpy(c)).item() == 0
+
+
+def test_classifier_term_structure_is_chunk_exact():
+    """Chunking must not change a curve, for the same reason predict_proba is exact."""
+    rng = np.random.default_rng(1)
+    X = rng.normal(size=(400, 6)).astype(np.float32)
+    y = (rng.random(400) < 0.1).astype(np.int64)
+    model = FinancialTFM(ModelConfig(max_features=6, d_model=32, d_cell=16, n_layers=1,
+                                     n_col_layers=1, max_classes=2, n_horizons=3))
+    kw = {"max_context": 100, "context_strategy": "balanced"}
+    whole = FinancialTFMClassifier(model, query_chunk=4096, **kw).fit(X, y)
+    split = FinancialTFMClassifier(model, query_chunk=37, **kw).fit(X, y)
+    np.testing.assert_allclose(
+        whole.predict_term_structure(X[:300]), split.predict_term_structure(X[:300]), atol=1e-5
+    )
+
+
+def test_classifier_term_structure_refuses_a_model_without_a_hazard_head():
+    rng = np.random.default_rng(2)
+    X = rng.normal(size=(50, 5)).astype(np.float32)
+    y = (rng.random(50) < 0.3).astype(np.int64)
+    model = FinancialTFM(ModelConfig(max_features=5, d_model=16, d_cell=8, n_layers=1,
+                                     n_col_layers=1, max_classes=2))
+    clf = FinancialTFMClassifier(model, max_context=40).fit(X, y)
+    with pytest.raises(RuntimeError, match="no hazard head"):
+        clf.predict_term_structure(X)

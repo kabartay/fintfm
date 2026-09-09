@@ -30,6 +30,11 @@ bench = [
     "catboost>=1.2",
     "lightgbm>=4.0",
     "xgboost>=2.0",
+    # V4FinBench ships as parquet, so *reading* it is a benchmarking dependency even though
+    # *fetching* it is a `kaggle` one. Declared in both: pyarrow lived only in `kaggle` and
+    # a bare `uv sync --extra bench` therefore broke the loader that every out-of-time
+    # finding depends on, while CI stayed green because CI has no data and skips the test.
+    "pyarrow>=17",
 ]
 # V4FinBench data lives on Kaggle and needs an account. Data is CC BY 4.0; the
 # kagglehub client is Apache-2.0. See docs/FINDINGS.md §8.
@@ -45,6 +50,7 @@ fintfm-bench = "fintfm.evaluation.bench:main"
 fintfm-ablate = "fintfm.experiments.prior_ablation:main"
 fintfm-termstruct = "fintfm.experiments.term_structure:main"
 fintfm-v4oot = "fintfm.experiments.v4_out_of_time:main"
+fintfm-ctxsweep = "fintfm.experiments.context_sweep:main"
 fintfm-fetch = "fintfm.evaluation.fetch:main"
 
 [dependency-groups]

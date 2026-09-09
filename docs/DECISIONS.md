@@ -157,3 +157,56 @@ touch. That converts "wait for the pipeline" into "run now".
 
 **Reversed if:** an MPS numerical discrepancy appears at scale, or Phase 2's multiplied run
 count makes rented NVIDIA the cheaper path in wall-clock terms.
+
+---
+
+## D8 — The base-rate correction belongs on the object, not in one method
+
+**Date:** 2026-09-09. **Status:** active. **Amends D5.** See `FINDINGS` §28.
+
+D5 chose to keep balanced context sampling and correct the base rate analytically. That
+correction was implemented in `predict_proba` and only there. The term-structure path was
+added later, built its own forward pass through `FinancialTFM.term_structure`, and walked
+straight past it — producing a 12.8% default rate against a 0.47% truth for a full evaluation
+cycle, and a wrong root-cause diagnosis that cost a 6,000-step retrain.
+
+**Chose to make the corrected path the only public path.**
+`FinancialTFMClassifier.predict_term_structure` applies the correction itself, the shift
+functions live beside the hazard head with their monotonicity and rank-preservation properties
+tested, and the out-of-time harness retains a permanently **uncorrected arm** so the
+distortion is measured rather than assumed absent.
+
+**Alternative considered:** asserting the correction in a test on the harness. Rejected — the
+harness is one caller of several, and the next one would have the same freedom to bypass it.
+The property has to be unavailable to get wrong.
+
+**Reversed if:** a use case needs raw uncorrected curves as a primary output, in which case
+the correction moves to a required explicit argument rather than a default, so that skipping
+it is a visible choice at the call site instead of an omission.
+
+---
+
+## D9 — Uniform context on the survival path; balanced stays the class default pending re-measurement
+
+**Date:** 2026-09-09. **Status:** active. **Partially reverses D5.** See `FINDINGS` §29.
+
+D5 adopted `balanced` on published evidence (Tanna et al. 2026: balanced worth 3-4 AUC points
+over uniform on credit-risk TFMs). Measured on the V4FinBench out-of-time split, the ordering
+is reversed and the margin is roughly three times larger: uniform beats balanced by 10-12 mean
+AUC points at every context size tested, and 12 in-context defaults outrank 1,122.
+
+**Chose to report uniform as the headline survival configuration and keep all three strategies
+as measured arms**, rather than silently flipping a default. Two reasons. The binary
+single-horizon evidence that motivated D5 has not been re-measured under uniform sampling, so
+flipping the class default would change a path this experiment says nothing about. And the
+trade is real rather than free: uniform costs roughly 0.003 ECE for roughly 10 AUC points, so
+a calibration-first use case could legitimately want the other side of it.
+
+**Alternatives considered:** flipping the default globally, which over-generalises from one
+dataset and one seed; and removing balanced sampling, which discards the strategy that is
+still better calibrated and is still supported by the published benchmark on its own setting.
+
+**Reversed if:** `openspec/changes/revisit-context-strategy` finds uniform also wins on the
+binary path across datasets and seeds, at which point the class default changes and D5's
+context half is fully retired. Reversed the other way if the effect fails to replicate across
+seeds, since §29 rests on a single draw per cell.

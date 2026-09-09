@@ -4,6 +4,45 @@ Hard-wrapped, because it is read in an editor and a diff. Release bodies on GitH
 **not** wrapped — they are read in a browser at full width. Same words, different shape; do
 not paste one into the other. See `CLAUDE.md`.
 
+## [Unreleased]
+
+### Fixed
+
+- **The term-structure path skipped the base-rate correction**, so out-of-time evaluation
+  stated a 12.8% default probability against a 0.47% observed rate. The out-of-time harness
+  built its own forward pass through `FinancialTFM.term_structure` and reached into the
+  fitted estimator's private context, bypassing `predict_proba` — the only place decision
+  D5's correction was ever applied. Fourth-horizon calibration error falls **32×** (0.3677 →
+  0.0114) on the same checkpoint and the same split, and mean AUC is unchanged to four
+  decimals, as the rank-preservation property requires. `docs/FINDINGS.md` §28.
+- `pyarrow` was declared only in the `kaggle` extra, so `uv sync --extra bench` broke the
+  V4FinBench loader that every out-of-time finding depends on. CI never caught it because CI
+  has no data and the test skips.
+
+### Added
+
+- `FinancialTFMClassifier.predict_term_structure`, the corrected public path for a PD term
+  structure, chunked exactly and coherence-preserving. Calling
+  `FinancialTFM.term_structure` directly is now a documented defect.
+- `fintfm.modeling.hazard.base_rate_shift` and `shift_cumulative_pd`, with monotonicity and
+  cross-row rank preservation asserted rather than argued.
+- `fintfm-ctxsweep`, sweeping context strategy against context size out of time. It exists
+  because §29 reverses a decision, and a decision reversal has to be re-runnable.
+- The out-of-time harness scores three hazard arms — corrected, **uncorrected**, and
+  uniform-context — and prints mean predicted PD beside the observed rate. The uncorrected
+  arm is permanent: the distortion is measured beside the fix rather than assumed absent.
+
+### Changed
+
+- **Uniform context sampling beats balanced by 10-12 mean AUC points** on the V4FinBench
+  out-of-time survival split, at every context size tested, reversing the ordering this
+  project adopted from the literature. Twelve in-context defaults outrank 1,122. The class
+  default is unchanged pending re-measurement on the binary path (decision D9).
+- §26's headline is **retracted**: the synthetic prior's 1% base-rate floor was real and is
+  now 0.195%, but it was never what caused the out-of-time failure. The retrain it prompted
+  is worth +0.023 mean AUC and 2.7× better calibration, which the broken evaluation
+  configuration had hidden. `docs/FINDINGS.md` §30.
+
 ## [0.1.0] — 2026-09-08
 
 First release. A working prior-fitted tabular model for corporate credit risk, evaluated on

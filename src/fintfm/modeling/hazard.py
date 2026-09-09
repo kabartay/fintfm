@@ -151,3 +151,61 @@ def coherence_violations(cumulative_pd: torch.Tensor) -> torch.Tensor:
         curve produced by :meth:`HazardHead.cumulative_pd`.
     """
     return (cumulative_pd.diff(dim=-1) < 0).sum()
+
+
+def base_rate_shift(context_rate: float, true_rate: float) -> float:
+    """Log-odds shift undoing the base-rate distortion of a resampled context.
+
+    An in-context model reads its default rate out of its context, so a context resampled
+    to be class-balanced makes it state a default rate near the context's, not the
+    portfolio's (``docs/FINDINGS.md`` §5, decision D5). On the term-structure path this is
+    severe: a balanced 2,000-row context against a 1.5% portfolio inflates the stated PD by
+    more than an order of magnitude while leaving AUC untouched, because every prediction
+    inflates alike.
+
+    Args:
+        context_rate: Fraction of the context labelled as eventually defaulting.
+        true_rate: Fraction of the full training population that eventually defaults.
+
+    Returns:
+        ``logit(true_rate) - logit(context_rate)``, to be added to a log-odds prediction.
+        Zero when the two agree, so applying it to an unresampled context is a no-op.
+
+    Raises:
+        ValueError: If either rate is not strictly inside ``(0, 1)``. A degenerate rate has
+            no finite log-odds, and silently clamping it would fabricate a correction.
+    """
+    for name, p in (("context_rate", context_rate), ("true_rate", true_rate)):
+        if not 0.0 < p < 1.0:
+            raise ValueError(f"{name} must lie strictly in (0, 1), got {p}")
+    from math import log
+
+    return log(true_rate / (1.0 - true_rate)) - log(context_rate / (1.0 - context_rate))
+
+
+def shift_cumulative_pd(cumulative_pd: torch.Tensor, delta: float) -> torch.Tensor:
+    """Apply a log-odds shift to a cumulative-PD curve, preserving its coherence.
+
+    The shift is applied in logit space and inverted, which is a strictly increasing map on
+    ``(0, 1)``. A strictly increasing map applied elementwise cannot reorder a
+    non-decreasing sequence, so **a monotone curve stays monotone** and the structural
+    guarantee of :meth:`HazardHead.cumulative_pd` survives the correction. It is also
+    rank-preserving across rows at a fixed horizon, so AUC is unchanged by construction.
+
+    The same ``delta`` is applied at every horizon. That is exact only if the context's
+    distortion is horizon-independent, which it is not: a binary context says *who*
+    defaulted and never *when*, so no horizon-specific rate can be recovered from it. Treat
+    the levels as corrected to first order, not calibrated. Supplying per-horizon context
+    labels is the real fix (``openspec/changes/survival-context-labels``).
+
+    Args:
+        cumulative_pd: ``(..., K)`` cumulative PD in ``(0, 1)``.
+        delta: Log-odds shift, e.g. from :func:`base_rate_shift`.
+
+    Returns:
+        ``(..., K)`` shifted cumulative PD, non-decreasing wherever the input was.
+    """
+    if delta == 0.0:
+        return cumulative_pd
+    p = cumulative_pd.clamp(1e-7, 1.0 - 1e-7)
+    return torch.sigmoid(torch.logit(p) + delta)
