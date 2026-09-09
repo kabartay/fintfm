@@ -293,6 +293,10 @@ def sample_financial_task(
     max_features: int = 24,
     min_features: int = 4,
     n_horizons: int | None = None,
+    min_expected_positives: float = MIN_EXPECTED_POSITIVES,
+    absolute_rate_floor: float = _ABSOLUTE_RATE_FLOOR,
+    rate_ceiling: float = _RATE_CEILING,
+    n_sectors_max: int = _N_SECTORS,
 ) -> Task:
     """Sample one synthetic corporate-default classification task.
 
@@ -304,6 +308,17 @@ def sample_financial_task(
         n_horizons: When set, sample a **default period** on a grid of this many periods via
             :func:`_sample_survival`, so a hazard head can be trained (``docs/FINDINGS.md``
             §20). The binary label still falls out of it, so this is backwards compatible.
+        min_expected_positives: Expected defaults per task; see
+            :data:`MIN_EXPECTED_POSITIVES` for why this is 2.0 and what it costs.
+        absolute_rate_floor: Hard floor on the sampled base rate.
+        rate_ceiling: Upper end of the sampled base-rate range.
+        n_sectors_max: Upper bound on the number of sectors drawn.
+
+        The four rate/sector arguments default to this module's constants, which carry the
+        measured reasoning for their values. They are arguments rather than constants so a
+        run can vary the envelope from configuration (``prior`` in
+        ``fintfm/configs/default.yaml``) without editing code, and so a test can drive an
+        extreme envelope without monkey-patching a module global.
 
     Returns:
         A binary :class:`Task` whose columns are a random subset of financial quantities with
@@ -313,7 +328,7 @@ def sample_financial_task(
     macro = {"rate": rng.uniform(0.005, 0.12), "cycle": rng.normal(0.0, 1.0)}
     rate, cycle = macro["rate"], macro["cycle"]
     # --- sector structure ----------------------------------------------------
-    n_sectors = int(rng.integers(2, _N_SECTORS + 1))
+    n_sectors = int(rng.integers(2, n_sectors_max + 1))
     sector = rng.integers(0, n_sectors, size=n_rows)
     sector_par = {
         "margin": rng.normal(0.10, 0.06, size=n_sectors),
@@ -398,8 +413,8 @@ def sample_financial_task(
     # The consequence is a real cost, stated rather than hidden: **reaching a 0.2% base rate
     # requires ~1,500+ rows per task**, and attention is quadratic in that. Low-default
     # pretraining is expensive, and no choice of floor avoids it.
-    rate_floor = max(_ABSOLUTE_RATE_FLOOR, MIN_EXPECTED_POSITIVES / max(n_rows, 1))
-    rate_ceiling = max(rate_floor * 2.0, _RATE_CEILING)
+    rate_floor = max(absolute_rate_floor, min_expected_positives / max(n_rows, 1))
+    rate_ceiling = max(rate_floor * 2.0, rate_ceiling)
     base_rate = float(np.exp(rng.uniform(np.log(rate_floor), np.log(rate_ceiling))))
     b = _solve_intercept(distress, base_rate)
     p_default = _sigmoid(distress + b)

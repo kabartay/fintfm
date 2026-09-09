@@ -182,7 +182,8 @@ say so explicitly rather than implying a release was verified.
 
 **Apache-2.0**, chosen 2026-09-08. `LICENSE` holds the canonical text fetched from
 apache.org; `pyproject.toml` carries the SPDX expression and ships the file in the wheel.
-Every dependency is permissive (numpy/pandas/scikit-learn BSD-3, torch Apache-2.0, lightgbm
+Every dependency is permissive (numpy/pandas/scikit-learn/scipy BSD-3, torch Apache-2.0,
+PyYAML MIT, pyarrow/xgboost/catboost Apache-2.0, lightgbm
 MIT), so nothing constrained the choice — verified from installed package metadata.
 
 The reasoning, so it is not relitigated: **the moat is the trained weights and the mature
@@ -216,6 +217,32 @@ inside anything commercial is not. See `docs/FINDINGS.md` §24. Their public pap
 discussion, never a source to copy from. Before adding any third-party dataset or dependency,
 check its license against commercial use — see `README.md`'s licensing section for the current
 policy and add a line there when a new source is added.
+
+## Configuration, not constants — and not everything
+
+Experiment numbers live in `src/fintfm/configs/default.yaml`, layered as packaged default →
+`--config`/`$FINTFM_CONFIG` → explicit CLI flag, deep-merged. New entry points take
+`--config` and default their other flags to `None` so the configuration supplies the value
+and an explicit flag still wins.
+
+**Not every literal is configuration.** The rule: a value belongs in the config if a
+reasonable experiment would want it different; a value whose change would make results
+incomparable or the code incorrect stays in code. So the `CENSORED = -1` sentinel, the
+float32 numerical guards, and the prior's accounting identities are not configurable, and
+`configs/README.md` records why. The prior's rate constants are the middle case — the values
+are overridable by argument, but they stay declared in `prior/financial.py` beside the
+measured reasoning for them.
+
+**Two rules that earned their place:**
+
+- **A misspelled key must be an error.** `load_config` refuses unknown keys and names the
+  path. A tolerant loader completes the run, reports numbers, and used the default — which is
+  the same failure shape as `docs/FINDINGS.md` §28.
+- **Mirrored defaults need a drift guard.** The `inference` section duplicates
+  `FinancialTFMClassifier`'s literal defaults on purpose, because a library must behave the
+  same without reading a file. That duplication is only safe because
+  `tests/test_config.py::test_inference_section_matches_the_classifier_defaults` fails when
+  they diverge. Any future mirror needs the same treatment.
 
 ## Code style
 

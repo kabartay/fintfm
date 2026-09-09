@@ -7,7 +7,13 @@ from dataclasses import dataclass
 import numpy as np
 
 from fintfm.prior.base import Task, TaskBatch, collate
-from fintfm.prior.financial import sample_financial_task
+from fintfm.prior.financial import (
+    _ABSOLUTE_RATE_FLOOR,
+    _N_SECTORS,
+    _RATE_CEILING,
+    MIN_EXPECTED_POSITIVES,
+    sample_financial_task,
+)
 from fintfm.prior.scm import sample_scm_task
 
 
@@ -28,6 +34,11 @@ class PriorConfig:
             which is exactly how §26 happened. Varying it across batches lets one run cover
             both the dense-small and sparse-large regimes. All tasks *within* a batch share a
             size, since :func:`fintfm.prior.base.collate` requires it.
+        min_expected_positives / absolute_rate_floor / rate_ceiling / n_sectors_max: The
+            financial prior's default-rate envelope, defaulting to the measured constants in
+            ``prior/financial.py``. Populated from the ``prior`` section of the configuration
+            by the training entry point, so a run can widen or narrow the regime it covers
+            without a code change — the gap that produced §26.
         n_horizons: When set, financial tasks additionally carry a default **period** so a
             hazard head can be trained on the survival likelihood (``docs/FINDINGS.md`` §20).
             The generic SCM prior has no notion of time, so **``p_financial`` must be 1.0**
@@ -43,6 +54,10 @@ class PriorConfig:
     max_ctx_frac: float = 0.9
     n_rows_choices: tuple[int, ...] | None = None
     n_horizons: int | None = None
+    min_expected_positives: float = MIN_EXPECTED_POSITIVES
+    absolute_rate_floor: float = _ABSOLUTE_RATE_FLOOR
+    rate_ceiling: float = _RATE_CEILING
+    n_sectors_max: int = _N_SECTORS
 
 
 def sample_task(rng: np.random.Generator, cfg: PriorConfig, n_rows: int | None = None) -> Task:
@@ -60,7 +75,14 @@ def sample_task(rng: np.random.Generator, cfg: PriorConfig, n_rows: int | None =
         )
     if rng.random() < cfg.p_financial:
         return sample_financial_task(
-            rng, n, max_features=cfg.max_features, n_horizons=cfg.n_horizons
+            rng,
+            n,
+            max_features=cfg.max_features,
+            n_horizons=cfg.n_horizons,
+            min_expected_positives=cfg.min_expected_positives,
+            absolute_rate_floor=cfg.absolute_rate_floor,
+            rate_ceiling=cfg.rate_ceiling,
+            n_sectors_max=cfg.n_sectors_max,
         )
     return sample_scm_task(rng, n, max_features=cfg.max_features, max_classes=cfg.max_classes)
 

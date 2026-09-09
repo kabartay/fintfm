@@ -1,0 +1,79 @@
+# fintfm default configuration.
+#
+# This file is the single declared place for the numbers that experiments and command-line
+# entry points use. Override it with `--config path/to/file.yaml` on any experiment CLI, or
+# by setting FINTFM_CONFIG; an override is deep-merged over these values, so a file need only
+# carry what it changes. Individual CLI flags override both.
+#
+# WHAT DELIBERATELY DOES NOT LIVE HERE
+# ------------------------------------
+# Not every literal in the codebase is configuration, and treating them all as such makes a
+# system less robust rather than more. These stay in code on purpose:
+#
+#   * hazard.CENSORED (-1) and the observation-mask semantics -- part of the data contract.
+#     A configurable sentinel is a way to silently reinterpret every stored period label.
+#   * retrieval._SCALE_FLOOR, HazardHead.max_hazard, the log1p/clamp epsilons -- numerical
+#     guards whose values are tied to float32 behaviour, not to a modelling choice.
+#   * the accounting identities in prior/financial.py -- these are arithmetic, not settings.
+#   * dataset URLs and licence attributions -- provenance, and changing one silently would
+#     break the licence record in README.md.
+#
+# The rule: a value belongs here if a reasonable experiment would want it different. A value
+# whose change would make results incomparable or the code incorrect stays in code.
+
+# Library defaults for FinancialTFMClassifier. These MIRROR the literal defaults in
+# inference/classifier.py rather than replacing them: a library should behave identically
+# without reading a file from disk, so the code keeps its own defaults and
+# tests/test_config.py asserts the two agree. That test is the drift guard -- if you change
+# one, it fails until you change the other.
+inference:
+  max_context: 2000
+  context_strategy: uniform      # docs/DECISIONS.md D10; was "balanced" before 2026-09-09
+  feature_transform: rank        # docs/FINDINGS.md §35
+  correct_prior: true
+  query_chunk: 2048
+  retrieval_groups: 64
+  retrieval_min_positive: 8
+  winsor_quantile: 0.01
+  transform_subsample: 20000
+
+# Thresholds used when scoring. Changing these changes what counts as a result, so they are
+# recorded in every run's output alongside the numbers they produced.
+evaluation:
+  bootstrap_resamples: 2000
+  alpha: 0.05
+  ece_bins: 10
+  # a horizon with fewer observed rows than this, or only one class, is reported as NaN
+  # rather than scored -- see docs/FINDINGS.md on degenerate splits poisoning aggregates
+  min_rows_per_horizon: 100
+
+# The V4FinBench out-of-time protocol. The split years are the load-bearing numbers here:
+# train and test must not overlap, and time_split() refuses if they do.
+v4finbench:
+  max_rows: 120000
+  train_until: 2016
+  test_from: 2017
+  max_context: 2000
+  # scored side by side; the uncorrected arm is permanent by decision D8, so that the
+  # base-rate distortion of docs/FINDINGS.md §28 is measured rather than assumed absent
+  hazard_arms:
+    - {name: fintfm_hazard, strategy: uniform, correct_prior: true}
+    - {name: fintfm_hazard_uncorrected, strategy: balanced, correct_prior: false}
+    - {name: fintfm_hazard_retrieval, strategy: retrieval, correct_prior: true}
+
+# The context-strategy sweep behind docs/FINDINGS.md §29, §32 and §33.
+context_sweep:
+  strategies: [balanced, hybrid, uniform, retrieval]
+  # 2000 is the operating point: on three seeds 4000 ties with it for 1.7x the time (§33)
+  context_sizes: [1000, 2000, 4000]
+  retrieval_groups: 64
+  seeds: [0]
+
+# The financial prior's default-rate envelope. The floor is what lets the prior reach the
+# low-default regime the strategy targets: at two expected defaults a 512-row task reaches
+# 0.195%, which covers V4FinBench's 0.19% (docs/COMPUTE.md).
+prior:
+  min_expected_positives: 2.0
+  absolute_rate_floor: 0.001
+  rate_ceiling: 0.30
+  n_sectors: 12

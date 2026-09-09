@@ -13,6 +13,7 @@ from dataclasses import dataclass
 import numpy as np
 import torch
 
+from fintfm.config import load_config
 from fintfm.modeling.model import FinancialTFM, ModelConfig
 from fintfm.prior import PriorConfig
 from fintfm.prior.mixture import sample_batch
@@ -132,7 +133,9 @@ def main() -> None:
     )
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--out", type=str, default="runs/v0.pt")
+    p.add_argument("--config", type=str, default=None, help="YAML overriding the defaults")
     args = p.parse_args()
+    cfg = load_config(args.config)
     if args.threads is not None:
         torch.set_num_threads(args.threads)
 
@@ -155,8 +158,15 @@ def main() -> None:
         # the survival objective needs every task to carry a period
         p_financial=1.0 if args.n_horizons else PriorConfig.p_financial,
         n_horizons=args.n_horizons,
+        # the default-rate envelope comes from configuration, because a prior that cannot
+        # generate the regime being evaluated is the defect behind docs/FINDINGS.md §26
+        min_expected_positives=cfg.prior.min_expected_positives,
+        absolute_rate_floor=cfg.prior.absolute_rate_floor,
+        rate_ceiling=cfg.prior.rate_ceiling,
+        n_sectors_max=cfg.prior.n_sectors,
     )
     train_cfg = TrainConfig(steps=args.steps, batch_size=args.batch_size, lr=args.lr, device=args.device, seed=args.seed)
+    print(f"config: {cfg.provenance()}")
     train(model_cfg, prior_cfg, train_cfg, args.out)
 
 

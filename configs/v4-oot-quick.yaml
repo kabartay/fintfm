@@ -1,0 +1,9 @@
+# A smaller, faster out-of-time run for checking the pipeline end to end.
+#
+# Not for producing results: 20,000 rows leaves the far horizons with too few defaults to
+# score, which is exactly the degenerate case min_rows_per_horizon exists to report as NaN
+# rather than as a number.
+v4finbench:
+  max_rows: 20000
+  hazard_arms:
+    - {name: fintfm_hazard, strategy: uniform, correct_prior: true}

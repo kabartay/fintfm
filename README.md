@@ -53,6 +53,25 @@ A real pretraining run (tens of thousands of steps, larger `--d-model`)
 needs a GPU; `--device cuda` or `--device mps` on Apple Silicon. Don't run
 one on this machine without checking `uptime` first — see `CLAUDE.md`.
 
+## Configuration
+
+The numbers experiments use — split years, context sizes, strategies, seeds, scoring
+thresholds, the prior's default-rate envelope — live in
+[`src/fintfm/configs/default.yaml`](src/fintfm/configs/default.yaml), not scattered through
+the code. Every entry point takes `--config` with a file that is **deep-merged** over that
+default, so an override carries only what it changes:
+
+```bash
+uv run fintfm-ctxsweep --model runs/m.pt --config configs/context-sweep-3seed.yaml
+uv run fintfm-v4oot    --model runs/m.pt --config configs/retrieval-best.yaml
+```
+
+Resolution order is packaged default → `--config` (or `$FINTFM_CONFIG`) → explicit CLI flag.
+Runs print the layers they used and record them as `config_sources` in their output JSON.
+Unknown keys are refused by name rather than ignored, and an overlapping train/test split is
+rejected before the run starts. [`configs/README.md`](configs/README.md) explains what
+belongs in configuration and what deliberately stays in code.
+
 ## Licensing / provenance
 
 Everything here — the prior, the architecture, the training loop — is
@@ -61,7 +80,10 @@ from Neuralk (Seldon), Fundamental (NEXUS), Google TabFM, TabPFN/TabICL,
 or any other tabular-foundation-model product are used. Those are cited in
 project discussion purely as public research/product context, not as a
 source of code or data. Before adding any third-party dataset or dependency,
-check its license against the intended commercial use.
+check its license against the intended commercial use. Current dependencies are all
+permissive: numpy, pandas and scikit-learn BSD-3, scipy BSD-3, torch Apache-2.0,
+**PyYAML MIT**, and the optional benchmark extras lightgbm MIT, xgboost Apache-2.0,
+catboost Apache-2.0, pyarrow Apache-2.0.
 
 ## Where this is going
 

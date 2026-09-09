@@ -21,6 +21,21 @@ not paste one into the other. See `CLAUDE.md`.
 
 ### Added
 
+- **Configuration in one declared place.** Split years, row caps, context sizes, strategies,
+  seeds, scoring thresholds, the scored arms and the prior's default-rate envelope now live in
+  `src/fintfm/configs/default.yaml` instead of as literals across the experiment modules.
+  Entry points take `--config`, deep-merged over the packaged default, with explicit flags
+  still winning; runs print their config layers and record them as `config_sources` in their
+  output JSON. Unknown keys are refused **by name** rather than ignored, and an overlapping
+  train/test split is rejected before a run starts. Example overrides in `configs/`.
+  - Not everything moved, on purpose: the `CENSORED` sentinel, the float32 numerical guards
+    and the prior's accounting identities stay in code, and `configs/README.md` records why.
+    The prior's rate constants stay declared beside their measured reasoning and are
+    overridable by argument.
+  - The `inference` section deliberately **mirrors** the estimator's literal defaults, so the
+    library behaves identically without reading a file; a test fails if the two ever diverge.
+  - CI now installs the built wheel into a clean environment and loads the packaged config
+    from it, because presence in the archive is not the same as usable once installed.
 - **A feature conditioner** (`rank` and `winsor`), applied before the model's normalisation.
   Worth **+0.086 mean AUC** to uniform context and +0.023 to retrieval on the V4FinBench
   out-of-time split, and improving AUC in seven of eight configurations across two further

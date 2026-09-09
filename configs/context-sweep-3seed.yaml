@@ -1,0 +1,6 @@
+# The configuration behind docs/FINDINGS.md §33: three seeds per cell.
+#
+# A single draw per cell was never safe for comparing blind strategies — hybrid at 1,000 rows
+# spreads ±0.046 across seeds, which is wider than several of the differences being claimed.
+context_sweep:
+  seeds: [0, 1, 2]

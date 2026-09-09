@@ -30,6 +30,7 @@ from pathlib import Path
 
 import numpy as np
 
+from fintfm.config import Config, load_config
 from fintfm.evaluation.datasets import SurvivalDataset, load_v4finbench
 from fintfm.evaluation.metrics import evaluate_binary
 from fintfm.inference.classifier import FinancialTFMClassifier
@@ -108,12 +109,34 @@ def _curve_truth(ds: SurvivalDataset, idx: np.ndarray) -> tuple[np.ndarray, np.n
     return truth, seen
 
 
-def score_curve(name: str, pd_curve: np.ndarray, truth: np.ndarray, seen: np.ndarray) -> ArmScore:
-    """Score a cumulative-PD curve horizon by horizon, honouring the observation mask."""
+def score_curve(
+    name: str,
+    pd_curve: np.ndarray,
+    truth: np.ndarray,
+    seen: np.ndarray,
+    min_rows: int | None = None,
+) -> ArmScore:
+    """Score a cumulative-PD curve horizon by horizon, honouring the observation mask.
+
+    Args:
+        name: Arm name.
+        pd_curve: ``(n, K)`` cumulative PD.
+        truth: ``(n, K)`` cumulative default indicator.
+        seen: ``(n, K)`` observation mask.
+        min_rows: Minimum observed rows for a horizon to be scored at all; below it the
+            horizon is reported as NaN rather than scored, because a handful of rows produces
+            a number that looks like a result. Defaults to
+            ``evaluation.min_rows_per_horizon`` from the configuration.
+
+    Returns:
+        The scored arm.
+    """
+    if min_rows is None:
+        min_rows = load_config().evaluation.min_rows_per_horizon
     arm = ArmScore(name=name)
     for k in range(pd_curve.shape[1]):
         m = seen[:, k]
-        if m.sum() < 100 or len(np.unique(truth[m, k])) < 2:
+        if m.sum() < min_rows or len(np.unique(truth[m, k])) < 2:
             arm.horizons.append(
                 HorizonScore(k, int(m.sum()), int(truth[m, k].sum()), float("nan"),
                              float("nan"), float("nan"), float("nan"), float("nan"))
@@ -136,13 +159,35 @@ def score_curve(name: str, pd_curve: np.ndarray, truth: np.ndarray, seen: np.nda
 def run(
     model_path: str,
     out_dir: Path,
-    max_rows: int = 250_000,
-    train_until: int = 2016,
-    test_from: int = 2017,
-    max_context: int = 2000,
+    max_rows: int | None = None,
+    train_until: int | None = None,
+    test_from: int | None = None,
+    max_context: int | None = None,
     seed: int = 0,
+    cfg: Config | None = None,
 ) -> dict:
-    """Score the hazard head and per-horizon baselines out of time on V4FinBench."""
+    """Score the hazard head and per-horizon baselines out of time on V4FinBench.
+
+    Args:
+        model_path: Checkpoint carrying a hazard head.
+        out_dir: Directory for ``v4_out_of_time.json``.
+        max_rows: Row cap for the loader. Defaults to ``v4finbench.max_rows``.
+        train_until: Last training year, inclusive. Defaults to ``v4finbench.train_until``.
+        test_from: First test year, inclusive. Defaults to ``v4finbench.test_from``.
+        max_context: Context cap. Defaults to ``v4finbench.max_context``.
+        seed: Seed for context selection.
+        cfg: Configuration; loaded from the packaged default when omitted. Every value it
+            supplies is written into the run record, so a result can be traced to the
+            settings that produced it.
+
+    Returns:
+        The recorded result dictionary.
+    """
+    cfg = cfg or load_config()
+    max_rows = cfg.v4finbench.max_rows if max_rows is None else max_rows
+    train_until = cfg.v4finbench.train_until if train_until is None else train_until
+    test_from = cfg.v4finbench.test_from if test_from is None else test_from
+    max_context = cfg.v4finbench.max_context if max_context is None else max_context
     from sklearn.impute import SimpleImputer
     from sklearn.linear_model import LogisticRegression
     from sklearn.pipeline import make_pipeline
@@ -172,23 +217,30 @@ def run(
     # uncorrected arm stays in the harness permanently so the distortion is measured beside
     # the fix rather than argued about.
     if model.hazard is not None:
-        for name, strategy, correct in (
-            ("fintfm_hazard", "balanced", True),
-            ("fintfm_hazard_uncorrected", "balanced", False),
-            ("fintfm_hazard_uniform_ctx", "uniform", True),
-        ):
+        for arm in cfg.v4finbench.hazard_arms:
             clf = FinancialTFMClassifier(
                 model,
                 max_context=max_context,
-                context_strategy=strategy,
-                correct_prior=correct,
+                context_strategy=arm.strategy,
+                correct_prior=arm.correct_prior,
                 random_state=seed,
+                retrieval_groups=cfg.inference.retrieval_groups,
+                feature_transform=cfg.inference.feature_transform,
             ).fit(ds.X[tr], ds.y[tr])
-            print(
-                f"  {name}: context {len(clf._ctx_X):,} rows at "
-                f"{clf._ctx_rate:.3%} vs population {clf._full_rate:.3%}"
+            curve = clf.predict_term_structure(ds.X[te])
+            rate = (
+                clf.pooled_context_rate_
+                if arm.strategy == "retrieval"
+                else clf._ctx_rate
             )
-            arms.append(score_curve(name, clf.predict_term_structure(ds.X[te]), truth, seen))
+            print(
+                f"  {arm.name}: context at {rate:.3%} vs population {clf._full_rate:.3%}"
+            )
+            arms.append(
+                score_curve(
+                    arm.name, curve, truth, seen, cfg.evaluation.min_rows_per_horizon
+                )
+            )
 
     # --- per-horizon logistic regression, the field's construction ------------------
     cols = []
@@ -203,7 +255,15 @@ def run(
             LogisticRegression(max_iter=1000),
         ).fit(ds.X[tr][m_tr], y_k)
         cols.append(pipe.predict_proba(ds.X[te])[:, 1])
-    arms.append(score_curve("per_horizon_logreg", np.stack(cols, axis=1), truth, seen))
+    arms.append(
+        score_curve(
+            "per_horizon_logreg",
+            np.stack(cols, axis=1),
+            truth,
+            seen,
+            cfg.evaluation.min_rows_per_horizon,
+        )
+    )
 
     record = {
         "dataset": ds.name,
@@ -212,6 +272,10 @@ def run(
             "model": model_path, "max_rows": max_rows, "train_until": train_until,
             "test_from": test_from, "max_context": max_context, "seed": seed,
             "n_features": int(ds.X.shape[1]), "n_horizons": ds.n_horizons,
+            "feature_transform": cfg.inference.feature_transform,
+            "retrieval_groups": cfg.inference.retrieval_groups,
+            "min_rows_per_horizon": cfg.evaluation.min_rows_per_horizon,
+            "config_sources": list(cfg.sources),
         },
         "split": {
             "n_train": len(tr), "n_test": len(te),
@@ -263,16 +327,21 @@ def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--model", required=True)
     p.add_argument("--out", type=str, default="runs/v4-out-of-time")
-    p.add_argument("--max-rows", type=int, default=250_000)
-    p.add_argument("--train-until", type=int, default=2016)
-    p.add_argument("--test-from", type=int, default=2017)
-    p.add_argument("--max-context", type=int, default=2000)
+    p.add_argument("--config", type=str, default=None, help="YAML overriding the defaults")
+    # every value below defaults to None so the configuration supplies it; a flag given
+    # explicitly wins, which keeps the layering (default file, override file, flag) honest
+    p.add_argument("--max-rows", type=int, default=None)
+    p.add_argument("--train-until", type=int, default=None)
+    p.add_argument("--test-from", type=int, default=None)
+    p.add_argument("--max-context", type=int, default=None)
     p.add_argument("--seed", type=int, default=0)
     args = p.parse_args()
+    cfg = load_config(args.config)
     record = run(
         args.model, Path(args.out), max_rows=args.max_rows, train_until=args.train_until,
-        test_from=args.test_from, max_context=args.max_context, seed=args.seed,
+        test_from=args.test_from, max_context=args.max_context, seed=args.seed, cfg=cfg,
     )
+    print(f"\nconfig: {cfg.provenance()}")
     print("\n" + summarise(record))
     print(f"\n{record['attribution']}")
 

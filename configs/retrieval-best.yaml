@@ -1,0 +1,16 @@
+# The best configuration measured to date on V4FinBench out of time:
+# mean AUC 0.8118, mean ECE 0.0126, 0% coherence violations (docs/FINDINGS.md §35).
+#
+# Retrieval is opt-in rather than the library default because it costs about 2.5x the scoring
+# time and makes a prediction depend on its query group-mates (decision D10). Choosing it here
+# is what "opt-in" means.
+inference:
+  context_strategy: retrieval
+  feature_transform: rank
+  max_context: 2000
+
+v4finbench:
+  hazard_arms:
+    - {name: fintfm_hazard_retrieval, strategy: retrieval, correct_prior: true}
+    - {name: fintfm_hazard_uniform, strategy: uniform, correct_prior: true}
+    - {name: fintfm_hazard_uncorrected, strategy: balanced, correct_prior: false}

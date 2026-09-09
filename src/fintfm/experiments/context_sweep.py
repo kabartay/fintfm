@@ -32,19 +32,18 @@ from pathlib import Path
 
 import numpy as np
 
+from fintfm.config import Config, load_config
 from fintfm.evaluation.datasets import load_v4finbench
 from fintfm.evaluation.metrics import evaluate_binary
 from fintfm.experiments.v4_out_of_time import _curve_truth, time_split
-from fintfm.inference.classifier import ContextStrategy, FinancialTFMClassifier
+from fintfm.inference.classifier import FinancialTFMClassifier
 
-#: Strategies compared. The first three are blind — they never look at the query. §29
-#: reports them in this order; ``retrieval`` was added for §31, which showed *which*
-#: rows is the only remaining lever on the dominant term of the gap.
-STRATEGIES: tuple[ContextStrategy, ...] = ("balanced", "hybrid", "uniform", "retrieval")
-
-#: Context budgets. Three sizes give three replications of the strategy ordering, which is
-#: the only reason a single-seed result is reported at all.
-CONTEXT_SIZES: tuple[int, ...] = (1000, 2000, 4000)
+# Which strategies and context sizes are compared now comes from ``context_sweep`` in the
+# configuration (``fintfm/configs/default.yaml``), not from constants here. The first three
+# strategies are blind — they never look at the query; ``retrieval`` was added for §31, which
+# showed *which* rows is the only remaining lever on the dominant term of the gap. Three
+# context sizes give three replications of the strategy ordering, which is what made §29
+# reportable from one seed per cell.
 
 
 @dataclass
@@ -66,11 +65,12 @@ class SweepCell:
 def run(
     model_path: str,
     out_dir: Path,
-    max_rows: int = 120_000,
-    train_until: int = 2016,
-    test_from: int = 2017,
-    seeds: tuple[int, ...] = (0,),
-    retrieval_groups: int = 64,
+    max_rows: int | None = None,
+    train_until: int | None = None,
+    test_from: int | None = None,
+    seeds: tuple[int, ...] | None = None,
+    retrieval_groups: int | None = None,
+    cfg: Config | None = None,
 ) -> dict:
     """Sweep context strategy against context size on the out-of-time survival split.
 
@@ -80,14 +80,25 @@ def run(
         max_rows: Row cap passed to the V4FinBench loader.
         train_until: Last training year, inclusive.
         test_from: First test year, inclusive.
-        seeds: Seeds per cell. §29 used one; three are needed before the result is promoted
-            (``openspec/changes/revisit-context-strategy`` task 32.1).
+        seeds: Seeds per cell. Defaults to ``context_sweep.seeds``. §29 used one; §33 used
+            three, which is what a comparison between blind strategies needs — hybrid at
+            1,000 rows spreads ±0.046 across seeds.
         retrieval_groups: Query groups sharing a retrieved context, for the ``retrieval``
-            strategy only. Ignored by the blind strategies.
+            strategy only. Ignored by the blind strategies. Defaults to
+            ``context_sweep.retrieval_groups``.
+        cfg: Configuration; loaded from the packaged default when omitted.
 
     Returns:
         The recorded result dictionary.
     """
+    cfg = cfg or load_config()
+    max_rows = cfg.v4finbench.max_rows if max_rows is None else max_rows
+    train_until = cfg.v4finbench.train_until if train_until is None else train_until
+    test_from = cfg.v4finbench.test_from if test_from is None else test_from
+    seeds = tuple(cfg.context_sweep.seeds) if seeds is None else seeds
+    retrieval_groups = (
+        cfg.context_sweep.retrieval_groups if retrieval_groups is None else retrieval_groups
+    )
     ds = load_v4finbench(max_rows=max_rows)
     tr, te = time_split(ds, train_until, test_from)
     truth, seen = _curve_truth(ds, te)
@@ -95,8 +106,8 @@ def run(
     print(f"  population default rate {ds.y[tr].mean():.3%}")
 
     cells: list[SweepCell] = []
-    for max_context in CONTEXT_SIZES:
-        for strategy in STRATEGIES:
+    for max_context in cfg.context_sweep.context_sizes:
+        for strategy in cfg.context_sweep.strategies:
             for seed in seeds:
                 started = time.perf_counter()
                 clf = FinancialTFMClassifier(
@@ -106,13 +117,17 @@ def run(
                     correct_prior=True,  # never off; see the module docstring
                     random_state=seed,
                     retrieval_groups=retrieval_groups,
+                    feature_transform=cfg.inference.feature_transform,
                 ).fit(ds.X[tr], ds.y[tr])
                 curve = clf.predict_term_structure(ds.X[te])
                 elapsed = time.perf_counter() - started
                 aucs, eces = [], []
                 for k in range(curve.shape[1]):
                     m = seen[:, k]
-                    if m.sum() < 100 or len(np.unique(truth[m, k])) < 2:
+                    if (
+                        m.sum() < cfg.evaluation.min_rows_per_horizon
+                        or len(np.unique(truth[m, k])) < 2
+                    ):
                         continue
                     met = evaluate_binary(truth[m, k], curve[m, k])
                     aucs.append(met.roc_auc)
@@ -154,6 +169,8 @@ def run(
             "test_from": test_from,
             "seeds": list(seeds),
             "retrieval_groups": retrieval_groups,
+            "feature_transform": cfg.inference.feature_transform,
+            "config_sources": list(cfg.sources),
         },
         "cells": [asdict(c) for c in cells],
     }
@@ -193,22 +210,29 @@ def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--model", required=True)
     p.add_argument("--out", type=str, default="runs/context-sweep")
-    p.add_argument("--max-rows", type=int, default=120_000)
-    p.add_argument("--train-until", type=int, default=2016)
-    p.add_argument("--test-from", type=int, default=2017)
-    p.add_argument("--seeds", type=str, default="0", help="comma-separated")
-    p.add_argument("--retrieval-groups", type=int, default=64)
+    p.add_argument("--config", type=str, default=None, help="YAML overriding the defaults")
+    # None means "take it from the configuration"; an explicit flag wins over both layers
+    p.add_argument("--max-rows", type=int, default=None)
+    p.add_argument("--train-until", type=int, default=None)
+    p.add_argument("--test-from", type=int, default=None)
+    p.add_argument("--seeds", type=str, default=None, help="comma-separated")
+    p.add_argument("--retrieval-groups", type=int, default=None)
     args = p.parse_args()
+    cfg = load_config(args.config)
     record = run(
         args.model,
         Path(args.out),
         max_rows=args.max_rows,
         train_until=args.train_until,
         test_from=args.test_from,
-        seeds=tuple(int(s) for s in args.seeds.split(",")),
+        seeds=(
+            tuple(int(s) for s in args.seeds.split(",")) if args.seeds else None
+        ),
         retrieval_groups=args.retrieval_groups,
+        cfg=cfg,
     )
     print("\n" + summarise(record))
+    print(f"\nconfig: {cfg.provenance()}")
     print(f"\n{record['attribution']}")
 
 

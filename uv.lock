@@ -360,6 +360,7 @@ source = { editable = "." }
 dependencies = [
     { name = "numpy" },
     { name = "pandas" },
+    { name = "pyyaml" },
     { name = "scikit-learn" },
     { name = "scipy" },
     { name = "torch" },
@@ -394,6 +395,7 @@ requires-dist = [
     { name = "pandas", specifier = ">=2.2" },
     { name = "pyarrow", marker = "extra == 'bench'", specifier = ">=17" },
     { name = "pyarrow", marker = "extra == 'kaggle'", specifier = ">=17" },
+    { name = "pyyaml", specifier = ">=6.0" },
     { name = "scikit-learn", specifier = ">=1.5" },
     { name = "scipy", specifier = ">=1.18.1" },
     { name = "torch", specifier = ">=2.4" },

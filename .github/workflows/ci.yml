@@ -55,5 +55,25 @@ jobs:
           names = zipfile.ZipFile(whl).namelist()
           assert any("LICENSE" in n for n in names), "Apache-2.0 licence missing from wheel"
           assert any(n.endswith("py.typed") for n in names), "py.typed marker missing"
-          print(f"{whl}: licence and typing marker present")
+          # the packaged default config must ship: load_config() reads it at runtime, so a
+          # wheel without it fails on import of any experiment rather than at build time
+          assert any(
+              n.endswith("fintfm/configs/default.yaml") for n in names
+          ), "packaged default config missing from wheel"
+          print(f"{whl}: licence, typing marker and packaged config present")
           PY
+
+      # Presence in the archive is not the same as usable once installed: the config is read
+      # at runtime by path, so install the wheel into a clean environment and load it there.
+      - name: Load the packaged config from an installed wheel
+        run: |
+          whl=$(ls dist/*.whl | tail -1)
+          uv venv /tmp/instchk
+          VIRTUAL_ENV=/tmp/instchk uv pip install --python /tmp/instchk/bin/python "$whl"
+          /tmp/instchk/bin/python -c "
+          from fintfm.config import load_config
+          cfg = load_config()
+          assert cfg.v4finbench.test_from > cfg.v4finbench.train_until
+          assert cfg.context_sweep.strategies
+          print('packaged config loads from an installed wheel:', cfg.provenance())
+          "
