@@ -129,6 +129,12 @@ def main() -> None:
     )
     p.add_argument("--d-model", type=int, default=192)
     p.add_argument("--d-cell", type=int, default=64)
+    p.add_argument(
+        "--d-ff", type=int, default=None,
+        help="feed-forward width; defaults to 4 x d_model, the transformer convention. "
+             "Leaving it pinned while d_model grows makes the FFN a bottleneck and distorts "
+             "any scaling comparison (docs/HF_JOBS.md)",
+    )
     p.add_argument("--n-layers", type=int, default=6, help="row-attention layers")
     p.add_argument("--n-col-layers", type=int, default=2, help="column-attention layers")
     p.add_argument("--device", type=str, default="cpu")
@@ -145,6 +151,7 @@ def main() -> None:
         torch.set_num_threads(args.threads)
 
     model_cfg = ModelConfig(
+        d_ff=args.d_ff if args.d_ff is not None else 4 * args.d_model,
         max_features=args.max_features,
         max_classes=args.max_classes,
         d_cell=args.d_cell,

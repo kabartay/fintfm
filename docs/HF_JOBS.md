@@ -1,10 +1,9 @@
 # GPU pretraining on Hugging Face Jobs
 
-**Status: setup verified up to the point of the token scope; the run recipe below is drafted
-and NOT yet executed.** Lines are marked **[verified]** or **[unverified]** — the sibling
-`finkele-axiom/scripts/hf_job_recipe.md` earns its authority by recording only lines that were
-actually run, and this file will not claim more than it has done. Delete the unverified marks
-as each line executes.
+**Status: the recipe below has been executed.** Following the sibling
+`finkele-axiom/scripts/hf_job_recipe.md`, every line here was run rather than inferred, and the
+failures are kept because each one cost a probe and would otherwise be rediscovered. Six probes
+established the working configuration; the three training runs are in flight.
 
 ## Why GPU at all
 
@@ -42,16 +41,68 @@ up.
 
 | line | result |
 | --- | --- |
-| token with no scopes | `403 ... missing permissions: job.read` — **[verified]** |
-| scopes `repo.access.read`, `repo.content.read`, `repo.write`, `job.write` | `hf jobs ps` works — **[verified]** |
-| private model repo + `hf upload` of the wheel | works; repo reports `private: True` — **[verified]** |
-| `--flavor l4x1` | `NVIDIA L4, 23034 MiB` — **[verified]** |
-| `huggingface_hub[cli]` | **does not exist** as of hub 1.30: `does not provide the extra 'cli'`. The `hf` command ships in the base package — **[verified]** |
-| `requires-python = ">=3.13"` | **killed the first probe**: the image ships Python 3.12.3, so `pip install` refused the wheel with "requires a different Python". Lowered to `>=3.12`, and CI now runs a 3.12/3.13 matrix so the floor is exercised rather than assumed — **[verified]** |
-| L4 scheduling latency | jobs can sit in `SCHEDULING` for **10+ minutes** before a GPU frees up; that is queue time, not a hang — **[verified]** |
+| token with no scopes | `403 ... missing permissions: job.read` |
+| scopes `repo.access.read`, `repo.content.read`, `repo.write`, `job.write` | `hf jobs ps` works |
+| private model repo + `hf upload` of the wheel | works; repo reports `private: True` |
+| `--flavor t4-small` | `Tesla T4`, 14.74 GiB. **Scheduled immediately, every time.** |
+| `--flavor l4x1` | `NVIDIA L4`, 23034 MiB. **Queued 30+ minutes** on one attempt; cancelled and re-run on T4 instead |
+| `huggingface_hub[cli]` | **does not exist** as of hub 1.30: `does not provide the extra 'cli'`. The `hf` command ships in the base package |
+| `requires-python = ">=3.13"` | **killed the first probe**: the image ships Python 3.12.3, so `pip install` refused the wheel. Lowered to `>=3.12`, with a CI matrix so the floor is exercised |
+| `--no-deps` for our wheel | keeps the image's CUDA-matched `torch 2.12.1+cu126`; `torch.cuda.is_available()` is `True` |
+| packaged config from the installed wheel | loads at `/usr/local/lib/python3.12/dist-packages/fintfm/configs/default.yaml` |
+| training throughput, small (847K), T4 | **0.64 s/step** at batch 8, against 1.06 s/step on Apple Metal — about 1.7× |
+| training throughput, medium (4.9M), T4 | **0.98 s/step** at batch 8 |
 
-The first probe cost 23 seconds of L4 time and returned two real defects. Probing is cheap;
-the recipe's insistence on it is earned.
+## Two memory lessons, both of which cost a run
+
+**A short probe with sampled task sizes does not test the worst case.** `--n-rows-choices
+256,512,1024` draws the task size *per batch*, so a 200-step probe passed and the 6,000-step
+run at identical settings died of OOM six minutes in. Memory is driven by batch × **max** task
+size, and the probe simply never drew 1,024. Probe the worst case explicitly:
+
+```bash
+--steps 12 --n-rows 1024 --n-rows-choices 1024      # pins every batch to the maximum
+```
+
+**Most of the apparent shortage was fragmentation.** The failing run reported **5.38 GiB
+"reserved but unallocated"** — the error message names the fix and it works:
+
+```bash
+-e PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+```
+
+With it, every configuration fits on a T4 at the worst case that previously failed, including
+small at batch 8 and large at batch 4. This is a non-secret value, so `-e` is correct here;
+see the secrets section for why the distinction matters.
+
+## Memory scales with batch × rows × features², not with parameters
+
+The column-attention stage reshapes to ``(B·N, F, d_cell)`` and attends across **features**, so
+a task of 1,024 rows at batch 8 is 8,192 sequences of 136 tokens. That, not parameter count, is
+what fills the card:
+
+| model | parameters | T4 (14.74 GiB), 1,024-row tasks | L4 (23 GiB) |
+| --- | --- | --- | --- |
+| small | 846,818 | fits at batch 8 | — |
+| medium | 4,878,146 | fits at batch 8 | — |
+| large | 14,506,466 | fits at batch **4**; batch 8 OOMs by ~1.2 GiB with only 26 MiB unallocated, so this one is real capacity rather than fragmentation | used for batch 8, to keep the scaling curve matched |
+
+The practical consequence: **wide tables are memory-bound before they are compute-bound here**,
+and a scaling study has to hold batch size constant across sizes or it is comparing two things
+at once.
+
+## The `--d-ff` trap
+
+The training CLI had no `--d-ff` flag, so the feed-forward width stayed pinned at its 512
+default while `d_model` grew. The "medium" and "large" configurations came out at 3.3M and 8.2M
+parameters instead of 4.9M and 14.5M, and the FFN silently became a bottleneck as the model
+widened. `--d-ff` now exists and defaults to `4 × d_model`, the transformer convention.
+
+Nothing failed. The run completed and reported a parameter count, which is the only reason it
+was caught — the same shape as `docs/FINDINGS.md` §28, where the wrong number was computed,
+stored and simply not looked at.
+
+## Scopes the token needs
 
 ## Scopes the token needs
 
