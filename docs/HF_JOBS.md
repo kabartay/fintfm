@@ -38,6 +38,21 @@ larger ones consume more compute per step. That is the standard shape for a scal
 it is not the same claim as §14's "matched compute", so do not conflate them when writing this
 up.
 
+## Verified so far
+
+| line | result |
+| --- | --- |
+| token with no scopes | `403 ... missing permissions: job.read` — **[verified]** |
+| scopes `repo.access.read`, `repo.content.read`, `repo.write`, `job.write` | `hf jobs ps` works — **[verified]** |
+| private model repo + `hf upload` of the wheel | works; repo reports `private: True` — **[verified]** |
+| `--flavor l4x1` | `NVIDIA L4, 23034 MiB` — **[verified]** |
+| `huggingface_hub[cli]` | **does not exist** as of hub 1.30: `does not provide the extra 'cli'`. The `hf` command ships in the base package — **[verified]** |
+| `requires-python = ">=3.13"` | **killed the first probe**: the image ships Python 3.12.3, so `pip install` refused the wheel with "requires a different Python". Lowered to `>=3.12`, and CI now runs a 3.12/3.13 matrix so the floor is exercised rather than assumed — **[verified]** |
+| L4 scheduling latency | jobs can sit in `SCHEDULING` for **10+ minutes** before a GPU frees up; that is queue time, not a hang — **[verified]** |
+
+The first probe cost 23 seconds of L4 time and returned two real defects. Probing is cheap;
+the recipe's insistence on it is earned.
+
 ## Scopes the token needs
 
 **[verified]** A token with no scopes fails with `403 ... missing permissions: job.read`.

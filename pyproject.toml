@@ -8,7 +8,11 @@ authors = [
 ]
 license = "Apache-2.0"
 license-files = ["LICENSE"]
-requires-python = ">=3.13"
+# 3.12, not 3.13. The bound was 3.13 only because that was the local interpreter, and nothing
+# in the codebase uses 3.13 syntax or stdlib. It cost a GPU probe: the standard CUDA PyTorch
+# images ship Python 3.12.3, so `pip install fintfm` failed with "requires a different
+# Python". A library aimed at banks should not demand an interpreter released last year.
+requires-python = ">=3.12"
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
     "Intended Audience :: Financial and Insurance Industry",
@@ -40,7 +44,9 @@ bench = [
 # Hugging Face Jobs, for GPU pretraining runs. huggingface_hub is Apache-2.0.
 # See docs/HF_JOBS.md; secrets go through `--secrets`, never `-e`.
 hf = [
-    "huggingface_hub[cli]>=0.34",
+    # not `[cli]` -- that extra was removed by hub 1.30 and resolves to a warning plus no CLI.
+    # The `hf` command ships in the base package.
+    "huggingface_hub>=0.34",
 ]
 
 # V4FinBench data lives on Kaggle and needs an account. Data is CC BY 4.0; the

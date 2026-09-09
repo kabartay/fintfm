@@ -14,6 +14,14 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      # `requires-python` says >=3.12, so 3.12 must actually be exercised. It was >=3.13 for
+      # no reason beyond the local interpreter, and that cost a GPU probe: the standard CUDA
+      # PyTorch images ship 3.12.3, so installing the wheel failed outright. A floor nobody
+      # tests is a guess (docs/HF_JOBS.md).
+      matrix:
+        python-version: ["3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
 
@@ -21,6 +29,7 @@ jobs:
         uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
+          python-version: ${{ matrix.python-version }}
 
       # The `bench` extra carries LightGBM, CatBoost and XGBoost. They are the baselines
       # that actually compete, and they were silently absent from every comparison until
