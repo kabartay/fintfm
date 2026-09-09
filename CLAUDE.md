@@ -160,7 +160,13 @@ has to be in place *before* the first pull request is merged, not after.
 
 No code, model weights, or training/eval data from Neuralk (Seldon), Fundamental (NEXUS),
 Google TabFM, TabPFN/TabICL, or any other tabular-foundation-model product may enter this
-repository. Their public papers/blog posts are legitimate research context to read and cite in
+repository.
+
+**Check the weights licence separately from the code licence, every time.** Google's TabFM
+and TimesFM 3.0 both ship Apache-2.0 code with **non-commercial** weights, and TimesFM's
+weights were Apache-2.0 through 2.5 and are not at 3.0 — so a licence checked once is not
+checked. Evaluating against published *numbers* is always fine; running someone's checkpoint
+inside anything commercial is not. See `docs/FINDINGS.md` §24. Their public papers/blog posts are legitimate research context to read and cite in
 discussion, never a source to copy from. Before adding any third-party dataset or dependency,
 check its license against commercial use — see `README.md`'s licensing section for the current
 policy and add a line there when a new source is added.

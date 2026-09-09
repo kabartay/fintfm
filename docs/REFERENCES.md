@@ -151,6 +151,19 @@ and Hansen's SPA with family-wise error control. Directly motivated the paired b
 Holm correction now in `evaluation/metrics.py`, and the coverage tests belong in
 `openspec/changes/conformal-pd-certificate`.
 
+**Qu, Holzmüller, Varoquaux & Le Morvan (2025).** *TabICL: A Tabular Foundation Model for
+In-Context Learning on Large Data.* ICML, PMLR 267:50817-50847.
+[proceedings](https://proceedings.mlr.press/v267/qu25d.html) · code
+[soda-inria/tabicl](https://github.com/soda-inria/tabicl)
+**Architecturally the closest published work to this project.** A two-stage design —
+column-then-row attention producing fixed-dimensional row embeddings, then a transformer for
+ICL — which is the same decomposition `modeling/model.py` arrived at independently. Their
+result matters for our scaling question: pretrained on synthetic sets up to 60K samples,
+handling 500K, and on 53 datasets above 10K samples it **beats both TabPFNv2 and CatBoost**.
+That qualifies the Beyond IID reading (§9): ICL can scale, given the right architecture.
+Note also that TabPFNv2 is reported as excelling only up to ~10K samples because alternating
+column/row attention becomes prohibitive — the cost our row-pooling stage also avoids.
+
 ### Still unverified — do not cite
 
 - Credit-risk TFM evaluations reporting that TFMs are strongest in small-data PD/LGD

@@ -1439,3 +1439,107 @@ hazard, which is the seasoning shape `_sample_survival` already samples among it
   on any panel we held.
 - **`time-based-evaluation`**, blocked since §7 for want of dates.
 - A second economy and accounting regime for every existing result.
+
+## 23. Context size is not the constraint; domain match is. Home Credit scores 0.550
+
+**Date:** 2026-09-09. **Status:** MEASURED, external leaderboard. This finding **refutes a
+hypothesis I stated before testing it**, which is why it is recorded rather than quietly
+dropped.
+
+Submitted to Kaggle's Home Credit Default Risk (7,176 teams, closed 2018) using only
+`application_train`/`application_test` — no auxiliary tables, no feature engineering, no
+gradient step on competition data.
+
+| | score |
+| --- | --- |
+| our held-out estimate | 0.5525 |
+| **Kaggle public** | **0.54924** |
+| **Kaggle private** | **0.55020** |
+| competition winner | ~0.805 |
+| random | 0.500 |
+
+A bad result, and the predicted one. Note the held-out estimate landed within 0.003 of the
+leaderboard, so the evaluation pipeline is at least honest about what it is producing.
+
+### The hypothesis, and its refutation
+
+I proposed that the model was **information-starved**: gradient boosting sees 267,000
+training rows and we hand the model 2,000, a 130× disadvantage, with `max_context` set at
+2,000 for CPU cost long before Metal was available. TabPFNv2 uses ~10K and TabICL scales to
+500K, so the reasoning seemed sound.
+
+Measured on 10,000 held-out rows, sweeping context with no retraining:
+
+| context | AUC (balanced) | AUC (uniform) | seconds |
+| --- | --- | --- | --- |
+| 500 | 0.5634 | 0.5647 | 4 |
+| 2,000 | 0.5606 | 0.5656 | 9 |
+| 8,000 | 0.5606 | 0.5655 | 37 |
+| 20,000 | 0.5608 | 0.5663 | 233 |
+
+**A 40× increase in context buys 0.0016 AUC at 33× the inference cost.** Completely flat.
+The model is not starved; it cannot extract signal from these features at any context size.
+
+### What it is instead
+
+Domain mismatch, and the contrast is stark. The same architecture and prior reach **0.78 AUC
+on UCI corporate panels** (§14) and **0.77 on synthetic corporate tasks** (§21), against
+**0.56 here**. Home Credit is consumer credit — bureau scores, employment, housing,
+demographics — while the prior generates corporate balance sheets and P&L. There is no
+leverage ratio, no interest coverage, no working capital. The relationships the prior teaches
+do not exist in this data.
+
+This is **evidence for the domain-prior thesis**, arriving from the unflattering direction: a
+prior that matters is a prior whose absence hurts.
+
+### Two side notes
+
+- **Uniform context beat balanced here** (0.5663 against 0.5608) with better calibration, the
+  reverse of §5's finding on 4% base rates. At Home Credit's 8.07% rate, balancing distorts
+  more than it helps. Context strategy is base-rate dependent and should not be a fixed
+  default.
+- **`max_context = 2000` is not costing us anything** on this evidence, so raising it is not
+  the improvement it appeared to be. Retest on corporate data before concluding generally.
+
+### The honest answer to "how do we improve this number"
+
+Build a consumer-credit prior. **We should not**, because consumer credit is a different
+wedge, and 0.55 on a 2018 consumer competition is not a result worth optimising. The finding
+worth keeping is the contrast between 0.78 corporate and 0.56 consumer.
+
+## 24. The frontier labs are restricting their weights, and that is a market gap
+
+**Date:** 2026-09-09. **Status:** MEASURED by reading the licences; the strategic reading is
+inference and labelled as such.
+
+Three independent data points, all from primary sources:
+
+| model | code licence | **weights licence** |
+| --- | --- | --- |
+| Google TabFM | Apache-2.0 | **`tabfm-non-commercial-v1.0` — non-commercial, non-production** |
+| Google TimesFM 3.0 | Apache-2.0 | **`timesfm-non-commercial-license-v1.0` — non-commercial** |
+| Google TimesFM ≤ 2.5 | Apache-2.0 | Apache-2.0 |
+| V4FinBench | MIT | data CC BY 4.0 |
+
+TimesFM is the informative case: weights through 2.5 were Apache-2.0, and **3.0 — the
+version that tops fev-bench, TIME and GIFT-Eval — is not**. The pattern is that as these
+models become genuinely good, the weights stop being commercially usable.
+
+**The inference, and it is judgment rather than measurement:** a commercial lender cannot
+deploy the current best tabular or time-series foundation models at all. Not for want of
+quality or money — the licence forbids it. That is a gap that no amount of accuracy work by
+the frontier labs closes, because it is a deliberate business choice on their part.
+
+**What follows for this project.** `docs/DECISIONS.md` D6 chose Apache-2.0 on the reasoning
+that the moat is the weights and the prior rather than the code. This finding suggests the
+sharper version: **commercially usable weights may themselves be the differentiator** in a
+market where the best models are locked. That does not mean giving the weights away — it
+means that whatever we do ship must be deployable in production by a regulated lender, which
+the alternatives currently are not.
+
+It also sets a trap to avoid: **never build on non-commercially-licensed weights**, however
+convenient for a benchmark. Evaluating against published *numbers* is fine; running their
+checkpoints inside anything commercial is not. Recorded in `CLAUDE.md`'s licensing boundary.
+
+**Caveat:** licences change, in both directions. Re-read before relying on any of this, and
+treat the table as of 2026-09-09.
