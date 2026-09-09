@@ -4,7 +4,7 @@ Hard-wrapped, because it is read in an editor and a diff. Release bodies on GitH
 **not** wrapped — they are read in a browser at full width. Same words, different shape; do
 not paste one into the other. See `CLAUDE.md`.
 
-## [Unreleased]
+## [0.2.0] — 2026-09-09
 
 ### Fixed
 
@@ -21,6 +21,11 @@ not paste one into the other. See `CLAUDE.md`.
 
 ### Added
 
+- **`.env` / `.env.example` for credentials**, mirroring `finkele-axiom`. Nothing sources
+  `.env` automatically; commands that need it source it for that call only. First key is a
+  read-only fine-grained Hugging Face token for gated public datasets, with the exact scopes
+  documented — and with the note that scope **cannot** enforce this repository's licensing
+  boundary, since HF grants every token read access to all public repo contents.
 - **`prototype` context strategy** — Kostrzewa et al.'s prototype undersampling
   (arXiv:2605.10896 §5.1), implemented from their description for comparison. It is now the
   **recommended** construction: mean AUC 0.8143 ± 0.0038 and ECE 0.0072 out of time, against
