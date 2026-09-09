@@ -223,6 +223,7 @@ def run(
     folds: tuple[int, ...] = (0, 1, 2, 3, 4),
     max_rows: int | None = None,
     root: Path | None = None,
+    with_boosting: bool = True,
     cfg: Config | None = None,
 ) -> dict:
     """Score arms under V4FinBench's published protocol.
@@ -237,6 +238,10 @@ def run(
         folds: Which rotations to run.
         max_rows: Development cap. Companies are kept whole, so the grouping guarantee holds.
         root: Directory holding the parquet files.
+        with_boosting: Run LightGBM, CatBoost and XGBoost as baselines. They fit
+            out-of-process because of the macOS OpenMP conflict (``docs/COMPUTE.md``), and
+            they are the baselines that actually compete — the paper reports gradient-boosted
+            trees as its strongest classical cluster.
         cfg: Configuration; loaded from the packaged default when omitted.
 
     Returns:
@@ -247,6 +252,7 @@ def run(
     from sklearn.metrics import f1_score, roc_auc_score
     from sklearn.preprocessing import StandardScaler
 
+    from fintfm.evaluation.boosting import available_boosting, fit_predict_boosting
     from fintfm.evaluation.datasets import CACHE_DIR
     from fintfm.inference.classifier import FinancialTFMClassifier
     from fintfm.modeling.model import FinancialTFM
@@ -262,6 +268,12 @@ def run(
     print(f"folds: {np.bincount(assignments).tolist()} rows per fold\n")
 
     model = FinancialTFM.load(model_path)
+    # §25: every gradient-boosting comparison in this project once used sklearn's weakest
+    # implementation because the strong ones were silently absent. available_boosting()
+    # announces what is missing rather than skipping it quietly.
+    boosters = available_boosting() if with_boosting else []
+    if with_boosting and not boosters:
+        print("  no boosting baselines available; install with `uv sync --extra bench`")
     results: list[FoldResult] = []
     for fold in folds:
         tr, va, te = split_indices_for_fold(assignments, fold)
@@ -291,6 +303,17 @@ def run(
                 f"  fintfm skipped: checkpoint takes {model.cfg.max_features} features, "
                 f"data has {Xtr.shape[1]}"
             )
+
+        # the boosters score validation and test in one fit: the threshold is calibrated on
+        # validation and applied to test, so both are needed from the same fitted model
+        if boosters:
+            both = np.vstack([Xva, Xte])
+            for name in boosters:
+                p_both = fit_predict_boosting(name, Xtr, y[tr], both)
+                if p_both is None:
+                    print(f"  {name} failed on fold {fold}; excluded from this fold")
+                    continue
+                arms[name] = (p_both[: len(va)], p_both[len(va) :])
 
         for arm, (p_val, p_test) in arms.items():
             thr, _ = best_f1_threshold(y[va], p_val)
@@ -332,6 +355,7 @@ def run(
             "model": model_path, "horizon": horizon, "folds": list(folds),
             "max_rows": max_rows, "n_features": int(X.shape[1]),
             "fold_seed": FOLD_SEED, "n_splits": N_SPLITS,
+            "boosting": boosters,
             "context_strategy": cfg.inference.context_strategy,
             "feature_transform": cfg.inference.feature_transform,
             "max_context": cfg.inference.max_context,
@@ -374,12 +398,17 @@ def main() -> None:
     p.add_argument("--horizon", type=int, default=0, choices=sorted(HORIZON_FILES))
     p.add_argument("--folds", type=str, default="0,1,2,3,4", help="comma-separated")
     p.add_argument("--max-rows", type=int, default=None, help="development cap")
+    p.add_argument(
+        "--no-boosting", action="store_true",
+        help="skip LightGBM/CatBoost/XGBoost; they are the baselines that compete, so this "
+             "is for quick development runs only",
+    )
     args = p.parse_args()
     cfg = load_config(args.config)
     record = run(
         args.model, Path(args.out), horizon=args.horizon,
         folds=tuple(int(v) for v in args.folds.split(",")),
-        max_rows=args.max_rows, cfg=cfg,
+        max_rows=args.max_rows, with_boosting=not args.no_boosting, cfg=cfg,
     )
     print("\n" + summarise(record))
     print(f"\nconfig: {cfg.provenance()}")

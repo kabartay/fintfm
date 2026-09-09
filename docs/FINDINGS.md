@@ -2614,3 +2614,76 @@ comparing": a single-seed sweep is not tuning, it is noise with a direction.
 
 **This is the sixth wrong diagnosis in two days** (`docs/POSTMORTEM.md`), and the first where
 the error was over-crediting our own result rather than mis-attributing a failure.
+
+---
+
+## 39. The first comparable number: 0.9811 ROC-AUC on V4FinBench's own protocol, from a model that has never seen a real company
+
+**Date:** 2026-09-09. **MEASURED**, 5 folds, full data. **Command:**
+
+```bash
+uv run fintfm-v4protocol --model runs/v4-clf-small.pt --horizon 0 --folds 0,1,2,3,4
+```
+
+§36 established that nothing this project had produced could be placed against V4FinBench's
+published table. This is the first number that can be, on their protocol, their folds, their
+horizon-0 task, all 1,000,087 rows.
+
+**The reproduction lands on the right data.** Our loader reports 1,000,087 rows with 3,587
+positives (0.359%) at horizon 0; their Table 1 reports 1,000,087 and 3,587. Fold sizes come out
+at 199,392-200,822, which is the even split their company-grouped assignment should give.
+
+| arm | ROC-AUC | F₁ |
+| --- | --- | --- |
+| **fintfm** (847K params, synthetic-only) | **0.9811 ± 0.0008** | 0.2202 ± 0.0129 |
+| logistic regression (fitted on ~600k rows) | 0.9839 ± 0.0013 | 0.2439 ± 0.0177 |
+
+**We are 0.0028 AUC behind logistic regression**, consistently — every one of the five folds,
+with a fold-to-fold spread of ±0.0008 that is smaller than the gap. So the deficit is real and
+it is small.
+
+That is a materially better showing than out-of-time, where the gap to per-horizon logistic
+regression is 0.047 (§38). Two protocols, two answers, and the difference is the protocol: this
+one is company-grouped cross-validation, so a fold may contain 2019 observations while
+predicting a 2008 one. **Out-of-time is the harder split, and we are further behind on it** —
+which is the honest direction for that difference to run, since out-of-time is also the one a
+model-risk function cares about.
+
+### The F₁ gap is the real problem, and it is not what it first looks like
+
+Their published XGBoost reaches far higher F₁ than either arm here. Before treating that as a
+2× deficit, note **their Table 2 F₁ of 0.483 is not comparable to our 0.2202.** That table uses
+a different sub-protocol: a 20,000-observation training subset, and a test set built from *all*
+held-out positives plus sampled negatives. F₁ depends directly on class balance, so enriching
+the test set with positives inflates it. Our 0.2202 is on the full fold at a 0.359% base rate.
+
+What *is* comparable is that their Figure 4 shows gradient-boosted trees well above logistic
+regression on F₁ under the main protocol, and our logistic regression (0.2439) sits close to
+where theirs should. **The gap is therefore to gradient boosting, not to their protocol** — and
+we cannot quantify it from a figure. Their per-horizon table is in an appendix not yet read,
+and the direct route is to run the boosters ourselves on these folds, which
+`evaluation/boosting.py` already supports out-of-process but the protocol harness does not yet
+call. That is the next task, and §25 is the standing reminder of what happens when a comparison
+omits the strong baseline.
+
+**Separately, AUC 0.981 with F₁ 0.220 is itself informative.** Ranking is excellent and the
+operating point is poor, which is a threshold and probability-shape problem rather than a
+discrimination one — at a 0.359% base rate the F₁-maximising threshold sits at 0.032 for our
+model against 0.102 for logistic regression, so our probabilities are compressed toward zero
+relative to a fitted model's.
+
+### What this does and does not license
+
+**It licenses:** "on V4FinBench's published protocol at the immediate horizon, a
+synthetic-only in-context model with 847K parameters reaches 0.9811 ROC-AUC, within 0.003 of a
+logistic regression fitted on 600,000 rows, having never seen a real company."
+
+**It does not license** any claim against their headline TabPFN result. Theirs is **fine-tuned
+on this data** for 10 epochs on an A100; ours cannot be, by decision D2, because the
+provenance argument is the point. Those answer different questions and a table putting them
+side by side without that sentence attached would be misleading.
+
+**Still missing before this is publishable:** the other five horizons, the five classical
+baselines we do not run, and the boosters. Horizon 0 is also the easiest horizon — the label is
+a deterministic rule on three features that are present in the feature set, so 0.98 here is
+closer to rule recovery than to forecasting.
