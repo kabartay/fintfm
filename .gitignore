@@ -10,3 +10,7 @@ data/cache/
 
 dist/
 *.egg-info/
+
+# never commit credentials
+kaggle.json
+.kaggle/

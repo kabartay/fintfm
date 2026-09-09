@@ -48,14 +48,30 @@ def fetch_v4finbench(dest: Path | None = None) -> Path:
             "kagglehub is not installed. Run:  uv sync --extra kaggle"
         ) from None
 
-    cred = Path.home() / ".kaggle" / "kaggle.json"
-    if not cred.exists() and "KAGGLE_USERNAME" not in __import__("os").environ:
+    # Ask kagglehub how it resolves credentials rather than reimplementing the search.
+    # Kaggle now offers two mechanisms and a hand-rolled check for the legacy file alone
+    # would reject a perfectly valid modern API token.
+    try:
+        from kagglehub.config import get_kaggle_credentials
+
+        has_credentials = get_kaggle_credentials() is not None
+    except Exception:  # noqa: BLE001 - an unknown kagglehub layout must not block the fetch
+        has_credentials = (Path.home() / ".kaggle" / "kaggle.json").exists()
+
+    if not has_credentials:
         raise SystemExit(
-            f"No Kaggle credentials found at {cred}.\n"
-            "Create a token at https://www.kaggle.com/settings (API -> Create New Token), "
-            "then:\n"
-            "  mkdir -p ~/.kaggle && mv ~/Downloads/kaggle.json ~/.kaggle/kaggle.json "
-            "&& chmod 600 ~/.kaggle/kaggle.json"
+            "No Kaggle credentials found. Two options at "
+            "https://www.kaggle.com/settings :\n"
+            "\n"
+            "  A) API Tokens (Kaggle's recommendation) -- 'Generate New Token', then\n"
+            "       export KAGGLE_API_TOKEN=<the token>\n"
+            "     Needs kagglehub >= 0.4.1; this project pins a newer one.\n"
+            "\n"
+            "  B) Legacy API Credentials -- downloads kaggle.json, then\n"
+            "       mkdir -p ~/.kaggle && mv ~/Downloads/kaggle.json ~/.kaggle/kaggle.json\n"
+            "       chmod 600 ~/.kaggle/kaggle.json\n"
+            "\n"
+            "Either works. Never paste a token into a chat or commit it."
         )
 
     print(f"downloading {V4FINBENCH_KAGGLE} (~1.1M company-year rows, this may take a while)")
