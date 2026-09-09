@@ -255,15 +255,56 @@ class FinancialTFM(nn.Module):
     def num_parameters(self) -> int:
         return sum(p.numel() for p in self.parameters())
 
-    def save(self, path: str) -> None:
-        torch.save({"config": asdict(self.cfg), "state_dict": self.state_dict()}, path)
+    def save(self, path: str, trained_objectives: tuple[str, ...] = ()) -> None:
+        """Write the checkpoint, recording which objectives were actually optimised.
+
+        Args:
+            path: Destination file.
+            trained_objectives: Names of the objectives this checkpoint was trained on, from
+                ``{"classification", "survival"}``. **Recording this is not bookkeeping.**
+                The training loop optimises the survival loss *or* the classification loss,
+                never both, so a hazard checkpoint's classification head is still at random
+                initialisation — and ``predict_proba`` on it returned confident nonsense with
+                no error at all (mean predicted 0.69 against a 4.7% base rate, AUC 0.37).
+                An empty tuple means the checkpoint predates this field and nothing can be
+                assumed about it.
+        """
+        torch.save(
+            {
+                "config": asdict(self.cfg),
+                "state_dict": self.state_dict(),
+                "trained_objectives": list(trained_objectives),
+            },
+            path,
+        )
 
     @classmethod
     def load(cls, path: str, map_location: str | torch.device = "cpu") -> FinancialTFM:
         ckpt = torch.load(path, map_location=map_location, weights_only=True)
         model = cls(ModelConfig(**ckpt["config"]))
         model.load_state_dict(ckpt["state_dict"])
+        model.trained_objectives = tuple(ckpt.get("trained_objectives", ()))
         return model.eval()
+
+    def assert_trained_for(self, objective: str) -> None:
+        """Refuse to serve predictions from a head that was never trained.
+
+        Args:
+            objective: ``"classification"`` or ``"survival"``.
+
+        Raises:
+            RuntimeError: If the checkpoint records objectives and this is not among them.
+                A checkpoint with no record (an older file, or a model built in memory) is
+                allowed through, because refusing would break every in-process use.
+        """
+        known = getattr(self, "trained_objectives", ())
+        if known and objective not in known:
+            raise RuntimeError(
+                f"this checkpoint was trained on {sorted(known)} and not on {objective!r}, "
+                f"so the {objective} head is at its random initialisation; predictions from "
+                "it are meaningless. Pretrain without --n-horizons for classification, or "
+                "use predict_term_structure for a hazard checkpoint."
+            )
 
     def term_structure(
         self, X: torch.Tensor, y: torch.Tensor, n_ctx: int

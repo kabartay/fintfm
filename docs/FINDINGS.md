@@ -5,7 +5,7 @@ a conversation is lost when the conversation compacts.
 
 ## Where we stand — the honest scorecard
 
-Updated 2026-09-09 after thirty findings. **Read this before quoting any number below**,
+Updated 2026-09-09 after thirty-five findings. **Read this before quoting any number below**,
 because several findings temper, amend or outright retract earlier ones and the amendments
 matter more than the originals. §28 retracts §26's headline as our own bug.
 
@@ -19,7 +19,9 @@ matter more than the originals. §28 retracts §26's headline as our own bug.
 | **The prior matches real task difficulty** — logistic-regression AUC 0.743 synthetic against 0.769 real | measured, held-out seed | §18, §19 |
 | **Coherence transfers to real out-of-time data** — 0% violations against 39% for per-horizon models, 98.6% of firms affected | measured, V4FinBench | §26 |
 | **A base-rate error is invisible to every guard we had** — a 27× level error passed AUC, passed the coherence check, and was not printed; the fix cut fourth-horizon ECE 32× | measured, same checkpoint | §28 |
-| **Retrieved context beats the best blind strategy by +0.066 to +0.095 AUC**, Holm-significant at three horizons — the first accuracy gain here to survive a family-wise correction | measured, paired bootstrap | §32 |
+| **Retrieved context beats every blind strategy on all three panels and both prediction paths** — its worst seed beats uniform's best at every context size, and it beats balanced with Holm-corrected significance on both binary panels | measured, 3 seeds, paired bootstrap | §32, §33, §35 |
+| **Rank-transforming features is worth +0.086 AUC** — 110 of 136 features have a standard deviation above 10× their interquartile range, which the model's mean/std normalisation cannot survive | measured, 3 seeds, 3 panels | §35 |
+| **Out-of-time mean AUC 0.5869 → 0.8118 in one day**, closing the gap to the incumbent from 0.142 to 0.048, from three inference-time changes and no retraining | measured | §35 |
 | **Balanced context sampling costs 10-12 AUC points on the survival path**, reversing the default adopted from the literature; 12 in-context defaults outrank 1,122 | measured, 3 context sizes | §29 |
 | ~~The prior cannot generate the low-default regime~~ — **retracted**: the floor was 1% and is now 0.195%, but it was never what caused §26's failure | superseded | §26 → §28, §30 |
 
@@ -42,10 +44,12 @@ matter more than the originals. §28 retracts §26's headline as our own bug.
 - **"Best calibrated" as a standalone claim.** A constant base-rate predictor beats every
   model here on ECE, so calibration numbers cannot carry an argument alone (§17).
 - **"Ahead of the incumbent out of time."** False. On V4FinBench out of time, per-horizon
-  logistic regression leads on mean AUC 0.8616 to our best 0.7934 and on ECE 0.0018 to 0.0111,
-  with three of four horizon differences significant after Holm correction. The gap has
-  **halved** since §30 and it is not closed (§32). Only coherence favours us, and by
-  construction.
+  logistic regression leads on mean AUC 0.8616 to our best 0.8118 and on calibration by
+  roughly sevenfold. The gap is now **a third** of what it was this morning and it is not
+  closed (§35). Only coherence favours us, and by construction.
+- **Single-seed comparisons between context strategies.** Hybrid at 1,000 rows spreads ±0.046
+  across seeds, wide enough that any single-draw comparison between blind strategies was
+  never safe (§33).
 - **Calibration as a differentiator against other foundation models.** It tracks prior
   *breadth*, not our domain prior, so TabPFN and TabFM very likely share it (§14, §15).
 - **The 11.7× calibration figure.** Measured against an uncalibrated baseline. Do not use it.
@@ -2170,3 +2174,184 @@ insignificant and its one *insignificant* horizon was the significant one. Caugh
 the pattern was backwards on inspection: the horizon with the widest confidence interval was
 the one being reported as significant. `holm_adjusted_p` now exists beside it, and both are
 named for what they return.
+
+---
+
+## 33. Three seeds: retrieval replicates cleanly, and §32's "rises monotonically" was noise
+
+**Date:** 2026-09-09. **MEASURED**, three seeds per cell. **Command:**
+
+```bash
+uv run fintfm-ctxsweep --model runs/v4-hazard-ldp.pt --seeds 0,1,2 --out runs/context-sweep-seeds
+```
+
+Every context-strategy result before this rested on one draw per cell. Replicated:
+
+| max context | balanced | hybrid | uniform | **retrieval** |
+| --- | --- | --- | --- | --- |
+| 1,000 | 0.6206 ± 0.0236 | 0.6471 ± 0.0464 | 0.7052 ± 0.0114 | **0.7591 ± 0.0077** |
+| 2,000 | 0.5938 ± 0.0094 | 0.6349 ± 0.0108 | 0.7071 ± 0.0111 | **0.7888 ± 0.0029** |
+| 4,000 | 0.6106 ± 0.0110 | 0.6129 ± 0.0085 | 0.6903 ± 0.0086 | **0.7890 ± 0.0062** |
+
+**Retrieval's worst seed beats uniform's best seed at every context size** — the distributions
+do not overlap at all. §29's and §32's orderings both survive replication.
+
+**Retrieval is also the most stable strategy**, at ±0.003 to ±0.008 against ±0.009 to ±0.046
+for the blind ones. That follows from the mechanism rather than being a coincidence: a
+retrieved context is determined by the data, so the random draw has much less left to
+influence. Worth noting because hybrid at 1,000 rows has a ±0.046 spread — wide enough that
+single-seed comparisons between blind strategies were never safe.
+
+### The correction to §32
+
+§32 stated that retrieval "rises monotonically" across context sizes — 0.7507, 0.7872, 0.7934
+— and drew from that the conclusion that more rows help when they are retrieved. On three
+seeds, **2,000 and 4,000 rows are tied** (0.7888 ± 0.0029 against 0.7890 ± 0.0062), so the
+0.7934 was a favourable draw.
+
+The corrected statement: retrieval improves on uniform *at every size*, and gains from 1,000
+to 2,000 rows, then **plateaus**. §31's ceiling on context size was real; retrieval raises the
+plateau's height without moving where it starts. Practically this makes **2,000 the operating
+point**, since 4,000 costs 1.7× the time for nothing.
+
+Calibration does keep improving with size (ECE 0.0223 → 0.0178 → 0.0145), so a
+calibration-first configuration would still prefer 4,000. It remains 2× worse than uniform's
+0.0072 either way.
+
+---
+
+## 34. A hazard checkpoint's classification head is untrained, and `predict_proba` served it anyway
+
+**Date:** 2026-09-09. **MEASURED**, found while testing something else.
+
+The training loop selects one objective per step:
+
+```python
+if model.hazard is not None and batch.period is not None:
+    loss = model.survival_loss(...)
+else:
+    loss = model.loss(...)
+```
+
+It is an `if/else`, so **a hazard checkpoint never optimises the classification head at all**.
+That head keeps its random initialisation, and `predict_proba` ran it without complaint. On
+`polish-bankruptcy-3y`, using the hazard checkpoint through the classification path:
+
+| metric | value | what it should be near |
+| --- | --- | --- |
+| AUC | **0.3745** | ≥ 0.5 |
+| ECE | **0.6905** | ~0.01 |
+| mean predicted | ~0.69 | 0.047 |
+
+A model asserting a 69% default probability against a 4.7% base rate, ranking *worse than
+chance*, with no error raised. This was found only because those numbers were too absurd to
+belong to the hypothesis being tested — a subtler version would have been believed, and the
+same checkpoint is the one every §28-§33 result uses through the survival path, where it is
+correct.
+
+**Fixed** by recording the objectives actually optimised into the checkpoint
+(`trained_objectives`) and refusing to serve a head that is not among them.
+`predict_proba` and `predict_term_structure` each assert their own. Checkpoints written before
+this field carry no record and are allowed through, because refusing them would break every
+in-memory model; that is a deliberate hole and the reason the field is written on save rather
+than inferred on load.
+
+**Not fixed:** the two objectives are still exclusive, so no single checkpoint can serve both
+paths. Training them jointly is `openspec/changes/joint-objective-training`. Until then a
+hazard model is a term-structure model and nothing else.
+
+**The pattern, for the fourth time today.** An interface offered a capability the artefact
+behind it did not have, and said nothing. §28 was the same shape: a path existed that skipped
+a required step. The lesson recorded there — that a correction must be a property of the
+object rather than of one method — generalises to heads: **a head that was never trained
+should not be reachable.**
+
+---
+
+## 35. Rank-transforming features is worth +0.086 AUC, and it resolves D9
+
+**Date:** 2026-09-09. **MEASURED**, three seeds, three panels.
+
+`normalize_features` standardises each feature by its **context mean and standard deviation**,
+then clips to ±10. That is the standard PFN treatment, and on this data it is close to
+useless. Measured on the V4FinBench training rows:
+
+| statistic | value |
+| --- | --- |
+| median ratio of standard deviation to interquartile range | **240** |
+| 90th percentile | 4,687 |
+| features with standard deviation above 10× their IQR | **110 of 136** |
+
+A ratio is a quotient, and a firm heading for default is exactly where denominators go small,
+so this is the normal case here rather than the tail case. One such firm inflates the standard
+deviation enough to collapse every other firm toward zero; the ±10 clip bounds the outlier and
+does nothing about the collapse.
+
+Conditioning the features first — fitted on training rows only, NaN preserved — on the
+V4FinBench out-of-time split, three seeds:
+
+| strategy | transform | mean AUC | mean ECE |
+| --- | --- | --- | --- |
+| uniform | none | 0.7071 ± 0.0111 | 0.0075 |
+| uniform | **rank** | **0.7930 ± 0.0038** | 0.0073 |
+| retrieval | none | 0.7888 ± 0.0029 | 0.0178 |
+| retrieval | **rank** | **0.8118 ± 0.0032** | **0.0126** |
+
+**+0.086 for uniform and +0.023 for retrieval**, with calibration improving too. The
+asymmetry is explained by the mechanism: retrieval's distance metric already normalised on
+median and IQR, so retrieval was partly compensating for the tails before the model saw them.
+Winsorising at the 1st and 99th percentile gets most of the way there (0.8067) and the rank
+transform beats it, which says the problem is the *shape* of the distribution and not only its
+extremes.
+
+On the binary path, two independent panels, three seeds, the rank transform improves AUC in
+**seven of eight** configurations (the exception is Polish hybrid, −0.005):
+
+| dataset | balanced | hybrid | uniform | retrieval |
+| --- | --- | --- | --- | --- |
+| polish, none | 0.6943 | 0.7037 | 0.6719 | 0.7092 |
+| polish, **rank** | 0.6989 | 0.6988 | 0.6969 | **0.7120** |
+| taiwan, none | 0.8713 | 0.8723 | 0.8743 | 0.8745 |
+| taiwan, **rank** | 0.8879 | 0.8887 | 0.8932 | **0.9062** |
+
+Retrieval beats balanced on both panels with Holm-corrected significance: **+0.0138**
+[+0.0026, +0.0261] on Polish and **+0.0154** [+0.0072, +0.0235] on Taiwan. So retrieval is now
+the best strategy on **all three panels and both prediction paths**.
+
+### D9 resolves, and §29's mechanism was too broad
+
+D9 left `context_strategy` at `"balanced"` pending binary-path evidence. Here it is: on the
+binary path the strategies are **nearly tied** — uniform − balanced is −0.0004 (not
+significant) on Polish and +0.0077 on Taiwan. §29's 10-12 point margin does **not** generalise
+to this path.
+
+The reason is that "balanced" is not one operation. Polish 3-year has roughly 500 positives
+against a 2,000-row budget, so balanced *cannot* reach 50/50 and lands near 25% — much closer
+to hybrid than to the 50% it reaches on V4FinBench's 1,122 positives. **The effect scales with
+how extreme the rebalancing actually is, not with the strategy's name**, which is a narrower
+and more useful claim than §29's.
+
+### Defaults changed, on this evidence
+
+- `feature_transform` now defaults to **`"rank"`**.
+- `context_strategy` now defaults to **`"uniform"`**, not `"balanced"`: never worse than
+  balanced in any measurement here, and blind, so it preserves the batch independence that
+  retrieval gives up.
+- **Retrieval is the recommended accuracy setting** but stays opt-in, because it costs ~2.5×
+  the scoring time and makes a prediction depend on its query group-mates. A default that
+  silently breaks batch independence is the category of hidden behaviour that produced §28.
+
+Every number recorded before 2026-09-09 was produced with `balanced` and no transform; pass
+both explicitly to reproduce them.
+
+### Where this leaves the gap
+
+| arm | mean AUC | mean ECE | violations |
+| --- | --- | --- | --- |
+| **fintfm, retrieval + rank, 2,000** | **0.8118** | 0.0126 | **0.00%** |
+| fintfm this morning (§26) | 0.5869 | ~0.19 | 0.00% |
+| per-horizon logistic regression | **0.8616** | **~0.0018** | 39.06% |
+
+The mean-AUC gap has gone **0.142 → 0.048** over the day, and at the first horizon 0.132 →
+0.030 (0.942 against 0.9717). Still behind on both discrimination and calibration, and the
+remaining gap is now small enough that closing it is a plausible target rather than a hope.

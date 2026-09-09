@@ -21,6 +21,17 @@ not paste one into the other. See `CLAUDE.md`.
 
 ### Added
 
+- **A feature conditioner** (`rank` and `winsor`), applied before the model's normalisation.
+  Worth **+0.086 mean AUC** to uniform context and +0.023 to retrieval on the V4FinBench
+  out-of-time split, and improving AUC in seven of eight configurations across two further
+  panels. 110 of 136 features here have a standard deviation more than ten times their
+  interquartile range, which is what the model's mean/standard-deviation normalisation could
+  not survive. `docs/FINDINGS.md` §35.
+- **Checkpoints record which objectives they were trained on**, and a head that was never
+  trained can no longer be served. The training loop optimises one objective per step, so a
+  hazard checkpoint's classification head sat at random initialisation and `predict_proba`
+  reported AUC 0.3745 with a stated 69% default rate against a 4.7% base — no error raised.
+  §34, decision D11.
 - **A `retrieval` context strategy**, building each query group's context from its nearest
   training rows instead of a blind sample. **+0.066 to +0.095 AUC over the best blind
   strategy** on the V4FinBench out-of-time split, Holm-significant at three of four horizons
@@ -42,6 +53,14 @@ not paste one into the other. See `CLAUDE.md`.
 
 ### Changed
 
+- **Defaults now follow measurement rather than the literature** (decision D10):
+  `feature_transform="rank"` and `context_strategy="uniform"`, replacing `"balanced"`.
+  Retrieval is the best strategy on all three panels and both prediction paths but stays
+  opt-in, because it costs ~2.5× the scoring time and makes a prediction depend on its query
+  group-mates. Every number recorded before 2026-09-09 used `balanced` and no transform.
+- **Best out-of-time result: mean AUC 0.5869 → 0.8118** over the day, closing the gap to
+  per-horizon logistic regression from 0.142 to 0.048, from three inference-time changes and
+  **no retraining**. Still behind on discrimination and calibration.
 - **Uniform context sampling beats balanced by 10-12 mean AUC points** on the V4FinBench
   out-of-time survival split, at every context size tested, reversing the ordering this
   project adopted from the literature. Twelve in-context defaults outrank 1,122. The class
@@ -51,8 +70,10 @@ not paste one into the other. See `CLAUDE.md`.
   alone; retrieval selects on features. Applied per group it pushed the riskiest clusters
   down hardest and drove mean AUC to **0.3679, below chance**. A single pooled shift replaces
   it, which cannot reorder anything.
-- §31's "more context does not help" is **corrected**: it does, if the rows are retrieved.
-  Uniform peaks at 2,000 rows and falls at 4,000; retrieval rises monotonically to 4,000.
+- §31's "more context does not help" is **corrected twice**: retrieved rows do help, but on
+  three seeds retrieval is tied at 2,000 and 4,000 rows, so it raises the plateau's height
+  rather than moving where it starts. 2,000 is the operating point; §32's monotone rise was a
+  single favourable draw (§33).
 - §26's headline is **retracted**: the synthetic prior's 1% base-rate floor was real and is
   now 0.195%, but it was never what caused the out-of-time failure. The retrain it prompted
   is worth +0.023 mean AUC and 2.7× better calibration, which the broken evaluation

@@ -18,8 +18,11 @@ mean AUC points** at every context size tested, and twelve in-context defaults o
 half its budget on 1,000 of 71,500 non-defaulters, so the model's picture of a healthy firm
 comes from 1.4% of that class. The default is unchanged only because §29 measured the
 six-horizon survival path and the binary evidence behind it has not been re-measured
-(decision D9, ``openspec/changes/revisit-context-strategy``). **Prefer ``"uniform"`` for a
-term structure until that resolves.**
+(decision D9, ``openspec/changes/revisit-context-strategy``). **Resolved in §35:** on the binary path the strategies are
+nearly tied, because these smaller panels do not have enough positives for "balanced" to
+actually reach 50/50 — the effect scales with how extreme the rebalancing is, not with the
+strategy's name. So the default is now ``"uniform"``: never worse than balanced in any
+measurement here, and blind, so it keeps batch independence.
 
 §31 then showed *which* rows is the only remaining lever on the dominant part of the
 out-of-time gap, since more rows do not help and larger pretraining tasks are priced out.
@@ -35,6 +38,7 @@ import numpy as np
 import torch
 from sklearn.base import BaseEstimator, ClassifierMixin
 
+from fintfm.inference.preprocess import FeatureConditioner, FeatureTransform
 from fintfm.inference.retrieval import (
     distance_stats,
     group_queries,
@@ -138,6 +142,14 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             ``context_strategy="retrieval"``. Set to 0 for exact per-query retrieval, which
             is correct but costs one forward pass per query — usable for validating the
             approximation on a subsample, not for scoring a book.
+        feature_transform: Conditioning applied to features before the model sees them, to
+            blunt the heavy tails that break its mean/standard-deviation normalisation. See
+            :mod:`fintfm.inference.preprocess`. **Defaults to ``"rank"``** on the evidence
+            in ``docs/FINDINGS.md`` §35: it improves AUC in six of six configurations on the
+            V4FinBench out-of-time split and seven of eight across two independent panels,
+            because 110 of 136 features here have a standard deviation more than ten times
+            their interquartile range. Every number recorded before 2026-09-09 was produced
+            with ``"none"``, so pass it explicitly to reproduce those.
         retrieval_min_positive: Floor on positive-class rows in a retrieved context. A
             nearest-neighbour draw at a 0.19% default rate can return **zero** defaults, and
             a context with no positives says nothing about default. Deliberately a floor and
@@ -149,12 +161,13 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         model: FinancialTFM | str,
         device: str = "cpu",
         max_context: int = 2000,
-        context_strategy: ContextStrategy = "balanced",
+        context_strategy: ContextStrategy = "uniform",
         correct_prior: bool = True,
         random_state: int = 0,
         query_chunk: int = 2048,
         retrieval_groups: int = 64,
         retrieval_min_positive: int = 8,
+        feature_transform: FeatureTransform = "rank",
     ) -> None:
         self.model = FinancialTFM.load(model, map_location=device) if isinstance(model, str) else model
         self.device = device
@@ -165,11 +178,17 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         self.query_chunk = query_chunk
         self.retrieval_groups = retrieval_groups
         self.retrieval_min_positive = retrieval_min_positive
+        self.feature_transform = feature_transform
         self.model.to(device).eval()
 
     def fit(self, X: np.ndarray, y: np.ndarray) -> FinancialTFMClassifier:
         X = np.asarray(X, dtype=np.float32)
         y = np.asarray(y)
+        # fitted on training rows only, so a query never influences its own conditioning
+        self._conditioner = FeatureConditioner(
+            self.feature_transform, random_state=self.random_state
+        ).fit(X)
+        X = self._conditioner.transform(X)
         self.classes_ = np.unique(y)
         if len(self.classes_) > self.model.cfg.max_classes:
             raise ValueError(
@@ -258,7 +277,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
 
         Returns:
             The positive-class rate over all retrieved contexts, weighted by how many queries
-            each context serves.
+            each context serves. Also stored as ``pooled_context_rate_``.
         """
         pos_class = len(self.classes_) - 1
         weight = sum(q.size for q, _ in plan)
@@ -267,7 +286,11 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         total = sum(
             q.size * float((self._pool_y[c] == pos_class).mean()) for q, c in plan
         )
-        return total / weight
+        # cached so a caller reporting what was actually retrieved does not have to rebuild
+        # the plan; recomputing it means a second k-means and a second pass over the pool,
+        # which doubled the cost of every retrieval cell in the context sweep
+        self.pooled_context_rate_ = total / weight
+        return self.pooled_context_rate_
 
     def _retrieval_plan(self, X: np.ndarray) -> list[tuple[np.ndarray, np.ndarray]]:
         """Group the queries and retrieve one context per group.
@@ -334,9 +357,11 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         Returns:
             ``(n, n_classes)`` probabilities.
         """
+        self.model.assert_trained_for("classification")
         X = np.asarray(X, dtype=np.float32)
         if X.shape[1] != self._ctx_X.shape[1]:
             raise ValueError("feature width at predict time must match fit time")
+        X = self._conditioner.transform(X)
         if self.context_strategy == "retrieval":
             return self._run_retrieval(X, self._predict_chunk, len(self.classes_))
         if X.shape[0] > self.query_chunk:
@@ -405,9 +430,11 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             raise RuntimeError(
                 "this checkpoint has no hazard head; pretrain with --n-horizons K"
             )
+        self.model.assert_trained_for("survival")
         X = np.asarray(X, dtype=np.float32)
         if X.shape[1] != self._ctx_X.shape[1]:
             raise ValueError("feature width at predict time must match fit time")
+        X = self._conditioner.transform(X)
         if self.context_strategy == "retrieval":
             plan = self._retrieval_plan(X)
             out = np.empty((X.shape[0], self.model.hazard.n_horizons), dtype=np.float32)

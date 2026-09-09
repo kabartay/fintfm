@@ -9,6 +9,7 @@ never held.
 
 import numpy as np
 import pytest
+import torch
 
 from fintfm.inference.classifier import FinancialTFMClassifier
 from fintfm.inference.retrieval import (
@@ -102,7 +103,28 @@ def test_grouping_respects_the_size_cap_even_with_one_dense_cluster():
     np.testing.assert_array_equal(np.sort(np.concatenate(groups)), np.arange(len(Z)))
 
 
+def _assert_same_ranking(a: np.ndarray, b: np.ndarray, tol: float = 1e-6) -> None:
+    """Assert two score vectors rank rows identically, tolerating exact ties.
+
+    A constant log-odds shift is rank-preserving in exact arithmetic, but in float32 it can
+    push two nearby values onto the same representable number near saturation — and once two
+    values tie, ``argsort`` picks between them arbitrarily. Comparing ``argsort`` directly
+    therefore fails intermittently on tied pairs while the property under test still holds.
+    So compare the *orderings of pairs that are actually distinguishable*.
+    """
+    for i in range(len(a)):
+        for j in range(i + 1, len(a)):
+            if abs(a[i] - a[j]) > tol and abs(b[i] - b[j]) > tol:
+                assert (a[i] < a[j]) == (b[i] < b[j]), (
+                    f"rows {i} and {j} swapped order: {a[i]},{a[j]} vs {b[i]},{b[j]}"
+                )
+
+
 def _small_model(n_features=4, n_horizons=None):
+    # seeded, because these weights are random and every test below compares two
+    # predictions from the *same* model: without a seed the suite's outcome depends on
+    # which other test files ran first, which is how a passing file failed in the suite
+    torch.manual_seed(0)
     return FinancialTFM(
         ModelConfig(
             max_features=n_features, d_model=32, d_cell=16, n_layers=1, n_col_layers=1,
@@ -201,7 +223,7 @@ def test_retrieval_correction_is_one_global_shift_not_per_group():
     off = FinancialTFMClassifier(model, correct_prior=False, **kw).fit(X, y)
     p_on, p_off = on.predict_proba(X)[:, 1], off.predict_proba(X)[:, 1]
     # levels may move; the ordering must not
-    np.testing.assert_array_equal(np.argsort(p_on), np.argsort(p_off))
+    _assert_same_ranking(p_on, p_off)
 
 
 def test_retrieval_term_structure_correction_preserves_ranking_too():
@@ -215,7 +237,7 @@ def test_retrieval_term_structure_correction_preserves_ranking_too():
     off = FinancialTFMClassifier(model, correct_prior=False, **kw).fit(X, y)
     c_on, c_off = on.predict_term_structure(X), off.predict_term_structure(X)
     for k in range(c_on.shape[1]):
-        np.testing.assert_array_equal(np.argsort(c_on[:, k]), np.argsort(c_off[:, k]))
+        _assert_same_ranking(c_on[:, k], c_off[:, k])
     assert (np.diff(c_on, axis=1) >= -1e-6).all()
 
 

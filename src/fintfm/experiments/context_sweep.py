@@ -120,7 +120,7 @@ def run(
                 # for retrieval, _ctx_rate is the whole pool's rate and says nothing about
                 # what was actually retrieved; report the pooled context rate instead
                 if strategy == "retrieval":
-                    rate = clf._pooled_context_rate(clf._retrieval_plan(ds.X[te]))
+                    rate = clf.pooled_context_rate_
                     n_pos = round(rate * max_context)
                 else:
                     rate, n_pos = clf._ctx_rate, int(clf._ctx_y.sum())

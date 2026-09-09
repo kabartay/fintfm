@@ -210,3 +210,65 @@ still better calibrated and is still supported by the published benchmark on its
 binary path across datasets and seeds, at which point the class default changes and D5's
 context half is fully retired. Reversed the other way if the effect fails to replicate across
 seeds, since §29 rests on a single draw per cell.
+
+---
+
+## D10 — Rank-transform features by default; uniform context by default; retrieval opt-in
+
+**Date:** 2026-09-09. **Status:** active. **Resolves D9.** See `FINDINGS` §33 and §35.
+
+Three changes to what the classifier does when nobody passes an argument, each on measured
+evidence rather than on the literature this project took its first defaults from.
+
+**`feature_transform="rank"`.** 110 of 136 features on V4FinBench have a standard deviation
+more than ten times their interquartile range, with a median ratio of 240, so the model's
+mean/standard-deviation normalisation was being destroyed on almost every column. Conditioning
+first is worth **+0.086 mean AUC** to uniform context and +0.023 to retrieval out of time, and
+improves AUC in seven of eight configurations across two further panels.
+
+**`context_strategy="uniform"`,** replacing `"balanced"`. D5 took balanced from Tanna et al.;
+§29 measured it losing by 10-12 AUC points on the survival path; §35 shows the strategies are
+nearly tied on the binary path because those panels lack the positives for balanced to reach
+50/50. **The effect scales with how extreme the rebalancing is, not with the strategy's name.**
+Uniform is never worse than balanced in any measurement here, and it is blind, so it keeps the
+batch independence retrieval gives up.
+
+**Retrieval stays opt-in**, despite being the best strategy on all three panels and both
+paths, and significantly better than balanced on both binary panels. It costs about 2.5× the
+scoring time and makes a prediction depend on its query group-mates. **A default that silently
+breaks batch independence is the category of hidden behaviour that produced §28**, so this one
+is chosen at the call site.
+
+**Alternatives considered:** making retrieval the default, rejected for the reason above;
+keeping `"balanced"` for continuity, rejected because no measurement supports it; and
+special-casing the default per prediction path, rejected because a default that changes
+depending on which method you call is worse than either default.
+
+**Reversed if:** the rank transform loses on a panel with well-behaved features, which is
+plausible — it discards magnitude information and the gain here comes from tails that a
+cleaner dataset may not have. That would make it a data-dependent choice rather than a
+default, and `winsor` is the intermediate already implemented.
+
+---
+
+## D11 — A head that was never trained is not reachable
+
+**Date:** 2026-09-09. **Status:** active. See `FINDINGS` §34.
+
+The training loop optimises one objective per step, so a hazard checkpoint's classification
+head stays at random initialisation. `predict_proba` served it — AUC 0.3745, a stated 69%
+default rate against a 4.7% base — silently.
+
+**Chose to record the objectives actually optimised into the checkpoint and refuse to serve
+any other head.** The alternative was training both objectives jointly so the situation cannot
+arise, which is the better long-term answer and is now
+`openspec/changes/joint-objective-training`; it needs a pretraining run, and the guard is
+worth having regardless of how that lands, because a checkpoint should be able to say what it
+is.
+
+Checkpoints written before the field carry no record and are allowed through. That is a
+deliberate hole — refusing them would break every in-memory model — and it is why the field is
+written on `save` rather than guessed on `load`.
+
+**Reversed if:** joint training lands and makes every checkpoint serve both paths, at which
+point the guard becomes a formality. Keep it anyway.

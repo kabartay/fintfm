@@ -72,13 +72,18 @@ def train(model_cfg: ModelConfig, prior_cfg: PriorConfig, train_cfg: TrainConfig
     sched = torch.optim.lr_scheduler.LambdaLR(opt, lambda s: _lr_schedule(s, train_cfg))
     t0 = time.time()
     running = 0.0
+    # recorded into the checkpoint: the two objectives are exclusive per step, so a hazard
+    # run leaves the classification head untrained and predict_proba would silently serve it
+    objectives: set[str] = set()
     for step in range(train_cfg.steps):
         batch = sample_batch(rng, prior_cfg, train_cfg.batch_size).to(train_cfg.device)
         # survival objective when the model has a hazard head and the prior emits periods
         if model.hazard is not None and batch.period is not None:
             loss = model.survival_loss(batch.X, batch.y, batch.period, batch.n_ctx)
+            objectives.add("survival")
         else:
             loss = model.loss(batch.X, batch.y, batch.n_ctx, batch.n_classes)
+            objectives.add("classification")
         opt.zero_grad(set_to_none=True)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
@@ -93,7 +98,7 @@ def train(model_cfg: ModelConfig, prior_cfg: PriorConfig, train_cfg: TrainConfig
         if (step + 1) % train_cfg.eval_every == 0:
             acc = _eval_accuracy(model, prior_cfg, rng)
             print(f"  held-out synthetic query accuracy: {acc:.3f}")
-    model.save(out_path)
+    model.save(out_path, trained_objectives=tuple(sorted(objectives)))
     print(f"saved checkpoint to {out_path}")
     return model
 

@@ -169,3 +169,53 @@ def test_training_completes_on_each_available_device(device, tmp_path):
     model = train(cfg, prior_cfg, train_cfg, str(tmp_path / "ckpt.pt"))
     assert str(next(model.parameters()).device).startswith(device)
     assert (tmp_path / "ckpt.pt").exists()
+
+
+def test_checkpoint_records_which_objectives_were_trained(tmp_path):
+    """The training loop optimises one objective per step, never both.
+
+    A hazard checkpoint therefore leaves the classification head at random initialisation,
+    and `predict_proba` served it as if it were real — mean predicted 0.69 against a 4.7%
+    base rate, AUC 0.37, no error (`docs/FINDINGS.md` §34).
+    """
+    from fintfm.modeling.model import FinancialTFM, ModelConfig
+
+    path = tmp_path / "m.pt"
+    m = FinancialTFM(ModelConfig(max_features=4, d_model=16, d_cell=8, n_layers=1,
+                                 n_col_layers=1, max_classes=2, n_horizons=3))
+    m.save(str(path), trained_objectives=("survival",))
+    loaded = FinancialTFM.load(str(path))
+    assert loaded.trained_objectives == ("survival",)
+    loaded.assert_trained_for("survival")
+    with pytest.raises(RuntimeError, match="random initialisation"):
+        loaded.assert_trained_for("classification")
+
+
+def test_checkpoint_without_a_record_is_allowed_through(tmp_path):
+    """Older checkpoints carry no record; refusing them would break every in-process use."""
+    from fintfm.modeling.model import FinancialTFM, ModelConfig
+
+    path = tmp_path / "m.pt"
+    m = FinancialTFM(ModelConfig(max_features=4, d_model=16, d_cell=8, n_layers=1,
+                                 n_col_layers=1, max_classes=2))
+    m.save(str(path))
+    FinancialTFM.load(str(path)).assert_trained_for("classification")
+
+
+def test_predict_proba_refuses_a_survival_only_checkpoint(tmp_path):
+    import numpy as np
+
+    from fintfm.inference.classifier import FinancialTFMClassifier
+    from fintfm.modeling.model import FinancialTFM, ModelConfig
+
+    path = tmp_path / "m.pt"
+    FinancialTFM(ModelConfig(max_features=4, d_model=16, d_cell=8, n_layers=1,
+                             n_col_layers=1, max_classes=2, n_horizons=3)).save(
+        str(path), trained_objectives=("survival",))
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(40, 4)).astype(np.float32)
+    y = (rng.random(40) < 0.3).astype(np.int64)
+    clf = FinancialTFMClassifier(str(path), max_context=20).fit(X, y)
+    with pytest.raises(RuntimeError, match="not on 'classification'"):
+        clf.predict_proba(X)
+    clf.predict_term_structure(X)  # the trained head still works
