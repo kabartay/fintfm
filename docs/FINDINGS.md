@@ -3399,3 +3399,69 @@ That removes the confound the caveat introduced and leaves the aggregation failu
 which makes the pooling a stronger suspect, not a weaker one. The lesson is narrower and worth
 keeping: **a width quoted from an old finding is not a measurement.** It took one command to
 check and it reversed the conclusion of a paragraph written twenty minutes earlier.
+
+---
+
+## 50. Capacity is ruled out: 17× the parameters gives identical curves. The pooling is the constraint.
+
+**Date:** 2026-09-10. **MEASURED**, three seeds, three model sizes, prediction registered in
+§49 **before** the runs finished.
+
+§49 predicted: if pooling *capacity* is the limit, larger models degrade less steeply with
+feature count; if they degrade identically, the pooling *design* is at fault. Three checkpoints
+on the fixed prior, identical in everything but size:
+
+| arm | params | F=5 | F=10 | F=20 | F=40 | F=80 | F=130 | drop |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| small | 846,818 | 0.8265 | 0.7341 | 0.7089 | 0.6492 | 0.5617 | 0.5510 | **−0.2755** |
+| medium | 4,878,146 | 0.8264 | 0.7342 | 0.7083 | 0.6461 | 0.5631 | 0.5531 | **−0.2732** |
+| large | 14,506,466 | 0.8243 | 0.7355 | 0.7099 | 0.6466 | 0.5618 | 0.5541 | **−0.2701** |
+| logistic regression | — | 0.9999 | 1.0000 | 0.9997 | 0.9994 | 0.9983 | 0.9965 | −0.0034 |
+
+**The three curves are identical to three decimal places at every width.** Not merely the same
+slope — the same values, from independently trained models spanning 17× in parameters. Three
+runs converging that precisely are converging to the same function, which is the signature of
+a structural bottleneck rather than a capacity one.
+
+Meanwhile a linear model loses 0.003 across the same range. The task does not get harder with
+width; our model gets worse.
+
+### The component
+
+`FinancialTFM.encode_rows` produces one token per feature through the column stage, then
+reduces them to a single row vector by **masked mean and max pooling**:
+
+```python
+pooled_mean = (cells * keep).sum(dim=2) / denom
+pooled_max  = cells.masked_fill(keep == 0, -inf).max(dim=2).values
+return self.row_proj(torch.cat([pooled_mean, pooled_max], dim=-1))
+```
+
+A mean is permutation-invariant and **weight-blind**: it cannot preserve that feature 7 matters
+three times as much as feature 40, because every token contributes 1/F regardless. At five
+features the surviving signal is enough; at 130 the informative directions are averaged against
+129 others. Max recovers a little — the strongest single activation — which is why the curve
+flattens rather than reaching chance.
+
+That is exactly the shape observed, and it explains why capacity cannot help: a wider or deeper
+model still has to pass everything through the same lossy reduction.
+
+### What this licenses, and what it does not
+
+**Licensed:** replacing the pooling with a mechanism that can weight features — attention
+pooling with a learned query, in the manner of a set transformer's pooling-by-multihead-
+attention. This is now the first architecture change in the project supported by a registered
+prediction and a controlled test, rather than by a hunch.
+
+**Not licensed:** claiming the pooling is the *only* remaining constraint. Even at F=5, where
+aggregation is easiest, the model reaches 0.826 against logistic regression's 1.000. Something
+else costs 0.17 at the narrow end, and fixing the pooling will not address it.
+
+### Sequence worth recording
+
+Five hypotheses, each narrowing the last, each measured: conjunction representation (§41,
+falsified) → prior difficulty (§44, no effect) → prior diversity (§46, +0.027) → **fixed
+label direction (§47, the root cause)** → training volume and capacity (§43, §50, both ruled
+out) → **pooling design (§50, indicted)**. The first four were about whether the model learned
+anything at all; only now that it demonstrably reads its context (§48) is an architectural
+question even well-posed.
