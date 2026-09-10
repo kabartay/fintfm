@@ -27,6 +27,11 @@ class TrainConfig:
     warmup_steps: int = 500
     log_every: int = 50
     eval_every: int = 500
+    #: Save the checkpoint every this many steps, in addition to the end. A long run that
+    #: only saves at the end loses everything if it dies -- and jobs do die: three did on
+    #: 2026-09-10 alone, to a Python version floor, a CUDA OOM and a crash in the metric.
+    #: At 0 the loop saves only on completion, which is the old behaviour.
+    checkpoint_every: int = 0
     seed: int = 0
     device: str = "cpu"
 
@@ -155,6 +160,12 @@ def train(model_cfg: ModelConfig, prior_cfg: PriorConfig, train_cfg: TrainConfig
             print(f"step {step + 1}/{train_cfg.steps}  loss {running / train_cfg.log_every:.4f}  "
                   f"lr {sched.get_last_lr()[0]:.2e}  {elapsed:.0f}s")
             running = 0.0
+        if train_cfg.checkpoint_every and (step + 1) % train_cfg.checkpoint_every == 0:
+            # written to a sibling path, not out_path: a run killed *during* a save would
+            # otherwise leave a truncated file where the final checkpoint belongs
+            partial = f"{out_path}.step{step + 1}"
+            model.save(partial, trained_objectives=tuple(sorted(objectives)))
+            print(f"  checkpoint at step {step + 1}: {partial}", flush=True)
         if (step + 1) % train_cfg.eval_every == 0:
             q = _eval_quality(model, prior_cfg, rng)
             print(
@@ -204,6 +215,11 @@ def main() -> None:
         "--threads", type=int, default=None,
         help="cap torch CPU threads; set this on a shared machine (see CLAUDE.md)",
     )
+    p.add_argument(
+        "--checkpoint-every", type=int, default=0,
+        help="save every N steps as well as at the end; 0 disables. Essential for any run "
+             "long enough that losing it would hurt",
+    )
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--out", type=str, default="runs/v0.pt")
     p.add_argument("--config", type=str, default=None, help="YAML overriding the defaults")
@@ -243,7 +259,10 @@ def main() -> None:
         rate_ceiling=cfg.prior.rate_ceiling,
         n_sectors_max=cfg.prior.n_sectors,
     )
-    train_cfg = TrainConfig(steps=args.steps, batch_size=args.batch_size, lr=args.lr, device=args.device, seed=args.seed)
+    train_cfg = TrainConfig(
+        steps=args.steps, batch_size=args.batch_size, lr=args.lr, device=args.device,
+        seed=args.seed, checkpoint_every=args.checkpoint_every,
+    )
     print(f"config: {cfg.provenance()}")
     train(model_cfg, prior_cfg, train_cfg, args.out)
 

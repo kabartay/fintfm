@@ -248,3 +248,42 @@ def test_eval_quality_handles_multi_class_tasks():
             assert 0.0 <= q["auc"] <= 1.0
             # skill against the class-frequency predictor is bounded above by 1
             assert q["brier_skill"] <= 1.0
+
+
+def test_periodic_checkpointing_writes_recoverable_files(tmp_path):
+    """A long run that only saves at the end loses everything when it dies, and jobs die."""
+    from fintfm.modeling.model import FinancialTFM, ModelConfig
+    from fintfm.modeling.train import TrainConfig, train
+    from fintfm.prior import PriorConfig
+
+    out = tmp_path / "m.pt"
+    model_cfg = ModelConfig(max_features=8, d_model=16, d_cell=8, n_layers=1,
+                            n_col_layers=1, max_classes=2)
+    prior_cfg = PriorConfig(max_features=8, max_classes=2, n_rows=64)
+    train(model_cfg, prior_cfg,
+          TrainConfig(steps=4, batch_size=2, eval_every=99, log_every=99,
+                      checkpoint_every=2, device="cpu"), str(out))
+
+    mid = sorted(tmp_path.glob("m.pt.step*"))
+    assert [p.name for p in mid] == ["m.pt.step2", "m.pt.step4"]
+    # each is a real, loadable checkpoint, not a truncated file
+    for path in mid:
+        loaded = FinancialTFM.load(str(path))
+        assert loaded.cfg.max_features == 8
+        assert loaded.trained_objectives == ("classification",)
+    assert out.exists()
+
+
+def test_checkpointing_is_off_by_default(tmp_path):
+    from fintfm.modeling.model import ModelConfig
+    from fintfm.modeling.train import TrainConfig, train
+    from fintfm.prior import PriorConfig
+
+    out = tmp_path / "m.pt"
+    train(ModelConfig(max_features=8, d_model=16, d_cell=8, n_layers=1,
+                      n_col_layers=1, max_classes=2),
+          PriorConfig(max_features=8, max_classes=2, n_rows=64),
+          TrainConfig(steps=2, batch_size=2, eval_every=99, log_every=99, device="cpu"),
+          str(out))
+    assert list(tmp_path.glob("m.pt.step*")) == []
+    assert out.exists()
