@@ -5,13 +5,24 @@ a conversation is lost when the conversation compacts.
 
 ## Where we stand — the honest scorecard
 
-Updated 2026-09-10 after forty-two findings. **Read this before quoting any number below**,
+Updated 2026-09-10 after forty-seven findings. **Read this before quoting any number below**,
 because several findings temper, amend or outright retract earlier ones and the amendments
 matter more than the originals. §28 retracts §26's headline as our own bug.
 
 ### Read this first
 
-**§42 puts every accuracy number in this repository in question.** Against an untrained model of
+**§47 is the root cause and it invalidates every accuracy number produced before 2026-09-10.**
+Shuffling the context labels — destroying any relationship between features and labels — left
+the model's predictions unchanged (rank correlation 0.977) and its AUC *higher* than with true
+labels. **It was not doing in-context learning at all.** The cause was one line of the prior:
+the driver signs were fixed, so every task ever generated shared one feature-to-label mapping,
+and a model could memorise it and never consult a labelled example. Fixed by randomising the
+sign per task; verification runs in flight.
+
+Read §47 first, then §42. Coherence (§11, §20, §26) is structural and unaffected — it is a
+property of the output parameterisation, not of anything learned.
+
+**§42 also puts every accuracy number in this repository in question.** Against an untrained model of
 the same architecture, pretraining is worth **+0.015 AUC** on a clean linear task that logistic
 regression solves at 0.9997; four times the context buys 0.014; and the training loop's only
 quality signal was *accuracy*, which a constant predictor beats at these base rates. The likely

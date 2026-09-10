@@ -1,4 +1,4 @@
-# Postmortem: six wrong diagnoses in two days, and what they had in common
+# Postmortem: seven wrong diagnoses in three days, and the one question nobody asked
 
 **Date:** 2026-09-09. Companion to `docs/FINDINGS.md` §28-§32, which carry the numbers. This
 document exists for the *pattern*, because the individual findings each read as an isolated
@@ -101,6 +101,23 @@ was on file, in this repository, written by the same process that then ignored i
 D8 — the corrected path is the only public path — and §34's untrained head produced D11: a head
 that was never trained is not reachable. Both are the same rule at different levels, and
 neither would have been written from first principles.
+
+## The seventh, and why the first six were all downstream of it
+
+Findings 41 through 46 proposed and tested: a conjunction-representation limit (falsified), a
+prior clamped in difficulty (no effect), insufficient training volume (no effect at 10×), and
+insufficient prior diversity (+0.027, real but small). Each was a plausible mechanism, each was
+measured honestly, and each was **downstream of a cause none of them named**.
+
+§47 found it by asking whether the context mattered at all: shuffle the labels, see if
+predictions move. They did not — rank correlation 0.977, and AUC *higher* with random labels
+than true ones. The model had never been doing in-context learning, because the prior's
+feature-to-label direction was fixed across every task it had ever generated.
+
+**The lesson is not "we guessed wrong four times".** It is that four increasingly expensive
+experiments were run before the cheapest possible question — *does the input matter?* — and
+that question costs five minutes. When a system underperforms, establish that its central
+mechanism operates at all before optimising the mechanism's parameters.
 
 **The scorecard did move, in the end.** Mean AUC out of time went 0.5869 → 0.8118 across the
 day and the gap to per-horizon logistic regression went 0.142 → 0.048, from three inference-time

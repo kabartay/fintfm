@@ -257,6 +257,28 @@ credential *scope* cannot enforce this repository's licensing boundary — Huggi
 every token read access to all public repo contents, so no scope prevents pulling
 TabPFN-family weights. That boundary stays a policy rule enforced by review.
 
+## The first diagnostic for any in-context model: shuffle the labels
+
+Before any accuracy discussion, ask whether the context matters at all. Randomise the context
+labels, destroying any feature-label relationship, and predict:
+
+- predictions barely move → **the model ignores its context**, and every accuracy number is
+  measuring a fixed function of the features
+- predictions collapse toward chance → the model reads its context, and accuracy means what
+  you think it means
+
+This took three days to run and it cost most of them (`docs/FINDINGS.md` §47). The
+financial-only checkpoint scored **higher with random labels than with true ones** — 0.6895
+against 0.6841, rank correlation 0.977 — so its apparent 0.68 was unsupervised feature
+structure, not learning. Four hypotheses were tested and discarded before anyone asked the one
+question that separates in-context learning from a lookup table.
+
+**And check the prior admits no global rule.** §47's cause was a single line: driver
+orientations were hardcoded and weights were `np.abs(...)`, so in every task higher leverage
+meant riskier. A universal feature-to-label mapping can be memorised once, so the model never
+had a reason to read a label. If one fixed rule solves every task your prior generates, the
+prior cannot teach in-context inference — whatever else is right about it.
+
 ## Measuring a model that might not work
 
 Five rules, each of which cost real time before it was written down

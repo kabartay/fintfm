@@ -26,7 +26,19 @@ A second rule follows from §36: **read the source, not a summary of it.** A fet
 the V4FinBench paper invented a results table, invented default rates tenfold too high, and
 inverted whether their TabPFN was fine-tuned. Anything cited here is cited from the pages.
 
-## Current publishability, as of 2026-09-09
+## Current publishability, as of 2026-09-10
+
+**§47 changed the answer from "not yet" to "not close".** The model was not doing in-context
+learning: shuffling its context labels left predictions unchanged and AUC higher than with
+true labels. Every accuracy claim below was measured on that model. The cause is found and
+fixed — the prior's feature-to-label direction was constant across tasks — and verification is
+in flight, but nothing accuracy-related is publishable until a checkpoint demonstrably reads
+its context.
+
+The coherence claim (Claim 1) is unaffected: it is a property of the output parameterisation
+and holds whatever the model has learned.
+
+## Previous assessment, as of 2026-09-09
 
 **Not yet, and the reason is specific rather than modest.**
 

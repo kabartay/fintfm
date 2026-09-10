@@ -33,23 +33,33 @@ measurement of a live defect, never as a new method.
 
 ---
 
-## Claim 2 — A synthetic-only prior transfers to real corporate default data, and cannot have memorised the benchmark
+## Claim 2 — A synthetic-only prior transfers to real corporate default data
 
-**Status: SURVIVES**, with the transfer weaker than the provenance argument.
+**Status: RETRACTED pending re-measurement.** §47.
 
-Evidence: §14 (domain prior beats a generic one by +0.049 AUC, 3 of 6 cells significant), §15
-(pretraining buys calibration: 7× Brier, up to 130× ECE against an untrained control of the
-same architecture — but that control still *ranks* at 0.726, so pretraining buys calibration
-more than ranking), §18/§19 (the prior matches real task difficulty: logistic-regression AUC
-0.743 synthetic against 0.769 real), §30 (a prior widened to reach 0.195% default rates is
-worth +0.023 AUC and 2.7× calibration), decision D2.
+Every measurement supporting this claim was taken on models that **were not doing in-context
+learning at all**. Shuffling the context labels left predictions unchanged (rank correlation
+0.977) and AUC *higher* than with true labels, because the prior's feature-to-label direction
+was fixed across every task it generated — so a global rule could be memorised and no labelled
+example ever had to be read.
 
-**The auditable half is the stronger half.** A model that never saw real data cannot have
-memorised a benchmark, and the leakage literature quantifies contamination at up to 32 points
-of MAPE (§1). That is a property a model-risk reviewer can verify from the training code,
-which is unusual and is the part worth writing about.
+That invalidates the supporting evidence rather than merely weakening it:
 
----
+- **§14's "+0.049 domain prior over generic"** compared two priors on a model reading neither
+  one's labels.
+- **§15's "pretraining buys calibration"** survives only as a statement about calibration; its
+  ranking component is the same order as the trained-versus-random gap (§42).
+- **§18/§19's "the prior matches real task difficulty"** is now known to have been the
+  *problem*, not the validation (§42), and the fixed sign convention behind it was the root
+  cause (§47).
+
+**What survives untouched is the provenance half**, and it is the stronger half: a model that
+never saw real data cannot have memorised a benchmark, and that is verifiable from the training
+code regardless of how well the model works. Decision D2 stands. The transfer half has to be
+re-measured from scratch once a checkpoint exists that reads its context.
+
+**Do not write any version of this claim** until the shuffle test on the current checkpoint
+shows a rank correlation well below 0.9.
 
 ## Claim 3 — Feature conditioning matters more than it should, because financial ratios are pathologically heavy-tailed
 
