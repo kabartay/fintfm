@@ -3146,3 +3146,54 @@ model learns something that survives relabelling. The implementation stays becau
 cheapest available test of whether a future checkpoint has real discrimination — a model whose
 score is unchanged by label-swap averaging is one whose signal is in the evidence rather than
 in the labelling.
+
+---
+
+## 46. Prior diversity helps, and is not sufficient: 0.685 → 0.712, with the real gain on interactions
+
+**Date:** 2026-09-10. **MEASURED**, three seeds, `fintfm-capability`.
+**Tests §44's diagnosis. Confirmed in direction, wrong in magnitude.**
+
+§44 found the model reaching held-out AUC 0.83-0.88 on its own prior and collapsing to 0.685
+on iid Gaussian features, and blamed a flag: every checkpoint had been trained with
+`--p-financial 1.0`, disabling the generic SCM prior and leaving the model to see only
+financial-statement features. A checkpoint at `p_financial=0.7` tests it.
+
+| arm | linear | conjunction | **xor** | noise |
+| --- | --- | --- | --- | --- |
+| financial-only | 0.685 ± 0.119 | 0.692 | 0.530 | 0.490 |
+| **mixed, p_financial 0.7** | **0.712 ± 0.074** | 0.693 | **0.614 ± 0.014** | 0.483 |
+| logistic regression | **1.000** | 0.955 | 0.522 | 0.502 |
+| gradient boosting | 0.983 | 0.989 | **0.997** | 0.517 |
+| untrained control | 0.357 | 0.351 | 0.518 | 0.515 |
+
+**The interaction probe carries the result: 0.530 → 0.614 on `xor`.** That probe is
+parity-structured, so logistic regression is pinned at chance by construction (0.522) and
+anything above it is genuine interaction learning rather than a linear shortcut. The generic
+SCM prior taught the model something the financial prior could not — which is the mechanism
+§44 proposed, showing up on exactly the probe that isolates it.
+
+`linear` improves from 0.685 to 0.712 and its seed variance nearly halves (±0.119 to ±0.074),
+so the model is also more stable. `conjunction` does not move at all.
+
+**And it is nowhere near enough.** 0.712 against a ceiling of 1.000, on a task a linear model
+solves exactly. Prior diversity is *a* cause of §42's failure, not *the* cause.
+
+### During training the same run looked far better than it is
+
+Held-out AUC on its own prior ran 0.905-0.912 with Brier skill +0.39 to +0.42, against
+0.83-0.88 and +0.16 to +0.18 for the financial-only prior — a doubling of skill against the
+base-rate predictor. Read alone, that looks like a solved problem. The probes say the transfer
+gain is 0.027.
+
+**Held-out-on-your-own-prior is not a capability measurement**, and this is the cleanest
+demonstration of it in the project: the same checkpoint that doubled its held-out skill moved
+0.027 on the task that matters. It belongs beside §42's warning about the training metric.
+
+### What this leaves
+
+§43 is now the next test and is properly motivated for the first time: with a defensible prior
+in place, **48,000 training tasks against a field norm near 10⁷** is the remaining known
+deficiency, at roughly $13 for a million. The architecture critique — the mean+max pooling over
+features, which is structurally additive — stays behind it, because diagnosing an architecture
+on a model trained at 0.5% of the field's data volume is not a diagnosis.
