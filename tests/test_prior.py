@@ -130,3 +130,36 @@ def test_prior_spans_difficulty_from_noise_to_learnable():
         f"no task is hard (min single-feature AUC {seps.min():.3f}); a prior of only easy "
         "tasks never teaches the model to abstain"
     )
+
+
+def test_label_direction_varies_across_tasks():
+    """The prior must not admit a global feature-to-label rule.
+
+    §47: the driver signs were fixed, so in every task higher leverage meant riskier. A model
+    could memorise one distress score and never read a context label — and measurably did not:
+    shuffling the context labels left its predictions unchanged (rank correlation 0.977) and
+    its AUC *higher* than with true labels. In-context learning cannot be learned from a prior
+    that does not require it.
+    """
+    import numpy as np
+    from sklearn.metrics import roc_auc_score
+
+    from fintfm.prior.financial import sample_financial_task
+
+    aucs = []
+    for seed in range(40):
+        t = sample_financial_task(np.random.default_rng(seed), n_rows=600, max_features=30)
+        X, y = np.asarray(t.X, dtype=float), np.asarray(t.y)
+        col = X[:, 0]
+        ok = np.isfinite(col)
+        if ok.sum() < 200 or len(np.unique(y[ok])) < 2:
+            continue
+        aucs.append(roc_auc_score(y[ok], col[ok]))
+
+    a = np.array(aucs)
+    assert len(a) >= 20, f"too few usable tasks: {len(a)}"
+    up = float((a > 0.5).mean())
+    assert 0.25 < up < 0.75, (
+        f"the first feature points the same way in {up:.0%} of tasks; a global rule would "
+        "still work and the model need never read its context"
+    )

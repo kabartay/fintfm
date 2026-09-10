@@ -386,7 +386,28 @@ def sample_financial_task(
         ],
         axis=1,
     )
+    # Weight magnitudes, and then a **random sign per driver per task**.
+    #
+    # The signs used to be fixed: `np.abs(...)` over drivers whose orientation is hardcoded
+    # above, so in every task the prior had ever generated, higher leverage meant riskier and
+    # higher margin meant safer. That is economically true and it was the single most damaging
+    # property of this prior (``docs/FINDINGS.md`` §47). A universal feature-to-label mapping
+    # can be memorised once and applied to every task, so the model never had any reason to
+    # read its context labels — and measurably did not: shuffling the context labels changed
+    # its predictions not at all (rank correlation 0.977) and left its AUC *higher* than with
+    # the true labels.
+    #
+    # With the sign randomised, knowing whether high leverage means risky **in this task**
+    # requires reading the labelled examples. That is the whole mechanism a prior-fitted
+    # network is supposed to learn, and it cannot be learned from a prior that does not
+    # require it.
+    #
+    # The tasks become economically nonsensical half the time, and that is fine: a prior's job
+    # is to teach in-context inference, not to look like the deployment distribution — the
+    # lesson of §42, restated. The *features* keep their accounting identities and realistic
+    # correlations; only the direction of the label relationship varies.
     w = np.abs(rng.normal(1.0, 0.5, size=drivers.shape[1])) * rng.uniform(0.3, 1.0, drivers.shape[1])
+    w = w * rng.choice([-1.0, 1.0], size=drivers.shape[1])
     distress = drivers @ w
     distress += sector_hazard[sector] - cycle * sector_cyclicality[sector] * rng.uniform(0.2, 1.0)
     distress += rate * rng.uniform(5, 25) * leverage

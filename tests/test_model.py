@@ -41,13 +41,20 @@ def test_forward_shapes_and_class_masking():
 def test_loss_decreases_after_a_few_steps():
     """Training must reduce the loss on freshly sampled tasks.
 
-    Uses 80 steps and an explicit ``d_cell``. It was 30 steps and a defaulted ``d_cell``
-    of 64 against a ``d_model`` of 32 — an inverted bottleneck for a deliberately tiny
-    model — and it began failing when `prior/financial.py` was made harder to restore the
-    difficulty match with real panels (`docs/FINDINGS.md` §19). Diagnosed rather than
-    loosened: the model still learns, reaching 0.639 -> 0.561 by 60 steps and 0.529 by 150,
-    so 30 steps was simply too few to measure what the assertion claims. **The assertion
-    itself is unchanged.**
+    Uses 300 steps, a 50-step window and an explicit ``d_cell``. The history matters,
+    because this test has been re-tuned twice and never loosened.
+
+    It was 30 steps with a defaulted ``d_cell`` of 64 against a ``d_model`` of 32 — an
+    inverted bottleneck — and began failing when the prior was made harder for §19. Diagnosed
+    rather than loosened, and raised to 80 steps.
+
+    It failed again at §47, which randomised the label direction per task so that no global
+    feature rule can work. That is a much harder prior: measured over 600 steps the model
+    goes 0.656 -> 0.592 but has not moved at all by step 80, so 80 was again too few. The
+    window also went from 5 samples to 50, because a 5-sample mean at this noise level does
+    not measure a trend — that is a more precise measurement, not a weaker assertion.
+
+    **What is asserted is unchanged in both cases: training reduces the loss.**
     """
     torch.manual_seed(0)
     cfg = ModelConfig(
@@ -58,14 +65,14 @@ def test_loss_decreases_after_a_few_steps():
     rng = np.random.default_rng(0)
     opt = torch.optim.Adam(model.parameters(), lr=1e-3)
     losses = []
-    for _ in range(80):
+    for _ in range(300):
         batch = sample_batch(rng, prior_cfg, batch_size=8)
         loss = model.loss(batch.X, batch.y, batch.n_ctx, batch.n_classes)
         opt.zero_grad()
         loss.backward()
         opt.step()
         losses.append(loss.item())
-    assert np.mean(losses[-5:]) < np.mean(losses[:5])
+    assert np.mean(losses[-50:]) < np.mean(losses[:50])
 
 
 def test_save_and_load_roundtrip(tmp_path):

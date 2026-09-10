@@ -3197,3 +3197,76 @@ in place, **48,000 training tasks against a field norm near 10⁷** is the remai
 deficiency, at roughly $13 for a million. The architecture critique — the mean+max pooling over
 features, which is structurally additive — stays behind it, because diagnosing an architecture
 on a model trained at 0.5% of the field's data volume is not a diagnosis.
+
+---
+
+## 47. The mechanism: the prior had a fixed feature-to-label direction, so the model never learned to read its context
+
+**Date:** 2026-09-10. **MEASURED**, three checkpoints, three seeds.
+**This is the root cause behind §42, §44, §45 and §46.**
+
+Four hypotheses had been tested and found wrong or marginal — conjunction representation
+(§41, falsified), prior difficulty (§44, no effect), prior diversity (§46, +0.027), training
+volume (§43, no effect at 10×). The pattern was guessing at causes. This is the diagnostic
+that isolates one.
+
+### The test: shuffle the context labels
+
+Randomise the context labels, destroying any feature-label relationship, and predict. A model
+doing in-context learning should collapse to chance. A model ignoring its labels should not
+move at all.
+
+| checkpoint | AUC, true labels | AUC, **shuffled** labels | rank correlation | verdict |
+| --- | --- | --- | --- | --- |
+| 48k, financial-only | 0.6841 | **0.6895** | **0.977** | **ignores labels entirely** |
+| 48k, mixed prior | 0.7116 | 0.6006 | 0.404 | uses labels |
+| 480k, mixed prior | 0.7158 | 0.6793 | 0.804 | partly ignores again |
+
+**The financial-only model scores higher with randomised labels than with true ones.** Its
+0.684 was never in-context learning. It was unsupervised structure in the features plus the
+label-slot bias §45 measured, and that is why label-swap averaging collapsed it to chance:
+there was no label-derived signal to preserve.
+
+### The cause, in one line of the prior
+
+```python
+drivers = [z(leverage), -z(coverage), -z(margin), -z(cash_ratio), ...]   # signs hardcoded
+w = np.abs(rng.normal(1.0, 0.5, size=...)) * rng.uniform(0.3, 1.0, ...)  # all positive
+```
+
+`np.abs` over drivers with hardcoded orientation means that **in every task the prior has ever
+generated, higher leverage is riskier and higher margin is safer.** The feature-to-label
+mapping is universal, so a model can memorise one global distress score and apply it to every
+task without ever consulting a labelled example.
+
+It is economically correct, and it removed the only reason to learn in-context inference.
+
+This also explains §46 cleanly. The generic SCM prior randomises its structure per task, so
+mixing it in was the first thing that ever *required* label-reading — which is why it moved
+`xor` (0.530 → 0.614) and why the mixed model is the only one that uses labels (correlation
+0.404 against 0.977).
+
+And it explains §43. More data on a prior that rewards ignoring labels buys a better
+label-ignorer: the 480k checkpoint regressed to 0.804, further from label-reading than the
+48k mixed model, matching its external-task regression.
+
+### The fix
+
+A random sign per driver per task. Verified: the first feature's direction now points each way
+in 55%/45% of tasks, so no global rule can work, and knowing whether high leverage means risky
+*in this task* requires reading the context.
+
+Half the tasks become economically nonsensical. **That is correct.** A prior's job is to teach
+in-context inference, not to resemble the deployment distribution — §42's lesson, restated and
+now with a mechanism. The features keep their accounting identities and realistic correlations;
+only the direction of the label relationship varies.
+
+`tests/test_prior.py` pins it: if the first feature points the same way in more than 75% of
+tasks, a global rule would still work and the test fails.
+
+### Why this took three days to find
+
+Every earlier measurement compared a model against baselines or against itself. **None asked
+whether the context mattered at all** — the one question that separates in-context learning
+from a fixed function of the features. It costs five minutes and it should be the first
+diagnostic run against any prior-fitted network, before accuracy is discussed.

@@ -153,3 +153,25 @@ def test_run_includes_an_untrained_control(tmp_path):
     arms = {r["arm"] for r in rec["results"]}
     assert "untrained_control" in arms
     assert "logistic_regression" in arms
+
+
+def test_untrained_control_is_reproducible(tmp_path):
+    """A floor that moves is not a floor.
+
+    Unseeded, the control scored 0.344 to 0.569 on `linear` across invocations, so whether a
+    trained model "cleared the control" depended on the draw (docs/FINDINGS.md §47).
+    """
+    from fintfm.experiments.capability import run
+    from fintfm.modeling.model import FinancialTFM, ModelConfig
+
+    ckpt = tmp_path / "m.pt"
+    FinancialTFM(ModelConfig(max_features=20, d_model=16, d_cell=8, n_layers=1,
+                             n_col_layers=1, max_classes=2)).save(
+        str(ckpt), trained_objectives=("classification",))
+
+    def control_scores():
+        rec = run({"probe": str(ckpt)}, tmp_path, seeds=(0,), max_context=200, n_features=20)
+        return [r["auc_mean"] for r in rec["results"] if r["arm"] == "untrained_control"]
+
+    first, second = control_scores(), control_scores()
+    assert first == second, f"untrained control is not reproducible: {first} vs {second}"

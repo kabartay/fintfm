@@ -47,6 +47,9 @@ import numpy as np
 #: Probe names, in the order they are reported.
 PROBES: tuple[str, ...] = ("linear", "conjunction", "xor", "noise")
 
+#: Fixed seed for the untrained control's weights, so the floor is the same number every run.
+UNTRAINED_SEED = 20260910
+
 
 @dataclass
 class ProbeResult:
@@ -132,9 +135,16 @@ def run(
 
     models = {name: FinancialTFM.load(p) for name, p in model_paths.items()}
     if models:
-        # the floor: same architecture, random weights. Without it a trained number is
+        # The floor: same architecture, random weights. Without it a trained number is
         # unreadable, which is how §42 went unnoticed for two days.
+        #
+        # **Seeded.** Unseeded, this control scored 0.344, 0.357, 0.367 and 0.569 on `linear`
+        # across four invocations — a floor that moves by 0.22 is not a floor, and it made
+        # every "clears the control" statement depend on which draw it was compared against.
+        import torch
+
         first = next(iter(models.values()))
+        torch.manual_seed(UNTRAINED_SEED)
         models["untrained_control"] = FinancialTFM(first.cfg)
 
     results: list[ProbeResult] = []
