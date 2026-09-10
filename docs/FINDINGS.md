@@ -3281,3 +3281,63 @@ Every earlier measurement compared a model against baselines or against itself. 
 whether the context mattered at all** — the one question that separates in-context learning
 from a fixed function of the features. It costs five minutes and it should be the first
 diagnostic run against any prior-fitted network, before accuracy is discussed.
+
+---
+
+## 48. The fix works: the model reads its context, and improves with more of it
+
+**Date:** 2026-09-10. **MEASURED**, three seeds. **Confirms §47's mechanism.**
+
+Two checkpoints trained with the randomised label direction, one financial-only and one mixed.
+
+### It reads the context
+
+| checkpoint | AUC true labels | AUC shuffled | gap | rank correlation |
+| --- | --- | --- | --- | --- |
+| old, financial-only | 0.6841 | 0.6895 | **−0.005** | 0.977 |
+| old, mixed | 0.7116 | 0.6006 | +0.111 | 0.404 |
+| **new, signfix financial-only** | 0.7067 | 0.5746 | +0.132 | **0.295** |
+| **new, signfix mixed** | 0.7089 | 0.5573 | **+0.152** | **0.226** |
+
+**The sign fix alone is sufficient.** `signfix-financial` contains no generic SCM prior at all
+and still moves from 0.977 to 0.295. That isolates the mechanism: §46's diversity gain was a
+side effect of the SCM prior randomising structure per task, not of domain variety. The
+production config (mixed) is best at 0.226, but the causal ingredient is the sign.
+
+### And it improves with more context, which it never did before
+
+Mean AUC on the `linear` probe against context size, three seeds:
+
+| checkpoint | 100 | 250 | 500 | 1,000 | 2,000 | slope |
+| --- | --- | --- | --- | --- | --- | --- |
+| old, financial-only | 0.5564 | 0.5663 | 0.5246 | 0.5448 | 0.5386 | **−0.018** |
+| **new, signfix mixed** | 0.5899 | 0.6401 | 0.6503 | **0.6620** | 0.6614 | **+0.072** |
+
+The old model got *worse* with more evidence. The new one improves monotonically and saturates
+around 1,000 rows. **A model that improves with more context is doing in-context inference**;
+this is the first checkpoint in the project that does.
+
+### And accuracy barely moved: 0.709 against 0.712
+
+That has to be said plainly. The model now genuinely reads its context and scores the same as
+when it ignored it. Label-reading was **necessary and is not sufficient** — the previous 0.71
+was reached by a different route (unsupervised feature structure plus label-slot bias, §45),
+and the ceiling is set by something else.
+
+`xor` is the exception and moves in the right direction: 0.614 → 0.650, the probe that
+requires genuine interaction learning.
+
+### What this changes about everything measured before
+
+**Every null result in §42-§46 was obtained on a model that ignored the input the lever acts
+through**, and must be re-run:
+
+- **§43's volume null** (10× data, no change) — measured on a label-ignorer, where more data
+  buys a better label-ignorer. The 480k checkpoint's *regression* to correlation 0.804 is
+  direct evidence of exactly that.
+- **§42's flat scaling curve** (847K / 4.9M / 14.5M within 0.001) — same objection. Capacity
+  cannot help a model not using the mechanism capacity would serve.
+- **§45's ensembling null** — the axes were averaging a prediction whose signal was artefact.
+
+None of those are now known to be false. They are unmeasured. The saturation at 1,000 context
+rows is the new open question, and capacity is the first suspect worth re-testing.
