@@ -199,3 +199,27 @@ def test_feature_sweep_reproduces_the_shape_finding_49_reports(tmp_path):
     lr = sweep["arms"]["logistic_regression"]
     assert all(v > 0.95 for v in lr), f"the linear baseline should be flat and high: {lr}"
     assert all(np.isfinite(v) for v in sweep["arms"]["probe"])
+
+
+def test_base_rate_sweep_keeps_the_linear_baseline_flat(tmp_path):
+    """§51's reading only follows if the task itself does not get harder as it balances.
+
+    Logistic regression must hold near 1.0 across rates; if it fell too, the base-rate
+    decline would be a property of the task rather than of the model.
+    """
+    import numpy as np
+
+    from fintfm.experiments.capability import base_rate_sweep
+    from fintfm.modeling.model import FinancialTFM, ModelConfig
+
+    ckpt = tmp_path / "m.pt"
+    FinancialTFM(ModelConfig(max_features=8, d_model=16, d_cell=8, n_layers=1,
+                             n_col_layers=1, max_classes=2)).save(
+        str(ckpt), trained_objectives=("classification",))
+    sweep = base_rate_sweep({"probe": str(ckpt)}, rates=(0.05, 0.50), n_features=5,
+                            seeds=(0,), max_context=300)
+
+    assert sweep["rates"] == [0.05, 0.50]
+    lr = sweep["arms"]["logistic_regression"]
+    assert all(v > 0.95 for v in lr), f"baseline must stay flat across rates: {lr}"
+    assert all(np.isfinite(v) for v in sweep["arms"]["probe"])

@@ -184,6 +184,90 @@ def summarise_sweep(sweep: dict) -> str:
     return "\n".join(lines)
 
 
+def base_rate_sweep(
+    model_paths: dict[str, str],
+    rates: tuple[float, ...] = (0.05, 0.15, 0.30, 0.50),
+    n_features: int = 5,
+    seeds: tuple[int, ...] = (0, 1, 2),
+    max_context: int = 2000,
+) -> dict:
+    """How does each model hold up as the task becomes balanced?
+
+    ``docs/FINDINGS.md`` §51: performance falls monotonically as the base rate rises — 0.850
+    at 5% down to 0.658 at 50% — while a linear baseline holds 1.0000 throughout. That is
+    backwards on its face, since more positives means more information about the positive
+    class.
+
+    The reading is that the model **detects extremes rather than ordering**. At a low base
+    rate, ranking well largely means finding the tail, and max pooling is an extremeness
+    detector. At 50% it means ordering the whole distribution, which a mean-and-max reduction
+    cannot do.
+
+    That predicts attention pooling should help **most at high base rates**. This sweep is how
+    that prediction is checked — and if the gain is flat across rates, the reading is wrong
+    and should be discarded rather than adjusted.
+
+    Feature count is held low (5 by default) so the aggregation failure of §50 does not
+    confound the base-rate effect.
+
+    Args:
+        model_paths: ``{arm name: checkpoint path}``.
+        rates: Positive-class rates to sweep.
+        n_features: Feature width, kept small deliberately.
+        seeds: Seeds per cell.
+        max_context: Context rows for the in-context arms.
+
+    Returns:
+        ``{"rates": [...], "arms": {name: [auc per rate]}}``.
+    """
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.metrics import roc_auc_score
+
+    from fintfm.inference.classifier import FinancialTFMClassifier
+    from fintfm.modeling.model import FinancialTFM
+
+    models = {n: FinancialTFM.load(p) for n, p in model_paths.items()}
+    arms: dict[str, list[float]] = {n: [] for n in models}
+    arms["logistic_regression"] = []
+    for rate in rates:
+        per_arm: dict[str, list[float]] = {n: [] for n in arms}
+        for seed in seeds:
+            Xtr, ytr, Xte, yte = make_probe(
+                "linear", n=16000, n_features=n_features, rate=rate, seed=seed
+            )
+            if len(np.unique(yte)) < 2:
+                continue
+            for name, m in models.items():
+                clf = FinancialTFMClassifier(
+                    m, max_context=max_context, context_strategy="uniform",
+                    feature_transform="rank", random_state=seed,
+                ).fit(Xtr, ytr)
+                per_arm[name].append(roc_auc_score(yte, clf.predict_proba(Xte)[:, 1]))
+            lr = LogisticRegression(max_iter=1000).fit(Xtr, ytr)
+            per_arm["logistic_regression"].append(
+                roc_auc_score(yte, lr.predict_proba(Xte)[:, 1])
+            )
+        for name, vals in per_arm.items():
+            arms[name].append(float(np.mean(vals)) if vals else float("nan"))
+        print(f"  rate {rate:.0%} done", flush=True)
+    return {"rates": list(rates), "arms": arms}
+
+
+def summarise_rate_sweep(sweep: dict) -> str:
+    """Render the base-rate sweep, with each arm's decline from rare to balanced."""
+    rates = sweep["rates"]
+    lines = [f"{'arm':>22} " + " ".join(f"{r:>8.0%}" for r in rates) + f"{'drop':>9}"]
+    for name, vals in sweep["arms"].items():
+        drop = vals[-1] - vals[0] if len(vals) > 1 else float("nan")
+        lines.append(f"{name:>22} " + " ".join(f"{v:>8.4f}" for v in vals) + f"{drop:>+9.4f}")
+    lines += [
+        "",
+        "`drop` is balanced minus rare. A model that orders the distribution is flat; one that",
+        "only detects extremes falls as the task balances (docs/FINDINGS.md §51).",
+    ]
+    return "\n".join(lines)
+
+
 def run(
     model_paths: dict[str, str],
     out_dir: Path,
@@ -307,8 +391,25 @@ def main() -> None:
              "separates a capacity limit from a pooling-design limit",
     )
     p.add_argument("--widths", type=str, default="5,10,20,40,80,130")
+    p.add_argument(
+        "--rate-sweep", action="store_true",
+        help="sweep the base rate instead (§51): does the model order the distribution, or "
+             "only detect extremes?",
+    )
+    p.add_argument("--rates", type=str, default="0.05,0.15,0.30,0.50")
     args = p.parse_args()
     paths = dict(pair.split("=", 1) for pair in args.models.split(",") if pair)
+    if args.rate_sweep:
+        sweep = base_rate_sweep(
+            paths, rates=tuple(float(r) for r in args.rates.split(",")),
+            seeds=tuple(int(s) for s in args.seeds.split(",")),
+            max_context=args.max_context, n_features=args.n_features or 5,
+        )
+        out = Path(args.out)
+        out.mkdir(parents=True, exist_ok=True)
+        (out / "rate_sweep.json").write_text(json.dumps(sweep, indent=2))
+        print("\n" + summarise_rate_sweep(sweep))
+        return
     if args.feature_sweep:
         sweep = feature_sweep(
             paths, widths=tuple(int(w) for w in args.widths.split(",")),
