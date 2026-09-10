@@ -107,6 +107,83 @@ def make_probe(
     return X[:k], y[:k], X[k:], y[k:]
 
 
+def feature_sweep(
+    model_paths: dict[str, str],
+    widths: tuple[int, ...] = (5, 10, 20, 40, 80, 130),
+    seeds: tuple[int, ...] = (0, 1, 2),
+    max_context: int = 1000,
+) -> dict:
+    """How does each model hold up as the number of features grows?
+
+    ``docs/FINDINGS.md`` §49: the model reaches 0.846 on a five-feature linear task and
+    collapses to 0.551 at eighty, while logistic regression is flat at ~0.999 across the whole
+    range. Both widths are **inside** the prior's training distribution — it produces a median
+    of 77 columns with half of all tasks at 80 or more — so this is an aggregation failure
+    rather than extrapolation.
+
+    That points at the row representation: the column stage emits one token per feature and
+    ``encode_rows`` reduces them by masked mean and max, which is exactly the operation that
+    should struggle to preserve 130 weighted contributions.
+
+    The sweep exists to settle capacity against design. **If larger models degrade less
+    steeply, the constraint is capacity; if they degrade identically, it is the pooling.**
+
+    Args:
+        model_paths: ``{arm name: checkpoint path}``.
+        widths: Feature counts to sweep.
+        seeds: Seeds per cell.
+        max_context: Context rows for the in-context arms.
+
+    Returns:
+        ``{"widths": [...], "arms": {name: [auc per width]}}``.
+    """
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.metrics import roc_auc_score
+
+    from fintfm.inference.classifier import FinancialTFMClassifier
+    from fintfm.modeling.model import FinancialTFM
+
+    models = {n: FinancialTFM.load(p) for n, p in model_paths.items()}
+    arms: dict[str, list[float]] = {n: [] for n in models}
+    arms["logistic_regression"] = []
+    for width in widths:
+        per_arm: dict[str, list[float]] = {n: [] for n in arms}
+        for seed in seeds:
+            Xtr, ytr, Xte, yte = make_probe("linear", n_features=width, seed=seed)
+            if len(np.unique(yte)) < 2:
+                continue
+            for name, m in models.items():
+                clf = FinancialTFMClassifier(
+                    m, max_context=max_context, context_strategy="uniform",
+                    feature_transform="rank", random_state=seed,
+                ).fit(Xtr, ytr)
+                per_arm[name].append(roc_auc_score(yte, clf.predict_proba(Xte)[:, 1]))
+            lr = LogisticRegression(max_iter=1000).fit(Xtr, ytr)
+            per_arm["logistic_regression"].append(
+                roc_auc_score(yte, lr.predict_proba(Xte)[:, 1])
+            )
+        for name, vals in per_arm.items():
+            arms[name].append(float(np.mean(vals)) if vals else float("nan"))
+        print(f"  width {width} done", flush=True)
+    return {"widths": list(widths), "arms": arms}
+
+
+def summarise_sweep(sweep: dict) -> str:
+    """Render the width sweep, with each arm's degradation from narrowest to widest."""
+    widths = sweep["widths"]
+    lines = [f"{'arm':>22} " + " ".join(f"{f'F={w}':>8}" for w in widths) + f"{'drop':>9}"]
+    for name, vals in sweep["arms"].items():
+        drop = vals[-1] - vals[0] if len(vals) > 1 else float("nan")
+        lines.append(f"{name:>22} " + " ".join(f"{v:>8.4f}" for v in vals) + f"{drop:>+9.4f}")
+    lines += [
+        "",
+        "`drop` is widest minus narrowest. A flat arm aggregates features; a steeply negative",
+        "one does not. If larger models drop less, the constraint is capacity; if they drop",
+        "the same, it is the pooling design (docs/FINDINGS.md §49).",
+    ]
+    return "\n".join(lines)
+
+
 def run(
     model_paths: dict[str, str],
     out_dir: Path,
@@ -224,8 +301,25 @@ def main() -> None:
     p.add_argument("--seeds", type=str, default="0,1,2")
     p.add_argument("--max-context", type=int, default=1000)
     p.add_argument("--n-features", type=int, default=20)
+    p.add_argument(
+        "--feature-sweep", action="store_true",
+        help="sweep feature count instead of running the probe suite (§49): the test that "
+             "separates a capacity limit from a pooling-design limit",
+    )
+    p.add_argument("--widths", type=str, default="5,10,20,40,80,130")
     args = p.parse_args()
     paths = dict(pair.split("=", 1) for pair in args.models.split(",") if pair)
+    if args.feature_sweep:
+        sweep = feature_sweep(
+            paths, widths=tuple(int(w) for w in args.widths.split(",")),
+            seeds=tuple(int(s) for s in args.seeds.split(",")),
+            max_context=args.max_context,
+        )
+        out = Path(args.out)
+        out.mkdir(parents=True, exist_ok=True)
+        (out / "feature_sweep.json").write_text(json.dumps(sweep, indent=2))
+        print("\n" + summarise_sweep(sweep))
+        return
     record = run(
         paths, Path(args.out), seeds=tuple(int(s) for s in args.seeds.split(",")),
         max_context=args.max_context, n_features=args.n_features,

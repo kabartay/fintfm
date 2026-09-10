@@ -175,3 +175,27 @@ def test_untrained_control_is_reproducible(tmp_path):
 
     first, second = control_scores(), control_scores()
     assert first == second, f"untrained control is not reproducible: {first} vs {second}"
+
+
+def test_feature_sweep_reproduces_the_shape_finding_49_reports(tmp_path):
+    """§49's sweep must be re-runnable, and logistic regression must stay flat.
+
+    The flat baseline is what makes the finding interpretable: if every arm degraded with
+    width, the task would be getting harder rather than the model failing to aggregate.
+    """
+    import numpy as np
+
+    from fintfm.experiments.capability import feature_sweep
+    from fintfm.modeling.model import FinancialTFM, ModelConfig
+
+    ckpt = tmp_path / "m.pt"
+    FinancialTFM(ModelConfig(max_features=40, d_model=16, d_cell=8, n_layers=1,
+                             n_col_layers=1, max_classes=2)).save(
+        str(ckpt), trained_objectives=("classification",))
+    sweep = feature_sweep({"probe": str(ckpt)}, widths=(5, 40), seeds=(0,), max_context=200)
+
+    assert sweep["widths"] == [5, 40]
+    assert set(sweep["arms"]) == {"probe", "logistic_regression"}
+    lr = sweep["arms"]["logistic_regression"]
+    assert all(v > 0.95 for v in lr), f"the linear baseline should be flat and high: {lr}"
+    assert all(np.isfinite(v) for v in sweep["arms"]["probe"])
