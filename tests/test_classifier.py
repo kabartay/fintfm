@@ -228,3 +228,57 @@ def test_ensemble_members_refit_the_conditioner_not_inherit_it():
     assert twin.n_ensemble == 1  # no recursion
     assert twin._conditioner is not parent._conditioner
     np.testing.assert_array_equal(twin._raw_X, parent._raw_X)
+
+
+def test_label_swap_averaging_cancels_the_asymmetry_it_targets():
+    """§45: relabelling the context 0<->1 and inverting should be a no-op and is not.
+
+    Averaging the two orientations removes the component of the prediction that depends on
+    which class occupies the "1" slot. The averaged predictor must therefore be (near-)
+    invariant to relabelling, even though a single member is not.
+    """
+    import numpy as np
+
+    from fintfm.inference.classifier import FinancialTFMClassifier
+
+    Xtr, ytr, Xte, _ = _toy()
+    m = _model()
+    kw = {"max_context": 100, "context_strategy": "uniform", "random_state": 0}
+
+    plain = FinancialTFMClassifier(m, **kw).fit(Xtr, ytr).predict_proba(Xte)[:, 1]
+    plain_swapped = 1.0 - FinancialTFMClassifier(m, **kw).fit(Xtr, 1 - ytr).predict_proba(Xte)[:, 1]
+    single_gap = float(np.abs(plain - plain_swapped).max())
+
+    ekw = {**kw, "ensemble_label_swap": True}
+    ens = FinancialTFMClassifier(m, **ekw).fit(Xtr, ytr).predict_proba(Xte)[:, 1]
+    ens_swapped = 1.0 - FinancialTFMClassifier(m, **ekw).fit(Xtr, 1 - ytr).predict_proba(Xte)[:, 1]
+    ens_gap = float(np.abs(ens - ens_swapped).max())
+
+    assert ens_gap < single_gap, (ens_gap, single_gap)
+    assert ens_gap < 1e-5, f"averaging should make relabelling a no-op, gap {ens_gap}"
+
+
+def test_feature_subsetting_produces_genuinely_different_members():
+    import numpy as np
+
+    from fintfm.inference.classifier import FinancialTFMClassifier
+
+    Xtr, ytr, Xte, _ = _toy()
+    m = _model()
+    full = FinancialTFMClassifier(m, max_context=100, random_state=0).fit(Xtr, ytr)
+    sub = FinancialTFMClassifier(m, max_context=100, random_state=0,
+                                 ensemble_feature_frac=0.5).fit(Xtr, ytr)
+    assert not np.allclose(full.predict_proba(Xte), sub.predict_proba(Xte), atol=1e-3)
+
+
+def test_feature_subset_ensemble_stays_a_valid_distribution():
+    import numpy as np
+
+    from fintfm.inference.classifier import FinancialTFMClassifier
+
+    Xtr, ytr, Xte, _ = _toy()
+    p = FinancialTFMClassifier(_model(), max_context=100, random_state=0, n_ensemble=3,
+                               ensemble_feature_frac=0.6, ensemble_label_swap=True
+                               ).fit(Xtr, ytr).predict_proba(Xte)
+    assert np.isfinite(p).all() and (p >= 0).all()
+    np.testing.assert_allclose(p.sum(axis=1), 1.0, atol=1e-5)

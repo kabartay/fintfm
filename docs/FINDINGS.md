@@ -3063,3 +3063,55 @@ where it scored 0.618 on an earlier balanced version of the same task. Random we
 predictions anti-correlated with the label at a 5% base rate. So "trained beats untrained" is
 satisfied here trivially and is *not* evidence of learning — the floor is unstable and must be
 read alongside the fitted baselines, never alone.
+
+---
+
+## 45. The model's predictions depend on which class is called "1"
+
+**Date:** 2026-09-10. **MEASURED**, `runs/v4-clf-small.pt`, synthetic linear task, 300-row
+context.
+
+Prompted by a question about whether TabPFN's ensembling axes apply here. Testing them found
+one that does not, one that does, and one that is a defect rather than an opportunity.
+
+Take a fitted model, **relabel the context** so 0 becomes 1 and 1 becomes 0, predict, and invert
+the output. A model reading its context as *evidence* should return almost exactly the original
+probabilities — the labelled examples carry the same information either way, only the names
+changed.
+
+| ensembling axis | max abs change | correlation with baseline |
+| --- | --- | --- |
+| feature permutation | 1.19e-07 | **1.000000** |
+| **class-label swap** (then inverted) | 0.344 | **−0.62** |
+| feature subset, 70% | 0.194 | 0.496 |
+
+**Correlation −0.62 where +1.0 is expected.** Swapping the names of the classes does not
+perturb the model's predictions, it substantially reverses them. Its output is driven by which
+class occupies the "1" slot rather than by what the context demonstrates.
+
+This is the same defect as §42 and §44 seen from a third angle. A model that scores 0.685 on a
+linear task, does not improve with more context, and reverses under a relabelling is not doing
+in-context inference — it is doing something else that occasionally correlates with the answer.
+
+### Why the asymmetry is not simply expected
+
+The label embedding is learned per class (`y_proj` over a one-hot), so *some* asymmetry is
+unavoidable and a small correlation shortfall would be unremarkable. A negative correlation is
+not: it means the two labellings induce systematically opposed predictions, which no amount of
+learned-embedding asymmetry justifies. Label-swap invariance is a property a working
+prior-fitted network approximately satisfies, and it is now a cheap standing check.
+
+### Feature permutation is confirmed dead as an axis
+
+TabPFN ensembles over feature permutations because its predictions depend on column position.
+Ours do not: 1.19e-07 maximum change is float noise, confirming decision D4's column-order
+invariance end to end on a real checkpoint rather than only in the unit test. **So that axis
+buys nothing here and should not be copied across.** The two axes that remain are label
+assignment and feature subsetting, both of which measurably move predictions.
+
+### Consequence
+
+Label-swap averaging is worth adding not as variance reduction but because it **cancels a
+measured pathology**: averaging `p` with `1 − p_swapped` removes the component of the
+prediction that depends on the label naming. That is a workaround, not a cure — the cure is a
+model that does not have the asymmetry — and it should be reported as such wherever it is used.

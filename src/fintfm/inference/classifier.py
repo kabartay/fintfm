@@ -162,6 +162,19 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             ``tests/test_model.py`` (decision D4), so permuting features would average
             identical predictions and buy nothing. The axis that remains is *which rows* the
             model conditions on.
+        ensemble_label_swap: Average each member with its label-swapped twin — relabel the
+            context 0<->1, predict, invert. **This cancels a measured defect rather than
+            merely reducing variance.** Swapping the class names and inverting should return
+            the same probabilities; on a real checkpoint it returns predictions correlated
+            **−0.62** with the original (``docs/FINDINGS.md`` §45), so the model's output
+            depends on which class occupies the "1" slot. Averaging removes that component.
+            It is a workaround, not a cure, and should be reported as one.
+        ensemble_feature_frac: Fraction of features each member sees, sampled without
+            replacement. Below 1.0 this is a real diversity axis — a 70% subset moves
+            predictions to correlation 0.496 with the full-feature prediction (§45).
+            **Feature *permutation* is deliberately not an axis**: unlike TabPFN, our
+            predictions are column-order invariant by construction (decision D4), measured at
+            1.19e-07 maximum change, so permuting would average identical members.
         prototype_minority_ratio: Target minority-to-majority ratio for
             ``context_strategy="prototype"``, the published best method on this benchmark.
             0.3 is the value Kostrzewa et al. use (``docs/FINDINGS.md`` §36).
@@ -185,6 +198,8 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         feature_transform: FeatureTransform = "rank",
         prototype_minority_ratio: float = 0.3,
         n_ensemble: int = 1,
+        ensemble_label_swap: bool = False,
+        ensemble_feature_frac: float = 1.0,
     ) -> None:
         self.model = FinancialTFM.load(model, map_location=device) if isinstance(model, str) else model
         self.device = device
@@ -198,6 +213,8 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         self.feature_transform = feature_transform
         self.prototype_minority_ratio = prototype_minority_ratio
         self.n_ensemble = n_ensemble
+        self.ensemble_label_swap = ensemble_label_swap
+        self.ensemble_feature_frac = ensemble_feature_frac
         self.model.to(device).eval()
 
     def fit(self, X: np.ndarray, y: np.ndarray) -> FinancialTFMClassifier:
@@ -381,8 +398,35 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
                 out[block] = chunk_fn(X[block], ctx, rate)
         return out
 
-    def _clone_with_seed(self, seed: int) -> FinancialTFMClassifier:
-        """A sibling estimator differing only in the context draw."""
+    def _member_proba(self, X: np.ndarray, seed: int) -> np.ndarray:
+        """One ensemble member: its own context draw, feature subset and label orientation."""
+        rng = np.random.default_rng(seed)
+        Xa, Xb = self._raw_X, np.asarray(X, dtype=np.float32)
+        if self.ensemble_feature_frac < 1.0:
+            k = max(1, round(Xa.shape[1] * self.ensemble_feature_frac))
+            cols = np.sort(rng.choice(Xa.shape[1], size=k, replace=False))
+            Xa, Xb = Xa[:, cols], Xb[:, cols]
+        twin = self._clone_with_seed(seed, Xa, self._raw_y)
+        p = twin.predict_proba(Xb)
+        if not self.ensemble_label_swap:
+            return p
+        # the label-swapped twin: relabel the context, predict, and reverse the columns back.
+        # Averaging the two removes the part of the prediction that depends on which class is
+        # called "1" (§45).
+        swapped = self._clone_with_seed(seed, Xa, self._flip(self._raw_y))
+        return 0.5 * (p + swapped.predict_proba(Xb)[:, ::-1])
+
+    def _flip(self, y: np.ndarray) -> np.ndarray:
+        """Exchange the two class labels; only meaningful for binary tasks."""
+        classes = np.unique(y)
+        if len(classes) != 2:
+            return y
+        return np.where(y == classes[0], classes[1], classes[0])
+
+    def _clone_with_seed(
+        self, seed: int, X: np.ndarray | None = None, y: np.ndarray | None = None
+    ) -> FinancialTFMClassifier:
+        """A sibling estimator differing in its context draw, features or label orientation."""
         twin = FinancialTFMClassifier(
             self.model, device=self.device, max_context=self.max_context,
             context_strategy=self.context_strategy, correct_prior=self.correct_prior,
@@ -393,7 +437,9 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             prototype_minority_ratio=self.prototype_minority_ratio,
             n_ensemble=1,
         )
-        return twin.fit(self._raw_X, self._raw_y)
+        return twin.fit(
+            self._raw_X if X is None else X, self._raw_y if y is None else y
+        )
 
     @torch.no_grad()
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
@@ -406,13 +452,12 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             ``(n, n_classes)`` probabilities.
         """
         self.model.assert_trained_for("classification")
-        if self.n_ensemble > 1:
+        if self.n_ensemble > 1 or self.ensemble_label_swap or self.ensemble_feature_frac < 1.0:
             # average probabilities, not logits: the members disagree about the base rate
             # their context implies, and averaging in logit space would let one confident
             # member dominate the mean rather than contribute one vote to it
             members = [
-                self._clone_with_seed(self.random_state + i).predict_proba(X)
-                for i in range(self.n_ensemble)
+                self._member_proba(X, self.random_state + i) for i in range(self.n_ensemble)
             ]
             return np.mean(members, axis=0)
         X = np.asarray(X, dtype=np.float32)
