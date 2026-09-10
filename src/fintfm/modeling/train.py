@@ -203,6 +203,11 @@ def main() -> None:
     p.add_argument("--d-model", type=int, default=192)
     p.add_argument("--d-cell", type=int, default=64)
     p.add_argument(
+        "--pooling", type=str, default="meanmax", choices=("meanmax", "attention"),
+        help="how feature tokens become a row vector; 'attention' can weight features "
+             "where a mean cannot (docs/FINDINGS.md §50)",
+    )
+    p.add_argument(
         "--d-ff", type=int, default=None,
         help="feed-forward width; defaults to 4 x d_model, the transformer convention. "
              "Leaving it pinned while d_model grows makes the FFN a bottleneck and distorts "
@@ -229,6 +234,7 @@ def main() -> None:
         torch.set_num_threads(args.threads)
 
     model_cfg = ModelConfig(
+        pooling=args.pooling,
         d_ff=args.d_ff if args.d_ff is not None else 4 * args.d_model,
         max_features=args.max_features,
         max_classes=args.max_classes,

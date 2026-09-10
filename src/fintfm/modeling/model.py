@@ -58,6 +58,17 @@ class ModelConfig:
         d_ff: Feed-forward width in the row stage.
         dropout: Dropout probability. Zero for pretraining, where data is effectively
             infinite and there is nothing to overfit.
+        pooling: How feature tokens are reduced to one row vector. ``"meanmax"`` is the
+            original masked mean-and-max. ``"attention"`` uses a learned query attending over
+            the feature tokens, so a feature's contribution can be *weighted* instead of
+            averaged.
+
+            **This is the one architecture change in the project with evidence behind it**
+            (``docs/FINDINGS.md`` §50). A mean is weight-blind: every feature token
+            contributes ``1/F`` however much it matters. Measured, the model scores 0.826 on a
+            five-feature linear task and 0.551 at eighty — and three checkpoints spanning 17×
+            in parameters produce *identical* curves to three decimal places, which rules out
+            capacity and indicts the reduction itself.
         n_horizons: When set, the model also carries a :class:`HazardHead` producing a
             **provably monotone** cumulative-PD term structure over this many periods. The
             object IFRS 9 lifetime expected credit loss consumes, and the fix for the 39%
@@ -74,6 +85,7 @@ class ModelConfig:
     n_layers: int = 6
     d_ff: int = 512
     dropout: float = 0.0
+    pooling: str = "meanmax"
     n_horizons: int | None = None
 
 
@@ -139,7 +151,23 @@ class FinancialTFM(nn.Module):
         )
         # Pooling over columns is a masked mean (order-invariant) plus a masked max, which
         # keeps a signal a mean washes out: one extreme ratio in an otherwise ordinary firm.
-        self.row_proj = nn.Linear(2 * cfg.d_cell, cfg.d_model)
+        if cfg.pooling not in ("meanmax", "attention"):
+            raise ValueError(
+                f"pooling must be 'meanmax' or 'attention', got {cfg.pooling!r}"
+            )
+        if cfg.pooling == "attention":
+            # A single learned query attends over the feature tokens, so the reduction can
+            # weight features instead of averaging them (§50). Mean and max are kept
+            # alongside: they are cheap, they carry the summary statistics attention would
+            # otherwise have to rediscover, and keeping them makes the change additive rather
+            # than a replacement whose regressions would be hard to attribute.
+            self.pool_query = nn.Parameter(torch.randn(1, 1, cfg.d_cell) * 0.02)
+            self.pool_attn = nn.MultiheadAttention(
+                cfg.d_cell, cfg.n_heads, dropout=cfg.dropout, batch_first=True
+            )
+            self.row_proj = nn.Linear(3 * cfg.d_cell, cfg.d_model)
+        else:
+            self.row_proj = nn.Linear(2 * cfg.d_cell, cfg.d_model)
         self.y_proj = nn.Linear(cfg.max_classes, cfg.d_model, bias=False)
         self.query_token = nn.Parameter(torch.zeros(cfg.d_model))
         row_layer = nn.TransformerEncoderLayer(
@@ -203,7 +231,18 @@ class FinancialTFM(nn.Module):
         pooled_mean = (cells * keep).sum(dim=2) / denom
         pooled_max = cells.masked_fill(keep == 0, float("-inf")).max(dim=2).values
         pooled_max = torch.nan_to_num(pooled_max, neginf=0.0)
-        return self.row_proj(torch.cat([pooled_mean, pooled_max], dim=-1))
+        if self.cfg.pooling != "attention":
+            return self.row_proj(torch.cat([pooled_mean, pooled_max], dim=-1))
+
+        # attention pooling: one learned query over the feature tokens of every row
+        q = self.pool_query.expand(flat.shape[0], -1, -1)
+        attended, _ = self.pool_attn(
+            q, flat, flat, key_padding_mask=safe_pad, need_weights=False
+        )
+        pooled_attn = attended.reshape(B, N, self.cfg.d_cell)
+        return self.row_proj(
+            torch.cat([pooled_mean, pooled_max, pooled_attn], dim=-1)
+        )
 
     def forward(
         self, X: torch.Tensor, y: torch.Tensor, n_ctx: int, n_classes: torch.Tensor | None = None

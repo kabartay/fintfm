@@ -294,3 +294,86 @@ def test_checkpointing_is_off_by_default(tmp_path):
           str(out))
     assert list(tmp_path.glob("m.pt.step*")) == []
     assert out.exists()
+
+
+# --- attention pooling (docs/FINDINGS.md §50) --------------------------------------
+
+
+def _pool_model(pooling, n_feat=24):
+    from fintfm.modeling.model import FinancialTFM, ModelConfig
+
+    torch.manual_seed(0)
+    return FinancialTFM(ModelConfig(max_features=n_feat, max_classes=2, d_cell=16,
+                                    d_model=32, n_heads=2, n_layers=2, n_col_layers=2,
+                                    d_ff=64, pooling=pooling))
+
+
+def test_attention_pooling_keeps_column_order_invariance():
+    """Decision D4's invariance must survive the new reduction.
+
+    Attention over feature tokens carries no positional encoding, so it should be
+    permutation-equivariant and the pooled result invariant. Asserted rather than assumed:
+    losing this would silently reintroduce the positional feature identity D4 removed.
+    """
+    m = _pool_model("attention")
+    torch.manual_seed(1)
+    X = torch.randn(2, 30, 24)
+    y = torch.randint(0, 2, (2, 30))
+    perm = torch.randperm(24)
+    a = m(X, y, 15)
+    b = m(X[:, :, perm], y, 15)
+    torch.testing.assert_close(a, b, atol=1e-5, rtol=1e-4)
+
+
+def test_attention_pooling_keeps_padding_width_invariance():
+    """Padding a table wider must not change its predictions."""
+    m = _pool_model("attention", n_feat=40)
+    torch.manual_seed(2)
+    narrow = torch.randn(2, 24, 40)
+    narrow[:, :, 20:] = float("nan")  # only 20 real columns
+    y = torch.randint(0, 2, (2, 24))
+    wider = narrow.clone()
+    a = m(narrow, y, 12)
+    b = m(wider, y, 12)
+    torch.testing.assert_close(a, b, atol=1e-6, rtol=1e-5)
+
+
+def test_attention_pooling_adds_almost_no_parameters():
+    """A gain from attention pooling must not be confusable with a gain from capacity.
+
+    §50 ruled capacity out by showing that 17× more parameters produces identical curves, so
+    this change has to be small enough that nobody can re-explain its effect as capacity.
+
+    Measured at the **production** configuration, which is where the claim is made: 846,818 ->
+    862,418, or +1.8%. At the tiny test configuration the same absolute addition is +7.0%,
+    which says nothing about the real model — the proportion depends on the base size, so the
+    assertion has to be made at the size that will actually be trained.
+    """
+    from fintfm.modeling.model import FinancialTFM, ModelConfig
+
+    kw = {"max_features": 136, "max_classes": 2, "d_cell": 48, "d_model": 128,
+          "n_heads": 4, "n_layers": 4, "n_col_layers": 2, "d_ff": 512}
+    base = FinancialTFM(ModelConfig(pooling="meanmax", **kw)).num_parameters()
+    attn = FinancialTFM(ModelConfig(pooling="attention", **kw)).num_parameters()
+    growth = attn / base - 1
+    assert 0 < growth < 0.05, f"attention pooling grew the production model by {growth:.1%}"
+
+
+def test_unknown_pooling_is_refused():
+    from fintfm.modeling.model import FinancialTFM, ModelConfig
+
+    with pytest.raises(ValueError, match="pooling must be"):
+        FinancialTFM(ModelConfig(max_features=8, max_classes=2, pooling="sum"))
+
+
+def test_attention_pooling_checkpoint_roundtrips(tmp_path):
+    from fintfm.modeling.model import FinancialTFM
+
+    m = _pool_model("attention")
+    path = tmp_path / "a.pt"
+    m.save(str(path), trained_objectives=("classification",))
+    loaded = FinancialTFM.load(str(path))
+    assert loaded.cfg.pooling == "attention"
+    torch.manual_seed(3)
+    X, y = torch.randn(1, 20, 24), torch.randint(0, 2, (1, 20))
+    torch.testing.assert_close(m(X, y, 10), loaded(X, y, 10))
