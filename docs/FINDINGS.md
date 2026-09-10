@@ -3465,3 +3465,51 @@ label direction (§47, the root cause)** → training volume and capacity (§43,
 out) → **pooling design (§50, indicted)**. The first four were about whether the model learned
 anything at all; only now that it demonstrably reads its context (§48) is an architectural
 question even well-posed.
+
+---
+
+## 51. The model detects extremes rather than ordering: performance falls as the base rate rises
+
+**Date:** 2026-09-10. **MEASURED**, three seeds, five-feature linear task, `signfix-mixed`.
+
+§50 indicted the pooling for the collapse with feature count, but noted that even at F=5 —
+where aggregation is trivial — the model reaches 0.826 against logistic regression's 1.000.
+Something else costs 0.17 at the narrow end. Two probes locate it.
+
+**More evidence does not help at F=5.** Context 250 / 1,000 / 2,000 / 4,000 gives 0.849 /
+0.836 / 0.850 / 0.850. Sixteen times the labelled examples, flat. Whatever limits it here is
+not a shortage of evidence — which is notable given §48 showed the model *does* improve with
+context at F=20.
+
+**And performance falls monotonically as the task becomes balanced:**
+
+| base rate | fintfm | logistic regression |
+| --- | --- | --- |
+| 5% | **0.850** | 1.0000 |
+| 15% | 0.754 | 1.0000 |
+| 30% | 0.685 | 1.0000 |
+| 50% | **0.658** | 1.0000 |
+
+That is backwards on its face. More positives means more information about the positive class,
+and the linear baseline is unmoved at 1.0000 throughout.
+
+### The obvious explanation is wrong
+
+The first hypothesis was prior coverage — that the prior never generates balanced tasks, as
+its rate ceiling is 0.30. **Measured, it does:** over 150 sampled tasks the base rate has a
+median of 0.096 and **24% of tasks are at 50% or above**, because the generic SCM component
+produces them. Refuted in one command.
+
+### What fits instead, and it points back at the pooling
+
+At a 5% base rate, ranking well largely means **detecting extremes** — and max pooling is
+precisely an extremeness detector. At 50%, ranking requires *ordering the whole distribution*,
+which a mean-and-max reduction cannot do: the mean is weight-blind (§50) and the max reports
+only the strongest activation. The monotone decline as the task shifts from tail-detection to
+full ordering is what that predicts.
+
+**Registered prediction for the attention-pooling checkpoint now training:** the gain should
+be **largest at high base rates**, where ordering matters and extremeness does not suffice.
+If attention pooling lifts the 50% case substantially more than the 5% case, this reading is
+confirmed; if it lifts both equally, the base-rate effect has some other cause and this
+explanation should be discarded rather than adjusted.
