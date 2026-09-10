@@ -3378,10 +3378,24 @@ it makes a **falsifiable prediction for the capacity re-test now running**: if p
 If they degrade identically, capacity is not the issue and the pooling *design* is — which
 would be the first properly motivated case for architecture work in this project.
 
-### Caveat on the prior's own width
+### The distribution-shift caveat was wrong, and removing it strengthens this
 
-The prior exposes roughly 9-59 columns per task (§18), so F=80 and F=130 are outside the range
-the model was trained on and part of that tail is distribution shift rather than aggregation
-failure. **F=40 is inside the range and already down to 0.568**, so the effect is not only
-extrapolation — but the two are not cleanly separated here, and a prior sweeping wider tasks
-would separate them. That is worth doing before concluding the pooling is at fault.
+This finding originally carried a caveat: that the prior exposes "roughly 9-59 columns per
+task" (citing §18), so F=80 and F=130 were partly extrapolation. **That was stale and it is
+wrong.** Measured directly over 120 sampled tasks:
+
+| prior | median width | ≥80 features | ≥130 features |
+| --- | --- | --- | --- |
+| financial | **77** | **49%** | 9% |
+| mixture, p_financial 0.7 | 76 | 49% | 8% |
+
+The prior was widened since §18 was written, and now produces a median of 77 columns with
+**half of all tasks at 80 or more**. So F=80 and F=130 are squarely inside the training
+distribution, and the collapse from 0.846 at five features to 0.551 at eighty is **not**
+extrapolation. The model has been trained on plenty of tasks that wide and still cannot
+aggregate them.
+
+That removes the confound the caveat introduced and leaves the aggregation failure clean —
+which makes the pooling a stronger suspect, not a weaker one. The lesson is narrower and worth
+keeping: **a width quoted from an old finding is not a measurement.** It took one command to
+check and it reversed the conclusion of a paragraph written twenty minutes earlier.
