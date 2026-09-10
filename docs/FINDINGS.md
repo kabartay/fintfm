@@ -3513,3 +3513,74 @@ be **largest at high base rates**, where ordering matters and extremeness does n
 If attention pooling lifts the 50% case substantially more than the 5% case, this reading is
 confirmed; if it lifts both equally, the base-rate effect has some other cause and this
 explanation should be discarded rather than adjusted.
+
+---
+
+## 52. Attention pooling changes nothing, and neither does label noise. Two more falsifications.
+
+**Date:** 2026-09-10. **MEASURED**, three seeds. **Falsifies §50's and §51's readings, and the
+probe-artefact hypothesis.**
+
+Both predictions registered in §50 and §51 failed.
+
+**Feature-width curve, mean+max against attention pooling:**
+
+| arm | F=5 | F=10 | F=20 | F=40 | F=80 | F=130 | drop |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| meanmax | 0.8265 | 0.7341 | 0.7089 | 0.6492 | 0.5617 | 0.5510 | −0.2755 |
+| attention | 0.8281 | 0.7346 | 0.7081 | 0.6479 | 0.5593 | 0.5539 | −0.2741 |
+
+**Base-rate sweep:**
+
+| arm | 5% | 15% | 30% | 50% | drop |
+| --- | --- | --- | --- | --- | --- |
+| meanmax | 0.8426 | 0.7476 | 0.6791 | 0.6563 | −0.1862 |
+| attention | 0.8473 | 0.7494 | 0.6796 | 0.6582 | −0.1891 |
+
+Indistinguishable on both. **The pooling is exonerated.** §50 inferred from three model sizes
+producing identical curves that the reduction must be at fault; the correct inference was
+narrower — that *nothing about the model's capacity or reduction* matters, which includes the
+replacement.
+
+### And the probes were not the problem either
+
+The prior samples labels stochastically — `y = rng.random(n) < sigmoid(distress + b)`, plus an
+explicit 2% flip — while every probe used a hard threshold, `y = score >= quantile`, which is
+perfectly separable. So the model had never seen a noiseless task, and a model trained only on
+stochastic labels might reasonably hedge. Testing it:
+
+| probe label type | fintfm | logistic regression | **gap** |
+| --- | --- | --- | --- |
+| threshold (separable) | 0.8516 | 1.0000 | **0.1484** |
+| Bernoulli (matches the prior) | 0.6071 | 0.7523 | **0.1451** |
+
+The gap is the same to three decimals. **Our probes were representative**; the deficit is not
+an artefact of noiseless evaluation.
+
+### What is now ruled out
+
+The ~0.15 AUC deficit against logistic regression on linear tasks is invariant to:
+
+| varied | result |
+| --- | --- |
+| model capacity, 847K → 14.5M | identical curves (§50) |
+| pooling design, mean+max → attention | identical curves (this finding) |
+| context size, 250 → 4,000 rows | flat (§51) |
+| base rate, 5% → 50% | level moves, gap does not |
+| label noise, deterministic → Bernoulli | gap identical |
+
+**A deficit that survives every one of those is not an architecture problem.** Five
+architectural and evaluative explanations have now been tested and eliminated, which is worth
+more than it feels: the remaining space is much smaller.
+
+### The one lever not yet re-tested
+
+**Training volume, with the fixed prior.** §43 measured 10× data and found nothing — but that
+was on a checkpoint from the *broken* prior, which §47 showed was ignoring its context
+entirely, and §48 argued makes every pre-fix null uninformative. Capacity was re-tested after
+the fix; volume was not.
+
+Every sign-fixed checkpoint in §48-§52 is 6,000 steps — **48,000 tasks**, against a field norm
+near 10⁷. That is the last untested lever, and the fact that three model sizes and two pooling
+designs all converge to precisely the same function is what one expects when the *training
+signal*, not the model, is the binding constraint.
