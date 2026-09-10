@@ -3111,7 +3111,38 @@ assignment and feature subsetting, both of which measurably move predictions.
 
 ### Consequence
 
-Label-swap averaging is worth adding not as variance reduction but because it **cancels a
-measured pathology**: averaging `p` with `1 − p_swapped` removes the component of the
-prediction that depends on the label naming. That is a workaround, not a cure — the cure is a
-model that does not have the asymmetry — and it should be reported as such wherever it is used.
+Label-swap averaging was added on the reasoning that it **cancels a measured pathology**:
+averaging `p` with `1 − p_swapped` removes the component of the prediction that depends on the
+label naming.
+
+### Amendment, measured immediately after: cancelling the pathology cancels the model
+
+| probe | single | ensemble ×4 | + label swap | + 70% feature subset |
+| --- | --- | --- | --- | --- |
+| linear | 0.6841 | 0.6838 | **0.4531** | 0.4124 |
+| conjunction | 0.6948 | 0.6951 | **0.4985** | 0.4896 |
+
+Two results, and the second is the important one.
+
+**Context-draw ensembling does nothing** — 0.6841 against 0.6838 across three seeds. Consistent
+with §42, where quadrupling the context bought 0.014: if more context does not help, neither do
+more draws of it.
+
+**Label-swap averaging drops the model to chance.** Not "helps less than hoped" — 0.684 → 0.453
+on `linear`, and 0.695 → 0.499 on `conjunction`, which is exactly chance.
+
+The arithmetic is the diagnosis. Averaging two anti-correlated predictors cancels their shared
+component; there was almost nothing shared to keep. **So the discrimination the model appeared
+to have *was* the label-slot asymmetry.** It is not weakly learning the task — it is reading
+which class occupies the "1" position, which happens to correlate with the answer often enough
+to produce 0.685.
+
+The alignment was checked rather than assumed: the swapped member's class-0 column is the
+original class-1 probability, so the inversion is correct and this is not an indexing error.
+
+**Consequence.** The workaround is not a workaround. Ensembling is not a lever on this model in
+any of its three axes, and `adopt-published-methods` task 36.2 is answered: **no**, until the
+model learns something that survives relabelling. The implementation stays because it is the
+cheapest available test of whether a future checkpoint has real discrimination — a model whose
+score is unchanged by label-swap averaging is one whose signal is in the evidence rather than
+in the labelling.

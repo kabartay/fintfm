@@ -4,10 +4,16 @@
       against the old one and the untrained control. Verify: the trained model clears the
       untrained control by a wide margin on `linear` and `conjunction`, recorded as a finding.
       **This gates everything below** — the fix is currently believed rather than shown.
-- [ ] 36.2 **Ensemble over context draws and feature permutations**, TabPFN's standard
+- [x] 36.2 **Ensemble over context draws and feature permutations**, TabPFN's standard
       practice and entirely untried here. Cheap, and usually a reliable small gain. Verify:
       AUC and ECE against a single draw on V4FinBench, with the added inference cost stated,
       three seeds.
+      **Done 2026-09-10, and the answer is no (`docs/FINDINGS.md` §45).** Context-draw
+      ensembling changes nothing (0.6841 to 0.6838), and label-swap averaging drops the model
+      to chance because the discrimination it removes *was* the label-slot asymmetry.
+      Implementation kept as a diagnostic: a checkpoint whose score survives label-swap
+      averaging has signal in the evidence rather than in the labelling. Revisit once one
+      does.
 - [ ] 36.3 **In-context scaling to larger tables**, following TabICL. §33 measured our model
       degrading past 2,000 context rows, and §31 traced the ceiling to pretraining on
       256-1,024-row tasks. Verify: whether pretraining on larger tasks lifts the ceiling, or
