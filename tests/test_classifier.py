@@ -139,3 +139,92 @@ def test_chunked_prediction_is_exact_not_approximate():
     np.testing.assert_allclose(
         whole.predict_proba(X_test), chunked.predict_proba(X_test), rtol=1e-5, atol=1e-6
     )
+
+
+# --- ensembling over context draws (openspec adopt-published-methods 36.2) ---------
+
+
+def _toy(n=600, n_feat=6, rate=0.15, seed=0):
+    import numpy as np
+
+    rng = np.random.default_rng(seed)
+    X = rng.normal(size=(n, n_feat)).astype(np.float32)
+    s = X @ rng.normal(size=n_feat)
+    y = (s >= np.quantile(s, 1 - rate)).astype(np.int64)
+    k = n // 2
+    return X[:k], y[:k], X[k:], y[k:]
+
+
+def _model(n_feat=6):
+    from fintfm.modeling.model import FinancialTFM, ModelConfig
+
+    torch.manual_seed(0)
+    return FinancialTFM(
+        ModelConfig(max_features=n_feat, d_model=32, d_cell=16, n_layers=1,
+                    n_col_layers=1, max_classes=2)
+    )
+
+
+def test_ensemble_averages_distinct_members_rather_than_repeating_one():
+    """Members must differ, or the ensemble is one prediction computed n times."""
+    import numpy as np
+
+    from fintfm.inference.classifier import FinancialTFMClassifier
+
+    Xtr, ytr, Xte, _ = _toy()
+    m = _model()
+    single = FinancialTFMClassifier(m, max_context=100, context_strategy="uniform",
+                                    random_state=0).fit(Xtr, ytr).predict_proba(Xte)
+    other = FinancialTFMClassifier(m, max_context=100, context_strategy="uniform",
+                                   random_state=1).fit(Xtr, ytr).predict_proba(Xte)
+    assert not np.allclose(single, other, atol=1e-4), "context draw does not vary with seed"
+
+    ens = FinancialTFMClassifier(m, max_context=100, context_strategy="uniform",
+                                 random_state=0, n_ensemble=2).fit(Xtr, ytr).predict_proba(Xte)
+    np.testing.assert_allclose(ens, (single + other) / 2, atol=1e-5)
+
+
+def test_ensemble_of_one_is_exactly_the_single_model():
+    import numpy as np
+
+    from fintfm.inference.classifier import FinancialTFMClassifier
+
+    Xtr, ytr, Xte, _ = _toy()
+    m = _model()
+    a = FinancialTFMClassifier(m, max_context=100, random_state=0,
+                               n_ensemble=1).fit(Xtr, ytr).predict_proba(Xte)
+    b = FinancialTFMClassifier(m, max_context=100, random_state=0).fit(Xtr, ytr).predict_proba(Xte)
+    np.testing.assert_allclose(a, b, atol=1e-6)
+
+
+def test_ensemble_output_is_a_valid_probability_distribution():
+    import numpy as np
+
+    from fintfm.inference.classifier import FinancialTFMClassifier
+
+    Xtr, ytr, Xte, _ = _toy()
+    p = FinancialTFMClassifier(_model(), max_context=100, random_state=0,
+                               n_ensemble=3).fit(Xtr, ytr).predict_proba(Xte)
+    assert np.isfinite(p).all()
+    np.testing.assert_allclose(p.sum(axis=1), 1.0, atol=1e-5)
+    assert (p >= 0).all()
+
+
+def test_ensemble_members_refit_the_conditioner_not_inherit_it():
+    """Each member draws its own context *and* fits its own feature conditioner.
+
+    Sharing the parent's conditioner would make members correlated through preprocessing
+    rather than independent draws, which is most of the point of ensembling.
+    """
+    import numpy as np
+
+    from fintfm.inference.classifier import FinancialTFMClassifier
+
+    Xtr, ytr, _, _ = _toy()
+    parent = FinancialTFMClassifier(_model(), max_context=100, feature_transform="rank",
+                                    random_state=0, n_ensemble=2).fit(Xtr, ytr)
+    twin = parent._clone_with_seed(7)
+    assert twin.random_state == 7
+    assert twin.n_ensemble == 1  # no recursion
+    assert twin._conditioner is not parent._conditioner
+    np.testing.assert_array_equal(twin._raw_X, parent._raw_X)

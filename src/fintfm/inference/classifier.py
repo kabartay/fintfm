@@ -151,6 +151,17 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             because 110 of 136 features here have a standard deviation more than ten times
             their interquartile range. Every number recorded before 2026-09-09 was produced
             with ``"none"``, so pass it explicitly to reproduce those.
+        n_ensemble: Predictions averaged over this many independently drawn contexts.
+            Standard practice for prior-fitted networks and untried here until now
+            (``openspec/changes/adopt-published-methods`` task 36.2). Costs inference time
+            linearly and needs no retraining.
+
+            **Only the context draw is varied, not the feature order.** TabPFN ensembles over
+            feature permutations as well, because its predictions depend on column position.
+            Ours do not: column-order invariance is a design property asserted in
+            ``tests/test_model.py`` (decision D4), so permuting features would average
+            identical predictions and buy nothing. The axis that remains is *which rows* the
+            model conditions on.
         prototype_minority_ratio: Target minority-to-majority ratio for
             ``context_strategy="prototype"``, the published best method on this benchmark.
             0.3 is the value Kostrzewa et al. use (``docs/FINDINGS.md`` §36).
@@ -173,6 +184,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         retrieval_min_positive: int = 8,
         feature_transform: FeatureTransform = "rank",
         prototype_minority_ratio: float = 0.3,
+        n_ensemble: int = 1,
     ) -> None:
         self.model = FinancialTFM.load(model, map_location=device) if isinstance(model, str) else model
         self.device = device
@@ -185,11 +197,15 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         self.retrieval_min_positive = retrieval_min_positive
         self.feature_transform = feature_transform
         self.prototype_minority_ratio = prototype_minority_ratio
+        self.n_ensemble = n_ensemble
         self.model.to(device).eval()
 
     def fit(self, X: np.ndarray, y: np.ndarray) -> FinancialTFMClassifier:
         X = np.asarray(X, dtype=np.float32)
         y = np.asarray(y)
+        # kept unconditioned so an ensemble member can redraw its own context and refit the
+        # conditioner from scratch, rather than inheriting this instance's draw
+        self._raw_X, self._raw_y = X, y
         # fitted on training rows only, so a query never influences its own conditioning
         self._conditioner = FeatureConditioner(
             self.feature_transform, random_state=self.random_state
@@ -365,6 +381,20 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
                 out[block] = chunk_fn(X[block], ctx, rate)
         return out
 
+    def _clone_with_seed(self, seed: int) -> FinancialTFMClassifier:
+        """A sibling estimator differing only in the context draw."""
+        twin = FinancialTFMClassifier(
+            self.model, device=self.device, max_context=self.max_context,
+            context_strategy=self.context_strategy, correct_prior=self.correct_prior,
+            random_state=seed, query_chunk=self.query_chunk,
+            retrieval_groups=self.retrieval_groups,
+            retrieval_min_positive=self.retrieval_min_positive,
+            feature_transform=self.feature_transform,
+            prototype_minority_ratio=self.prototype_minority_ratio,
+            n_ensemble=1,
+        )
+        return twin.fit(self._raw_X, self._raw_y)
+
     @torch.no_grad()
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
         """Class probabilities for every row, scored in exact chunks.
@@ -376,6 +406,15 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             ``(n, n_classes)`` probabilities.
         """
         self.model.assert_trained_for("classification")
+        if self.n_ensemble > 1:
+            # average probabilities, not logits: the members disagree about the base rate
+            # their context implies, and averaging in logit space would let one confident
+            # member dominate the mean rather than contribute one vote to it
+            members = [
+                self._clone_with_seed(self.random_state + i).predict_proba(X)
+                for i in range(self.n_ensemble)
+            ]
+            return np.mean(members, axis=0)
         X = np.asarray(X, dtype=np.float32)
         if X.shape[1] != self._ctx_X.shape[1]:
             raise ValueError("feature width at predict time must match fit time")
