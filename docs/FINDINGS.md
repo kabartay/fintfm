@@ -3341,3 +3341,47 @@ through**, and must be re-run:
 
 None of those are now known to be false. They are unmeasured. The saturation at 1,000 context
 rows is the new open question, and capacity is the first suspect worth re-testing.
+
+---
+
+## 49. The model degrades with feature count, and that is where the architecture is suspect
+
+**Date:** 2026-09-10. **MEASURED**, two seeds, synthetic linear task with a perfect boundary.
+
+With §48's checkpoint reading its context, the question becomes what limits it at 0.71. Sweeping
+the number of features, holding everything else fixed:
+
+| checkpoint | F=5 | F=10 | F=20 | F=40 | F=80 | F=130 |
+| --- | --- | --- | --- | --- | --- | --- |
+| old, financial-only | 0.695 | 0.630 | 0.571 | 0.534 | 0.546 | 0.570 |
+| **new, signfix mixed** | **0.846** | 0.762 | 0.716 | 0.568 | 0.551 | 0.612 |
+| logistic regression | 0.9998 | 0.9996 | 0.9996 | 0.9985 | 0.9964 | 0.9945 |
+
+**On narrow tasks the fixed model is much better than the probes suggested: 0.846 at five
+features**, against the old model's 0.695. Every probe in §42-§48 used twenty features and so
+understated the improvement.
+
+**And it collapses as features multiply**, 0.846 → 0.716 → 0.568. Logistic regression is flat
+at ~0.999 across the entire range, so the difficulty is not in the task: every feature carries
+signal, and a linear model combines 130 of them as easily as 5.
+
+### Why this points at the pooling
+
+The column stage produces one token per feature and `encode_rows` reduces them to a single
+row vector by **masked mean and max pooling**. Combining five tokens into a summary is easy;
+combining 130 into one that preserves each feature's weighted contribution is what a mean
+cannot do — the informative directions are averaged against 129 others.
+
+This is the first evidence that names a specific component rather than a hyperparameter, and
+it makes a **falsifiable prediction for the capacity re-test now running**: if pooling
+*capacity* is the constraint, the 4.9M and 14.5M models should degrade less steeply with F.
+If they degrade identically, capacity is not the issue and the pooling *design* is — which
+would be the first properly motivated case for architecture work in this project.
+
+### Caveat on the prior's own width
+
+The prior exposes roughly 9-59 columns per task (§18), so F=80 and F=130 are outside the range
+the model was trained on and part of that tail is distribution shift rather than aggregation
+failure. **F=40 is inside the range and already down to 0.568**, so the effect is not only
+extrapolation — but the two are not cleanly separated here, and a prior sweeping wider tasks
+would separate them. That is worth doing before concluding the pooling is at fault.
