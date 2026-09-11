@@ -3584,3 +3584,63 @@ Every sign-fixed checkpoint in §48-§52 is 6,000 steps — **48,000 tasks**, ag
 near 10⁷. That is the last untested lever, and the fact that three model sizes and two pooling
 designs all converge to precisely the same function is what one expects when the *training
 signal*, not the model, is the binding constraint.
+
+---
+
+## 53. The model scores ~0.67 on everything: it is a capped predictor, not a failing transfer
+
+**Date:** 2026-09-11. **MEASURED**, twelve tasks per source, `v4-vol4x`.
+
+§52 left one lever untested — training volume with the fixed prior. Tested at 4× (48,000 →
+192,000 tasks): the feature-width curve is unchanged, drop −0.2702 against −0.2755.
+
+**But the training log says the model learned more.** Held-out AUC on its own prior reached
+**0.916 with Brier skill +0.494**, the best of any run. More data teaches it more, and none of
+it reaches the probes. Scoring the same checkpoint on three task sources explains why:
+
+| task source | **fintfm** | logistic regression | gap |
+| --- | --- | --- | --- |
+| financial prior — 70% of its training | **0.6708** | 0.7270 | 0.056 |
+| SCM prior — 30% of its training | **0.6894** | 0.8887 | 0.199 |
+| iid Gaussian — never seen | **0.6261** | 0.9947 | 0.369 |
+
+**The model produces 0.63-0.69 on all three.** Its own training distribution, a partly-seen
+one, and one it has never encountered. The gap widens only because logistic regression gets
+*better* on easier tasks while our model does not move at all.
+
+**This is not a transfer failure.** It is a model that has converged to a capped predictor,
+returning roughly the same quality whatever it is given — including tasks whose achievable
+ceiling is 0.995. It is not tracking task difficulty.
+
+### Why that explains six null results at once
+
+§50 (capacity, 17×), §52 (pooling design, context size, base rate, label noise) and this
+finding (volume, 4×) all produced *identical* curves. Six independent interventions changing
+nothing looked suspicious and now makes sense: **none of them addresses a model that is not
+extracting the signal available to it.** Varying the capacity of something that has stopped
+short, or the width of its reduction, or how much data it sees, cannot move a ceiling that is
+not set by any of those.
+
+### The honest caveat on volume
+
+4× is a small factor against a field norm near 10⁷ — roughly 200× our 48,000. If the scaling
+is logarithmic, 4× returning +0.002 is entirely consistent with 200× returning something real.
+**This is weak evidence against volume, not strong**, and saying "volume is eliminated" would
+overstate it.
+
+### The experiment this forces
+
+Everything above is consistent with two very different worlds: our prior is too hard
+*everywhere*, or the architecture cannot learn sharp in-context inference *at all*. The
+control that separates them is a deliberately trivial prior — few clean features, a
+deterministic linear rule, no noise, no missingness, where logistic regression scores **0.9998**
+(`prior/trivial.py`, verified in the tests).
+
+- **A model trained there reaches ~0.95** → the architecture works, our prior is too hard
+  everywhere, and the fix is difficulty coverage at the easy end.
+- **It cannot** → something in the training loop or architecture prevents sharp in-context
+  inference regardless of data, and no prior work will fix it.
+
+Running now. The trivial prior is a **diagnostic, not a candidate**: a model trained only on
+trivial tasks would learn nothing about abstention, which is exactly the failure §42's
+difficulty span exists to prevent.

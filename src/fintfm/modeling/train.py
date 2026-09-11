@@ -191,6 +191,11 @@ def main() -> None:
     )
     p.add_argument("--max-features", type=int, default=24)
     p.add_argument(
+        "--p-trivial", type=float, default=0.0,
+        help="probability of a deliberately trivial task (docs/FINDINGS.md §53): the control "
+             "that separates 'our prior is too hard' from 'the model cannot learn'",
+    )
+    p.add_argument(
         "--p-financial", type=float, default=None,
         help="probability of drawing a financial rather than a generic SCM task; the "
              "survival objective forces 1.0 regardless (docs/FINDINGS.md §14)",
@@ -258,6 +263,7 @@ def main() -> None:
             else (PriorConfig.p_financial if args.p_financial is None else args.p_financial)
         ),
         n_horizons=args.n_horizons,
+        p_trivial=args.p_trivial,
         # the default-rate envelope comes from configuration, because a prior that cannot
         # generate the regime being evaluated is the defect behind docs/FINDINGS.md §26
         min_expected_positives=cfg.prior.min_expected_positives,

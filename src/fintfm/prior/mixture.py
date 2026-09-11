@@ -15,6 +15,7 @@ from fintfm.prior.financial import (
     sample_financial_task,
 )
 from fintfm.prior.scm import sample_scm_task
+from fintfm.prior.trivial import sample_trivial_task
 
 
 @dataclass
@@ -25,6 +26,11 @@ class PriorConfig:
         max_features: Feature width the model is built for.
         max_classes: Class-head width of the model.
         p_financial: Probability of drawing a financial task instead of an SCM task.
+        p_trivial: Probability of drawing a **trivial** task instead — few clean features, a
+            deterministic linear rule, no noise. Zero by default. This is the diagnostic
+            control of ``prior/trivial.py``: it answers whether the architecture can learn
+            in-context prediction at all (``docs/FINDINGS.md`` §53), and a prior made only of
+            trivial tasks would teach nothing about abstention.
         n_rows: Rows per task (context + query).
         min_ctx_frac / max_ctx_frac: Range for the context fraction of ``n_rows``.
         n_rows_choices: When set, each *batch* draws its task size from this tuple instead of
@@ -49,6 +55,7 @@ class PriorConfig:
     max_features: int = 24
     max_classes: int = 10
     p_financial: float = 0.7
+    p_trivial: float = 0.0
     n_rows: int = 256
     min_ctx_frac: float = 0.3
     max_ctx_frac: float = 0.9
@@ -73,6 +80,8 @@ def sample_task(rng: np.random.Generator, cfg: PriorConfig, n_rows: int | None =
             "n_horizons requires p_financial=1.0; the SCM prior has no time axis and a "
             "mixed batch cannot carry a coherent survival likelihood"
         )
+    if cfg.p_trivial and rng.random() < cfg.p_trivial:
+        return sample_trivial_task(rng, n, max_features=min(8, cfg.max_features))
     if rng.random() < cfg.p_financial:
         return sample_financial_task(
             rng,

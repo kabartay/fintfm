@@ -163,3 +163,52 @@ def test_label_direction_varies_across_tasks():
         f"the first feature points the same way in {up:.0%} of tasks; a global rule would "
         "still work and the model need never read its context"
     )
+
+
+def test_trivial_prior_is_actually_trivial():
+    """The control only works if a fitted linear model solves it outright.
+
+    §53: the model scores ~0.67 on every task source, including ones with a 0.995 ceiling. The
+    trivial prior asks whether the architecture can learn in-context prediction at all, and
+    that question is only meaningful if the task itself is unambiguously solvable.
+    """
+    import numpy as np
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.metrics import roc_auc_score
+
+    from fintfm.prior.trivial import sample_trivial_task
+
+    aucs = []
+    for seed in range(12):
+        t = sample_trivial_task(np.random.default_rng(seed), 1200)
+        X, y = np.asarray(t.X), np.asarray(t.y)
+        assert np.isfinite(X).all(), "the trivial prior must not emit missing values"
+        assert len(np.unique(y)) == 2
+        k = 600
+        aucs.append(
+            roc_auc_score(y[k:], LogisticRegression(max_iter=1000)
+                          .fit(X[:k], y[:k]).predict_proba(X[k:])[:, 1])
+        )
+    assert np.mean(aucs) > 0.99, f"trivial tasks are not trivial: {np.mean(aucs):.4f}"
+
+
+def test_trivial_prior_still_randomises_the_label_direction():
+    """Even the control must not admit a global rule (§47)."""
+    import numpy as np
+    from sklearn.metrics import roc_auc_score
+
+    from fintfm.prior.trivial import sample_trivial_task
+
+    aucs = []
+    for seed in range(40):
+        t = sample_trivial_task(np.random.default_rng(seed), 500)
+        X, y = np.asarray(t.X), np.asarray(t.y)
+        aucs.append(roc_auc_score(y, X[:, 0]))
+    up = float((np.array(aucs) > 0.5).mean())
+    assert 0.25 < up < 0.75, f"first feature points the same way in {up:.0%} of tasks"
+
+
+def test_trivial_prior_is_off_by_default():
+    from fintfm.prior.mixture import PriorConfig
+
+    assert PriorConfig().p_trivial == 0.0
