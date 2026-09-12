@@ -169,8 +169,9 @@ def paired_auc_difference(
     p_b: np.ndarray,
     n_boot: int = 2000,
     seed: int = 0,
+    metric=None,
 ) -> tuple[float, tuple[float, float], float]:
-    """Bootstrap the AUC difference between two models scored on the *same* rows.
+    """Bootstrap the metric difference between two models scored on the *same* rows.
 
     Comparing two models on one test set gives correlated AUCs, so an unpaired comparison
     overstates uncertainty and a bare difference understates it. Resampling rows and
@@ -189,6 +190,12 @@ def paired_auc_difference(
         p_b: Model B's predicted probability, on the same rows in the same order.
         n_boot: Bootstrap resamples.
         seed: Random seed.
+        metric: Scoring function ``f(y_true, score) -> float``. Defaults to ROC-AUC, which
+            keeps every existing caller unchanged. Pass ``average_precision_score`` on a
+            low-base-rate split: ROC-AUC's chance floor is 0.5 whatever the prevalence, so it
+            compresses the whole usable range into its top few percent, while average
+            precision's floor **is** the prevalence and the range stays legible
+            (``docs/DECISIONS.md`` D13).
 
     Returns:
         ``(delta, (lo, hi), p_two_sided)`` where ``delta`` is ``AUC(a) - AUC(b)`` on the
@@ -209,7 +216,8 @@ def paired_auc_difference(
     if len(np.unique(y_true)) < 2:
         return float("nan"), (float("nan"), float("nan")), float("nan")
 
-    delta = float(roc_auc_score(y_true, p_a) - roc_auc_score(y_true, p_b))
+    score = roc_auc_score if metric is None else metric
+    delta = float(score(y_true, p_a) - score(y_true, p_b))
     rng = np.random.default_rng(seed)
     n = len(y_true)
     deltas = np.empty(n_boot)
@@ -219,9 +227,7 @@ def paired_auc_difference(
         # a resample missing a class has no defined AUC; redraw rather than silently skew
         if len(np.unique(y_true[idx])) < 2:
             continue
-        deltas[drawn] = roc_auc_score(y_true[idx], p_a[idx]) - roc_auc_score(
-            y_true[idx], p_b[idx]
-        )
+        deltas[drawn] = score(y_true[idx], p_a[idx]) - score(y_true[idx], p_b[idx])
         drawn += 1
     if drawn < 100:  # too few usable resamples to say anything
         return delta, (float("nan"), float("nan")), float("nan")

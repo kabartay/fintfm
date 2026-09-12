@@ -493,7 +493,12 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         Xt = torch.from_numpy(Xp).to(self.device)
         yt = torch.from_numpy(yp).to(self.device)
         nc = torch.tensor([len(self.classes_)], device=self.device)
-        logits = self.model(Xt, yt, n_ctx, nc)[0, n_ctx:, : len(self.classes_)]
+        # Each ensemble member draws its own column identities, keyed off its own seed, so
+        # n_ensemble > 1 averages over them and recovers the column-order invariance that
+        # decision D12 traded for expressiveness. A single member is still deterministic.
+        logits = self.model(
+            Xt, yt, n_ctx, nc, column_id_seed=int(self.random_state)
+        )[0, n_ctx:, : len(self.classes_)]
         if self.correct_prior:
             prior = (
                 self._log_prior_shift

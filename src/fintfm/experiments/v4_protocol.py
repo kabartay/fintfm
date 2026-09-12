@@ -235,6 +235,16 @@ class FoldResult:
     roc_auc: float
     f1: float
     threshold: float
+    #: Average precision (area under the precision-recall curve). **Our addition, not part of
+    #: their published protocol** -- kept separate so the comparable columns stay comparable.
+    #: At a 0.38% base rate ROC-AUC is dominated by the negative majority and can read 0.98
+    #: while precision in the decision region is poor; AP is the metric that notices
+    #: (``docs/FINDINGS.md`` §59).
+    avg_precision: float = float("nan")
+    #: Best F1 achievable on *test* by any threshold. Compared against ``f1``, which uses the
+    #: threshold chosen on validation, this separates a ranking that is weak near the decision
+    #: boundary from a threshold that simply failed to transfer.
+    f1_oracle: float = float("nan")
 
 
 @dataclass
@@ -246,6 +256,8 @@ class ArmSummary:
     roc_auc_std: float
     f1_mean: float
     f1_std: float
+    avg_precision_mean: float = float("nan")
+    f1_oracle_mean: float = float("nan")
     folds: list[FoldResult] = field(default_factory=list)
 
 
@@ -312,8 +324,10 @@ def run(
         The recorded result dictionary.
     """
     from sklearn.impute import SimpleImputer
-    from sklearn.metrics import f1_score, roc_auc_score
+    from sklearn.metrics import average_precision_score, f1_score, roc_auc_score
     from sklearn.preprocessing import StandardScaler
+
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     from fintfm.evaluation.boosting import available_boosting, fit_predict_boosting
     from fintfm.evaluation.datasets import CACHE_DIR
@@ -401,16 +415,34 @@ def run(
                 if tune:
                     print(f"    {name} best params: {best_params} (val AUC {best_auc:.4f})")
 
+        # Per-row test predictions, kept so arms can be compared with a **paired** bootstrap.
+        # Two models scored on the same rows have correlated errors, so an unpaired interval
+        # overstates the uncertainty of their difference; without the raw vectors the only
+        # available comparison is point estimates, which is how a 79-positive fold turns into
+        # a league table nobody can check (docs/FINDINGS.md §60).
+        np.savez_compressed(
+            out_dir / f"predictions_fold{fold}.npz",
+            y_true=y[te],
+            **{f"pred_{a}": v[1] for a, v in arms.items()},
+        )
+
         for arm, (p_val, p_test) in arms.items():
             thr, _ = best_f1_threshold(y[va], p_val)
-            auc = roc_auc_score(y[te], p_test) if len(np.unique(y[te])) > 1 else float("nan")
+            both = len(np.unique(y[te])) > 1
+            auc = roc_auc_score(y[te], p_test) if both else float("nan")
             f1 = f1_score(y[te], (p_test >= thr).astype(int), zero_division=0)
+            ap = average_precision_score(y[te], p_test) if both else float("nan")
+            # the same threshold search, but fitted on test: an upper bound no honest
+            # procedure reaches, and useful only as the gap against `f1`
+            _, f1_orc = best_f1_threshold(y[te], p_test) if both else (0.0, float("nan"))
             results.append(
-                FoldResult(arm, fold, len(tr), len(te), int(y[te].sum()), float(auc), float(f1), thr)
+                FoldResult(arm, fold, len(tr), len(te), int(y[te].sum()), float(auc),
+                           float(f1), thr, float(ap), float(f1_orc))
             )
             print(
-                f"  fold {fold} {arm:>20}: ROC-AUC {auc:.4f}  F1 {f1:.4f}  "
-                f"thr {thr:.4g}  ({y[te].sum():,} positives in {len(te):,})",
+                f"  fold {fold} {arm:>20}: ROC-AUC {auc:.4f}  AP {ap:.4f}  F1 {f1:.4f}  "
+                f"(oracle {f1_orc:.4f})  thr {thr:.4g}  "
+                f"({y[te].sum():,} positives in {len(te):,})",
                 flush=True,
             )
 
@@ -426,6 +458,8 @@ def run(
                 roc_auc_std=float(np.nanstd(aucs, ddof=1)) if len(aucs) > 1 else float("nan"),
                 f1_mean=float(np.mean(f1s)),
                 f1_std=float(np.std(f1s, ddof=1)) if len(f1s) > 1 else float("nan"),
+                avg_precision_mean=float(np.nanmean([r.avg_precision for r in rows])),
+                f1_oracle_mean=float(np.nanmean([r.f1_oracle for r in rows])),
                 folds=rows,
             )
         )
@@ -451,7 +485,6 @@ def run(
         },
         "arms": [asdict(s) for s in summaries],
     }
-    out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "v4_protocol.json").write_text(json.dumps(record, indent=2))
     return record
 
@@ -463,12 +496,25 @@ def summarise(record: dict) -> str:
         f"V4FinBench published protocol — horizon {c['horizon']}, "
         f"{len(c['folds'])} folds, {c['n_features']} features"
     )
-    lines = [header, "", f"{'arm':>22} {'ROC-AUC':>17} {'F1':>17}"]
+    lines = [
+        header, "",
+        f"{'arm':>22} {'ROC-AUC':>17} {'F1':>17} {'AP':>9} {'F1-oracle':>11}",
+    ]
     for a in record["arms"]:
         lines.append(
             f"{a['arm']:>22}   {a['roc_auc_mean']:.4f} ± {a['roc_auc_std']:.4f}"
             f"   {a['f1_mean']:.4f} ± {a['f1_std']:.4f}"
+            f"   {a.get('avg_precision_mean', float('nan')):.4f}"
+            f"   {a.get('f1_oracle_mean', float('nan')):9.4f}"
         )
+    lines += [
+        "",
+        "ROC-AUC and F1 are their protocol's metrics. AP (average precision) and F1-oracle "
+        "are OURS and are not comparable to their table: at this base rate ROC-AUC is "
+        "dominated by the negative majority, and F1-oracle tunes the threshold on test, so "
+        "it is an upper bound rather than a score. Read `F1-oracle - F1` as how much was "
+        "lost in transferring the threshold (docs/FINDINGS.md §59).",
+    ]
     tuned = c.get("tuned", False)
     lines += [
         "",

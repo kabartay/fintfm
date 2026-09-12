@@ -282,3 +282,51 @@ def test_feature_subset_ensemble_stays_a_valid_distribution():
                                ).fit(Xtr, ytr).predict_proba(Xte)
     assert np.isfinite(p).all() and (p >= 0).all()
     np.testing.assert_allclose(p.sum(axis=1), 1.0, atol=1e-5)
+
+
+def test_ensembling_recovers_column_order_invariance():
+    """Decision D12's stated remedy, asserted rather than promised.
+
+    Random column identities make the model expressive enough to learn column-specific rules
+    (``docs/FINDINGS.md`` §54, §56) at the cost of exact column-order invariance, which
+    becomes distributional. D12 says callers recover it by ensembling, and each ensemble
+    member draws its own identities -- so a wider ensemble must agree more closely across a
+    column permutation than a single member does. If it does not, D12's mitigation is a
+    claim with nothing behind it.
+
+    This is an **end-to-end** check, not an isolation: an ensemble member varies its context
+    draw as well as its column identities, so the gap it closes includes context resampling.
+    Measured when written, the mean gap in predicted probability fell 0.0098 (k=1) -> 0.0014
+    (k=32), non-monotonically -- k=2 was worse than k=1. Hence the wide k and the margin
+    rather than a strict ordering at small k, which would flake.
+    """
+    import numpy as np
+
+    from fintfm.inference.classifier import FinancialTFMClassifier
+    from fintfm.modeling.model import FinancialTFM, ModelConfig
+
+    torch.manual_seed(0)
+    model = FinancialTFM(
+        ModelConfig(max_features=8, max_classes=2, d_cell=16, d_model=32, n_heads=2,
+                    n_col_layers=1, n_layers=2, d_ff=64)
+    ).eval()
+    model.trained_objectives = ("classification",)
+
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(160, 6)).astype(np.float32)
+    y = (X[:, 0] - X[:, 1] > 0).astype(np.int64)
+    perm = rng.permutation(6)
+    Xq = rng.normal(size=(40, 6)).astype(np.float32)
+
+    def gap(n_ensemble):
+        kw = dict(max_context=120, context_strategy="uniform", feature_transform="none",
+                  n_ensemble=n_ensemble, random_state=0)
+        a = FinancialTFMClassifier(model, **kw).fit(X, y).predict_proba(Xq)[:, 1]
+        b = FinancialTFMClassifier(model, **kw).fit(X[:, perm], y).predict_proba(Xq[:, perm])[:, 1]
+        return float(np.abs(a - b).mean())
+
+    one, many = gap(1), gap(32)
+    assert many < 0.6 * one, (
+        f"ensembling did not reduce the column-permutation gap ({one:.4f} -> {many:.4f}); "
+        "decision D12 relies on it doing so"
+    )
