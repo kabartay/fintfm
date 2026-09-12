@@ -32,3 +32,13 @@
 - [ ] 38.9 **Record any regression explicitly.** Verify: if a transfer-improving variant loses
       on credit, the loss is written into `docs/FINDINGS.md` with the trade stated. Second-best
       everywhere may still be the right product, but that must be argued rather than silent.
+- [ ] 38.10 **Run the crossed design §66 specifies.** Combine each generator's *features* with
+      the other's *label function*: financial features under an SCM-style label, SCM features
+      under a financial-style (linear-driver, monotone) label. Verify: the antisymmetric probe
+      and per-task AUC are recorded for both off-diagonal cells against the two on-diagonal
+      baselines (0.535 financial, 0.993 SCM). If the off-diagonal cells track the **label
+      function**, functional diversity is the fix and belongs on the financial generator
+      directly. If they track the **features**, the accounting identities are implicated, and
+      the finding must state plainly that fixing this costs the identities that make it a
+      financial prior. **This is the next experiment**; nothing in 38.4-38.7 should be
+      attempted before it, since seven prior guesses at a continuous cause all failed.
