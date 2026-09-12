@@ -74,6 +74,11 @@ context_sweep:
 # low-default regime the strategy targets: at two expected defaults a 512-row task reaches
 # 0.195%, which covers V4FinBench's 0.19% (docs/COMPUTE.md).
 prior:
+  # The financial prior's signal-to-noise range, drawn log-uniformly per task. Spans
+  # near-pure-noise to near-deterministic (docs/FINDINGS.md §42), and §64 measured this as
+  # the variable that predicts what a prior teaches.
+  sharpness_min: 0.3
+  sharpness_max: 12.0
   min_expected_positives: 2.0
   absolute_rate_floor: 0.001
   rate_ceiling: 0.30

@@ -11,6 +11,8 @@ from fintfm.prior.financial import (
     _ABSOLUTE_RATE_FLOOR,
     _N_SECTORS,
     _RATE_CEILING,
+    _SHARPNESS_MAX,
+    _SHARPNESS_MIN,
     MIN_EXPECTED_POSITIVES,
     sample_financial_task,
 )
@@ -40,6 +42,9 @@ class PriorConfig:
             which is exactly how §26 happened. Varying it across batches lets one run cover
             both the dense-small and sparse-large regimes. All tasks *within* a batch share a
             size, since :func:`fintfm.prior.base.collate` requires it.
+        sharpness_min / sharpness_max: The financial prior's signal-to-noise range, drawn
+            log-uniformly per task. ``docs/FINDINGS.md`` §64: what a prior teaches tracks how
+            learnable its tasks are, not how much column identity they demand.
         min_expected_positives / absolute_rate_floor / rate_ceiling / n_sectors_max: The
             financial prior's default-rate envelope, defaulting to the measured constants in
             ``prior/financial.py``. Populated from the ``prior`` section of the configuration
@@ -61,6 +66,8 @@ class PriorConfig:
     max_ctx_frac: float = 0.9
     n_rows_choices: tuple[int, ...] | None = None
     n_horizons: int | None = None
+    sharpness_min: float = _SHARPNESS_MIN
+    sharpness_max: float = _SHARPNESS_MAX
     min_expected_positives: float = MIN_EXPECTED_POSITIVES
     absolute_rate_floor: float = _ABSOLUTE_RATE_FLOOR
     rate_ceiling: float = _RATE_CEILING
@@ -92,6 +99,8 @@ def sample_task(rng: np.random.Generator, cfg: PriorConfig, n_rows: int | None =
             absolute_rate_floor=cfg.absolute_rate_floor,
             rate_ceiling=cfg.rate_ceiling,
             n_sectors_max=cfg.n_sectors_max,
+            sharpness_min=cfg.sharpness_min,
+            sharpness_max=cfg.sharpness_max,
         )
     return sample_scm_task(rng, n, max_features=cfg.max_features, max_classes=cfg.max_classes)
 

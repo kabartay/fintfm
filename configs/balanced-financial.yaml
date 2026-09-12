@@ -1,0 +1,28 @@
+# Financial prior with the default-rate envelope opened to balanced tasks.
+#
+# WHY THIS EXISTS. `docs/FINDINGS.md` §58: training on the financial prior alone fails to
+# teach column-specific in-context inference (antisymmetric probe 0.5352, barely above the
+# 0.5 chance floor), while the same architecture trained on a 70/30 mixture with the generic
+# SCM prior reaches 0.9116. Comparing the two priors, task width is identical -- 70 columns
+# against 68 -- and the standout difference is the **base rate**: the financial prior's median
+# is 0.021 against the SCM prior's 0.500, a 24x difference in positive density. At 512 rows
+# that is roughly eleven positives per task, only a fraction of which land in the context.
+#
+# This file isolates that one variable. It keeps the financial generator exactly as it is --
+# same accounting identities, same drivers, same missingness -- and only widens the rate
+# envelope so tasks can be balanced. If a run with this config learns the capability that
+# `p_financial=1.0` could not, base rate is the cause. If it does not, the cause is one of the
+# other things that differ (missingness at 8.9% against 0%, or single-column separability at
+# 0.812 against 0.911) and this file has ruled base rate out, which is worth the run either way.
+#
+# NOT A PRODUCTION CONFIG. The low-default regime is the target segment (`docs/GLOSSARY.md`,
+# LDP), so a model trained only on balanced tasks would be trained away from the thing it is
+# for. The expected resolution is a curriculum spanning both, not a move to this envelope.
+
+prior:
+  # Two expected positives is what forces the 0.2% floor; 128 makes a 512-row task roughly
+  # balanced, matching the density the SCM prior supplies.
+  min_expected_positives: 128.0
+  absolute_rate_floor: 0.20
+  rate_ceiling: 0.80
+  n_sectors: 12

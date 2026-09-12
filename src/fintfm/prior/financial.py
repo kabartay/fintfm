@@ -305,6 +305,8 @@ def sample_financial_task(
     absolute_rate_floor: float = _ABSOLUTE_RATE_FLOOR,
     rate_ceiling: float = _RATE_CEILING,
     n_sectors_max: int = _N_SECTORS,
+    sharpness_min: float = _SHARPNESS_MIN,
+    sharpness_max: float = _SHARPNESS_MAX,
 ) -> Task:
     """Sample one synthetic corporate-default classification task.
 
@@ -316,6 +318,15 @@ def sample_financial_task(
         n_horizons: When set, sample a **default period** on a grid of this many periods via
             :func:`_sample_survival`, so a hazard head can be trained (``docs/FINDINGS.md``
             §20). The binary label still falls out of it, so this is backwards compatible.
+        sharpness_min / sharpness_max: Range the per-task logit scale is drawn from,
+            log-uniformly. **This is the prior's signal-to-noise knob.** ``docs/FINDINGS.md``
+            §64 measured that what a prior *teaches* tracks how learnable its tasks are —
+            gradient boosting reaches 0.7276 on this prior against 0.8306 on the generic SCM
+            prior, and the two teach column-specific in-context inference at 0.5669 and 0.9932
+            respectively — while how much column identity the tasks *demand* is the same for
+            both (0.1480 against 0.1425) and so explains nothing. Raising the floor here is the
+            causal test of that reading, and it is exposed as an argument so the test needs no
+            code change.
         min_expected_positives: Expected defaults per task; see
             :data:`MIN_EXPECTED_POSITIVES` for why this is 2.0 and what it costs.
         absolute_rate_floor: Hard floor on the sampled base rate.
@@ -439,7 +450,7 @@ def sample_financial_task(
     # The realism concern §19 was addressing is real and is not abandoned: matching the
     # difficulty of the *deployment* distribution is a property of the evaluation and of the
     # macro/base-rate sampling, not something to enforce on every training task.
-    sharpness = float(np.exp(rng.uniform(np.log(_SHARPNESS_MIN), np.log(_SHARPNESS_MAX))))
+    sharpness = float(np.exp(rng.uniform(np.log(sharpness_min), np.log(sharpness_max))))
     distress = z(distress) * sharpness
     # Base rate range, and why the floor is not a constant.
     #

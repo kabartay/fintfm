@@ -111,6 +111,8 @@ class ContextSweepConfig:
 class PriorConfigDefaults:
     """The financial prior's default-rate envelope."""
 
+    sharpness_min: float = 0.3
+    sharpness_max: float = 12.0
     min_expected_positives: float = 2.0
     absolute_rate_floor: float = 0.001
     rate_ceiling: float = 0.30

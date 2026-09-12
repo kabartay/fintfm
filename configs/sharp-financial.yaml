@@ -1,0 +1,29 @@
+# Financial prior with its signal-to-noise floor raised, holding structure fixed.
+#
+# WHY THIS EXISTS. `docs/FINDINGS.md` §64 falsified the hypothesis that the financial prior
+# fails to teach column-specific in-context inference because its tasks do not need column
+# identity: measured, they need it as much as the generic SCM prior's do (identity advantage
+# +0.1480 against +0.1425). What separates them is how learnable the tasks are at all --
+# gradient boosting reaches 0.7276 on this prior against 0.8306 on the SCM prior and 0.9912 on
+# the trivial one, and the antisymmetric probe after 6,000 steps reads 0.5669, 0.9932 and
+# 0.9995 respectively. Monotone, over three points.
+#
+# §64 named the causal test: raise the financial prior's signal-to-noise while holding its
+# structure fixed, and see whether teaching follows. This file is that test. Nothing about the
+# accounting identities, drivers, missingness, width or base rate changes -- only the range the
+# per-task logit scale is drawn from.
+#
+# WHAT CHANGES. `sharpness_min` rises from 0.3 to 3.0, so the weakest task this prior can emit
+# is one a model can actually resolve. The ceiling is unchanged, so the span of difficulty
+# §42 established as necessary is narrowed from two orders of magnitude to about half of one
+# rather than collapsed to a point.
+#
+# NOT A PRODUCTION CONFIG, for exactly the reason §42 gives: a prior that cannot emit a
+# near-noise task teaches the model nothing about *abstaining*, and abstention is a stated
+# deliverable (`docs/GLOSSARY.md`, escalation/refusal). If this test succeeds, the production
+# answer is a floor high enough to teach and low enough to keep hard tasks -- found by
+# measurement, not by adopting this file.
+
+prior:
+  sharpness_min: 3.0
+  sharpness_max: 12.0

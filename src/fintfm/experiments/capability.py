@@ -45,7 +45,16 @@ from pathlib import Path
 import numpy as np
 
 #: Probe names, in the order they are reported.
-PROBES: tuple[str, ...] = ("linear", "conjunction", "xor", "noise")
+PROBES: tuple[str, ...] = (
+    "orientation", "linear", "conjunction", "xor", "noise",
+    "symmetric_sum", "symmetric_count", "antisymmetric",
+)
+
+#: Probes whose rule is a **symmetric function of the row's feature values**, and so is
+#: learnable even by an encoder that cannot tell its own columns apart. Paired with
+#: ``antisymmetric``, they are the sharpest diagnostic in this repository: the gap between
+#: them is exactly the §54 failure, and it is invisible in every aggregate score.
+SYMMETRIC_PROBES: tuple[str, ...] = ("symmetric_sum", "symmetric_count")
 
 #: Fixed seed for the untrained control's weights, so the floor is the same number every run.
 UNTRAINED_SEED = 20260910
@@ -84,7 +93,18 @@ def make_probe(
         raise ValueError(f"unknown probe {kind!r}; expected one of {PROBES}")
     rng = np.random.default_rng(seed)
     X = rng.normal(size=(n, n_features)).astype(np.float32)
-    if kind == "linear":
+    if kind == "orientation":
+        # The minimal context-necessary task: one informative feature, and a task-level sign
+        # drawn per task. Marginally P(y=1 | x) = 0.5, so **no global predictor can beat
+        # chance** — while a single labelled example reveals the orientation and makes the
+        # task perfectly solvable. AUC 0.5 means the context was ignored; AUC near 1.0 means
+        # it was used. Nothing else in the suite separates those two as cleanly.
+        #
+        # One dimension on purpose: §49 measured performance falling with feature count, so a
+        # multi-feature control would confound "cannot use context" with "cannot aggregate".
+        sign = rng.choice([-1.0, 1.0])
+        score = sign * X[:, 0]
+    elif kind == "linear":
         score = X @ rng.normal(size=n_features)
     elif kind == "conjunction":
         # three thresholds ANDed; each cut at rate^(1/3) so the conjunction lands near `rate`
@@ -100,6 +120,23 @@ def make_probe(
         # both boundaries", which an interaction-capable model can actually find.
         parity = np.sign(X[:, 0]) * np.sign(X[:, 1])
         score = parity * np.minimum(np.abs(X[:, 0]), np.abs(X[:, 1]))
+    elif kind == "symmetric_sum":
+        # A symmetric function of the row: permuting a row's values leaves the label alone.
+        # Learnable *without* any notion of column identity, so this is the control that says
+        # whether a disappointing `antisymmetric` score is about columns or about something
+        # else entirely.
+        score = X.sum(axis=1)
+    elif kind == "symmetric_count":
+        # Symmetric but **nonlinear** in the feature values. Measured at 0.9232 where the
+        # linear symmetric rule reached 0.9996 (§56), and barely moved when column identities
+        # were added -- so it is the leading candidate for a second, independent bottleneck.
+        score = (X > 0).sum(axis=1).astype(np.float64)
+    elif kind == "antisymmetric":
+        # x_0 - x_1. The label is **independent of the multiset** of the row's values, so the
+        # best AUC achievable by any symmetric function of the row is exactly 0.5. That makes
+        # this the one probe with a provable ceiling for the broken architecture, and the
+        # measurement that settled §54: 0.5007 before column identities, 0.9995 after.
+        score = X[:, 0] - X[:, 1]
     else:  # noise
         score = rng.normal(size=n)
     y = (score >= np.quantile(score, 1 - rate)).astype(np.int64)
