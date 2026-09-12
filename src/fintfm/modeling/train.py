@@ -58,7 +58,16 @@ def _eval_quality(
 
     Reports instead:
 
-    - **AUC**, which is base-rate independent and says whether the model ranks at all;
+    - **AUC**, pooled over every query row of every task. Kept for continuity with earlier
+      runs, and **it is the inflated one**: pooling across tasks whose base rates differ lets
+      a model score well by predicting each task's base rate without discriminating *within*
+      any task. Measured on the financial prior, whose per-task rates span 0.003 to 0.986,
+      pooled AUC read 0.9080 where the per-task mean was 0.6426 -- an overstatement of 0.26,
+      and the reason a checkpoint could log "held-out AUC 0.943" while scoring 0.63-0.69 on
+      every probe (``docs/FINDINGS.md`` §57). The trivial prior hides this, because every one
+      of its tasks has the same base rate;
+    - **AUC per task**, the mean of AUCs computed inside each task. This is the honest
+      discrimination number and the one to read;
     - **Brier skill** against a predictor that ignores every feature and returns the context's
       base rate. Zero means "no better than knowing the base rate"; negative means worse.
 
@@ -79,21 +88,37 @@ def _eval_quality(
         ``{"auc": ..., "brier_skill": ..., "base_rate": ...}``. AUC is NaN when no held-out
         batch contained both classes, which is itself worth seeing rather than hiding.
     """
+    from sklearn.metrics import roc_auc_score as _auc
+
     device = next(model.parameters()).device
     model.eval()
-    probs, targets = [], []
+    probs, targets, per_task = [], [], []
     for _ in range(n_batches):
         batch = sample_batch(rng, prior_cfg, batch_size=16).to(device)
         logits = model(batch.X, batch.y, batch.n_ctx, batch.n_classes)[:, batch.n_ctx :]
         p_all = torch.softmax(logits.float(), dim=-1)
+        # Per-task AUC, scored inside each task before anything is pooled. See the docstring:
+        # the pooled number is inflated whenever tasks differ in base rate.
+        pt = p_all.cpu().numpy()
+        yt = batch.y[:, batch.n_ctx :].cpu().numpy()
+        for i in range(pt.shape[0]):
+            yi = yt[i]
+            present_i = np.unique(yi)
+            if len(present_i) == 2 and set(present_i.tolist()) <= {0, 1}:
+                per_task.append(_auc(yi, pt[i, :, 1]))
         probs.append(p_all.reshape(-1, p_all.shape[-1]).cpu().numpy())
-        targets.append(batch.y[:, batch.n_ctx :].reshape(-1).cpu().numpy())
+        targets.append(yt.reshape(-1))
     model.train()
 
     p = np.concatenate(probs)
     y = np.concatenate(targets).astype(np.int64)
     present = np.unique(y)
-    out = {"auc": float("nan"), "brier_skill": float("nan"), "base_rate": float("nan")}
+    out = {
+        "auc": float("nan"),
+        "auc_per_task": float(np.mean(per_task)) if per_task else float("nan"),
+        "brier_skill": float("nan"),
+        "base_rate": float("nan"),
+    }
     if len(present) < 2:
         return out
     from sklearn.metrics import roc_auc_score
@@ -169,8 +194,9 @@ def train(model_cfg: ModelConfig, prior_cfg: PriorConfig, train_cfg: TrainConfig
         if (step + 1) % train_cfg.eval_every == 0:
             q = _eval_quality(model, prior_cfg, rng)
             print(
-                f"  held-out: AUC {q['auc']:.3f}  Brier skill vs base rate "
-                f"{q['brier_skill']:+.3f}  (base rate {q['base_rate']:.3f})"
+                f"  held-out: AUC/task {q['auc_per_task']:.3f}  AUC pooled {q['auc']:.3f}"
+                f"  Brier skill vs base rate {q['brier_skill']:+.3f}"
+                f"  (base rate {q['base_rate']:.3f})"
             )
     model.save(out_path, trained_objectives=tuple(sorted(objectives)))
     print(f"saved checkpoint to {out_path}")
@@ -213,6 +239,13 @@ def main() -> None:
              "where a mean cannot (docs/FINDINGS.md §50)",
     )
     p.add_argument(
+        "--column-id-dim", type=int, default=None,
+        help="width of the random per-task column identity; defaults to d_cell//4, and 0 "
+             "reproduces the pre-fix architecture. Without it the row encoder is a symmetric "
+             "function of the row's values and cannot represent 'column j matters' "
+             "(docs/FINDINGS.md §54)",
+    )
+    p.add_argument(
         "--d-ff", type=int, default=None,
         help="feed-forward width; defaults to 4 x d_model, the transformer convention. "
              "Leaving it pinned while d_model grows makes the FFN a bottleneck and distorts "
@@ -240,6 +273,7 @@ def main() -> None:
 
     model_cfg = ModelConfig(
         pooling=args.pooling,
+        column_id_dim=args.column_id_dim,
         d_ff=args.d_ff if args.d_ff is not None else 4 * args.d_model,
         max_features=args.max_features,
         max_classes=args.max_classes,
@@ -266,6 +300,8 @@ def main() -> None:
         p_trivial=args.p_trivial,
         # the default-rate envelope comes from configuration, because a prior that cannot
         # generate the regime being evaluated is the defect behind docs/FINDINGS.md §26
+        sharpness_min=cfg.prior.sharpness_min,
+        sharpness_max=cfg.prior.sharpness_max,
         min_expected_positives=cfg.prior.min_expected_positives,
         absolute_rate_floor=cfg.prior.absolute_rate_floor,
         rate_ceiling=cfg.prior.rate_ceiling,

@@ -40,6 +40,10 @@ from torch import nn
 
 from fintfm.modeling.hazard import HazardHead
 
+# Seed used for column identities whenever a caller does not supply one and the model is in
+# eval mode. Its value is arbitrary; that it is *fixed* is the point (see _column_ids).
+_DEFAULT_COLUMN_ID_SEED = 0
+
 
 @dataclass
 class ModelConfig:
@@ -69,6 +73,28 @@ class ModelConfig:
             five-feature linear task and 0.551 at eighty — and three checkpoints spanning 17×
             in parameters produce *identical* curves to three decimal places, which rules out
             capacity and indicts the reduction itself.
+        column_id_dim: Width of the random vector giving each column an identity. ``None``
+            means ``d_cell // 4`` (TabPFN's ratio); ``0`` disables the mechanism and
+            reproduces the pre-§54 architecture.
+
+            **Without this the model cannot represent "column j matters."** ``cell_embed`` is
+            shared across columns, the column encoder has no positional encoding, and pooling
+            reduces over the feature axis — so the row representation is a *symmetric function
+            of the multiset of that row's values* (``docs/FINDINGS.md`` §54, verified: the
+            embedding converges to exactly permutation-invariant as the context grows). A rule
+            like ``x_0 - x_1`` is then unlearnable in principle, and was measured at AUC 0.5097
+            against a provable symmetric ceiling of 0.5.
+
+            The fix is TabPFN's: draw a random vector per column, project it through a learned
+            linear layer, add it to every cell of that column, and **resample it for every
+            task**. Rows then agree on which column is which, while the distribution over
+            tasks stays exactly column-order invariant — so D4 is preserved. Note this is
+            needed *in addition to* column attention, not instead of it: equivariant attention
+            alone still cannot separate two identically-distributed features.
+
+            Because tags are resampled per forward pass, a single forward is stochastic. Use
+            ``n_ensemble > 1`` at inference to average over draws, or seed ``torch`` for
+            reproducibility.
         n_horizons: When set, the model also carries a :class:`HazardHead` producing a
             **provably monotone** cumulative-PD term structure over this many periods. The
             object IFRS 9 lifetime expected credit loss consumes, and the fix for the 39%
@@ -86,6 +112,7 @@ class ModelConfig:
     d_ff: int = 512
     dropout: float = 0.0
     pooling: str = "meanmax"
+    column_id_dim: int | None = None
     n_horizons: int | None = None
 
 
@@ -136,6 +163,14 @@ class FinancialTFM(nn.Module):
             nn.Linear(2, cfg.d_cell),
             nn.GELU(),
             nn.Linear(cfg.d_cell, cfg.d_cell),
+        )
+        # Random per-task column identities (§54). Resolved here so ``None`` can mean
+        # "the sensible default" without the training entry point having to know d_cell.
+        self.col_id_dim = (
+            max(1, cfg.d_cell // 4) if cfg.column_id_dim is None else int(cfg.column_id_dim)
+        )
+        self.col_id_proj = (
+            nn.Linear(self.col_id_dim, cfg.d_cell, bias=False) if self.col_id_dim > 0 else None
         )
         col_layer = nn.TransformerEncoderLayer(
             d_model=cfg.d_cell,
@@ -204,12 +239,39 @@ class FinancialTFM(nn.Module):
         mask[eye, eye] = False
         return mask
 
-    def encode_rows(self, X: torch.Tensor, n_ctx: int) -> torch.Tensor:
-        """Turn raw cells into one vector per row, invariant to column order.
+    def _column_ids(
+        self, B: int, Fdim: int, device: torch.device, dtype: torch.dtype, seed: int | None
+    ) -> torch.Tensor:
+        """Draw the random per-task column identity vectors.
+
+        **Random while training, deterministic while evaluating.** Training wants a fresh
+        draw every step, because it is the resampling that stops any column index acquiring a
+        fixed meaning and so keeps the task distribution column-order invariant. Inference
+        wants reproducibility: a credit model whose score changes between two identical calls
+        fails model validation before anyone looks at its accuracy, and stochastic predictions
+        are exactly what ``docs/FINDINGS.md`` §55 argues supervisors grade against.
+
+        Generated on the CPU and moved, so the stream does not depend on the accelerator and
+        a seeded prediction reproduces across CPU, Metal and CUDA alike.
+        """
+        if seed is None and self.training:
+            ids = torch.randn(B, Fdim, self.col_id_dim, dtype=torch.float32)
+        else:
+            g = torch.Generator().manual_seed(_DEFAULT_COLUMN_ID_SEED if seed is None else seed)
+            ids = torch.randn(B, Fdim, self.col_id_dim, generator=g, dtype=torch.float32)
+        return ids.to(device=device, dtype=dtype)
+
+    def encode_rows(
+        self, X: torch.Tensor, n_ctx: int, column_id_seed: int | None = None
+    ) -> torch.Tensor:
+        """Turn raw cells into one vector per row.
 
         Args:
             X: ``(B, N, F)`` raw features.
             n_ctx: Context/query split, used for normalisation statistics.
+            column_id_seed: Seed for the random column identities. ``None`` means a fresh
+                draw while training and a fixed one while evaluating; pass distinct integers
+                to ensemble over draws.
 
         Returns:
             ``(B, N, d_model)`` row representations.
@@ -217,6 +279,11 @@ class FinancialTFM(nn.Module):
         B, N, Fdim = X.shape
         Z, missing, pad = normalize_features(X, n_ctx)
         cells = self.cell_embed(torch.stack([Z, missing], dim=-1))  # (B, N, F, d_cell)
+
+        if self.col_id_proj is not None:
+            cells = cells + self.col_id_proj(
+                self._column_ids(B, Fdim, cells.device, cells.dtype, column_id_seed)
+            )[:, None, :, :]
 
         flat = cells.reshape(B * N, Fdim, self.cfg.d_cell)
         pad_rows = pad.repeat_interleave(N, dim=0)  # (B*N, F)
@@ -245,7 +312,12 @@ class FinancialTFM(nn.Module):
         )
 
     def forward(
-        self, X: torch.Tensor, y: torch.Tensor, n_ctx: int, n_classes: torch.Tensor | None = None
+        self,
+        X: torch.Tensor,
+        y: torch.Tensor,
+        n_ctx: int,
+        n_classes: torch.Tensor | None = None,
+        column_id_seed: int | None = None,
     ) -> torch.Tensor:
         """Compute class logits for every row.
 
@@ -260,7 +332,7 @@ class FinancialTFM(nn.Module):
             ``(B, N, max_classes)`` logits. Only rows at or past ``n_ctx`` are predictions.
         """
         B, N, _ = X.shape
-        h = self.encode_rows(X, n_ctx)
+        h = self.encode_rows(X, n_ctx, column_id_seed=column_id_seed)
         y_onehot = F.one_hot(
             y[:, :n_ctx].clamp(0, self.cfg.max_classes - 1), self.cfg.max_classes
         ).to(h.dtype)
@@ -320,7 +392,13 @@ class FinancialTFM(nn.Module):
     @classmethod
     def load(cls, path: str, map_location: str | torch.device = "cpu") -> FinancialTFM:
         ckpt = torch.load(path, map_location=map_location, weights_only=True)
-        model = cls(ModelConfig(**ckpt["config"]))
+        cfg = dict(ckpt["config"])
+        # Checkpoints written before §54 have no column identities and no ``col_id_proj``
+        # weights. Defaulting them to the new behaviour would fail to load; defaulting them
+        # to 0 keeps them usable as the "before" arm of the comparison that motivated it.
+        if "column_id_dim" not in cfg:
+            cfg["column_id_dim"] = 0
+        model = cls(ModelConfig(**cfg))
         model.load_state_dict(ckpt["state_dict"])
         model.trained_objectives = tuple(ckpt.get("trained_objectives", ()))
         return model.eval()

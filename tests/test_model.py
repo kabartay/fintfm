@@ -88,45 +88,88 @@ def test_save_and_load_roundtrip(tmp_path):
     torch.testing.assert_close(out1, out2)
 
 
-def test_predictions_are_invariant_to_column_permutation():
+def _ensemble_probs(model, X, y, n_ctx, n_classes=None, k=32):
+    """Average predicted probabilities over ``k`` draws of the column identities.
+
+    Column-order invariance is **distributional** once columns carry random identities
+    (``docs/FINDINGS.md`` §54): any single draw assigns a particular tag to a particular
+    column, so permuting columns changes that draw's answer. Averaging over draws recovers
+    the invariance, at the 1/sqrt(k) rate measured when the mechanism was added -- 0.018 at
+    k=1, 0.0056 at k=16, 0.0023 at k=64 in absolute probability.
+    """
+    with torch.no_grad():
+        out = [
+            torch.softmax(model(X, y, n_ctx, n_classes, column_id_seed=s).float(), dim=-1)
+            for s in range(k)
+        ]
+    return torch.stack(out).mean(0)
+
+
+@pytest.mark.parametrize("column_id_dim", [0, None])
+def test_predictions_are_invariant_to_column_permutation(column_id_dim):
     """The property the architecture was rewritten for.
 
     A table has no canonical column order, so permuting features must not change any
     prediction. The previous flat-vector design failed this by construction.
+
+    The guarantee differs by variant, and both halves are asserted here:
+
+    * ``column_id_dim=0`` -- **exact**, pointwise. The encoder is symmetric over columns.
+    * ``column_id_dim=None`` (the default) -- **distributional**, recovered by averaging over
+      draws of the column identities. Exactness is what §54 shows is too strong: an encoder
+      symmetric enough to guarantee it pointwise cannot represent "column j matters" at all,
+      and was measured at chance on ``x_0 - x_1``. This is the trade, made deliberately.
     """
     torch.manual_seed(0)
     cfg = ModelConfig(max_features=8, max_classes=3, d_cell=16, d_model=32, n_heads=2,
-                      n_col_layers=1, n_layers=2, d_ff=64)
+                      n_col_layers=1, n_layers=2, d_ff=64, column_id_dim=column_id_dim)
     model = FinancialTFM(cfg).eval()
     X = torch.randn(2, 10, 8)
     X[0, 3, 5] = float("nan")  # keep a missing cell in the picture
     y = torch.randint(0, 3, (2, 10))
     perm = torch.randperm(8)
+    ncl = torch.tensor([3, 3])
 
-    with torch.no_grad():
-        a = model(X, y, n_ctx=6, n_classes=torch.tensor([3, 3]))
-        b = model(X[:, :, perm], y, n_ctx=6, n_classes=torch.tensor([3, 3]))
-    torch.testing.assert_close(a, b, rtol=1e-4, atol=1e-5)
+    if column_id_dim == 0:
+        with torch.no_grad():
+            a = model(X, y, n_ctx=6, n_classes=ncl)
+            b = model(X[:, :, perm], y, n_ctx=6, n_classes=ncl)
+        torch.testing.assert_close(a, b, rtol=1e-4, atol=1e-5)
+    else:
+        a = _ensemble_probs(model, X, y, 6, ncl)
+        b = _ensemble_probs(model, X[:, :, perm], y, 6, ncl)
+        assert (a - b).abs().max() < 0.02
 
 
-def test_padding_width_does_not_change_predictions():
-    """A 5-feature table must score the same whether padded to 8 columns or 16."""
+@pytest.mark.parametrize("column_id_dim", [0, None])
+def test_padding_width_does_not_change_predictions(column_id_dim):
+    """Where the real columns sit among the padding must not change the answer.
+
+    This is a special case of column-order invariance -- moving padding from the back to the
+    front permutes the columns -- so it holds exactly without column identities and in
+    distribution with them, exactly as the test above.
+    """
     torch.manual_seed(0)
     narrow = ModelConfig(max_features=8, max_classes=2, d_cell=16, d_model=32, n_heads=2,
-                         n_col_layers=1, n_layers=2, d_ff=64)
+                         n_col_layers=1, n_layers=2, d_ff=64, column_id_dim=column_id_dim)
     model = FinancialTFM(narrow).eval()
     real = torch.randn(1, 8, 5)
     X8 = torch.full((1, 8, 8), float("nan"))
     X8[:, :, :5] = real
     y = torch.randint(0, 2, (1, 8))
-    with torch.no_grad():
-        out8 = model(X8, y, n_ctx=5, n_classes=torch.tensor([2]))
     # same content, padding moved to the front instead of the back
     X8_shifted = torch.full((1, 8, 8), float("nan"))
     X8_shifted[:, :, 3:] = real
-    with torch.no_grad():
-        shifted = model(X8_shifted, y, n_ctx=5, n_classes=torch.tensor([2]))
-    torch.testing.assert_close(out8, shifted, rtol=1e-4, atol=1e-5)
+    ncl = torch.tensor([2])
+    if column_id_dim == 0:
+        with torch.no_grad():
+            out8 = model(X8, y, n_ctx=5, n_classes=ncl)
+            shifted = model(X8_shifted, y, n_ctx=5, n_classes=ncl)
+        torch.testing.assert_close(out8, shifted, rtol=1e-4, atol=1e-5)
+    else:
+        a = _ensemble_probs(model, X8, y, 5, ncl)
+        b = _ensemble_probs(model, X8_shifted, y, 5, ncl)
+        assert (a - b).abs().max() < 0.02
 
 
 def test_query_rows_never_see_each_other():
@@ -248,11 +291,15 @@ def test_eval_quality_handles_multi_class_tasks():
         )
         cfg = PriorConfig(max_features=16, max_classes=max_classes, p_financial=0.5, n_rows=200)
         q = _eval_quality(model, cfg, np.random.default_rng(0), n_batches=2)
-        assert set(q) == {"auc", "brier_skill", "base_rate"}
+        assert set(q) == {"auc", "auc_per_task", "brier_skill", "base_rate"}
         for key, value in q.items():
             assert np.isnan(value) or np.isfinite(value), (max_classes, key, value)
         if np.isfinite(q["auc"]):
             assert 0.0 <= q["auc"] <= 1.0
+        # the per-task mean is the honest discrimination number (§57); it is NaN when no
+        # held-out task was binary, which a multi-class prior makes likely
+        if np.isfinite(q["auc_per_task"]):
+            assert 0.0 <= q["auc_per_task"] <= 1.0
             # skill against the class-frequency predictor is bounded above by 1
             assert q["brier_skill"] <= 1.0
 
@@ -299,13 +346,14 @@ def test_checkpointing_is_off_by_default(tmp_path):
 # --- attention pooling (docs/FINDINGS.md §50) --------------------------------------
 
 
-def _pool_model(pooling, n_feat=24):
+def _pool_model(pooling, n_feat=24, column_id_dim=None):
     from fintfm.modeling.model import FinancialTFM, ModelConfig
 
     torch.manual_seed(0)
     return FinancialTFM(ModelConfig(max_features=n_feat, max_classes=2, d_cell=16,
                                     d_model=32, n_heads=2, n_layers=2, n_col_layers=2,
-                                    d_ff=64, pooling=pooling))
+                                    d_ff=64, pooling=pooling,
+                                    column_id_dim=column_id_dim))
 
 
 def test_attention_pooling_keeps_column_order_invariance():
@@ -314,8 +362,12 @@ def test_attention_pooling_keeps_column_order_invariance():
     Attention over feature tokens carries no positional encoding, so it should be
     permutation-equivariant and the pooled result invariant. Asserted rather than assumed:
     losing this would silently reintroduce the positional feature identity D4 removed.
+
+    Pinned to ``column_id_dim=0`` so this tests the *reduction* in isolation. The random
+    column identities deliberately weaken this to a distributional guarantee, which the
+    parametrized tests above cover; mixing the two here would test neither.
     """
-    m = _pool_model("attention")
+    m = _pool_model("attention", column_id_dim=0)
     torch.manual_seed(1)
     X = torch.randn(2, 30, 24)
     y = torch.randint(0, 2, (2, 30))
@@ -327,7 +379,7 @@ def test_attention_pooling_keeps_column_order_invariance():
 
 def test_attention_pooling_keeps_padding_width_invariance():
     """Padding a table wider must not change its predictions."""
-    m = _pool_model("attention", n_feat=40)
+    m = _pool_model("attention", column_id_dim=0)
     torch.manual_seed(2)
     narrow = torch.randn(2, 24, 40)
     narrow[:, :, 20:] = float("nan")  # only 20 real columns
@@ -376,4 +428,49 @@ def test_attention_pooling_checkpoint_roundtrips(tmp_path):
     assert loaded.cfg.pooling == "attention"
     torch.manual_seed(3)
     X, y = torch.randn(1, 20, 24), torch.randint(0, 2, (1, 20))
-    torch.testing.assert_close(m(X, y, 10), loaded(X, y, 10))
+    torch.testing.assert_close(m.eval()(X, y, 10), loaded(X, y, 10))
+
+
+@pytest.mark.parametrize("n_ctx", [32, 512])
+def test_row_encoder_can_tell_its_own_columns_apart(n_ctx):
+    """The regression test for ``docs/FINDINGS.md`` §54, the project's most expensive bug.
+
+    Permuting the values *within each row independently* is not a column permutation: it
+    destroys which value came from which column while leaving the multiset untouched. A row
+    encoder that cannot notice is a symmetric function of that multiset, and such a model
+    provably cannot represent a rule like ``x_0 - x_1`` -- measured at AUC 0.5097 against a
+    ceiling of exactly 0.5.
+
+    The failure was invisible for weeks because it *shrinks with context*: the only thing
+    distinguishing columns in the broken encoder was sampling noise in the per-column
+    normalisation statistics, which vanishes as the context grows. So this asserts at a large
+    context too, where the broken version fell to 0.005.
+    """
+    from fintfm.modeling.model import FinancialTFM, ModelConfig
+
+    base = dict(max_features=8, max_classes=2, d_cell=16, d_model=32, n_heads=2,
+                n_col_layers=1, n_layers=2, d_ff=64)
+    n_rows, n_feat = n_ctx * 2, 6
+
+    def sensitivity(model):
+        g = torch.Generator().manual_seed(0)
+        X = torch.randn(1, n_rows, n_feat, generator=g)
+        shuffled = X.clone()
+        for i in range(n_rows):
+            shuffled[0, i] = X[0, i][torch.randperm(n_feat, generator=g)]
+        with torch.no_grad():
+            a = model.encode_rows(X, n_ctx, column_id_seed=0)
+            b = model.encode_rows(shuffled, n_ctx, column_id_seed=0)
+        return ((b - a).abs().mean() / a.abs().mean()).item()
+
+    torch.manual_seed(0)
+    with_ids = FinancialTFM(ModelConfig(**base)).eval()
+    torch.manual_seed(0)
+    without = FinancialTFM(ModelConfig(**base, column_id_dim=0)).eval()
+
+    assert sensitivity(with_ids) > 0.05, (
+        "the row encoder cannot distinguish its own columns; it is a symmetric function of "
+        "the row's values and cannot learn any column-specific rule (FINDINGS §54)"
+    )
+    # and the pre-fix architecture is recorded as failing it, so the test is known to bite
+    assert sensitivity(without) < sensitivity(with_ids)
