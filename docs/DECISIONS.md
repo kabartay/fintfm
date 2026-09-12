@@ -272,3 +272,82 @@ written on `save` rather than guessed on `load`.
 
 **Reversed if:** joint training lands and makes every checkpoint serve both paths, at which
 point the guard becomes a formality. Keep it anyway.
+
+## D12 — Random per-task column identities, and exact D4 invariance traded for expressiveness
+
+**Date:** 2026-09-11. **Status:** active. **Amends D4.** See `FINDINGS` §54 and §56.
+
+D4 chose per-cell embedding plus column attention, deliberately with **no feature-index
+embedding**, so that "identity comes from the data distribution rather than position". Its
+*Alternative not taken* names learned per-column embeddings and rejects them because they
+"reintroduce exactly the positional identity this removes".
+
+**That reasoning was right about learned fixed embeddings and overshot.** It rejected every
+form of column identity, and the result was an encoder whose row representation is a symmetric
+function of the row's values — verified converging to exactly permutation-invariant as the
+context grows (§54). Such a model cannot represent "column j matters" at all: on `x_0 - x_1`
+it scored 0.5007 against a provable ceiling of 0.5, and on the trivial prior it converged at
+AUC 0.713 where logistic regression reaches 0.9998. D4's stated hope that identity would come
+from the data distribution is precisely what the column stage cannot deliver, because it runs
+on one row at a time and so never sees a column.
+
+**Chose random per-task column identities.** A random vector per column, projected through a
+learned linear layer, added to every cell of that column, resampled for every task. Rows agree
+on which column is which; no column index acquires a fixed meaning, because the tag is
+redrawn. This is the distinction D4 missed: *fixed* identity is positional and bad, *random
+per-task* identity is neither. Result: 0.713 to 0.997, and `x_0 - x_1` to 0.9995.
+
+**What this costs, stated plainly.** Exact pointwise column-order invariance — D4's headline
+property — **is gone.** It is now distributional, recovered by averaging over identity draws
+at roughly 1/sqrt(K): 0.018 absolute probability at K=1, 0.0056 at K=16, 0.0023 at K=64. Both
+halves are asserted in `tests/test_model.py`, which is parametrized to require *exact*
+invariance at `column_id_dim=0` and *distributional* invariance with identities on, so the
+test states the guarantee the code actually has. Padding-width invariance is weakened the same
+way, being a special case of the same permutation.
+
+This trade is accepted because the property D4 protected is worth nothing on its own: an
+encoder symmetric enough to guarantee it pointwise is provably unable to learn a
+column-specific rule. TabPFN makes the same trade and for the same reason, citing the need to
+"differentiate features ... that have the same statistics".
+
+**Predictions are deterministic anyway.** Identities are random while training — the
+resampling is the mechanism — and **seeded while evaluating**, because a credit model whose
+score changes between two identical calls fails model validation before anyone examines its
+accuracy. Callers ensemble by passing explicit seeds.
+
+**Reversed if:** the cell-level two-way attention of `FINDINGS` §54's rung 2 lands. Attending
+across rows within each column gives each column a *data-derived* identity, which is both
+deterministic and exactly column-order equivariant, and would restore D4's property in full
+rather than in distribution. That is the better answer; this one is fifteen lines and shipped
+today. Losing exactness is a real regression against D4 and should not be left standing
+permanently.
+
+## D13 — Average precision is read first on any low-base-rate split
+
+**Date:** 2026-09-11. **Status:** active. See `FINDINGS` §60.
+
+On V4FinBench horizon 0 (0.380% base rate, 79 positives against 20,838 negatives), ROC-AUC
+ranked this model **second of five** at 0.9827 against CatBoost's 0.9944 — a gap of 0.012.
+Average precision on the identical predictions ranked it **third**, at 0.1853 against 0.3310,
+a factor of 1.8. Both numbers are correct; they measure different things, and only one of them
+is about the region where a credit decision is taken.
+
+**Chose to report average precision alongside ROC-AUC everywhere, and to read AP first
+whenever the base rate is low.** ROC-AUC stays, because V4FinBench's published table uses it
+and dropping it would make us incomparable to the field. It is no longer the number quoted
+first.
+
+Also added: **oracle F1**, the best F1 any threshold reaches on test. Alone it means nothing —
+it tunes on the test set. The quantity of interest is `F1_oracle - F1`, which separates a
+ranking that is weak near the decision boundary from a threshold that failed to transfer.
+Measured, those two diagnoses pointed opposite ways: our transfer loss was the second smallest
+in the table while our oracle F1 was the lowest, so the deficit is discrimination, not
+calibration. Without the oracle column the obvious reading was the wrong one.
+
+**Why this is a decision and not a preference.** `FINDINGS` §55 criticises TabPFN for
+reporting only ROC-AUC and accuracy. Our own harness reported ROC-AUC and F1, and would have
+carried "second of five" into a document while the field was nearly twice as good at the thing
+being sold. The criticism was right and we were committing a version of it simultaneously.
+
+**Reversed if:** never for low base rates. On balanced data ROC-AUC and AP largely agree and
+the ordering is a matter of taste.

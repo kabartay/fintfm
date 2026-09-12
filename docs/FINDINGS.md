@@ -3405,6 +3405,12 @@ check and it reversed the conclusion of a paragraph written twenty minutes earli
 ## 50. Capacity is ruled out: 17× the parameters gives identical curves. The pooling is the constraint.
 
 **Date:** 2026-09-10. **MEASURED**, three seeds, three model sizes, prediction registered in
+
+> **RETRACTED READING (2026-09-11).** The measurements here stand; the conclusion drawn
+> from them does not. Every variant compared was equally constrained by the encoder bug
+> of §54 — the row representation could not represent "column j matters" at all — so
+> this finding's *reading* is unsafe to carry forward and the comparison must be re-run.
+> §56 records the fix and what it invalidates.
 §49 **before** the runs finished.
 
 §49 predicted: if pooling *capacity* is the limit, larger models degrade less steeply with
@@ -3519,6 +3525,12 @@ explanation should be discarded rather than adjusted.
 ## 52. Attention pooling changes nothing, and neither does label noise. Two more falsifications.
 
 **Date:** 2026-09-10. **MEASURED**, three seeds. **Falsifies §50's and §51's readings, and the
+
+> **RETRACTED READING (2026-09-11).** The measurements here stand; the conclusion drawn
+> from them does not. Every variant compared was equally constrained by the encoder bug
+> of §54 — the row representation could not represent "column j matters" at all — so
+> this finding's *reading* is unsafe to carry forward and the comparison must be re-run.
+> §56 records the fix and what it invalidates.
 probe-artefact hypothesis.**
 
 Both predictions registered in §50 and §51 failed.
@@ -3591,6 +3603,12 @@ signal*, not the model, is the binding constraint.
 
 **Date:** 2026-09-11. **MEASURED**, twelve tasks per source, `v4-vol4x`.
 
+> **RETRACTED READING (2026-09-11).** The measurements here stand; the conclusion drawn
+> from them does not. Every variant compared was equally constrained by the encoder bug
+> of §54 — the row representation could not represent "column j matters" at all — so
+> this finding's *reading* is unsafe to carry forward and the comparison must be re-run.
+> §56 records the fix and what it invalidates.
+
 §52 left one lever untested — training volume with the fixed prior. Tested at 4× (48,000 →
 192,000 tasks): the feature-width curve is unchanged, drop −0.2702 against −0.2755.
 
@@ -3644,3 +3662,1029 @@ deterministic linear rule, no noise, no missingness, where logistic regression s
 Running now. The trivial prior is a **diagnostic, not a candidate**: a model trained only on
 trivial tasks would learn nothing about abstention, which is exactly the failure §42's
 difficulty span exists to prevent.
+
+## 54. The mechanism: the row encoder is permutation-invariant *within* a row, so the model cannot represent "column j matters"
+
+**Date:** 2026-09-11. **MEASURED** — the trivial-prior control is a completed 6,000-step run
+on a T4 (`fintfm-trivial`); the invariance table, the per-task distribution (192 tasks) and
+the symmetric/asymmetric sweep (six rules, ten seeds each) were all run locally against saved
+checkpoints. The architectural claim is additionally *proved*, not only measured: the
+composition of a column-shared cell embedding, a position-free column encoder and a reduction
+over the feature axis is symmetric by construction.
+
+§53 set up a control — train on a prior so trivial that logistic regression scores 0.9998 —
+and named the two worlds it would separate. The answer is the second one, and this finding
+gives the mechanism, a proof, and a confirming prediction. **This is the root cause of §47,
+§50, §51, §52 and §53 alike.**
+
+### What the control returned
+
+A model trained *exclusively* on trivial tasks plateaus at held-out **AUC 0.73** with training
+loss flat at 0.52 from step 1850 onward. Scored per task against logistic regression fitted on
+the identical context:
+
+| | mean | median | sd |
+| --- | --- | --- | --- |
+| model | 0.684 | 0.683 | 0.130 |
+| logistic regression, same context | **0.995** | **0.997** | — |
+
+The per-task distribution is **unimodal at 0.68 and not one of 192 tasks was solved** (none
+above 0.99). So this is not a model that identifies the rule sometimes and mistakes the sign
+otherwise — which would be bimodal. It is uniform mediocrity, and that points at
+representation rather than inference.
+
+### The mechanism, read off the code
+
+In `modeling/model.py::encode_rows`, three things compose:
+
+- `cell_embed` is a `Linear(2 -> d_cell)` over `[z, missing]`, **shared across every column**,
+  with no feature-identity term — a cell's embedding depends only on its value;
+- `column_encoder` is a `TransformerEncoder` over the F feature tokens with **no positional
+  encoding**, hence permutation-equivariant;
+- pooling (`mean`/`max`, or the attention variant) reduces over the feature axis, hence
+  permutation-invariant.
+
+Composed, **the row representation is a symmetric function of the multiset of that row's
+feature values.** The model has no representation of "column 3" anywhere. This was designed in
+deliberately, for column-order invariance (D4) — but D4 asks for invariance to permuting
+columns *consistently across rows*, and what is implemented is invariance to permuting each
+row's values *independently*, which is far stronger and is fatal.
+
+### Verified, not asserted
+
+Permuting each row's values independently and measuring the change in the row embedding,
+relative to its own scale:
+
+| context rows | identically-distributed columns | different-scale columns |
+| --- | --- | --- |
+| 32 | 0.1915 | 0.4639 |
+| 128 | 0.1119 | 0.4179 |
+| 512 | 0.0376 | 0.3455 |
+| 2048 | **0.0154** | 0.3412 |
+
+With identically-distributed columns the change converges to **zero** as the context grows.
+The residual at small context is estimation noise in `normalize_features`' per-column
+mean/std — the only thing in the model that distinguishes columns at all, and it is an
+artefact of finite samples, not an identity. (Columns of genuinely different scale stay
+distinguishable, which is why the right-hand column does not converge; after normalisation
+that signal is a scale tag, not a stable identity, and no prior here relies on it.)
+
+### The confirming prediction
+
+If the representation is symmetric, the model should be near the ceiling when the rule is a
+symmetric function of the row and capped when it is not. Measured on constructed tasks, 6 iid
+normal features, 400 context / 200 query rows, 10 seeds:
+
+| rule | symmetric? | signfix mixed | vol4x |
+| --- | --- | --- | --- |
+| `sign(sum x)` | yes | 0.9892 | **0.9964** |
+| `count(x > 0)` | yes | 0.9377 | 0.9568 |
+| `sign(max x)` | yes | 0.8624 | 0.9834 |
+| `sign(x_0)` | no | 0.7185 | 0.7206 |
+| random linear `w·x` | no | 0.6559 | 0.6685 |
+| **`x_0 - x_1`** | **antisymmetric** | **0.4930** | **0.5097** |
+
+The decisive row is the last. For `x_0 - x_1` the label is independent of the multiset of
+values, so the best achievable AUC from *any* symmetric function is exactly 0.5 — and the
+model scores 0.5097. It is at its ceiling, not below it.
+
+The model exceeds a `sum`-only oracle on the other two asymmetric rules (0.72 vs 0.685, 0.67
+vs 0.486). That is not a contradiction: `sum` is a lower bound on the symmetric ceiling, since
+order statistics (max, min, the sorted values) are symmetric too and carry more information.
+
+### Why this explains everything that came before
+
+- **§47.** The pre-fix financial prior took `np.abs()` of every driver weight, making the label
+  monotone in the *sum* of drivers — a symmetric function. Shuffling context labels changed
+  nothing because a global symmetric rule was learnable and sufficed. The sign fix made the
+  prior's rules asymmetric, which is why §48 saw context sensitivity return *and* why
+  performance did not improve: the tasks became representable-in-principle-only.
+- **§50 (capacity, 17×), §52 (attention pooling), §53 (volume, 4×).** None of these touches
+  permutation invariance. Parameters, pooling design and data volume cannot buy a
+  representation the architecture excludes by construction. Their identical curves were the
+  signature of a structural ceiling, correctly measured and wrongly attributed.
+- **§51 (extremes over ordering), §53 (0.63-0.69 on every source).** `max` and `count(x > 0)`
+  are exactly the symmetric functions available. The model was not failing to transfer — it
+  was reporting the best symmetric summary of each table.
+
+### The fix, and what it must preserve
+
+The requirement is that rows **agree** on which column is which, without the model learning a
+*fixed* meaning for column index j — the latter would break D4 and is what column-order
+invariance exists to prevent. The standard resolution is a **per-task random column
+embedding**: draw a random vector per column slot, resample it for every task, add it to the
+cell embeddings. Columns become mutually distinguishable and consistently so across rows,
+while the distribution over tasks stays exactly column-order invariant.
+
+The alternative is to let the column stage attend **across rows** within each feature slot, so
+a cell is contextualised by its whole column. **This is TabPFN's central architectural claim**,
+and their description of it is a direct statement of the distinction this finding measures
+(Nature 2025):
+
+> our architecture ... uses a two-way attention mechanism, with each cell attending to the
+> other features in its row (that is, its sample) and then attending to the same feature
+> across its column (that is, all other samples). This design enables the architecture to be
+> invariant to the order of both samples and features
+
+The decisive detail is that TabPFN **assigns a separate representation to each cell and never
+pools features into a row vector**. Feature identity is carried by the tensor structure: cell
+*(i, j)* attends to cell *(k, j)* down its own column, so rows agree on which column is which
+without any column ever acquiring a fixed learned meaning. Invariance there is a property of
+*equivariant operations*; invariance here was bought by *destroying the information*, which is
+the strictly stronger and fatal version. We adopted the two-way attention idea and then
+undercut it with a pooling step the reference design does not have.
+
+**These two are not alternatives — TabPFN uses both**, and their stated reason for the second
+is verbatim our failure mode:
+
+> To allow our model to differentiate features more easily that have the same statistics, for
+> example, two features that have the same entries just in different orders, we use random
+> feature embeddings that we add to all embeddings before the first layer. We generate one
+> embedding per feature by projecting a random vector of one-fourth the size of our embeddings
+> through a learned linear layer and add this to all embeddings representing an instance of
+> that feature.
+
+This matters: equivariant column attention **alone** still cannot separate two
+identically-distributed features, which is precisely the regime the table above shows
+collapsing to invariance as the context grows. The random embedding is what breaks that tie,
+and the projection-through-a-learned-linear-layer detail is worth copying exactly — it lets
+the model shape the embedding distribution rather than being handed raw noise.
+
+The per-task random column embedding remains the cheaper test of the diagnosis, and is now
+also the higher-confidence one.
+
+Other implementation details from the same section worth adopting, several of which we already
+match: z-normalisation per feature across the training rows (we do); an extra per-cell missing
+indicator with the value set to 0 (we pass ``[z, missing]``, same idea); test rows attending to
+training rows but **not to each other** (our ``_row_mask`` already does this, for the same
+stated reason). Ones we do not have: encoding **two features per position** as an efficiency
+win, and the multi-query attention variant that makes the cached train state cheap. The cell-level two-way design is the one with published evidence behind it, and
+is what a serious version of this model should end up with — with the caveat that it changes
+the memory profile substantially, since the state becomes ``(B, N, F, d)`` through the whole
+stack rather than ``(B, N, d_model)`` after the first stage (`docs/COMPUTE.md` already records
+that this model is memory-bound in ``batch x rows x features``).
+
+A second thing worth taking from the same source: TabPFN separates inference on training and
+test rows, running ICL over the training set once and caching the state for reuse, reporting
+**~300x CPU speedup** at 10,000 training rows. Our `fit()`/`predict()` split currently re-runs
+the context on every call, and the cell-level rewrite is the right moment to fix that.
+**Everything measured before this finding was measured through this ceiling**, so the
+architecture comparisons in §50 and §52 must be re-run once it is lifted; they compared
+variants that were all equally constrained.
+
+## 55. What TabPFN's published protocol does not measure — and why that is where the gap is
+
+**Date:** 2026-09-11. **HYPOTHESIS**, and deliberately labelled as one: this finding contains
+no numbers of ours. The quotations are checkable fact; the conclusion drawn from them — that
+the gap is where their protocol is silent — is a conjecture until each half of it is measured,
+and §55's whole value evaporates if it is quoted as though it were a result. It is
+a reading of the TabPFN Nature 2025 paper's methods sections, quoted directly so the claims
+can be checked against the source rather than against a summary of it (a summariser
+previously fabricated a results table for this project, `docs/POSTMORTEM.md`). Every
+competitive inference drawn here is about **what their protocol reports**, which is
+verifiable, and not about how their model would score on an unreported metric, which is not.
+
+§54 settled the architecture question by adopting their design. This finding is the opposite
+exercise: reading their **evaluation protocol** for what it leaves unmeasured. These are
+durable competitive facts, sourced from the Nature 2025 paper's methods sections, and they
+matter more to this project's positioning than any accuracy number in it.
+
+### 1. They never measure calibration
+
+> To obtain scores for classification tasks, we use two widely adopted evaluation metrics:
+> ROC AUC (One-vs-Rest) and accuracy.
+
+**Neither is a proper scoring rule.** `CLAUDE.md` already records why that matters and §42
+records this project shipping three runs that logged accuracy below a constant predictor
+without noticing. So TabPFN's published evidence establishes that it *ranks* well and says
+essentially nothing about whether a stated probability is correct.
+
+That is precisely and only what a credit supervisor grades. §12 measured this project's
+calibration advantage over gradient boosting at 2.3x to 11.7x across every dataset size. A
+head-to-head on **Brier and ECE with reliability bins**, rather than AUC, is a comparison
+nobody in this literature has published — and one where the incumbent has no stated result
+to defend.
+
+Caution before claiming it: not measured is not the same as not good. TabPFN's loss is
+cross-entropy, which *is* proper, so it may well be well calibrated and simply unreported.
+The claim available today is about the evidence, not about the model.
+
+### 2. There is no out-of-time evaluation
+
+> 10 repetitions, each with a different random seed and train-test split (90% train and 10%
+> test samples)
+
+Random splits, throughout. **No temporal holdout anywhere in the protocol.** For credit risk
+this is not a minor omission: out-of-time performance is a mandatory model-validation test,
+because a model that interpolates within a period can fail completely across one, and a random
+split cannot see that. Our V4FinBench out-of-time protocol already exists and already tests it.
+
+### 3. Their benchmarks are not selected for imbalance, and neither is their prior
+
+The test suites are the AutoML Benchmark and OpenML-CTR23, curated for "sufficient complexity,
+real-world relevance, absence of free-form text features and diversity of problem domains" —
+class imbalance is not a selection criterion, and nothing in the SCM prior forces extreme skew.
+Combined with §9 (the credit field's own benchmark averages a **22%** default rate), the
+low-default regime at **0.19%** is unrepresented in both literatures at once.
+
+### 4. The prior generator is closed
+
+> The code to generate synthetic pre-training data has not been released with our models.
+
+The weights and inference code are open; **the prior is not**. That is a deliberate choice and
+it identifies where they believe the value sits — which is the same conclusion §54 forces from
+the other direction. It also means a domain-specific prior cannot be dismissed as trivially
+replicable by pointing at their repository, and that our prior work is genuinely our own rather
+than a reimplementation.
+
+### Two protocol cautions when comparing numbers
+
+- **Their headline figures are min-max normalised per dataset**, scaled so the best method
+  scores 1.0 and the worst 0.0 across the compared methods. "0.939 versus 0.752" is therefore
+  not an AUC difference and must never be quoted as one. Absolute numbers are in their
+  supplementary tables and are the only ones comparable to ours.
+- **"TabPFN (default)" is already a four-way ensemble** (eight-way for regression) over
+  different pre- and post-processors. A fair comparison either ensembles ours the same way or
+  states plainly that it does not.
+
+Worth copying regardless of the competitive angle: they keep **development datasets strictly
+disjoint from test datasets** for choosing hyperparameters and search spaces. This repository
+does not currently have that separation formalised, and every tuning decision made on an
+evaluation set is a quiet leak.
+
+### The resulting position
+
+We should not contest general small-to-medium tabular classification; the evidence there is
+theirs and it is strong. The defensible gap is the intersection of four things their protocol
+never tests: **low default rates, out-of-time splits, proper scoring rules, and a term
+structure over horizons** — the last having no counterpart in their model at all, since the
+architecture has no time axis and their own future work names time-series priors as open.
+
+None of it is measurable until §54's encoder fix lands, because every number this project has
+was measured through that ceiling.
+
+## 56. The fix works: 0.713 -> 0.997 on the trivial prior, and the unlearnable rule is solved
+
+**Date:** 2026-09-11. **MEASURED** — two completed 6,000-step T4 runs (`fintfm-trivial`,
+`fintfm-trivial-colid`) differing in exactly one config field, plus a six-rule sweep at ten
+seeds each, eight column-identity draws averaged per prediction. The prediction being tested
+was registered in §54 *before* either number was known.
+
+### The control, rerun with column identities
+
+Identical configuration, identical prior, identical step count. The only change is
+`column_id_dim`: `0` before, `d_cell // 4 = 12` after.
+
+| | held-out AUC | loss | Brier skill | ceiling |
+| --- | --- | --- | --- | --- |
+| no column identities | 0.713 | 0.515 | +0.125 | 0.9998 |
+| **with column identities** | **0.997** | **0.058** | **+0.906** | 0.9998 |
+
+The before-arm was fully converged — flat from step 1,850 through 6,000 with the learning rate
+annealed to zero — so this is not a training-length artefact. The after-arm passed AUC 0.99 by
+step 1,500, a quarter of the way in.
+
+### §54's prediction, tested
+
+§54 predicted that the model would be at ceiling on symmetric rules and capped on asymmetric
+ones, and that the fix should lift specifically the asymmetric ones. Measured on the two
+trivial-prior checkpoints:
+
+| rule | symmetric? | no col ids | with col ids |
+| --- | --- | --- | --- |
+| `sign(sum x)` | yes | 0.9911 | 0.9996 |
+| `count(x > 0)` | yes | 0.9034 | 0.9232 |
+| `sign(max x)` | yes | 0.8426 | 0.8867 |
+| `sign(x_0)` | no | 0.6946 | **0.9994** |
+| random linear `w·x` | no | 0.6618 | **0.9991** |
+| **`x_0 - x_1`** | **antisymmetric** | **0.5007** | **0.9995** |
+
+The asymmetric rules move from 0.50-0.69 to 0.999; the symmetric ones, which were never the
+constrained case, improve slightly. **`x_0 - x_1` is the one that settles it**: its symmetric
+ceiling is provably exactly 0.5, it measured 0.5007 before, and it measures 0.9995 after. No
+amount of capacity, data or pooling redesign could have moved that number, and §50, §52 and
+§53 each spent a run confirming as much.
+
+Fifteen lines in `encode_rows`.
+
+### What this invalidates
+
+**Every quantitative result in this repository before today was measured through the §54
+ceiling.** Specifically:
+
+- **§50 (capacity), §52 (pooling, label noise), §53 (volume, capped predictor)** compared
+  variants that were all equally constrained. Their measurements were correct and their
+  conclusions — "capacity is not the constraint", "pooling changes nothing" — are unsafe to
+  carry forward. They must be re-run, and their *readings* are now retracted rather than
+  merely qualified.
+- **§26-§40, all survival and hazard work.** Already invalid for a separate reason (untrained
+  classification heads, §34); now invalid for this one too.
+- **§33's public-benchmark claim and §32's retrieval gains.** Re-measure before quoting.
+- **§9, §12, §23, §35, §38** and anything comparing us to boosting baselines. The baselines
+  are unaffected; our side of every comparison is not.
+
+What survives untouched: the prior-side findings (§42's difficulty span, §47's sign bug), the
+protocol and honesty findings, `docs/COMPUTE.md`'s timings, and §55, which contains no numbers
+of ours.
+
+### The weakest remaining cell
+
+`count(x > 0)` at 0.9232 and `sign(max x)` at 0.8867 are now the low scores, and both are
+symmetric rules requiring a *nonlinear* aggregation over features rather than a linear one.
+They improved only slightly, so the column identities were not their constraint.
+
+**Check the reference before calling this a failure.** Logistic regression scores only 0.8919
+on `count(x > 0)`, so the model is *ahead* of the linear baseline there — LR is simply the
+wrong yardstick for a nonlinear rule. The right one is the Bayes ceiling, obtained by scoring
+with the rule's own statistic, which is **1.0000** for all three symmetry probes. Against that
+the model is 0.077 short on `count(x > 0)`, which is a real gap and not an artefact of an
+unreachable target.
+
+So it stays the first candidate for a second, independent bottleneck — nonlinear aggregation
+across features rather than column identity — and is worth a look once the financial prior is
+re-run. Stated carefully because the temptation was to read 0.9232-against-0.8919 as a
+deficiency when it is an improvement on the baseline and a shortfall against the ceiling at
+the same time.
+
+## 57. The training loop's held-out AUC was pooled across tasks, overstating discrimination by 0.26
+
+**Date:** 2026-09-11. **MEASURED**, 80 tasks per prior, two checkpoints, scored both ways from
+the same forward passes.
+
+While setting up the before/after comparison for §56, the before-arms' logged held-out AUC —
+0.943 for the mixed prior, 0.834 for the pure financial one — flatly contradicted §53, which
+found 0.63-0.69 on every task source. Both were right. The metric was reading the wrong thing.
+
+`_eval_quality` concatenated the query rows of 5 batches × 16 tasks and computed **one AUC over
+the pool**. Scored per task instead, from the identical forward passes:
+
+| checkpoint | pooled AUC | per-task mean | per-task median | base-rate spread |
+| --- | --- | --- | --- | --- |
+| `signfix-mixed` | 0.9080 | **0.6426** | 0.6566 | 0.003 - 0.986 |
+| `signfix-fin` | 0.8629 | **0.6488** | 0.6494 | 0.002 - 0.312 |
+
+**The mechanism.** AUC asks whether a positive outranks a negative. Pooled across tasks, most
+such pairs come from *different* tasks, so a model that merely predicts each task's base rate
+ranks a positive from a 90%-default task above a negative from a 0.3%-default task and is paid
+for it — without discriminating between two firms inside either task, which is the only thing
+a credit model is for. The financial prior's rates span three orders of magnitude, so there is
+a great deal to be paid for.
+
+**Why this hid for so long.** §42 caught the previous version of the same mistake — the loop
+reported *accuracy*, which at a 4.7% base rate sat below a constant predictor — and replaced it
+with AUC and Brier skill. The replacement fixed the metric and kept the pooling, and pooling is
+invisible unless base rates vary. The trivial prior of §54 and §56 has a fixed 0.30 rate for
+every task, which is exactly why its 0.713 and 0.997 were trustworthy and comparable.
+
+**Fixed** by reporting `auc_per_task` alongside the pooled number, printing both, and
+documenting in the docstring which one to read. The pooled figure is kept rather than removed,
+so earlier runs remain comparable to later ones — deleting it would silently break every
+number in this file that came from a training log.
+
+**Consequence for §56.** The trivial-prior comparison is unaffected (uniform base rate). The
+financial arms now training were launched against the old wheel and will log the pooled
+number; their per-task figures are computed offline from the checkpoints, which is where the
+comparison to 0.6426 and 0.6488 belongs.
+
+**The wider lesson, and it is the third time.** §42 was accuracy versus a base rate. §34 was a
+head that was never trained. This is pooling across heterogeneous tasks. Each time the
+instrument was wrong in the flattering direction, and each time it was caught by a *disagreement
+between two measurements* rather than by inspection. Two numbers that should agree and do not
+are the most productive thing in this repository; the rule worth keeping is to chase the
+disagreement before chasing the result.
+
+## 58. The architecture was necessary, not sufficient: the financial prior does not teach column-specific inference
+
+**Date:** 2026-09-11. **MEASURED** — three completed 6,000-step T4 runs differing only in
+`p_financial`, each against its own before-arm, scored per task (§57) and on the symmetry
+probes. The isolation run that tests this finding's proposed mechanism was launched **before**
+its result was known; the prediction below is registered, not fitted.
+
+§56 showed the column-identity fix takes the trivial prior from 0.713 to 0.997. Rerunning the
+*financial* prior with the same fix gives a much less comfortable answer.
+
+### Dose-response in the generic-SCM share
+
+Probe AUCs are comparable across arms (identical probes, eight column-identity draws averaged,
+eight seeds):
+
+| SCM share | arm | antisymmetric | orientation | linear |
+| --- | --- | --- | --- | --- |
+| 0% | `p_financial=1.0` before | 0.4960 | 0.6916 | 0.6387 |
+| 0% | `p_financial=1.0` **after** | **0.5352** | 0.6881 | 0.6503 |
+| 30% | `p_financial=0.7` before | 0.4887 | 0.7054 | 0.6437 |
+| 30% | `p_financial=0.7` **after** | **0.9116** | 0.9464 | 0.8943 |
+| 100% | `p_financial=0.0` **after** | **0.9932** | 0.9918 | 0.9897 |
+
+Monotone in the SCM share on all three probes. **Trained on the financial prior alone, the fix
+buys almost nothing** — 0.4960 to 0.5352 against a chance floor of 0.5 — while the same
+architecture and the same step count on a 70/30 mixture reaches 0.9116.
+
+So §54's encoder bug was a real bottleneck and removing it was necessary. It was not
+sufficient: the capability is now *available*, and the financial prior does not *teach* it.
+
+### Two explanations eliminated by measurement
+
+- **Task width.** Excluded. Financial tasks have a median of 70 real columns, generic SCM
+  tasks 68. Further, probing the antisymmetric rule at widths 2 through 64 on a model that
+  *did* learn the capability shows graceful decay (1.0000 at two features to 0.7773 at 64),
+  whereas the financial-prior model sits at 0.6339 even at **two** features, where there is
+  nothing to aggregate. The learned strategy, not the probe, is what fails.
+- **Dilution by uninformative columns.** Excluded. The fraction of columns that individually
+  separate the classes is 77.7% for the financial prior and 80.0% for the SCM prior.
+
+### The registered prediction
+
+What remains is stark:
+
+| prior | median base rate | missing cells | best single-column AUC |
+| --- | --- | --- | --- |
+| financial | **0.021** | 8.9% | 0.812 |
+| generic SCM | **0.500** | 0.0% | 0.911 |
+
+A 24x difference in positive density. At 512 rows the financial prior yields roughly **eleven
+positives per task**, a fraction of which fall in the context — too little to learn a
+column-specific rule from, while a symmetric summary remains cheaply available.
+
+**Prediction:** opening the financial prior's rate envelope, changing nothing else, will
+recover the capability. `configs/balanced-financial.yaml` does exactly that — same accounting
+identities, same drivers, same missingness, median base rate 0.401 instead of 0.021 — and is
+training now. If it reaches the mixture's ~0.91 on the antisymmetric probe, base rate is the
+cause. If it stays near 0.54, base rate is **excluded** and the cause is missingness or task
+separability, which is worth the run either way.
+
+### The uncomfortable part
+
+**The target segment is what starves the pretraining signal.** The low-default portfolio is
+what this project exists for (`docs/GLOSSARY.md`), and a prior faithful to it supplies too few
+positives for the model to learn the discrimination that regime demands. If the prediction
+holds, the resolution is a **curriculum** spanning both densities rather than a move to
+balanced tasks — a model trained only on balanced data would be trained away from its purpose,
+and §42's difficulty span exists for the same reason.
+
+### What is *not* claimed
+
+Per-task AUC is **not** comparable across these arms: each is scored on its own training prior,
+and the SCM prior is balanced and cleaner, so `p_financial=0.0`'s 0.8029 against
+`p_financial=1.0`'s 0.6693 mostly reflects an easier evaluation, not a better model. Only the
+probe columns support cross-arm comparison.
+
+And on the financial prior itself, the fix moved per-task AUC from 0.6491 to **0.6863** — a
+real gain, measured, and far too small to quote as a result. The capability is present; turning
+it into discrimination on realistic low-default tasks is the next problem, not a solved one.
+
+## 59. On V4FinBench, column identity is worth 0.0009 AUC — the §54 fix barely moves real data
+
+**Date:** 2026-09-11. **MEASURED**, and it is a corrective to §54, §56 and §58 rather than an
+extension of them. Two protocol runs differing only in checkpoint, plus a direct bound on how
+much column identity can possibly be worth on this dataset.
+
+### The real-data result
+
+V4FinBench published protocol, horizon 0, fold 0, **0.380% default rate** (402 positives in
+105,900 rows). Baselines were byte-identical across both runs, confirming only our model
+changed:
+
+| arm | ROC-AUC | F1 |
+| --- | --- | --- |
+| catboost | 0.9944 | 0.3706 |
+| **fintfm, after the §54 fix** | **0.9827** | 0.2500 |
+| logistic_regression | 0.9819 | 0.2724 |
+| **fintfm, before the fix** | **0.9756** | 0.2364 |
+| xgboost | 0.9577 | 0.3417 |
+| lightgbm | 0.9229 | 0.2807 |
+
+**+0.0071 AUC**, against **+0.42** on the synthetic antisymmetric probe. With 79 positives in
+the test fold that gain is very likely inside sampling error, and these baselines are untuned.
+
+### Why: the task does not need column identity
+
+Fit gradient boosting on the **order statistics** of each row's standardised features — the
+sorted vector, which is a *complete* symmetric summary and discards column identity entirely —
+and compare against the same model on the raw columns:
+
+| representation | AUC |
+| --- | --- |
+| order statistics (purely symmetric) | **0.9985** |
+| raw columns (identity preserved) | **0.9994** |
+
+**Column identity is worth 0.0009 AUC on this dataset.** A permutation-invariant model is
+essentially unhandicapped, which is exactly why the pre-fix checkpoint reached 0.9756 and why
+the fix could not add much. §47's bug hid for three days for the same underlying reason.
+
+*Caveat on those two numbers:* they use a random 90k/30k split, not the protocol's country
+folds, so both are inflated by firm-level leakage and neither is comparable to the protocol
+table above. The **comparison between them** is valid, since both sides share the split, and
+that comparison is the whole point.
+
+### Two of my own inferences that this killed
+
+- **"Crude symmetric predictors cap at 0.78, so the model cannot be using one."** Wrong. Sum,
+  max, min, `max|z|` and missing-count all score 0.54-0.78, but those are a tiny subset of the
+  symmetric functions available. The complete symmetric summary reaches 0.9985. A learned
+  permutation-invariant network is not limited to the statistics one happens to think of.
+- **"Real columns have different scales, so per-column normalisation leaks identity."**
+  Wrong, and the measurement that suggested it was confounded. Per-row permutation sensitivity
+  reads 0.4334 on real columns against 0.0053 on iid-normal ones — but permuting raw values
+  between columns of different scale changes the *normalised* values drastically, so the
+  embedding moves for a reason that has nothing to do with the model knowing which column is
+  which. The valid test is predictive: the antisymmetric probe scores **0.5044 on iid-normal
+  columns and 0.5044 on heterogeneous ones**, identical to four decimals. No usable leak.
+
+### What this does and does not change
+
+**Unchanged.** §54's mechanism is proved, not merely measured. §56's trivial-prior result
+(0.713 to 0.997) and §58's dose-response in the SCM share are real, reproducible, and correct.
+The architecture could not represent a rule as simple as `x_0 - x_1`, and now it can.
+
+**Changed.** The claim that this was *the* thing holding the project back is retracted. It was
+the thing holding back performance on tasks that **require** column identity, and V4FinBench
+horizon 0 is not one. The day's headline number does not transfer to the product metric, and
+saying otherwise would be the §50 mistake again — a correct measurement carrying a conclusion
+it does not support.
+
+**The honest summary of the fix's value:** it removes a provable representational ceiling whose
+cost on our current benchmark is under 0.01 AUC. Worth keeping — a model that cannot represent
+`x_0 - x_1` will fail on some future table, and we cannot know which in advance — but it is
+insurance, not the unlock.
+
+### What to look at instead
+
+The F1 column is the more interesting anomaly. Ours is the **worst of the five arms** (0.2500)
+while our AUC is second-best. Strong ranking with weak thresholded classification is a
+calibration or threshold-transfer failure, and calibration is the one dimension where this
+project claims a measured advantage (§12) and where TabPFN publishes nothing (§55). That gap
+is both larger and more aligned with the thesis than anything §54 was about.
+
+## 60. ROC-AUC flattered us by a factor of two: on average precision we are third, not second
+
+**Date:** 2026-09-11. **MEASURED**, V4FinBench protocol horizon 0 fold 0, 0.380% base rate,
+79 positives in the test fold, baselines at library defaults.
+
+§59 reported ROC-AUC and F1 because those are their protocol's metrics, and noted our F1 was
+the worst of five arms while our ROC-AUC was second-best. Adding **average precision** and an
+**oracle F1** to the harness explains that, and the explanation is not flattering:
+
+| arm | ROC-AUC | **AP** | F1 | F1-oracle | transfer loss |
+| --- | --- | --- | --- | --- | --- |
+| catboost | 0.9944 | **0.3310** | 0.3706 | 0.3865 | 0.016 |
+| xgboost | 0.9577 | **0.2685** | 0.3417 | 0.3957 | 0.054 |
+| **fintfm** | 0.9827 | **0.1853** | 0.2500 | 0.2740 | 0.024 |
+| logistic_regression | 0.9819 | 0.1786 | 0.2724 | 0.3163 | 0.044 |
+| lightgbm | 0.9229 | 0.1638 | 0.2807 | 0.3093 | 0.029 |
+
+**ROC-AUC 0.9827 against CatBoost's 0.9944 reads as a 0.012 gap. Average precision says 0.1853
+against 0.3310 — CatBoost is 1.8x better.** Ordering by ROC-AUC puts us second of five;
+ordering by AP puts us third, behind both CatBoost and XGBoost.
+
+**Why ROC-AUC misleads here.** At a 0.380% base rate the test fold holds 79 positives and
+20,838 negatives. ROC-AUC averages over all sensitivity-specificity trade-offs, the vast
+majority of which live in a region no credit decision is ever taken in; separating the bulk of
+obviously-safe firms is nearly free and dominates the score. AP integrates precision against
+recall, so it is sensitive to exactly the high-precision region where a decision is made. This
+is why AP was added, and it should be read first at low base rates.
+
+**It is not calibration, and it is not the threshold.** The oracle column settles a question
+§59 left open. Our transfer loss -- best-achievable F1 on test minus F1 at the threshold chosen
+on validation -- is **0.024, the second smallest in the table**, better than logistic regression
+(0.044) and XGBoost (0.054). The threshold transfers fine. But our **oracle** F1 of 0.2740 is
+the **lowest of all five arms**: with a perfect threshold handed to us we would still finish
+last. The deficit is in the ranking near the decision boundary, not in turning a ranking into a
+decision.
+
+That retracts the reading proposed at the end of §59 — that the F1 gap was a calibration or
+threshold-transfer failure and therefore aligned with this project's stated advantage. It is
+neither. It is a plain discrimination deficit in the region that matters, and the calibration
+thesis is untouched by this measurement rather than supported by it.
+
+**The uncomfortable symmetry with §55.** That finding criticises TabPFN for reporting only
+ROC-AUC and accuracy, neither a proper scoring rule, and argues the gap is where their protocol
+is silent. Our own harness reported ROC-AUC and F1 and would have carried "second of five" into
+a document. The criticism was correct and we were committing a version of it at the same time.
+`docs/DECISIONS.md` should record AP as the metric read first on any low-base-rate split.
+
+### The ordering, tested rather than asserted
+
+"Third of five" was over-precise, and a paired bootstrap over the 20,917 test rows says so.
+Pairing matters because every arm scores the same rows, so their errors are correlated and an
+unpaired interval would overstate the uncertainty of a *difference*. 2,000 resamples,
+Holm-adjusted across the family of four:
+
+| fintfm vs | dAP | 95% CI | Holm p | verdict |
+| --- | --- | --- | --- | --- |
+| logistic_regression | +0.0067 | [-0.0588, +0.0826] | 1.000 | indistinguishable |
+| lightgbm | +0.0215 | [-0.0488, +0.1099] | 1.000 | indistinguishable |
+| xgboost | -0.0832 | [-0.1912, +0.0255] | 0.423 | indistinguishable |
+| **catboost** | **-0.1457** | **[-0.2269, -0.0623]** | **<0.001** | **DIFFERENT** |
+
+**Exactly one comparison of four is established: CatBoost is genuinely ahead.** fintfm,
+logistic regression, LightGBM and XGBoost form a four-way tie at this sample size. The
+intervals run +/-0.07 to +/-0.09, so with 79 positives only a gap of roughly 0.15 was ever
+detectable — which is precisely Baesens et al.'s finding of significance in 22 of 406
+comparisons, reproduced on our own data.
+
+So the league table in this finding should be read as: CatBoost first, everything else
+unresolved. Ranking arms by point estimate and reporting a position is the error this project
+already warned itself about (`evaluation/metrics.py`: "a win count is not a result"), and the
+first draft of this finding committed it anyway.
+
+### Is 0.1853 signal at all?
+
+Yes, and by a wide margin. A random ranker's average precision **equals the prevalence**, which
+is 0.00378 here, so 0.1853 is **49x the chance floor** (CatBoost is 88x, LightGBM 43x). The
+absolute number looks small only because AP is scaled to the base rate; that is the property
+that makes it readable here, where ROC-AUC compresses everything from useless to excellent
+into its top 2%.
+
+**Caveats that cut both ways.** One fold and 79 positives, which the intervals above quantify.
+The baselines are **untuned**, and their protocol grid-searches each one — so the established
+CatBoost gap is, if anything, **understated**, while the three ties might resolve in either
+direction. Five folds and `--tune` before any of this is quotable.
+
+## 61. The financial prior doubles average precision on credit — it specialises rather than helps generally
+
+**Date:** 2026-09-11. **MEASURED**, V4FinBench protocol horizon 0 fold 0, two checkpoints
+identical in architecture, steps and seed, differing only in `p_financial`.
+
+§58 found that the *generic SCM* share is what teaches column-specific in-context inference,
+and that a pure financial prior teaches almost none of it. Read alone, that invites the
+conclusion that the financial prior is dead weight. On the benchmark it is the opposite:
+
+| arm | ROC-AUC | **AP** |
+| --- | --- | --- |
+| catboost | 0.9944 | 0.3310 |
+| xgboost | 0.9577 | 0.2685 |
+| **fintfm, `p_financial=0.7`** | 0.9827 | **0.1853** |
+| logistic_regression | 0.9819 | 0.1786 |
+| lightgbm | 0.9229 | 0.1638 |
+| **fintfm, `p_financial=0.0`** | 0.9611 | **0.0918** |
+
+**The financial prior doubles average precision on the credit task**, 0.1853 against 0.0918,
+and the ordering is the same on ROC-AUC (0.9827 against 0.9611) so it is not an artefact of
+metric choice. Dropping the domain prior would have cost half the precision on the task this
+project exists for.
+
+### Why this nearly went the other way
+
+§58's probes measure a *capability* — can the model condition on which column is which — and
+the SCM-heavy arms win those decisively. Capability is not the same as fit to a target
+distribution, and the pure-SCM checkpoint demonstrates the gap: best-in-class on every
+synthetic probe, worst-in-class here. A finding about probes does not transfer to a finding
+about benchmarks without being measured on the benchmark, which is the §50 lesson in a new
+costume.
+
+### The plausible mechanism, and how to test it
+
+The financial prior's median base rate is **2.1%** and V4FinBench horizon 0 is **0.380%** —
+the same regime. The generic SCM prior's median is **50%**. So this may be **base-rate regime
+match** rather than domain match in any richer sense, and that is the sharper claim because it
+is testable: a prior can be moved along the base-rate axis while holding its generator fixed,
+which `configs/balanced-financial.yaml` already does in the other direction.
+
+The two readings make opposite predictions for a balanced-rate *financial* prior. If domain
+content is what matters, it should keep most of the benefit here; if base-rate regime is what
+matters, it should lose it. That run is in flight for a different reason (§58) and will
+discriminate these as a side effect.
+
+### What this does not license
+
+**No single checkpoint here is good at both regimes.** The model does not generalise across
+base rates: the arm that wins at 0.38% loses badly where positives are common, and vice versa.
+A foundation model that must be told its deployment base rate in advance to pick a checkpoint
+is not yet a foundation model, and this is the strongest argument so far for §58's curriculum
+rather than a choice between the two priors.
+
+Caveats unchanged from §60: one fold, 79 positives, untuned baselines, so the gap to CatBoost
+and XGBoost is if anything understated, and adjacent arms are not separated.
+
+## 62. §58's registered prediction is falsified: base rate is not why the financial prior fails to teach
+
+**Date:** 2026-09-11. **MEASURED**, one completed 6,000-step T4 run against three existing
+arms, using the prediction §58 registered **before** this run's result was known.
+
+§58 eliminated task width and dilution by uninformative columns as explanations for the
+financial prior's failure to teach column-specific in-context inference, and named the
+remaining candidate: base rate. The financial prior's median is 2.1%, the generic SCM prior's
+is 50%, and at 512 rows that is roughly eleven positives per task against 256. It predicted
+that opening the rate envelope, changing nothing else, would recover the capability.
+
+**It does not.** `configs/balanced-financial.yaml` keeps the financial generator identical —
+same accounting identities, same drivers, same missingness — and raises the median base rate
+from 0.021 to 0.401:
+
+| arm | base rate | antisymmetric probe |
+| --- | --- | --- |
+| `p_financial=1.0`, default envelope | 0.021 | 0.5352 |
+| **`p_financial=1.0`, balanced envelope** | **0.401** | **0.5669** |
+| `p_financial=0.7` (30% generic SCM) | mixed | **0.9116** |
+| `p_financial=0.0` (pure generic SCM) | 0.500 | **0.9932** |
+
+A 19x increase in positive density bought **+0.03** on a probe where the mixture gains +0.38.
+Base rate is not the mechanism. Nor is it a partial one: 0.5669 against a chance floor of 0.5
+is the same "barely above chance" regime as before.
+
+### What is left
+
+Three of the four differences between the two priors are now eliminated — width (70 columns
+against 68), informative fraction (77.7% against 80.0%), and base rate. What remains
+unmeasured:
+
+- **Missingness.** 8.9% of financial cells against 0.0% for the SCM prior. Cheap to test the
+  same way: strip missingness from the financial generator and re-run.
+- **Per-column separability.** Best single-column AUC 0.812 against 0.911 — the SCM prior's
+  tasks are simply cleaner, so the "which column matters" signal is sharper per example.
+- **Correlation structure.** The financial prior's features are tied by accounting identities,
+  so its columns are far from independent. A rule over correlated drivers may be learnable by
+  many different weightings, which would weaken the pressure to identify any particular column.
+
+The third is the most interesting and the hardest to test, because removing the identities
+would stop it being a financial prior at all.
+
+### Why this finding exists in this form
+
+The prediction was written into §58 and the run launched before its result was known,
+specifically so it could fail visibly. It failed. Recording that is the point: three of this
+session's readings (§59, §60, §61) had to be retracted after further measurement, and each
+retraction came from a check made *after* the conclusion was drafted. A prediction registered
+in advance is the cheap version of the same discipline.
+
+### Consequence for `base-rate-curriculum`
+
+Task 38.1 gated that proposal on this result, and the answer changes its shape. The sampler is
+still worth building — §61's regime effect is real and no single checkpoint yet works at both
+ends — but it can no longer be justified as *the* fix for the financial prior's teaching
+failure, because density is not what is broken. The proposal's "Open question" section should
+be read as answered in the negative, and the remaining candidates above are the live ones.
+
+## 63. Two-factor control: the financial prior's benefit is its structure, and its density is irrelevant
+
+**Date:** 2026-09-11. **MEASURED**, three checkpoints on the identical V4FinBench fold — same
+20,917 rows, same 79 positives — compared with a paired bootstrap over 2,000 resamples,
+Holm-adjusted.
+
+§61 found the financial prior doubles average precision on credit and left an open question:
+is that **domain content** or merely **base-rate regime match**? The financial prior's median
+rate is 2.1% and V4FinBench's is 0.380%, so the two explanations were confounded.
+
+§62's balanced-financial checkpoint breaks the confound, because it has the financial
+generator at a base rate close to the SCM prior's:
+
+| arm | financial content | prior base rate | AP |
+| --- | --- | --- | --- |
+| `colid-fin00` | none | 0.500 | 0.0918 |
+| **`colid-finbal`** | **full** | **0.401** | **0.1900** |
+| `colid-fin07` | 70% | 0.021 | 0.1853 |
+
+| contrast | dAP | 95% CI | Holm p | verdict |
+| --- | --- | --- | --- | --- |
+| **domain content**, density matched (`finbal` - `fin00`) | **+0.0982** | [+0.0333, +0.1747] | **0.002** | **DIFFERENT** |
+| **density**, domain matched (`finbal` - `fin07`) | +0.0047 | [-0.0675, +0.0750] | 0.895 | indistinguishable |
+
+**The financial generator's structure is worth a significant +0.098 AP. A twenty-fold change
+in its base rate is worth nothing measurable.** This is the second comparison in this session
+to survive significance testing, the first being CatBoost's lead (§60).
+
+That is a real result for this project's founding premise, and the first evidence for it that
+is controlled rather than suggestive. The domain prior earns its keep through the accounting
+identities and driver structure — not through matching the imbalance of the target, which was
+the more deflationary reading and is now excluded.
+
+### It also sharpens §62 rather than resolving it
+
+The financial prior **transfers well** to credit and **teaches poorly**: 0.5669 on the
+antisymmetric probe against the SCM mixture's 0.9116. Those are now cleanly separable
+properties. What a prior teaches the model about conditioning on which column is which, and
+what it contributes to performance on a matched domain, are different things carried by
+different features of the generator. A prior can be good at one and bad at the other, and ours
+is exactly that.
+
+This means the two open problems should stop being discussed as one:
+
+- **Teaching** — why the financial generator does not produce column-specific in-context
+  inference. Candidates remaining after §62: missingness, per-column separability, and the
+  correlation imposed by the accounting identities.
+- **Coverage** — why no single checkpoint works across target domains. `p_financial=0.7`
+  already mixes the two priors and does *not* deliver best-of-both; it matches the
+  financial-only arm on credit and is beaten by the SCM-only arm elsewhere.
+
+### Caveats
+
+One fold, 79 positives. The significant contrast has a lower bound of +0.033, so its
+*direction* is established while its magnitude is loose. Both fintfm arms remain
+indistinguishable from logistic regression, LightGBM and XGBoost, and both lose to CatBoost
+(§60) — this finding is about which prior to build, not about being competitive yet.
+
+## 64. What a prior teaches tracks its signal-to-noise, not how much column identity it demands
+
+**Date:** 2026-09-11. **MEASURED**, 22-40 sampled tasks per prior, gradient boosting fitted
+twice per task on a two-thirds/one-third split. **Registered hypothesis, falsified.**
+
+§62 eliminated width, dilution and base rate as reasons the financial prior fails to teach
+column-specific in-context inference, leaving missingness, per-column separability and
+correlation structure. The hypothesis stated before this measurement was that the financial
+prior's tasks simply **do not need** column identity — which would make its failure to teach
+correct behaviour rather than a defect, and would explain §59's finding that V4FinBench itself
+has almost no use for it.
+
+**Identity advantage** measures this directly: fit the same model on raw columns, and on the
+**order statistics** of each row's standardised values — a *complete* symmetric summary that
+discards which column is which. The gap is exactly what column identity is worth.
+
+| prior | raw AUC | order-statistic AUC | identity advantage |
+| --- | --- | --- | --- |
+| financial (default envelope) | 0.7276 | 0.5796 | **+0.1480** |
+| financial (balanced envelope) | 0.7434 | 0.5983 | **+0.1451** |
+| generic SCM | 0.8306 | 0.6881 | **+0.1425** |
+| trivial | 0.9912 | 0.6902 | +0.3010 |
+| *V4FinBench h0 (§59)* | *0.9994* | *0.9985* | *+0.0009* |
+
+**The hypothesis is false.** The financial and generic-SCM priors demand column identity
+equally — 0.1480 against 0.1425 — while one teaches it (antisymmetric probe 0.9932) and the
+other does not (0.5669). The prior's tasks require the capability; the model fails to acquire
+it regardless.
+
+### What does track teaching
+
+The **raw** column, which is simply how learnable each prior's tasks are by any means:
+
+| prior | raw AUC | antisymmetric probe after 6,000 steps |
+| --- | --- | --- |
+| trivial | 0.9912 | 0.9995 |
+| generic SCM | 0.8306 | 0.9932 |
+| financial | 0.7276 | 0.5669 |
+
+Monotone, and the mixture sits between its components on both. **Signal-to-noise, not identity
+demand.** Gradient boosting tops out at 0.73 on financial tasks — they are intrinsically hard,
+so the gradient carrying "which column matters" arrives buried in noise. The SCM prior's tasks
+are cleanly solvable, so the same signal arrives intact.
+
+This generalises §62's per-column-separability candidate from a property of single columns to a
+property of the whole task, and it explains §58's dose-response without further assumption:
+raising the SCM share raises the fraction of high-SNR tasks. It is also §42 again — that
+finding fixed a prior clamped to a narrow *difficulty* band, and this is the same variable
+seen from the learning side rather than the sampling side.
+
+**Three points is not a curve.** The ordering is consistent and the mechanism is plausible, but
+this is a correlation over three priors and should be treated as a hypothesis with one
+falsification already behind it, not a law. The causal test is to raise the financial prior's
+SNR while holding its structure fixed, and measure whether teaching follows.
+
+### The separate observation, and it may matter more
+
+**V4FinBench's identity advantage is +0.0009. Every prior we train on is between 150x and 330x
+higher.** Our priors demand a capability the target barely uses, and conversely offer little
+practice at whatever credit data actually rewards — which, since order statistics reach 0.9985
+there, is extracting a great deal from a symmetric summary of a firm's standardised ratios.
+
+That is a prior-target mismatch on a measurable axis, it was invisible until this metric
+existed, and it reframes §59: the §54 encoder fix bought 0.0071 AUC on V4FinBench not because
+the fix was small but because **the benchmark is a task where column identity is nearly
+worthless**. Whether that generalises to credit data at large, or is specific to this panel's
+131 heavily-engineered ratios, is unknown and worth knowing before the next prior is designed.
+
+## 65. Signal-to-noise is falsified too: five explanations eliminated, the financial prior still will not teach
+
+**Date:** 2026-09-11. **MEASURED.** **Second registered prediction of the day, also falsified.**
+
+§64 proposed that what a prior teaches tracks how learnable its tasks are, and named the causal
+test: raise the financial prior's signal-to-noise while holding its structure fixed. That test
+was specified, `sharpness_min` was made configurable for it, the manipulation was verified to
+work *before* the run, and the prediction — antisymmetric probe ≳0.93 — was written down first.
+
+| arm | prior raw AUC | antisymmetric probe |
+| --- | --- | --- |
+| financial, default envelope | 0.7276 | 0.5352 |
+| financial, balanced base rate (§62) | 0.7434 | 0.5669 |
+| **financial, sharpened (`configs/sharp-financial.yaml`)** | **0.8885** | **0.5861** |
+| generic SCM | 0.8306 | **0.9932** |
+| trivial | 0.9912 | **0.9995** |
+
+**The sharpened financial prior is now more learnable than the generic SCM prior — 0.8885
+against 0.8306 — and still teaches at 0.586 against 0.993.** The correlation §64 reported over
+three points does not survive a fourth placed deliberately to break it.
+
+All three financial arms sit at 0.535-0.586 regardless of base rate, sharpness, or density. The
+constant is the generator.
+
+### The elimination table
+
+| explanation | measured | verdict |
+| --- | --- | --- |
+| task width | 70 columns against 68 | eliminated (§58) |
+| dilution by uninformative columns | 77.7% informative against 80.0% | eliminated (§58) |
+| base rate | 0.021 raised to 0.401, probe +0.03 | eliminated (§62) |
+| how much column identity tasks demand | +0.1480 against +0.1425 | eliminated (§64) |
+| learnability / signal-to-noise | raised to 0.8885, probe +0.05 | **eliminated here** |
+| near-duplicate columns | 11.7% against 4.0% | weak, wrong direction for rank |
+| overall correlation | effective rank 25.8 against 18.3 — financial is *less* correlated | weak |
+| missingness | 6.8% against 4.4% | too small |
+
+The last three are measured but none is a plausible cause of a 0.41 gap on the probe. Note the
+missingness figure **corrects §58 and §62**, which recorded 8.9% against 0.0%: measured properly
+over real columns rather than the padded matrix, the SCM prior has missing cells too, so the
+"missingness" candidate those findings named was overstated.
+
+### What remains
+
+The one structural difference not yet excluded is **how concentrated the label's dependence
+is**. An SCM generates its target from a few specific parent nodes, with other columns merely
+correlated downstream; the financial generator builds a distress score as a weighted sum over
+many drivers. If any reasonable weighting of a diffuse driver set predicts nearly as well as
+the true one, there is no pressure to identify any particular column — which would produce
+exactly this: tasks that *demand* identity by the order-statistic measure (§64) while never
+*rewarding* the effort of acquiring it.
+
+That is measurable as the AUC lost by deleting the single best column, and it is the next test.
+
+### Why this finding is worth its space
+
+Two predictions registered in advance, both falsified, on the same afternoon. That is the
+process working: §59, §60 and §61 each had to be retracted *after* being drafted as
+conclusions, and the difference here is that the failure cost one 70-minute run instead of a
+retraction. The elimination table is a genuine asset — five named, measured, closed
+explanations — even though it does not yet contain the answer.
+
+The honest status is: **we do not know why the financial prior will not teach
+column-specific in-context inference**, and the space of cheap explanations is nearly exhausted.
+
+## 66. Seven explanations eliminated, and the pattern is a discontinuity — so stop testing task statistics
+
+**Date:** 2026-09-11. **MEASURED**, and the useful content is a closed list plus a redirection.
+
+§65 left one structural candidate: how concentrated the label's dependence is. Two further
+measurements killed it and killed its successor.
+
+**Concentration of the label's dependence** — AUC lost by deleting the single best column,
+stratified splits:
+
+| prior | AUC lost | teaches |
+| --- | --- | --- |
+| financial | +0.0297 | 0.5352 |
+| generic SCM | **+0.0099** | **0.9932** |
+| trivial | +0.2419 | 0.9995 |
+
+Backwards: the SCM prior's label is the *least* concentrated and it teaches best.
+
+**How much in-context inference is worth** — a model trained across 40 tasks scored on held-out
+tasks, against a model fitted per task:
+
+| prior | global | per-task | gap | teaches |
+| --- | --- | --- | --- | --- |
+| financial, default | 0.4819 | 0.7200 | +0.2381 | 0.5352 |
+| **financial, sharpened** | 0.4965 | 0.8571 | **+0.3607** | **0.5861** |
+| generic SCM | 0.4485 | 0.9168 | +0.4683 | 0.9932 |
+| trivial | 0.4983 | 0.9874 | +0.4891 | 0.9995 |
+
+The first three rows look like a clean monotone story. The sharpened arm was measured
+specifically to break it and does: its gap is nearer the SCM prior's than the default financial
+prior's, and it teaches like the financial prior.
+
+Worth keeping from this table anyway: **a global predictor is at chance (0.45-0.50) on every
+prior**, so no prior here is solvable without conditioning on the context. The §47 failure mode
+is gone from all of them.
+
+### The closed list
+
+| explanation | measured | verdict |
+| --- | --- | --- |
+| task width | 70 against 68 columns | eliminated (§58) |
+| dilution by uninformative columns | 77.7% against 80.0% | eliminated (§58) |
+| base rate | 0.021 raised to 0.401 | eliminated (§62) |
+| column-identity demand | +0.1480 against +0.1425 | eliminated (§64) |
+| learnability / signal-to-noise | raised to 0.8885, above SCM's 0.8306 | eliminated (§65) |
+| concentration of label dependence | +0.0297 against +0.0099, wrong direction | **eliminated** |
+| value of in-context inference | +0.3607 against +0.4683, sharp arm breaks it | **eliminated** |
+| near-duplicate columns, effective rank, missingness | all small or wrong-signed | implausible (§65) |
+
+### Why the next test should not be another task statistic
+
+Three financial arms — default, balanced, sharpened — span base rates 0.021 to 0.401,
+learnability 0.7276 to 0.8885, and in-context value 0.238 to 0.361. **All three teach between
+0.535 and 0.586.** The generic SCM prior teaches 0.9932. That is a *discontinuity*, and seven
+attempts to find a continuous task property that crosses it have failed.
+
+What differs categorically is the **functional form of the generator**. Every financial task is
+a monotone function of a linear combination of latent drivers, then pushed through accounting
+identities; every SCM task is a freshly sampled computational graph with nonlinear activations,
+discretisation and tree-structured rules. One family, versus a distribution over families.
+
+### The experiment that isolates it
+
+A **crossed design**, which no measurement so far has run: take the two generators' *features*
+and their *label functions* and combine them.
+
+| | financial label | SCM label |
+| --- | --- | --- |
+| **financial features** | current financial prior (teaches 0.535) | ? |
+| **SCM features** | ? | current SCM prior (teaches 0.993) |
+
+If the off-diagonal cells follow the **label function**, the financial generator's single
+functional family is the cause and the fix is functional diversity over financial-shaped data.
+If they follow the **features**, the accounting identities are the cause and the trade is
+sharper, because those identities are what makes it a financial prior at all.
+
+Either answer is actionable and the design is the cheapest way to get one, because it changes
+one factor at a time across a boundary that seven continuous properties failed to cross.
+
+**Status, stated plainly: unknown, and now well-bounded.** Seven named explanations are closed
+with measurements behind each. That is worth more than an eighth guess.
