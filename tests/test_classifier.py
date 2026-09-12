@@ -319,8 +319,10 @@ def test_ensembling_recovers_column_order_invariance():
     Xq = rng.normal(size=(40, 6)).astype(np.float32)
 
     def gap(n_ensemble):
-        kw = dict(max_context=120, context_strategy="uniform", feature_transform="none",
-                  n_ensemble=n_ensemble, random_state=0)
+        kw = {
+            "max_context": 120, "context_strategy": "uniform", "feature_transform": "none",
+            "n_ensemble": n_ensemble, "random_state": 0,
+        }
         a = FinancialTFMClassifier(model, **kw).fit(X, y).predict_proba(Xq)[:, 1]
         b = FinancialTFMClassifier(model, **kw).fit(X[:, perm], y).predict_proba(Xq[:, perm])[:, 1]
         return float(np.abs(a - b).mean())

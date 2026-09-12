@@ -448,8 +448,10 @@ def test_row_encoder_can_tell_its_own_columns_apart(n_ctx):
     """
     from fintfm.modeling.model import FinancialTFM, ModelConfig
 
-    base = dict(max_features=8, max_classes=2, d_cell=16, d_model=32, n_heads=2,
-                n_col_layers=1, n_layers=2, d_ff=64)
+    base = {
+        "max_features": 8, "max_classes": 2, "d_cell": 16, "d_model": 32, "n_heads": 2,
+        "n_col_layers": 1, "n_layers": 2, "d_ff": 64,
+    }
     n_rows, n_feat = n_ctx * 2, 6
 
     def sensitivity(model):

@@ -509,11 +509,14 @@ def summarise(record: dict) -> str:
         )
     lines += [
         "",
-        "ROC-AUC and F1 are their protocol's metrics. AP (average precision) and F1-oracle "
-        "are OURS and are not comparable to their table: at this base rate ROC-AUC is "
-        "dominated by the negative majority, and F1-oracle tunes the threshold on test, so "
-        "it is an upper bound rather than a score. Read `F1-oracle - F1` as how much was "
-        "lost in transferring the threshold (docs/FINDINGS.md §59).",
+        (
+            "ROC-AUC and F1 are their protocol's metrics. AP (average precision) and "
+            "F1-oracle are OURS and are not comparable to their table: at this base rate "
+            "ROC-AUC is dominated by the negative majority, and F1-oracle tunes the "
+            "threshold on test, so it is an upper bound rather than a score. Read "
+            "`F1-oracle - F1` as how much was lost in transferring the threshold "
+            "(docs/FINDINGS.md §59)."
+        ),
     ]
     tuned = c.get("tuned", False)
     lines += [
