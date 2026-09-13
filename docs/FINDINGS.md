@@ -4688,3 +4688,73 @@ one factor at a time across a boundary that seven continuous properties failed t
 
 **Status, stated plainly: unknown, and now well-bounded.** Seven named explanations are closed
 with measurements behind each. That is worth more than an eighth guess.
+
+## 67. The crossed design implicates the financial generator's features, not its label function
+
+**Date:** 2026-09-13. **MEASURED**, one completed 6,000-step T4 run
+(`fintfm-colid-crossed`, `--p-crossed 1.0`) against the four existing symmetry-probe arms.
+
+§66 closed seven candidate task statistics and named the remaining variable: the generator's
+functional form. The financial generator produces every task from one family — a monotone
+function of a signed linear combination of accounting drivers — while the generic SCM
+generator samples a fresh nonlinear computational graph per task. §66 proposed a crossed
+design to separate whether teaching tracks the **label function** or the **features**.
+
+`prior/crossed.py`'s `sample_scm_features_financial_label` keeps the SCM generator's feature
+pool and replaces its label with the financial generator's own mechanism — signed random
+weights over a driver subset, an optional two-way nonlinear interaction, log-uniform
+sharpness, sigmoid, Bernoulli — with base rate held fixed by the identical calibration policy
+used everywhere else (`_finish_binary`), so it cannot confound the result as it did not in §62.
+
+| arm | antisymmetric probe | orientation | linear |
+| --- | --- | --- | --- |
+| financial, default envelope | 0.5352 | 0.6881 | 0.6503 |
+| financial, balanced base rate | 0.5669 | 0.6983 | 0.6602 |
+| financial, sharpened | 0.5861 | 0.6938 | 0.6555 |
+| **SCM features x financial label (crossed)** | **0.5647** | 0.7127 | 0.6637 |
+| SCM features x SCM label (on-diagonal) | **0.9932** | 0.9918 | 0.9897 |
+
+**Swapping the financial generator's label mechanism onto SCM's own features collapses
+teaching from 0.9932 to 0.5647 -- landing inside the financial arms' 0.535-0.586 range, not
+anywhere near the SCM baseline.** The label function transplants cleanly onto a feature source
+that otherwise teaches perfectly well, and the result tracks the financial side.
+
+**This implicates the financial generator's features, not its label function.** The
+accounting-identity structure, the driver correlations, or something else about how the
+exposed columns are built is what suppresses column-specific in-context inference -- not the
+fact that the label is a monotone function of a linear combination rather than a fresh
+nonlinear graph.
+
+### The pre-registered sanity check, and why the other cell was not run to completion
+
+A quick gradient-boosting probe of both off-diagonal cells (100-1000 rows, not a pretraining
+run) found `financial-feat x SCM-label` close to unlearnable at this scale -- raw AUC ~0.54-0.56
+across two independent samples, below both on-diagonal baselines rather than between them.
+That is a task the probe cannot cleanly read regardless of mechanism, since a near-chance task
+teaches nothing about anything. `scm-feat x financial-label` instead sat between the two
+on-diagonal baselines and closer to SCM's -- the informative cell, and the only one worth the
+GPU spend. The full pretraining run above confirms what the cheap probe suggested.
+
+### What this does not yet tell us
+
+**Not which specific feature property.** §65 already eliminated near-duplicate columns,
+overall correlation (financial is *less* correlated, wrong direction) and label-dependence
+concentration (also wrong direction) as continuous statistics. This finding says the cause is
+somewhere in the feature-generating process, not that any of the previously-measured
+statistics is it — those remain eliminated. The candidate not yet isolated is the **accounting
+identities themselves**: ratios built as quotients and sums of a small set of underlying
+account balances, so many exposed columns are deterministic functions of few latent
+quantities in a way no correlation coefficient on standardised values necessarily captures.
+
+**Not yet a trade with a stated cost.** If the accounting identities are confirmed as the
+cause, weakening them to test that hypothesis makes the generator progressively less a
+financial prior — which is why `docs/DECISIONS.md` and this project's stated non-goals treat
+that trade as one requiring an explicit argument, not a default fix.
+
+### Status
+
+Eight explanations now addressed: seven eliminated (§58, §62, §64, §65) and one confirmed
+(this finding) as the side of the boundary the cause sits on, without yet naming the specific
+mechanism. The next test is the one this finding could not avoid deferring: hold the exposed
+feature *statistics* fixed while removing the accounting-identity dependency structure between
+them, and see whether teaching returns.

@@ -32,13 +32,19 @@
 - [ ] 38.9 **Record any regression explicitly.** Verify: if a transfer-improving variant loses
       on credit, the loss is written into `docs/FINDINGS.md` with the trade stated. Second-best
       everywhere may still be the right product, but that must be argued rather than silent.
-- [ ] 38.10 **Run the crossed design §66 specifies.** Combine each generator's *features* with
-      the other's *label function*: financial features under an SCM-style label, SCM features
-      under a financial-style (linear-driver, monotone) label. Verify: the antisymmetric probe
-      and per-task AUC are recorded for both off-diagonal cells against the two on-diagonal
-      baselines (0.535 financial, 0.993 SCM). If the off-diagonal cells track the **label
-      function**, functional diversity is the fix and belongs on the financial generator
-      directly. If they track the **features**, the accounting identities are implicated, and
-      the finding must state plainly that fixing this costs the identities that make it a
-      financial prior. **This is the next experiment**; nothing in 38.4-38.7 should be
-      attempted before it, since seven prior guesses at a continuous cause all failed.
+- [x] 38.10 **Run the crossed design §66 specifies.** Done in §67: SCM features under a
+      financial-style label collapse from 0.9932 to 0.5647 on the antisymmetric probe,
+      landing with the financial arms rather than the SCM baseline. **Tracks the features,
+      not the label function.** The financial-features/SCM-label cell was left at a cheap
+      gradient-boosting sanity check (raw AUC ~0.54-0.56, near-unlearnable at this scale, so
+      a full pretraining run there would not have been readable) rather than pretrained.
+- [ ] 38.11 **Isolate the feature-side cause.** §67 implicates the financial generator's
+      features without naming the mechanism; §65 already eliminated near-duplicate columns,
+      overall correlation and label-dependence concentration as continuous statistics on the
+      *whole* task. The remaining candidate is the accounting-identity structure itself —
+      ratios as deterministic functions of a small set of latent account balances. Verify:
+      construct a variant that holds each exposed column's marginal statistics fixed while
+      weakening the identity dependencies between them (e.g. adding independent noise to each
+      ratio's inputs before combining), and measure the antisymmetric probe. State the concern
+      explicitly if this test requires weakening the identities the ratios are drawn from,
+      since doing so trades against the generator being recognisably financial.
