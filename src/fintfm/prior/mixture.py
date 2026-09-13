@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from fintfm.prior.base import Task, TaskBatch, collate
+from fintfm.prior.crossed import sample_scm_features_financial_label
 from fintfm.prior.financial import (
     _ABSOLUTE_RATE_FLOOR,
     _N_SECTORS,
@@ -33,6 +34,15 @@ class PriorConfig:
             control of ``prior/trivial.py``: it answers whether the architecture can learn
             in-context prediction at all (``docs/FINDINGS.md`` §53), and a prior made only of
             trivial tasks would teach nothing about abstention.
+        p_crossed: Probability of drawing a **crossed-design** task instead —
+            ``prior/crossed.py``'s ``sample_scm_features_financial_label``: the generic SCM
+            prior's feature-generating computational graph, labelled with the financial
+            prior's signed-linear-driver mechanism instead of a fresh SCM label node. Zero by
+            default. Diagnostic for ``docs/FINDINGS.md`` §66: isolates whether the financial
+            prior's failure to teach column-specific in-context inference tracks its
+            *features* or its *label function*, after seven other candidates were eliminated.
+            A prior made only of crossed tasks is not a candidate for production; see
+            ``prior/crossed.py``'s module docstring.
         n_rows: Rows per task (context + query).
         min_ctx_frac / max_ctx_frac: Range for the context fraction of ``n_rows``.
         n_rows_choices: When set, each *batch* draws its task size from this tuple instead of
@@ -61,6 +71,7 @@ class PriorConfig:
     max_classes: int = 10
     p_financial: float = 0.7
     p_trivial: float = 0.0
+    p_crossed: float = 0.0
     n_rows: int = 256
     min_ctx_frac: float = 0.3
     max_ctx_frac: float = 0.9
@@ -89,6 +100,13 @@ def sample_task(rng: np.random.Generator, cfg: PriorConfig, n_rows: int | None =
         )
     if cfg.p_trivial and rng.random() < cfg.p_trivial:
         return sample_trivial_task(rng, n, max_features=min(8, cfg.max_features))
+    if cfg.p_crossed and rng.random() < cfg.p_crossed:
+        return sample_scm_features_financial_label(
+            rng, n, max_features=cfg.max_features,
+            min_expected_positives=cfg.min_expected_positives,
+            absolute_rate_floor=cfg.absolute_rate_floor, rate_ceiling=cfg.rate_ceiling,
+            sharpness_min=cfg.sharpness_min, sharpness_max=cfg.sharpness_max,
+        )
     if rng.random() < cfg.p_financial:
         return sample_financial_task(
             rng,

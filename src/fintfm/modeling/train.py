@@ -222,6 +222,12 @@ def main() -> None:
              "that separates 'our prior is too hard' from 'the model cannot learn'",
     )
     p.add_argument(
+        "--p-crossed", type=float, default=0.0,
+        help="probability of a crossed-design task (docs/FINDINGS.md §66, prior/crossed.py): "
+             "SCM features under the financial prior's label mechanism, isolating whether the "
+             "financial prior's teaching failure tracks its features or its label function",
+    )
+    p.add_argument(
         "--p-financial", type=float, default=None,
         help="probability of drawing a financial rather than a generic SCM task; the "
              "survival objective forces 1.0 regardless (docs/FINDINGS.md §14)",
@@ -298,6 +304,7 @@ def main() -> None:
         ),
         n_horizons=args.n_horizons,
         p_trivial=args.p_trivial,
+        p_crossed=args.p_crossed,
         # the default-rate envelope comes from configuration, because a prior that cannot
         # generate the regime being evaluated is the defect behind docs/FINDINGS.md §26
         sharpness_min=cfg.prior.sharpness_min,
