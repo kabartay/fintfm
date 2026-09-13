@@ -37,7 +37,7 @@ def test_inference_section_matches_the_classifier_defaults():
     for name in (
         "max_context", "context_strategy", "feature_transform", "correct_prior",
         "query_chunk", "retrieval_groups", "retrieval_min_positive",
-        "prototype_minority_ratio",
+        "prototype_minority_ratio", "n_ensemble",
     ):
         assert sig.parameters[name].default == getattr(cfg, name), (
             f"{name}: classifier default {sig.parameters[name].default!r} disagrees with "

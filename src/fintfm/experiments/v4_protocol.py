@@ -381,6 +381,7 @@ def run(
                 max_context=cfg.inference.max_context,
                 context_strategy=cfg.inference.context_strategy,
                 feature_transform=cfg.inference.feature_transform,
+                n_ensemble=cfg.inference.n_ensemble,
                 random_state=fold,
             ).fit(Xtr.astype(np.float32), y[tr])
             arms["fintfm"] = (
@@ -481,6 +482,7 @@ def run(
             "context_strategy": cfg.inference.context_strategy,
             "feature_transform": cfg.inference.feature_transform,
             "max_context": cfg.inference.max_context,
+            "n_ensemble": cfg.inference.n_ensemble,
             "config_sources": list(cfg.sources),
         },
         "arms": [asdict(s) for s in summaries],

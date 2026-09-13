@@ -1,0 +1,27 @@
+# fintfm scored with its own context-quality levers turned on, instead of at their defaults.
+#
+# WHY THIS EXISTS. `docs/FINDINGS.md` §69 ran the V4FinBench protocol at five tuned folds and
+# found fintfm tied with logistic regression and clearly behind all three gradient boosters
+# (Holm p<0.001 each). That comparison scored fintfm at context_strategy=uniform,
+# n_ensemble=1, max_context=2000 -- the library defaults, none of which are what this
+# repository's own measurements say is best for an imbalanced credit panel:
+#
+#   * retrieval context (§32): measured +0.066 to +0.095 AUC on this exact protocol, unused
+#     in the §69 comparison entirely.
+#   * n_ensemble > 1 (D12): the STATED mitigation for the column-order invariance random
+#     column identities trade away. A single member (n_ensemble=1) is the configuration D12's
+#     own text calls incomplete, and it is what scored every checkpoint in this repository's
+#     real-data comparisons so far.
+#   * max_context (this file): the training pool is 63,588 rows per fold; a 2,000-row uniform
+#     context draws roughly 8 of the ~240 available positives. Retrieval already targets
+#     relevant rows rather than a uniform sample, so raising max_context alongside it lets
+#     retrieval draw from a wider pool without being capped before it can be selective.
+#
+# Task 38.12 (`openspec/changes/cross-domain-coverage`): re-score the identical five folds
+# with these levers on, using the identical paired-bootstrap methodology as §69, so the
+# before/after is a direct comparison rather than a new baseline.
+
+inference:
+  context_strategy: retrieval
+  max_context: 4000
+  n_ensemble: 8

@@ -30,6 +30,7 @@ inference:
   max_context: 2000
   context_strategy: uniform      # docs/DECISIONS.md D10; was "balanced" before 2026-09-09
   feature_transform: rank        # docs/FINDINGS.md §35
+  n_ensemble: 1                  # D12's stated mitigation for the column-order invariance
   correct_prior: true
   query_chunk: 2048
   retrieval_groups: 64

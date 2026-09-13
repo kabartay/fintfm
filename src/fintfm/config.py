@@ -58,6 +58,7 @@ class InferenceConfig:
     max_context: int = 2000
     context_strategy: str = "uniform"
     feature_transform: str = "rank"
+    n_ensemble: int = 1
     correct_prior: bool = True
     query_chunk: int = 2048
     retrieval_groups: int = 64
