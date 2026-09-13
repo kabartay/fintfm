@@ -4918,3 +4918,58 @@ Whether 0.2116 closes a meaningful fraction of the gap to the tuned boosters (0.
 §69) once measured properly across all five folds with a paired bootstrap. One fold and one
 seed is exactly the standard this project has repeatedly found insufficient (§60, §65); the
 next step is the five-fold run, not a conclusion from this table.
+
+## 71. The lever fix is real: +0.031 AP, significant, and still short of the boosters
+
+**Date:** 2026-09-13. **MEASURED**, all five V4FinBench folds, fintfm re-scored with §70's
+corrected configuration (`context_strategy="uniform"`, `n_ensemble=8`, `max_context=4000`)
+against the identical rows and the same tuned baseline predictions saved from §69 (row
+equality asserted per fold before pooling, so this is a same-data comparison).
+
+§70's single-fold result (0.1853 to 0.2116) was optimistic. Per fold, the corrected config
+won on 3 of 5 and lost narrowly on 2:
+
+| fold | S70 config | S69 config |
+| --- | --- | --- |
+| 0 | 0.2116 | 0.1853 |
+| 1 | 0.2020 | 0.2083 |
+| 2 | 0.1184 | 0.1208 |
+| 3 | 0.1930 | 0.1794 |
+| 4 | 0.1527 | 0.1450 |
+
+Pooled across all five (n=105,900, 402 positives), paired bootstrap, Holm-adjusted:
+
+| comparison | dAP | 95% CI | Holm p | verdict |
+| --- | --- | --- | --- | --- |
+| S70 config vs S69 config (fintfm, same checkpoint) | **+0.0311** | [+0.0142, +0.0501] | <0.001 | **DIFFERENT** |
+| S70 config vs logistic_regression | +0.0183 | [-0.0105, +0.0488] | 0.204 | indistinguishable |
+| S70 config vs lightgbm | -0.1400 | [-0.1812, -0.1007] | <0.001 | **DIFFERENT** |
+| S70 config vs catboost | -0.1749 | [-0.2120, -0.1378] | <0.001 | **DIFFERENT** |
+| S70 config vs xgboost | -0.1730 | [-0.2134, -0.1329] | <0.001 | **DIFFERENT** |
+
+**The fold-to-fold variance was real, and the pooled effect is real too.** Dropping retrieval
+and turning on `n_ensemble=8` plus a wider `max_context` improves fintfm's AP from 0.1365 to
+0.1676, and this is the first configuration-only change all session to clear a five-fold
+paired bootstrap at conventional significance.
+
+**It changes the standing versus logistic regression** from a tie (§69: dAP -0.0127, p=0.309)
+to a numerical lead that does not yet clear significance (dAP +0.0183, p=0.204). Worth another
+data point before calling it resolved either way.
+
+**It does not touch the booster gap.** -0.14 to -0.17 AP against all three, all p<0.001. §69's
+central finding is unchanged: on a properly tuned comparison, fintfm is clearly behind
+LightGBM, CatBoost and XGBoost on this benchmark.
+
+### Status of task 38.12
+
+Closed as "partial win, quantified." The gap was never purely architectural — a meaningful
+slice of it (§69's untested-defaults gap) was inference configuration, and that slice is now
+measured at +0.031 AP. What remains after fixing it is +0.14 to +0.17 AP against the boosters,
+which is the honest size of whatever gap is left to close by other means (fine-tuning,
+architecture, or prior work).
+
+### Open thread
+
+Why retrieval hurts here and helped in §32 is still unexplained (§70). Worth chasing if
+retrieval's mechanism can be fixed rather than disabled, since disabling it forgoes whatever
+its intended benefit was.

@@ -30,14 +30,22 @@
       doubling from untuned). Confirms §60's caveat that the untuned gap understated the
       boosters' lead. Raises a new task below rather than closing the question: none of
       fintfm's own context-quality levers were engaged for this comparison.
-- [ ] 38.12 **Re-score V4FinBench with fintfm's own levers turned on** before concluding the
-      §69 gap is architectural. Retrieval context strategy (§32: +0.066 to +0.095 AUC measured
-      on this exact protocol), `n_ensemble > 1` with distinct `column_id_seed` per member
-      (D12's stated mitigation, never applied to a real-data comparison), and a `max_context`
-      sweep given the training pool is 63,588 rows against a 2,000-row context. Verify: same
-      five folds, same paired-bootstrap methodology as §69, so the *before* and *after* are
-      directly comparable. If this closes most of the gap to the boosters, §69's reading
-      changes from "architectural deficit" to "unfair comparison, now fixed."
+- [x] 38.12 **Re-score V4FinBench with fintfm's own levers turned on.** Done in §70-§71.
+      Retrieval actively hurt (§70: -0.133 AP alone on one fold, not rescued by the other two
+      levers). Dropping retrieval and keeping `n_ensemble=8` + `max_context=4000` gave a real,
+      five-fold, paired-bootstrap-significant gain of +0.0311 AP (§71: Holm p<0.001) — the
+      first configuration-only change all session to clear significance. It changes the
+      standing vs logistic regression from a tie to a numerical (not yet significant) lead,
+      and leaves -0.14 to -0.17 AP against all three tuned boosters, still significant. So the
+      §69 gap was *partly* configurational (now fixed, +0.031 AP recovered) and remains mostly
+      real: the boosters are not caught by inference-side fixes alone.
+- [ ] 38.13 **Chase why retrieval hurts here.** §70 found retrieval alone drops AP by 0.133,
+      opposite the +0.066 to +0.095 AUC gain §32 measured on this same protocol. Not yet
+      isolated: candidate mechanism is retrieval's per-group logit correction or
+      `retrieval_min_positive=8` behaving differently at 79 positives across 63,588 rows than
+      whatever denser regime §32 measured. Verify: if the mechanism is found and fixable,
+      re-measure whether retrieval (fixed) beats `n_ensemble` + `max_context` alone; if not,
+      record retrieval as regime-dependent and move on rather than disabling it silently.
 - [ ] 38.9 **Record any regression explicitly.** Verify: if a transfer-improving variant loses
       on credit, the loss is written into `docs/FINDINGS.md` with the trade stated. Second-best
       everywhere may still be the right product, but that must be argued rather than silent.
