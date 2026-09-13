@@ -4811,3 +4811,55 @@ larger change than the screen attempted.
 finding narrows what a valid follow-up test must look like and rules out the cheap version of
 it, rather than ruling out the hypothesis itself. Task 38.11 is revised to specify the
 account-level perturbation rather than the column-level one.
+
+## 69. Five folds, properly tuned: fintfm ties logistic regression and loses clearly to all three boosters
+
+**Date:** 2026-09-13. **MEASURED**, V4FinBench published protocol, all 5 folds, `--tune`
+(baselines grid-searched on the validation fold per their Table 5). Closes task 38.8, which
+every quoted number since §60 was waiting on.
+
+Pooled across all 105,900 rows and 402 positives (prevalence 0.380%, identical to §60's fold),
+with a paired bootstrap over 2,000 resamples, Holm-adjusted across the family of four:
+
+| arm | AP | fintfm vs it: dAP | 95% CI | Holm p | verdict |
+| --- | --- | --- | --- | --- | --- |
+| catboost | 0.3425 | -0.2059 | [-0.2455, -0.1697] | <0.001 | **DIFFERENT** |
+| xgboost | 0.3406 | -0.2041 | [-0.2458, -0.1647] | <0.001 | **DIFFERENT** |
+| lightgbm | 0.3076 | -0.1711 | [-0.2116, -0.1355] | <0.001 | **DIFFERENT** |
+| logistic_regression | 0.1493 | -0.0127 | [-0.0363, +0.0120] | 0.309 | indistinguishable |
+| **fintfm** | **0.1365** | -- | -- | -- | -- |
+
+**The tie with logistic regression survives properly tuned baselines and five folds.** §60
+found the same tie on one untuned fold; pooling five tuned folds narrows the interval and it
+still crosses zero.
+
+**What changed is the boosters.** Untuned (§60), only CatBoost's lead was significant --
+LightGBM and XGBoost were statistically indistinguishable from fintfm on one fold. Tuned, all
+three separate from fintfm with Holm p < 0.001, and CatBoost's gap **roughly doubled**, from
+-0.1457 untuned to -0.2059 tuned. §60's caveat -- "the gap to CatBoost and XGBoost is, if
+anything, understated" by using untuned baselines -- is now a measured fact rather than a
+caveat.
+
+### Why tuning mattered for the boosters and not for us
+
+Grid search finds each booster's operating point on *this exact panel*. fintfm has no
+comparable step: it is scored zero-shot, with a fixed context strategy (`uniform`),
+`max_context=2000`, and `n_ensemble=1` -- none of the machinery already in this codebase for
+improving in-context scoring (retrieval-based context, §32's measured +0.066 to +0.095 AUC
+gain; ensembling over context draws and column-identity seeds, D12's stated mitigation for
+exactly the invariance §54 traded away) was engaged for this comparison. Tuning the baselines
+and not tuning our own inference configuration is not a fair fight, and it is the most likely
+reason for the doubled gap.
+
+### What this settles and what it does not
+
+**Settles:** the honest ranking on V4FinBench horizon 0 is a two-way tie for last (fintfm,
+logistic regression) against a tuned three-way cluster (LightGBM, XGBoost, CatBoost) roughly
+2-2.5x higher on average precision. This is now a five-fold, tuned, paired-bootstrap result --
+the first number in this run of findings that clears every caveat stated against it.
+
+**Does not settle:** whether fintfm's own inference configuration is doing it justice. Every
+context-quality lever this codebase has built and measured -- retrieval, ensembling, feature
+transform choice -- was left at its default for this comparison. The next experiment is not
+another architecture or prior change; it is re-scoring this exact fold with those levers turned
+on, before concluding the gap to the boosters is architectural rather than configurational.

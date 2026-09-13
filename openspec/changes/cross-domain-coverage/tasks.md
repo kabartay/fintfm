@@ -24,11 +24,20 @@
 - [ ] 38.7 **Evaluate every candidate on two domains, not one.** Verify: each pretraining run
       above is scored on V4FinBench *and* a non-credit panel, with paired bootstrap intervals.
       A single-domain score cannot see the failure this proposal exists to fix.
-- [ ] 38.8 **Re-run the V4FinBench protocol properly before quoting anything**: five folds,
-      `--tune`, AP first per D13. Verify: every arm carries a fold-count, a paired bootstrap
-      interval against each baseline and a Holm-adjusted p-value, and the output no longer
-      prints the untuned-baselines warning. §60's caveats — one fold, 79 positives, untuned
-      baselines — make every number in §60-§63 directional only.
+- [x] 38.8 **Re-run the V4FinBench protocol properly before quoting anything**: five folds,
+      `--tune`, AP first per D13. Done in §69: fintfm ties logistic regression (Holm p=0.309)
+      and loses to all three tuned boosters (Holm p<0.001 each, CatBoost's gap roughly
+      doubling from untuned). Confirms §60's caveat that the untuned gap understated the
+      boosters' lead. Raises a new task below rather than closing the question: none of
+      fintfm's own context-quality levers were engaged for this comparison.
+- [ ] 38.12 **Re-score V4FinBench with fintfm's own levers turned on** before concluding the
+      §69 gap is architectural. Retrieval context strategy (§32: +0.066 to +0.095 AUC measured
+      on this exact protocol), `n_ensemble > 1` with distinct `column_id_seed` per member
+      (D12's stated mitigation, never applied to a real-data comparison), and a `max_context`
+      sweep given the training pool is 63,588 rows against a 2,000-row context. Verify: same
+      five folds, same paired-bootstrap methodology as §69, so the *before* and *after* are
+      directly comparable. If this closes most of the gap to the boosters, §69's reading
+      changes from "architectural deficit" to "unfair comparison, now fixed."
 - [ ] 38.9 **Record any regression explicitly.** Verify: if a transfer-improving variant loses
       on credit, the loss is written into `docs/FINDINGS.md` with the trade stated. Second-best
       everywhere may still be the right product, but that must be argued rather than silent.
