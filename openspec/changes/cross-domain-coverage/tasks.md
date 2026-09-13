@@ -42,9 +42,15 @@
       features without naming the mechanism; §65 already eliminated near-duplicate columns,
       overall correlation and label-dependence concentration as continuous statistics on the
       *whole* task. The remaining candidate is the accounting-identity structure itself —
-      ratios as deterministic functions of a small set of latent account balances. Verify:
-      construct a variant that holds each exposed column's marginal statistics fixed while
-      weakening the identity dependencies between them (e.g. adding independent noise to each
-      ratio's inputs before combining), and measure the antisymmetric probe. State the concern
-      explicitly if this test requires weakening the identities the ratios are drawn from,
-      since doing so trades against the generator being recognisably financial.
+      ratios as deterministic functions of a small set of latent account balances. §68: a
+      cheap screen adding post-hoc noise to the assembled feature matrix was tried and found
+      inconclusive (hump-shaped, an artefact of raw/sorted AUC both collapsing toward chance
+      as noise grows, not a clean identity-structure signal). **The valid design perturbs the
+      shared latent accounts before deriving ratios** — independent copies of an account for
+      each ratio that currently shares the literal array, preserving each account's own
+      marginal and its contribution to the label, breaking only the cross-ratio identity —
+      which requires modifying `_accounts`/`_ratio_family` directly rather than the assembled
+      `Task.X`. Verify: measure the antisymmetric probe on a pretrained checkpoint, not a
+      raw/sorted GB proxy alone, since §65 already showed such proxies can mislead. State the
+      concern explicitly if this test requires weakening the identities the ratios are drawn
+      from, since doing so trades against the generator being recognisably financial.

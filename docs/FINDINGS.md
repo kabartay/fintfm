@@ -4758,3 +4758,56 @@ Eight explanations now addressed: seven eliminated (§58, §62, §64, §65) and 
 mechanism. The next test is the one this finding could not avoid deferring: hold the exposed
 feature *statistics* fixed while removing the accounting-identity dependency structure between
 them, and see whether teaching returns.
+
+## 68. The identity-weakening screen is inconclusive — additive noise is not a clean test of §67's hypothesis
+
+**Date:** 2026-09-13. **MEASURED**, scratch-only screen (not committed as a prior variant),
+five noise scales, 12-16 tasks each.
+
+§67 implicated the financial generator's features and named the candidate: accounting-identity
+structure between exposed ratio columns. The cheap test tried was adding independent Gaussian
+noise to each exposed column, scaled to that column's own standard deviation, before scoring —
+intended to break exact algebraic ties (e.g. `leverage + equity_ratio = 1`) while leaving each
+column's individual relationship to the label diluted rather than destroyed.
+
+| perturb scale | raw AUC | sorted AUC | identity advantage |
+| --- | --- | --- | --- |
+| 0.0 (baseline) | 0.7508 | 0.6577 | +0.0931 |
+| 0.3 | 0.6750 | 0.5523 | +0.1227 |
+| 0.6 | 0.6775 | 0.5445 | +0.1331 |
+| 1.0 | 0.6158 | 0.5368 | +0.0791 |
+| 2.0 | 0.5710 | 0.5200 | +0.0510 |
+
+**Hump-shaped, not monotone.** Read naively at three points this looked like the predicted
+dose-response; the fourth and fifth points show both raw and sorted AUC converging toward
+chance (0.5) as noise grows, and "identity advantage" is the gap between two quantities
+collapsing to the same floor — which produces exactly this shape whether or not accounting
+identities are the true cause. **This screen cannot distinguish "breaking identities helps
+column-awareness" from "adding enough noise degrades everything, briefly favouring whichever
+representation degrades slower."**
+
+### Why the design was wrong, stated plainly
+
+Additive per-column noise degrades **both** the cross-column algebraic structure **and** each
+column's own marginal usefulness simultaneously, with no way to separate the two effects from
+the output alone. A clean test needs to hold each column's *individual* relationship to the
+label fixed while varying *only* the cross-column dependency structure — which post-hoc
+additive noise cannot do, because the noise itself is what erodes the individual signal.
+
+### What a valid design requires
+
+Perturb the **shared latent accounts** before deriving ratios, not the derived ratios
+themselves. Concretely: give each ratio's numerator and denominator independent copies of the
+underlying account (e.g. two decorrelated draws of `total_assets` for two different ratios that
+currently share the literal same array), calibrated to preserve each account's own marginal
+distribution and its own contribution to the label-generating drivers, while breaking only the
+literal shared-array identity between ratios. This requires modifying `_accounts` and
+`_ratio_family` directly rather than perturbing the assembled `Task.X`, and is accordingly a
+larger change than the screen attempted.
+
+### Status
+
+§67 stands: the crossed design cleanly implicated features over the label function. This
+finding narrows what a valid follow-up test must look like and rules out the cheap version of
+it, rather than ruling out the hypothesis itself. Task 38.11 is revised to specify the
+account-level perturbation rather than the column-level one.
