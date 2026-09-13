@@ -4863,3 +4863,58 @@ context-quality lever this codebase has built and measured -- retrieval, ensembl
 transform choice -- was left at its default for this comparison. The next experiment is not
 another architecture or prior change; it is re-scoring this exact fold with those levers turned
 on, before concluding the gap to the boosters is architectural rather than configurational.
+
+## 70. Retrieval sabotages fintfm on V4FinBench; ensembling and wider context each help, and stack to the best result yet
+
+**Date:** 2026-09-13. **MEASURED**, one fold (identical to §60/§69's fold 0: 63,588 train,
+20,917 test, 79 positives), six variants of an isolated fintfm-only comparison (no baseline
+fits, so the effect is attributable to the inference configuration alone), reproduced twice
+independently with identical results to four decimals.
+
+§69 scored fintfm at the classifier's library defaults — `context_strategy="uniform"`,
+`n_ensemble=1`, `max_context=2000` — and lost to all three tuned boosters. None of this
+project's own measured context-quality levers were engaged. Testing each in isolation and
+combination on the identical fold:
+
+| variant | AP | delta vs baseline | wall time |
+| --- | --- | --- | --- |
+| baseline (uniform, n_ens=1, ctx=2000) | 0.1853 | -- | 19s |
+| retrieval only | **0.0527** | **-0.133** | 68s |
+| n_ensemble=8 only | 0.2107 | +0.025 | 162s |
+| max_context=4000 only | 0.1982 | +0.013 | 35s |
+| retrieval + ctx=4000 | 0.1184 | -0.067 | 152s |
+| retrieval + n_ensemble=8 + ctx=4000 | 0.1225 | -0.063 | 1092s |
+| **n_ensemble=8 + ctx=4000, no retrieval** | **0.2116** | **+0.026** | 254s |
+
+**Retrieval alone drops AP by 0.133 — the opposite direction from `docs/FINDINGS.md` §32's
++0.066 to +0.095 AUC gain on the same protocol.** Widening the context partially offsets the
+damage (0.0527 to 0.1184) but no combination that includes retrieval recovers the baseline,
+let alone improves on it. **Dropping retrieval and keeping the other two levers reaches 0.2116
+-- the best AP measured for this checkpoint on this benchmark, and combining almost exactly
+additively** (0.1853 + 0.025 + 0.013 = 0.223 predicted, 0.2116 measured).
+
+### Why retrieval likely hurts here and did not in §32
+
+Not yet isolated, but the two measurements differ on the axis most likely to matter:
+prevalence. §32 measured retrieval's gain on the term-structure/hazard evaluation at a
+different, unrecorded base rate; this fold is 0.380%, with 79 positives spread across a
+63,588-row pool. Retrieval groups queries and retrieves per-group (`retrieval_groups=64`,
+`retrieval_min_positive=8` by default) — at this few positives, a retrieval group may draw a
+near-degenerate context, or the per-group logit correction may behave differently than at a
+denser base rate. This is a mechanism to chase, not yet a finding.
+
+### What is safe to conclude now
+
+**§69's comparison against the boosters used an inference configuration this project's own
+measurements say is actively harmful.** The honest re-run uses `context_strategy="uniform"`
+(not the codebase default's mention of retrieval as an improvement — that claim does not
+transfer to this regime), `n_ensemble=8`, `max_context=4000`. `configs/v4finbench-full-
+inference.yaml` is updated accordingly, with the retrieval reversal documented in its own
+header so a future reader does not repeat the same untested assumption.
+
+### What is not yet known
+
+Whether 0.2116 closes a meaningful fraction of the gap to the tuned boosters (0.31-0.34 AP,
+§69) once measured properly across all five folds with a paired bootstrap. One fold and one
+seed is exactly the standard this project has repeatedly found insufficient (§60, §65); the
+next step is the five-fold run, not a conclusion from this table.

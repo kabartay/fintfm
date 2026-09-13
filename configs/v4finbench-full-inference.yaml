@@ -17,11 +17,19 @@
 #     relevant rows rather than a uniform sample, so raising max_context alongside it lets
 #     retrieval draw from a wider pool without being capped before it can be selective.
 #
+# UPDATE (this file, 2026-09-13): the first version of this file used
+# context_strategy=retrieval. A single-fold isolation (`docs/FINDINGS.md` S70) found retrieval
+# actively HARMS AP here (0.1853 -> 0.0527 alone), and it is not rescued by the other two
+# levers -- retrieval + n_ensemble + max_context together score 0.1225, still below baseline.
+# n_ensemble and max_context each help on their own (+0.025, +0.013) and combined without
+# retrieval reach 0.2116, the best of every configuration tried. context_strategy is set to
+# uniform here, not retrieval, for that reason.
+#
 # Task 38.12 (`openspec/changes/cross-domain-coverage`): re-score the identical five folds
 # with these levers on, using the identical paired-bootstrap methodology as §69, so the
 # before/after is a direct comparison rather than a new baseline.
 
 inference:
-  context_strategy: retrieval
+  context_strategy: uniform
   max_context: 4000
   n_ensemble: 8
