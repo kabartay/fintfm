@@ -45,7 +45,11 @@ def _lr_schedule(step: int, cfg: TrainConfig) -> float:
 
 @torch.no_grad()
 def _eval_quality(
-    model: FinancialTFM, prior_cfg: PriorConfig, rng: np.random.Generator, n_batches: int = 5
+    model: FinancialTFM,
+    prior_cfg: PriorConfig,
+    rng: np.random.Generator,
+    n_batches: int = 5,
+    batch_size: int = 8,
 ) -> dict[str, float]:
     """Held-out quality on freshly sampled synthetic tasks, against a constant baseline.
 
@@ -83,6 +87,13 @@ def _eval_quality(
         prior_cfg: Prior configuration, so held-out tasks match training tasks.
         rng: Random generator.
         n_batches: Held-out batches to average over.
+        batch_size: Rows per held-out batch. **Must not exceed the training loop's own batch
+            size.** This was hardcoded to 16 regardless of the caller's training batch size
+            until a two-way-cell-attention run OOMed here specifically -- 16 is double the
+            usual training batch of 8, and a memory-heavier architecture that trains fine
+            hit CUDA OOM in *this* function alone, mid-run, at step 500 (task 39.4). Eval
+            evaluating at a batch size training was never proven to fit at is the bug; the
+            fix is to inherit training's own batch size, not to hand-tune a bigger one.
 
     Returns:
         ``{"auc": ..., "brier_skill": ..., "base_rate": ...}``. AUC is NaN when no held-out
@@ -94,7 +105,7 @@ def _eval_quality(
     model.eval()
     probs, targets, per_task = [], [], []
     for _ in range(n_batches):
-        batch = sample_batch(rng, prior_cfg, batch_size=16).to(device)
+        batch = sample_batch(rng, prior_cfg, batch_size=batch_size).to(device)
         logits = model(batch.X, batch.y, batch.n_ctx, batch.n_classes)[:, batch.n_ctx :]
         p_all = torch.softmax(logits.float(), dim=-1)
         # Per-task AUC, scored inside each task before anything is pooled. See the docstring:
@@ -192,7 +203,7 @@ def train(model_cfg: ModelConfig, prior_cfg: PriorConfig, train_cfg: TrainConfig
             model.save(partial, trained_objectives=tuple(sorted(objectives)))
             print(f"  checkpoint at step {step + 1}: {partial}", flush=True)
         if (step + 1) % train_cfg.eval_every == 0:
-            q = _eval_quality(model, prior_cfg, rng)
+            q = _eval_quality(model, prior_cfg, rng, batch_size=train_cfg.batch_size)
             print(
                 f"  held-out: AUC/task {q['auc_per_task']:.3f}  AUC pooled {q['auc']:.3f}"
                 f"  Brier skill vs base rate {q['brier_skill']:+.3f}"
