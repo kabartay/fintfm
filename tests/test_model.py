@@ -476,3 +476,103 @@ def test_row_encoder_can_tell_its_own_columns_apart(n_ctx):
     )
     # and the pre-fix architecture is recorded as failing it, so the test is known to bite
     assert sensitivity(without) < sensitivity(with_ids)
+
+
+def test_n_cell_blocks_zero_is_byte_identical_to_the_pre_39_1_architecture():
+    """The regression guarantee task 39.1 depends on: n_cell_blocks=0 must change nothing.
+
+    Every existing checkpoint was trained without this field. If it changed behaviour by
+    default, every prior comparison in this project (§54-§77) would be silently invalidated.
+    """
+    from fintfm.modeling.model import FinancialTFM, ModelConfig
+
+    base = {
+        "max_features": 8, "max_classes": 3, "d_cell": 16, "d_model": 32, "n_heads": 2,
+        "n_col_layers": 1, "n_layers": 2, "d_ff": 64,
+    }
+    X = torch.randn(2, 10, 8)
+    y = torch.randint(0, 3, (2, 10))
+    nc = torch.tensor([3, 3])
+
+    torch.manual_seed(1)
+    m_old = FinancialTFM(ModelConfig(**base)).eval()
+    torch.manual_seed(1)
+    m_new = FinancialTFM(ModelConfig(**base, n_cell_blocks=0)).eval()
+
+    with torch.no_grad():
+        a = m_old(X, y, 6, nc, column_id_seed=0)
+        b = m_new(X, y, 6, nc, column_id_seed=0)
+    torch.testing.assert_close(a, b, rtol=0, atol=0)
+
+
+@pytest.mark.parametrize("n_cell_blocks", [1, 2])
+@pytest.mark.parametrize("cell_labels", [False, True])
+def test_two_way_cell_attention_trains(n_cell_blocks, cell_labels):
+    """Shapes, gradients and parameter coverage for task 39.1/39.2, before any GPU spend.
+
+    Not a claim that this fixes anything (docs/FINDINGS.md §74, §76) -- only that the new
+    path is mechanically sound: correct output shape, every parameter receives a finite
+    gradient, nothing silently detached from the graph.
+    """
+    from fintfm.modeling.model import FinancialTFM, ModelConfig
+
+    base = {
+        "max_features": 8, "max_classes": 3, "d_cell": 16, "d_model": 32, "n_heads": 2,
+        "n_col_layers": 1, "n_layers": 2, "d_ff": 64,
+    }
+    X = torch.randn(2, 10, 8)
+    y = torch.randint(0, 3, (2, 10))
+    nc = torch.tensor([3, 3])
+
+    torch.manual_seed(2)
+    model = FinancialTFM(
+        ModelConfig(**base, n_cell_blocks=n_cell_blocks, cell_labels=cell_labels)
+    )
+    out = model(X, y, 6, nc)
+    assert out.shape == (2, 10, 3)
+
+    loss = model.loss(X, y, 6, nc)
+    loss.backward()
+    for name, p in model.named_parameters():
+        assert p.grad is not None, f"{name} received no gradient"
+        assert torch.isfinite(p.grad).all(), f"{name} has a non-finite gradient"
+
+
+def test_cell_labels_ignored_without_n_cell_blocks():
+    """cell_labels=True with n_cell_blocks=0 must not silently build unused parameters."""
+    from fintfm.modeling.model import FinancialTFM, ModelConfig
+
+    base = {
+        "max_features": 8, "max_classes": 3, "d_cell": 16, "d_model": 32, "n_heads": 2,
+        "n_col_layers": 1, "n_layers": 2, "d_ff": 64,
+    }
+    model = FinancialTFM(ModelConfig(**base, n_cell_blocks=0, cell_labels=True))
+    assert not hasattr(model, "cell_y_proj")
+    assert not hasattr(model, "row_within_feature_encoder")
+
+
+def test_pre_39_1_shaped_checkpoint_loads(tmp_path):
+    """A checkpoint saved before n_cell_blocks/cell_labels existed must keep loading.
+
+    Unlike column_id_dim (whose backward-compatible value is 0, not its dataclass default of
+    None, so load() special-cases it), n_cell_blocks=0 and cell_labels=False ARE the correct
+    defaults -- no special-casing needed. Asserted rather than assumed.
+    """
+    from fintfm.modeling.model import FinancialTFM, ModelConfig
+
+    base = {
+        "max_features": 8, "max_classes": 3, "d_cell": 16, "d_model": 32, "n_heads": 2,
+        "n_col_layers": 1, "n_layers": 2, "d_ff": 64,
+    }
+    path = tmp_path / "ckpt.pt"
+    FinancialTFM(ModelConfig(**base)).save(str(path), trained_objectives=("classification",))
+    ckpt = torch.load(str(path), weights_only=True)
+    del ckpt["config"]["n_cell_blocks"], ckpt["config"]["cell_labels"]
+    torch.save(ckpt, str(path))
+
+    model = FinancialTFM.load(str(path))
+    assert model.cfg.n_cell_blocks == 0
+    assert model.cfg.cell_labels is False
+    X, y = torch.randn(1, 10, 8), torch.randint(0, 3, (1, 10))
+    with torch.no_grad():
+        model(X, y, 6, torch.tensor([3]), column_id_seed=0)  # must not raise

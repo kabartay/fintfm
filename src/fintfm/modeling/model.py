@@ -100,6 +100,39 @@ class ModelConfig:
             object IFRS 9 lifetime expected credit loss consumes, and the fix for the 39%
             incoherence measured in ``docs/FINDINGS.md`` §11. ``None`` keeps the model
             classification-only.
+        n_cell_blocks: Number of alternating two-way cell-attention blocks run **before**
+            pooling. ``0`` (default) reproduces every checkpoint trained before this field
+            existed, byte-for-byte -- this is additive, not a replacement.
+
+            **Why this exists.** ``docs/FINDINGS.md`` §74 found training on the financial
+            prior caps basic signal extraction at ~0.73 AUC regardless of true task
+            difficulty, on a probe with *no column-identity structure at all* -- one
+            informative dimension, five inert companions. §76 bisected four content-side
+            causes and none closed the gap. What the architecture has never had is a way for
+            a cell to attend to *the rest of its own column* -- ``encode_rows``'s column
+            stage "runs on one row at a time and so never sees a column" (see
+            ``column_id_dim``'s docstring). Random column identities (fixed via
+            ``column_id_dim``) let a cell know *which* column it is; they give it no way to
+            learn what that column's values, across the whole context, actually look like.
+
+            Each block alternates: attention **across rows within one feature** (new -- a
+            cell attends to the same feature's cells in every other row, a data-derived
+            column identity computed from the column's own distribution) then attention
+            **across features within one row** (existing ``column_encoder``, reused). The
+            row-within-feature stage reuses :meth:`_row_mask`, since which rows may attend to
+            which does not depend on which feature is being processed.
+
+            This is `openspec/changes/cell-attention-and-task-inference` task 39.1, and it is
+            an experiment, not a presumed fix -- report the §74 probe's result on the
+            resulting checkpoint before claiming it changed anything (task 39.4).
+        cell_labels: When ``n_cell_blocks > 0``, inject the label into every cell of a
+            context row *before* the cell-attention blocks (task 39.2), rather than only
+            after pooling as the row-level ``y_proj`` step already does. Context cells get
+            their true label broadcast across every feature; query cells get a learned mask
+            token. The existing post-pooling injection is unchanged and still runs regardless
+            -- this is additive, so a checkpoint trained with ``cell_labels=False`` differs
+            from one trained without any label-throughout mechanism only in this one addition.
+            Ignored when ``n_cell_blocks == 0``.
     """
 
     max_features: int = 24
@@ -114,6 +147,8 @@ class ModelConfig:
     pooling: str = "meanmax"
     column_id_dim: int | None = None
     n_horizons: int | None = None
+    n_cell_blocks: int = 0
+    cell_labels: bool = False
 
 
 def normalize_features(
@@ -184,6 +219,30 @@ class FinancialTFM(nn.Module):
         self.column_encoder = nn.TransformerEncoder(
             col_layer, num_layers=cfg.n_col_layers, enable_nested_tensor=False
         )
+        # Two-way cell attention (§74, §76, task 39.1). A separate stack from
+        # column_encoder, same depth, so each block spends equal capacity attending across
+        # rows-within-a-feature and across features-within-a-row. Built only when needed:
+        # cfg.n_cell_blocks == 0 must leave the parameter count and every forward path
+        # byte-identical to a pre-39.1 checkpoint.
+        if cfg.n_cell_blocks > 0:
+            row_within_feature_layer = nn.TransformerEncoderLayer(
+                d_model=cfg.d_cell,
+                nhead=cfg.n_heads,
+                dim_feedforward=2 * cfg.d_cell,
+                dropout=cfg.dropout,
+                activation="gelu",
+                batch_first=True,
+                norm_first=True,
+            )
+            self.row_within_feature_encoder = nn.TransformerEncoder(
+                row_within_feature_layer, num_layers=cfg.n_col_layers, enable_nested_tensor=False
+            )
+            if cfg.cell_labels:
+                # Broadcast across every feature of a context row (task 39.2); query rows get
+                # a learned mask token instead of a real label, matching the row-level
+                # query_token pattern below.
+                self.cell_y_proj = nn.Linear(cfg.max_classes, cfg.d_cell, bias=False)
+                self.cell_mask_token = nn.Parameter(torch.zeros(cfg.d_cell))
         # Pooling over columns is a masked mean (order-invariant) plus a masked max, which
         # keeps a signal a mean washes out: one extreme ratio in an otherwise ordinary firm.
         if cfg.pooling not in ("meanmax", "attention"):
@@ -262,7 +321,11 @@ class FinancialTFM(nn.Module):
         return ids.to(device=device, dtype=dtype)
 
     def encode_rows(
-        self, X: torch.Tensor, n_ctx: int, column_id_seed: int | None = None
+        self,
+        X: torch.Tensor,
+        n_ctx: int,
+        column_id_seed: int | None = None,
+        y: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """Turn raw cells into one vector per row.
 
@@ -272,6 +335,9 @@ class FinancialTFM(nn.Module):
             column_id_seed: Seed for the random column identities. ``None`` means a fresh
                 draw while training and a fixed one while evaluating; pass distinct integers
                 to ensemble over draws.
+            y: ``(B, N)`` labels, only the first ``n_ctx`` read. Required when
+                ``cfg.n_cell_blocks > 0 and cfg.cell_labels``; ignored otherwise, so every
+                existing caller that does not pass it keeps working unchanged.
 
         Returns:
             ``(B, N, d_model)`` row representations.
@@ -285,13 +351,46 @@ class FinancialTFM(nn.Module):
                 self._column_ids(B, Fdim, cells.device, cells.dtype, column_id_seed)
             )[:, None, :, :]
 
-        flat = cells.reshape(B * N, Fdim, self.cfg.d_cell)
         pad_rows = pad.repeat_interleave(N, dim=0)  # (B*N, F)
         # A row of all-padding would make softmax produce NaN over a fully masked sequence;
         # such a task is degenerate, but guard rather than emit NaN silently.
         safe_pad = pad_rows & ~pad_rows.all(dim=1, keepdim=True)
-        flat = self.column_encoder(flat, src_key_padding_mask=safe_pad)
-        cells = flat.reshape(B, N, Fdim, self.cfg.d_cell)
+
+        if self.cfg.n_cell_blocks > 0:
+            if self.cfg.cell_labels and y is not None:
+                # §74/§76/task 39.2: labels reach column-level computation before pooling,
+                # not only after it. Context cells get their true label broadcast across
+                # every feature of that row; query cells get a learned mask token, exactly
+                # mirroring query_token's role at the row level below.
+                y_onehot = F.one_hot(
+                    y[:, :n_ctx].clamp(0, self.cfg.max_classes - 1), self.cfg.max_classes
+                ).to(cells.dtype)
+                cell_y = torch.cat(
+                    [
+                        self.cell_y_proj(y_onehot),
+                        self.cell_mask_token.expand(B, N - n_ctx, -1),
+                    ],
+                    dim=1,
+                )  # (B, N, d_cell)
+                cells = cells + cell_y[:, :, None, :]
+            row_mask = self._row_mask(N, n_ctx, X.device)
+            for _ in range(self.cfg.n_cell_blocks):
+                # Row attention within one feature: a cell attends to the same feature's
+                # cells in every other row -- a data-derived column identity, computed from
+                # the column's own distribution rather than a random tag. (B,F,N,d) so the
+                # mask, which does not depend on which feature, applies identically to all
+                # B*F independent attention problems.
+                by_feature = cells.permute(0, 2, 1, 3).reshape(B * Fdim, N, self.cfg.d_cell)
+                by_feature = self.row_within_feature_encoder(by_feature, mask=row_mask)
+                cells = by_feature.reshape(B, Fdim, N, self.cfg.d_cell).permute(0, 2, 1, 3)
+                # Column attention within one row: the existing mechanism, reused per block.
+                flat = cells.reshape(B * N, Fdim, self.cfg.d_cell)
+                flat = self.column_encoder(flat, src_key_padding_mask=safe_pad)
+                cells = flat.reshape(B, N, Fdim, self.cfg.d_cell)
+        else:
+            flat = cells.reshape(B * N, Fdim, self.cfg.d_cell)
+            flat = self.column_encoder(flat, src_key_padding_mask=safe_pad)
+            cells = flat.reshape(B, N, Fdim, self.cfg.d_cell)
 
         keep = (~pad)[:, None, :, None].to(cells.dtype)  # (B, 1, F, 1)
         denom = keep.sum(dim=2).clamp(min=1.0)
@@ -332,7 +431,7 @@ class FinancialTFM(nn.Module):
             ``(B, N, max_classes)`` logits. Only rows at or past ``n_ctx`` are predictions.
         """
         B, N, _ = X.shape
-        h = self.encode_rows(X, n_ctx, column_id_seed=column_id_seed)
+        h = self.encode_rows(X, n_ctx, column_id_seed=column_id_seed, y=y)
         y_onehot = F.one_hot(
             y[:, :n_ctx].clamp(0, self.cfg.max_classes - 1), self.cfg.max_classes
         ).to(h.dtype)
@@ -444,7 +543,7 @@ class FinancialTFM(nn.Module):
             raise RuntimeError(
                 "this model has no hazard head; build it with ModelConfig(n_horizons=K)"
             )
-        rows = self.encode_rows(X, n_ctx)
+        rows = self.encode_rows(X, n_ctx, y=y)
         y_onehot = F.one_hot(
             y[:, :n_ctx].clamp(0, self.cfg.max_classes - 1), self.cfg.max_classes
         ).to(rows.dtype)
@@ -480,7 +579,7 @@ class FinancialTFM(nn.Module):
             raise RuntimeError(
                 "this model has no hazard head; build it with ModelConfig(n_horizons=K)"
             )
-        rows = self.encode_rows(X, n_ctx)
+        rows = self.encode_rows(X, n_ctx, y=y)
         y_onehot = F.one_hot(
             y[:, :n_ctx].clamp(0, self.cfg.max_classes - 1), self.cfg.max_classes
         ).to(rows.dtype)

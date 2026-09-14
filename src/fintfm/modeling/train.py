@@ -258,6 +258,17 @@ def main() -> None:
              "(docs/FINDINGS.md §54)",
     )
     p.add_argument(
+        "--n-cell-blocks", type=int, default=0,
+        help="alternating two-way cell-attention blocks before pooling; 0 (default) "
+             "reproduces every checkpoint trained before this existed. Task 39.1, testing "
+             "whether §74's capacity cap is architectural (docs/FINDINGS.md §74, §76)",
+    )
+    p.add_argument(
+        "--cell-labels", action="store_true",
+        help="inject labels per-cell before the cell-attention blocks, not only after "
+             "pooling; ignored unless --n-cell-blocks > 0 (task 39.2)",
+    )
+    p.add_argument(
         "--d-ff", type=int, default=None,
         help="feed-forward width; defaults to 4 x d_model, the transformer convention. "
              "Leaving it pinned while d_model grows makes the FFN a bottleneck and distorts "
@@ -286,6 +297,8 @@ def main() -> None:
     model_cfg = ModelConfig(
         pooling=args.pooling,
         column_id_dim=args.column_id_dim,
+        n_cell_blocks=args.n_cell_blocks,
+        cell_labels=args.cell_labels,
         d_ff=args.d_ff if args.d_ff is not None else 4 * args.d_model,
         max_features=args.max_features,
         max_classes=args.max_classes,
