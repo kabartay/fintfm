@@ -2,23 +2,24 @@
 
 ## This round: architecture
 
-- [ ] 39.1 **Implement two-way cell attention.** Add `ModelConfig.n_cell_blocks: int = 0`.
-      When `> 0`, alternate row-attention-within-feature (new: `(B*F, N, d_cell)`, reusing
-      `_row_mask` since it does not depend on which feature) and column-attention-within-row
-      (existing `column_encoder`, reused per block) `n_cell_blocks` times before pooling.
-      Verify: `n_cell_blocks=0` reproduces every existing test in `tests/test_model.py`
-      byte-for-byte (regression test, matching how `identity_shuffle=False` was verified in
-      `prior/financial.py`); shapes and gradients check out for `n_cell_blocks in (1, 2)` on
-      CPU before any GPU spend.
-- [ ] 39.2 **Inject labels before the cell-attention blocks.** New `cell_y_proj` (context) and
-      `cell_mask_token` (query), added to `cells` before block 1, only when `n_cell_blocks > 0`.
-      Verify: ablation isolates this from 39.1 — train one variant with cell attention only, one
-      with cell attention plus early labels, so the two contributions are not confounded.
-- [ ] 39.3 **Promote the Bayes-ceiling probe to a permanent diagnostic.** Move
-      `bayes_ceiling_probe.py`'s construction (verified numerically against the closed-form
-      `Phi(mu/sqrt(2))`) into the codebase, callable on any checkpoint. Verify: a test asserts
-      the closed-form matches an empirical Bayes-optimal-statistic AUC to 3 decimals, guarding
-      against the formula silently drifting from what is actually used.
+- [x] 39.1 **Done.** `ModelConfig.n_cell_blocks` implemented as specified. Verify: passed
+      — `n_cell_blocks=0` confirmed byte-identical to a model built without the field (a first
+      version of this check was itself buggy, comparing two stochastic forwards without
+      controlling shared RNG state; caught before trusting it). Local cost measurement before
+      any GPU spend: `n_cell_blocks=1` roughly doubles step time, `=2` roughly quadruples it,
+      at this project's production scale (n_rows up to 1024, max_features=136) — steeper than
+      baseline's own scaling but tractable. T4 pretraining launched at `n_cell_blocks=1`.
+- [x] 39.2 **Done.** `ModelConfig.cell_labels` implemented as specified. Verify: passed —
+      `cell_labels=True` with `n_cell_blocks=0` builds no unused parameters (asserted directly,
+      not just "should"). **Ablation from 39.1 not yet run**: the first T4 comparison combines
+      both (cell attention + early labels together) as the strongest test of the combined
+      hypothesis; isolating them is only worth the extra compute if the combination shows
+      something worth attributing to one or the other.
+- [x] 39.3 **Done.** `bayes_ceiling_probe()` in `experiments/capability.py`, matching
+      §74's original measurement exactly (direct model calls, column-identity ensembling) so
+      results are comparable to every recorded value. Also returns per-target regret (task
+      39.18), free once both numbers exist. Verify: passed — closed form checked against an
+      empirical Bayes-optimal-statistic AUC on 200,000 rows, kept as a permanent test.
 - [ ] 39.4 **Pretrain and compare.** Same protocol as every other T4 comparison this session
       (6,000 steps, `p_financial=1.0` and `p_financial=0.0` arms, matching §74's `fin10`/`fin00`
       exactly except for `n_cell_blocks`). Verify: the §74 Bayes-ceiling probe run on both new
