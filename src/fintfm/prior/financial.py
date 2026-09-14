@@ -307,6 +307,7 @@ def sample_financial_task(
     n_sectors_max: int = _N_SECTORS,
     sharpness_min: float = _SHARPNESS_MIN,
     sharpness_max: float = _SHARPNESS_MAX,
+    identity_shuffle: bool = False,
 ) -> Task:
     """Sample one synthetic corporate-default classification task.
 
@@ -332,6 +333,18 @@ def sample_financial_task(
         absolute_rate_floor: Hard floor on the sampled base rate.
         rate_ceiling: Upper end of the sampled base-rate range.
         n_sectors_max: Upper bound on the number of sectors drawn.
+        identity_shuffle: Diagnostic for ``docs/FINDINGS.md`` §67-§71 (task 38.11). When True,
+            every account independently reused across multiple exposed columns is given its
+            own independent row permutation *for the exposed feature matrix only* -- so
+            ``equity`` and ``total_assets`` no longer satisfy
+            ``equity = total_assets - total_liabilities`` in the columns the model sees, and
+            two ratios that used to share a literal denominator array no longer do. Each
+            account's own marginal distribution is exactly preserved (a permutation, not
+            noise), which is the flaw §68 found in the cheaper additive-noise screen. The
+            label is computed from the *true*, unpermuted accounts regardless of this flag, so
+            the task's difficulty and the drivers' relationship to the label are unaffected --
+            only the cross-column identity structure of what is exposed changes. Default False
+            reproduces the exact behaviour of every checkpoint trained before this flag existed.
 
         The four rate/sector arguments default to this module's constants, which carry the
         measured reasoning for their values. They are arguments rather than constants so a
@@ -362,16 +375,13 @@ def sample_financial_task(
     log_assets = np.log(assets)
     age = acc["age"]
     debt = acc["total_liabilities"]
-    equity = acc["equity"]
     cash = acc["cash"]
     revenue = acc["revenue"]
     ebitda = acc["ebitda"]
     interest = acc["interest"]
-    employees = acc["employees"]
     leverage = debt / np.maximum(assets, 1e-12)
     cash_ratio = cash / np.maximum(assets, 1e-12)
     current_ratio = acc["current_assets"] / np.maximum(acc["short_term_liabilities"], 1e-12)
-    turnover = revenue / np.maximum(assets, 1e-12)
     margin = ebitda / np.where(np.abs(revenue) < 1e-12, 1e-12, revenue)
     coverage = ebitda / np.maximum(np.abs(interest), 1e-6 * assets)
     growth = rng.normal(0.05 + 0.05 * cycle, 0.25, size=n_rows)
@@ -488,27 +498,47 @@ def sample_financial_task(
                 y[flip] == 1, rng.integers(0, n_horizons, size=len(flip)), -1
             )
     # --- observation model ---------------------------------------------------
+    # identity_shuffle (§67-§71, task 38.11): the exposed candidates and ratio family are
+    # built from `acc_x`, an independently-per-account-permuted copy of the true `acc`, when
+    # the flag is set. Everything above this line -- drivers, distress, p_default, y -- used
+    # the true `acc` and is untouched, so the label is identical either way; only what the
+    # model is shown differs.
+    acc_x = {k: rng.permutation(v) for k, v in acc.items()} if identity_shuffle else acc
+    assets_x = acc_x["total_assets"]
+    log_assets_x = np.log(assets_x)
+    debt_x = acc_x["total_liabilities"]
+    equity_x = acc_x["equity"]
+    cash_x = acc_x["cash"]
+    revenue_x = acc_x["revenue"]
+    ebitda_x = acc_x["ebitda"]
+    interest_x = acc_x["interest"]
+    leverage_x = debt_x / np.maximum(assets_x, 1e-12)
+    cash_ratio_x = cash_x / np.maximum(assets_x, 1e-12)
+    current_ratio_x = acc_x["current_assets"] / np.maximum(acc_x["short_term_liabilities"], 1e-12)
+    turnover_x = revenue_x / np.maximum(assets_x, 1e-12)
+    margin_x = ebitda_x / np.where(np.abs(revenue_x) < 1e-12, 1e-12, revenue_x)
+    coverage_x = ebitda_x / np.maximum(np.abs(interest_x), 1e-6 * assets_x)
     candidates: dict[str, tuple[np.ndarray, bool]] = {
         "sector": (sector.astype(np.float32), True),
-        "log_assets": (log_assets, False),
-        "assets": (assets, False),
-        "revenue": (revenue, False),
-        "ebitda": (ebitda, False),
-        "margin": (margin, False),
-        "debt": (debt, False),
-        "equity": (equity, False),
-        "leverage": (leverage, False),
-        "cash": (cash, False),
-        "cash_ratio": (cash_ratio, False),
-        "current_ratio": (current_ratio, False),
-        "interest": (interest, False),
-        "coverage": (coverage, False),
+        "log_assets": (log_assets_x, False),
+        "assets": (assets_x, False),
+        "revenue": (revenue_x, False),
+        "ebitda": (ebitda_x, False),
+        "margin": (margin_x, False),
+        "debt": (debt_x, False),
+        "equity": (equity_x, False),
+        "leverage": (leverage_x, False),
+        "cash": (cash_x, False),
+        "cash_ratio": (cash_ratio_x, False),
+        "current_ratio": (current_ratio_x, False),
+        "interest": (interest_x, False),
+        "coverage": (coverage_x, False),
         "growth": (growth, False),
-        "age": (age, False),
-        "employees": (employees, False),
+        "age": (acc_x["age"], False),
+        "employees": (acc_x["employees"], False),
         "payment_delay": (payment_delay, False),
-        "turnover": (turnover, False),
-        "debt_to_ebitda": (debt / np.where(np.abs(ebitda) < 1e-6, 1e-6, ebitda), False),
+        "turnover": (turnover_x, False),
+        "debt_to_ebitda": (debt_x / np.where(np.abs(ebitda_x) < 1e-6, 1e-6, ebitda_x), False),
     }
     names = list(candidates)
     # Width: real panels carry 64-95 features because they compute many ratios over one
@@ -533,7 +563,7 @@ def sample_financial_task(
         cats.append(is_cat)
     # derived ratio family — the bulk of the width, as in a real panel
     n_ratios = max(0, n_expose - len(cols))
-    ratio_cols, _ratio_names = _ratio_family(rng, acc, n_ratios)
+    ratio_cols, _ratio_names = _ratio_family(rng, acc_x, n_ratios)
     for v in ratio_cols:
         v = v.astype(np.float64).copy()
         t = rng.random()

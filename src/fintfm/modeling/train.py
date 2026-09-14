@@ -228,6 +228,12 @@ def main() -> None:
              "financial prior's teaching failure tracks its features or its label function",
     )
     p.add_argument(
+        "--identity-shuffle", action="store_true",
+        help="expose financial-task columns from independently-per-account-permuted accounts "
+             "(docs/FINDINGS.md §67-§71, task 38.11): breaks cross-account identities while "
+             "leaving the label and each column's marginal untouched",
+    )
+    p.add_argument(
         "--p-financial", type=float, default=None,
         help="probability of drawing a financial rather than a generic SCM task; the "
              "survival objective forces 1.0 regardless (docs/FINDINGS.md §14)",
@@ -305,6 +311,7 @@ def main() -> None:
         n_horizons=args.n_horizons,
         p_trivial=args.p_trivial,
         p_crossed=args.p_crossed,
+        identity_shuffle=args.identity_shuffle,
         # the default-rate envelope comes from configuration, because a prior that cannot
         # generate the regime being evaluated is the defect behind docs/FINDINGS.md §26
         sharpness_min=cfg.prior.sharpness_min,

@@ -34,6 +34,12 @@ class PriorConfig:
             control of ``prior/trivial.py``: it answers whether the architecture can learn
             in-context prediction at all (``docs/FINDINGS.md`` §53), and a prior made only of
             trivial tasks would teach nothing about abstention.
+        identity_shuffle: When True, every financial task drawn (whether via ``p_financial``
+            or as the default source) exposes its named/ratio columns from an
+            independently-per-account-permuted copy of the accounts, breaking cross-account
+            identities (``equity = assets - liabilities``) while leaving the label and each
+            column's own marginal distribution untouched. Diagnostic for ``docs/FINDINGS.md``
+            §67-§71 (task 38.11); default False reproduces every prior checkpoint's behaviour.
         p_crossed: Probability of drawing a **crossed-design** task instead —
             ``prior/crossed.py``'s ``sample_scm_features_financial_label``: the generic SCM
             prior's feature-generating computational graph, labelled with the financial
@@ -72,6 +78,7 @@ class PriorConfig:
     p_financial: float = 0.7
     p_trivial: float = 0.0
     p_crossed: float = 0.0
+    identity_shuffle: bool = False
     n_rows: int = 256
     min_ctx_frac: float = 0.3
     max_ctx_frac: float = 0.9
@@ -113,6 +120,7 @@ def sample_task(rng: np.random.Generator, cfg: PriorConfig, n_rows: int | None =
             n,
             max_features=cfg.max_features,
             n_horizons=cfg.n_horizons,
+            identity_shuffle=cfg.identity_shuffle,
             min_expected_positives=cfg.min_expected_positives,
             absolute_rate_floor=cfg.absolute_rate_floor,
             rate_ceiling=cfg.rate_ceiling,
