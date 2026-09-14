@@ -4,11 +4,29 @@ The structure a paper would take, with the claim carrying each section (see
 [CLAIMS.md](CLAIMS.md)) and the honest state of each. **Sections are ordered by what a
 reviewer checks first, not by narrative appeal.**
 
+**STALE, 2026-09-14 — read [CLAIMS.md](CLAIMS.md) first.** The title, abstract and §5 below
+were written before §54-§78, which found and fixed a severe architectural defect (§74/§78),
+narrowed the domain-transfer claim to one benchmark rather than a domain (§63/§75), and added
+a second, more rigorous accuracy measurement that is less favourable than the one cited here
+(§60/§69/§71). The specific numbers below (0.041 mean AUC gap, "+0.086 AUC" as a headline) are
+still individually true of the measurements that produced them, but a reader should not take
+this file as the current best statement of where the project stands until it is rewritten
+against Claim 2's updated entry. Kept as-is below rather than silently edited, since the
+*shape* of a paper this project could honestly write has changed and deserves a deliberate
+rewrite, not a patch.
+
 ## Title, provisionally
 
 Something that promises a measurement, not a method. *"Coherent PD Term Structures from a
 Synthetic-Only Tabular Foundation Model"* claims the two things that survive. Anything
 containing "state of the art" or "outperforms" is currently false (Claim 6).
+
+**A candidate second title, given §78**: something in the shape of *"A Symmetric Row Encoder
+Cannot Learn Column-Specific Rules: Diagnosis and a Two-Way Cell-Attention Fix"* would be a
+different, narrower, more defensible paper — an architecture diagnosis with a closed-form
+verification instrument (the Bayes-ceiling probe, §74) and a controlled fix (§78), independent
+of whether the financial-domain transfer story ever lands. Worth deciding between the two
+framings once task 39.5 (real-data validation of the fix) reports.
 
 ## Abstract — must contain the accuracy gap
 
@@ -18,6 +36,11 @@ survival parameterisation removes that by construction and holds at 0.00% out of
 synthetic-only prior transfers well enough to be within 0.041 mean AUC of a fitted
 per-horizon logistic regression **while remaining behind it**, and cannot have memorised the
 benchmark.
+
+**This paragraph needs the newer, harsher number too** (§69: ties logistic regression on AP,
+loses to tuned boosters by 0.14-0.17 AP, Holm p < 0.001) and, if task 39.5 lands, the
+architecture result (§78) either folded into this abstract or moved to a second paper — that
+decision should be made deliberately, not by default.
 
 ## 1. Introduction
 

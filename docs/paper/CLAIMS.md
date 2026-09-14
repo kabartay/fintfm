@@ -9,7 +9,18 @@ Status vocabulary:
 - **RETRACTED** — we asserted it and it is false.
 - **OPEN** — proposed, not measured.
 
-Statuses last reviewed 2026-09-09.
+Statuses last reviewed 2026-09-14.
+
+**What changed since 2026-09-09, in one paragraph.** Claim 2 was retracted pending
+re-measurement because the pre-fix model was not doing in-context learning at all. It has
+now been re-measured in full: the mechanism was found and fixed (§54-§56), a second,
+independent instrument (an exactly-known Bayes-optimal-AUC probe) found a severe residual
+capacity cap the content-side fix did not touch (§74), seven prior-content hypotheses for that
+cap were eliminated one at a time (§58-§77), and an architecture change — two-way cell
+attention — closed it in one experiment (§78). Read Claim 2 below before anything else; it is
+the whole story in miniature and the reason **every synthetic result in this ledger dated
+before 2026-09-14 was measured through a ceiling that no longer exists**, while **no real-data
+result has yet been re-measured on the architecture that removed it** (task 39.5, open).
 
 ---
 
@@ -35,31 +46,70 @@ measurement of a live defect, never as a new method.
 
 ## Claim 2 — A synthetic-only prior transfers to real corporate default data
 
-**Status: RETRACTED pending re-measurement.** §47.
+**Status: SINGLE DRAW, and narrower than originally hoped.** The mechanism that broke the
+original measurement is fixed and independently confirmed; what transfer exists is now
+measured, and it does not generalise the way the original claim assumed.
 
-Every measurement supporting this claim was taken on models that **were not doing in-context
-learning at all**. Shuffling the context labels left predictions unchanged (rank correlation
-0.977) and AUC *higher* than with true labels, because the prior's feature-to-label direction
-was fixed across every task it generated — so a global rule could be memorised and no labelled
-example ever had to be read.
+**The two-part history, in order.**
 
-That invalidates the supporting evidence rather than merely weakening it:
+*Part A — the model could not do in-context learning at all (§47, RETRACTED at the time).*
+Shuffling context labels left predictions unchanged (rank correlation 0.977) because every
+driver's sign was fixed across every task, so a global rule could be memorised. Fixed by
+randomising the sign per task (§47/§48).
 
-- **§14's "+0.049 domain prior over generic"** compared two priors on a model reading neither
-  one's labels.
-- **§15's "pretraining buys calibration"** survives only as a statement about calibration; its
-  ranking component is the same order as the trained-versus-random gap (§42).
-- **§18/§19's "the prior matches real task difficulty"** is now known to have been the
-  *problem*, not the validation (§42), and the fixed sign convention behind it was the root
-  cause (§47).
+*Part B — fixing the sign bug did not fix the architecture (§54, discovered 2026-09-11).* The
+row encoder was a **provable symmetric function** of each row's values — `cell_embed` shared
+across columns, no positional encoding, pooling over the feature axis — so it could not
+represent "column j matters" *by construction*, independent of what the prior taught. Verified
+by a closed-form probe: a rule as simple as `x0 - x1` has a symmetric ceiling of exactly 0.5,
+and the pre-fix model scored 0.5097. Random per-task column identities (D12, §54/§56) fixed
+this for a trivial prior (0.713 to 0.997 AUC) but traded away exact column-order invariance
+for a distributional one.
 
-**What survives untouched is the provenance half**, and it is the stronger half: a model that
-never saw real data cannot have memorised a benchmark, and that is verifiable from the training
-code regardless of how well the model works. Decision D2 stands. The transfer half has to be
-re-measured from scratch once a checkpoint exists that reads its context.
+**Then a second, independent instrument found a residual defect the first fix did not touch
+(§74, 2026-09-14).** A task with an *exactly known* Bayes-optimal AUC (closed-form Gaussian
+mean-shift, verified numerically) showed training on the financial prior caps achieved AUC at
+~0.73 **regardless of true task difficulty** — 0.728 achieved at Bayes AUC 0.999, on a probe
+with no column-identity structure to solve at all. Seven content-side candidates were
+eliminated one at a time using checkpoints that already existed, at zero additional GPU cost
+(§58, §62, §64, §65, §72, §76, §77): base rate, raw signal-to-noise, feature cleanliness,
+accounting-identity structure (breaking it made things *worse*), and the financial label's
+functional form (which does explain *part* of it — financial tasks essentially never reach
+realized difficulty above 0.99 even sharpened, §77 — but not all of it).
 
-**Do not write any version of this claim** until the shuffle test on the current checkpoint
-shows a rank correlation well below 0.9.
+**Two-way cell attention closed the gap in one experiment (§78).** A checkpoint trained
+*exclusively* on the financial prior — the same prior that produced the 0.73 cap — now tracks
+the Bayes-optimal curve to within 0.001-0.005 regret across the whole range, confirmed
+independently by the antisymmetric probe (0.5352 to 0.9890, closing to the SCM baseline's
+0.9932). This settles that the cap was **architectural**, not a property of the prior's
+content — every content-side hypothesis this project spent days testing was chasing an effect
+whose actual cause was that the encoder had no way to develop column *semantics* from context,
+only column *identity*.
+
+**What real transfer exists, measured on the pre-cell-attention architecture (§60-§77):**
+
+- On V4FinBench's published protocol, five folds, tuned baselines, paired bootstrap:
+  **fintfm ties logistic regression** (dAP +0.018, Holm p = 0.204) and **loses to all three
+  tuned boosters** (dAP -0.14 to -0.17, Holm p < 0.001 each) — §69. A configuration fix
+  (dropping retrieval, which actively hurts here; adding ensembling) recovered +0.031 AP,
+  significant, without closing the booster gap — §70/§71.
+- **The financial prior's content genuinely helps, but only on V4FinBench specifically.** A
+  controlled two-factor design (§61/§63) found domain content worth +0.098 AP at matched base
+  rate (Holm p = 0.002) and density worth nothing (+0.005, p = 0.895). But the same comparison
+  on two *other* real credit panels (Polish, Taiwan bankruptcy, §73/§75) found the **opposite
+  ordering** — pure generic-SCM beat the financial-content checkpoint on all four measured
+  cells, by up to +0.065 AP on Taiwan. The financial generator's benefit does not travel past
+  the one benchmark's own feature-engineering conventions.
+- **Calibration generalises where discrimination does not.** fintfm has the best or near-best
+  ECE on all four real panels measured (§73), independent of which prior wins on
+  discrimination there. This is the one piece of the original claim that has replicated
+  cleanly across every dataset tried.
+
+**What is not yet measured**: any of the above, on the architecture that removed the capacity
+cap. `cell-attention-and-task-inference` task 39.5 is open. **Do not write any version of this
+claim for external use until it is** — this project has already been burned twice by writing
+a transfer claim from a checkpoint that turned out not to support it (§47, §74), and the
+correct number of times to be burned by the same mistake is zero.
 
 ## Claim 3 — Feature conditioning matters more than it should, because financial ratios are pathologically heavy-tailed
 
@@ -126,6 +176,17 @@ low-default portfolio, conditioning the context on the query does **not** improv
 a structurally representative context once, and it costs batch independence to find out. That
 is worth one paragraph in §5.4 of the outline, not a contribution.
 
+**Regime-dependence found 2026-09-13/14 (§70), sharpening the negative result further.** On
+V4FinBench's published protocol at its real base rate (0.380%), retrieval alone drops AP by
+**0.133** relative to uniform sampling — actively harmful, not merely tied. Not rescued by
+wider context or ensembling; every combination including retrieval scored below the uniform
+baseline. The mechanism is unresolved (a centroid-averaging hypothesis was proposed but the
+verification run was killed mid-flight during a machine-load safety stop and never completed
+— stated here so it is not mistaken for a ruled-out hypothesis). **Retrieval's sign now
+depends on the regime it is measured in** (helps at whatever base rate §32/§33 measured,
+actively hurts at V4FinBench's 0.38%), which is itself worth a sentence in any paper that
+cites this project's earlier retrieval numbers.
+
 ## Claim 6 — The model is competitive on accuracy
 
 **Status: RETRACTED, repeatedly, and currently false.**
@@ -143,6 +204,22 @@ not parity.
 
 **A paper must state this in its own abstract.** The accuracy gap is the first thing a reviewer
 will compute.
+
+**A second, independently-produced measurement of the same gap (§60/§69/§71, 2026-09-13/14),
+on a different harness — V4FinBench's own published protocol rather than this project's
+out-of-time split, five folds, tuned baselines, average precision rather than ROC-AUC (D13:
+AUC's chance floor is 0.5 regardless of prevalence, so at V4FinBench's 0.38% base rate it
+compresses the whole usable range into its top few percent).** fintfm statistically ties
+logistic regression and loses to CatBoost/XGBoost/LightGBM by 0.14-0.17 AP, all significant at
+Holm p < 0.001. **The first version of this same comparison, on ROC-AUC with untuned
+baselines, misranked fintfm second of five** where AP with tuned baselines puts it third,
+behind both boosters that ROC-AUC's untuned reading had understated — a concrete demonstration
+of why AP-first reporting at low prevalence is not a stylistic preference.
+
+Both measurements point the same direction from different angles and should both be cited if
+either is: the out-of-time split (this entry, §32) for the temporal-holdout argument, the
+published-protocol number (§60/§69) for direct comparability to V4FinBench's own paper.
+**Neither has been re-measured on the cell-attention architecture (§78, task 39.5, open).**
 
 ---
 
@@ -166,3 +243,58 @@ The intended product (decision D3) and the only claim on this list that would be
 contribution rather than a measurement. **Never claim novelty on the conformal mathematics** —
 it is published prior art; the contribution would be the protocol, the pre-registration and
 the artefact a validation committee accepts.
+
+---
+
+## Claim 9 — Calibration generalises across independent real credit panels; discrimination does not
+
+**Status: SURVIVES, on the pre-cell-attention architecture.** Evidence: §73, four real panels
+(V4FinBench, Polish bankruptcy at three horizons, Taiwan bankruptcy), against tuned classical,
+random forest and gradient-boosting baselines.
+
+fintfm has the **best or near-best ECE on all four panels**, independent of which prior wins on
+discrimination there (§75 found the *opposite* prior wins discrimination on three of the four).
+This is the first time the calibration thesis (§12) has been tested outside V4FinBench, and it
+held without exception, while the discrimination gap to boosters varies **1.7x to 7.2x** across
+the same four panels at similar base rates — not explained by class balance, so it tracks
+dataset structure specifically.
+
+**This is arguably the strongest surviving empirical claim in the project besides Claim 1.**
+It is also the one whose mechanism is least understood: why calibration transfers when
+discrimination does not is an open question this ledger does not yet have an answer to, and it
+connects directly to task 39.7's proposed task-representation probe (does the model form a
+task posterior, separate from how well that posterior discriminates?).
+
+**Caveat**: single 70/30 split per dataset, not the five-fold paired-bootstrap standard the
+V4FinBench numbers meet (§69). Directional, not settled at this precision.
+
+---
+
+## Claim 10 — Two-way cell attention is a real, reproducible architectural fix for a severe capacity defect
+
+**Status: SINGLE DRAW, synthetic only, real-data validation open.** Evidence: §78, one
+experiment (`n_cell_blocks=1`, `cell_labels=True`, both `p_financial` arms), confirmed by two
+independent instruments (a Bayes-ceiling probe with a closed-form, numerically-verified target,
+and the pre-existing antisymmetric probe).
+
+A checkpoint trained exclusively on the financial prior — the same prior that produced a
+severe, well-characterised capacity cap (§74: regret 0.234-0.277 at Bayes AUC 0.90-0.999,
+independent of seven content-side interventions tried against it, §58-§77) — closes to regret
+0.001-0.005 across the same range after adding row-attention-within-feature blocks and
+per-cell label injection before pooling. The SCM arm, already near-optimal, shows no
+regression.
+
+**Why this belongs in a methods section rather than only a results table**: it settles, with
+a controlled before/after on the identical prior, that the architecture — not the prior's
+content — was the binding constraint. That is a stronger and more general claim than "our
+prior transfers," because it says something about *what an in-context tabular model needs
+architecturally* to learn column semantics from context, independent of which prior it is
+trained on.
+
+**What would strengthen this before it is quotable**: replication at the exact protocol §74
+used (the reported run deviated to `--batch-size 4 --n-rows-choices 256,512` after a CUDA OOM,
+itself caused by an unrelated bug — a hardcoded evaluation batch size independent of training's
+own, now fixed); a second seed; and, most importantly, **any real-data measurement at all** —
+every number behind this claim is synthetic (task 39.5, open). One honest anomaly is on the
+record rather than smoothed over: `symmetric_count` is slightly lower on both new checkpoints
+than their old-architecture counterparts, unexplained.

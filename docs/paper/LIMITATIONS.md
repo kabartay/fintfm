@@ -13,6 +13,15 @@ after Holm correction at the previous best (§32). Claim 6.
 The gap closed from 0.142 to 0.041 in one day of inference-time changes with no retraining,
 which is the reason to think it is closable — and it is not closed.
 
+**A second, more rigorous measurement (§60/§69/§71, 2026-09-13/14) says the same thing more
+precisely and less favourably.** On V4FinBench's own published protocol — five folds, tuned
+gradient-boosting baselines, average precision rather than ROC-AUC at this 0.38% base rate
+(D13) — fintfm ties logistic regression (Holm p = 0.204) and loses to CatBoost, XGBoost and
+LightGBM by 0.14-0.17 AP, all Holm p < 0.001. Reading ROC-AUC with untuned baselines instead
+would have placed fintfm second of five; AP with tuned baselines places it third. **Neither
+measurement has been re-run on the architecture that closed the synthetic capacity cap**
+(§78) — see the new limitation below.
+
 ## The comparison to the published benchmark does not exist yet
 
 Every number here uses an out-of-time split of our own design. V4FinBench's published protocol
@@ -63,14 +72,28 @@ made the result worse for the project's story before it got better.
 That history is a reason to trust the *current* numbers more than the earlier ones, and a
 reason to treat any single-draw number here as provisional.
 
-## The prior is unvalidated as a generative model of firms
+## The prior is unvalidated as a generative model of firms, and its difficulty-matching was actively harmful
 
-It matches real task *difficulty* (logistic-regression AUC 0.743 synthetic against 0.769 real,
-§18/§19) and obeys accounting identities by construction. It has never been validated as a
-realistic joint distribution of financial statements, and it deliberately samples a macro
-regime as a parameter rather than learning real crisis history — because fitting it to real
-panels would improve benchmarks while silently destroying the auditability claim, with nothing
-failing to warn us (decision D2).
+It obeys accounting identities by construction. It has never been validated as a realistic
+joint distribution of financial statements, and it deliberately samples a macro regime as a
+parameter rather than learning real crisis history — because fitting it to real panels would
+improve benchmarks while silently destroying the auditability claim, with nothing failing to
+warn us (decision D2).
+
+**Correction, 2026-09-14**: this section used to cite §18/§19's "the prior matches real task
+difficulty (logistic-regression AUC 0.743 synthetic against 0.769 real)" as a *validation*
+point. §42 found the opposite: clamping every synthetic task to a narrow, realistic-looking
+difficulty band meant the model never saw a near-deterministic task during pretraining and
+never learned to extract sharp signal when one appeared — the training-loop precursor to
+§74's much larger capacity-cap finding. Difficulty was widened to span noise-to-near-certain
+(§42) specifically because matching real difficulty had been actively teaching the wrong
+thing. **Do not cite "the prior matches real difficulty" as a strength in any future writing**;
+it is the opposite, on the record, twice.
+
+The financial generator's own label-construction has a separate, independently measured
+ceiling: even at a widened sharpness range, it essentially never produces a task with realized
+difficulty above 0.99 AUC (0 of 92 sampled tasks), where the generic SCM prior does so 17.5% of
+the time (§77) — a structural property of averaging bounded driver weights, not a tuning gap.
 
 ## No LGD, no EAD, therefore no ECL
 
@@ -85,3 +108,34 @@ mechanics, SICR operational definitions, which Basel version and approach, the s
 supervisory expectations for low-default portfolios, and whether the model's output is
 point-in-time or through-the-cycle. **None of these may be asserted to a regulator or in a
 paper's framing until checked against a primary source.**
+
+## The architecture fix that closed the synthetic capacity cap has never touched real data
+
+A severe capacity defect — achieved AUC capped at ~0.73 regardless of true task difficulty,
+measured against an exactly-known Bayes-optimal AUC — was found (§74), attributed correctly to
+architecture rather than prior content after seven content-side hypotheses were eliminated one
+at a time (§58-§77), and closed by two-way cell attention in one experiment (§78, regret
+0.234-0.277 to 0.001-0.005). **Every number behind that result is synthetic.** No real-data
+panel has been scored with the new architecture, and this project has already learned twice
+(§47, §74 itself) that a synthetic result and a real-benchmark result can dissociate sharply.
+`cell-attention-and-task-inference` task 39.5 is the open item that would close this, and
+nothing about the calibration or discrimination claims elsewhere in this ledger should be read
+as applying to the new architecture until it does.
+
+The reported experiment also deviated from the protocol it was meant to replicate exactly:
+`--batch-size 4 --n-rows-choices 256,512` rather than `--batch-size 8 --n-rows-choices
+256,512,1024`, forced by a CUDA OOM on the first attempt (an unrelated bug — a hardcoded
+evaluation batch size independent of the training loop's own — now fixed for future runs, but
+not retroactively for this comparison).
+
+## The financial prior's real-data benefit is narrower than the project's own framing assumed
+
+A controlled two-factor design (§61/§63) found the financial generator's structural content
+genuinely helps on V4FinBench (+0.098 AP at matched base rate, Holm p = 0.002). The same
+comparison on two other real credit panels (Polish and Taiwan bankruptcy, §73/§75) found the
+**opposite** ordering on all four measured cells — the generic structural-causal prior, with no
+financial content at all, wins by up to +0.065 AP. The benefit measured on V4FinBench does not
+generalise to "credit risk" as a domain; it is most plausibly explained by the financial
+generator's ratio-construction resembling V4FinBench's own feature-engineering conventions by
+construction, which is a narrower and less flattering explanation than domain transfer. Any
+claim of domain-specific benefit must name the benchmark it was measured on.

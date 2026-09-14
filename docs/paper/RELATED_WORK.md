@@ -106,3 +106,30 @@ Not on the list: the architecture, in-context learning, hazard models, conformal
 paper and running one comparison.** That is the value of this file existing before a draft
 does, and it is an argument for reading the benchmark's own paper *before* scoring on its
 data rather than after.
+
+## Leads surfaced 2026-09-14, not yet verified from primary sources
+
+An externally-relayed review cited several specific results while discussing architecture
+priorities. **Read before citing** — this project has already been burned once by a WebFetch
+summariser fabricating a results table (`docs/POSTMORTEM.md`), and the discipline that caught
+it applies here too: an abstract or a relayed summary is a lead, not a citation.
+
+- **TabDPT** (Ma, Thomas et al., NeurIPS 2025, arXiv link supplied and the abstract read in
+  full this session) — combines retrieval with self-supervised learning on real tables,
+  reports real data speeds training and improves downstream generalisation over synthetic-only,
+  and reports scaling laws in both model and data size. Directly relevant to Claim 2's
+  synthetic-only positioning (decision D2) as the standing counter-example; **their code and
+  weights may not enter this repository** (standing project rule), evaluation-only comparison
+  is gated on the same weight-licence check every other candidate needs.
+- **TabPFN-3** (Grinsztajn et al., cited via a third-party summary, not read directly) —
+  reportedly adds sinusoidal activations to its prior for oscillatory data and explicit
+  extrapolation tasks. Worth noting this project's own SCM prior already includes `sin` in its
+  activation set (`prior/scm.py::_ACTS`), acquired incidentally rather than by design — a
+  coincidence worth mentioning if TabPFN-3 is ever cited, not a claim of having anticipated it.
+- **TabICL's tree-structured prior mechanism** (cited via the same third-party summary) —
+  reportedly 30% of pretraining tasks. Not verified against the primary paper.
+- Two specific empirical claims relayed in the same conversation — a "2026 analysis" finding a
+  synthetic prior occupies a narrow region of real-table space without the gap explaining
+  downstream generalisation, and a shift-robustness evaluation of nine TFMs reporting gaps up
+  to 0.060 AUC — were explicitly **not verified** when relayed and must not be cited without
+  locating and reading the primary source first.

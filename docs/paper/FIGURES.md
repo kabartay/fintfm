@@ -86,3 +86,43 @@ to produce and disproportionately persuasive to the model-risk reader this proje
 `docs/POSTMORTEM.md`. Consider an appendix. Five wrong diagnoses in one day, each caught by
 measurement — unusual to publish, and the strongest available evidence that the numbers were
 checked adversarially rather than defended.
+
+## Figure 5 — The Bayes-ceiling curve (new, 2026-09-14)
+
+Achieved AUC against exactly-known Bayes-optimal AUC (closed-form, verified numerically
+against an empirical Bayes-optimal-statistic AUC to 3 decimals — see
+`experiments/capability.py::bayes_ceiling_probe`), three or more curves overlaid: pure
+financial prior on the old architecture (the diagonal breaks hard around 0.73 and stays flat
+while the true target keeps rising to 0.999 — the visual signature of §74's finding), pure SCM
+prior on the old architecture (tracks the diagonal closely), and pure financial prior on the
+new two-way-cell-attention architecture (also tracks the diagonal closely, §78). A fourth line
+at `y = x` marks the unattainable ideal.
+
+**Candidate for the paper's most important figure, replacing or joining Figure 1.** It makes a
+severe, otherwise easy-to-miss defect visible in one plot: a model can average 0.63-0.69 AUC
+across a probe battery and look merely mediocre, or it can be shown explicitly failing to
+improve past a hard ceiling as the true difficulty keeps rising to near-certainty — the second
+framing is what actually happened, and only this figure shows it. The before/after overlay on
+the *same* prior is also the cleanest available demonstration that the fix was architectural,
+not a change in what the model was shown.
+
+Data exists (§74, §76, §78); the plotting script does not. Trivial to produce from
+`bayes_ceiling_probe`'s return value — one dict per checkpoint, `{target: (achieved, regret)}`.
+
+```python
+from fintfm.modeling.model import FinancialTFM
+from fintfm.experiments.capability import bayes_ceiling_probe
+# one call per checkpoint; plot target on x, achieved on y, y=x as reference
+```
+
+## Table 5 — The bisection (new, 2026-09-14)
+
+§76's elimination table as a paper table: seven candidate causes for the capacity cap, each
+isolated using a checkpoint that already existed (zero additional pretraining), each measured
+against the Bayes-ceiling probe, none closing the gap. Doubles as the paper's demonstration of
+negative-result discipline — the honest statement is "we do not know why the financial prior
+will not teach this" until §78, and the table is what earns the right to say the architecture
+experiment was not a guess.
+
+Data exists in full (§58, §62, §64, §65, §72, §76); assembling the table is a formatting task,
+not a measurement one.
