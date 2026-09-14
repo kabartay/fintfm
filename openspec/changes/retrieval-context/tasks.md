@@ -52,3 +52,22 @@
       stayed inside an hour. The deviation and Spearman columns do not depend on labels and
       stand; the **AUC deltas do not transfer to a real book**. Verify: `fintfm-retrgroup
       --n-positives 150 --n-negatives 3000`, three seeds, with the AUC delta re-derived.
+- [x] 17.8 **Done 2026-09-13/14 (`docs/FINDINGS.md` §70, §71).** Task 17.7's concern was
+      confirmed and sharpened: at V4FinBench's real regime (0.380% base rate, one fold, six
+      configurations, reproduced twice to four decimals), grouped retrieval alone drops AP by
+      **0.133** relative to uniform sampling — not merely "deltas don't transfer," actively
+      harmful. Not rescued by widening context or ensembling; every combination including
+      retrieval scores below the uniform baseline. Dropping retrieval and keeping
+      `n_ensemble=8` + wider `max_context` instead reached the best AP measured for this
+      checkpoint (+0.031 AP over the old defaults, five-fold paired bootstrap, Holm p<0.001,
+      §71). **The mechanism is still open** (task 38.13 in `cross-domain-coverage`): a
+      candidate — grouped retrieval targets the *centroid* of up to ~330 averaged queries in
+      130-d space, which may not resemble any individual query closely enough to retrieve a
+      useful context — was proposed and a test was set up (exact per-query retrieval,
+      `retrieval_groups=0`, on a small enriched subsample) but the run was killed mid-flight
+      during a machine-load safety stop (2026-09-14) before it produced a result. **No
+      exact-retrieval number exists yet; the centroid-averaging hypothesis is untested, not
+      ruled out.** Re-running it is the natural next step for task 38.13.
+      **Until the mechanism is understood and fixed, retrieval should not be the default
+      context strategy for scoring at a low base rate**, regardless of §32/§37's earlier
+      positive measurements at other regimes.

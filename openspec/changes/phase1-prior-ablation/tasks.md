@@ -33,3 +33,27 @@
       is quoted outside this repository. One seed cannot separate a 0.01 AUC difference from
       noise. Verify: `results.json` per seed, and the finding reports mean +/- std rather than
       a single value.
+
+## Superseded 2026-09-14
+
+Tasks 1.5-1.7 above were written for the original smoke-scale ablation plan and are now
+answered by a more rigorous body of work than this proposal specified: §61/§63 (a controlled
+two-factor design isolating domain content from base rate, with paired-bootstrap significance),
+§73/§75 (the same question re-run on Polish and Taiwan, real independent panels, opposite
+ordering from V4FinBench), and §74/§76 (the Bayes-ceiling test and its bisection, which found
+the financial prior's cost is not confined to one benchmark — it caps basic signal extraction
+everywhere, including on tasks with no relationship to credit at all).
+
+**The exit condition this proposal was written to test is answered, and it is not the simple
+yes/no the proposal expected.** The financial prior beats generic on exactly one benchmark
+(V4FinBench, +0.098 AP, Holm p=0.002) and loses to it everywhere else measured (two real credit
+panels, one exact-Bayes-ceiling synthetic probe). Task 1.6's scale-up question is now secondary
+to `cell-attention-and-task-inference`'s architecture question, per the user's explicit
+priority (2026-09-14): the cap does not track any prior-content axis bisected so far (§76), so
+scaling the financial prior before understanding the cap would very likely just scale the cost
+alongside the one narrow benefit.
+
+- [x] 1.5 **Done, superseded** — see above. The honest read of "does a financial prior beat a
+      generic one" is now: on one specific benchmark, yes, controlled and significant; as a
+      general claim, no, and training on it carries a broad, serious, currently unexplained
+      cost. Not the single number this task asked for, and more informative for it.

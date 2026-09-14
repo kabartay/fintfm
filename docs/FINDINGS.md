@@ -5233,3 +5233,108 @@ stronger default until the mechanism behind §74's cap is understood and fixed.
 ### Caveat
 
 Single split per dataset, as in §73 -- directional, not the five-fold standard.
+
+## 76. Four content axes bisected, none fixes §74's cap: the bottleneck does not track any prior-content variable tested
+
+**Date:** 2026-09-14. **MEASURED**, six existing checkpoints, zero new GPU spend, the exact
+§74 Bayes-ceiling probe.
+
+§74 found pure financial training caps basic signal extraction at ~0.73 AUC regardless of true
+difficulty, while pure SCM tracks the true curve almost exactly. This finding bisects the
+candidate causes using checkpoints already trained this session, each isolating one axis
+against the two established endpoints.
+
+| variant | isolates | 0.900 | 0.990 | 0.999 |
+| --- | --- | --- | --- | --- |
+| fin10 (financial, default) | baseline, capped | 0.666 | 0.713 | 0.728 |
+| finbal (financial, balanced ~40% rate) | base rate | 0.665 | 0.714 | 0.730 |
+| finsharp (financial, raised raw SNR) | signal-to-noise | 0.667 | 0.716 | 0.733 |
+| crossed (clean SCM features, financial label) | features vs label mechanism | 0.680 | 0.736 | 0.755 |
+| idshuffle (financial, broken accounting identities) | identity structure | 0.592 | 0.611 | 0.616 |
+| **fin00 (pure SCM)** | -- | **0.891** | **0.984** | **0.997** |
+
+**None of the four content-axis interventions comes close to closing the gap.** Balancing the
+base rate: no measurable effect. Raising raw signal-to-noise (§65's sharpening, which itself
+raised the financial prior's own learnability above the SCM prior's): no measurable effect.
+Swapping to clean, uncorrelated SCM features while keeping the financial label mechanism:
+a small improvement (0.728 to 0.755 at the top), nowhere near closing the 0.997 gap. Breaking
+accounting identities: **makes it worse** (0.616), consistent with §72's finding that
+identity-shuffle training damages general capability alongside its narrow antisymmetric gain.
+
+**What is common to every capped variant and absent from the one that is not**: the financial
+label's functional form. `fin10`, `finbal`, `finsharp` and `crossed` all construct their label
+via the same mechanism -- a signed linear combination of a driver subset, an optional single
+two-way interaction, then a sigmoid -- while `fin00`'s SCM label is read from an arbitrary node
+of a random 1-4-layer computational graph with five candidate nonlinearities and sparse random
+connectivity. This is the one variable that was never isolated in this bisection (it would
+require training a new checkpoint with the label functional form varied while everything else
+is held fixed), and it is the natural next test if prior-content work continues.
+
+### Why this result changes the priority
+
+An externally-proposed review (relayed by the user, 2026-09-14) argued that this project should
+prioritize architecture -- specifically completing the two-way cell attention D12 already named
+as the unresolved answer, and ensuring labels participate throughout context encoding, not only
+after pooling -- ahead of further prior-content experiments. This finding is direct evidence for
+that read: four different, real, measured content interventions collectively moved the ceiling
+by at most 0.03 AUC (and one moved it backward), while the only thing that has ever closed the
+gap is discarding the financial generator's structure entirely for the SCM prior's. That pattern
+is more consistent with a representational limitation specific to what the current architecture
+can extract from financial-shaped tasks than with a content property of the prior that the next
+experiment might happen to fix.
+
+**Status:** task 38.15 is not closed. The label-functional-form candidate remains untested, and
+architecture (two-way cell attention, `openspec/changes/cell-attention-and-task-inference`) is
+now the priority track per the user's explicit direction, with the label-form test as the
+cheaper prior-side alternative if architecture does not resolve it.
+
+## 77. Even sharpened, the financial prior almost never reaches near-deterministic realized difficulty
+
+**Date:** 2026-09-14. **MEASURED**, ~45-57 sampled tasks per prior, gradient boosting on a
+clean in-task split, run in parallel with §76's bisection.
+
+§76 found sharpening the financial prior (`finsharp`) barely moved the Bayes-ceiling cap
+(0.666 to 0.667 at target 0.900). This finding gives the mechanism: sharpening raises the
+*median* realized difficulty substantially (0.702 to 0.906) without ever reaching the extreme
+tail.
+
+| prior | median | tasks >0.90 | tasks >0.95 | **tasks >0.99** | n |
+| --- | --- | --- | --- | --- | --- |
+| financial, default | 0.702 | 22.2% | 8.9% | **0.0%** | 45 |
+| financial, sharpened | 0.906 | 53.2% | 21.3% | **0.0%** | 47 |
+| generic SCM | 0.954 | 70.2% | 52.6% | **17.5%** | 57 |
+
+**Zero of 92 sampled financial tasks, at either sharpness setting, reached realized AUC above
+0.99. 17.5% of SCM tasks did.** The §74 Bayes-ceiling probe specifically tests targets of 0.99
+and 0.999 -- exactly the region the financial label's construction structurally does not visit
+during training, regardless of the nominal sharpness parameter.
+
+### Why this is structural, not a tuning miss
+
+Financial's label is `drivers @ w` (a bounded-magnitude linear combination over ~9 driver
+dimensions, §47) plus an optional single two-way interaction, then a sigmoid. Averaging several
+bounded terms is exactly the setting where extreme realizations become rare by construction --
+a central-limit-like smoothing that no amount of rescaling (which is what "sharpness" does: a
+uniform multiplier on the whole score) can undo, because it scales the *typical* case and the
+*extreme* case together. SCM's label instead reads one node off a random 1-4-layer graph with
+five candidate nonlinearities; a narrow, monotonic path through such a graph can concentrate
+variance far more sharply than a bounded linear sum ever can.
+
+### Relationship to §76
+
+This does not contradict §76's bisection -- it explains one leg of it. `finsharp` raising raw
+learnability (median realized AUC) without closing the Bayes-ceiling cap is exactly what this
+distribution predicts: more of the mass moves into the 0.80-0.95 band, essentially none reaches
+the 0.99+ band the probe specifically tests. The other three bisected variants (`finbal`,
+`crossed`, `idshuffle`) are not directly explained by this finding, since none of them touch
+the label's linear-combination structure -- `crossed` keeps the identical label mechanism on
+different features and is capped for the same structural reason this finding identifies.
+
+### What this adds to `mechanism-diverse-prior`
+
+Concrete evidence for that proposal's premise, sharper than the qualitative "financial's label
+is always the same shallow shape" argument: **the shape matters because it caps how extreme a
+realized task can be, independent of how the sharpness parameter is set.** A financial-style
+prior with genuinely near-deterministic tasks would need either an unbounded-magnitude driver
+weighting (changing what the weights represent) or a qualitatively different label mechanism,
+not merely a wider sharpness range on the current one.

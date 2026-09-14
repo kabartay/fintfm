@@ -24,3 +24,14 @@
       environment fact any future contributor will hit. Verify: the section names the
       bisection that identified it. **Done 2026-09-09, including that
       `KMP_DUPLICATE_LIB_OK=TRUE` is not sufficient.**
+- [ ] 18.6 **Added 2026-09-14, licensing-gated.** Extend the baseline family beyond
+      CatBoost/LightGBM/XGBoost to TabICLv2, TabDPT, TabPFN (where licensing permits),
+      FT-Transformer, TabM, RealMLP — proposed in an externally-relayed review. **No code or
+      weights from TabPFN/TabICL/TabDPT may enter this repository** (standing project rule);
+      each candidate's weight licence must be checked separately from its code licence, before
+      use, every time — not assumed from a prior check, and not deferred past this task's own
+      commit. For ICL-based baselines specifically, compare with the *same context rows*
+      fintfm receives, not merely the same train/test split, since context construction has
+      already been shown to explain more variance than model choice on this data (§5). Verify:
+      a licence note is recorded alongside each new baseline before it is used, and the finding
+      states which candidates were excluded on licensing grounds and why.

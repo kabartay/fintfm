@@ -15,3 +15,9 @@
       numbers into `docs/FINDINGS.md`, re-derived from `results.json`.
 - [ ] 5.6 Generate `certificate.md` where every clause cites a `results.json` field. Verify:
       a test that each numeric claim in the generated document resolves to a field.
+- [ ] 5.7 **Added 2026-09-14.** Make interval width conditional on the inferred task
+      regime, not only on base rate and OOD distance already covered above — a candidate
+      dimension from an externally-relayed review is context size and inferred task-family
+      confidence (once `explicit-task-representation`'s `p(k|D)` exists to condition on).
+      Blocked on that proposal's task 41.4. Verify: interval width is shown to widen on
+      contexts where task-family confidence is low, holding base rate and OOD distance fixed.
