@@ -20,7 +20,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 import numpy as np
-from sklearn.metrics import brier_score_loss, roc_auc_score
+from sklearn.metrics import average_precision_score, brier_score_loss, roc_auc_score
 
 
 @dataclass
@@ -53,6 +53,7 @@ class CreditMetrics:
     """
 
     roc_auc: float
+    average_precision: float
     brier: float
     ece: float
     base_rate: float
@@ -65,10 +66,19 @@ class CreditMetrics:
     bins: list[tuple[float, float, int]] = field(default_factory=list)
 
     def summary(self) -> str:
-        """One-line rendering for benchmark output."""
+        """One-line rendering for benchmark output.
+
+        AUC is reported first for continuity with prior output; **average precision is the
+        number to read at a low base rate** (``docs/DECISIONS.md`` D13) -- ROC-AUC's chance
+        floor is 0.5 regardless of prevalence, so at a low base rate it compresses the whole
+        usable range into its top few percent, while AP's floor equals the prevalence and the
+        range stays legible. Measured consequence of reading AUC alone: `docs/FINDINGS.md`
+        S60 ranked fintfm second of five on V4FinBench by AUC and third by AP.
+        """
         flag = "  [DEGENERATE: no discriminative content]" if self.is_degenerate else ""
         return (
-            f"AUC={self.roc_auc:.4f} Brier={self.brier:.4f} (skill={self.brier_skill:+.2%}) "
+            f"AUC={self.roc_auc:.4f} AP={self.average_precision:.4f} "
+            f"Brier={self.brier:.4f} (skill={self.brier_skill:+.2%}) "
             f"ECE={self.ece:.4f} recall@{self.base_rate:.1%}={self.recall_at_base_rate:.3f} "
             f"(pred mean {self.mean_predicted:.3%} vs actual {self.base_rate:.3%}, "
             f"{self.n_positive}/{self.n} positive){flag}"
@@ -148,8 +158,10 @@ def evaluate_binary(y_true: np.ndarray, p: np.ndarray, n_bins: int = 10) -> Cred
     brier_ref = base_rate * (1.0 - base_rate) if len(y_true) else float("nan")
     skill = 1.0 - brier / brier_ref if brier_ref and np.isfinite(brier) else float("nan")
     degenerate = bool(np.isfinite(auc) and auc <= 0.55)
+    ap = average_precision_score(y_true, p) if len(np.unique(y_true)) > 1 else float("nan")
     return CreditMetrics(
         roc_auc=float(auc),
+        average_precision=float(ap),
         brier=brier,
         brier_skill=float(skill),
         is_degenerate=degenerate,
