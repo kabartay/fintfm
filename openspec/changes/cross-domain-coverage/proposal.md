@@ -51,18 +51,45 @@ Scope:
    failure this proposal exists to fix, and every checkpoint comparison in this repository so
    far has been single-domain.
 
+## UPDATE 2026-09-14: §74-§75 substantially revise this proposal's orientation
+
+§63 was controlled evidence that the financial prior's structure helps **on V4FinBench**.
+§75 now shows the opposite ordering on two independent real credit panels (Polish, Taiwan):
+pure SCM beats the 70%-financial checkpoint on both, by a wide margin on Taiwan. §63's finding
+is not wrong -- it is narrower than it read at the time. The financial prior's one demonstrated
+real-data benefit is specific to V4FinBench and does not generalise to "credit risk" as a
+domain.
+
+Worse, §74 -- a task with an *exactly known* Bayes-optimal AUC, proposed externally as the
+decisive test of capacity versus prior-content -- found that training predominantly or
+exclusively on the financial prior induces a severe, reproducible cap on basic signal
+extraction (~0.73 AUC regardless of true difficulty, even on a single-dimension task with no
+column-identity structure at all), while the identical architecture trained on the generic SCM
+prior tracks the true Bayes curve almost exactly across three orders of magnitude of
+difficulty. This rules out architecture capacity as the cause and locates the defect in what
+the financial prior specifically teaches.
+
+**This changes the Non-goals below.** "Not dropping the financial prior" is no longer
+defensible as stated; the correct position is narrower: the financial prior has one proven,
+narrow benefit (V4FinBench) and one severe, unexplained cost (§74's cap, which shows up
+everywhere including outside finance). Until the cap's mechanism is understood, the financial
+prior cannot be recommended as a production default, and the generic SCM prior is the safer
+choice for anything not specifically targeting V4FinBench's own feature construction.
+
 ## Non-goals
 
-- **Not dropping the financial prior.** §63 is the controlled evidence that it works, and an
-  earlier reading of §58 that pointed the other way was wrong.
-- **Not sampling the base rate as a curriculum.** That was this proposal's original content and
-  §63 removed its justification: density does not affect transfer. The envelope stays
-  configurable for the reasons §26 gave, and is no longer a research direction.
-- **Not claiming competitiveness.** Both fintfm arms are indistinguishable from logistic
-  regression, LightGBM and XGBoost, and both lose to CatBoost (§60). This proposal is about
-  which prior to build, not about closing that gap.
+- **Not asserting the financial prior should be dropped entirely** -- §63's controlled result
+  is real evidence it helps in at least one setting, and dropping it would be an overcorrection
+  without understanding *why* it caps signal extraction elsewhere. The right non-goal is
+  narrower: not treating it as a safe default until task 38.15 below explains the cap.
+- **Not sampling the base rate as a curriculum.** §63 removed this justification: density does
+  not affect transfer. The envelope stays configurable for the reasons §26 gave, and is no
+  longer a research direction.
+- **Not claiming competitiveness.** Every fintfm arm measured so far is well behind tuned
+  gradient boosting (§60, §69). This proposal is about which prior to build and whether the
+  current one is safe to build on, not about closing that gap.
 
 ## Blocked by
 
-Nothing. Task 38.1 is closed by §62 and §63, which is what redefined this proposal's subject.
-Task 38.2 is the cheapest next measurement and gates the pretraining tasks below it.
+Task 38.15 (explain §74's capacity cap) now gates any recommendation about the financial
+prior's role in a production mixture. Task 38.1 is closed by §62/§63; task 38.2 by §64-§67.

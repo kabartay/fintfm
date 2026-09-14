@@ -5101,3 +5101,135 @@ what tuning would show.
 SCM, or the balanced/sharpened financial variants) generalises differently to these panels is
 untested and is the natural next question, since §61/§63 predict the ordering should depend on
 domain match rather than being fixed across datasets.
+
+## 74. The Bayes-ceiling test resolves it: pure financial training induces a severe capacity-like cap the architecture does not have
+
+**Date:** 2026-09-14. **MEASURED**, three existing checkpoints, a task with an *exactly known*
+Bayes-optimal AUC rather than an estimated one -- proposed externally (relayed by the user) as
+the decisive test of whether §53's "capped predictor" finding is an architecture/capacity
+bottleneck or a prior-content effect.
+
+### The construction
+
+`X in R^6`; class 0 drawn `N(0, I)`, class 1 drawn `N(mu * e_1, I)` -- a mean shift in one
+informative dimension, five pure-noise dimensions, no cross-column structure whatsoever. For a
+1-D equal-variance mean shift, the Bayes-optimal classifier thresholds the informative
+dimension and its AUC has the closed form `Phi(mu / sqrt(2))`, verified numerically before use
+(empirical AUC of the true statistic matched the formula to 3 decimals at every target tested).
+Solving for `mu` given a target lets the task's true difficulty be dialled exactly, from chance
+to near-certainty, with nothing left to estimate.
+
+### The result
+
+| Bayes AUC (exact) | fin07 (70% financial) | **fin00 (pure SCM)** | **fin10 (pure financial)** |
+| --- | --- | --- | --- |
+| 0.500 | 0.499 | 0.503 | 0.506 |
+| 0.700 | 0.669 | 0.692 | 0.584 |
+| 0.900 | 0.849 | 0.891 | 0.666 |
+| 0.990 | 0.953 | **0.984** | **0.713** |
+| 0.999 | 0.978 | **0.997** | **0.728** |
+
+10 seeds x 8 column-identity draws per point; sd ranged 0.002-0.032, tightest near the extremes.
+
+**Pure SCM tracks the true Bayes curve almost exactly across the whole range** -- 0.997 achieved
+against 0.999 true, no meaningful gap anywhere measured.
+
+**Pure financial hits a hard ceiling around 0.73 regardless of true difficulty.** At Bayes AUC
+0.999 -- a task an optimal classifier separates almost perfectly -- it still achieves only
+0.728. This is not a column-identity failure: the task has one informative dimension and no
+identity structure to resolve, ruling out §54-§67's mechanism as the cause here. It is a more
+basic failure to use strong, cleanly-available signal at all.
+
+### What this settles
+
+**Architecture capacity is ruled out as the cause.** Identical architecture, identical
+capacity, and one training-prior choice produces near-perfect tracking while the other produces
+a severe, reproducible cap. A capacity bottleneck would show up regardless of what the model
+was trained on; this does not.
+
+**Training on the financial prior, especially as the dominant source, induces the cap.**
+`fin07` (70% financial, 30% SCM) sits between the two extremes and degrades gracefully with
+financial share rather than falling off a cliff -- a third independent dose-response in this
+direction, joining §58's antisymmetric-probe result and §72's identity-shuffle result. The
+mechanism is still not identified (this finding does not explain *why* the financial prior
+teaches under-extraction of strong signal), but the *locus* is now established beyond doubt:
+it is something about what the financial generator teaches, not a limit of what the encoder can
+represent.
+
+### Why this probe is more damning than every prior one
+
+§54-§67 all probed column-specific reasoning specifically -- tasks that require identifying
+which column matters. This probe requires none of that: the signal sits in a single named
+dimension with five inert companions. A model that has merely failed to learn column identity
+should still find this signal, since no column-identity reasoning is needed to read dimension
+0. That it does not, and caps at almost exactly the same ~0.73 region §51 and §53 measured
+across a whole family of *different* probes days ago, suggests the financial prior teaches a
+general under-confidence or under-extraction strategy that is not specific to any one probe
+family.
+
+### Connection to §73
+
+Read alongside this finding, the Polish/Taiwan reversal (pure SCM beating 70%-financial on all
+four external panels, opposite of V4FinBench) stops looking like a domain-match curiosity and
+starts looking like a symptom of the same underlying defect: the financial prior's only
+demonstrated benefit anywhere is the +0.098 AP on V4FinBench specifically (§63), and training
+on it measurably damages the model's basic signal-extraction capability everywhere else,
+including on tasks with no relationship to finance, columns, or identity at all.
+
+### What this does not yet establish
+
+*Why* the financial prior induces this. Candidates worth testing, none yet measured: whether
+the effective SNR of financial tasks (even under §42's widened sharpness range) is lower in
+practice than the sharpness parameter alone suggests, once accounting-identity correlations and
+missingness are accounted for; whether the objective (cross-entropy under heavy class
+imbalance) interacts badly with the prior's base-rate distribution to teach systematic
+under-confidence; or something in the missingness/MNAR mechanism training the model to hedge.
+This is now the highest-priority open question the whole "what should the production prior look
+like" thread reduces to.
+
+## 75. The financial prior's benefit does not generalize past V4FinBench: pure SCM wins on Polish and Taiwan
+
+**Date:** 2026-09-14. **MEASURED**, same harness as §73 (`run_credit`, single 70/30 split per
+dataset), `colid-fin00` (pure SCM) against `colid-fin07` (70% financial, §73's checkpoint).
+
+| dataset | fin00 (pure SCM) AP | fin07 (70% financial) AP | winner |
+| --- | --- | --- | --- |
+| Polish 1y | **0.1363** | 0.1185 | SCM |
+| Polish 3y | **0.1191** | 0.1071 | SCM |
+| Polish 5y | **0.3021** | 0.2763 | SCM |
+| Taiwan | **0.3223** | 0.2569 | SCM, by +0.065 |
+| *V4FinBench h0 (§63)* | *0.0918* | *0.1900* | *financial, +0.098, Holm p=0.002* |
+
+**Pure SCM beats the financial-content checkpoint on all four external panels** -- the exact
+opposite ordering from V4FinBench, where §63 measured the financial prior's advantage as
+significant and controlled for base rate. AUC shows the same pattern: fin00 reaches 0.9220 on
+Taiwan against fin07's 0.8858.
+
+### The reading this forces
+
+§63 was correct about what it measured -- the financial prior's structure genuinely helps on
+V4FinBench, and that comparison was a controlled two-factor design, not a fluke. What this
+finding adds is that the benefit **does not generalize to "credit risk" as a domain**. Polish
+and Taiwan are both real corporate bankruptcy panels, built from different accounting
+conventions and a different feature-engineering process than V4FinBench's. The financial
+prior's advantage evidently comes from matching something specific to how V4FinBench's 130
+features were constructed -- plausibly the numerator/denominator ratio pairs `_ratio_family`
+samples resembling V4FinBench's own engineered ratios by construction -- rather than from
+encoding anything general about corporate default.
+
+**§63's title should be read narrowly from here on**: "the financial prior helps on
+V4FinBench" is established; "the financial prior helps on credit risk" is now contradicted by
+two independent panels.
+
+### Consistent with §74
+
+This is the same story §74 tells from the architecture side. Training on the financial prior
+caps basic signal extraction (§74) and its one measured real-data benefit does not travel past
+the one benchmark it was measured on (this finding). Both point the same direction: the
+current financial generator, particularly at high or exclusive share, is a narrow fit to one
+dataset's engineering choices rather than a genuine domain prior, and the SCM prior is the
+stronger default until the mechanism behind §74's cap is understood and fixed.
+
+### Caveat
+
+Single split per dataset, as in §73 -- directional, not the five-fold standard.

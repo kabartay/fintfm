@@ -76,3 +76,22 @@
       constructed probe. **Gates any further identity-shuffle work** — building a production
       variant on a mechanism this poorly understood would repeat the §47/§54 pattern of
       shipping a fix whose side effects were not characterised.
+- [ ] 38.15 **Explain §74's capacity cap.** Training predominantly on the financial prior caps
+      basic signal extraction at ~0.73 AUC regardless of true task difficulty, on a probe with
+      no column-identity structure at all; the identical architecture under the generic SCM
+      prior tracks the true Bayes curve almost exactly. Candidates, none yet tested: effective
+      SNR lower in practice than the sharpness parameter implies once accounting-identity
+      correlations and missingness are accounted for; the cross-entropy objective interacting
+      badly with the prior's base-rate distribution to teach systematic under-confidence; the
+      MNAR missingness mechanism training the model to hedge. Verify: isolate one candidate at
+      a time (matching the discipline of §64-§67), rerun the exact §74 Bayes-ceiling probe on
+      the resulting checkpoint, and report against the fin00/fin07/fin10 baseline curve.
+      **Gates 38.4-38.7 and any recommendation to keep the financial prior in a production
+      mixture** -- shipping a prior with an uncharacterised severe defect because it wins on
+      one benchmark repeats the §47 pattern this project was founded on catching.
+- [ ] 38.16 **Re-run §73/§75's cross-dataset comparison at five folds with paired bootstrap**,
+      the same upgrade §69 gave V4FinBench. Verify: `run_credit` gains a `--tune`/multi-split
+      mode matching `v4_protocol.py`'s standard, or the comparison is ported into that harness
+      directly. Both §73 and §75 are single-split and explicitly caveated as directional; the
+      SCM-beats-financial reversal is large enough (Taiwan: +0.065 AP) that it likely survives,
+      but "likely" is not the standard this project has held every other real-data claim to.
