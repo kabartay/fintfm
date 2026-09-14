@@ -223,3 +223,45 @@ def test_base_rate_sweep_keeps_the_linear_baseline_flat(tmp_path):
     lr = sweep["arms"]["logistic_regression"]
     assert all(v > 0.95 for v in lr), f"baseline must stay flat across rates: {lr}"
     assert all(np.isfinite(v) for v in sweep["arms"]["probe"])
+
+
+def test_bayes_ceiling_closed_form_matches_empirical_bayes_optimal_auc():
+    """Task 39.3's explicit verification: the closed form must match reality, not assumption.
+
+    Before this was trusted for a real measurement (docs/FINDINGS.md §74), the formula
+    Phi(mu/sqrt(2)) was checked against the empirical AUC of the true Bayes-optimal statistic
+    (the informative dimension itself) on 200,000 rows. Kept as a permanent regression test so
+    the formula cannot silently drift from what the probe actually measures.
+    """
+    import numpy as np
+    from sklearn.metrics import roc_auc_score
+
+    from fintfm.experiments.capability import _bayes_optimal_mu
+
+    rng = np.random.default_rng(0)
+    for target in (0.6, 0.75, 0.9, 0.99):
+        mu = _bayes_optimal_mu(target)
+        n = 200_000
+        y = (rng.random(n) < 0.5).astype(int)
+        x1 = rng.normal(size=n) + mu * y  # the Bayes-optimal statistic itself
+        empirical = roc_auc_score(y, x1)
+        assert abs(empirical - target) < 0.01, (target, mu, empirical)
+
+
+def test_bayes_ceiling_probe_runs_and_regret_is_consistent(tmp_path):
+    """Shape and consistency check, not a claim about any checkpoint's actual regret."""
+    from fintfm.experiments.capability import BAYES_AUC_TARGETS, bayes_ceiling_probe
+    from fintfm.modeling.model import FinancialTFM, ModelConfig
+
+    model = FinancialTFM(
+        ModelConfig(max_features=8, d_model=16, d_cell=8, n_layers=1, n_col_layers=1,
+                    max_classes=2)
+    ).eval()
+    targets = (0.5, 0.9, 0.999)
+    result = bayes_ceiling_probe(model, targets=targets, seeds=2, n=200, n_ensemble=2)
+
+    assert set(result) == set(targets)
+    for target, (achieved, regret) in result.items():
+        assert 0.0 <= achieved <= 1.0
+        assert abs(regret - (target - achieved)) < 1e-9
+    assert set(BAYES_AUC_TARGETS) >= {0.5, 0.9, 0.999}

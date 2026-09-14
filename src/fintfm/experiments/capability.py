@@ -144,6 +144,100 @@ def make_probe(
     return X[:k], y[:k], X[k:], y[k:]
 
 
+#: Bayes-optimal AUC targets for :func:`bayes_ceiling_probe`. Spans chance to near-certainty.
+BAYES_AUC_TARGETS: tuple[float, ...] = (0.500, 0.550, 0.600, 0.700, 0.800, 0.900, 0.950, 0.990, 0.999)
+
+#: Feature width for the ceiling task: one informative dimension, five inert companions,
+#: matching this project's other symmetry probes.
+_BAYES_TASK_DIM = 6
+
+
+def _bayes_optimal_mu(target_auc: float) -> float:
+    """The mean shift giving a 1-D two-Gaussian task exactly ``target_auc`` Bayes-optimal AUC.
+
+    For class 0 ~ N(0,1) and class 1 ~ N(mu,1), the Bayes-optimal classifier thresholds the
+    one informative dimension and its AUC has the closed form ``Phi(mu / sqrt(2))`` --
+    standard signal-detection theory (d'/sqrt(2)). Solving for ``mu`` lets a task's true
+    difficulty be dialled exactly, with nothing left to estimate. Verified against this
+    formula by :func:`fintfm.experiments.capability` tests, and originally against an
+    empirical Bayes-optimal-statistic AUC before this was trusted for a real measurement.
+    """
+    from scipy.stats import norm
+
+    return float(np.sqrt(2.0) * norm.ppf(target_auc))
+
+
+def _make_bayes_task(
+    rng: np.random.Generator, n: int, mu: float, d: int = _BAYES_TASK_DIM
+) -> tuple[np.ndarray, np.ndarray]:
+    y = (rng.random(n) < 0.5).astype(np.int64)
+    X = rng.normal(size=(n, d))
+    X[:, 0] += mu * y  # mean shift only in the informative dimension, only for class 1
+    return X.astype(np.float32), y
+
+
+def bayes_ceiling_probe(
+    model,
+    targets: tuple[float, ...] = BAYES_AUC_TARGETS,
+    seeds: int = 10,
+    n: int = 1600,
+    n_ensemble: int = 8,
+) -> dict[float, tuple[float, float]]:
+    """Achieved AUC against an *exactly known* Bayes-optimal AUC, not an estimated one.
+
+    ``docs/FINDINGS.md`` §74: the decisive test of whether a capped predictor (§51, §53) is
+    an architecture/capacity bottleneck or a prior-content effect. Found that training
+    predominantly on the financial prior caps achieved AUC at ~0.73 regardless of how strong
+    the true signal is (0.728 achieved at Bayes AUC 0.999), while the identical architecture
+    trained on the generic SCM prior tracks the true curve almost exactly (0.997 at 0.999).
+    §76 bisected four prior-content candidates and none closed the gap --
+    `openspec/changes/cell-attention-and-task-inference` is the architecture-side experiment
+    this probe exists to score.
+
+    Uses the model directly (not :class:`~fintfm.inference.classifier.FinancialTFMClassifier`)
+    with the context split via ``n_ctx`` and column-identity draws averaged over
+    ``n_ensemble``, matching exactly how §74's original measurement was taken -- so numbers
+    from this function are comparable to every value already recorded in ``docs/FINDINGS.md``.
+
+    Args:
+        model: A loaded :class:`~fintfm.modeling.model.FinancialTFM`, trained for
+            classification with ``max_classes >= 2``.
+        targets: Bayes-optimal AUCs to test. Default spans chance to near-certainty.
+        seeds: Independent task draws averaged per target.
+        n: Rows per task; half context, half query.
+        n_ensemble: Column-identity draws averaged per prediction (D12).
+
+    Returns:
+        ``{target: (achieved_auc_mean, regret)}`` where ``regret = target - achieved_mean``
+        (task 39.18) -- the number that makes "0.70 achieved" legible as excellent at a 0.71
+        ceiling and terrible at a 0.995 one, which the raw AUC alone does not.
+    """
+    import torch
+    from sklearn.metrics import roc_auc_score
+
+    nc = n // 2
+    out: dict[float, tuple[float, float]] = {}
+    for target in targets:
+        mu = _bayes_optimal_mu(target)
+        achieved = []
+        for s in range(seeds):
+            rng = np.random.default_rng(s)
+            X, y = _make_bayes_task(rng, n, mu)
+            Xt = torch.tensor(X)[None]
+            yt = torch.tensor(y)[None]
+            with torch.no_grad():
+                ps = [
+                    torch.softmax(
+                        model(Xt, yt, nc, torch.tensor([2]), column_id_seed=k).float(), -1
+                    )[0, nc:, 1].numpy()
+                    for k in range(n_ensemble)
+                ]
+            achieved.append(roc_auc_score(y[nc:], np.mean(ps, 0)))
+        mean_achieved = float(np.mean(achieved))
+        out[target] = (mean_achieved, target - mean_achieved)
+    return out
+
+
 def feature_sweep(
     model_paths: dict[str, str],
     widths: tuple[int, ...] = (5, 10, 20, 40, 80, 130),
