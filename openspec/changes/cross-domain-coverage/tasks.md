@@ -55,19 +55,24 @@
       not the label function.** The financial-features/SCM-label cell was left at a cheap
       gradient-boosting sanity check (raw AUC ~0.54-0.56, near-unlearnable at this scale, so
       a full pretraining run there would not have been readable) rather than pretrained.
-- [ ] 38.11 **Isolate the feature-side cause.** §67 implicates the financial generator's
-      features without naming the mechanism; §65 already eliminated near-duplicate columns,
-      overall correlation and label-dependence concentration as continuous statistics on the
-      *whole* task. The remaining candidate is the accounting-identity structure itself —
-      ratios as deterministic functions of a small set of latent account balances. §68: a
-      cheap screen adding post-hoc noise to the assembled feature matrix was tried and found
-      inconclusive (hump-shaped, an artefact of raw/sorted AUC both collapsing toward chance
-      as noise grows, not a clean identity-structure signal). **The valid design perturbs the
-      shared latent accounts before deriving ratios** — independent copies of an account for
-      each ratio that currently shares the literal array, preserving each account's own
-      marginal and its contribution to the label, breaking only the cross-ratio identity —
-      which requires modifying `_accounts`/`_ratio_family` directly rather than the assembled
-      `Task.X`. Verify: measure the antisymmetric probe on a pretrained checkpoint, not a
-      raw/sorted GB proxy alone, since §65 already showed such proxies can mislead. State the
-      concern explicitly if this test requires weakening the identities the ratios are drawn
-      from, since doing so trades against the generator being recognisably financial.
+- [x] 38.11 **Isolate the feature-side cause.** Done: `identity_shuffle` (permute each
+      account independently, breaking cross-account identities exactly while preserving every
+      account's marginal and leaving the label untouched — verified before spending the GPU
+      run) is implemented and pretrained. §72: **not a clean result.** The antisymmetric probe
+      moved further than any other manipulation tried (0.7488, against 0.535-0.586 for every
+      other financial-only arm) — real support for the hypothesis — but `symmetric_sum` and
+      `symmetric_count` collapsed to 0.30 and 0.26, *below* the 0.5 chance floor and stable
+      across 16 seeds, where every other checkpoint in this project scores >=0.92. The
+      checkpoint is also the worst of four financial-only arms on its own in-distribution
+      per-task AUC (0.5772). Some support for the hypothesis, a new unexplained failure mode,
+      and not yet a candidate fix.
+- [ ] 38.14 **Explain the symmetric-probe inversion.** §72's candidate mechanism, untested:
+      identity-shuffle may produce far more extreme derived ratios than the true accounts
+      (independently-permuted numerator/denominator pairs), and the model may have learned
+      "extreme values across many columns" as a spurious cue specific to this prior that
+      misfires in the opposite direction on a probe whose positive class is a large sum/count.
+      Verify: measure whether identity-shuffled tasks have heavier-tailed exposed columns than
+      the unshuffled prior, and whether the inversion's sign tracks feature extremity in a
+      constructed probe. **Gates any further identity-shuffle work** — building a production
+      variant on a mechanism this poorly understood would repeat the §47/§54 pattern of
+      shipping a fix whose side effects were not characterised.

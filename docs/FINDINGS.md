@@ -4973,3 +4973,78 @@ architecture, or prior work).
 Why retrieval hurts here and helped in §32 is still unexplained (§70). Worth chasing if
 retrieval's mechanism can be fixed rather than disabled, since disabling it forgoes whatever
 its intended benefit was.
+
+## 72. Identity-shuffle moves the antisymmetric probe, but induces a reproducible sub-chance inversion on symmetric ones
+
+**Date:** 2026-09-14. **MEASURED**, one completed 6,000-step T4 run (`fintfm-colid-idshuffle`,
+`--identity-shuffle`), symmetry probes at 16 seeds each (up from the usual 8, specifically to
+verify this result before reporting it).
+
+§68's revised design — permute each account independently so cross-account identities break
+exactly while every account's own marginal distribution and the label (computed from the true,
+unpermuted accounts) are completely unaffected — was verified correct before spending the GPU
+run: the identity `equity = assets - liabilities` holds to machine precision in the true
+accounts and is violated at the scale of the accounts themselves after permutation; every
+account's sorted values are unchanged; `y` is byte-identical between `identity_shuffle=True`
+and `False` at the same seed; `identity_shuffle=False` reproduces every existing checkpoint's
+behaviour exactly (regression-tested).
+
+### The result is not a clean confirmation
+
+| probe | financial arms (default/balanced/sharp) | **identity-shuffle** | generic SCM |
+| --- | --- | --- | --- |
+| antisymmetric | 0.535 - 0.586 | **0.7488** (sd 0.025, n=16 seeds) | 0.9932 |
+| symmetric_sum | 0.986 - 0.992 | **0.2988** (sd 0.027, n=16) | 0.9964 |
+| symmetric_count | 0.920 - 0.930 | **0.2597** (sd 0.026, n=16) | 0.9336 |
+
+**Antisymmetric moved further than any other single manipulation tried against the pure
+financial prior** — 0.749 against the next-best (sharpened) prior's 0.586. That is consistent
+with §67's implication of the features, and stronger evidence for the accounting-identity
+hypothesis specifically than anything measured so far.
+
+**But `symmetric_sum` and `symmetric_count` collapsed to 0.30 and 0.26 — below the 0.5 chance
+floor, and every other checkpoint in this project scores at or above 0.92 on these two probes,
+without exception.** An AUC below 0.5 means the ranking is *systematically inverted*: the model
+is confidently wrong, not merely uninformative. Verified stable across 16 independent seeds
+(sd ~0.026), so this is not a fluke of one measurement.
+
+**And the checkpoint is worse than every other financial-only arm on its own in-distribution
+metric**, not only on the exotic probes:
+
+| arm | per-task AUC (financial prior, in-distribution) |
+| --- | --- |
+| default (colid, no shuffle) | 0.6693 |
+| balanced (base rate) | 0.6433 |
+| sharpened (learnability) | 0.6601 |
+| **identity-shuffle** | **0.5772** |
+
+Identity-shuffle is the worst of four financial-only checkpoints on the metric that matters
+most, and it developed a severe, reproducible inversion the others do not have.
+
+### What this does and does not support
+
+**Some support for the accounting-identity hypothesis**, because the antisymmetric probe moved
+further than any prior manipulation. **Not clean confirmation**, because the same intervention
+produced a serious new failure mode rather than a strict improvement, and made the model worse
+where it is actually deployed. Identity-shuffle as implemented is not a candidate fix; it is
+evidence the mechanism is real but that severing the accounting identities has side effects on
+what the model learns that are not yet understood.
+
+### A candidate mechanism for the inversion, untested
+
+Breaking cross-account identities can produce far more extreme derived ratios than the true
+accounts ever would (e.g. `debt_to_ebitda` when `debt` and `ebitda` are independently
+permuted, rather than tied through the same firm's true financials). If the model learned
+"extreme values across many columns" as a spurious cue for this prior's label — plausible,
+since real defaulting firms in the *true* accounts tend toward extreme ratios, and
+identity-shuffle may have decoupled "extreme" from "defaulting" while leaving the association
+partially learned — that heuristic would misfire in the opposite direction on a probe where
+the positive class is defined by a large sum or count of positive values, which is exactly
+where the inversion appears. Untested; the next step if this thread continues.
+
+### Status
+
+Task 38.11 is not closed by this result. It substantially narrows the mechanism (features, and
+now specifically something about the identity structure moves the needle) while opening a new,
+unexplained problem that must be understood before any identity-breaking variant is a candidate
+for anything beyond diagnosis.
