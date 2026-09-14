@@ -5338,3 +5338,86 @@ realized task can be, independent of how the sharpness parameter is set.** A fin
 prior with genuinely near-deterministic tasks would need either an unbounded-magnitude driver
 weighting (changing what the weights represent) or a qualitatively different label mechanism,
 not merely a wider sharpness range on the current one.
+
+## 78. Two-way cell attention closes §74's capacity cap: regret 0.27 to 0.003, on the exact prior that produced it
+
+**Date:** 2026-09-14. **MEASURED**, two completed 6,000-step T4 runs
+(`fintfm-cellattn-fin10`, `p_financial=1.0`; `fintfm-cellattn-fin00`, `p_financial=0.0`),
+`n_cell_blocks=1` with `cell_labels=True` (task 39.1/39.2), otherwise matching §74's
+`fin10`/`fin00` configuration. This is `cell-attention-and-task-inference` task 39.4 — the
+experiment the whole architecture-first thread (§74, §76, §77, and an externally-relayed
+review converging with D12) was built to run.
+
+### The result
+
+| target Bayes AUC | financial, OLD architecture (§74) | **financial, two-way cell attention** | SCM, OLD (§74) | **SCM, two-way cell attention** |
+| --- | --- | --- | --- | --- |
+| 0.900 | 0.666 (regret 0.234) | **0.897 (regret 0.003)** | 0.891 (regret 0.009) | 0.899 (regret 0.001) |
+| 0.990 | 0.713 (regret 0.277) | **0.986 (regret 0.004)** | 0.984 (regret 0.006) | 0.988 (regret 0.002) |
+| 0.999 | 0.728 (regret 0.271) | **0.998 (regret 0.001)** | 0.997 (regret 0.002) | 0.999 (regret 0.0005) |
+
+**A checkpoint trained exclusively on the financial prior -- the exact prior that produced a
+hard ~0.73 ceiling regardless of true task difficulty -- now tracks the true Bayes-optimal
+curve almost perfectly.** Regret in the 0.90-0.999 range falls from 0.234-0.277 to 0.001-0.005,
+roughly a 60-90x reduction. The SCM arm, already near-optimal under the old architecture, shows
+**no regression** and if anything a small further improvement at every target.
+
+### Confirmed by two further, independent instruments before trusting one metric
+
+Per this project's own standing discipline (§50, §52's retracted readings), a single metric
+moving is not sufficient. The symmetry probes (§54, §56), run on both new checkpoints:
+
+| arm | antisymmetric | symmetric_sum | symmetric_count | orientation | linear |
+| --- | --- | --- | --- | --- | --- |
+| financial, OLD architecture | 0.5352 | 0.9921 | 0.9236 | 0.6881 | 0.6503 |
+| **financial, cell attention** | **0.9890** | 0.9849 | 0.8745 | **0.9961** | **0.9757** |
+| SCM, OLD architecture | 0.9932 | 0.9964 | 0.9336 | 0.9918 | 0.9897 |
+| SCM, cell attention | 0.9962 | 0.9775 | 0.8872 | 1.0000 | 0.9739 |
+
+**The financial-only checkpoint's antisymmetric score -- 0.5352 to 0.9890 -- essentially closes
+to the SCM baseline (0.9932), on a probe with a provable 0.5 ceiling for any architecture that
+cannot represent column identity.** Nothing tried against the financial prior's *content*
+across §58-§77 came close: the best any content intervention achieved was the 70/30 mixture's
+0.9116 (§58), and every pure-financial content variant (default, balanced, sharpened, clean
+features, broken identities) stayed at 0.53-0.59. The architecture change does in one run what
+seven content interventions could not.
+
+**One honest exception**: `symmetric_count` is lower on both new checkpoints (0.87-0.89) than
+their old-architecture counterparts (0.92-0.93). Both new arms land in a narrow band regardless
+of prior, which suggests a property of the architecture change generally rather than noise, but
+this is one data point and not yet understood. Recorded rather than glossed over.
+
+### What this settles
+
+**§74's cap was architectural, not a property of the financial prior's content.** Every
+content-side hypothesis this project spent §58-§77 testing -- base rate, signal-to-noise,
+feature cleanliness, accounting-identity structure, label functional form -- was chasing an
+effect whose actual cause was that the row encoder had no way to develop column semantics from
+the context, only column *identity* (D12, §54). Two-way cell attention gives it exactly that:
+a cell can now attend to the rest of its own column across every context row, not only to the
+other features of its own row.
+
+### What this does not yet settle
+
+**No real-data claim.** Every number in this finding is synthetic. `cell-attention-and-task-
+inference` task 39.5 -- re-running V4FinBench and the credit panels before any claim that this
+is a strict improvement -- is next, and it is not optional: §69-§77 all warn that a synthetic
+result and a real-benchmark result have dissociated before in this project.
+
+**A deliberate configuration deviation.** Both runs used `--batch-size 4 --n-rows-choices
+256,512` rather than fin10/fin00's `--batch-size 8 --n-rows-choices 256,512,1024`, forced by a
+CUDA OOM the first launch attempt hit (`_eval_quality`'s held-out evaluation batch size was
+hardcoded to 16, independent of the training batch size, and row-attention-within-feature's
+`(B*F, heads, N, N)` attention score matrix made that difference decisive -- 34 GB attempted
+on a 14.74 GB card). The eval-batch-size bug is fixed for every future run; the training
+`n_rows` cap of 512 for *this* pair of runs is a real, documented difference from §74's
+baseline and should be closed before the comparison is called final.
+
+### Consequence for the rest of this project's architecture-first thread
+
+Per `cell-attention-and-task-inference` task 39.6: since 39.4 *did* close the gap, task 39.5 is
+now the immediate next step (re-run real-data protocols) and `mechanism-diverse-prior`'s
+premise (task 40.1) is substantially weakened -- the cap this project spent three days chasing
+through prior-content experiments was not a prior-coverage gap. The label-functional-form
+candidate §77 developed remains scientifically interesting on its own terms, but it is no
+longer the leading explanation for §74's finding.

@@ -58,6 +58,21 @@ should not be cited as established without checking the primary source first.
 6. **Missingness, shift and support-extrapolation axes**, sampled independently of the above
    rather than bundled into "financial" or "SCM" as fixed packages.
 
+## UPDATE 2026-09-14: premise substantially weakened by §78
+
+`cell-attention-and-task-inference` task 39.4 closed §74's capacity cap with an architecture
+change alone -- regret at Bayes AUC 0.90-0.999 fell from 0.234-0.277 to 0.001-0.005 on a
+checkpoint trained *exclusively* on the financial prior, no change to its content at all. The
+cap this proposal was written to explain from the prior side was, per §78, architectural.
+
+This does not make the label-functional-form candidate (§77: financial tasks, even sharpened,
+essentially never reach realized difficulty above 0.99 AUC) uninteresting on its own terms --
+it remains a real, measured, structural property of the current financial generator. It does
+remove the urgency this proposal was written under. **Do not resume this proposal's pretraining
+tasks (40.7) without first checking whether the architecture fix alone is sufficient** for
+whatever the next real-data question is; building mechanism diversity to fix a cap that no
+longer exists would be solving an already-solved problem.
+
 ## Non-goals
 
 - **Not matching real-panel marginal statistics.** That is `prior-width-and-fidelity`'s job;

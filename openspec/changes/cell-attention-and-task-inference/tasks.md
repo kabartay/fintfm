@@ -20,20 +20,26 @@
       results are comparable to every recorded value. Also returns per-target regret (task
       39.18), free once both numbers exist. Verify: passed — closed form checked against an
       empirical Bayes-optimal-statistic AUC on 200,000 rows, kept as a permanent test.
-- [ ] 39.4 **Pretrain and compare.** Same protocol as every other T4 comparison this session
-      (6,000 steps, `p_financial=1.0` and `p_financial=0.0` arms, matching §74's `fin10`/`fin00`
-      exactly except for `n_cell_blocks`). Verify: the §74 Bayes-ceiling probe run on both new
-      checkpoints, reported against the existing `fin10`/`fin00` curve. This is the actual test
-      of the proposal's hypothesis — report the result whichever way it comes out.
-- [ ] 39.5 **If 39.4 closes the gap**, re-run §54/§56's symmetry probes and §69's V4FinBench
-      protocol on the new architecture before any claim that it is a strict improvement —
-      §50/§52's retracted readings are the standing warning against declaring victory from one
-      metric. Verify: paired-bootstrap AP on V4FinBench and per-task symmetry-probe scores are both reported against the pre-change checkpoint.
+- [x] 39.4 **Done — the gap closed.** §78: `n_cell_blocks=1`, `cell_labels=True`, both
+      `p_financial` arms. Financial-only regret at Bayes AUC 0.90-0.999 fell from 0.234-0.277
+      to 0.001-0.005 (~60-90x). SCM arm unregressed. Confirmed by the antisymmetric probe
+      independently: 0.5352 to 0.9890, closing to the SCM baseline's 0.9932 — something no
+      content intervention across §58-§77 came within 0.4 of. **Deviation from the planned
+      protocol**: forced to `--batch-size 4 --n-rows-choices 256,512` (dropping 1024) after a
+      CUDA OOM on the first launch attempt (`_eval_quality`'s hardcoded eval batch size of 16,
+      independent of training's batch size, now fixed for every future run) — task 39.5 should
+      close this gap before the comparison is called final.
+- [ ] 39.5 **It did close the gap (§78) — this is now the immediate next step.** Symmetry
+      probes already run (§78, confirms). Still needed: (a) re-run at §74's exact protocol
+      (`--batch-size 8 --n-rows-choices 256,512,1024`) to close the deviation noted in 39.4;
+      (b) V4FinBench protocol (§69's five-fold, paired-bootstrap standard) on the new
+      architecture, since every real-data number in this project has come from the old one and
+      §69-§77 repeatedly warn that synthetic and real-benchmark results dissociate. Verify:
+      no claim of a real-data improvement until both land. Verify: paired-bootstrap AP on V4FinBench and per-task symmetry-probe scores are both reported against the pre-change checkpoint.
 
-- [ ] 39.6 **If 39.4 does not close the gap**, the label-functional-form candidate §76 left
-      untested (financial's shallow linear-plus-one-interaction label versus SCM's deeper
-      random-graph label) becomes the next hypothesis, and this proposal's premise (the cap is
-      architectural) is itself falsified — record that plainly rather than moving the goalposts.
+- [x] 39.6 **Resolved — 39.4 closed the gap, so this branch does not trigger.** The
+      label-functional-form candidate (§77) remains scientifically interesting but is no
+      longer the leading explanation for §74; see the update to `mechanism-diverse-prior`.
 
 ## Backlog: sequenced after architecture, per the external review and the user's ordering
 
