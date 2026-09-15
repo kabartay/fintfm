@@ -1,0 +1,19 @@
+# Task 39.25: re-score V4FinBench at a context §81's chunking fix made reachable.
+#
+# NOT PRODUCTION. One point in the context sweep §80 could not run. §79 measured cell
+# attention's attention tensor as (batch*F, heads, N, N); §81 chunked it over F, which is
+# identity-preserving (asserted byte-for-byte in tests/test_model.py) and brought
+# max_context=4000 from an estimated ~63 GB down to 22.5 GB.
+#
+# query_chunk is 1024, not the 2048 default: measured on MPS at 136 features, ctx=4000 costs
+# 8.38 ms/query at q=1024 and 61.14 ms/query at q=2048 -- the same spill cliff §79 documented,
+# which chunking over F moves but does not abolish.
+#
+# n_ensemble=8 matches §71 and §80 so the arms stay comparable.
+
+inference:
+  context_strategy: uniform
+  max_context: 2000
+  query_chunk: 1024
+  feature_chunk: 16
+  n_ensemble: 8
