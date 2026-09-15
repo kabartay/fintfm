@@ -318,5 +318,7 @@ cost carries a factor of the feature count, which puts §71's best real-data con
 context 1000) is therefore **below the old architecture's best *recorded* score** (0.2116 at
 context 4000, §71 — a single fold, so not measured to this standard). The architecture is
 better at matched context; whether it improves this project's real-data *standing* is
-unresolved and waits on chunking row-within-feature attention over `F`, which is engineering
-rather than modelling and changes no number.
+unresolved. **The blocker is gone (§81)** — chunking row-within-feature attention over `F`
+is identity-preserving, 6.2x smaller and 1.6-2.4x faster, and `max_context=4000` now runs — but
+the protocol has not been re-run at those contexts, so the question is measurable and still
+unmeasured.

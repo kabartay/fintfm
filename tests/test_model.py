@@ -576,3 +576,46 @@ def test_pre_39_1_shaped_checkpoint_loads(tmp_path):
     X, y = torch.randn(1, 10, 8), torch.randint(0, 3, (1, 10))
     with torch.no_grad():
         model(X, y, 6, torch.tensor([3]), column_id_seed=0)  # must not raise
+
+
+def test_feature_chunking_is_an_identity():
+    """Chunking row-within-feature attention over ``F`` must change no number.
+
+    The whole justification for `openspec/changes/cell-attention-and-task-inference` task
+    39.24 is that this is a memory/throughput knob and not an approximation -- it is what
+    lets `max_context=4000` run at all (``docs/FINDINGS.md`` §79/§81), and if it perturbed
+    predictions it would silently invalidate every comparison made across chunk sizes.
+
+    Chunk sizes deliberately include one that does not divide the feature count (5 into 17)
+    and one larger than it (64), since an off-by-one in the reshape would show up only
+    there.
+    """
+    torch.manual_seed(0)
+    cfg = ModelConfig(
+        max_features=17, d_cell=16, d_model=32, n_layers=2, n_col_layers=2,
+        n_heads=4, max_classes=3, n_cell_blocks=2, cell_labels=True, column_id_dim=8,
+    )
+    model = FinancialTFM(cfg).eval()
+    X = torch.randn(3, 40, 17)
+    X[0, :, 16] = float("nan")  # an entirely-absent column, so padding is exercised too
+    y = torch.randint(0, 2, (3, 40))
+
+    with torch.no_grad():
+        model.feature_chunk = None
+        reference = model(X, y, n_ctx=25, column_id_seed=7)
+        for chunk in (1, 2, 5, 16, 17, 64):
+            model.feature_chunk = chunk
+            got = model(X, y, n_ctx=25, column_id_seed=7)
+            assert torch.equal(got, reference), f"feature_chunk={chunk} changed the output"
+
+
+def test_feature_chunk_rejects_a_nonsense_size():
+    """A zero or negative chunk must fail loudly rather than silently skipping features."""
+    cfg = ModelConfig(
+        max_features=6, d_cell=8, d_model=16, n_layers=1, n_col_layers=1,
+        n_heads=2, max_classes=2, n_cell_blocks=1,
+    )
+    model = FinancialTFM(cfg).eval()
+    model.feature_chunk = 0
+    with pytest.raises(ValueError, match="feature_chunk"):
+        model(torch.randn(1, 8, 6), torch.randint(0, 2, (1, 8)), n_ctx=5)

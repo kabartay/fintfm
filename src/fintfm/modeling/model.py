@@ -194,6 +194,10 @@ class FinancialTFM(nn.Module):
     def __init__(self, cfg: ModelConfig) -> None:
         super().__init__()
         self.cfg = cfg
+        # Runtime-only, deliberately NOT a ModelConfig field: it changes no weight and no
+        # output, so it must not enter a checkpoint or require a load-time backfill. See
+        # :attr:`feature_chunk`.
+        self.feature_chunk: int | None = None
         self.cell_embed = nn.Sequential(
             nn.Linear(2, cfg.d_cell),
             nn.GELU(),
@@ -298,6 +302,54 @@ class FinancialTFM(nn.Module):
         mask[eye, eye] = False
         return mask
 
+    def _row_within_feature(
+        self, by_feature: torch.Tensor, row_mask: torch.Tensor, B: int, Fdim: int
+    ) -> torch.Tensor:
+        """Run row-attention-within-feature, optionally in chunks over the feature axis.
+
+        The ``B * F`` attention problems stacked in ``by_feature``'s batch dimension are
+        mutually independent -- a cell attends only to the same feature's cells in other
+        rows -- and ``row_mask`` does not depend on which feature is being processed. So
+        splitting the batch dimension into groups of whole features and concatenating the
+        results is an identity, not an approximation.
+
+        **Why it is worth doing.** This stage's attention scores are ``(B*F, heads, N, N)``,
+        a feature-count factor the pooled architecture never carried. ``docs/FINDINGS.md``
+        §79 measured ~16 GB at ``N=2024`` on V4FinBench's 136 features and a 92x performance
+        cliff by ``N=2512``, which put §71's best inference configuration
+        (``max_context=4000``, an estimated ~63 GB) out of reach entirely and forced §80 to
+        compare two architectures at a context §31/§33 had measured the *older* one still
+        improving past. Chunking trades that memory back for time and changes no number, so
+        the comparison §80 could not make becomes possible.
+
+        Args:
+            by_feature: ``(B*F, N, d_cell)``, features varying slowest.
+            row_mask: ``(N, N)`` boolean attention mask, True = blocked.
+            B: Batch size, used only to validate the chunking arithmetic.
+            Fdim: Feature count, used only to validate the chunking arithmetic.
+
+        Returns:
+            ``(B*F, N, d_cell)``, the encoder applied to every feature.
+        """
+        chunk = self.feature_chunk
+        if chunk is None or chunk >= Fdim:
+            return self.row_within_feature_encoder(by_feature, mask=row_mask)
+        if chunk < 1:
+            raise ValueError(f"feature_chunk must be >= 1, got {chunk}")
+        # Chunk in whole features so each group stays a set of independent problems. The
+        # batch dimension is (B, F) with F varying fastest, so a stride of `chunk` features
+        # is not contiguous across B -- reshape to (B, F, ...) and slice the feature axis
+        # rather than slicing the flattened batch, which would mix features across tasks.
+        view = by_feature.reshape(B, Fdim, *by_feature.shape[1:])
+        out = torch.empty_like(view)
+        for start in range(0, Fdim, chunk):
+            stop = min(start + chunk, Fdim)
+            group = view[:, start:stop].reshape(-1, *by_feature.shape[1:])
+            out[:, start:stop] = self.row_within_feature_encoder(
+                group, mask=row_mask
+            ).reshape(B, stop - start, *by_feature.shape[1:])
+        return out.reshape_as(by_feature)
+
     def _column_ids(
         self, B: int, Fdim: int, device: torch.device, dtype: torch.dtype, seed: int | None
     ) -> torch.Tensor:
@@ -381,7 +433,7 @@ class FinancialTFM(nn.Module):
                 # mask, which does not depend on which feature, applies identically to all
                 # B*F independent attention problems.
                 by_feature = cells.permute(0, 2, 1, 3).reshape(B * Fdim, N, self.cfg.d_cell)
-                by_feature = self.row_within_feature_encoder(by_feature, mask=row_mask)
+                by_feature = self._row_within_feature(by_feature, row_mask, B, Fdim)
                 cells = by_feature.reshape(B, Fdim, N, self.cfg.d_cell).permute(0, 2, 1, 3)
                 # Column attention within one row: the existing mechanism, reused per block.
                 flat = cells.reshape(B * N, Fdim, self.cfg.d_cell)

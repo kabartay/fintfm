@@ -5478,8 +5478,9 @@ Three consequences, all of which constrain what task 39.5 can honestly claim:
 3. **This is a deployment claim, not only a benchmark one.** A credit decision scored per
    obligor at 136 features now costs a forward pass whose memory scales with feature count.
    Any future claim that this architecture is production-viable has to price that, and the
-   honest fix is engineering — chunking row-within-feature attention over `F`, which trades
-   memory back for time without changing any number — not a smaller context.
+   honest fix is engineering — chunking row-within-feature attention over `F`, which is
+   identity-preserving — not a smaller context. **Done, §81**: it cost nothing at all, being
+   6.2x smaller *and* 1.6-2.4x faster, and it restores `max_context=4000`.
 
 ### What this does not say
 
@@ -5558,11 +5559,15 @@ direction: §71's 0.2116 is a *single fold*, not a five-fold mean, so it is not 
 standard of everything else in this entry; and the comparison is confounded by exactly the
 handicap declared in advance in §79 and in `configs/cellattn-v4-validation.yaml` before any
 number was seen. What settles it is the engineering fix, not another benchmark: chunking
-row-within-feature attention over `F` trades memory back for time and changes no number,
-after which cell attention can be scored at 2000 and 4000 and the question becomes
-measurable. That is the next task, and until it lands **no claim should be made that this
-architecture improves this project's real-data standing** — only that it improves the
-architecture at matched context, which is what was actually measured.
+row-within-feature attention over `F` is identity-preserving and changes no number, after
+which cell attention can be scored at 2000 and 4000 and the question becomes measurable. That
+is the next task, and until it lands **no claim should be made that this architecture improves
+this project's real-data standing** — only that it improves the architecture at matched
+context, which is what was actually measured.
+
+**Update, §81 (same day)**: the chunking fix is implemented and `max_context=4000` now runs at
+22.5 GB. The "trades memory for time" expectation stated above was wrong — chunking is faster
+too. This entry's open question is now *measurable* but still *unmeasured*.
 
 ### Provenance and process notes
 
@@ -5575,3 +5580,70 @@ The bootstrap script was run without `PYTHONUNBUFFERED=1` and produced no output
 minutes while working correctly — the precise trap `CLAUDE.md` documents, walked into by the
 person who wrote the rule. No result was affected; noted because the rule's whole point is
 that a silent process is indistinguishable from a dead one.
+
+## 81. Chunking row-within-feature attention is free in both directions: 6.2x less memory and 1.6x faster, and it restores `max_context=4000`
+
+**Date:** 2026-09-15. **MEASURED**, forward passes of `runs/dl/v4-cellattn-fin10.pt`
+(`n_cell_blocks=1`, `max_features=136`) on CPU, each configuration in its **own process** —
+see the measurement error below. This is `cell-attention-and-task-inference` task 39.24,
+implementing the fix §79 and §80 both named as the blocker.
+
+### The change
+
+The row-within-feature stage stacks `B*F` mutually independent attention problems into one
+batch dimension, and `_row_mask` does not depend on which feature is being processed. So
+splitting that dimension into groups of whole features and concatenating is an **identity**,
+not an approximation. `FinancialTFM.feature_chunk` (runtime-only — it changes no weight, so
+it deliberately never enters a checkpoint) sets the group size.
+
+`tests/test_model.py::test_feature_chunking_is_an_identity` asserts `torch.equal` against the
+unchunked output at chunk sizes 1, 2, 5, 16, 17 and 64 on a 17-feature model — deliberately
+including a size that does not divide the feature count and one larger than it, since a
+reshape off-by-one would surface only there. All exactly equal, difference 0.000e+00.
+
+### The measurement
+
+| configuration | unchunked | `feature_chunk=16` |
+| --- | --- | --- |
+| ctx=1000, q=1024 (N=2024) | 21.0 GB, 10.6 s | **3.4 GB, 6.8 s** |
+| ctx=2000, q=512 (N=2512) | 27.2 GB, 32.7 s | **6.5 GB, 13.4 s** |
+| ctx=2000, q=1024 (N=3024) | — | 9.1 GB, 13.7 s |
+| ctx=4000, q=1024 (N=5024) | — | 15.7 GB, 55.1 s |
+| ctx=4000, q=2048 (N=6048) | — | **22.5 GB, 66.6 s** |
+
+**`max_context=4000` runs, at 22.5 GB against §79's ~63 GB estimate for the unchunked path.**
+§71's best-measured real-data configuration is reachable under cell attention again, which is
+precisely what §80 said was needed to make its open question measurable.
+
+### A prediction of mine that was wrong, in the useful direction
+
+§79, §80 and task 39.24 all described this as "trades the memory back for time." **It does
+not: it is 1.6-2.4x *faster* as well as 6.2x smaller.** The reasoning behind the wrong
+prediction was that chunking serialises work that was previously one batched call, which must
+cost time. What it actually does is keep each attention score tensor small enough to stay in
+cache instead of spilling — the same mechanism behind §79's 92x cliff, working in reverse.
+The earlier wording is corrected in place in §79, §80, Claim 10 and `LIMITATIONS.md` rather
+than left standing with a footnote, since "costs time" was an argument against using it by
+default. It is now the default (`feature_chunk: 16`).
+
+### A measurement error caught by disbelieving the first result
+
+The first run of this comparison reported *identical* peak memory chunked and unchunked
+(20.7 GB both), which would have meant the change did nothing. That was an artifact of the
+harness, not the model: `resource.getrusage(...).ru_maxrss` is a **process-lifetime
+high-water mark**, and both configurations were being timed in one process, so the unchunked
+run's peak was still being reported for the chunked one. Re-running each configuration in
+its own process gave the 6.2x reduction above.
+
+Worth recording because the artifact produced the *specific* wrong answer "your optimisation
+has no effect" — a plausible, disappointing, easily-accepted result. The same family as §57's
+pooled-AUC inflation: a measurement instrument that is wrong in a way the number itself does
+not reveal. The tell was that it disagreed with a mechanism that had to be true — a tensor
+6.2x smaller cannot occupy the same memory — rather than anything in the output.
+
+### What this does not yet say
+
+**No accuracy claim.** This finding is entirely about cost. Whether cell attention at
+`max_context=4000` actually beats the old architecture's 0.2116 (§71) — §80's open question,
+and the reason this task existed — requires re-running the V4FinBench protocol at the newly
+reachable contexts. That is the next step and it is not done.

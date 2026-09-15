@@ -163,7 +163,14 @@ architectures are compared at a context that handicaps the newer one, and the ca
 §78 and the configuration loss described here have to be weighed together rather than quoted
 separately.
 
-This is an engineering limitation rather than a modelling one — chunking row-within-feature
-attention over `F` trades the memory back for time and changes no number — but it is unfixed,
-and until it is, any claim that this architecture is deployable at 136 features has to price a
-forward pass whose memory scales with feature count.
+This was an engineering limitation rather than a modelling one, and **it is now fixed
+(§81)**: chunking row-within-feature attention over `F` is identity-preserving (asserted
+byte-for-byte in `tests/test_model.py`) and turned out to be 6.2x smaller *and* 1.6-2.4x
+faster, not the memory-for-time trade predicted. `max_context=4000` runs at 22.5 GB, and
+chunking is on by default (`feature_chunk: 16`).
+
+**What survives is the unanswered question, not the constraint.** §80 compared the two
+architectures at context 1000 because 4000 was unreachable *at the time of that measurement*.
+The protocol has not been re-run at the newly reachable contexts, so whether cell attention
+clears the old architecture's best recorded score (0.2116, §71) is open — now merely
+measurable rather than blocked.

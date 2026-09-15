@@ -131,6 +131,13 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             ``P(x | y)`` is unchanged by resampling — resampling selects on ``y`` alone, so
             it holds by construction here. Leaves the ranking, and therefore AUC, untouched.
         random_state: Seed for context subsampling, so a stored context is reproducible.
+        feature_chunk: Features processed per row-within-feature attention call, for
+            checkpoints with ``n_cell_blocks > 0``. Purely a memory/throughput knob: the
+            ``B*F`` attention problems in that stage are independent, so chunking them is an
+            identity and changes no prediction. ``docs/FINDINGS.md`` §81 measured 21.0 GB and
+            10.6 s unchunked against 3.4 GB and 6.8 s at ``feature_chunk=16`` on V4FinBench's
+            136 features, and it is what makes ``max_context=4000`` runnable at all (§79/§80).
+            ``None`` disables chunking.
         query_chunk: Queries scored per forward pass. Attention cost grows with the square
             of (context + queries), so 48,000 queries at once is not feasible. **Chunking is
             exact, not an approximation**: the row mask already forbids a query from
@@ -200,6 +207,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         n_ensemble: int = 1,
         ensemble_label_swap: bool = False,
         ensemble_feature_frac: float = 1.0,
+        feature_chunk: int | None = 16,
     ) -> None:
         self.model = FinancialTFM.load(model, map_location=device) if isinstance(model, str) else model
         self.device = device
@@ -215,6 +223,11 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         self.n_ensemble = n_ensemble
         self.ensemble_label_swap = ensemble_label_swap
         self.ensemble_feature_frac = ensemble_feature_frac
+        self.feature_chunk = feature_chunk
+        # Identity-preserving, so it is safe to default on: asserted byte-for-byte by
+        # tests/test_model.py::test_feature_chunking_is_an_identity. No effect on a
+        # checkpoint with n_cell_blocks=0, which has no row-within-feature stage at all.
+        self.model.feature_chunk = feature_chunk
         self.model.to(device).eval()
 
     def fit(self, X: np.ndarray, y: np.ndarray) -> FinancialTFMClassifier:

@@ -44,17 +44,26 @@
       (0.1941 at context 1000) is below the old one's best *recorded* score (0.2116 at context
       4000), so no claim of improved real-data *standing* may be made yet.
 
-- [ ] 39.24 **Chunk row-within-feature attention over `F`.** §79 measured cell attention's
-      attention score tensor as `(batch*F, heads, N, N)` — a feature-count factor the pooled
-      architecture does not carry — costing ~16 GB at N=2024 and an estimated ~63 GB at
-      N=4048 on V4FinBench's 136 features, with a measured 92x cliff between them. This makes
-      §71's best inference configuration unrunnable and forced §80 to compare both
-      architectures at a context §31/§33 measured the *old* one still improving past.
-      Chunking the row-within-feature attention over the feature axis trades the memory back
-      for time and is mathematically identity-preserving, so it changes no number. Verify: a
-      test asserts chunked and unchunked `encode_rows` agree to float tolerance on a fixed
-      seed, and V4FinBench is re-scored at `max_context` 2000 and 4000 so §80's open question
-      — whether the architecture gain exceeds the context loss it forces — becomes measurable.
+- [x] 39.24 **DONE (§81) — and it cost nothing.** Implemented as
+      `FinancialTFM.feature_chunk` (runtime-only, never enters a checkpoint), default 16 via
+      `InferenceConfig.feature_chunk`. Measured 21.0 GB / 10.6 s unchunked against 3.4 GB /
+      6.8 s chunked at N=2024 on 136 features — **6.2x less memory and 1.6x faster**, not the
+      memory-for-time trade this task predicted; that wrong prediction is corrected in place
+      in §79, §80, Claim 10 and `LIMITATIONS.md`. `max_context=4000` now runs at 22.5 GB
+      against §79's ~63 GB estimate. Identity asserted byte-for-byte by
+      `tests/test_model.py::test_feature_chunking_is_an_identity` at chunk sizes 1/2/5/16/17/64.
+      Verify: a test asserts chunked and unchunked outputs are equal on a fixed seed. Done —
+      `test_feature_chunking_is_an_identity` asserts `torch.equal`, difference 0.000e+00.
+      **Follow-on, task 39.25**: the re-scoring this unblocks has not been run.
+
+- [ ] 39.25 **Re-score V4FinBench at the newly reachable contexts.** §80 compared both
+      architectures at `max_context=1000` because 4000 was unreachable; §81 removed that
+      constraint. Run the five-fold protocol on both checkpoints at 2000 and 4000 so §80's
+      open question — whether cell attention's +0.049 at matched context exceeds the context
+      loss it used to force, i.e. whether it clears the old architecture's best recorded
+      0.2116 (§71) — becomes a measured answer rather than an acknowledged unknown. Verify:
+      paired-bootstrap AP reported per context, and §71's single-fold 0.2116 re-measured at
+      five folds so the comparison is like-for-like.
 
 - [x] 39.6 **Resolved — 39.4 closed the gap, so this branch does not trigger.** The
       label-functional-form candidate (§77) remains scientifically interesting but is no

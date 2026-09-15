@@ -61,6 +61,7 @@ class InferenceConfig:
     n_ensemble: int = 1
     correct_prior: bool = True
     query_chunk: int = 2048
+    feature_chunk: int | None = 16
     retrieval_groups: int = 64
     retrieval_min_positive: int = 8
     prototype_minority_ratio: float = 0.3

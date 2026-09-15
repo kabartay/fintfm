@@ -385,6 +385,7 @@ def run(
                 feature_transform=cfg.inference.feature_transform,
                 n_ensemble=cfg.inference.n_ensemble,
                 query_chunk=cfg.inference.query_chunk,
+                feature_chunk=cfg.inference.feature_chunk,
                 device=device,
                 random_state=fold,
             ).fit(Xtr.astype(np.float32), y[tr])
