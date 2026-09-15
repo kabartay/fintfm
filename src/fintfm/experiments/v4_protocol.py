@@ -297,6 +297,7 @@ def run(
     tune: bool = False,
     classical: tuple[str, ...] = ("logistic_regression",),
     cfg: Config | None = None,
+    device: str = "cpu",
 ) -> dict:
     """Score arms under V4FinBench's published protocol.
 
@@ -319,6 +320,7 @@ def run(
             600,000 rows — and an untuned run labels itself as such.
         classical: Which non-boosting baselines to run, from :data:`CLASSICAL_GRIDS`.
         cfg: Configuration; loaded from the packaged default when omitted.
+        device: Torch device for the fintfm arm.
 
     Returns:
         The recorded result dictionary.
@@ -382,6 +384,8 @@ def run(
                 context_strategy=cfg.inference.context_strategy,
                 feature_transform=cfg.inference.feature_transform,
                 n_ensemble=cfg.inference.n_ensemble,
+                query_chunk=cfg.inference.query_chunk,
+                device=device,
                 random_state=fold,
             ).fit(Xtr.astype(np.float32), y[tr])
             arms["fintfm"] = (
@@ -547,6 +551,11 @@ def main() -> None:
     p.add_argument("--folds", type=str, default="0,1,2,3,4", help="comma-separated")
     p.add_argument("--max-rows", type=int, default=None, help="development cap")
     p.add_argument(
+        "--device", type=str, default="cpu",
+        help="torch device for the fintfm arm. Cell-attention checkpoints "
+             "(n_cell_blocks>0) are far cheaper on mps/cuda than cpu",
+    )
+    p.add_argument(
         "--tune", action="store_true",
         help="grid-search every baseline on the validation fold, as their protocol and "
              "Table 5 specify. Expensive: ~76 fits per fold on 600k rows. Without it, the "
@@ -568,7 +577,7 @@ def main() -> None:
         folds=tuple(int(v) for v in args.folds.split(",")),
         max_rows=args.max_rows, with_boosting=not args.no_boosting, tune=args.tune,
         classical=tuple(v.strip() for v in args.classical.split(",") if v.strip()),
-        cfg=cfg,
+        cfg=cfg, device=args.device,
     )
     print("\n" + summarise(record))
     print(f"\nconfig: {cfg.provenance()}")

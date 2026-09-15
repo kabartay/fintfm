@@ -1,0 +1,36 @@
+# Real-data validation of the two-way cell-attention architecture (docs/FINDINGS.md S78),
+# task 39.5 of `openspec/changes/cell-attention-and-task-inference`.
+#
+# NOT PRODUCTION. This file exists to make one comparison possible, and its context size is
+# chosen by a hardware limit rather than by a measurement of what scores best.
+#
+# WHY max_context IS 1000 AND NOT 2000. Cell attention keeps cells un-pooled through its
+# blocks and attends across rows within each feature, so the attention score tensor is
+# (batch*F, heads, N, N) with N = max_context + query_chunk. At V4FinBench's 136 features
+# that is ~16 GB at N=2024 and ~63 GB at N=4048. Measured on this machine (MPS, 2026-09-15):
+#
+#     ctx=1000 q=1024  N=2024:    1.5 s   ->   1.48 ms/query
+#     ctx=2000 q= 512  N=2512:  140.4 s   -> 274.19 ms/query
+#
+# N grew 1.24x and time grew 92x. That is not the quadratic; it is the point where the
+# activation set stops fitting and spills. So ctx=1000/chunk=1024 is not "the best context
+# we measured" -- it is the largest context reachable before a 100x cliff, and S31/S33
+# measured uniform context still IMPROVING out to 2000 rows on the previous architecture.
+# The cell-attention arm is therefore scored at a context this repository's own measurements
+# say is too small, which handicaps it. Read any result here with that in mind.
+#
+# WHY THIS IS NOT COMPARED AGAINST S69 DIRECTLY. S69/S71 scored at max_context=2000 and 4000,
+# neither of which is reachable for this architecture on this machine. Comparing a
+# cell-attention run at 1000 against a S69 number at 2000 would confound architecture with
+# context size -- the exact shape of error docs/POSTMORTEM.md already records twice. Both
+# checkpoints are re-scored under THIS file instead, so the only thing differing between the
+# two arms is n_cell_blocks/cell_labels.
+#
+# n_ensemble=8 follows S71 and D12: a single column-identity draw is the configuration D12's
+# own text calls incomplete.
+
+inference:
+  context_strategy: uniform
+  max_context: 1000
+  query_chunk: 1024
+  n_ensemble: 8

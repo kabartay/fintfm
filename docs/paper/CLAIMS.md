@@ -219,7 +219,15 @@ of why AP-first reporting at low prevalence is not a stylistic preference.
 Both measurements point the same direction from different angles and should both be cited if
 either is: the out-of-time split (this entry, §32) for the temporal-holdout argument, the
 published-protocol number (§60/§69) for direct comparability to V4FinBench's own paper.
-**Neither has been re-measured on the cell-attention architecture (§78, task 39.5, open).**
+**Both have now been re-measured on the cell-attention architecture (§80, 2026-09-15), and
+the deficit survives.** On the published protocol at five folds with tuned baselines, the new
+architecture loses to LightGBM/CatBoost/XGBoost by **0.204/0.234/0.236 AP**, every one Holm
+p < 0.001 — a gap of the same character and larger magnitude than the 0.14-0.17 recorded above,
+because both arms were scored at the reduced context §79 forces. The one status change is
+against logistic regression: §69's **tie** (Holm p = 0.204) becomes a significant **fintfm win**
+of +0.0307 AP. So Claim 6 remains RETRACTED and false as stated — beating logistic regression
+is not "competitive on accuracy" when every tuned booster leads by more than the entire
+fintfm-to-LR margin, roughly sevenfold.
 
 ---
 
@@ -272,7 +280,7 @@ V4FinBench numbers meet (§69). Directional, not settled at this precision.
 
 ## Claim 10 — Two-way cell attention is a real, reproducible architectural fix for a severe capacity defect
 
-**Status: SINGLE DRAW, synthetic only, real-data validation open.** Evidence: §78, one
+**Status: SURVIVES on synthetic AND real data, at matched context. Evidence: §78 (synthetic), §80 (real, five folds).** Evidence: §78, one
 experiment (`n_cell_blocks=1`, `cell_labels=True`, both `p_financial` arms), confirmed by two
 independent instruments (a Bayes-ceiling probe with a closed-form, numerically-verified target,
 and the pre-existing antisymmetric probe).
@@ -294,7 +302,21 @@ trained on.
 **What would strengthen this before it is quotable**: replication at the exact protocol §74
 used (the reported run deviated to `--batch-size 4 --n-rows-choices 256,512` after a CUDA OOM,
 itself caused by an unrelated bug — a hardcoded evaluation batch size independent of training's
-own, now fixed); a second seed; and, most importantly, **any real-data measurement at all** —
-every number behind this claim is synthetic (task 39.5, open). One honest anomaly is on the
+own, now fixed); a second seed; and a second seed. One honest anomaly is on the
 record rather than smoothed over: `symmetric_count` is slightly lower on both new checkpoints
 than their old-architecture counterparts, unexplained.
+
+**Task 39.5 closed, 2026-09-15 (§80): the fix transfers.** Two complete five-fold V4FinBench
+runs on the full 1.0M-row panel, differing only in `n_cell_blocks`/`cell_labels`, give cell
+attention **+0.0486 mean AP, 5 folds of 5, every 95% CI excluding zero, every Holm-corrected
+p < 0.001.** The synthetic result did not dissociate on real data — the specific failure §47
+and §74 both exhibited and which this claim was explicitly held open against.
+
+**One thing this claim still must not say.** §79 established that cell attention's attention
+cost carries a factor of the feature count, which puts §71's best real-data configuration
+(`max_context=4000`) out of reach. The new architecture's best *reachable* score (0.1941 at
+context 1000) is therefore **below the old architecture's best *recorded* score** (0.2116 at
+context 4000, §71 — a single fold, so not measured to this standard). The architecture is
+better at matched context; whether it improves this project's real-data *standing* is
+unresolved and waits on chunking row-within-feature attention over `F`, which is engineering
+rather than modelling and changes no number.

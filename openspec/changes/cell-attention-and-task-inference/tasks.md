@@ -29,13 +29,32 @@
       CUDA OOM on the first launch attempt (`_eval_quality`'s hardcoded eval batch size of 16,
       independent of training's batch size, now fixed for every future run) — task 39.5 should
       close this gap before the comparison is called final.
-- [ ] 39.5 **It did close the gap (§78) — this is now the immediate next step.** Symmetry
-      probes already run (§78, confirms). Still needed: (a) re-run at §74's exact protocol
-      (`--batch-size 8 --n-rows-choices 256,512,1024`) to close the deviation noted in 39.4;
-      (b) V4FinBench protocol (§69's five-fold, paired-bootstrap standard) on the new
-      architecture, since every real-data number in this project has come from the old one and
-      §69-§77 repeatedly warn that synthetic and real-benchmark results dissociate. Verify:
-      no claim of a real-data improvement until both land. Verify: paired-bootstrap AP on V4FinBench and per-task symmetry-probe scores are both reported against the pre-change checkpoint.
+- [x] 39.5 **(b) DONE — the fix transfers (§80). (a) still open.** Two complete five-fold
+      V4FinBench runs on the full 1.0M-row horizon-0 panel under one shared config
+      (`configs/cellattn-v4-validation.yaml`), differing only in `n_cell_blocks`/`cell_labels`:
+      cell attention gains **+0.0486 mean AP, 5/5 folds, every 95% CI excluding zero, every
+      Holm-corrected p < 0.001**. Against logistic regression, §69's tie becomes a significant
+      win (+0.0307); against every tuned booster the deficit survives unchanged in character
+      (-0.204 to -0.236). Symmetry probes were already run in §78. Verify: paired-bootstrap AP
+      on V4FinBench and per-task symmetry-probe scores are both reported against the
+      pre-change checkpoint. Done — §80 and §78 respectively.
+      **Still open, split out as 39.5a and 39.24**: (a) re-run at §74's exact protocol
+      (`--batch-size 8 --n-rows-choices 256,512,1024`), which §79 shows needs more GPU memory
+      than a T4 has; and the caveat §80 raises — the new architecture's best *reachable* score
+      (0.1941 at context 1000) is below the old one's best *recorded* score (0.2116 at context
+      4000), so no claim of improved real-data *standing* may be made yet.
+
+- [ ] 39.24 **Chunk row-within-feature attention over `F`.** §79 measured cell attention's
+      attention score tensor as `(batch*F, heads, N, N)` — a feature-count factor the pooled
+      architecture does not carry — costing ~16 GB at N=2024 and an estimated ~63 GB at
+      N=4048 on V4FinBench's 136 features, with a measured 92x cliff between them. This makes
+      §71's best inference configuration unrunnable and forced §80 to compare both
+      architectures at a context §31/§33 measured the *old* one still improving past.
+      Chunking the row-within-feature attention over the feature axis trades the memory back
+      for time and is mathematically identity-preserving, so it changes no number. Verify: a
+      test asserts chunked and unchunked `encode_rows` agree to float tolerance on a fixed
+      seed, and V4FinBench is re-scored at `max_context` 2000 and 4000 so §80's open question
+      — whether the architecture gain exceeds the context loss it forces — becomes measurable.
 
 - [x] 39.6 **Resolved — 39.4 closed the gap, so this branch does not trigger.** The
       label-functional-form candidate (§77) remains scientifically interesting but is no

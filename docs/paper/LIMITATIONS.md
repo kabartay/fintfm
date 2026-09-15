@@ -109,7 +109,7 @@ supervisory expectations for low-default portfolios, and whether the model's out
 point-in-time or through-the-cycle. **None of these may be asserted to a regulator or in a
 paper's framing until checked against a primary source.**
 
-## The architecture fix that closed the synthetic capacity cap has never touched real data
+## The architecture fix that closed the synthetic capacity cap — validated on real data 2026-09-15, with one caveat that outlives it
 
 A severe capacity defect — achieved AUC capped at ~0.73 regardless of true task difficulty,
 measured against an exactly-known Bayes-optimal AUC — was found (§74), attributed correctly to
@@ -118,9 +118,16 @@ at a time (§58-§77), and closed by two-way cell attention in one experiment (�
 0.234-0.277 to 0.001-0.005). **Every number behind that result is synthetic.** No real-data
 panel has been scored with the new architecture, and this project has already learned twice
 (§47, §74 itself) that a synthetic result and a real-benchmark result can dissociate sharply.
-`cell-attention-and-task-inference` task 39.5 is the open item that would close this, and
-nothing about the calibration or discrimination claims elsewhere in this ledger should be read
-as applying to the new architecture until it does.
+**Task 39.5 has since closed this (§80).** Two complete five-fold V4FinBench runs on the full
+1.0M-row panel, differing only in `n_cell_blocks`/`cell_labels`, give the new architecture
++0.0486 mean AP, 5 folds of 5, every Holm-corrected p < 0.001. The synthetic result did not
+dissociate.
+
+**What survives is narrower and still limiting**: the fix is established at *matched context*,
+and §79's memory cost means the new architecture cannot be run at the context its predecessor
+scored best at. Its best reachable score (0.1941) is below the old architecture's best recorded
+score (0.2116, §71, single fold). So "the architecture is better" is measured; "the project's
+real-data standing is better" is not, and the two must not be conflated.
 
 The reported experiment also deviated from the protocol it was meant to replicate exactly:
 `--batch-size 4 --n-rows-choices 256,512` rather than `--batch-size 8 --n-rows-choices
@@ -139,3 +146,24 @@ generalise to "credit risk" as a domain; it is most plausibly explained by the f
 generator's ratio-construction resembling V4FinBench's own feature-engineering conventions by
 construction, which is a narrower and less flattering explanation than domain transfer. Any
 claim of domain-specific benefit must name the benchmark it was measured on.
+
+## The architecture that fixed the capacity cap made the best-known inference configuration unaffordable
+
+Cell attention attends across rows within each feature, so its attention cost carries a factor
+of the feature count that the pooled architecture does not: `(batch*F, heads, N, N)` with
+`N = max_context + query_chunk`. At V4FinBench's 136 features this is ~16 GB at N=2024 and an
+estimated ~63 GB at N=4048 (§79).
+
+The practical effect is that **§71's best measured real-data configuration — `max_context=4000`,
+`n_ensemble=8`, the one that took single-fold AP from 0.1853 to 0.2116 — cannot be run under
+the new architecture on this hardware at all**, and even `max_context=2000` sits past a
+measured 92x performance cliff. The validation of §78 therefore runs at `max_context=1000`, a
+context §31/§33 measured the *previous* architecture as still improving past. So the two
+architectures are compared at a context that handicaps the newer one, and the capacity gain of
+§78 and the configuration loss described here have to be weighed together rather than quoted
+separately.
+
+This is an engineering limitation rather than a modelling one — chunking row-within-feature
+attention over `F` trades the memory back for time and changes no number — but it is unfixed,
+and until it is, any claim that this architecture is deployable at 136 features has to price a
+forward pass whose memory scales with feature count.

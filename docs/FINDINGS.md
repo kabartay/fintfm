@@ -5421,3 +5421,157 @@ premise (task 40.1) is substantially weakened -- the cap this project spent thre
 through prior-content experiments was not a prior-coverage gap. The label-functional-form
 candidate §77 developed remains scientifically interesting on its own terms, but it is no
 longer the leading explanation for §74's finding.
+
+## 79. Cell attention's inference cost has a cliff, not a curve: §71's best real-data configuration is now unreachable
+
+**Date:** 2026-09-15. **MEASURED**, forward passes of `runs/dl/v4-cellattn-fin10.pt`
+(`n_cell_blocks=1`, `cell_labels=True`, `max_features=136`) timed on this machine's CPU and
+MPS at V4FinBench's feature width, while setting up `cell-attention-and-task-inference`
+task 39.5.
+
+### What was measured
+
+Cell attention keeps cells un-pooled through its blocks and attends across rows *within* each
+feature, so the attention score tensor is `(batch*F, heads, N, N)` with `N = max_context +
+query_chunk`. That factor of `F` does not appear anywhere in the old architecture, which pools
+the feature axis before any row attention. Measured peak resident memory, single query batch:
+
+| N (ctx + queries) | CPU peak RSS | CPU time |
+| --- | --- | --- |
+| 516 | 2.1 GB | 1.5 s |
+| 1016 | 6.7 GB | 3.6 s |
+| 2016 | 15.9 GB | 25.4 s |
+
+On MPS, at the two configurations that matter for a five-fold V4FinBench run:
+
+| configuration | N | wall time | per query |
+| --- | --- | --- | --- |
+| `max_context=1000`, `query_chunk=1024` | 2024 | 1.5 s | **1.48 ms** |
+| `max_context=2000`, `query_chunk=512` | 2512 | 140.4 s | **274.19 ms** |
+
+**N grew 1.24x and time grew 92x.** A quadratic predicts 1.5x. This is not the asymptotic cost
+curve — it is the point at which the activation set stops fitting in unified memory and
+spills, and it sits between a 2,000-row and a 2,500-row total span at 136 features.
+
+### Why this matters beyond an engineering note
+
+§71 established that `max_context=4000` with `n_ensemble=8` was the best real-data inference
+configuration this project had measured — the "lever fix" that took single-fold AP from 0.1853
+to 0.2116. **That configuration costs an estimated ~63 GB of attention activations under cell
+attention and cannot be run on this machine at all.** The architecture change that closed
+§74's capacity cap therefore *removed access to the best inference configuration the project
+had found*, and the two effects have to be weighed against each other rather than reported
+separately.
+
+Three consequences, all of which constrain what task 39.5 can honestly claim:
+
+1. **§69 cannot serve as the control.** §69 scored at `max_context=2000`, which is on the far
+   side of the cliff. Comparing a cell-attention run at 1000 against a §69 number at 2000
+   would confound architecture with context size — the precise error shape
+   `docs/POSTMORTEM.md` already records twice. Task 39.5 re-scores *both* checkpoints under
+   `configs/cellattn-v4-validation.yaml` instead, so `n_cell_blocks`/`cell_labels` is the only
+   term that differs.
+2. **The cell-attention arm is scored at a context its own predecessor was still improving
+   at.** §31/§33 measured uniform context still gaining out to 2,000 rows. Scoring at 1,000
+   handicaps the new architecture, so a *win* under this config is meaningful and a *loss* is
+   partially confounded with the handicap. Stated in advance, not after seeing the number.
+3. **This is a deployment claim, not only a benchmark one.** A credit decision scored per
+   obligor at 136 features now costs a forward pass whose memory scales with feature count.
+   Any future claim that this architecture is production-viable has to price that, and the
+   honest fix is engineering — chunking row-within-feature attention over `F`, which trades
+   memory back for time without changing any number — not a smaller context.
+
+### What this does not say
+
+Nothing here is evidence about accuracy. §78's regret result is untouched; this finding only
+establishes what configurations that result can be *tested* at. The 92x figure is specific to
+this machine's memory and current load, and the *location* of the cliff will move on other
+hardware — the existence of the `F` factor will not.
+
+### Latent bug found while setting this up
+
+`experiments/v4_protocol.py` constructed `FinancialTFMClassifier` without passing
+`cfg.inference.query_chunk`, so that configuration key silently did nothing on the protocol
+path — it happened to agree with the classifier's own default (2048), so no run had ever
+diverged visibly. Same family as `docs/FINDINGS.md` §28 and the "misspelled key must be an
+error" rule in `CLAUDE.md`: a knob that is read from configuration, printed in
+`config_sources`, and then not used. Fixed, along with a new `--device` flag, since a
+cell-attention checkpoint is ~100x cheaper on MPS than CPU and nothing in the protocol path
+could previously select it.
+
+## 80. §78's architecture fix transfers to real data: +0.049 AP on V4FinBench, 5/5 folds — but it does not clear the project's own best-ever score
+
+**Date:** 2026-09-15. **MEASURED**, two complete five-fold V4FinBench runs on the full
+1,000,087-row horizon-0 panel (3,587 positives, 0.359%), both under
+`configs/cellattn-v4-validation.yaml` so the *only* term differing between arms is
+`n_cell_blocks`/`cell_labels`. Baselines grid-searched on the validation fold per the
+published protocol. Paired bootstrap, 2,000 resamples, Holm-corrected. This is
+`cell-attention-and-task-inference` task 39.5 — the real-data validation §78 declared
+non-optional.
+
+### The architecture comparison
+
+| fold | cell attention | old (column-id only) | diff | 95% CI |
+| --- | --- | --- | --- | --- |
+| 0 | 0.1808 | 0.1452 | **+0.0356** | [+0.0236, +0.0484] |
+| 1 | 0.1888 | 0.1315 | **+0.0573** | [+0.0451, +0.0707] |
+| 2 | 0.1871 | 0.1355 | **+0.0516** | [+0.0393, +0.0651] |
+| 3 | 0.2065 | 0.1464 | **+0.0601** | [+0.0458, +0.0748] |
+| 4 | 0.2070 | 0.1686 | **+0.0384** | [+0.0261, +0.0518] |
+| **mean** | **0.1941** | **0.1454** | **+0.0486** | — |
+
+**Five folds of five, every confidence interval excluding zero, every Holm-corrected
+p < 0.001.** §78's synthetic result did not dissociate on real data — the failure mode §47
+and §74 both exhibited, and the one this project had explicitly warned itself about.
+
+### Against the field, same runs
+
+| comparison | mean AP difference | Holm p | verdict |
+| --- | --- | --- | --- |
+| vs logistic regression | **+0.0307** | < 0.001 | **fintfm ahead** |
+| vs LightGBM | -0.2042 | < 0.001 | fintfm behind |
+| vs CatBoost | -0.2337 | < 0.001 | fintfm behind |
+| vs XGBoost | -0.2361 | < 0.001 | fintfm behind |
+
+The logistic-regression result is a genuine change of status. §69 measured a **tie**
+(Holm p = 0.204) on this protocol; the same comparison now favours fintfm significantly.
+The gradient-boosting gap is unchanged in character and remains the project's headline
+deficit — `docs/paper/LIMITATIONS.md` and Claim 6 stand.
+
+### The finding that complicates the headline
+
+**The new architecture's best *reachable* score is below the old architecture's best
+*recorded* score.** §71 measured the old architecture at 0.2116 AP using
+`max_context=4000, n_ensemble=8`; cell attention reaches 0.1941 at `max_context=1000`,
+because §79 established that 4000 costs an estimated ~63 GB of attention activations under
+cell attention and cannot be run at all here.
+
+So the two effects run in opposite directions:
+
+* cell attention is worth **+0.049 AP** at matched context, unambiguously and on every fold;
+* the context it forces is worth roughly **-0.066 AP** to the old architecture
+  (0.2116 at 4000 against 0.1454 at 1000).
+
+**On current evidence the net effect on the best achievable real-data score is not
+established as positive, and may be negative.** Two reasons not to over-read that in either
+direction: §71's 0.2116 is a *single fold*, not a five-fold mean, so it is not measured to the
+standard of everything else in this entry; and the comparison is confounded by exactly the
+handicap declared in advance in §79 and in `configs/cellattn-v4-validation.yaml` before any
+number was seen. What settles it is the engineering fix, not another benchmark: chunking
+row-within-feature attention over `F` trades memory back for time and changes no number,
+after which cell attention can be scored at 2000 and 4000 and the question becomes
+measurable. That is the next task, and until it lands **no claim should be made that this
+architecture improves this project's real-data standing** — only that it improves the
+architecture at matched context, which is what was actually measured.
+
+### Provenance and process notes
+
+Predictions for every fold of both arms are saved (`runs/v4-395-cellattn/`,
+`runs/v4-395-colid/`) so the bootstrap is reproducible without re-scoring. Reported
+`p = 0.00e+00` from the bootstrap means zero of 2,000 resamples disagreed in sign; the
+honest bound is **p < 0.001** and it is written that way above rather than as `p = 0`.
+
+The bootstrap script was run without `PYTHONUNBUFFERED=1` and produced no output for 40
+minutes while working correctly — the precise trap `CLAUDE.md` documents, walked into by the
+person who wrote the rule. No result was affected; noted because the rule's whole point is
+that a silent process is indistinguishable from a dead one.

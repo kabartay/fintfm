@@ -18,8 +18,10 @@ defect in the field's standard per-horizon construction, 39% of firms on real da
 by construction, at zero accuracy cost. A severe capacity defect in the original architecture —
 capped discrimination regardless of true task difficulty, verified against an exactly-known
 Bayes-optimal AUC — was found, its cause isolated to the architecture rather than the prior
-after eliminating seven other candidates one at a time, and closed by a two-way cell-attention
-change; that fix has not yet been validated on real data. On real credit panels, this project's
+after eliminating seven other candidates one at a time, closed by a two-way cell-attention
+change, and confirmed on real data at matched context (+0.049 average precision on
+V4FinBench, five folds of five) — though that architecture's memory cost currently puts the
+project's best-scoring inference configuration out of reach. On real credit panels, this project's
 calibration is consistently among the best measured, and its discrimination consistently loses
 to tuned gradient boosting — both facts, together, on every panel tried.
 
@@ -131,7 +133,7 @@ extras lightgbm MIT, xgboost Apache-2.0, catboost Apache-2.0, pyarrow Apache-2.0
 - [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md) — **start here.** Every claim this project
   could make, tagged by status, newest evidence wins.
 - [`docs/FINDINGS.md`](docs/FINDINGS.md) — the full measurement log, numbered sequentially
-  (78 entries and counting), each declaring how its numbers were produced.
+  (80 entries and counting), each declaring how its numbers were produced.
 - [`docs/DECISIONS.md`](docs/DECISIONS.md) — why the project is built the way it is, and what
   would reverse each choice.
 - [`docs/STRATEGY.md`](docs/STRATEGY.md) — the plan of record.
@@ -153,7 +155,7 @@ bought — plus a public, self-correcting record of what has and has not been sh
 
 Actively developed research codebase, not a PoC skeleton: 184 tests (`uv run pytest`), a
 config-driven experiment harness, real GPU pretraining infrastructure (Hugging Face Jobs on
-T4), and 78 numbered, provenance-tagged findings. What is currently proven, currently open, and
+T4), and 80 numbered, provenance-tagged findings. What is currently proven, currently open, and
 currently retracted is tracked continuously in
 [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md) rather than restated here, because the honest
 state changes faster than this file gets edited — that is exactly the failure mode the claims
