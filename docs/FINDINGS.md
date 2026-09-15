@@ -5726,3 +5726,55 @@ finding must be re-read from that finding, not from memory of it, and its row co
 against the run quoting it.** Both failures here — single-fold-for-five-fold and
 subsample-for-full-panel — are invisible in the number itself and visible in one line of the
 source.
+
+## 83. The full-panel context curve is nearly flat: 0.007 AP across a 4x range, peaking at 2,000
+
+**Date:** 2026-09-16. **MEASURED**, `runs/dl/v4-colid-fin07.pt` (the pre-cell-attention
+architecture) scored on all five V4FinBench folds of the **full** 1,000,087-row horizon-0
+panel at three context sizes, `n_ensemble=8`, `context_strategy=uniform`, otherwise identical.
+Baselines omitted deliberately: they do not depend on `max_context`, so §80's tuned numbers
+stand and the grid search was not repeated. `cell-attention-and-task-inference` task 39.25,
+old-architecture half.
+
+### The measurement
+
+| `max_context` | fold 0 | 1 | 2 | 3 | 4 | **mean AP** |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1,000 | 0.1452 | 0.1315 | 0.1355 | 0.1464 | 0.1686 | **0.1454** |
+| 2,000 | 0.1628 | 0.1360 | 0.1371 | 0.1499 | 0.1758 | **0.1523** |
+| 4,000 | 0.1571 | 0.1371 | 0.1426 | 0.1605 | 0.1588 | **0.1512** |
+
+1,000 to 2,000: **+0.0069**. 2,000 to 4,000: **-0.0011**. Total range across a fourfold
+change in context: **0.0069 AP.**
+
+### What it settles
+
+**§31/§33's peak-then-fall shape reproduces at full scale.** Uniform context helps to ~2,000
+rows and declines slightly beyond it. That shape had only ever been measured on the subsample
+(§82), and it survives a 10x larger panel — a genuine replication, and one of the few in this
+project where a subsample conclusion transferred intact.
+
+**§82's retraction was correct, and understated.** §80 inferred a context cost of roughly
+-0.066 AP from a comparison §82 showed was invalid. The direct measurement of that same
+quantity is **+0.0069** — an order of magnitude smaller, and of the opposite sign to the
+concern. Cell attention's +0.0486 gain at matched context (§80) is about **seven times** the
+entire context effect measured here, so the architecture change dominates the axis that was
+supposed to threaten it.
+
+**A configuration conclusion that does not survive.** §71 attributed +0.031 AP to a "lever
+fix" combining `n_ensemble=8` with `max_context=4000`. On the full panel the `max_context`
+half of that is worth **-0.0011** relative to 2,000 and +0.0058 relative to 1,000. Whatever
+§71 measured was either the `n_ensemble` half, a subsample-specific effect, or fold noise —
+its own per-fold spread (0.1184 to 0.2116) is three times the entire context range found
+here. `n_ensemble` is not isolated by this experiment and remains untested at full scale.
+
+### What it does not say
+
+**Nothing about cell attention's context curve.** This sweep used the *old* architecture
+throughout, deliberately, because that is the arm §71 and §80 both quoted. Cell attention has
+a mechanism the old architecture lacks — attention across rows within a feature — so there is
+a specific reason its curve might be steeper: more context rows mean a better-estimated
+column distribution, not merely more neighbours. That arm is running and is the remaining half
+of task 39.25.
+
+**Nothing about the booster gap**, which is ~0.2 AP and unmoved by anything in this table.
