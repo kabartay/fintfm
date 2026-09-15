@@ -171,6 +171,13 @@ chunking is on by default (`feature_chunk: 16`).
 
 **What survives is the unanswered question, not the constraint.** §80 compared the two
 architectures at context 1000 because 4000 was unreachable *at the time of that measurement*.
-The protocol has not been re-run at the newly reachable contexts, so whether cell attention
-clears the old architecture's best recorded score (0.2116, §71) is open — now merely
-measurable rather than blocked.
+The protocol has not been re-run at the newly reachable contexts for the cell-attention arm
+(task 39.25, running), so the context sweep is incomplete.
+
+**Corrected 2026-09-16 (§82).** This section previously framed that open question as "whether
+cell attention clears the old architecture's best recorded score (0.2116, §71)". That framing
+was wrong: 0.2116 is §71's *fold 0*, not its five-fold mean of 0.1676, and §69-§71 ran on a
+**10x subsample** (105,900 test rows against §80's 1,000,087), so the two were never measured
+on comparable data. The full-panel context effect measured directly is **+0.0069** from
+context 1000 to 2000 — an order of magnitude below the -0.066 previously inferred — so the
+suggestion that the architecture change might be a net real-data loss is withdrawn.

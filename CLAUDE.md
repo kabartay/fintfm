@@ -373,3 +373,31 @@ Two destinations, not one: this file (`CLAUDE.md`) is standing working rules tha
 otherwise get relearned the hard way; `README.md` is what the repository is and how to run it
 right now. Keep `README.md`'s status section honest — it's the one document nothing tests, so
 it goes stale silently if a claim in it stops being true and nobody rereads it.
+
+## Re-read a number before quoting it, and check what it was measured on
+
+Cost a wrong headline caveat in `docs/FINDINGS.md` §80, propagated into the claims ledger and
+the limitations page before it was caught a day later (§82).
+
+§80 compared a new architecture's five-fold mean on the **full** 1,000,087-row V4FinBench
+panel against "§71's 0.2116" and concluded the change might be a net loss. Two errors, neither
+visible in the number:
+
+- **0.2116 was §71's fold 0**, not its result. §71's five-fold mean is 0.1676, and §71's own
+  text says the single-fold figure "was optimistic". The number quoted was the one the source
+  was warning about.
+- **§69-§71 ran on a ~10x subsample** — `n_train` 63,588 and 105,900 test rows total, against
+  the full panel's 1,000,087. The two were never measured on the same data.
+
+Both are one line away in the source finding, and both were printed in each run's own output.
+
+- **Quote from the finding, not from memory of the finding.** Re-open it. A number that has
+  been carried through two or three summaries has usually lost its qualifiers.
+- **Check the row count of both runs before comparing their metrics.** Average precision
+  depends on the row set; two AP values from different subsamples are not comparable even at
+  identical configuration, and nothing in either number says so.
+- **A single fold is not a result.** If a finding reports per-fold values and a mean, the mean
+  is the result; quoting the best fold is a silent cherry-pick even when it is accidental.
+- **`max_context` is a fraction of the pool it samples from.** A context conclusion drawn at
+  63,588 training rows does not transfer to 800,000. State the pool whenever stating a context
+  finding.

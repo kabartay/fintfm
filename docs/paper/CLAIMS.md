@@ -312,11 +312,14 @@ attention **+0.0486 mean AP, 5 folds of 5, every 95% CI excluding zero, every Ho
 p < 0.001.** The synthetic result did not dissociate on real data — the specific failure §47
 and §74 both exhibited and which this claim was explicitly held open against.
 
-**One thing this claim still must not say.** §79 established that cell attention's attention
-cost carries a factor of the feature count, which puts §71's best real-data configuration
-(`max_context=4000`) out of reach. The new architecture's best *reachable* score (0.1941 at
-context 1000) is therefore **below the old architecture's best *recorded* score** (0.2116 at
-context 4000, §71 — a single fold, so not measured to this standard). The architecture is
+**A caveat this claim used to carry, now retracted (§82).** It previously said the new
+architecture's best reachable score was below the old architecture's best recorded score
+(0.1941 against §71's 0.2116). That was wrong twice over: 0.2116 is §71's *fold 0*, not its
+five-fold mean of 0.1676, and §69-§71 ran on a **10x subsample** (105,900 test rows against
+§80's 1,000,087), so the numbers were never comparable. The full-panel measurement of the
+context effect is +0.0069 from 1000 to 2000, not the -0.066 inferred. What remains genuinely
+open is narrower: the protocol has not yet been re-scored at context 2000/4000 for the
+cell-attention arm (task 39.25, running). The architecture is
 better at matched context; whether it improves this project's real-data *standing* is
 unresolved. **The blocker is gone (§81)** — chunking row-within-feature attention over `F`
 is identity-preserving, 6.2x smaller and 1.6-2.4x faster, and `max_context=4000` now runs — but

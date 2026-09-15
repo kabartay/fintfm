@@ -4814,6 +4814,9 @@ account-level perturbation rather than the column-level one.
 
 ## 69. Five folds, properly tuned: fintfm ties logistic regression and loses clearly to all three boosters
 
+**SUBSAMPLE RESULT (flagged 2026-09-16, §82): this finding scored 105,900 test rows (n_train 63,588 per fold), roughly a 10x subsample of horizon 0's 1,000,087. Its absolute AP values are NOT comparable with full-panel findings (§80 onward), and its context conclusions were drawn at a tenfold smaller context pool.**
+
+
 **Date:** 2026-09-13. **MEASURED**, V4FinBench published protocol, all 5 folds, `--tune`
 (baselines grid-searched on the validation fold per their Table 5). Closes task 38.8, which
 every quoted number since §60 was waiting on.
@@ -4865,6 +4868,9 @@ another architecture or prior change; it is re-scoring this exact fold with thos
 on, before concluding the gap to the boosters is architectural rather than configurational.
 
 ## 70. Retrieval sabotages fintfm on V4FinBench; ensembling and wider context each help, and stack to the best result yet
+
+**SUBSAMPLE RESULT (flagged 2026-09-16, §82): this finding scored 105,900 test rows (n_train 63,588 per fold), roughly a 10x subsample of horizon 0's 1,000,087. Its absolute AP values are NOT comparable with full-panel findings (§80 onward), and its context conclusions were drawn at a tenfold smaller context pool.**
+
 
 **Date:** 2026-09-13. **MEASURED**, one fold (identical to §60/§69's fold 0: 63,588 train,
 20,917 test, 79 positives), six variants of an isolated fintfm-only comparison (no baseline
@@ -4920,6 +4926,9 @@ seed is exactly the standard this project has repeatedly found insufficient (§6
 next step is the five-fold run, not a conclusion from this table.
 
 ## 71. The lever fix is real: +0.031 AP, significant, and still short of the boosters
+
+**SUBSAMPLE RESULT (flagged 2026-09-16, §82): this finding scored 105,900 test rows (n_train 63,588 per fold), roughly a 10x subsample of horizon 0's 1,000,087. Its absolute AP values are NOT comparable with full-panel findings (§80 onward), and its context conclusions were drawn at a tenfold smaller context pool.**
+
 
 **Date:** 2026-09-13. **MEASURED**, all five V4FinBench folds, fintfm re-scored with §70's
 corrected configuration (`context_strategy="uniform"`, `n_ensemble=8`, `max_context=4000`)
@@ -5457,8 +5466,9 @@ spills, and it sits between a 2,000-row and a 2,500-row total span at 136 featur
 
 §71 established that `max_context=4000` with `n_ensemble=8` was the best real-data inference
 configuration this project had measured — the "lever fix" that took single-fold AP from 0.1853
-to 0.2116. **That configuration costs an estimated ~63 GB of attention activations under cell
-attention and cannot be run on this machine at all.** The architecture change that closed
+to 0.2116 (**on a 10x subsample; see §82** — §71's five-fold mean is 0.1676, and the full-panel
+context effect is far smaller). **That configuration costs an estimated ~63 GB of attention
+activations under cell attention and cannot be run on this machine at all.** The architecture change that closed
 §74's capacity cap therefore *removed access to the best inference configuration the project
 had found*, and the two effects have to be weighed against each other rather than reported
 separately.
@@ -5541,11 +5551,15 @@ deficit — `docs/paper/LIMITATIONS.md` and Claim 6 stand.
 
 ### The finding that complicates the headline
 
-**The new architecture's best *reachable* score is below the old architecture's best
-*recorded* score.** §71 measured the old architecture at 0.2116 AP using
-`max_context=4000, n_ensemble=8`; cell attention reaches 0.1941 at `max_context=1000`,
-because §79 established that 4000 costs an estimated ~63 GB of attention activations under
-cell attention and cannot be run at all here.
+**RETRACTED 2026-09-16 — see §82. The comparison below is invalid and the paragraph is kept
+only so the error is legible.** 0.2116 is §71's *fold 0*, not its five-fold mean (0.1676), and
+§69-§71 ran on a **10x subsample** (105,900 test rows against this entry's 1,000,087), so the
+two numbers were never measured on the same data. The full-panel measurement of the same
+quantity is +0.0069, not -0.066. Original text: "The new architecture's best *reachable* score
+is below the old architecture's best *recorded* score. §71 measured the old architecture at
+0.2116 AP using `max_context=4000, n_ensemble=8`; cell attention reaches 0.1941 at
+`max_context=1000`, because §79 established that 4000 costs an estimated ~63 GB of attention
+activations under cell attention and cannot be run at all here."
 
 So the two effects run in opposite directions:
 
@@ -5647,3 +5661,68 @@ not reveal. The tell was that it disagreed with a mechanism that had to be true 
 `max_context=4000` actually beats the old architecture's 0.2116 (§71) — §80's open question,
 and the reason this task existed — requires re-running the V4FinBench protocol at the newly
 reachable contexts. That is the next step and it is not done.
+
+## 82. §80's headline caveat was wrong: §69-§71 ran on a 10x subsample, and its 0.2116 was a single fold of it
+
+**Date:** 2026-09-16. **MEASURED** (the row counts, from the saved run artifact
+`runs/v4proto-tuned-h0-allfolds.json/v4_protocol.json`), correcting a claim I wrote in §80,
+§79, Claim 10 and `docs/paper/LIMITATIONS.md` one day earlier.
+
+### The error
+
+§80 stated, as its most quotable caveat, that "the new architecture's best *reachable* score
+(0.1941) is below the old architecture's best *recorded* score (0.2116, §71)", and concluded
+that cell attention's real-data standing was unresolved and might be a net loss. **Both halves
+of that comparison were wrong.**
+
+1. **0.2116 was never §71's result.** It is §71's *fold 0*. §71's own table reports five folds
+   (0.2116, 0.2020, 0.1184, 0.1930, 0.1527) and its pooled five-fold figure is **0.1676**, and
+   §71 explicitly writes "§70's single-fold result (0.1853 to 0.2116) was optimistic." I
+   quoted the number §71 was warning about as if it were §71's conclusion.
+2. **The two numbers are not measured on the same data.** The saved artifact gives §69-§71
+   `n_train = 63,588` and `n_test` of 20,917/21,123/21,256/21,209/21,395 — **105,900 test rows
+   in total**. §80 and §81's sweep score the *full* horizon-0 panel: 1,000,087 rows, ~200,000
+   per fold. The §69-§71 family ran at roughly a **10x subsample**. Independent corroboration
+   from the same runs: §69's tuned CatBoost scores 0.3425 where §80's tuned CatBoost on the
+   same protocol scores 0.4277.
+
+So §80 compared a full-panel five-fold mean against a single fold of a tenth-sized panel and
+drew a conclusion about architecture from the difference.
+
+### What survives, and what is retracted
+
+**Survives, untouched:** §80's actual experiment. Both arms were scored on the identical full
+panel under one config differing only in `n_cell_blocks`/`cell_labels`; cell attention gains
++0.0486 mean AP, 5/5 folds, every Holm-corrected p < 0.001. Nothing about that measurement
+depended on §71.
+
+**Retracted:** the claim that the architecture change might be a net real-data loss, and the
+supporting arithmetic ("the context it forces is worth roughly -0.066 AP"). That -0.066 was
+the difference between two incomparable numbers. The direct, full-panel measurement of the
+same quantity — task 39.25's sweep, same checkpoint, same rows, context 1000 against 2000 — is
+**+0.0069**, an order of magnitude smaller, and the context-4000 arm is so far running at or
+slightly below context 2000, reproducing §31/§33's peak-then-fall shape.
+
+### Why the subsample changes what §69-§71 can be read to mean
+
+This is not only a bookkeeping correction. `max_context` is a *fraction of the pool it samples
+from*, and the pool differed tenfold. At §69-§71's 63,588 training rows, `max_context=4000` is
+6.3% of the available context; on the full panel's ~800,000 it is 0.5%. **A context conclusion
+drawn at one pool size does not transfer to the other**, which is the most plausible
+explanation for why §71's "lever fix" (+0.031 AP from `max_context=4000` plus `n_ensemble=8`)
+does not reproduce as a context effect on the full panel. Any future citation of §69, §70 or
+§71 must state that they are subsample results.
+
+### How this was caught, and how it should have been
+
+Caught while reading §71 to check whether a discrepancy in the 39.25 sweep was a
+configuration difference or fold noise — i.e. by going back to the source of a number I had
+already used, because a *later* measurement disagreed with it. It should have been caught when
+§80 was written: the row counts were printed in both runs' own output (`105,900` against
+`1,000,087`), and I quoted a number across that boundary without checking it.
+
+The rule this earns, which `CLAUDE.md` did not yet state: **a number quoted from an earlier
+finding must be re-read from that finding, not from memory of it, and its row count checked
+against the run quoting it.** Both failures here — single-fold-for-five-fold and
+subsample-for-full-panel — are invisible in the number itself and visible in one line of the
+source.
