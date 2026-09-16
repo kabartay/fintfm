@@ -34,6 +34,12 @@ class TrainConfig:
     checkpoint_every: int = 0
     seed: int = 0
     device: str = "cpu"
+    #: Features per row-within-feature attention call, for ``n_cell_blocks > 0`` models.
+    #: Identity-preserving (``docs/FINDINGS.md`` §81), so it changes no number and only
+    #: bounds memory. ``None`` keeps the unchunked path, which is what every checkpoint
+    #: before §81 trained with; it is also what made §78's run OOM on a T4 and forced that
+    #: finding's documented protocol deviation (§79).
+    feature_chunk: int | None = None
 
 
 def _lr_schedule(step: int, cfg: TrainConfig) -> float:
@@ -168,6 +174,7 @@ def train(model_cfg: ModelConfig, prior_cfg: PriorConfig, train_cfg: TrainConfig
     rng = np.random.default_rng(train_cfg.seed)
     torch.manual_seed(train_cfg.seed)
     model = FinancialTFM(model_cfg).to(train_cfg.device)
+    model.feature_chunk = train_cfg.feature_chunk
     print(f"model parameters: {model.num_parameters():,}")
     opt = torch.optim.AdamW(model.parameters(), lr=train_cfg.lr)
     sched = torch.optim.lr_scheduler.LambdaLR(opt, lambda s: _lr_schedule(s, train_cfg))
@@ -275,6 +282,14 @@ def main() -> None:
              "whether §74's capacity cap is architectural (docs/FINDINGS.md §74, §76)",
     )
     p.add_argument(
+        "--feature-chunk", type=int, default=None,
+        help="features per row-within-feature attention call (--n-cell-blocks > 0 only). "
+             "Identity-preserving, so it changes no number and only bounds memory "
+             "(docs/FINDINGS.md S81): that stage's attention is (batch*F, heads, N, N), "
+             "which is what made S78's run OOM on a T4 and forced its protocol deviation. "
+             "Try 16 if a cell-attention run does not fit",
+    )
+    p.add_argument(
         "--cell-labels", action="store_true",
         help="inject labels per-cell before the cell-attention blocks, not only after "
              "pooling; ignored unless --n-cell-blocks > 0 (task 39.2)",
@@ -348,6 +363,7 @@ def main() -> None:
     train_cfg = TrainConfig(
         steps=args.steps, batch_size=args.batch_size, lr=args.lr, device=args.device,
         seed=args.seed, checkpoint_every=args.checkpoint_every,
+        feature_chunk=args.feature_chunk,
     )
     print(f"config: {cfg.provenance()}")
     train(model_cfg, prior_cfg, train_cfg, args.out)
