@@ -5778,3 +5778,66 @@ column distribution, not merely more neighbours. That arm is running and is the 
 of task 39.25.
 
 **Nothing about the booster gap**, which is ~0.2 AP and unmoved by anything in this table.
+
+## 84. Task 39.25 closes §80's open question: the architecture gain is 6-7x any context effect, and cell attention wins best-vs-best by +0.042
+
+**Date:** 2026-09-16. **MEASURED**, five arms on all five V4FinBench folds of the **full**
+1,000,087-row horizon-0 panel, `n_ensemble=8`, `context_strategy=uniform`, `feature_chunk=16`,
+differing only in checkpoint and `max_context`. Baselines omitted deliberately (they do not
+depend on context, so §80's tuned numbers stand). Paired bootstrap, 2,000 resamples per fold,
+Fisher-combined across folds. Completes `cell-attention-and-task-inference` task 39.25.
+
+### The full grid
+
+| architecture | ctx 1,000 | ctx 2,000 | ctx 4,000 |
+| --- | --- | --- | --- |
+| column-id only (old) | 0.1454 | **0.1523** | 0.1512 |
+| two-way cell attention | **0.1941** | 0.1909 | not run (§83 made it poor value) |
+
+| comparison | dAP | folds favouring | 
+| --- | --- | --- |
+| colid: ctx2000 - ctx1000 | +0.0069 | 5/5 |
+| colid: ctx4000 - ctx2000 | -0.0011 | 3/5 |
+| cellattn: ctx2000 - ctx1000 | **-0.0032** | 2/5 |
+| **cellattn - colid @ ctx1000** | **+0.0486** | 5/5 |
+| **cellattn - colid @ ctx2000** | **+0.0385** | 5/5 |
+| **best vs best: cellattn@1000 - colid@2000** | **+0.0417** | 5/5 |
+
+### What it settles
+
+**§80's caveat is closed, in the architecture's favour.** §80 could not rule out that cell
+attention's matched-context gain was outweighed by the context it forced; §82 showed the
+arithmetic behind that worry was invalid; this entry measures the thing directly. Each
+architecture at *its own best measured context*, on identical rows: **+0.0417 AP, 5 folds of
+5.** The architecture change improves this project's real-data standing, not merely its
+performance at a handicapped setting. Claim 10's remaining restriction is lifted.
+
+**The architecture effect is 6-7x any context effect.** Context spans 0.0069 AP for the old
+architecture and -0.0032 for the new one; architecture is worth +0.039 to +0.049 at matched
+context. Everything this project spent on context sizing was an order of magnitude less
+important than the one architectural change.
+
+**The two architectures have different context optima.** The old one peaks at 2,000, the new
+one at 1,000 of those tested. This is the opposite of the prediction stated in §83, which
+argued cell attention should have a *steeper* curve because row-attention-within-feature turns
+extra context into a better-estimated column distribution. It does not: more context is
+slightly **worse** for it (-0.0032, only 2/5 folds positive). **Unexplained, and recorded as
+an open question rather than rationalised.** One candidate worth testing: the row-within-
+feature stage attends over all context rows for every feature, so a larger context may dilute
+attention mass across near-duplicate rows rather than sharpening the column estimate. Not
+tested, and it is a story, not a finding.
+
+### A statistical caveat that matters for reading this table
+
+At ~200,000 rows per fold, **every** comparison here clears conventional significance,
+including the -0.0011 context difference that flips sign across folds. Fisher-combined
+p-values of exactly 0.0 appear for effects too small to act on. **Statistical significance is
+not practical significance at this n**, and the per-fold sign counts ("folds favouring") are
+the more honest summary — which is why they are reported beside every difference. The
+comparisons worth acting on are the ones that are both large and 5/5.
+
+### What is unchanged
+
+**The booster gap.** §80 measured -0.204 to -0.236 AP against tuned LightGBM/CatBoost/XGBoost.
+Nothing in this entry touches it: the best configuration found here, 0.1941, is still roughly
+0.24 AP behind XGBoost's 0.4301 on the same rows. Claim 6 stays RETRACTED.

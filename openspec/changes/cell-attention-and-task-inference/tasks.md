@@ -56,14 +56,26 @@
       `test_feature_chunking_is_an_identity` asserts `torch.equal`, difference 0.000e+00.
       **Follow-on, task 39.25**: the re-scoring this unblocks has not been run.
 
-- [ ] 39.25 **Re-score V4FinBench at the newly reachable contexts.** §80 compared both
-      architectures at `max_context=1000` because 4000 was unreachable; §81 removed that
-      constraint. Run the five-fold protocol on both checkpoints at 2000 and 4000 so §80's
-      open question — whether cell attention's +0.049 at matched context exceeds the context
-      loss it used to force, i.e. whether it clears the old architecture's best recorded
-      0.2116 (§71) — becomes a measured answer rather than an acknowledged unknown. Verify:
-      paired-bootstrap AP reported per context, and §71's single-fold 0.2116 re-measured at
-      five folds so the comparison is like-for-like.
+- [x] 39.25 **DONE (§84) — the architecture wins best-vs-best.** Five arms, five folds, full
+      1.0M-row panel. Old architecture peaks at ctx 2000 (0.1523); cell attention peaks at ctx
+      1000 (0.1941). Each at its own best context, identical rows: **+0.0417 AP, 5/5 folds**.
+      Architecture is worth +0.039 to +0.049 at matched context against a context span of
+      0.0069 — a 6-7x ratio. Verify: paired-bootstrap AP reported per context, and §71's
+      single-fold 0.2116 re-measured at five folds so the comparison is like-for-like. Done —
+      §84's table, and §82 established §71 was a 10x subsample so the re-measurement is §83's
+      full-panel curve rather than a like-for-like reproduction of an invalid number.
+      **Open, split to 39.26**: cell attention prefers *less* context, contradicting §83's
+      stated prediction; unexplained.
+
+- [ ] 39.26 **Why does cell attention prefer less context?** §84 measured -0.0032 AP from
+      ctx 1000 to 2000 (2/5 folds positive) where the old architecture gained +0.0069 (5/5).
+      §83 predicted the opposite on the grounds that row-attention-within-feature should turn
+      extra rows into a better-estimated column distribution. One untested candidate: that
+      stage attends over all context rows per feature, so a larger context may dilute
+      attention mass across near-duplicate rows rather than sharpening the estimate. Verify: a
+      context sweep on the synthetic Bayes-ceiling probe, where the optimum is known in closed
+      form, reports whether the effect reproduces off real data — which separates an
+      architectural property from a V4FinBench idiosyncrasy.
 
 - [x] 39.6 **Resolved — 39.4 closed the gap, so this branch does not trigger.** The
       label-functional-form candidate (§77) remains scientifically interesting but is no

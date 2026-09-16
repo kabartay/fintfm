@@ -312,16 +312,25 @@ attention **+0.0486 mean AP, 5 folds of 5, every 95% CI excluding zero, every Ho
 p < 0.001.** The synthetic result did not dissociate on real data — the specific failure §47
 and §74 both exhibited and which this claim was explicitly held open against.
 
+**Status upgrade, 2026-09-16 (§84): the architecture wins best-vs-best on real data.** Each
+architecture scored at *its own best measured context* on identical full-panel rows gives cell
+attention **+0.0417 AP, 5 folds of 5**. The architecture effect (+0.039 to +0.049 at matched
+context) is 6-7x the entire context effect (0.0069 for the old architecture, -0.0032 for the
+new). Nothing about this claim now rests on a handicapped comparison.
+
 **A caveat this claim used to carry, now retracted (§82).** It previously said the new
 architecture's best reachable score was below the old architecture's best recorded score
 (0.1941 against §71's 0.2116). That was wrong twice over: 0.2116 is §71's *fold 0*, not its
 five-fold mean of 0.1676, and §69-§71 ran on a **10x subsample** (105,900 test rows against
 §80's 1,000,087), so the numbers were never comparable. The full-panel measurement of the
-context effect is +0.0069 from 1000 to 2000, not the -0.066 inferred. What remains genuinely
-open is narrower: the protocol has not yet been re-scored at context 2000/4000 for the
-cell-attention arm (task 39.25, running). The architecture is
-better at matched context; whether it improves this project's real-data *standing* is
-unresolved. **The blocker is gone (§81)** — chunking row-within-feature attention over `F`
-is identity-preserving, 6.2x smaller and 1.6-2.4x faster, and `max_context=4000` now runs — but
-the protocol has not been re-run at those contexts, so the question is measurable and still
-unmeasured.
+context effect is +0.0069 from 1000 to 2000, not the -0.066 inferred. That re-scoring is now done (§84) and the
+question is answered: the architecture improves this project's real-data standing, by +0.0417
+AP best-vs-best on 5/5 folds. What remains open is narrower and is an explanation rather than
+a measurement — cell attention prefers *less* context than the old architecture, which
+contradicts the mechanism §83 predicted and is unexplained (task 39.26).
+
+The engineering blocker that produced the original caveat is also gone (§81): chunking
+row-within-feature attention over `F` is identity-preserving, 6.2x smaller and 1.6-2.4x
+faster, and `max_context=4000` runs. §83 then measured the old architecture there and found it
+slightly *worse* than 2,000, so the configuration §80 mourned losing turned out not to be
+worth having.

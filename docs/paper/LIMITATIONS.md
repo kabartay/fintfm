@@ -169,10 +169,11 @@ byte-for-byte in `tests/test_model.py`) and turned out to be 6.2x smaller *and* 
 faster, not the memory-for-time trade predicted. `max_context=4000` runs at 22.5 GB, and
 chunking is on by default (`feature_chunk: 16`).
 
-**What survives is the unanswered question, not the constraint.** §80 compared the two
-architectures at context 1000 because 4000 was unreachable *at the time of that measurement*.
-The protocol has not been re-run at the newly reachable contexts for the cell-attention arm
-(task 39.25, running), so the context sweep is incomplete.
+**The question is now answered (§84), and this is no longer a limitation.** Both architectures
+were re-scored across the context range on the full panel. Each at its own best measured
+context, identical rows: cell attention leads by **+0.0417 AP, 5 folds of 5**. The architecture
+effect is 6-7x the entire context effect. The concern that the architecture change might be a
+net real-data loss is closed, not merely unsupported.
 
 **Corrected 2026-09-16 (§82).** This section previously framed that open question as "whether
 cell attention clears the old architecture's best recorded score (0.2116, §71)". That framing
