@@ -6079,3 +6079,38 @@ specific to this task and should not be quoted for V4FinBench, where §35 measur
 transform as a large *gain* on genuinely heavy-tailed real ratios. What transfers is the
 comparative claim — the rank transform delivers marginal invariance, and cell attention needs
 it less than its predecessor did.
+
+## 89. The ±10 z-clip costs nothing and mildly helps: leave it alone
+
+**Date:** 2026-09-17. **MEASURED**, `v4-cellattn-fin10` on the Bayes-ceiling task at clip
+limits 10 (current) and 100 (effectively none), 8 draws per cell, `n_ensemble=8`. Closes
+`marginal-invariance` task 43.7, the last open item of that proposal.
+
+`normalize_features` clamps z-scores to ±10, and §87 measured 0.029% of training cells hitting
+that bound against 0.000% of rank-transformed ones — enough to ask whether the clip discards
+signal. The clip can only bind where |z| > 10, which Gaussian features essentially never reach,
+so this was tested on the warped features where §88 measured real degradation.
+
+| warp | clip=10 | clip=100 | difference |
+| --- | --- | --- | --- |
+| **target 0.900** | | | |
+| identity | 0.8951 | 0.8951 | +0.0000 |
+| cube (p=3) | 0.8685 | 0.8681 | -0.0004 |
+| p=5 (heavier) | 0.7641 | 0.7630 | -0.0011 |
+| **target 0.990** | | | |
+| identity | 0.9861 | 0.9861 | +0.0000 |
+| cube (p=3) | 0.9702 | 0.9700 | -0.0002 |
+| p=5 (heavier) | 0.9445 | 0.9430 | -0.0015 |
+
+**Widening the clip never helps, and is mildly worse on the heaviest tails.** The direction is
+consistent across all six cells and grows with tail weight, which is the signature of a real
+if tiny effect rather than noise: clipping extreme z-scores is doing a small amount of good.
+No change recommended, and the constant stays in code rather than becoming configuration, per
+`configs/README.md`'s rule that a value whose change would make results incomparable is not
+configuration.
+
+**Negative results are why the gate was cheap.** Two of `marginal-invariance`'s questions
+(43.1's invariance, this) were answerable on existing checkpoints in minutes, and between them
+they closed the proposal without a single GPU run. The alternative — scoping a pretraining run
+off §87's measured mismatch, which looked compelling — would have cost hours to learn that the
+inference default already solved it.

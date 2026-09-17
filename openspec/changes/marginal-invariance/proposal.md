@@ -83,4 +83,5 @@ The gate cost ten minutes of CPU on existing checkpoints and prevented a GPU run
 produced a result nobody was looking for: cell attention is **3.4x more robust to marginal
 shape** than the architecture it replaced.
 
-Task 43.7 (the ±10 clip) remains open and is independent of this conclusion.
+Task 43.7 (the ±10 clip) is also closed (§89): widening it never helps and is mildly worse on
+the heaviest tails, so the constant stays. **This proposal is complete, with no GPU spent.**

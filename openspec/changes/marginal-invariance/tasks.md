@@ -40,11 +40,13 @@
       the augmentation run. Verify: the augmentation run's config differs from its control in
       the augmentation flag alone — this is the specific error that made §78/§80's +0.049
       unattributable and cost two GPU runs to repair.
-- [ ] 43.7 **Test the ±10 clip while here.** `normalize_features` clips z-scores at ±10, and
+- [x] 43.7 **DONE (§89) — the clip costs nothing.** `normalize_features` clips z-scores at ±10, and
       §87 measured 0.029% of training values hitting it against 0.000% of rank-transformed
       ones. Almost certainly minor, and free to check on existing checkpoints. Verify: achieved
       AUC on the ceiling probe is reported at the current clip and at a wider one, on a
-      checkpoint that already exists, with no retraining.
+      checkpoint that already exists, with no retraining. Done — widening 10 to 100 never
+      helps and is mildly worse on the heaviest tails (-0.0015), consistent across all six
+      cells. No change made.
 - [x] 43.8 **CLOSED UNMEASURED (§88, outcome (c)) — Decide the inference default deliberately.** If the model becomes marginal-
       invariant, `feature_transform="rank"` may stop earning its +0.086 (§35) and the default
       should be re-measured rather than inherited. Verify: §35's comparison is re-run on the
