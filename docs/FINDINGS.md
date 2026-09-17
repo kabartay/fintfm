@@ -5951,3 +5951,62 @@ an early-training number at 8% of the schedule, not a result; §78's regret comp
 scores this checkpoint, and it runs when the job finishes. The point of this entry is narrow
 and procedural: a documented deviation that weakened §78 no longer exists, and any future
 citation of §78 can drop that caveat.
+
+## 87. The model trains on kurtosis-41 marginals and is served kurtosis-1.8 marginals: a train/inference shift nobody had measured
+
+**Date:** 2026-09-17. **MEASURED**, four financial-prior tasks of 1,024 rows at
+`max_features=136`, passed through the two paths the model actually sees. Prompted by a
+researcher's suggestion (relayed in conversation) that causal-graph priors benefit from small
+perturbations, and by `cell-attention-and-task-inference` backlog item "random monotonic
+marginal augmentation", which an external review had also proposed.
+
+### The measurement
+
+| path | kurtosis | \|z\|>3 | \|z\|>6 | at the ±10 clip |
+| --- | --- | --- | --- | --- |
+| **training** — raw prior values, `normalize_features` z-scoring | **40.70** | 0.41% | 0.09% | 0.029% |
+| **inference** — `FeatureConditioner(kind="rank")`, then the same z-scoring | **1.81** | 0.27% | 0.00% | 0.000% |
+| reference: standard normal | 0.00 | 0.27% | ~0% | 0% |
+
+`train.py` applies **no** feature transform. `FinancialTFMClassifier` defaults to
+`feature_transform="rank"` (D-level default, `configs/default.yaml`), and every real-data
+number in this project was produced with it on. So **the marginal distribution the network was
+fitted on and the one it is served differ by more than an order of magnitude in kurtosis**, and
+nothing in the codebase or the findings log had noted it.
+
+### Why this reframes §35 rather than contradicting it
+
+§35 measured the rank transform as worth **+0.086 AUC** and attributed it to financial ratios
+being pathologically heavy-tailed. That attribution stands. What it missed is that the
+transform buys that gain **while simultaneously moving inputs off the training distribution** —
+the model has never seen a rank-transformed feature during pretraining. Both effects are real
+and they oppose each other, so +0.086 is a *net* figure, and the achievable gain from
+conditioning may be larger than measured.
+
+### Two candidate fixes, which are not the same experiment
+
+1. **Match the transform**: rank-transform during training too. Removes the shift entirely.
+   Cheap to implement, but it bakes a preprocessing choice into the weights and makes
+   `feature_transform="none"` a train/test mismatch in the other direction.
+2. **Random monotonic marginal augmentation**: apply a random monotonic map per column per
+   task during training, so the model learns that marginal shape carries no signal. Preserves
+   rank information and all causal structure by construction; makes the model invariant to
+   *any* conditioning choice at inference rather than tied to one. This is the option two
+   independent external sources proposed, and it is the more general of the two.
+
+Option 2 is the one worth running first, and it subsumes option 1's benefit if it works.
+
+### Status
+
+**Hypothesis, not a result.** This entry measures the shift; it does not show the shift costs
+accuracy, and it is entirely possible the network is already robust to it — `normalize_features`
+z-scores per task, which removes location and scale though not shape. The test is a training
+run with augmentation on, scored first on the Bayes-ceiling probe (where any degradation is
+unambiguous) and then on V4FinBench. Filed as `mechanism-diverse-prior` task 40.7.
+
+### A documentation gap noticed alongside
+
+`docs/paper/` mentions the generic SCM prior only as a *comparison arm* — `OUTLINE.md` §3.1
+describes "the prior" as the financial one alone. Given §73/§75 found the SCM prior **beats**
+the financial prior on two of three real panels, the paper workspace currently under-describes
+the component that wins more often than it loses. Worth fixing before any write-up.

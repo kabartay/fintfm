@@ -29,3 +29,26 @@
       pretraining run mixing them. Verify: matched-compute discipline per
       `phase1-prior-ablation`'s original design, and the §74 Bayes-ceiling probe run on the
       result before any other claim is made about it.
+- [ ] 40.8 **Random monotonic marginal augmentation, motivated by a measured train/inference
+      shift (§87).** `train.py` applies no feature transform, while `FinancialTFMClassifier`
+      defaults to `feature_transform="rank"` and every real-data number in this project was
+      produced with it on. Measured consequence: the model is fitted on marginals of kurtosis
+      **40.70** and served marginals of kurtosis **1.81**. Proposed independently by an
+      external review and by a researcher in conversation, which is why it jumps the 40.2-40.6
+      queue: it is motivated by a measurement rather than by a design argument.
+      Apply a random monotonic map per column per task at training time, so the model learns
+      that marginal *shape* carries no signal while rank information and all causal structure
+      survive by construction. Prefer this over simply rank-transforming during training: the
+      augmentation makes the model invariant to *any* inference-time conditioning choice,
+      whereas matching one transform ties the weights to it and turns
+      `feature_transform="none"` into a mismatch in the other direction.
+      Verify: a test asserts the augmentation preserves each column's rank ordering exactly, so
+      it cannot change a task's label-relevant information; and the §74 Bayes-ceiling probe is
+      run on the resulting checkpoint before any other claim, since a prior change that
+      degrades basic signal extraction must be caught by the instrument built for exactly that.
+- [ ] 40.9 **Document the SCM prior as a method, not only as a comparison arm.** `docs/paper/`
+      currently mentions it only as a baseline, and `OUTLINE.md` §3.1 describes "the prior" as
+      the financial generator alone — while §73/§75 measured the generic SCM prior *beating*
+      the financial one on two of three real panels. Verify: `OUTLINE.md`'s method section
+      describes both priors and states which one the real-data evidence currently favours on
+      which panel.
