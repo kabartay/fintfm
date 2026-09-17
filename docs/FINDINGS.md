@@ -6114,3 +6114,51 @@ configuration.
 they closed the proposal without a single GPU run. The alternative — scoping a pretraining run
 off §87's measured mismatch, which looked compelling — would have cost hours to learn that the
 inference default already solved it.
+
+## 90. Two complete 3-hour GPU runs lost to a missing package, after the training succeeded
+
+**Date:** 2026-09-17. **MEASURED** (the job logs and their exit statuses), a process failure
+recorded because it cost real money and the failure mode is invisible until the end. Jobs `fintfm-cellattn-labels2` (3h14m, completed 6,000/6,000
+steps) and `fintfm-cellattn-nolabels` (2h53m, cancelled once the cause was known).
+
+### What happened
+
+Both jobs ended with `hf upload` to move the checkpoint out of the ephemeral container. Neither
+installed `huggingface_hub`, which provides the `hf` command. The log's final lines:
+
+```
+checkpoint at step 6000: /tmp/v4-cellattn-labels.pt.step6000
+  held-out: AUC/task 0.722  AUC pooled 0.878  Brier skill vs base rate +0.196
+saved checkpoint to /tmp/v4-cellattn-labels.pt
+bash: line 1: hf: command not found
+```
+
+**The training was entirely successful.** A fully-trained checkpoint existed, was written to
+disk, and died with the container. `--checkpoint-every 1000` had been set and made no
+difference — those intermediate checkpoints were in the same ephemeral `/tmp`.
+
+### Why it happened, which is the part worth keeping
+
+`docs/HF_JOBS.md` carried a section headed **"Drafted run command [unverified]"** whose
+`pip install` line omitted `huggingface_hub` while ending in `hf upload`. The **working** §78
+job, visible in `hf jobs ps -a`, installed it. I followed the document rather than the command
+with a track record, and the document's own `[unverified]` marker was the warning I did not act
+on.
+
+- **A command marked unverified is a hypothesis, not a recipe.** When a verified instance of
+  the same operation exists — in job history, in a log, in a previous run — copy that instead.
+- **Check at the start what you need at the end.** `hf --version || exit 1` immediately after
+  the installs turns this three-hour failure into a five-second one. It is now in the recipe
+  and in every relaunched job.
+- **A successful log line is not a successful job.** The last informative line was
+  `saved checkpoint`, which reads like completion. The same family as `CLAUDE.md`'s "a pipe
+  hides the exit status": the thing that failed was downstream of everything that printed.
+- **Ephemeral storage means `checkpoint_every` buys nothing on its own.** It protects against a
+  crash *during* training, not against never getting the file out. Periodic *upload*, not
+  periodic save, is what would have protected this.
+
+### Cost
+
+About six T4-hours, roughly $2-3, and a repeat of both runs. No scientific result was lost —
+the checkpoints had not been scored — and §86's finding, which was measured from this job's
+step-500 evaluation, stands on the log and does not depend on the checkpoint.

@@ -149,7 +149,17 @@ the private asset — the moat — and this uploads both the generator and, afte
 weights to a third party. That is an acceptable trade for rented compute and it is a decision,
 not a detail.
 
-## Drafted run command **[unverified]**
+## Run command **[corrected 2026-09-17 — the earlier draft cost two 3-hour runs]**
+
+**The `pip install` line MUST include `huggingface_hub`.** The draft below originally omitted
+it, and every command in it ends with `hf upload`. A job then trains for three hours, saves the
+checkpoint into the container, and dies on `bash: line 1: hf: command not found` — the
+checkpoint is lost with the container, the job is billed in full, and the log's last useful
+line is a successful save. Two runs were lost this way (`docs/FINDINGS.md` §90).
+
+**Fail fast on the upload path.** Put `hf --version || exit 1` immediately after the installs,
+so a broken upload costs seconds rather than the whole run. Anything a job needs *at the end*
+should be checked at the *start*.
 
 ```bash
 set -a; . ./.env; set +a
@@ -157,7 +167,7 @@ hf jobs run --flavor l4x1 --timeout 4h --name fintfm-clf-small \
   --secrets HF_TOKEN \
   -v hf://kabartay/fintfm-build:/build \
   pytorch/pytorch:2.12.1-cuda12.6-cudnn9-devel \
-  bash -c 'pip install --break-system-packages --no-deps /build/fintfm-*.whl; pip install --break-system-packages numpy pandas scikit-learn scipy pyyaml; fintfm-train --steps 6000 --batch-size 8 --n-rows 512 --n-rows-choices 256,512,1024 --d-cell 48 --d-model 128 --n-layers 4 --n-col-layers 2 --max-features 136 --max-classes 2 --p-financial 1.0 --device cuda --out /tmp/v4-clf-small.pt; hf upload kabartay/fintfm-build /tmp/v4-clf-small.pt v4-clf-small.pt'
+  bash -c 'pip install --break-system-packages --no-deps /build/fintfm-*.whl; pip install --break-system-packages numpy pandas scikit-learn scipy pyyaml huggingface_hub; hf --version || exit 1; fintfm-train --steps 6000 --batch-size 8 --n-rows 512 --n-rows-choices 256,512,1024 --d-cell 48 --d-model 128 --n-layers 4 --n-col-layers 2 --max-features 136 --max-classes 2 --p-financial 1.0 --device cuda --out /tmp/v4-clf-small.pt; hf upload kabartay/fintfm-build /tmp/v4-clf-small.pt v4-clf-small.pt'
 ```
 
 Carried lessons from `finkele-axiom`, each of which cost a probe there:
