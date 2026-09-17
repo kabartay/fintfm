@@ -5841,3 +5841,62 @@ comparisons worth acting on are the ones that are both large and 5/5.
 **The booster gap.** §80 measured -0.204 to -0.236 AP against tuned LightGBM/CatBoost/XGBoost.
 Nothing in this entry touches it: the best configuration found here, 0.1941, is still roughly
 0.24 AP behind XGBoost's 0.4301 on the same rows. Claim 6 stays RETRACTED.
+
+## 85. §84's "cell attention prefers less context" does not reproduce on a probe with a known optimum — and the old architecture is capped at every context size
+
+**Date:** 2026-09-17. **MEASURED**, `runs/dl/v4-cellattn-fin10.pt` and
+`runs/dl/v4-colid-fin07.pt` scored on the Bayes-ceiling task (§74) at five context sizes and
+two known difficulty targets, 8 task draws per cell, `n_ensemble=8`, `feature_chunk=16`.
+Closes `cell-attention-and-task-inference` task 39.26.
+
+### Why this design answers the question
+
+On V4FinBench, "more context" confounds several things at once: more rows, a different
+positive count, and a different slice of a real distribution. On the Bayes-ceiling task the
+optimum is **fixed and known in closed form** (`Φ(μ/√2)`), independent of how many context
+rows are supplied, and every context row is drawn i.i.d. from the same distribution. So more
+context can only improve the boundary estimate. A decline here would be an architectural
+property; no decline means §84's effect belongs to the benchmark, not the architecture.
+
+### The measurement
+
+| target | architecture | ctx 100 | 250 | 500 | 1,000 | 2,000 | ctx2000 - ctx1000 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 0.900 | **cell attention** | 0.8929 | 0.9002 | 0.8998 | 0.8974 | **0.9069** | **+0.0095** |
+| 0.900 | column-id only | 0.8382 | 0.8497 | 0.8462 | 0.8506 | 0.8574 | +0.0069 |
+| 0.990 | **cell attention** | 0.9868 | 0.9898 | 0.9883 | 0.9894 | **0.9898** | **+0.0004** |
+| 0.990 | column-id only | 0.9497 | 0.9522 | 0.9533 | 0.9556 | 0.9576 | +0.0020 |
+
+### What it settles
+
+**§84's -0.0032 is not architectural.** Cell attention improves slightly with more context
+here, on both targets. Combined with §84's own weak evidence for the effect -- 2 folds of 5
+positive, against per-fold swings of ±0.02 -- the honest conclusion is that **cell attention's
+context effect is indistinguishable from zero**, and reading -0.0032 as "prefers less context"
+over-interpreted noise. That reading was mine, in §84 and in the task 39.26 text; it is
+withdrawn. The open question 39.26 posed is therefore answered in the least interesting way
+available, which is the correct answer rather than the satisfying one.
+
+**A hypothesis of mine, killed:** §84 floated that the row-within-feature stage might dilute
+attention mass across near-duplicate rows as context grows. It predicted a decline that does
+not happen. Recorded because it was written down as a candidate and should not survive by
+being forgotten.
+
+### Two results this was not looking for
+
+**Cell attention is at the Bayes ceiling with 100 context rows.** Regret 0.0002-0.0071 across
+the entire range, at both difficulties. On this task it extracts essentially all available
+signal from a hundred examples.
+
+**The old architecture never reaches the ceiling at any context size.** Regret 0.032-0.062
+even at 2,000 rows -- 10-60x cell attention's -- and the curve is nearly flat in context. This
+is a **direct test of something §74 could only infer**: the cap is a capacity limit, not a
+data-quantity limit. Twenty times more context does not close it. Anyone tempted to explain
+§74's finding as "the model just needed more examples" now has a measurement against them.
+
+### Scope
+
+The probe is one informative dimension among six, so "cell attention needs little context"
+is a statement about *this* task's difficulty, not about V4FinBench's 130-feature panels.
+What transfers is the comparative claim -- that the old architecture's cap survives every
+context size tested, and the new one's does not exist at any.

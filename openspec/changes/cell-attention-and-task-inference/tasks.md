@@ -64,10 +64,10 @@
       single-fold 0.2116 re-measured at five folds so the comparison is like-for-like. Done —
       §84's table, and §82 established §71 was a 10x subsample so the re-measurement is §83's
       full-panel curve rather than a like-for-like reproduction of an invalid number.
-      **Open, split to 39.26**: cell attention prefers *less* context, contradicting §83's
-      stated prediction; unexplained.
+      **Split to 39.26, since closed (§85)**: the apparent preference for less context does
+      not reproduce on a probe with a known optimum and is most honestly read as noise.
 
-- [ ] 39.26 **Why does cell attention prefer less context?** §84 measured -0.0032 AP from
+- [x] 39.26 **DONE (§85) — it does not.** Original question: §84 measured -0.0032 AP from
       ctx 1000 to 2000 (2/5 folds positive) where the old architecture gained +0.0069 (5/5).
       §83 predicted the opposite on the grounds that row-attention-within-feature should turn
       extra rows into a better-estimated column distribution. One untested candidate: that
@@ -75,7 +75,14 @@
       attention mass across near-duplicate rows rather than sharpening the estimate. Verify: a
       context sweep on the synthetic Bayes-ceiling probe, where the optimum is known in closed
       form, reports whether the effect reproduces off real data — which separates an
-      architectural property from a V4FinBench idiosyncrasy.
+      architectural property from a V4FinBench idiosyncrasy. **Done**: on the Bayes-ceiling
+      probe cell attention *improves* with context (+0.0095 and +0.0004 from ctx 1000 to
+      2000), so §84's -0.0032 belongs to the benchmark, and given its 2/5 fold support it is
+      most honestly read as noise rather than an effect. The dilution hypothesis is killed.
+      Two unlooked-for results: cell attention sits at the ceiling from 100 context rows
+      (regret 0.0002-0.0071), and the old architecture never reaches it at any context
+      (regret 0.032-0.062 at 2000) — a direct test that §74's cap is capacity, not data
+      quantity.
 
 - [x] 39.6 **Resolved — 39.4 closed the gap, so this branch does not trigger.** The
       label-functional-form candidate (§77) remains scientifically interesting but is no
