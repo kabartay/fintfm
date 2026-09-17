@@ -5413,9 +5413,9 @@ inference` task 39.5 -- re-running V4FinBench and the credit panels before any c
 is a strict improvement -- is next, and it is not optional: §69-§77 all warn that a synthetic
 result and a real-benchmark result have dissociated before in this project.
 
-**A deliberate configuration deviation.** Both runs used `--batch-size 4 --n-rows-choices
-256,512` rather than fin10/fin00's `--batch-size 8 --n-rows-choices 256,512,1024`, forced by a
-CUDA OOM the first launch attempt hit (`_eval_quality`'s held-out evaluation batch size was
+**A deliberate configuration deviation — CLOSED 2026-09-17, see §86.** Both runs used
+`--batch-size 4 --n-rows-choices 256,512` rather than fin10/fin00's `--batch-size 8
+--n-rows-choices 256,512,1024`, forced by a CUDA OOM the first launch attempt hit (`_eval_quality`'s held-out evaluation batch size was
 hardcoded to 16, independent of the training batch size, and row-attention-within-feature's
 `(B*F, heads, N, N)` attention score matrix made that difference decisive -- 34 GB attempted
 on a 14.74 GB card). The eval-batch-size bug is fixed for every future run; the training
@@ -5900,3 +5900,38 @@ The probe is one informative dimension among six, so "cell attention needs littl
 is a statement about *this* task's difficulty, not about V4FinBench's 130-feature panels.
 What transfers is the comparative claim -- that the old architecture's cap survives every
 context size tested, and the new one's does not exist at any.
+
+## 86. §78's protocol deviation is closed: the full protocol now trains on a T4
+
+**Date:** 2026-09-17. **MEASURED**, HF Jobs `fintfm-cellattn-labels2` on `t4-small`
+(Tesla T4, 14.74 GiB), `--batch-size 8 --n-rows-choices 256,512,1024 --n-cell-blocks 1
+--cell-labels --feature-chunk 8 --max-features 136`, 885,650 parameters. Closes
+`cell-attention-and-task-inference` task 39.5(a).
+
+§78 could not run at §74's protocol: the first attempt hit a CUDA OOM and the finding was
+recorded at `--batch-size 4 --n-rows-choices 256,512` with the deviation documented as
+something that "should be closed before the comparison is called final". §79 attributed the
+cost to the `(batch*F, heads, N, N)` attention introduced by the cell-attention blocks, and
+estimated 18.25 GB against the card's 14.74.
+
+With `--feature-chunk 8` (§81), the run reaches and passes the step-500 held-out evaluation —
+**the exact point §78's OOM landed**, since that evaluation had its own, larger batch:
+
+```
+step 500/6000  loss 0.2279  lr 3.00e-04  950s
+  held-out: AUC/task 0.538  AUC pooled 0.790  Brier skill vs base rate +0.088  (base rate 0.064)
+```
+
+Throughput is 1.90 s/step, giving ~3h10m for 6,000 steps.
+
+**This supersedes an estimate with a measurement.** The commit that added `--feature-chunk` to
+training labelled its numbers ESTIMATED, because they were CPU resident-set sizes standing in
+for CUDA allocation — a ~32% reduction extrapolated to "~12.4 GB against a T4's 14.74". The
+extrapolation held in the only sense that matters: the protocol that did not fit now fits.
+The absolute CPU figures should still not be quoted as CUDA numbers.
+
+**What it does not say.** Nothing about accuracy. The step-500 held-out AUC/task of 0.538 is
+an early-training number at 8% of the schedule, not a result; §78's regret comparison is what
+scores this checkpoint, and it runs when the job finishes. The point of this entry is narrow
+and procedural: a documented deviation that weakened §78 no longer exists, and any future
+citation of §78 can drop that caveat.

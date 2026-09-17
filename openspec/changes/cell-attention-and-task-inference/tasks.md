@@ -38,9 +38,9 @@
       (-0.204 to -0.236). Symmetry probes were already run in §78. Verify: paired-bootstrap AP
       on V4FinBench and per-task symmetry-probe scores are both reported against the
       pre-change checkpoint. Done — §80 and §78 respectively.
-      **Still open, split out as 39.5a and 39.24**: (a) re-run at §74's exact protocol
-      (`--batch-size 8 --n-rows-choices 256,512,1024`), which §79 shows needs more GPU memory
-      than a T4 has; and the caveat §80 raises — the new architecture's best *reachable* score
+      **(a) now also DONE (§86)**: with `--feature-chunk 8` the full protocol
+      (`--batch-size 8 --n-rows-choices 256,512,1024`) trains on a T4 and clears the step-500
+      evaluation where §78's OOM landed, so the documented deviation is closed; and the caveat §80 raises — the new architecture's best *reachable* score
       (0.1941 at context 1000) is below the old one's best *recorded* score (0.2116 at context
       4000), so no claim of improved real-data *standing* may be made yet.
 
