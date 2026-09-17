@@ -70,3 +70,17 @@ of which is "do nothing". Committing pretraining before reading it would repeat 
 - **The `cell_labels` ablation** (`cell-attention-and-task-inference` runs A/B, launched
   2026-09-17). It is the control for task 43.5 and fixes a variable that must not move at the
   same time as the augmentation (task 43.6).
+
+## Outcome, 2026-09-17
+
+**Closed by the gate, as designed.** Task 43.1 (§88) found outcome (c): both architectures are
+genuinely non-invariant to marginal shape, and the rank transform — already the inference
+default — pins performance flat across every warp. The augmentation's remaining value is the
+gap between rank-clamped and best-raw performance, measured at ~0.001 on the cell-attention
+checkpoint. No pretraining run is justified.
+
+The gate cost ten minutes of CPU on existing checkpoints and prevented a GPU run. It also
+produced a result nobody was looking for: cell attention is **3.4x more robust to marginal
+shape** than the architecture it replaced.
+
+Task 43.7 (the ±10 clip) remains open and is independent of this conclusion.

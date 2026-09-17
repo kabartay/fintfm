@@ -6010,3 +6010,72 @@ unambiguous) and then on V4FinBench. Filed as `mechanism-diverse-prior` task 40.
 describes "the prior" as the financial one alone. Given §73/§75 found the SCM prior **beats**
 the financial prior on two of three real panels, the paper workspace currently under-describes
 the component that wins more often than it loses. Worth fixing before any write-up.
+
+## 88. The rank transform is doing the invariance work, so §87's mismatch needs no retraining — and cell attention is 3.4x more marginal-robust than the old architecture
+
+**Date:** 2026-09-17. **MEASURED**, `v4-cellattn-fin10` and `v4-colid-fin07` scored on the
+Bayes-ceiling task under five strictly-monotone per-column warps, raw and rank-transformed,
+8 task draws per cell, `n_ensemble=8`. This is `marginal-invariance` task 43.1, the cheap gate
+that task 43.2 pre-registered three routings for.
+
+### Why the instrument is clean
+
+A strictly-monotone map preserves every within-column ordering, so **the Bayes-optimal AUC is
+identical under every warp** — the task does not get harder. Any fall in achieved AUC is
+architectural non-invariance with nothing confounded. The run asserts Spearman > 0.9999
+between warped and unwarped values of the informative column, so a warp that silently
+destroyed rank information could not be mistaken for a model failure.
+
+### The measurement (regret; lower is better)
+
+| warp | cellattn raw | cellattn ranked | colid raw | colid ranked |
+| --- | --- | --- | --- | --- |
+| **target 0.900** | | | | |
+| identity | +0.0049 | +0.0049 | +0.0501 | +0.0529 |
+| cube (p=3) | **+0.0315** | +0.0049 | **+0.1069** | +0.0528 |
+| cbrt (p=1/3) | +0.0125 | +0.0049 | +0.0774 | +0.0528 |
+| exp | +0.0204 | +0.0049 | +0.0926 | +0.0529 |
+| logistic | +0.0045 | +0.0049 | +0.0514 | +0.0529 |
+| **target 0.990** | | | | |
+| identity | +0.0039 | +0.0047 | **+0.0360** | +0.0525 |
+| cube (p=3) | +0.0198 | +0.0047 | +0.0740 | +0.0525 |
+| cbrt (p=1/3) | +0.0088 | +0.0047 | +0.0771 | +0.0525 |
+| exp | +0.0172 | +0.0047 | +0.1089 | +0.0525 |
+| logistic | +0.0032 | +0.0047 | +0.0451 | +0.0525 |
+
+### Routing: outcome (c), and it closes the proposal without GPU spend
+
+Task 43.2 pre-registered three cases. This is **(c): raw degrades but the rank transform
+rescues it**, so the cheaper remedy is indicated and augmentation is not.
+
+**Neither model is marginal-invariant.** Cell attention's regret rises 6.4x under a cube warp
+(0.0049 to 0.0315); the old architecture's rises 2.1x from a much worse base (0.0501 to
+0.1069). The non-invariance §87 hypothesised is real.
+
+**The rank transform pins performance to a constant** across every warp — the ranked columns
+are flat to within 0.0001 — which is exactly the invariance the proposed augmentation was
+meant to buy. **It is already the inference default**, and every real-data number in this
+project was produced with it on.
+
+**But it is a robustness trade, not a free restoration.** Ranking costs 0.0165 regret against
+the best raw case on `colid` at target 0.990 (0.9540 raw against 0.9375 ranked) and ~0.0008 on
+`cellattn`. So the augmentation's entire remaining value is recovering that gap — and **on the
+architecture this project is going forward with, the gap is ~0.001.** A pretraining run cannot
+be justified for that. Tasks 43.3-43.5 and 43.8 are closed unmeasured; 43.7 (the clip) stays.
+
+### A result this was not looking for
+
+**Cell attention is substantially more robust to marginal shape than the old architecture.**
+Under the worst warp its regret reaches 0.0315 against the old architecture's 0.1069 — **3.4x
+better** — and it is better in every one of the ten raw cells. This is a third independent
+advantage of the architecture change (§80: +0.049 AP on real data; §85: at the Bayes ceiling
+from 100 context rows; here: marginal robustness), and none of the three were predicted when
+the change was made.
+
+### Scope
+
+Six columns, one informative, Gaussian before warping. "How much does ranking cost" is
+specific to this task and should not be quoted for V4FinBench, where §35 measured the
+transform as a large *gain* on genuinely heavy-tailed real ratios. What transfers is the
+comparative claim — the rank transform delivers marginal invariance, and cell attention needs
+it less than its predecessor did.
