@@ -87,6 +87,24 @@
 - [x] 39.6 **Resolved — 39.4 closed the gap, so this branch does not trigger.** The
       label-functional-form candidate (§77) remains scientifically interesting but is no
       longer the leading explanation for §74; see the update to `mechanism-diverse-prior`.
+      Verify: the finding that closed §74's gap is named, and `mechanism-diverse-prior` records
+      that its premise is weakened rather than leaving both proposals claiming the same cause.
+      Done — §78 closed it, and 40.1 carries the update.
+
+- [ ] 39.27 **Explain the sub-chance inversion (§91).** Two-way cell attention trained without
+      `--cell-labels` scores 0.4407-0.4575 on the Bayes-ceiling probe — below chance, and
+      roughly the mirror of a weak positive score, so it inverts rather than fails to learn.
+      One structural observation constrains the search: the row-within-feature stage lets every
+      cell attend across all rows of its column *before* any label is injected, so without
+      `cell_labels` that block mixes context and query rows with nothing distinguishing them.
+      Untested. Related to §72's reproducible sub-chance inversion on symmetric probes, which
+      is also unexplained — worth checking whether one explanation covers both. Verify: a
+      mechanism is proposed AND a measurement distinguishes it from at least one alternative,
+      rather than a plausible story being adopted because it fits.
+- [ ] 39.28 **Replicate the ablation at a second seed.** §91 is one run per arm. The effect is
+      far too large for seed noise, but the project's own record (§60, §82) is that unreplicated
+      numbers get quoted as if replicated. Verify: a second `--cell-labels`/no-labels pair at a
+      different seed reports the same sign and order of magnitude.
 
 ## Backlog: sequenced after architecture, per the external review and the user's ordering
 

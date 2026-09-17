@@ -6162,3 +6162,60 @@ on.
 About six T4-hours, roughly $2-3, and a repeat of both runs. No scientific result was lost —
 the checkpoints had not been scored — and §86's finding, which was measured from this job's
 step-500 evaluation, stands on the log and does not depend on the checkpoint.
+
+## 91. Two-way cell attention without per-cell labels scores BELOW CHANCE: the two changes are jointly necessary, not separable
+
+**Date:** 2026-09-17. **MEASURED**, two 6,000-step T4 runs at §74's full protocol
+(`--batch-size 8 --n-rows-choices 256,512,1024 --feature-chunk 8 --column-id-dim 16
+--n-cell-blocks 1`), identical but for `--cell-labels`, scored on the Bayes-ceiling probe
+(10 draws, `n_ensemble=8`). Closes the attribution question §80 left open and
+`cell-attention-and-task-inference` tasks 39.1/39.2.
+
+### The result
+
+| `column_id_dim=16` (matched pair) | Bayes 0.900 | 0.990 | 0.999 |
+| --- | --- | --- | --- |
+| **cells + per-cell labels** | 0.8984 (reg +0.0016) | 0.9882 (reg +0.0018) | 0.9985 (reg +0.0005) |
+| **cells only, no per-cell labels** | **0.4575** (reg +0.4425) | **0.4448** (reg +0.5452) | **0.4407** (reg +0.5583) |
+| difference | **+0.4410** | **+0.5434** | **+0.5578** |
+
+For reference, the `column_id_dim=12` pair (§74/§78's arms, quoted only within its own group per
+§86): cells+labels beats `n_cell_blocks=0` by **+0.0337** mean.
+
+**The unlabelled variant is below chance at every difficulty**, and roughly the mirror of a
+weak-but-positive score (0.4575 ≈ 1 - 0.5425). It is not failing to learn; it is producing
+systematically **inverted** rankings.
+
+### What it settles
+
+**The two changes are jointly necessary.** §80's +0.049 AP on real data could have been
+two-way attention alone, per-cell labels alone, or both — an attribution gap this project
+created by shipping them in one experiment and then had to spend two GPU runs to close.
+The answer is neither "attention did it" nor "labels did it": **row-attention-within-feature
+without a per-cell label is worse than the architecture it replaced, and worse than chance.**
+
+The mechanism is unexplained and is not guessed at here. One observation constrains it: the
+row-within-feature stage lets every cell attend across all rows of its column *before* any
+label is injected, so without `cell_labels` the block mixes context and query rows with no
+signal distinguishing them. Whether that is the cause is untested.
+
+### The dissociation that makes this worth the entry
+
+**During training, the unlabelled run looked fine.** Its held-out metric read AUC/task 0.562,
+0.607, 0.626, 0.641 across the schedule — mediocre but comfortably above chance, and its loss
+curve (0.21 final) sat close to the labelled run's (0.19). Nothing in 3h19m of training logs
+suggested a model that inverts.
+
+The break is visible only on a clean out-of-distribution probe with a known optimum. This is
+the fourth time in this project that a training-distribution metric failed to reveal a broken
+model (§47's label-shuffle, §51/§53's capped predictor, §57's pooled-AUC inflation, this), and
+the second time the Bayes-ceiling probe caught something no aggregate score could. **A held-out
+metric computed on the training prior is not a check that the model works.**
+
+### Caveats
+
+**One run per arm.** The effect is enormous (0.44-0.56 AUC) and consistent across three
+difficulties, so seed noise is not a plausible explanation, but neither arm is replicated.
+**Synthetic only** — no real-data scoring of either new checkpoint yet. And per §86, these
+carry `column_id_dim=16` against §74/§78's 12, so only the within-16 comparison above is
+quoted as the ablation.

@@ -312,6 +312,13 @@ attention **+0.0486 mean AP, 5 folds of 5, every 95% CI excluding zero, every Ho
 p < 0.001.** The synthetic result did not dissociate on real data — the specific failure §47
 and §74 both exhibited and which this claim was explicitly held open against.
 
+**Attribution resolved, 2026-09-17 (§91): the two changes are jointly necessary.** A matched
+pair at the full protocol, differing only in `--cell-labels`, gives cells+labels **+0.514 mean
+AUC** over cells-alone on the Bayes-ceiling probe — because the unlabelled variant scores
+**below chance** (0.4407-0.4575) at every difficulty, producing inverted rankings. So neither
+half of this claim's architecture change can be dropped: row-attention-within-feature without
+a per-cell label is worse than the architecture it replaced. The mechanism is unexplained.
+
 **Status upgrade, 2026-09-16 (§84): the architecture wins best-vs-best on real data.** Each
 architecture scored at *its own best measured context* on identical full-panel rows gives cell
 attention **+0.0417 AP, 5 folds of 5**. The architecture effect (+0.039 to +0.049 at matched
