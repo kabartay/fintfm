@@ -5930,6 +5930,22 @@ for CUDA allocation — a ~32% reduction extrapolated to "~12.4 GB against a T4'
 extrapolation held in the only sense that matters: the protocol that did not fit now fits.
 The absolute CPU figures should still not be quoted as CUDA numbers.
 
+**A configuration difference, flagged before it can propagate.** Both runs launched here pass
+`--column-id-dim 16`, while `v4-cellattn-fin10` and `v4-colid-fin07` carry `column_id_dim=None`,
+which `FinancialTFM.__init__` resolves to `max(1, d_cell // 4) = 12`. **So these checkpoints
+differ from §74/§78's arms in two ways, not one.** The consequences, stated in advance of any
+number:
+
+* **The cell-labels ablation is unaffected** — the labelled and unlabelled runs both use 16 and
+  differ only in `cell_labels`. That is the question these runs exist to answer.
+* **This entry is unaffected** — whether the protocol fits in 14.74 GiB does not depend on the
+  identity width.
+* **Confounded**: any direct comparison of these checkpoints' Bayes regret against §78's
+  recorded values, which were measured at 12. Such a comparison must either be avoided or
+  carry this caveat; the analysis plan is to compare *within* matched pairs (12 against 12 for
+  §78's arms, 16 against 16 for the ablation) and to re-measure rather than quote across the
+  boundary. Same discipline §82 had to learn the hard way.
+
 **What it does not say.** Nothing about accuracy. The step-500 held-out AUC/task of 0.538 is
 an early-training number at 8% of the schedule, not a result; §78's regret comparison is what
 scores this checkpoint, and it runs when the job finishes. The point of this entry is narrow
