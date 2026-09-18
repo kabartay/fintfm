@@ -16,7 +16,6 @@ def test_resuming_a_chunked_run_matches_an_uninterrupted_one(tmp_path):
     output and a different model. `openspec/changes/...` scale work depends on this holding,
     since a 10^7-task run cannot fit in one job's wall-clock.
     """
-    import torch
     from fintfm.modeling.train import TrainConfig, train
 
     model_cfg = ModelConfig(
@@ -24,7 +23,10 @@ def test_resuming_a_chunked_run_matches_an_uninterrupted_one(tmp_path):
         n_heads=2,
     )
     prior_cfg = PriorConfig(max_features=8, max_classes=2, n_rows=32)
-    common = dict(steps=12, batch_size=2, eval_every=1000, log_every=1000, device="cpu", seed=3)
+    common = {
+        "steps": 12, "batch_size": 2, "eval_every": 1000, "log_every": 1000,
+        "device": "cpu", "seed": 3,
+    }
 
     whole = train(model_cfg, prior_cfg, TrainConfig(**common), str(tmp_path / "whole.pt"))
 

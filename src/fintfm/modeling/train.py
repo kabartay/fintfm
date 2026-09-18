@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import argparse
 import time
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 
 import numpy as np
 import torch
