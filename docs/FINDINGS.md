@@ -6219,3 +6219,62 @@ difficulties, so seed noise is not a plausible explanation, but neither arm is r
 **Synthetic only** — no real-data scoring of either new checkpoint yet. And per §86, these
 carry `column_id_dim=16` against §74/§78's 12, so only the within-16 comparison above is
 quoted as the ablation.
+
+## 92. Resumable training works across job boundaries, unblocking scale experiments
+
+**Date:** 2026-09-19. **MEASURED**, one 30,000-step run executed as three chained HF Jobs on
+`t4-small`, each resuming the last (`fintfm-scale5x-a/-b/-c`), producing
+`v4-scale5x.pt` at 240,000 tasks.
+
+### Why this was blocking
+
+`CLAUDE.md` has said since 2026-09-10 to count tasks rather than steps: every checkpoint in
+this project has come from **48,000 tasks** (6,000 steps x batch 8) against a field norm
+around 10^7. Testing whether that ~200x shortfall explains the ~0.24 AP gap to gradient
+boosting was impossible, because `train.py` had no resume and a job is capped at 6h. At the
+measured ~2 s/step that is ~10,800 steps, or **86,000 tasks — not even double** the current
+volume. The scale question could not be asked, let alone answered.
+
+### What was built
+
+`--run-steps` runs a slice of a longer run; `--resume` continues from an `<out>.state` sidecar
+carrying **optimiser moments, schedule position, both RNG streams and the step counter**.
+Resuming from a plain model checkpoint instead would restart AdamW cold, restart the cosine
+schedule, and replay the identical synthetic task sequence from the same seed — **none of
+which appear in a loss curve**, which is why the state is a separate artifact rather than a
+flag on `FinancialTFM.save`.
+
+Two design decisions worth keeping:
+
+* **The LR schedule always spans `--steps`, never `--run-steps`**, so chunking changes nothing
+  about the curve. Verified in the logs: LR read 2.95e-04 at step 3,000 of 30,000, decaying
+  against the full schedule rather than a 6,000-step one.
+* **Resuming against a different `--steps` is refused by name.** The cosine curve is a
+  function of total steps, so continuing a 30,000-step run as a 12,000-step one would train
+  the tail under a curve the head never saw, and produce a checkpoint nobody can interpret.
+
+### Verification
+
+`tests/test_train.py::test_resuming_a_chunked_run_matches_an_uninterrupted_one` asserts the
+property that matters: two 6-step chunks produce weights matching one 12-step run to 1e-6. A
+broken implementation still trains and still prints a plausible loss curve, so "it ran" is not
+evidence. On real infrastructure both handoffs logged
+`resumed from /tmp/v4-scale5x.pt.state at step 10000/30000` and `... at step 20000/30000`, and
+the run annealed to `lr 0.00e+00` at 30,000 exactly.
+
+### A second problem it solves
+
+§90 lost two 3-hour runs because a job that uploads only at the end converts any interruption
+into total loss, and two further runs were cancelled at ~80% when the account balance hit zero.
+The chained design uploads `.state` every 15 minutes, so an interruption now costs at most a
+quarter-hour rather than the whole run.
+
+### What this does NOT say
+
+**Nothing about whether scale helps.** This entry reports that the experiment is now runnable
+and that a 240,000-task checkpoint exists. The comparison against the 48,000-task baseline is
+running on V4FinBench. The Bayes-ceiling probe was run first as a regression check only and is
+uninformative here by construction: the baseline already sits at regret 0.0016-0.0018, so there
+is no headroom for a 5x run to show improvement (measured difference -0.0006 mean, i.e.
+unchanged). Reading that null as "scale does nothing" would be the §69 error — using a measure
+with no discriminating range left for the question being asked.
