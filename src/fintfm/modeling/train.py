@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import argparse
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 
 import numpy as np
 import torch
@@ -34,6 +34,17 @@ class TrainConfig:
     checkpoint_every: int = 0
     seed: int = 0
     device: str = "cpu"
+    #: Steps to run in *this* invocation, when a job's wall-clock is shorter than the run.
+    #: ``None`` runs to :attr:`steps`. The learning-rate schedule always spans :attr:`steps`,
+    #: so chunking a run changes nothing about it -- which is the whole point, and the reason
+    #: this is a separate field rather than lowering ``steps``.
+    run_steps: int | None = None
+    #: Training state to resume from, written by :func:`_save_training_state`. Carries the
+    #: optimiser moments, the schedule position, both RNG streams and the step counter --
+    #: everything a bare model checkpoint lacks. Resuming from a model checkpoint alone would
+    #: restart AdamW cold and replay the same synthetic tasks, neither of which is visible in
+    #: a loss curve.
+    resume: str | None = None
     #: Features per row-within-feature attention call, for ``n_cell_blocks > 0`` models.
     #: Identity-preserving (``docs/FINDINGS.md`` §81), so it changes no number and only
     #: bounds memory. ``None`` keeps the unchunked path, which is what every checkpoint
@@ -169,6 +180,54 @@ def _eval_quality(
     return out
 
 
+def _save_training_state(
+    path: str,
+    model: FinancialTFM,
+    opt: torch.optim.Optimizer,
+    sched: torch.optim.lr_scheduler.LRScheduler,
+    rng: np.random.Generator,
+    step: int,
+    objectives: set[str],
+    total_steps: int,
+) -> None:
+    """Write everything needed to continue a run, not just the weights.
+
+    A model checkpoint carries weights and nothing else, so resuming from one restarts AdamW
+    with zeroed moments, restarts the cosine schedule, and replays the identical synthetic
+    task sequence from the same seed. **None of those three show up in a loss curve**, which
+    is why this is a separate artifact rather than a flag on :meth:`FinancialTFM.save`.
+
+    Args:
+        path: Destination. By convention ``<out_path>.state``.
+        model: The model being trained.
+        opt: Optimiser whose moment estimates must survive the restart.
+        sched: Learning-rate schedule, whose position is part of the run's identity.
+        rng: The numpy generator driving prior sampling; its state is saved so a resumed run
+            draws *new* tasks rather than repeating the ones already seen.
+        step: Number of steps completed, so the resumed loop starts at the right index.
+        objectives: Which losses have been optimised so far, carried forward because a
+            resumed run must not claim an objective it never trained (see
+            :meth:`FinancialTFM.save`).
+        total_steps: The schedule length this run was planned against. Resuming with a
+            different value would silently change the learning-rate curve, so it is recorded
+            and checked.
+    """
+    torch.save(
+        {
+            "model_state": model.state_dict(),
+            "model_config": asdict(model.cfg),
+            "optimizer": opt.state_dict(),
+            "scheduler": sched.state_dict(),
+            "numpy_rng": rng.bit_generator.state,
+            "torch_rng": torch.get_rng_state(),
+            "step": step,
+            "objectives": sorted(objectives),
+            "total_steps": total_steps,
+        },
+        path,
+    )
+
+
 def train(model_cfg: ModelConfig, prior_cfg: PriorConfig, train_cfg: TrainConfig, out_path: str) -> FinancialTFM:
     """Run pretraining and save the final checkpoint to ``out_path``."""
     rng = np.random.default_rng(train_cfg.seed)
@@ -183,7 +242,32 @@ def train(model_cfg: ModelConfig, prior_cfg: PriorConfig, train_cfg: TrainConfig
     # recorded into the checkpoint: the two objectives are exclusive per step, so a hazard
     # run leaves the classification head untrained and predict_proba would silently serve it
     objectives: set[str] = set()
-    for step in range(train_cfg.steps):
+
+    start_step = 0
+    if train_cfg.resume is not None:
+        state = torch.load(train_cfg.resume, map_location=train_cfg.device, weights_only=False)
+        if state["total_steps"] != train_cfg.steps:
+            # The cosine schedule is a function of total steps, so resuming against a
+            # different total silently trains under a different curve than the one the
+            # earlier steps used. Refuse rather than produce a run nobody can interpret.
+            raise ValueError(
+                f"{train_cfg.resume} was written for a {state['total_steps']}-step schedule, "
+                f"but --steps is {train_cfg.steps}. Pass --steps {state['total_steps']} to "
+                f"continue that run, or start a fresh one."
+            )
+        model.load_state_dict(state["model_state"])
+        opt.load_state_dict(state["optimizer"])
+        sched.load_state_dict(state["scheduler"])
+        rng.bit_generator.state = state["numpy_rng"]
+        torch.set_rng_state(state["torch_rng"].cpu() if hasattr(state["torch_rng"], "cpu") else state["torch_rng"])
+        start_step = int(state["step"])
+        objectives = set(state["objectives"])
+        print(f"resumed from {train_cfg.resume} at step {start_step}/{train_cfg.steps}")
+
+    stop_step = train_cfg.steps
+    if train_cfg.run_steps is not None:
+        stop_step = min(train_cfg.steps, start_step + train_cfg.run_steps)
+    for step in range(start_step, stop_step):
         batch = sample_batch(rng, prior_cfg, train_cfg.batch_size).to(train_cfg.device)
         # survival objective when the model has a hazard head and the prior emits periods
         if model.hazard is not None and batch.period is not None:
@@ -208,6 +292,10 @@ def train(model_cfg: ModelConfig, prior_cfg: PriorConfig, train_cfg: TrainConfig
             # otherwise leave a truncated file where the final checkpoint belongs
             partial = f"{out_path}.step{step + 1}"
             model.save(partial, trained_objectives=tuple(sorted(objectives)))
+            _save_training_state(
+                f"{out_path}.state", model, opt, sched, rng, step + 1, objectives,
+                train_cfg.steps,
+            )
             print(f"  checkpoint at step {step + 1}: {partial}", flush=True)
         if (step + 1) % train_cfg.eval_every == 0:
             q = _eval_quality(model, prior_cfg, rng, batch_size=train_cfg.batch_size)
@@ -217,7 +305,15 @@ def train(model_cfg: ModelConfig, prior_cfg: PriorConfig, train_cfg: TrainConfig
                 f"  (base rate {q['base_rate']:.3f})"
             )
     model.save(out_path, trained_objectives=tuple(sorted(objectives)))
+    _save_training_state(
+        f"{out_path}.state", model, opt, sched, rng, stop_step, objectives, train_cfg.steps
+    )
     print(f"saved checkpoint to {out_path}")
+    if stop_step < train_cfg.steps:
+        print(
+            f"ran {start_step}->{stop_step} of {train_cfg.steps}; continue with "
+            f"--resume {out_path}.state --steps {train_cfg.steps}"
+        )
     return model
 
 
@@ -280,6 +376,19 @@ def main() -> None:
         help="alternating two-way cell-attention blocks before pooling; 0 (default) "
              "reproduces every checkpoint trained before this existed. Task 39.1, testing "
              "whether §74's capacity cap is architectural (docs/FINDINGS.md §74, §76)",
+    )
+    p.add_argument(
+        "--run-steps", type=int, default=None,
+        help="steps to run in THIS invocation; the LR schedule still spans --steps. Use when "
+             "a run is longer than one job's wall-clock: each job saves <out>.state and "
+             "prints the --resume line to continue with",
+    )
+    p.add_argument(
+        "--resume", type=str, default=None,
+        help="continue from a <out>.state file, restoring optimiser moments, schedule "
+             "position, both RNG streams and the step counter. Resuming from a plain model "
+             "checkpoint instead would restart AdamW cold and replay the same synthetic "
+             "tasks, neither of which shows up in a loss curve",
     )
     p.add_argument(
         "--feature-chunk", type=int, default=None,
@@ -364,6 +473,7 @@ def main() -> None:
         steps=args.steps, batch_size=args.batch_size, lr=args.lr, device=args.device,
         seed=args.seed, checkpoint_every=args.checkpoint_every,
         feature_chunk=args.feature_chunk,
+        run_steps=args.run_steps, resume=args.resume,
     )
     print(f"config: {cfg.provenance()}")
     train(model_cfg, prior_cfg, train_cfg, args.out)
