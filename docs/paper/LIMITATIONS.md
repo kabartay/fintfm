@@ -131,9 +131,10 @@ real-data standing is better" is not, and the two must not be conflated.
 
 The reported experiment also deviated from the protocol it was meant to replicate exactly:
 `--batch-size 4 --n-rows-choices 256,512` rather than `--batch-size 8 --n-rows-choices
-256,512,1024`, forced by a CUDA OOM on the first attempt. **Closed 2026-09-17 (§86)**: with
-`--feature-chunk 8` the full protocol trains on the same T4 and passes the step-500 evaluation
-where the original OOM landed, so the deviation no longer applies to runs made after §81.
+256,512,1024`, forced by a CUDA OOM on the first attempt. **Closed 2026-09-17 (§86)**: the full protocol trains on
+the same T4 and passes the step-500 evaluation where the original OOM landed, so the deviation
+no longer applies. (§94 corrected the attribution: the fix was §79's hardcoded evaluation batch
+size, not feature chunking, which §94 measured as having no effect on training memory.)
 
 ## The financial prior's real-data benefit is narrower than the project's own framing assumed
 

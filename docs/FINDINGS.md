@@ -5903,6 +5903,12 @@ context size tested, and the new one's does not exist at any.
 
 ## 86. §78's protocol deviation is closed: the full protocol now trains on a T4
 
+> **ATTRIBUTION CORRECTED (2026-09-19, §94).** The result below stands — the full protocol
+> does train on a T4. The *cause* stated here does not: §94 measured training memory as flat
+> in `feature_chunk` to within 0.2% across a 34x range, so `--feature-chunk 8` cannot have
+> been what fixed it. The credit belongs to §79's independently-fixed `_eval_quality`
+> hardcoded batch size of 16, which is where §78's OOM actually landed.
+
 **Date:** 2026-09-17. **MEASURED**, HF Jobs `fintfm-cellattn-labels2` on `t4-small`
 (Tesla T4, 14.74 GiB), `--batch-size 8 --n-rows-choices 256,512,1024 --n-cell-blocks 1
 --cell-labels --feature-chunk 8 --max-features 136`, 885,650 parameters. Closes
@@ -6340,3 +6346,64 @@ is *small*, since no fold moved by more than 0.013.
 
 **The booster gap is untouched.** 0.2072 against tuned XGBoost's 0.4301 (§80) leaves roughly
 0.22 AP, and Claim 6 stays RETRACTED.
+
+## 94. Feature chunking does nothing for *training* memory, so §86's attribution was wrong
+
+**Date:** 2026-09-19. **MEASURED**, an L4 (23.7 GB) probe job sweeping `feature_chunk` over
+`None/136/68/34/16/8/4` crossed with `n_rows` in `{1024, 512}`, forward **and backward**, at
+the medium model's shape (4,979,778 parameters, `d_cell=64`, `d_model=256`, `n_layers=6`),
+batch 8.
+
+### The measurement
+
+| `feature_chunk` | n_rows=1024 | n_rows=512 |
+| --- | --- | --- |
+| None (unchunked) | OOM | 12.28 GB |
+| 136 | OOM | 12.28 GB |
+| 68 | OOM | 12.28 GB |
+| 34 | OOM | 12.28 GB |
+| 16 | OOM | 12.29 GB |
+| 8 | OOM | 12.30 GB |
+| 4 | OOM | **12.31 GB** |
+
+**Peak training memory is flat in `feature_chunk` to within 0.2% across a 34x range**, and
+chunking is very slightly *worse* at the small end. `n_rows` decides everything: 1,024 OOMs at
+every chunk size, 512 fits at every chunk size.
+
+### Why, and what it corrects
+
+§81 measured chunking as **6.2x smaller** (21.0 GB to 3.4 GB) and that measurement stands —
+but it was taken under `torch.no_grad()`. At inference nothing is retained, so processing
+features in groups genuinely holds less at once. **Under autograd every chunk's activations
+are kept for the backward pass**, so the total retained is unchanged and the chunk loop only
+adds bookkeeping. The mechanism that makes chunking work at inference is exactly the mechanism
+that makes it useless in training.
+
+**This makes §86's causal claim unsupported.** §86 reported that with `--feature-chunk 8` the
+full protocol (`--batch-size 8 --n-rows-choices 256,512,1024`) trains on a T4 where §78's
+attempt OOMed, and credited the chunking. The run did succeed and that fact stands. But this
+probe shows chunking cannot have been the reason. The remaining candidate is the one §79
+identified independently: `_eval_quality`'s **hardcoded evaluation batch size of 16**, which
+made the held-out evaluation at step 500 allocate twice the training step's memory, and which
+was fixed separately. §78's OOM landed exactly at that step-500 evaluation.
+
+So: the deviation is closed (measured, §86), but **by the eval-batch-size fix, not by
+chunking**, and §86's sentence crediting `--feature-chunk` is withdrawn.
+
+### What chunking is still for
+
+Inference, where §81's 6.2x is real and where it is what makes `max_context=4000` runnable at
+all (22.5 GB against an estimated ~63 GB). `FinancialTFMClassifier` defaults it to 16 and that
+default is unaffected. `TrainConfig.feature_chunk` should be understood as having no memory
+benefit and is retained only because it is identity-preserving and harmless.
+
+### The practical consequence
+
+Scaling the model past ~5M parameters is bounded by `n_rows`, not by anything chunking can
+fix. Holding the training protocol identical to the 885K baseline (batch 8, task sizes up to
+1,024) is therefore impossible for the medium model on a 24 GB card, and the size experiment
+has to change *something*. Changing task sizes would confound capacity with the context
+distribution; changing batch size confounds it with gradient noise and task count. The latter
+is the lesser evil and is measurable: §93 found a 5x change in task count worth -0.0012 AP, so
+matching task count at half the batch (batch 4, 12,000 steps = 48,000 tasks) keeps the one
+variable that has been shown to matter constant.
