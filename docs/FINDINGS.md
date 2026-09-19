@@ -6468,3 +6468,90 @@ The wall is real and the arithmetic now predicts it, but it is `O(n*d)` in memor
 `O(n²d)` remains correct for **compute**, and that is a time cost, not a memory cost. Any
 argument for a factorized encoder on GPU has to be made on throughput and on the feature
 factor, not on quadratic memory growth.
+
+## 96. The accuracy deficit is general, not credit-specific: fintfm is behind on 14 of 15 public tasks under *both* priors
+
+**Date:** 2026-09-19. **MEASURED**, `experiments/openml_breadth.py` on 15 OpenML binary tasks
+spanning 2.3%-44.5% prevalence and 4-72 features, each scored on one stratified 70/30 split,
+20,000-row cap, `max_context=1000`, `n_ensemble=8`. Two checkpoints: `v4-cellattn-labels`
+(`p_financial=1.0`, financial prior only) and `v4-cellattn-fin00` (`p_financial=0.0`, generic
+SCM prior only). Baselines are `HistGradientBoostingClassifier` and logistic regression at
+**library defaults**.
+
+### Why a control was needed
+
+The first arm used a checkpoint trained **exclusively on the financial prior** and scored it on
+ecology, physics, chemistry, software-defect and telecom data. A "broadly weak" reading from
+that alone is confounded with "the prior never contained these mechanisms", so the SCM-prior
+checkpoint was run on the identical suite.
+
+### The result
+
+| dataset | prevalence | financial prior | SCM prior | delta | SCM deficit |
+| --- | --- | --- | --- | --- | --- |
+| mammography | 2.3% | 0.5639 | 0.5269 | -0.0370 | -0.1942 |
+| wilt | 5.4% | 0.4640 | 0.4840 | +0.0200 | -0.4078 |
+| ozone-level-8hr | 6.3% | 0.3713 | 0.4356 | +0.0643 | -0.1036 |
+| bank-marketing | 11.7% | 0.3847 | 0.4008 | +0.0161 | -0.0931 |
+| pc4 | 12.2% | 0.4253 | 0.4391 | +0.0138 | -0.2331 |
+| churn | 14.1% | 0.4907 | 0.4430 | -0.0477 | -0.1379 |
+| kc1 | 15.5% | 0.4026 | 0.3841 | -0.0185 | -0.0719 |
+| blood-transfusion | 23.8% | 0.3848 | 0.3890 | +0.0042 | -0.1174 |
+| phoneme | 29.4% | 0.5061 | 0.5408 | +0.0347 | -0.3486 |
+| credit-g | 30.0% | 0.4863 | 0.4762 | -0.0101 | -0.0055 |
+| qsar-biodeg | 33.7% | 0.7271 | 0.7531 | +0.0260 | -0.1301 |
+| diabetes | 34.9% | 0.7659 | 0.7804 | +0.0145 | **+0.0139** |
+| MagicTelescope | 35.2% | 0.7531 | 0.7786 | +0.0255 | -0.1367 |
+| spambase | 39.4% | 0.9426 | 0.9606 | +0.0180 | -0.0214 |
+| banknote | 44.5% | 0.9475 | 0.9741 | +0.0266 | -0.0258 |
+
+| | financial prior | SCM prior |
+| --- | --- | --- |
+| mean deficit to best baseline | **-0.1442** | **-0.1342** |
+| behind on | **14 / 15** | **14 / 15** |
+
+**The SCM prior is better on 11 of 15 and worth +0.0100 on average — and it changes nothing
+about the conclusion.** It closes roughly **7%** of a ~0.14 deficit. fintfm is behind on 14 of
+15 tasks under either prior, and wins outright on exactly one (`diabetes`, +0.014).
+
+### What it settles
+
+**The deficit is not credit-specific.** It reproduces on ecology (`wilt`, -0.41), speech
+(`phoneme`, -0.35), software defects (`pc4`, -0.23), medicine (`mammography`, -0.19) and
+astronomy (`MagicTelescope`, -0.14). Every real-data number this project had was corporate
+credit; this is the first evidence that the problem travels.
+
+**It is not imbalance either.** The deficit is worse below 15% prevalence (-0.195 against
+-0.094 at or above), so imbalance aggravates it — but -0.094 at 15-44% prevalence is not a
+small residual, and the two largest gaps in the suite sit at 5% and 29%.
+
+**And it is not the prior's domain content.** That was the confound this control was built for,
+and it accounts for a tenth of the effect. Swapping the *entire* prior from financial to
+generic-SCM moves the mean deficit from -0.144 to -0.134.
+
+### What it does NOT say
+
+**Not that prior breadth is irrelevant.** This swapped one of two existing priors for the
+other; both are this project's own generators. A prior with genuine *mechanism* diversity
+(`mechanism-diverse-prior`, 40.x) is untested and this result says nothing about it.
+
+**The baselines here are untuned**, so the true deficit is probably larger, not smaller: §69
+measured proper tuning as roughly doubling CatBoost's lead on V4FinBench.
+
+**One split per dataset**, chosen so fifteen datasets were affordable rather than five precise
+ones. No number here is at the five-fold paired-bootstrap standard the credit panels use, and
+none should be quoted as if it were.
+
+**The SCM arm carries a handicap.** `v4-cellattn-fin00` has `column_id_dim=12` and §78's
+deviated training protocol, against the financial arm's 16 and the full protocol. Task 39.29's
+first two folds put the identity width at roughly +0.015, so the SCM prior's true advantage may
+be nearer +0.025 — which is still a small fraction of 0.14.
+
+### Consequence
+
+The leading hypotheses narrow. Architecture is fixed (§78-§91), context is flat (§83-§84),
+volume is null (§93), marginals are handled (§88), and now prior *domain* is worth 7%. What
+remains untested and plausible: **the caps themselves** (`max_features=136`, `max_classes=2`),
+**mechanism diversity** in the prior, and the **encoder's cost structure**
+(`factorized-attention`, 44.x), which bounds every experiment that would need a bigger model or
+a longer context.

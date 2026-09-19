@@ -199,3 +199,22 @@ This does not establish that scale never helps — 5x is a small step on a 200x 
 it measures the local slope rather than the asymptote. What it does establish is that the cheap
 version of the scale argument is dead, and that a large scale run must now be justified by
 something other than "we are obviously under-trained."
+
+
+## The accuracy deficit is not specific to credit, to imbalance, or to the prior's domain
+
+Every real-data number this project had was corporate default data, so the ~0.22 AP deficit to
+tuned gradient boosting had never been separated from the kind of data it was measured on.
+
+**§96 separated it.** On 15 public OpenML binary tasks spanning 2.3%-44.5% prevalence and 4-72
+features, fintfm is behind the best baseline on **14 of 15**, mean deficit **-0.134**, and wins
+outright on one. It reproduces on ecology, speech, software defects, medicine and astronomy.
+
+Three candidate explanations are ruled out by that same experiment. It is not credit-specific,
+since it travels across five unrelated domains. It is not purely imbalance, since it persists
+at -0.094 between 15% and 44% prevalence. And it is not the prior's domain content: swapping
+the entire prior from financial to generic structural-causal moves the mean deficit by
+**+0.010**, roughly a tenth of the effect.
+
+The baselines in that suite are untuned, so the honest reading is that the deficit is probably
+understated: §69 measured tuning as roughly doubling a booster's lead.
