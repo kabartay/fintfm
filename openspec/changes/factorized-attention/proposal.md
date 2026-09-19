@@ -30,6 +30,21 @@ cell attention's `O(n²d + nd²)` to roughly `O(n² + nd²)`, "which is what mak
 contexts feasible". Treat the claim as a hypothesis to test rather than a fact to adopt --
 but it converges with three independent measurements of our own.
 
+## Amendment, 2026-09-19 (§95): the memory argument above is Mac-specific
+
+The three measurements cited are all from this Mac, on CPU and MPS, where attention scores are
+materialised and memory grows quadratically in N. **On CUDA, flash SDPA is active and memory
+is linear in N** — measured at x1.97/x1.98/x1.99 per doubling. So §79's ~63 GB estimate and its
+92x cliff do not transfer to a GPU, and the case for factorizing cannot rest on them.
+
+What survives, and is still a real bound: memory scales with the **feature factor**
+(`B * F * N * d_cell * layers`), which is why 136 features at `n_rows=1024` needs ~24.5 GB
+against an L4's 23.7 and OOMs by exactly that margin (§94). And `O(n²d)` remains correct for
+**compute**, so the factorization's benefit on GPU is throughput and feature scaling rather
+than quadratic memory relief. Task 44.1 is now mandatory rather than a formality: the cost
+model must be derived per-platform, and must retrodict linear CUDA growth as well as the
+quadratic MPS behaviour.
+
 ## What changes
 
 Restructure the encoder so per-column semantics are built **without** attending across all

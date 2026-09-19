@@ -6407,3 +6407,64 @@ distribution; changing batch size confounds it with gradient noise and task coun
 is the lesser evil and is measurable: §93 found a 5x change in task count worth -0.0012 AP, so
 matching task count at half the batch (batch 4, 12,000 steps = 48,000 tasks) keeps the one
 variable that has been shown to matter constant.
+
+## 95. Attention memory is linear in N on CUDA and quadratic on CPU/MPS, which reconciles §81 and §94 — and makes §79's figures Mac-specific
+
+**Date:** 2026-09-19. **MEASURED**, an L4 probe sweeping `n_rows` over 128/256/384/512/768 at
+the 885K-parameter shape, forward and backward, `feature_chunk=None`, batch 4.
+
+### The measurement
+
+| N | peak allocated | ratio to previous |
+| --- | --- | --- |
+| 128 | 0.85 GB | — |
+| 256 | 1.67 GB | **x1.97** |
+| 384 | 2.49 GB | x1.49 |
+| 512 | 3.31 GB | x1.33 |
+| 768 | 4.96 GB | x1.50 |
+
+Doubling N doubles memory: 128 to 256 is x1.97, 256 to 512 is x1.98, 384 to 768 is x1.99.
+**Memory is linear in N**, and `torch.backends.cuda.flash_sdp_enabled()` and
+`mem_efficient_sdp_enabled()` both report True. The `(N, N)` score matrix is never
+materialised on this hardware.
+
+### What it reconciles
+
+Three findings that looked independent are one fact:
+
+| platform | attention implementation | memory in N | does `feature_chunk` help? |
+| --- | --- | --- | --- |
+| CPU / MPS | materialised scores | **quadratic** | **yes** — §81 measured 6.2x |
+| CUDA | flash / memory-efficient SDPA | **linear** | **no** — §94 measured flat to 0.2% |
+
+§94 reported chunking as useless in training and attributed it to autograd retaining every
+chunk. That explanation was incomplete: the deeper reason is that on CUDA there is no
+materialised score matrix to chunk in the first place. Chunking helps exactly where attention
+is materialised, which is CPU and MPS — where §81 measured it.
+
+### A correction to how §79 and §81 have been quoted
+
+Both were measured on this Mac, on CPU and MPS. **Their memory figures do not describe GPU
+behaviour and should not have been quoted as if they did.** Specifically:
+
+* §79's "~63 GB at N=4048" and its **92x performance cliff** are MPS results. On CUDA the same
+  growth is linear, so neither the estimate nor the cliff transfers.
+* §81's 6.2x reduction is a CPU result and is real there; it is also the reason
+  `FinancialTFMClassifier` defaults `feature_chunk=16`, which remains correct for local
+  scoring on this machine.
+* I quoted the 63 GB figure and the cliff repeatedly while proposing an architecture change
+  (`openspec/changes/factorized-attention`), without noting the platform. That proposal's
+  memory argument is weakened accordingly and has been amended.
+
+### What actually bounds model size
+
+Not N-quadratic attention, but the **feature factor**. Memory in the cell-attention stage
+scales with `B * F * N * d_cell * layers`; at V4FinBench's 136 features and `n_rows=1024` the
+5M-parameter model needs roughly 24.5 GB by linear extrapolation from 12.28 GB at 512,
+against the L4's 23.7 GB available — which is exactly the margin by which §94 observed it OOM.
+The wall is real and the arithmetic now predicts it, but it is `O(n*d)` in memory rather than
+`O(n²d)`.
+
+`O(n²d)` remains correct for **compute**, and that is a time cost, not a memory cost. Any
+argument for a factorized encoder on GPU has to be made on throughput and on the feature
+factor, not on quadratic memory growth.
