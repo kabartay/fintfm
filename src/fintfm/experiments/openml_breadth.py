@@ -70,7 +70,7 @@ class DatasetResult:
         """
         if "fintfm" not in self.scores:
             return float("nan")
-        others = [v for k, v in self.scores.items() if k != "fintfm"]
+        others = [v for k, v in self.scores.items() if k != "fintfm" and not k.endswith("@auc")]
         return self.scores["fintfm"] - max(others) if others else float("nan")
 
 
@@ -154,13 +154,15 @@ def score_task(
         seed: Split seed.
 
     Returns:
-        Arm name to average precision. fintfm is absent when the checkpoint cannot take the
-        task's width.
+        ``"<arm>"`` to average precision and ``"<arm>@auc"`` to ROC-AUC. Both are recorded
+        because this project reads AP first at low prevalence (``docs/DECISIONS.md`` D13)
+        while TabArena and TabBench report ROC-AUC, and a deficit in one does not convert to
+        the other. fintfm is absent when the checkpoint cannot take the task's width.
     """
     from sklearn.ensemble import HistGradientBoostingClassifier
     from sklearn.impute import SimpleImputer
     from sklearn.linear_model import LogisticRegression
-    from sklearn.metrics import average_precision_score
+    from sklearn.metrics import average_precision_score, roc_auc_score
     from sklearn.model_selection import train_test_split
     from sklearn.preprocessing import StandardScaler
 
@@ -176,20 +178,22 @@ def score_task(
 
     scaler = StandardScaler().fit(Xtr_i)
     lr = LogisticRegression(max_iter=2000).fit(scaler.transform(Xtr_i), ytr)
-    out["logreg"] = float(
-        average_precision_score(yte, lr.predict_proba(scaler.transform(Xte_i))[:, 1])
-    )
+    p_lr = lr.predict_proba(scaler.transform(Xte_i))[:, 1]
+    out["logreg"] = float(average_precision_score(yte, p_lr))
+    out["logreg@auc"] = float(roc_auc_score(yte, p_lr))
     hgb = HistGradientBoostingClassifier(random_state=seed).fit(Xtr_i, ytr)
-    out["hgb"] = float(average_precision_score(yte, hgb.predict_proba(Xte_i)[:, 1]))
+    p_hgb = hgb.predict_proba(Xte_i)[:, 1]
+    out["hgb"] = float(average_precision_score(yte, p_hgb))
+    out["hgb@auc"] = float(roc_auc_score(yte, p_hgb))
 
     model = FinancialTFM.load(model_path)
     if model.cfg.max_features >= X.shape[1]:
         clf = FinancialTFMClassifier(
             model, max_context=1000, n_ensemble=8, feature_chunk=16, random_state=seed
         ).fit(Xtr.astype(np.float32), ytr)
-        out["fintfm"] = float(
-            average_precision_score(yte, clf.predict_proba(Xte.astype(np.float32))[:, 1])
-        )
+        p_ft = clf.predict_proba(Xte.astype(np.float32))[:, 1]
+        out["fintfm"] = float(average_precision_score(yte, p_ft))
+        out["fintfm@auc"] = float(roc_auc_score(yte, p_ft))
     return out
 
 

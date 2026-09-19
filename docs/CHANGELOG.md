@@ -4,6 +4,74 @@ Hard-wrapped, because it is read in an editor and a diff. Release bodies on GitH
 **not** wrapped — they are read in a browser at full width. Same words, different shape; do
 not paste one into the other. See `CLAUDE.md`.
 
+## [0.3.0] — 2026-09-19
+
+The architecture defect found in 0.2.x is fixed and the fix holds on real data. Five separate
+explanations for the remaining accuracy gap were tested and ruled out, which is most of what
+this release contains.
+
+### Added
+
+- **Two-way cell attention** (`ModelConfig.n_cell_blocks`, `cell_labels`). Cells attend across
+  rows *within* a feature before pooling, and context cells carry their row's label. On a probe
+  with a closed-form Bayes-optimal AUC, regret falls from 0.234–0.277 to 0.001–0.005 on the
+  identical prior that produced the cap (§78). On V4FinBench, five folds of five, each
+  architecture at its own best measured context: **+0.0417 average precision** (§84).
+  The two changes are **jointly necessary** — without per-cell labels the same architecture
+  scores *below chance*, a 0.514 AUC swing (§91).
+- **Resumable training** (`--run-steps`, `--resume`). A `.state` sidecar carries optimiser
+  moments, schedule position, both RNG streams and the step counter, so a run longer than one
+  job's wall-clock can be chained. Two 6-step chunks produce weights matching one 12-step run
+  to 1e-6, asserted in `tests/test_train.py` — a broken implementation would still train and
+  still print a plausible loss curve (§92).
+- **Feature chunking** (`FinancialTFM.feature_chunk`), identity-preserving and asserted
+  byte-for-byte. Worth 6.2× memory at inference on CPU/MPS; worth nothing in training or on
+  CUDA, for reasons measured in §94/§95.
+- **A breadth diagnostic** (`experiments/openml_breadth.py`): 15 public OpenML binary tasks
+  spanning 2.3–44.5% prevalence, so the accuracy deficit can be read against dataset properties
+  rather than quoted as one number measured only on credit panels.
+
+### Measured and ruled out
+
+Each of these was, at some point, the leading explanation for the deficit to gradient boosting.
+
+- **Training volume.** 5× the tasks (240,000 against 48,000), everything else identical:
+  **−0.0012 AP**, 3 of 5 folds nominally positive, and the only individually-significant fold
+  favouring the *smaller* run (§93). Retires a ~$130 full-scale run.
+- **Context size.** The whole axis spans **0.0069 AP** on the full 1M-row panel, peaking at
+  2,000 and declining at 4,000 (§83). The architecture effect is 6–7× larger (§84).
+- **Marginal mismatch.** The model is fitted on kurtosis-41 marginals and served kurtosis-1.8
+  ones (§87) — but the rank transform, already the inference default, pins performance flat
+  across every monotone warp, leaving ~0.001 for augmentation to recover (§88).
+- **Prior domain.** Swapping the *entire* prior from financial to generic structural-causal
+  moves the mean deficit from −0.144 to −0.134 — about a tenth of the effect (§96).
+- **The accuracy deficit is not credit-specific.** It reproduces on ecology, speech,
+  software-defect, medical and astronomical data: behind the best baseline on **14 of 15**
+  public tasks under either prior (§96).
+
+### Fixed
+
+- `_eval_quality` inherits the training batch size instead of a hardcoded 16, which is what
+  actually closed §78's protocol deviation (§86, attribution corrected in §94).
+- `v4_protocol` passes `cfg.inference.query_chunk` to the classifier; the key had been read
+  from configuration, printed in `config_sources`, and then ignored.
+- A `--device` flag on `fintfm-v4protocol`; nothing in that path could previously select MPS,
+  where a cell-attention checkpoint is ~100× faster than on CPU.
+
+### Corrected
+
+Kept in the record rather than quietly edited, because each was propagated before it was caught.
+
+- **§82**: §69–§71 ran on a **10× subsample** (105,900 test rows against 1,000,087), and
+  "0.2116" was a single fold of it rather than §71's five-fold mean of 0.1676. A caveat built on
+  that comparison was withdrawn, and those three findings now carry a subsample header.
+- **§94**: feature chunking does not reduce *training* memory — measured flat to 0.2% across a
+  34× range — so §86's attribution of the protocol fix to chunking is withdrawn.
+- **§95**: attention memory is linear in N on CUDA and quadratic on CPU/MPS. §79's "~63 GB" and
+  its 92× cliff are Mac measurements and were being quoted as though general.
+- **§90**: two complete 3-hour GPU runs were lost to a `pip install` line missing
+  `huggingface_hub` while ending in `hf upload`. The recipe now installs it and fails fast.
+
 ## [0.2.0] — 2026-09-09
 
 ### Fixed
