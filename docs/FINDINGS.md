@@ -6278,3 +6278,65 @@ uninformative here by construction: the baseline already sits at regret 0.0016-0
 is no headroom for a 5x run to show improvement (measured difference -0.0006 mean, i.e.
 unchanged). Reading that null as "scale does nothing" would be the §69 error — using a measure
 with no discriminating range left for the question being asked.
+
+## 93. 5x training volume does nothing on real data: -0.0012 AP, and the improvement I attributed to scale was configuration
+
+**Date:** 2026-09-19. **MEASURED**, V4FinBench published protocol, five folds, full
+1,000,087-row horizon-0 panel, two checkpoints differing **only** in training volume —
+`v4-scale5x.pt` (30,000 steps x batch 8 = 240,000 tasks, three chained jobs per §92) against
+`v4-cellattn-labels.pt` (6,000 steps = 48,000 tasks). Identical architecture
+(`n_cell_blocks=1`, `cell_labels=True`, `column_id_dim=16`, `d_model=128`), identical prior,
+identical inference config, same rows. Paired bootstrap, 2,000 resamples per fold.
+
+### The result
+
+| fold | 0 | 1 | 2 | 3 | 4 | **mean** |
+| --- | --- | --- | --- | --- | --- | --- |
+| **240k tasks (5x)** | 0.2022 | 0.1850 | 0.2012 | 0.2276 | 0.2145 | **0.2061** |
+| **48k tasks (baseline)** | 0.1983 | 0.1984 | 0.1970 | 0.2215 | 0.2210 | **0.2072** |
+| difference | +0.0038 | **-0.0133** | +0.0042 | +0.0060 | -0.0065 | **-0.0012** |
+
+**Five times the training volume is worth -0.0012 AP**, 3 of 5 folds nominally positive, and
+the *only* fold whose confidence interval excludes zero (fold 1, p=0.003) favours the
+**smaller** run. This is a null.
+
+### A statistic that must not be misread
+
+The Fisher-combined p is **0.0167**, which looks significant and is not evidence that scale
+helps. Fisher's method combines evidence against "no difference in any fold" and is **blind to
+sign**; here the per-fold differences alternate (+, -, +, +, -) and the largest single effect
+runs against the 5x arm. A combined p of 0.017 across mixed signs detects *heterogeneity
+between folds*, not a directional effect. Quoting it as "5x is significantly different"
+would be true and useless; quoting it as "5x is significantly better" would be false.
+
+### A correction to my own reading, made an hour before the controlling arm finished
+
+When the 5x arm alone completed I recorded 0.2061 as "the highest five-fold mean this project
+has recorded", against §84's 0.1941. That was true and misleading. The matched baseline scores
+**0.2072** — higher still. **The improvement over §84 came from `column_id_dim=16` and the
+closed protocol deviation (§86), not from training volume.** The comparison that looked like a
+scale result was a configuration result, and the only thing that separated them was running
+the control. Same shape as §82, one week later.
+
+### What this buys
+
+`CLAUDE.md`'s "count the tasks, not the steps" rule has stood since 2026-09-10 with every
+checkpoint at 48,000 tasks against a field norm near 10^7, and scale has been the leading
+untested explanation for the ~0.24 AP deficit to gradient boosting ever since. **It is now
+tested at 5x and the answer is no.** A ~$130 full-scale run was the obvious next step and is
+no longer justified on this evidence.
+
+### What it does NOT say
+
+**Not "scale never helps."** 5x is a small step on a 200x shortfall, and this measures the
+*local slope* at 48,000-240,000 tasks, not the asymptote. A 100x run could still behave
+differently, and nothing here rules that out — it only removes the cheap version of the
+argument and raises the price of making it again.
+
+**One seed per arm**, as with §91. The effect is a null rather than a large claim, so seed
+noise is the more plausible worry here than usual: a -0.0012 difference is exactly the size
+that a second seed could flip in either direction. What survives regardless is that the effect
+is *small*, since no fold moved by more than 0.013.
+
+**The booster gap is untouched.** 0.2072 against tuned XGBoost's 0.4301 (§80) leaves roughly
+0.22 AP, and Claim 6 stays RETRACTED.

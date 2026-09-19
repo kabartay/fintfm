@@ -106,6 +106,15 @@
       numbers get quoted as if replicated. Verify: a second `--cell-labels`/no-labels pair at a
       different seed reports the same sign and order of magnitude.
 
+- [ ] 39.29 **Separate `column_id_dim` from the protocol fix.** §93 found the jump from
+      §84's 0.1941 to 0.2072 came from configuration rather than training volume, but two
+      things changed together: `column_id_dim` 12 to 16, and §86's closure of §78's protocol
+      deviation (`--batch-size 8 --n-rows-choices 256,512,1024`). Which one carries the
+      +0.013 is unknown, and one of them is a free parameter worth tuning while the other is
+      a one-off repair. Verify: a checkpoint at `column_id_dim=12` under the full protocol is
+      scored on the same five folds, so the two contributions are separated rather than
+      jointly credited.
+
 ## Backlog: sequenced after architecture, per the external review and the user's ordering
 
 Recorded so none of this is lost. Each is a `docs/FINDINGS.md`-worthy experiment on its own;

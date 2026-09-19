@@ -182,3 +182,19 @@ was wrong: 0.2116 is §71's *fold 0*, not its five-fold mean of 0.1676, and §69
 on comparable data. The full-panel context effect measured directly is **+0.0069** from
 context 1000 to 2000 — an order of magnitude below the -0.066 previously inferred — so the
 suggestion that the architecture change might be a net real-data loss is withdrawn.
+
+
+## Training volume is not the explanation for the accuracy gap, at least not at 5x
+
+The most-cited untested explanation for this project's ~0.22-0.24 AP deficit to tuned gradient
+boosting has been training volume: every checkpoint has come from 48,000 synthetic tasks
+against a field norm near 10^7, a ~200x shortfall recorded in `CLAUDE.md` since 2026-09-10.
+
+**Tested at 5x and rejected (§93).** A 240,000-task checkpoint differing from its baseline in
+nothing but volume scores **-0.0012 AP** across five folds, 3 of 5 nominally positive, with the
+only individually-significant fold favouring the *smaller* run.
+
+This does not establish that scale never helps — 5x is a small step on a 200x shortfall, and
+it measures the local slope rather than the asymptote. What it does establish is that the cheap
+version of the scale argument is dead, and that a large scale run must now be justified by
+something other than "we are obviously under-trained."
