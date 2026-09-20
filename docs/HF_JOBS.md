@@ -104,8 +104,6 @@ stored and simply not looked at.
 
 ## Scopes the token needs
 
-## Scopes the token needs
-
 **[verified]** A token with no scopes fails with `403 ... missing permissions: job.read`.
 Required, on the fine-grained token:
 
@@ -118,6 +116,14 @@ Repositories > Read contents of public gated repos you can access
 
 Same set as `finkele-axiom`. Note this makes the token spend-capable, which is a deliberate
 change from its original dataset-read-only purpose.
+
+## `--detach`, or a loop launches exactly one job
+
+`hf jobs run` **attaches and streams the job's logs** unless given `-d`/`--detach`. A shell
+loop that launches several runs therefore blocks on the first one's log stream forever, and
+the remaining iterations never execute. Measured on 2026-09-20: a three-job `column_id_dim`
+sweep registered `fintfm-colid20` and nothing else, with no error — the loop was simply still
+tailing. Always pass `--detach` when launching more than one job, then poll with `hf jobs ps`.
 
 ## Secrets: `--secrets`, never `-e`
 
