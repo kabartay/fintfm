@@ -6897,3 +6897,133 @@ correlation.
 
 The target stated for this project — untuned trees < fintfm < tuned trees — is **not** reached.
 `RF (default)` remains 0.0418 ahead, on 21 of 27 datasets.
+
+## §102 — The residual may be a class-balance effect, not a size or width one — suggestive, not significant
+
+**How these numbers were produced.** §101's `eval/cat_full/results_per_split.csv` re-read
+against dataset properties from TabArena's task metadata (`num_instances`,
+`n_features`, `target_minority_fraction`) and OpenML feature types. 27 datasets, one fold
+each. **No new runs.** Spearman rank correlation, two-sided, unadjusted.
+
+§101 left a uniform ~0.035 ROC-AUC deficit with no measured axis of variation. This is the
+search for one, conducted on data already in hand before spending anything.
+
+### What does not explain it
+
+| candidate | Pearson r with gap vs LR (tuned) | vs RF (default) |
+| --- | --- | --- |
+| log row count | +0.177 | −0.049 |
+| feature count | +0.032 | +0.063 |
+| log(rows / context size) | +0.177 | −0.049 |
+| log max categorical cardinality | −0.025 | +0.027 |
+
+**Context starvation is not the story, and the sign is the opposite of the obvious guess.**
+fintfm sees at most 1,000 context rows while every baseline fits on the full training split,
+so the natural hypothesis is that the gap widens with dataset size. It does not: the deficit
+is **−0.0465 on the ten datasets under 5,000 rows and −0.0276 on the seventeen above**. On
+150,000-row `GiveMeSomeCredit` the gap is −0.0074; on 1,000-row `credit-g` it is −0.0863.
+Whatever the residual is, supplying more context rows is not obviously the lever.
+
+### The one candidate that moves
+
+| minority-class fraction | n | vs LR (tuned) | vs RF (default) | vs GBM (default) |
+| --- | --- | --- | --- | --- |
+| < 10% (rare) | 7 | **−0.0162** | **−0.0121** | −0.0318 |
+| 10–25% | 10 | −0.0370 | −0.0459 | −0.0595 |
+| 25–40% | 5 | −0.0356 | −0.0337 | −0.0331 |
+| 40–50% (balanced) | 5 | **−0.0545** | **−0.0831** | **−0.0899** |
+
+The direction is consistent against all four baseline families tried, survives splitting by
+size (small: −0.0416 → −0.0513; large: −0.0230 → −0.0388) and by categorical content
+(numeric-only: −0.0295 → −0.0362; with categoricals: −0.0280 → −0.0488), and minority fraction
+is essentially uncorrelated with categorical fraction (r = +0.100), so it is not §100's effect
+returning under a new name.
+
+### Why this is labelled suggestive and must not be quoted as a result
+
+**It is not significant.** Spearman ρ against minority fraction: −0.306 (LR tuned, p = 0.120),
+−0.380 (RF default, p = 0.051), −0.255 (GBM default, p = 0.199), −0.224 (CatBoost default,
+p = 0.261). At n = 27 with no multiplicity correction, **none of these clears a threshold**, and
+the bucket table above is more persuasive than the underlying data warrants because bucketing
+discards within-bucket variance. The four-fold difference between the rare and balanced rows
+rests on 7 and 5 datasets.
+
+This entry exists to record a **direction worth testing cheaply**, not a finding. Writing it up
+as "fintfm degrades on balanced data" would be exactly the error §98's one-dataset-deep
+attribution already cost once.
+
+### Why it is worth testing anyway
+
+**It replicates §51 independently.** §51 measured, on synthetic probes with a fitted linear
+baseline held flat at 1.0000, that performance fell monotonically as the base rate rose —
+0.850 at 5% to 0.658 at 50% — and read it as the model **detecting extremes rather than
+ordering the distribution**, because a mean-and-max pooling reduction is an extremeness
+detector. That reading predicts precisely the sign seen here, on 27 real datasets it was not
+derived from, against baselines this project did not build.
+
+A synthetic prediction confirmed in direction on external data is worth a confirmatory run
+even at p = 0.12.
+
+### What would settle it
+
+`fintfm-capability --rate-sweep` already exists and was built for exactly this question (§51),
+but on the **pre-cell-attention** architecture. Re-running it on `v4-cellattn-labels` costs one
+local evaluation and would say whether the balance effect survived the architecture fix. If it
+did, attention pooling (`v4-attnpool.pt` exists) is the named candidate and §51 predicts it
+should help **most at high base rates** — a directional prediction that can fail.
+
+**If it is real, it is strategically favourable rather than alarming.** This project targets
+low-default portfolios, where base rates run 0.2–4%. The weakness, if confirmed, sits at
+balanced-class problems the thesis does not need to win.
+
+## §103 — Cell attention largely repaired the base-rate sensitivity §51 found, but not entirely
+
+**How these numbers were produced.** `fintfm-capability --rate-sweep --rates 0.05,0.15,0.30,0.50
+--seeds 0,1,2 --max-context 1000`, run locally on `v4-cellattn-labels.pt` (the §98/§101
+checkpoint) and `v4-attnpool.pt`. The probe is the `linear` task at five features, where
+logistic regression is the correctly-specified model. §102 proposed this run and named the
+prediction it would test.
+
+| arm | 5% | 15% | 30% | 50% | drop (balanced − rare) |
+| --- | --- | --- | --- | --- | --- |
+| **cell attention (current)** | 0.9598 | 0.9544 | 0.9380 | 0.9312 | **−0.0285** |
+| attention pooling (old arch.) | 0.6608 | 0.6030 | 0.5750 | 0.5667 | −0.0941 |
+| logistic regression | 0.9999 | 1.0000 | 1.0000 | 0.9999 | +0.0000 |
+| *§51, old architecture* | *0.850* | — | — | *0.658* | *−0.192* |
+
+### The result
+
+**The architecture fix reduced base-rate sensitivity 6.7×**, from §51's −0.192 to −0.0285.
+That was not a predicted consequence of two-way cell attention and is recorded as an
+unanticipated benefit rather than a confirmation of anything.
+
+**It did not eliminate it.** A −0.0285 decline remains on a task where the fitted baseline is
+flat at 1.0000 to four decimals, so the residual is the model's and not the task's.
+
+### What this does to §102
+
+**It weakens the proposed mechanism without refuting the pattern.** §102 read the real-data
+balance effect as §51's extremeness detection surviving into the present architecture. §51's
+effect is now mostly gone, so it cannot carry an effect of the size §102's bucket table
+suggests (−0.0162 rare to −0.0545 balanced, a span of 0.038) on its own — though the residual
+−0.0285 is of the same order, so it may contribute part of it.
+
+§102 was labelled suggestive and not significant (Spearman p = 0.05–0.26). **That label stands
+and this run does not upgrade it.** The honest position: a real-data pattern with a plausible
+mechanism now measured as largely repaired, leaving the pattern less explained than before
+rather than more.
+
+### A confound that forbids the obvious reading of row two
+
+`v4-attnpool.pt` carries `n_cell_blocks=0, cell_labels=False` — it is a **pre-cell-attention**
+checkpoint. Its 0.5667–0.6608 range and −0.0941 drop are therefore the *old* architecture's
+numbers, not evidence about attention pooling as a fix for the current one. **Do not read this
+table as "attention pooling is worse than mean-max."** The two differ by the architecture fix
+as well as by the pooling, and §51's prediction — that attention pooling should help most at
+high base rates — remains untested on the current architecture because no such checkpoint
+exists.
+
+Testing it would cost one training run at `--pooling attention --n-cell-blocks 1
+--cell-labels`. Given that cell attention already removed 85% of the effect the pooling change
+was meant to address, that run is **lower priority than it was before this measurement**,
+which is the actionable consequence here.
