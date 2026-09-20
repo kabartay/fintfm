@@ -265,6 +265,14 @@ That cuts both ways as a limitation. It is good news for the work queue and bad 
 published number — **§98's rank measured a workaround as much as a model**, which is exactly
 why no leaderboard PR has been submitted.
 
+**Fixed, and the rank still did not move (§101).** Out-of-fold target statistics lifted the
+mean to 0.7823 and destroyed the cardinality correlation (−0.668 → −0.025), with the eight
+numeric-only datasets unchanged to four decimals. Rank: **93 of 95, unchanged.** The residual
+is now uniform at ~0.035 across every bucket, so the deficit is one population rather than
+two — sharper to attack, and no smaller where it counts. **The project's stated target,
+untuned trees < fintfm < tuned trees, is not reached:** default random forest leads on 21 of
+27 datasets.
+
 The one encouraging pattern: **two of its three best datasets are the corporate bankruptcy
 panels it was designed for** (`taiwanese_bankruptcy_prediction` 0.9291,
 `polish_companies_bankruptcy` 0.8436), with `GiveMeSomeCredit` sixth. The model is least bad

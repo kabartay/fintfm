@@ -6816,3 +6816,84 @@ deficit, separate from the preprocessing one, and it is 2.8× smaller than the h
 `Amazon_employee_access` as "the clearest symptom", which was right, and left the reader to
 infer the effect was localised there. It is not: Amazon is 21% of the gap and the categorical
 story as a whole is 82%.
+
+## §101 — Native categoricals: the diagnosis was right, the gain is a third of the bound, and the deficit is now one number
+
+**How these numbers were produced.** The full TabArena eligible suite re-run under
+`FINTFM_RUN_NAME=cat_full` with `FINTFM_CATEGORICAL=target`, on
+`runs/v4-cellattn-labels.pt` — the same checkpoint §98 used, confirmed by an A/B whose label
+arm reproduced §98's stored scores to four decimal places. 27 datasets, TabArena-Lite, one
+fold each, 8 bagged child models per dataset. A separate run directory was required: results
+are cached per config name and a preprocessing change does not invalidate that cache.
+
+### The headline, and the number that matters more
+
+| | §98 (label) | §101 (target) | change |
+| --- | --- | --- | --- |
+| mean ROC-AUC | 0.7642 | **0.7823** | **+0.0181** |
+| gap to LR (tuned), #89 | −0.0527 | **−0.0346** | +0.0181 |
+| gap to RF (default), #86 | −0.0599 | **−0.0418** | +0.0181 |
+| datasets won vs LR (tuned) | 2/27 | 3/27 | +1 |
+| leaderboard rank | 93 of 95 | **93 of 95** | **unchanged** |
+| Elo | 662 | 765 | +103 |
+| mean rank | 90.74 | 88.04 | +2.70 |
+
+**The correlation between the per-dataset gap and log maximum cardinality collapsed from
+−0.668 to −0.025.** That, not the mean, is the result. §100's diagnosis said the deficit was a
+function of categorical cardinality; after the change it is a function of nothing measured
+here. A mean can improve for many reasons — the destroyed correlation is specific to the
+mechanism that was claimed.
+
+### Two controls, both clean
+
+**The eight numeric-only datasets moved by exactly 0.0000**, to four decimals, every one. The
+change touched what it was supposed to touch and nothing else. Had any of them moved, the
+comparison would have been confounded by something other than the encoding.
+
+**The gains are ordered by cardinality**, as predicted before the run:
+
+| subset | n | mean delta | gap vs LR (tuned) after |
+| --- | --- | --- | --- |
+| no categorical columns | 8 | **+0.0000** | −0.0320 |
+| 0 < categorical fraction ≤ 0.5 | 10 | +0.0012 | −0.0351 |
+| categorical fraction > 0.5 | 9 | **+0.0530** | −0.0364 |
+| max cardinality > 25 | 5 | **+0.0731** | −0.0379 |
+
+`Amazon_employee_access` carries the largest single gain, 0.5455 → 0.8220 (+0.2765), and
+`Diabetes130US` (+0.0618), `customer_satisfaction_in_airline` (+0.0400) and `credit-g`
+(+0.0344) follow.
+
+### §100's bound was a ceiling, and reality came in at 34% of it
+
+§100 computed that if every categorical-bearing dataset reached parity with tuned logistic
+regression, 82% of the gap would close. **The measured recovery is 34%** — 0.0181 of the
+0.0527. That entry said explicitly the figure was "a ceiling, not a forecast" and that "no
+mechanism is entitled to it". It is on the record here that the ceiling overstated the
+outcome by 2.4×, because a bound quoted without its realised value invites being read as a
+prediction later.
+
+The categorical datasets did not reach parity; they went from −0.0894 to −0.0364.
+
+### What this actually bought: the deficit is now homogeneous
+
+The most useful consequence is structural rather than numerical. Before, the suite held **two
+populations** — a −0.0320 modelling deficit on numeric data and a −0.0894 preprocessing
+artefact on categorical data. Now the gap is **−0.0320 / −0.0351 / −0.0364 / −0.0379 across
+every bucket**: one number, near-flat, with no remaining measured axis of variation.
+
+This retires a whole class of explanation. Any future account of the residual has to explain a
+**uniform ~0.035 ROC-AUC deficit that does not depend on categorical content, cardinality, or
+dataset width** — which is a much sharper target than the mixture §98 presented, and it
+confirms §100's estimate that the honest modelling deficit was the numeric-only figure.
+
+### Why the rank did not move, stated plainly
+
+**93 of 95, unchanged.** Elo rose 103 points and mean rank improved 2.70, but the methods
+immediately above are 94 to 171 Elo further up (`KNN (tuned)` 859, `Linear (default)` 936),
+and a uniform −0.035 still loses to each of them on most datasets. **A real accuracy gain that
+does not move the rank is the normal case near the bottom of a 95-method leaderboard**, and
+reporting the rank alone would have hidden a +0.0181 mean improvement and a destroyed
+correlation.
+
+The target stated for this project — untuned trees < fintfm < tuned trees — is **not** reached.
+`RF (default)` remains 0.0418 ahead, on 21 of 27 datasets.

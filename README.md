@@ -24,10 +24,12 @@ identical rows, gives the new one +0.042 average precision on five folds of five
 panels, this project's calibration is consistently among the best measured, and its
 discrimination consistently loses to tuned gradient boosting — both facts, together, on every
 panel tried. Measured externally for the first time on **TabArena**, under the field's own
-protocol and against 94 other methods, it places **93rd of 95** (§98) — and the deficit is
-mostly *preprocessing*, not architecture: it correlates −0.668 with log categorical cardinality,
-and 82% of the distance to the method ranked #89 sits on datasets carrying categorical columns
-(§100).
+protocol and against 94 other methods, it places **93rd of 95** (§98) — and much of that deficit turned out to be *preprocessing*
+rather than architecture: it correlated −0.668 with log categorical cardinality (§100), and
+replacing label encoding with out-of-fold target statistics lifted the mean from 0.7642 to
+0.7823 while collapsing that correlation to −0.025 (§101). **The rank did not move.** What is
+left is a uniform ~0.035 ROC-AUC deficit that no longer depends on categorical content,
+cardinality or width — a sharper target than before, and still a losing one.
 
 **The honest one-line summary: this is not a competitive general tabular model, and its best
 public results are the corporate-credit panels it was designed for.**

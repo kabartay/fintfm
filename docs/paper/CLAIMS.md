@@ -392,8 +392,14 @@ worth having.
 **Status: SURVIVES.** Evidence: §98 (placement), §100 (decomposition). This is the only claim
 in this ledger whose baselines and protocol belong to someone else.
 
-TabArena, 26 of 27 eligible datasets, zero failures: **rank 93 of 95**, Elo 662 against the
-leader's 1878, mean ROC-AUC **0.7642**. Below every linear baseline; above only default KNN.
+TabArena, 27 eligible datasets, zero failures: **rank 93 of 95**, mean ROC-AUC **0.7642** at
+§98, improved to **0.7823** by native categorical handling (§101) **with the rank unchanged**.
+Below every linear baseline; above only default KNN.
+
+**That a +0.0181 mean gain moved the rank by zero is itself the finding.** Near the bottom of
+a 95-method leaderboard the Elo spacing is wide — the next method up is 94 Elo away — so rank
+is a coarse instrument and quoting it alone would have hidden a real improvement. Cite the
+mean and the rank together, never the rank alone.
 
 **Why a negative result is entered as a surviving claim.** Every accuracy number produced
 before §98 was measured against baselines this project ran itself — a closed loop, which
@@ -446,8 +452,8 @@ understated the floor by 0.06 at K = 10.
 
 ## Claim 13 — Most of the external deficit is preprocessing, and it is fixable without retraining
 
-**Status: SINGLE DRAW, strong effect, full-suite measurement in flight.** Evidence: §100
-(decomposition), plus a three-dataset A/B on one checkpoint.
+**Status: SURVIVES as a diagnosis; the *size* is a third of what the bound suggested.**
+Evidence: §100 (decomposition), §101 (full suite, 27 datasets).
 
 fintfm embeds every cell as a numeric scalar, so a categorical column must arrive as a number.
 Label encoding asserts an order that does not exist. Replacing it with **out-of-fold smoothed
@@ -461,7 +467,24 @@ regression, on the identical checkpoint. Two lower-cardinality datasets gained +
 the delta is the encoding alone. And the result lands *below* the baselines rather than above
 — a leaking target encoder would have scored above 0.95 on a column of near-unique levels.
 
-**What this claim must not become.** It is a bound on the *preprocessing* share, not a route to
-competitiveness. §100's residual −0.0320 on numeric-only data is untouched by it, and that
-residual is the real modelling problem. Three datasets were also chosen as the worst
-categorical cases, so the +0.109 mean delta across them must not be extrapolated to the suite.
+**Measured on the full suite (§101), and the diagnosis held while the magnitude did not.**
+Mean ROC-AUC 0.7642 → **0.7823**, gap to tuned logistic regression −0.0527 → **−0.0346**. The
+decisive number is not the mean: **the correlation between the per-dataset gap and log maximum
+cardinality collapsed from −0.668 to −0.025**, and the eight numeric-only datasets moved by
+exactly 0.0000. A mean can improve for many reasons; a destroyed correlation is specific to
+the claimed mechanism.
+
+**§100's 82% was a ceiling and the realised figure is 34%.** That entry said so in advance —
+"a ceiling, not a forecast" — but the gap between them is recorded here because a bound quoted
+without its outcome gets read as a prediction later.
+
+**The real prize was structural.** The suite used to hold two populations: a −0.0320 modelling
+deficit on numeric data and a −0.0894 preprocessing artefact on categorical data. It now holds
+one, near-flat at **−0.0320 / −0.0351 / −0.0364 / −0.0379** across every bucket. Any future
+account of the residual must explain a uniform ~0.035 deficit independent of categorical
+content, cardinality and width — a far sharper target than §98 presented.
+
+**What this claim must not become.** It is not a route to competitiveness. **The rank did not
+move: 93 of 95, unchanged**, because a uniform −0.035 still loses to the methods above.
+`RF (default)` leads on 21 of 27 datasets. The stated target — untuned trees < fintfm < tuned
+trees — is not reached.
