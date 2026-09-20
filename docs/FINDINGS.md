@@ -6695,3 +6695,59 @@ means what it says.
 **The strategic reading is unchanged and better evidenced.** This is not a competitive general
 tabular model, on the field's own benchmark and by the field's own protocol. What it is: a
 model whose best public results are the corporate-credit panels it was designed for.
+
+## §99 — The multiclass head works: above its own untrained control at 3, 5 and 10 classes
+
+**How these numbers were produced.** `fintfm-capability --class-sweep --class-counts 3,5,10
+--seeds 0,1,2 --max-context 1000 --n-features 20`, on `v4-multiclass.pt` — 6,000 steps,
+`--max-classes 10 --p-financial 0.5`, 888,090 parameters, one T4 run of 3 h 27 m. The probe is
+`argmax(X @ W)` for a per-task random `W`, so multinomial logistic regression is the
+correctly-specified model for it and its score is a reachable ceiling, not a rival. The
+untrained control is the same architecture at seed 20260910. Three seeds per cell, 4,000
+context and 4,000 query rows each.
+
+| arm | K=3 | K=5 | K=10 |
+| --- | --- | --- | --- |
+| majority class (accuracy floor) | 0.3688 | 0.2478 | 0.1617 |
+| **fintfm accuracy** | **0.5905** | **0.4424** | **0.2166** |
+| untrained control | 0.3644 | 0.2032 | 0.1389 |
+| logistic regression | 0.9896 | 0.9802 | 0.9647 |
+
+| arm | K=3 | K=5 | K=10 |
+| --- | --- | --- | --- |
+| **fintfm macro OvR AUC** | **0.7883** | **0.7379** | **0.6405** |
+| untrained control | 0.5269 | 0.4710 | 0.4836 |
+| logistic regression | 0.9998 | 0.9996 | 0.9994 |
+
+### What this settles
+
+**Task 46.1's verification passes.** The trained checkpoint clears the untrained control at
+every class count on both metrics — +0.226/+0.239/+0.078 accuracy, +0.261/+0.267/+0.157 macro
+AUC. The control sits at its floor throughout (macro AUC 0.471-0.527, i.e. chance), which is
+what makes the trained number readable at all. "The model does multiclass" is now a
+measurement rather than a command-line flag.
+
+**Accuracy's floor is measured, not assumed.** A random `W` gives unequal argmax regions —
+4.4% to 15.3% of rows at K=10 — so the sweep reports the observed majority-class rate rather
+than `1/K`, which would have understated the floor by 0.06 at K=10 and inflated the apparent
+margin.
+
+### What this does not settle, and the shape it shares with §96
+
+The deficit to the fitted baseline is **large and widens with K**: 0.399 accuracy at K=3,
+0.538 at K=5, 0.748 at K=10. In macro AUC the gap runs 0.211 → 0.262 → 0.359. This is the
+same shape §96 found for binary tasks — competent relative to its own floor, far from a
+correctly-specified fitted model — so multiclass inherits the project's central open problem
+rather than introducing a new one.
+
+**Read the K=10 accuracy carefully.** 0.2166 against a 0.1617 floor is a 1.34× margin; at K=3
+it is 1.60×. Whether that decline is capacity (888K parameters spread over ten classes) or the
+same architectural limit §97 is chasing is **not** determined here, and no claim either way
+should be made from this table.
+
+### Provenance note
+
+The sweep, the probe and the two regression tests that pin them were written for this
+measurement; the capability suite was binary-only before it. A binary checkpoint handed to
+`--class-sweep` is recorded as skipped with its `max_classes`, never scored, so the JSON shows
+the gap instead of a reader inferring it from a missing row.

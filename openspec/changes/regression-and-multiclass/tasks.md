@@ -1,10 +1,13 @@
 # Tasks
 
-- [ ] 46.1 **Train and verify a multiclass-capable checkpoint** at `--max-classes 10` with the
+- [x] 46.1 **Train and verify a multiclass-capable checkpoint** at `--max-classes 10` with the
       SCM prior in the mixture, since `prior/financial.py` hardcodes two classes. Verify: the
       capability suite reports per-class-count accuracy above an untrained control of the same
       architecture at 3, 5 and 10 classes — `fintfm-capability` builds that control
       automatically, and without it "the model does multiclass" is unreadable.
+      **Done (§99):** clears the control at every K — +0.261/+0.267/+0.157 macro OvR AUC at
+      K=3/5/10 — while the control sits at chance. The deficit to multinomial logistic
+      regression is large and widens with K, which is §96's shape, not a new problem.
 - [ ] 46.2 **Measure what multiclass training costs binary credit accuracy.** At 885K
       parameters, capacity spent on 10-class structure is capacity not spent on the binary
       task, and §73/§75 suggest broader training may help rather than hurt. Verify: V4FinBench

@@ -265,3 +265,60 @@ def test_bayes_ceiling_probe_runs_and_regret_is_consistent(tmp_path):
         assert 0.0 <= achieved <= 1.0
         assert abs(regret - (target - achieved)) < 1e-9
     assert set(BAYES_AUC_TARGETS) >= {0.5, 0.9, 0.999}
+
+
+def test_multiclass_probe_is_solvable_by_the_model_it_was_generated_from():
+    """The ceiling must be reachable, or a shortfall says nothing about the model.
+
+    ``make_multiclass_probe`` draws labels as ``argmax(X @ W)``, so multinomial logistic
+    regression is the correctly-specified model for it. If the baseline could not reach a
+    high accuracy, a low fintfm number would be a property of the task rather than of the
+    architecture -- exactly the confound §42 was created to prevent.
+    """
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.metrics import accuracy_score
+
+    from fintfm.experiments.capability import make_multiclass_probe
+
+    for n_classes in (3, 10):
+        Xtr, ytr, Xte, yte = make_multiclass_probe(
+            n=4000, n_features=8, n_classes=n_classes, seed=0
+        )
+        assert set(ytr) == set(range(n_classes)), "every class must be present in context"
+        acc = accuracy_score(yte, LogisticRegression(max_iter=1000).fit(Xtr, ytr).predict(Xte))
+        assert acc > 0.9, f"K={n_classes}: ceiling must be reachable, got {acc:.4f}"
+
+
+def test_multiclass_sweep_skips_checkpoints_that_cannot_represent_the_task(tmp_path):
+    """A binary checkpoint must be recorded as skipped, never scored.
+
+    Scoring a ``max_classes=2`` model on a 10-class task would produce a number the
+    architecture forbids and invite a comparison against the multiclass arm that means
+    nothing. The reason is carried into the record so a reader of the JSON sees the gap
+    rather than inferring it from a missing row.
+    """
+    import numpy as np
+
+    from fintfm.experiments.capability import multiclass_sweep
+    from fintfm.modeling.model import FinancialTFM, ModelConfig
+
+    base = {"max_features": 8, "d_model": 16, "d_cell": 8, "n_layers": 1,
+            "n_col_layers": 1}
+    binary = tmp_path / "binary.pt"
+    wide = tmp_path / "wide.pt"
+    FinancialTFM(ModelConfig(max_classes=2, **base)).save(
+        str(binary), trained_objectives=("classification",))
+    FinancialTFM(ModelConfig(max_classes=5, **base)).save(
+        str(wide), trained_objectives=("classification",))
+
+    sweep = multiclass_sweep(
+        {"wide": str(wide), "binary": str(binary)}, class_counts=(3,), n_features=6,
+        seeds=(0,), max_context=300,
+    )
+
+    assert sweep["class_counts"] == [3]
+    assert any("binary@K=3" in s for s in sweep["skipped"]), sweep["skipped"]
+    assert np.isnan(sweep["arms"]["binary"]["accuracy"][0])
+    assert np.isfinite(sweep["arms"]["wide"]["accuracy"][0])
+    # The floor is measured, not assumed: unequal argmax regions put it above 1/K.
+    assert sweep["majority_rate"][0] > 1 / 3

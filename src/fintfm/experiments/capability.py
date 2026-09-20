@@ -399,6 +399,186 @@ def summarise_rate_sweep(sweep: dict) -> str:
     return "\n".join(lines)
 
 
+def make_multiclass_probe(
+    n: int = 8000, n_features: int = 20, n_classes: int = 3, seed: int = 0
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Build a ``n_classes``-way task whose ceiling a multinomial logit can reach.
+
+    ``y = argmax_k (X @ W)_k`` for a per-task random ``W``. Two properties make this the
+    right control for :func:`multiclass_sweep` rather than a harder, more interesting task:
+
+    - **The ceiling is known and reachable.** Multinomial logistic regression is the correct
+      model for this generative story, so it scores near the ceiling and any shortfall is the
+      in-context model's own, not the task's. That is the same discipline ``linear`` enforces
+      for the binary suite.
+    - **Classes are near-balanced**, so accuracy stays legible as ``K`` grows. They are not
+      *exactly* balanced — a random ``W`` gives unequal argmax regions, 4.4% to 15.3% at
+      ``K=10`` — so :func:`multiclass_sweep` reports the measured majority-class rate as the
+      floor rather than ``1/K``, which would understate it. A rare-class variant would
+      confound "cannot do multiclass" with "cannot find a rare class", which the binary suite
+      already measures separately (:func:`base_rate_sweep`).
+
+    Args:
+        n: Total rows, split evenly into context and query.
+        n_features: Feature width.
+        n_classes: Number of classes.
+        seed: Random seed.
+
+    Returns:
+        ``(X_train, y_train, X_test, y_test)``.
+
+    Raises:
+        ValueError: If ``n_classes`` is below two.
+    """
+    if n_classes < 2:
+        raise ValueError(f"n_classes must be >= 2, got {n_classes}")
+    rng = np.random.default_rng(seed)
+    X = rng.normal(size=(n, n_features)).astype(np.float32)
+    W = rng.normal(size=(n_features, n_classes))
+    y = (X @ W).argmax(axis=1).astype(np.int64)
+    k = n // 2
+    return X[:k], y[:k], X[k:], y[k:]
+
+
+def multiclass_sweep(
+    model_paths: dict[str, str],
+    class_counts: tuple[int, ...] = (3, 5, 10),
+    n_features: int = 20,
+    seeds: tuple[int, ...] = (0, 1, 2),
+    max_context: int = 1000,
+) -> dict:
+    """Does the model classify into more than two classes at all?
+
+    Task 46.1's verification instrument. Every accuracy number this project has published is
+    binary, so "the checkpoint was trained at ``--max-classes 10``" is a statement about a
+    command line, not about a capability. This measures the capability.
+
+    Reported per class count:
+
+    - **accuracy**, against the measured majority-class rate, which shrinks as ``K`` grows;
+    - **macro one-vs-rest AUC**, whose chance floor is 0.5 at every ``K``, so a decline across
+      the sweep cannot be confused with the floor moving.
+
+    Both are reported because either alone is misleading here. Accuracy falling from ``K=3``
+    to ``K=10`` is expected even for a perfect model's *relative* margin over chance; macro
+    AUC holding flat while accuracy falls is the signature of a model that ranks classes
+    correctly but is miscalibrated across them, which is a different defect with a different
+    fix.
+
+    Args:
+        model_paths: ``{arm name: checkpoint path}``. An untrained control of the first
+            architecture is added automatically — without it these numbers are unreadable.
+        class_counts: Class counts to sweep.
+        n_features: Probe feature width.
+        seeds: Seeds per cell.
+        max_context: Context rows for the in-context arms.
+
+    Returns:
+        ``{"class_counts": [...], "majority_rate": [...], "arms": {name: {"accuracy":
+        [...], "macro_auc": [...]}}}``.
+    """
+    import torch
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.metrics import accuracy_score, roc_auc_score
+
+    from fintfm.inference.classifier import FinancialTFMClassifier
+    from fintfm.modeling.model import FinancialTFM
+
+    models = {n: FinancialTFM.load(p) for n, p in model_paths.items()}
+    if models:
+        first = next(iter(models.values()))
+        torch.manual_seed(UNTRAINED_SEED)
+        models["untrained_control"] = FinancialTFM(first.cfg)
+
+    arm_names = [*models, "logistic_regression"]
+    arms: dict[str, dict[str, list[float]]] = {
+        n: {"accuracy": [], "macro_auc": []} for n in arm_names
+    }
+    skipped: list[str] = []
+    majority: list[float] = []
+    for n_classes in class_counts:
+        per_seed_majority: list[float] = []
+        cell: dict[str, dict[str, list[float]]] = {
+            n: {"accuracy": [], "macro_auc": []} for n in arm_names
+        }
+        for seed in seeds:
+            Xtr, ytr, Xte, yte = make_multiclass_probe(
+                n_features=n_features, n_classes=n_classes, seed=seed
+            )
+            if len(np.unique(ytr)) < n_classes or len(np.unique(yte)) < n_classes:
+                continue
+            per_seed_majority.append(float(np.bincount(yte).max() / len(yte)))
+            for name, m in models.items():
+                if m.cfg.max_classes < n_classes:
+                    # A binary checkpoint cannot represent this task. Recording a number for
+                    # it anyway would invite a comparison the architecture forbids, so the
+                    # cell is left empty and the reason is carried into the record.
+                    skipped.append(f"{name}@K={n_classes}: max_classes={m.cfg.max_classes}")
+                    continue
+                clf = FinancialTFMClassifier(
+                    m, max_context=max_context, context_strategy="uniform",
+                    feature_transform="rank", random_state=seed,
+                ).fit(Xtr, ytr)
+                proba = clf.predict_proba(Xte)
+                cell[name]["accuracy"].append(
+                    accuracy_score(yte, clf.classes_[proba.argmax(axis=1)])
+                )
+                cell[name]["macro_auc"].append(
+                    roc_auc_score(yte, proba, multi_class="ovr", average="macro")
+                )
+            lr = LogisticRegression(max_iter=1000).fit(Xtr, ytr)
+            lp = lr.predict_proba(Xte)
+            cell["logistic_regression"]["accuracy"].append(accuracy_score(yte, lr.predict(Xte)))
+            cell["logistic_regression"]["macro_auc"].append(
+                roc_auc_score(yte, lp, multi_class="ovr", average="macro")
+            )
+        for name, metrics in cell.items():
+            for metric, vals in metrics.items():
+                arms[name][metric].append(float(np.mean(vals)) if vals else float("nan"))
+        majority.append(
+            float(np.mean(per_seed_majority)) if per_seed_majority else float("nan")
+        )
+        print(f"  K={n_classes} done", flush=True)
+    return {
+        "class_counts": list(class_counts),
+        "majority_rate": majority,
+        "arms": arms,
+        "skipped": skipped,
+        "config": {
+            "models": model_paths, "seeds": list(seeds),
+            "max_context": max_context, "n_features": n_features,
+        },
+    }
+
+
+def summarise_multiclass_sweep(sweep: dict) -> str:
+    """Render the multiclass sweep, with the floor on its own row."""
+    ks = sweep["class_counts"]
+    lines = []
+    floors = (
+        ("accuracy", "majority class", sweep["majority_rate"]),
+        ("macro_auc", "chance", [0.5] * len(ks)),
+    )
+    for metric, floor_name, floor in floors:
+        lines.append(f"{metric}")
+        lines.append(f"{'arm':>22} " + " ".join(f"{'K=' + str(k):>9}" for k in ks))
+        lines.append(f"{floor_name:>22} " + " ".join(f"{f:>9.4f}" for f in floor))
+        for name, metrics in sweep["arms"].items():
+            vals = metrics[metric]
+            lines.append(f"{name:>22} " + " ".join(f"{v:>9.4f}" for v in vals))
+        lines.append("")
+    for note in sweep.get("skipped", []):
+        lines.append(f"skipped {note}")
+    lines += [
+        "",
+        "Accuracy's floor is the majority class and moves across the sweep; macro one-vs-rest",
+        "AUC's floor is 0.5 at every K. Read them together: the claim 'the model does",
+        "multiclass' requires clearing the untrained control of the same architecture, not",
+        "clearing the floor.",
+    ]
+    return "\n".join(lines)
+
+
 def run(
     model_paths: dict[str, str],
     out_dir: Path,
@@ -528,8 +708,25 @@ def main() -> None:
              "only detect extremes?",
     )
     p.add_argument("--rates", type=str, default="0.05,0.15,0.30,0.50")
+    p.add_argument(
+        "--class-sweep", action="store_true",
+        help="sweep the number of classes instead (task 46.1): the only instrument that "
+             "makes 'the model does multiclass' a measurement rather than a command line",
+    )
+    p.add_argument("--class-counts", type=str, default="3,5,10")
     args = p.parse_args()
     paths = dict(pair.split("=", 1) for pair in args.models.split(",") if pair)
+    if args.class_sweep:
+        sweep = multiclass_sweep(
+            paths, class_counts=tuple(int(k) for k in args.class_counts.split(",")),
+            seeds=tuple(int(s) for s in args.seeds.split(",")),
+            max_context=args.max_context, n_features=args.n_features,
+        )
+        out = Path(args.out)
+        out.mkdir(parents=True, exist_ok=True)
+        (out / "class_sweep.json").write_text(json.dumps(sweep, indent=2))
+        print("\n" + summarise_multiclass_sweep(sweep))
+        return
     if args.rate_sweep:
         sweep = base_rate_sweep(
             paths, rates=tuple(float(r) for r in args.rates.split(",")),
