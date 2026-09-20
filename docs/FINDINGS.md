@@ -6625,3 +6625,73 @@ that p as "the protocol fix helped" would be exactly wrong.
 **Not that wider is better without limit.** Two values have been tested. The obvious next
 experiment is a sweep (20, 24, 32) at matched everything else, and the result could as easily
 be a peak at 16 as a monotone climb. **One seed per cell**, as with §91 and §93.
+
+## 98. TabArena places fintfm 93rd of 95 — and its three best datasets are corporate credit
+
+**Date:** 2026-09-20. **MEASURED**, `fintfm-0.3` (`v4-cellattn-labels`, `column_id_dim=16`)
+registered as a model in a local TabArena clone (Apache-2.0) and run under TabArena's own
+protocol: shared preprocessing, their validation splits, 8 bagged child models per dataset,
+`repeat 0 / fold 0` of TabArena-Lite. 27 eligible datasets, **26 successes, 0 failures**,
+1.5 h total. Scored against their cached leaderboard of 95 methods.
+
+### The placement
+
+| | |
+| --- | --- |
+| rank | **93 of 95** |
+| Elo | 662 (leader LimiX-2: 1878) |
+| mean rank | 90.74 |
+| mean ROC-AUC | **0.7642** (median 0.7728, min 0.5455, max 0.9703) |
+| coverage | 26 of 27 eligible = **51% of the 51-dataset suite** |
+
+Below `Linear (tuned)` at 89 and `RandomForest (default)` at 86; above only `KNN (default)`.
+**This is the first externally-grounded placement this project has**, and it is worse than the
+in-house comparisons implied: `experiments/openml_breadth.py` (§96) had fintfm beating logistic
+regression on several tasks, while TabArena's protocol places it below every linear baseline.
+
+### Where it works, which is the informative part
+
+| best 5 | AUC | worst 5 | AUC |
+| --- | --- | --- | --- |
+| NATICUSdroid | 0.9703 | Amazon_employee_access | **0.5455** |
+| **taiwanese_bankruptcy_prediction** | **0.9291** | Diabetes130US | 0.5948 |
+| online_shoppers_intention | 0.8764 | credit-g | 0.6445 |
+| customer_satisfaction_in_airline | 0.8643 | in_vehicle_coupon_recommendation | 0.6657 |
+| **polish_companies_bankruptcy** | **0.8436** | E-CommereShippingData | 0.6776 |
+
+**Two of the three best results are the corporate bankruptcy panels** this project was built
+for, and which §73/§75 already benchmark independently. `GiveMeSomeCredit` (consumer credit,
+0.8373) is sixth. The worst, `Amazon_employee_access` at 0.5455, is nine high-cardinality
+**categorical** columns.
+
+That pattern is consistent with §96 rather than contradicting it: the deficit is general, and
+the domain it was designed for is where it is least bad.
+
+### Three caveats that bound what this number means
+
+**Coverage is 51%.** 13 regression and 8 multiclass datasets are excluded by
+`_supported_problem_types = ["binary"]`, and 3 more by `max_features=136`. A mean over 27
+datasets is not comparable to a mean over 51, and the Elo is computed only where it ran.
+
+**Categoricals are label-encoded**, which imposes an arbitrary order on unordered variables.
+fintfm's cell embedding takes numeric scalars only, so the wrapper has no honest alternative
+today. `Amazon_employee_access`'s 0.5455 is close to chance and is the clearest symptom.
+**Categorical-heavy results here are a floor, not a fair score.**
+
+**A device bug cost one run before this one.** AutoGluon's GPU accounting is CUDA-only, so a
+machine with Apple Silicon reports zero GPUs; the wrapper's first version ran on CPU and hit
+`TimeLimitExceeded` on a 45,211-row dataset. Preferring MPS fixed it and the same suite then
+completed in 1.5 h. The timeout was an integration defect, **not** evidence about fintfm's
+deployability, and must not be cited as such.
+
+### Consequence
+
+**Do not submit.** TabArena accepts PRs, and a `fintfm-0.3` entry would be an honest public
+record — but at 51% coverage with a knowingly degraded categorical path, it would measure the
+label-encoding workaround as much as the model. The order is: native categoricals, then
+multiclass and regression (`regression-and-multiclass`, 46.x), then a submission whose number
+means what it says.
+
+**The strategic reading is unchanged and better evidenced.** This is not a competitive general
+tabular model, on the field's own benchmark and by the field's own protocol. What it is: a
+model whose best public results are the corporate-credit panels it was designed for.

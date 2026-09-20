@@ -218,3 +218,26 @@ the entire prior from financial to generic structural-causal moves the mean defi
 
 The baselines in that suite are untuned, so the honest reading is that the deficit is probably
 understated: §69 measured tuning as roughly doubling a booster's lead.
+
+
+## Placed 93rd of 95 on TabArena, the field's own benchmark
+
+Every accuracy claim in this ledger before 2026-09-20 was measured against baselines this
+project ran itself. §98 is the first placement against the field: `fintfm-0.3` registered as a
+model in TabArena and run under TabArena's protocol — their preprocessing, their splits, 8
+bagged child models per dataset — against a cached leaderboard of 95 methods.
+
+**Rank 93 of 95. Mean ROC-AUC 0.7642 against leaders at ~0.90.** Below every linear baseline;
+above only `KNN (default)`. 26 of 27 eligible datasets, zero failures.
+
+Three things bound it, and none of them rescue it. Coverage is **51%** of the suite, since
+binary-only excludes 13 regression and 8 multiclass datasets. Categoricals are label-encoded
+because fintfm's cell embedding takes numeric scalars only, which makes categorical-heavy
+results a floor rather than a fair score. And a CUDA-only device check sent an earlier run to
+CPU and produced a spurious timeout, which was an integration defect and not evidence about
+the model.
+
+The one encouraging pattern: **two of its three best datasets are the corporate bankruptcy
+panels it was designed for** (`taiwanese_bankruptcy_prediction` 0.9291,
+`polish_companies_bankruptcy` 0.8436), with `GiveMeSomeCredit` sixth. The model is least bad
+where it was aimed.
