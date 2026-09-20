@@ -104,9 +104,9 @@ merely by correct rankings. That matters more here than in most classification w
 the deliverable is a probability of default that a lender prices and provisions against. A
 loss that rewarded ranking alone would optimise for the one number the buyer cannot use.
 
-## Inference: two corrections that are easy to get wrong
+## Inference: three corrections that are easy to get wrong
 
-`FinancialTFMClassifier.fit()` stores the table rather than training on it. Two things then
+`FinancialTFMClassifier.fit()` stores the table rather than training on it. Three things then
 happen that are not obvious:
 
 **Context construction.** Attention is quadratic in context length, so tables above
@@ -122,7 +122,24 @@ at a 14.9% predicted mean against a 4.7% actual rate. The fix shifts the logits 
 because context selection looks only at `y`) and provably leaves ranking untouched. See
 `docs/FINDINGS.md` §6.
 
-These two interact, and neither is visible in an AUC-only evaluation. That is the whole
+**Categorical encoding** (`inference/categorical.py`). Every stage above reads a cell as an
+*ordered numeric scalar*, so a categorical column has to arrive as a number and the choice of
+number is a modelling decision, not plumbing. Label encoding asserts that resource code 4127
+lies between 4126 and 4128; `docs/FINDINGS.md` §100 measured what that costs — a −0.0894
+ROC-AUC deficit on mostly-categorical datasets against −0.0320 on numeric ones, correlating
+−0.668 with log cardinality. The replacement gives each level the smoothed target rate among
+context rows carrying it, which is ordered on the axis the model actually reads.
+
+**The out-of-fold part is the whole difficulty, and it is an invariant.** If a row's own label
+enters its own encoding, then on a high-cardinality column — where most levels appear once —
+the encoded value is very nearly the label. The column becomes an almost perfect predictor
+*inside the context* and carries nothing at query time, so the model learns to trust a feature
+that will not be there. **This leak makes the model worse rather than flattering the score,
+which is exactly why it survives careless validation.** Context rows are therefore encoded
+from a K-fold partition excluding their own fold; query rows use the full context, having no
+labels to leak.
+
+These three interact, and none is visible in an AUC-only evaluation. That is the whole
 argument for `evaluation/metrics.py`.
 
 ## Pretraining loop
@@ -143,3 +160,9 @@ per batch so the model learns to work at many context sizes rather than one.
 4. **Every reported number carries how it was produced** — SMOKE-TEST, MEASURED, or
    SIMULATED (`CLAUDE.md`). In an ML repo a wrong number does not crash; it just looks like
    a result.
+5. **Target encoding is out of fold for context rows.** Pinned by
+   `tests/test_categorical.py`, which asserts the contrast rather than the property alone:
+   the naive statistic correlates above 0.9 with the row's own label on a column of unique
+   levels while the out-of-fold statistic is constant at the prior. Without that contrast the
+   test would also pass for an encoder that encodes nothing, so a second test requires it to
+   recover a real level effect.

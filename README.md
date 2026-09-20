@@ -11,7 +11,7 @@ this project could make, each tagged SURVIVES / SINGLE DRAW / SUPERSEDED / RETRA
 against its evidence.** That file, not this one, is the source of truth for what is currently
 true. This README is an orientation map.
 
-## What is currently true, in three sentences
+## What is currently true, in four sentences
 
 A synthetic hazard-head architecture makes incoherent PD term structures (a real, measured
 defect in the field's standard per-horizon construction, 39% of firms on real data) impossible
@@ -20,9 +20,17 @@ capped discrimination regardless of true task difficulty, verified against an ex
 Bayes-optimal AUC — was found, its cause isolated to the architecture rather than the prior
 after eliminating seven other candidates one at a time, closed by a two-way cell-attention
 change, and confirmed on real data: each architecture at its own best measured context, on
-identical rows, gives the new one +0.042 average precision on five folds of five. On real credit panels, this project's
-calibration is consistently among the best measured, and its discrimination consistently loses
-to tuned gradient boosting — both facts, together, on every panel tried.
+identical rows, gives the new one +0.042 average precision on five folds of five. On real credit
+panels, this project's calibration is consistently among the best measured, and its
+discrimination consistently loses to tuned gradient boosting — both facts, together, on every
+panel tried. Measured externally for the first time on **TabArena**, under the field's own
+protocol and against 94 other methods, it places **93rd of 95** (§98) — and the deficit is
+mostly *preprocessing*, not architecture: it correlates −0.668 with log categorical cardinality,
+and 82% of the distance to the method ranked #89 sits on datasets carrying categorical columns
+(§100).
+
+**The honest one-line summary: this is not a competitive general tabular model, and its best
+public results are the corporate-credit panels it was designed for.**
 
 ## How it works
 
@@ -57,10 +65,17 @@ to tuned gradient boosting — both facts, together, on every panel tried.
    context-construction strategies (uniform, balanced, hybrid, retrieval, prototype) and a
    base-rate correction, plus ensembling over column-identity draws to recover the
    distributional column-order invariance a random identity trades for expressiveness.
+   `inference/categorical.py` encodes categorical columns as **out-of-fold** smoothed target
+   statistics, because the model reads every cell as an ordered scalar and label encoding's
+   arbitrary order is measurably worse than no order at all (§100). The out-of-fold step is
+   not a refinement: the naive form puts a row's own label into its own encoding, which makes
+   the context self-predictive and the feature absent at query time — it harms the model
+   rather than flattering the score, so it survives careless validation.
 5. **Evaluation** (`src/fintfm/evaluation/`, `src/fintfm/experiments/`) — real corporate-default
    panels (V4FinBench via its published protocol, `fintfm-v4protocol`; Polish and Taiwan
    bankruptcy, `fintfm-bench`), an out-of-time harness, a synthetic capability suite
-   (`fintfm-capability`) including probes with a *known* ceiling — some with a closed-form
+   (`fintfm-capability`, including a class-count sweep for multiclass, §99) with probes of a
+   *known* ceiling — some with a closed-form
    Bayes-optimal AUC — specifically built to catch a model that looks fine on average while
    capped in a way an aggregate score cannot see. Average precision is reported alongside
    ROC-AUC everywhere, and read first at low base rates (ROC-AUC's chance floor is 0.5
@@ -132,7 +147,7 @@ extras lightgbm MIT, xgboost Apache-2.0, catboost Apache-2.0, pyarrow Apache-2.0
 - [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md) — **start here.** Every claim this project
   could make, tagged by status, newest evidence wins.
 - [`docs/FINDINGS.md`](docs/FINDINGS.md) — the full measurement log, numbered sequentially
-  (98 entries and counting), each declaring how its numbers were produced.
+  (100 entries and counting), each declaring how its numbers were produced.
 - [`docs/DECISIONS.md`](docs/DECISIONS.md) — why the project is built the way it is, and what
   would reverse each choice.
 - [`docs/STRATEGY.md`](docs/STRATEGY.md) — the plan of record.
@@ -152,9 +167,10 @@ bought — plus a public, self-correcting record of what has and has not been sh
 
 ## Status
 
-Actively developed research codebase, not a PoC skeleton: 188 tests (`uv run pytest`), a
+Actively developed research codebase, not a PoC skeleton: 198 tests (`uv run pytest`), a
 config-driven experiment harness, real GPU pretraining infrastructure (Hugging Face Jobs on
-T4), and 98 numbered, provenance-tagged findings. What is currently proven, currently open, and
+T4), an external benchmark integration (TabArena, `docs/TABARENA.md`), and 100 numbered,
+provenance-tagged findings. What is currently proven, currently open, and
 currently retracted is tracked continuously in
 [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md) rather than restated here, because the honest
 state changes faster than this file gets edited — that is exactly the failure mode the claims

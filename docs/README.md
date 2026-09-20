@@ -7,7 +7,10 @@
 | [DECISIONS.md](DECISIONS.md) | Decisions with the alternatives priced against them and **what would reverse each one**. |
 | [GLOSSARY.md](GLOSSARY.md) | The ubiquitous language. Credit-risk terms are legally loaded; `[verify]` marks what has not been checked against a primary source. A spec introducing a concept adds it here. |
 | [FINDINGS.md](FINDINGS.md) | Measured results and the reasoning they forced, numbered and dated, each labelled by how it was produced. |
+| [TABARENA.md](TABARENA.md) | External evaluation on TabArena: the reproduction recipe, the coverage fraction any score must carry, and four silent failure modes — including a results cache that returns stale numbers after a preprocessing change. |
+| [HF_JOBS.md](HF_JOBS.md) | The GPU pretraining recipe on Hugging Face Jobs, with the failures kept because each one cost a run. |
 | [COMPUTE.md](COMPUTE.md) | Measured throughput, device guidance, what a real run costs, and the rules for running on this shared machine. |
+| [POSTMORTEM.md](POSTMORTEM.md) | Wrong diagnoses, each caught by measurement rather than review, kept on the record deliberately. |
 | [LANDSCAPE.md](LANDSCAPE.md) | Competitors, what each claims about itself, and what it implies for positioning. Claims are theirs, not verified. |
 | [REFERENCES.md](REFERENCES.md) | Literature, every entry verified against the source. Unverified leads are quarantined at the bottom. |
 

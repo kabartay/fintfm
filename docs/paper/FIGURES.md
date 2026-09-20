@@ -126,3 +126,45 @@ experiment was not a guess.
 
 Data exists in full (§58, §62, §64, §65, §72, §76); assembling the table is a formatting task,
 not a measurement one.
+
+## Figure 6 — The deficit decomposed by categorical cardinality (new, 2026-09-20)
+
+**The figure the external-placement section needs, and the one that keeps §98 from being
+read as a bigger architectural indictment than it is.** Per-dataset gap to tuned logistic
+regression on the y-axis against log maximum categorical cardinality on the x-axis, 27 points,
+with the fit line (Pearson **−0.668**) and the three cardinality buckets marked: −0.0320 at
+zero categoricals, −0.0437 up to 25 levels, −0.1109 above 25.
+
+What it shows at a glance is that the gap is a **function of a preprocessing decision**, and
+that the intercept — the numeric-only residual — is the honest size of the modelling problem.
+A reader who sees only the mean 0.0527 overstates that residual by 2.8×.
+
+Data exists (§100, from `eval/*/results_per_split.csv` plus OpenML feature types); the
+plotting script does not.
+
+```python
+# categorical types come from OpenML, NOT from TabArena's task metadata --
+# has_categorical is None for all 51 datasets in the current release (§100).
+import openml
+X, y, cat, names = openml.tasks.get_task(tid).get_dataset().get_data(target=...)
+```
+
+**Pair it with a before/after bar** for the three A/B datasets (Claim 13): label encoding
+against out-of-fold target statistics on one checkpoint, with the tuned-logistic-regression
+line drawn across. `Amazon_employee_access` 0.5455 → 0.8220 carries the point on its own, and
+the fact that the bar lands *below* the baseline rather than above it is the visual evidence
+that the encoder is not leaking.
+
+## Table 6 — The multiclass control (new, 2026-09-20)
+
+§99's two tables as one: accuracy and macro one-vs-rest AUC at K = 3, 5, 10, for the trained
+checkpoint, the untrained control of the same architecture, and multinomial logistic
+regression, with the measured majority-class rate as the accuracy floor row.
+
+**The untrained control is the load-bearing row, not decoration.** Without it "0.6405 macro
+AUC at K=10" is unreadable — it could be competence or it could be the architecture plus the
+context doing the work. The control sits at chance (0.471–0.527) at every K, which is what
+makes the trained number mean anything. Any version of this table that drops the control row
+to save space should be rejected.
+
+Data exists (§99, `runs/capability-multiclass/class_sweep.json`); formatting only.

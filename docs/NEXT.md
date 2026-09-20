@@ -10,12 +10,52 @@ and prefer the cheapest item that unblocks others. Proposals live in
 grep -c "^- \[ \]" openspec/changes/*/tasks.md | awk -F: '{s+=$2} END {print s" open tasks"}'
 ```
 
-As of 2026-09-09: **78 open tasks across 19 changes.** Expect the count to rise — finishing
+As of 2026-09-20: **170 open tasks across 34 changes.** Expect the count to rise — finishing
 one item often discovers two, and that is the queue working.
 
 ---
 
-## Tier 0 — the top of the queue, reordered 2026-09-09
+## Tier 0 — reordered 2026-09-20, after the first external measurement
+
+§98 placed the project 93rd of 95 on TabArena and §100 decomposed that result. The queue now
+follows the decomposition rather than intuition, because for the first time there is a
+measured share attached to each candidate.
+
+1. **`native-categoricals` (47.x)** — **82% of the gap to the method ranked #89 sits on
+   datasets with categorical columns**, and the per-dataset gap correlates −0.668 with log
+   cardinality (§100). An inference-time encoder needs no retraining, so this is both the
+   largest measured share and the cheapest thing to try. A three-dataset A/B already moved
+   `Amazon_employee_access` from 0.5455 to 0.8220. Finish 47.3 (full suite) before anything
+   below it.
+
+2. **`cell-attention-and-task-inference` task 39.30** — sweep `column_id_dim`. §97 measured
+   12→16 as worth **+0.0126 AP on 5 of 5 folds** against nulls everywhere else, and 16 was
+   chosen by accident. Two values have ever been tried. §95's cost model says 20/24/32 are
+   nearly free. **A peak at 16 is as publishable as a climb and must not be written up as a
+   failure.**
+
+3. **`regression-and-multiclass` (46.3–46.6)** — the binned distributional head. This is the
+   only item here that is not an accuracy play: **LGD and EAD are continuous, so without it
+   the project supplies one of ECL's three inputs and no IFRS 9 claim is complete.** 46.1 is
+   closed (§99); 46.2 measures what multiclass training cost binary accuracy.
+
+4. **`factorized-attention` (44.x)** — the remaining architectural candidate for the
+   **−0.0320 numeric-only residual**, which is what is left after §100 removes the
+   preprocessing share. Its cost model must retrodict linear CUDA and quadratic MPS growth
+   (§95) before it is trusted.
+
+**What is deliberately *not* at the top:** a TabArena leaderboard PR. At 51% coverage with a
+degraded categorical path it would measure the workaround as much as the model
+(`docs/TABARENA.md`).
+
+---
+
+## Superseded ordering, kept for the reasoning — 2026-09-08/09
+
+**Everything from here down predates the architecture fix (§78), its real-data validation
+(§80/§84) and the first external measurement (§98/§100).** It is kept because the reasoning
+that produced each ordering is worth more than the ordering itself — several of these items
+were closed by being measured rather than by being done. Tier 0 above is the live queue.
 
 Reordered after §28-§30. The out-of-time failure that §26 blamed on the prior was our own
 missing base-rate correction; fixing it cut fourth-horizon calibration error 32×, left AUC

@@ -101,6 +101,22 @@ The project produces PD only. Expected credit loss requires PD × LGD × EAD, so
 one of three inputs (`docs/GLOSSARY.md`). Any claim about IFRS 9 provisioning is a claim about
 an *input* to provisioning.
 
+**No regression head exists**, which is the binding constraint here rather than an oversight:
+LGD and EAD are continuous targets, and every checkpoint this project has trained is a
+classifier. `regression-and-multiclass` (46.3–46.6) proposes a binned distributional head with
+bin edges taken from context quantiles, specifically because LGD is bounded in [0, 1] and
+piles up at both ends — a point estimate or a Gaussian head would average the two modes into a
+middle value that occurs rarely in the data. **Until that lands, "IFRS 9" should not appear in
+a claim without this sentence attached.**
+
+## Multiclass works but is measured once, against a weak ceiling
+
+§99 verified that a `--max-classes 10` checkpoint clears its own untrained control at K = 3, 5
+and 10. That is the floor, not the bar. Against multinomial logistic regression — the
+correctly-specified model for the probe — it is behind by **0.211 / 0.262 / 0.359** macro
+one-vs-rest AUC, a deficit that *widens* with class count. One checkpoint, one probe family,
+three seeds: `SINGLE DRAW` in the ledger's vocabulary, and not quotable externally.
+
 ## Regulatory terms are used without primary-source verification
 
 Several entries in `docs/GLOSSARY.md` are marked **[verify]** — IFRS 9 stage-transition
@@ -236,6 +252,18 @@ because fintfm's cell embedding takes numeric scalars only, which makes categori
 results a floor rather than a fair score. And a CUDA-only device check sent an earlier run to
 CPU and produced a spurious timeout, which was an integration defect and not evidence about
 the model.
+
+**§100 then decomposed the rank, and the decomposition matters more than the rank.** Split by
+categorical content, the gap to tuned logistic regression is **−0.0320** on the eight datasets
+with no categorical columns and **−0.0894** on the nine that are mostly categorical; by
+maximum level count it runs −0.0320 / −0.0437 / **−0.1109**, correlating **−0.668** with log
+cardinality. **82% of the distance to the method ranked #89 sits on datasets carrying
+categorical columns.** So the headline 0.0527 mean gap overstates the modelling problem: the
+honest figure is the numeric-only **−0.0320**, and the rest was a preprocessing decision.
+
+That cuts both ways as a limitation. It is good news for the work queue and bad news for the
+published number — **§98's rank measured a workaround as much as a model**, which is exactly
+why no leaderboard PR has been submitted.
 
 The one encouraging pattern: **two of its three best datasets are the corporate bankruptcy
 panels it was designed for** (`taiwanese_bankruptcy_prediction` 0.9291,

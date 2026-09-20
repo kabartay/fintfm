@@ -9,7 +9,18 @@ Status vocabulary:
 - **RETRACTED** — we asserted it and it is false.
 - **OPEN** — proposed, not measured.
 
-Statuses last reviewed 2026-09-14.
+Statuses last reviewed 2026-09-20.
+
+**What changed since 2026-09-14, in one paragraph.** The architecture fix was validated on
+real data (§80/§84, Claim 10), five candidate explanations for the residual accuracy deficit
+were measured and eliminated (training volume, context size, marginal augmentation, z-clip,
+prior domain), and the project was measured **externally for the first time**: TabArena places
+it 93rd of 95 (§98, new Claim 11). §100 then decomposed that result and found the deficit is
+mostly a *preprocessing* artefact rather than an architectural one — it correlates −0.668 with
+log categorical cardinality, and 82% of the distance to the method ranked #89 sits on datasets
+with categorical columns. A multiclass head was trained and verified against its own untrained
+control (§99, new Claim 12). Claim 6 is unchanged in status and now has a third, external
+measurement behind it.
 
 **What changed since 2026-09-09, in one paragraph.** Claim 2 was retracted pending
 re-measurement because the pre-fix model was not doing in-context learning at all. It has
@@ -19,8 +30,9 @@ capacity cap the content-side fix did not touch (§74), seven prior-content hypo
 cap were eliminated one at a time (§58-§77), and an architecture change — two-way cell
 attention — closed it in one experiment (§78). Read Claim 2 below before anything else; it is
 the whole story in miniature and the reason **every synthetic result in this ledger dated
-before 2026-09-14 was measured through a ceiling that no longer exists**, while **no real-data
-result has yet been re-measured on the architecture that removed it** (task 39.5, open).
+before 2026-09-14 was measured through a ceiling that no longer exists**. Task 39.5 — the
+real-data re-measurement this paragraph used to flag as open — **closed on 2026-09-15 (§80)
+and the fix transferred**: +0.0486 AP at matched context, +0.0417 best-vs-best, 5 folds of 5.
 
 ---
 
@@ -105,11 +117,27 @@ only column *identity*.
   discrimination there. This is the one piece of the original claim that has replicated
   cleanly across every dataset tried.
 
-**What is not yet measured**: any of the above, on the architecture that removed the capacity
-cap. `cell-attention-and-task-inference` task 39.5 is open. **Do not write any version of this
-claim for external use until it is** — this project has already been burned twice by writing
-a transfer claim from a checkpoint that turned out not to support it (§47, §74), and the
-correct number of times to be burned by the same mistake is zero.
+**Re-measured on the fixed architecture, and the conclusion got worse, 2026-09-17/20.** This
+entry used to say the above was unmeasured on the post-§78 architecture and to withhold the
+claim until it was. That measurement is done, and three results now bear on it:
+
+- **§96** — the accuracy deficit is **general, not credit-specific**: the model is behind on
+  14 of 15 public OpenML binary tasks, and the prior's domain is worth only +0.010.
+- **§98** — externally, on TabArena, **93rd of 95**, losing to every linear baseline.
+- **§100** — the deficit tracks categorical cardinality at **−0.668**, i.e. much of it is not
+  about domain transfer at all.
+
+**Do not write any version of this claim for external use.** The reason has changed and
+strengthened: it is no longer "not yet measured" but "measured, and the comparison is lost".
+What survives is narrower and still true — the financial prior helps *on V4FinBench
+specifically* (§61/§63) and loses to a generic SCM prior on two other credit panels
+(§73/§75). A transfer claim scoped to one benchmark's feature conventions is not the claim
+this project set out to make, and [OUTLINE.md](OUTLINE.md) now frames the paper around the
+architecture diagnosis instead.
+
+This project has already been burned twice by writing a transfer claim from a checkpoint that
+turned out not to support it (§47, §74). The correct number of times to be burned by the same
+mistake is zero.
 
 ## Claim 3 — Feature conditioning matters more than it should, because financial ratios are pathologically heavy-tailed
 
@@ -215,6 +243,21 @@ Holm p < 0.001. **The first version of this same comparison, on ROC-AUC with unt
 baselines, misranked fintfm second of five** where AP with tuned baselines puts it third,
 behind both boosters that ROC-AUC's untuned reading had understated — a concrete demonstration
 of why AP-first reporting at low prevalence is not a stylistic preference.
+
+**A third measurement, external and adversarial (§98/§100, 2026-09-20).** TabArena, 26
+datasets, the field's own protocol and leaderboard: mean ROC-AUC **0.7642** against tuned
+logistic regression's 0.8169 and default random forest's 0.8241, winning 2 of 27 and 5 of 27
+respectively. This is the first accuracy measurement in this ledger whose baselines this
+project did not run itself, and it agrees with the other two.
+
+**But §100 changes what the gap is evidence *of*.** Split by categorical content, the deficit
+is **−0.0320** on the eight datasets with no categorical columns and **−0.0894** on the nine
+that are mostly categorical; against maximum level count it runs −0.0320 / −0.0437 / **−0.1109**
+and correlates **−0.668** with log cardinality. The architecture reads every cell as an ordered
+scalar, so the label-encoded integration imposed a false order — and that, not the model, is
+where most of the measured distance lies. **The honest size of the modelling deficit is the
+numeric-only figure, −0.0320, which is 2.8× smaller than the headline.** Any future statement
+of this claim must quote the split, not the mean alone.
 
 Both measurements point the same direction from different angles and should both be cited if
 either is: the out-of-time split (this entry, §32) for the temporal-holdout argument, the
@@ -341,3 +384,84 @@ row-within-feature attention over `F` is identity-preserving, 6.2x smaller and 1
 faster, and `max_context=4000` runs. §83 then measured the old architecture there and found it
 slightly *worse* than 2,000, so the configuration §80 mourned losing turned out not to be
 worth having.
+
+---
+
+## Claim 11 — Measured externally, this is not a competitive general tabular model
+
+**Status: SURVIVES.** Evidence: §98 (placement), §100 (decomposition). This is the only claim
+in this ledger whose baselines and protocol belong to someone else.
+
+TabArena, 26 of 27 eligible datasets, zero failures: **rank 93 of 95**, Elo 662 against the
+leader's 1878, mean ROC-AUC **0.7642**. Below every linear baseline; above only default KNN.
+
+**Why a negative result is entered as a surviving claim.** Every accuracy number produced
+before §98 was measured against baselines this project ran itself — a closed loop, which
+cannot detect a harness-level error that flatters every arm equally. This breaks the loop and
+confirms the direction the internal measurements already pointed. A project whose public
+record contains only its own benchmarks has not been tested; this one now has.
+
+**The one genuinely favourable detail, stated at its true weight.** Two of the three best
+results are the corporate-bankruptcy panels the model was designed for
+(`taiwanese_bankruptcy_prediction` 0.9291, `polish_companies_bankruptcy` 0.8436), with
+`GiveMeSomeCredit` sixth. That is consistent with §96 rather than in tension with it: the
+deficit is general, and the target domain is where it is least bad. It is **not** evidence of
+domain-specific competence, because the gap to the baselines on those same panels is still
+negative.
+
+**Three bounds a citation must carry.** Coverage is 51% (binary-only, ≤136 features), so the
+mean is not comparable with a full-suite mean. The categorical path was knowingly degraded,
+which §100 quantifies. And one earlier run died of `TimeLimitExceeded` from a CUDA-only device
+check on Apple Silicon — an integration defect that must not be cited as evidence about
+deployability.
+
+**Do not submit a leaderboard PR yet.** At 51% coverage with a degraded categorical path the
+number would measure the workaround as much as the model.
+
+---
+
+## Claim 12 — The multiclass head learns in context, and inherits the same deficit
+
+**Status: SINGLE DRAW.** Evidence: §99. One checkpoint, three seeds per cell, one probe
+family. Not quotable externally until replicated on a second seed and a second task shape.
+
+A checkpoint trained at `--max-classes 10` clears an untrained control of the identical
+architecture at every class count tested — **+0.261 / +0.267 / +0.157 macro one-vs-rest AUC at
+K = 3 / 5 / 10** — while the control sits at chance throughout (0.471–0.527). Before this, "the
+model does multiclass" was a statement about a command-line flag; the capability suite was
+binary-only and had no instrument to check it.
+
+**The deficit to a correctly-specified baseline is large and widens with K**: 0.211 → 0.262 →
+0.359 macro AUC behind multinomial logistic regression. That is the same shape §96 found for
+binary tasks, so **multiclass inherits this project's central open problem rather than
+introducing a new one** — which is the useful part of the result, and the part a summary would
+be tempted to drop.
+
+**A measurement detail worth keeping**, because it would have inflated the margin: the probe's
+classes are not exactly balanced (a random argmax partition gives 4.4%–15.3% at K = 10), so the
+accuracy floor is the *measured* majority-class rate, not `1/K`. Using `1/K` would have
+understated the floor by 0.06 at K = 10.
+
+---
+
+## Claim 13 — Most of the external deficit is preprocessing, and it is fixable without retraining
+
+**Status: SINGLE DRAW, strong effect, full-suite measurement in flight.** Evidence: §100
+(decomposition), plus a three-dataset A/B on one checkpoint.
+
+fintfm embeds every cell as a numeric scalar, so a categorical column must arrive as a number.
+Label encoding asserts an order that does not exist. Replacing it with **out-of-fold smoothed
+target statistics** — computed from context labels only, so no gradient step and no retraining
+— moved `Amazon_employee_access` from **0.5455 to 0.8220**, within 0.022 of tuned logistic
+regression, on the identical checkpoint. Two lower-cardinality datasets gained +0.034 and
++0.017, ordered exactly as §100's cardinality correlation predicts.
+
+**Two controls that make the A/B readable**, both of which held. The label arm reproduced
+§98's stored scores to four decimal places, confirming checkpoint identity and determinism, so
+the delta is the encoding alone. And the result lands *below* the baselines rather than above
+— a leaking target encoder would have scored above 0.95 on a column of near-unique levels.
+
+**What this claim must not become.** It is a bound on the *preprocessing* share, not a route to
+competitiveness. §100's residual −0.0320 on numeric-only data is untouched by it, and that
+residual is the real modelling problem. Three datasets were also chosen as the worst
+categorical cases, so the +0.109 mean delta across them must not be extrapolated to the suite.

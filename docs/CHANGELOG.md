@@ -4,6 +4,44 @@ Hard-wrapped, because it is read in an editor and a diff. Release bodies on GitH
 **not** wrapped — they are read in a browser at full width. Same words, different shape; do
 not paste one into the other. See `CLAUDE.md`.
 
+## [Unreleased]
+
+First external measurement, and the first decomposition of a deficit into a part that belongs
+to the model and a part that does not.
+
+### Added
+
+- **Native categorical handling** (`inference/categorical.py`): out-of-fold smoothed target
+  statistics, replacing label encoding. No retraining — it runs against released checkpoints,
+  which is why it is sequenced before any architectural work. On one checkpoint,
+  `Amazon_employee_access` moved from **0.5455 to 0.8220**, within 0.022 of tuned logistic
+  regression. The out-of-fold step is load-bearing rather than a refinement: the naive form
+  puts a row's own label into its own encoding, which makes the model worse while leaving
+  aggregate scores looking reasonable.
+- **A multiclass instrument** (`fintfm-capability --class-sweep`). The capability suite was
+  binary-only, so "trained at `--max-classes 10`" was a statement about a command line. The
+  trained checkpoint clears its own untrained control at K = 3, 5 and 10 (§99). The accuracy
+  floor is the *measured* majority-class rate, not `1/K`, which would have understated it by
+  0.06 at K = 10.
+- **`docs/TABARENA.md`** — the external-evaluation recipe, including four silent failure
+  modes. The costliest: TabArena caches results per config name, so a preprocessing change
+  re-run in place returns the previous numbers to four decimal places and reads as "no
+  effect".
+
+### Measured
+
+- **TabArena: rank 93 of 95**, mean ROC-AUC 0.7642 over 26 datasets, 51% coverage (§98). The
+  first accuracy measurement in this project whose baselines and protocol belong to someone
+  else.
+- **82% of that gap is categorical preprocessing** (§100). The per-dataset gap correlates
+  **−0.668** with log cardinality; the numeric-only residual is **−0.0320**, 2.8× smaller than
+  the headline. §98's attribution was one dataset deep and is corrected.
+
+### Fixed
+
+- `hf jobs run` attaches and streams logs unless given `--detach`, so a loop launching three
+  jobs silently launched one. Recorded in `docs/HF_JOBS.md`.
+
 ## [0.3.0] — 2026-09-19
 
 The architecture defect found in 0.2.x is fixed and the fix holds on real data. Five separate

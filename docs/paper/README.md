@@ -12,6 +12,24 @@ ledger rather than from memory at writing time.
 | [LIMITATIONS.md](LIMITATIONS.md) | the section that has to be written first, not last |
 | [FIGURES.md](FIGURES.md) | figures and tables a paper needs, and which command produces each |
 
+## Current publishability, as of 2026-09-20
+
+**Yes — for one specific paper, and no for the one this project set out to write.** The
+evidence now settles a framing question [OUTLINE.md](OUTLINE.md) had left open since §78.
+
+| candidate paper | state |
+| --- | --- |
+| **The architecture diagnosis** (symmetric-encoder limit, Bayes-ceiling probe, cell-attention fix) | **writable now.** Provable ceiling, closed-form instrument, seven eliminated alternatives, controlled fix, real-data confirmation at +0.042 AP on 5/5 folds |
+| **A synthetic prior transfers to credit risk** | **not writable.** §96 found the deficit is general rather than credit-specific; §98 placed the model 93rd of 95 on the field's own benchmark. The claim is comparative and the comparison is lost |
+| **Term-structure coherence** (Claim 1) | **writable now, separately.** Small, structural, independent of the above. Folding it into the diagnosis paper would dilute both |
+
+**What changed the answer was external measurement.** §98 is the first placement in this
+project's history whose baselines and protocol belong to someone else, and §100 is the first
+decomposition of a deficit into a part that is the model's and a part that is not — 82% of the
+TabArena gap is categorical preprocessing, leaving a **−0.0320** numeric-only residual that is
+2.8× smaller than the headline. A diagnosis paper needs a characterised residual, and now has
+one.
+
 ## The rule for this folder
 
 > **No claim enters without a `docs/FINDINGS.md` section number, and no number enters without
@@ -26,7 +44,7 @@ A second rule follows from §36: **read the source, not a summary of it.** A fet
 the V4FinBench paper invented a results table, invented default rates tenfold too high, and
 inverted whether their TabPFN was fine-tuned. Anything cited here is cited from the pages.
 
-## Current publishability, as of 2026-09-10
+## Previous assessment, as of 2026-09-10
 
 **§47 changed the answer from "not yet" to "not close".** The model was not doing in-context
 learning: shuffling its context labels left predictions unchanged and AUC higher than with
