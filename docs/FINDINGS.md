@@ -6751,3 +6751,68 @@ The sweep, the probe and the two regression tests that pin them were written for
 measurement; the capability suite was binary-only before it. A binary checkpoint handed to
 `--class-sweep` is recorded as skipped with its `max_classes`, never scored, so the JSON shows
 the gap instead of a reader inferring it from a missing row.
+
+## §100 — Categoricals are most of the TabArena gap, and cardinality is the axis
+
+**How these numbers were produced.** `eval/fintfm_lite_full/results_per_split.csv` from §98's
+run, read per dataset as `1 - metric_error` (ROC-AUC) averaged over folds, against the cached
+leaderboard's own arms. Categorical counts come from **OpenML's feature types via
+`openml.tasks.get_task(tid).get_dataset().get_data()`**, not from TabArena's task metadata —
+`has_categorical`, `num_high_cardinality_cats` and every related column are `None` for all 51
+datasets in the current release, so a split computed from them was vacuous and was discarded
+before it reached a conclusion.
+
+### Head-to-head on the 27 datasets fintfm ran
+
+| arm | mean ROC-AUC | mean gap | fintfm wins |
+| --- | --- | --- | --- |
+| **fintfm-0.3** | **0.7642** | — | — |
+| LR (default) | 0.8120 | −0.0479 | 2/27 |
+| LR (tuned) — #89 | 0.8169 | −0.0527 | 2/27 |
+| RF (default) — #86 | 0.8241 | −0.0599 | 5/27 |
+| RF (tuned) | 0.8346 | −0.0704 | 2/27 |
+| GBM (default) | 0.8354 | −0.0712 | 5/27 |
+
+### The gap is a function of categorical content
+
+| subset | n | gap vs LR (tuned) | gap vs RF (default) |
+| --- | --- | --- | --- |
+| no categorical columns | 8 | **−0.0320** | −0.0350 |
+| 0 < categorical fraction ≤ 0.5 | 10 | −0.0363 | −0.0523 |
+| categorical fraction > 0.5 | 9 | **−0.0894** | −0.0904 |
+| max cardinality 0 (numeric only) | 8 | −0.0320 | −0.0350 |
+| max cardinality 2–25 | 14 | −0.0437 | −0.0545 |
+| **max cardinality > 25** | 5 | **−0.1109** | −0.1147 |
+
+Pearson correlation of the per-dataset gap with categorical fraction is **−0.453**; with log
+max cardinality it is **−0.668**. Cardinality is the stronger axis, which is what a
+label-encoding workaround predicts: imposing an arbitrary total order on 7,518 unordered
+`Amazon_employee_access` codes is worse than imposing one on 3.
+
+### How much is recoverable, stated as a bound
+
+| counterfactual | mean gap vs LR (tuned) | recovers |
+| --- | --- | --- |
+| as measured | −0.0527 | — |
+| Amazon_employee_access alone reaches parity | −0.0416 | 0.0111 (21%) |
+| the 5 high-cardinality datasets reach parity | −0.0322 | 0.0205 (39%) |
+| all 19 categorical-bearing datasets reach parity | −0.0095 | 0.0432 (**82%**) |
+
+**These are ceilings, not forecasts.** "Reaches parity with tuned logistic regression on every
+dataset containing a categorical column" is the most favourable outcome native handling could
+have, and no mechanism is entitled to it. The number that matters is the bound's *shape*: 82%
+of the distance to #89 sits on datasets where the current path is known to be degraded, and
+only 18% sits where fintfm is being measured fairly.
+
+### Consequence
+
+**Native categorical handling is the correct next change, and this is the measurement that
+says so** rather than the intuition §98 recorded. It also reframes the residual: on the eight
+datasets with no categorical columns at all, fintfm is −0.0320 behind tuned logistic
+regression and −0.0350 behind default random forest. That is the honest size of the *modelling*
+deficit, separate from the preprocessing one, and it is 2.8× smaller than the headline.
+
+**§98's ranking stands but its attribution was one dataset deep.** It named
+`Amazon_employee_access` as "the clearest symptom", which was right, and left the reader to
+infer the effect was localised there. It is not: Amazon is 21% of the gap and the categorical
+story as a whole is 82%.
