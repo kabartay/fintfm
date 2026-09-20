@@ -106,14 +106,25 @@
       numbers get quoted as if replicated. Verify: a second `--cell-labels`/no-labels pair at a
       different seed reports the same sign and order of magnitude.
 
-- [ ] 39.29 **Separate `column_id_dim` from the protocol fix.** §93 found the jump from
+- [x] 39.29 **DONE (§97): the width carries all of it.** §93 found the jump from
       §84's 0.1941 to 0.2072 came from configuration rather than training volume, but two
       things changed together: `column_id_dim` 12 to 16, and §86's closure of §78's protocol
       deviation (`--batch-size 8 --n-rows-choices 256,512,1024`). Which one carries the
       +0.013 is unknown, and one of them is a free parameter worth tuning while the other is
       a one-off repair. Verify: a checkpoint at `column_id_dim=12` under the full protocol is
       scored on the same five folds, so the two contributions are separated rather than
-      jointly credited.
+      jointly credited. Done — protocol fix +0.0006 (3/5 folds), `column_id_dim` 12→16
+      +0.0126 (5/5 folds), and the two sum to the joint +0.0132.
+
+- [ ] 39.30 **Sweep `column_id_dim`, the only untuned lever that has moved real-data AP.**
+      §97 measured 12→16 as worth +0.0126 on 5 of 5 folds, against nulls everywhere else
+      (volume -0.0012, context 0.0069, marginals ~0.001, prior domain +0.010). Only two values
+      have ever been tried and 16 was chosen by accident, so nothing suggests it is optimal.
+      §95's cost model says the sweep is cheap: memory scales with `B*F*N*d_cell`, not with
+      identity width. Verify: at least 20, 24 and 32 are trained at matched everything else
+      and scored on the same five folds with paired bootstrap, and the write-up states whether
+      the curve peaks or climbs — a peak at 16 is as publishable as a climb and must not be
+      reported as a failure.
 
 ## Backlog: sequenced after architecture, per the external review and the user's ordering
 

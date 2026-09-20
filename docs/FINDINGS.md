@@ -6555,3 +6555,73 @@ remains untested and plausible: **the caps themselves** (`max_features=136`, `ma
 **mechanism diversity** in the prior, and the **encoder's cost structure**
 (`factorized-attention`, 44.x), which bounds every experiment that would need a bigger model or
 a longer context.
+
+## 97. The only recent real-data gain is `column_id_dim`, an untuned free parameter — the protocol fix was worth nothing
+
+**Date:** 2026-09-20. **MEASURED**, three checkpoints scored on all five V4FinBench folds of
+the full 1,000,087-row horizon-0 panel under `configs/cellattn-v4-validation.yaml`, paired
+bootstrap at 2,000 resamples per fold. Closes `cell-attention-and-task-inference` task 39.29.
+
+### The design
+
+§93 found the jump from §84's 0.1941 to 0.2072 came from configuration rather than training
+volume, but two things had changed together. One run separates them:
+
+| cell | `column_id_dim` | training protocol |
+| --- | --- | --- |
+| **A** (`v4-cellattn-fin10`, §84) | 12 | deviated: `--batch-size 4 --n-rows-choices 256,512` |
+| **B** (`v4-colid12-full`, this run) | 12 | full: `--batch-size 8 --n-rows-choices 256,512,1024` |
+| **C** (`v4-cellattn-labels`, §93) | 16 | full |
+
+`B - A` isolates §86's protocol fix; `C - B` isolates the identity width.
+
+### The result
+
+| cell | fold 0 | 1 | 2 | 3 | 4 | mean |
+| --- | --- | --- | --- | --- | --- | --- |
+| A | 0.1808 | 0.1888 | 0.1871 | 0.2065 | 0.2070 | 0.1941 |
+| B | 0.1808 | 0.1851 | 0.1908 | 0.2039 | 0.2124 | 0.1946 |
+| C | 0.1983 | 0.1984 | 0.1970 | 0.2215 | 0.2210 | **0.2072** |
+
+| comparison | dAP | folds favouring |
+| --- | --- | --- |
+| protocol fix (B - A) | **+0.0006** | 3/5 |
+| `column_id_dim` 12 to 16 (C - B) | **+0.0126** | **5/5** |
+| both (C - A) | +0.0132 | 5/5 |
+
+**The identity width carries essentially the entire effect**, on every fold, and the two
+components sum to the joint effect almost exactly (0.0006 + 0.0126 = 0.0132).
+
+### Why this is the most actionable result in weeks
+
+`column_id_dim` is a **free hyperparameter that has never been tuned.** It moved from 12 to 16
+only because an explicit value was typed while setting up a different experiment, and §86
+recorded that change as a flagged confound rather than as a lever. It turns out to be the only
+thing to have moved real-data AP since the architecture fix itself.
+
+Everything else measured recently is null or near-null: training volume -0.0012 (§93), the
+whole context axis 0.0069 (§83), marginal augmentation ~0.001 (§88), prior domain +0.010
+(§96). Against those, **+0.0126 from one integer is large**, and nothing suggests 16 is
+optimal — it is simply the only value other than the default that has ever been tried.
+
+§95's cost model says exploring it is cheap: memory scales with `B * F * N * d_cell`, not with
+the identity width, so 20, 24 or 32 cost essentially nothing extra to train.
+
+### And a repair correctly classified as a repair
+
+§86 closed §78's documented protocol deviation, which was right to do for correctness, and it
+is now measured as worth **+0.0006 with 3 of 5 folds positive** — indistinguishable from
+nothing. That is the same shape as §94's correction from the other direction: the deviation
+needed closing so the comparison could be called clean, and closing it bought no accuracy.
+Neither statement undermines the other.
+
+**A note on the Fisher p-values.** The protocol comparison reports p = 6.18e-03 on an effect
+of +0.0006 with mixed fold signs. As in §93, Fisher combination is blind to sign and at ~200k
+rows per fold detects heterogeneity between folds rather than a directional effect. Reading
+that p as "the protocol fix helped" would be exactly wrong.
+
+### What it does not say
+
+**Not that wider is better without limit.** Two values have been tested. The obvious next
+experiment is a sweep (20, 24, 32) at matched everything else, and the result could as easily
+be a peak at 16 as a monotone climb. **One seed per cell**, as with §91 and §93.

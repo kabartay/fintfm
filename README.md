@@ -132,7 +132,7 @@ extras lightgbm MIT, xgboost Apache-2.0, catboost Apache-2.0, pyarrow Apache-2.0
 - [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md) — **start here.** Every claim this project
   could make, tagged by status, newest evidence wins.
 - [`docs/FINDINGS.md`](docs/FINDINGS.md) — the full measurement log, numbered sequentially
-  (96 entries and counting), each declaring how its numbers were produced.
+  (97 entries and counting), each declaring how its numbers were produced.
 - [`docs/DECISIONS.md`](docs/DECISIONS.md) — why the project is built the way it is, and what
   would reverse each choice.
 - [`docs/STRATEGY.md`](docs/STRATEGY.md) — the plan of record.
@@ -154,7 +154,7 @@ bought — plus a public, self-correcting record of what has and has not been sh
 
 Actively developed research codebase, not a PoC skeleton: 188 tests (`uv run pytest`), a
 config-driven experiment harness, real GPU pretraining infrastructure (Hugging Face Jobs on
-T4), and 96 numbered, provenance-tagged findings. What is currently proven, currently open, and
+T4), and 97 numbered, provenance-tagged findings. What is currently proven, currently open, and
 currently retracted is tracked continuously in
 [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md) rather than restated here, because the honest
 state changes faster than this file gets edited — that is exactly the failure mode the claims
