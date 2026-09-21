@@ -44,6 +44,12 @@ to the model and a part that does not.
 - **TabArena: rank 93 of 95**, mean ROC-AUC 0.7642 over 26 datasets, 51% coverage (§98). The
   first accuracy measurement in this project whose baselines and protocol belong to someone
   else.
+- **`column_id_dim` peaks at 16** (§104), the value that was chosen by accident. Five arms
+  (12/16/20/24/32) at matched everything else, scored on the same five V4FinBench folds: all
+  four non-peak arms are below 16 on all five folds, 20 of 20, with parameter count spanning
+  0.11%. It was the only untuned lever that had ever moved real-data accuracy, and it is now
+  closed — which promotes **scale** from one hypothesis to the leading untested explanation
+  for the uniform residual §101 left.
 - **82% of that gap is categorical preprocessing** (§100). The per-dataset gap correlates
   **−0.668** with log cardinality; the numeric-only residual is **−0.0320**, 2.8× smaller than
   the headline. §98's attribution was one dataset deep and is corrected.

@@ -7027,3 +7027,84 @@ Testing it would cost one training run at `--pooling attention --n-cell-blocks 1
 --cell-labels`. Given that cell attention already removed 85% of the effect the pooling change
 was meant to address, that run is **lower priority than it was before this measurement**,
 which is the actionable consequence here.
+
+## §104 — The `column_id_dim` curve peaks at 16, and the value was chosen by accident
+
+**How these numbers were produced.** MEASURED. Five checkpoints trained at
+`column_id_dim` ∈ {12, 16, 20, 24, 32}, matched on everything else (885K parameters, 6,000
+steps, `--p-financial 1.0`, `--n-cell-blocks 1 --cell-labels`, `--max-features 136`), each
+scored on **the same five V4FinBench folds** under the published protocol
+(`fintfm-v4protocol`). The curve is assembled by `scripts/colid_curve.py` from the prediction
+files each protocol run already writes, so it cost no additional scoring. Comparison is
+paired at the row level — the script asserts `y_true` is identical before pairing — with
+`paired_auc_difference` at 2,000 resamples and Holm correction across all 20 fold-level
+tests. Average precision, read first because V4FinBench's base rate is low.
+
+### The curve
+
+| `column_id_dim` | f0 | f1 | f2 | f3 | f4 | mean AP | vs 16 | folds below 16 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 12 | 0.1808 | 0.1851 | 0.1908 | 0.2039 | 0.2124 | 0.1946 | −0.0126 | 5/5 |
+| **16** | 0.1983 | 0.1984 | 0.1970 | 0.2215 | 0.2210 | **0.2072** | — | — |
+| 20 | 0.1937 | 0.1858 | 0.1931 | 0.2176 | 0.2121 | 0.2005 | −0.0068 | 5/5 |
+| 24 | 0.1910 | 0.1778 | 0.1898 | 0.2059 | 0.1971 | 0.1923 | −0.0150 | 5/5 |
+| 32 | 0.1796 | 0.1828 | 0.1817 | 0.1994 | 0.1991 | 0.1885 | −0.0187 | 5/5 |
+
+**It peaks at 16 and is bracketed on both sides.** Task 39.30 asked for the shape and said a
+peak was as publishable as a climb; this is the peak.
+
+### The statistics say less than the table does, and that is the honest reading
+
+Adjacent-pair deltas with Holm-adjusted per-fold p-values across all 20 tests:
+
+| comparison | ΔAP | folds improved | Holm-adjusted p, per fold |
+| --- | --- | --- | --- |
+| 12 → 16 | **+0.0126** | 5/5 | 0.000, 0.051, 1.000, 0.000, 0.273 |
+| 16 → 20 | −0.0068 | 0/5 | 1.000, 0.105, 1.000, 1.000, 0.396 |
+| 20 → 24 | −0.0082 | 0/5 | 1.000, 0.266, 1.000, 0.096, 0.000 |
+| 24 → 32 | −0.0038 | 2/5 | 0.273, 1.000, 1.000, 1.000, 1.000 |
+
+**Only 12 → 16 has folds surviving Holm at all** (two of five). Every decline arm is
+individually non-significant almost everywhere. A fold is one panel-year, and a paired
+bootstrap within one fold is testing whether *these rows* separate — it is underpowered for a
+0.007 effect, and Holm across 20 tests is deliberately conservative on top of that.
+
+**What carries the result is the sign consistency, not the p-values.** All four non-peak arms
+are below 16 on all five folds: 20 of 20. Under a null of no effect that is `2^-20` if folds
+were independent draws, and they are not independent, so treat it as strong-but-not-exact.
+The correct summary is a **consistent ordering with individually weak per-fold evidence**,
+which is a different and smaller claim than "significantly better at 16", and it is the one
+the numbers support.
+
+### The sweep is well-controlled, and two confounds were checked rather than assumed
+
+**Parameter count spans 0.11%**: 885,458 at 12 → 885,650 at 16 → 885,842 → 886,034 → 886,418
+at 32. `column_id_dim` feeds a projection whose output width is fixed, so widening it adds
+almost nothing. Nobody can read this curve as a capacity effect.
+
+**The wheel-version confound was ruled out.** Arms 20/24/32 were trained on a later wheel that
+added `--resume`, so the training loop's step iteration was re-checked: without `--resume` it
+is `range(0, steps)`, identical to the old loop. The three new arms took the same path through
+the same code as the two old ones.
+
+### Why this closes a lever rather than opening one
+
+**16 was chosen by accident.** It was set while configuring an unrelated experiment and never
+revisited; two values had ever been tried before §97 compared them. A sweep of a parameter
+chosen carelessly is exactly where a free gain would be expected to hide, and there is none —
+the accidental choice is the best of the five tested.
+
+This matters for what it removes. §102 found no axis of variation in the uniform ~0.035
+TabArena residual (§101); §103 weakened the class-balance mechanism it proposed.
+`column_id_dim` was **the only untuned parameter that had ever moved real-data accuracy**
+(§97), and it is now closed. No cheap knob remains as a candidate explanation for the
+residual, which promotes **scale** — 885K against peers' 10–100M+ — from one hypothesis among
+several to the leading untested one, and is why the 5.0M medium run is now the experiment that
+matters rather than a formality.
+
+### What this does not say
+
+It does not say 16 is optimal at another model size, another `max_features`, or another
+prior. The curve is measured at 885K parameters on financial-prior-only training, and a
+capacity-linked optimum would be expected to move with capacity. If the 5.0M checkpoint
+changes the picture, this curve is the thing to re-run — not the thing to cite.

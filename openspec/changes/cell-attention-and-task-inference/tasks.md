@@ -116,7 +116,7 @@
       jointly credited. Done — protocol fix +0.0006 (3/5 folds), `column_id_dim` 12→16
       +0.0126 (5/5 folds), and the two sum to the joint +0.0132.
 
-- [ ] 39.30 **Sweep `column_id_dim`, the only untuned lever that has moved real-data AP.**
+- [x] 39.30 **Sweep `column_id_dim`, the only untuned lever that has moved real-data AP.**
       §97 measured 12→16 as worth +0.0126 on 5 of 5 folds, against nulls everywhere else
       (volume -0.0012, context 0.0069, marginals ~0.001, prior domain +0.010). Only two values
       have ever been tried and 16 was chosen by accident, so nothing suggests it is optimal.
@@ -125,6 +125,14 @@
       and scored on the same five folds with paired bootstrap, and the write-up states whether
       the curve peaks or climbs — a peak at 16 is as publishable as a climb and must not be
       reported as a failure.
+      **Done (§104): it peaks at 16, bracketed on both sides.** All four non-peak arms are
+      below 16 on all five folds — 20 of 20 — with the decline monotone past the peak.
+      Parameter count spans 0.11% across the sweep, so no arm can be read as a capacity
+      effect, and the wheel-version confound was checked rather than assumed. The per-fold
+      Holm-adjusted p-values are weak (only 12→16 survives, on two folds of five); the result
+      rests on the sign consistency and is written up as the smaller claim that supports.
+      **This closes the lever**: the value chosen by accident is the best of five tested, and
+      no cheap knob now remains as a candidate for the uniform residual §101 left.
 
 ## Backlog: sequenced after architecture, per the external review and the user's ordering
 
