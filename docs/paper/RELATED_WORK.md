@@ -288,6 +288,103 @@ at both ends, a scalar head cannot express the shape at all. Their single checkp
 both tasks is the better engineering; our head is the better statistics, and they are
 independent choices.
 
+### TabICLv2's prior appendix, read against `prior/scm.py` line by line
+
+**Soda-Inria (2026).** Appendix E of the same paper. Kept separate from the main entry above
+because it is implementation detail, not a claim, and because it is the single most directly
+actionable thing in the whole sweep: their random-graph SCM prior is architecturally the same
+idea as `sample_scm_task`, described in enough detail to diff against.
+
+**What `prior/scm.py` has:** a fixed-depth layered graph (1–5 dense layers, not a general DAG),
+5 fixed activations (`tanh`, `sin`, ReLU, identity, signed-sqrt), independent sparse Gaussian
+edge weights, quantile or random-cutpoint discretisation for the label, and — as of §106/46.4 —
+four target shapes for regression. That is the whole generative vocabulary.
+
+**What theirs adds, concretely, ranked by expected value per line of code:**
+
+- **Random graph connectivity via `sigmoid(A + Bᵢ + Cⱼ)` with Cauchy `A, Bᵢ, Cⱼ`** (Appendix
+  E.4), rather than our fixed dense layers. Their stated reason — Cauchy's heavy tails yield
+  "higher probabilities of exceptions to the rule" — is exactly the kind of task-difficulty
+  diversity §42 already established this project needs (a prior of only-easy tasks teaches
+  nothing). This is a **five-line change** to `sample_scm_task`'s edge sampling and the highest
+  ratio of expected gain to implementation cost in this entire sweep.
+- **`RandomTreeFunction`**: ensembles of oblivious (CatBoost-style) trees as a node function,
+  split dimension chosen proportional to feature standard deviation. This is a from-scratch,
+  citable implementation route for **task 48.13's tree-based prior** — MITRA names tree priors
+  as necessary on distinctiveness grounds; TabICLv2 publishes exactly how to build one without
+  needing an actual gradient-boosting library in the generation loop.
+  **They note explicitly that TabPFNv2 uses single trees; they moved to ensembles because
+  single trees "facilitate efficient computations" only up to a point** — worth reading before
+  choosing between single-tree and ensemble for 48.13, rather than guessing.
+- **21 fixed activations plus 4 parametric ones** (Appendix E.9), against our 5. Their
+  activation set includes `rank`, `softmax`, `one-hot argmax` and `argsort` — order-statistics
+  functions with no analogue in ours, which is notable given §35's own finding that this
+  project's *inference-time* feature conditioning (`feature_transform="rank"`) is worth +0.086
+  AUC. If rank-like transforms help at inference, a prior whose *label mechanism* never uses
+  one may be under-representing exactly the structure real financial ratios have.
+- **Correlated scalar sampling** (Appendix E.2) — hyperparameters like categorical cardinality
+  drawn from a shared per-name distribution rather than independently, so different aspects of
+  one synthetic dataset covary the way real datasets' properties do. Cheap and orthogonal to
+  everything else here.
+- **A filtering mechanism** (Appendix E.14, "similar to Dong et al. 2025") that rejects sampled
+  graphs. Independent confirmation of the MITRA/Nori learnability-filter idea already filed at
+  task 48.5 — a third group has now converged on filtering the prior rather than only widening
+  it.
+
+**What is deliberately not adopted from this section, and why:** the GP/random-Fourier-feature
+function class (Appendix E.8, `RandomGPFunction`) requires a real spectral-density
+construction to sample from correctly, and a rough approximation would silently produce a
+different task distribution than intended — the exact failure mode `CLAUDE.md`'s "prior must
+span difficulty" rule exists to catch. Not worth the implementation risk before the cheaper
+items above are tried and measured.
+
+**Their own admitted bug is worth recording, because it undercuts nothing.** Appendix E.2
+states correlated categorical sampling "was not used due to a bug" — left in the paper rather
+than silently fixed and omitted. A useful norm to hold this project to as well.
+
+### TabICLv2 explicitly beats a real-data-adapted model with a synthetic-only one
+
+**Soda-Inria (2026).** *TabICLv2: A Better, Faster, Scalable, and Open Tabular Foundation
+Model.* [arXiv:2602.11139](https://arxiv.org/abs/2602.11139). Code **BSD-3-Clause**
+(`src/tabicl/forecast` separately Apache-2.0, derived from TabPFN-TS); weights also
+**BSD-3-Clause**, checked independently via the HF API on 2026-09-21 rather than trusting the
+README, which states code licensing but not the weights' — the checked-separately habit paying
+for itself again.
+
+**The headline claim is the sharpest data point for §110 yet.** TabICLv2, **untuned**, beats
+**RealTabPFN-2.5 — hyperparameter-tuned, ensembled, *and* fine-tuned on real data** — on TabArena
+and TALENT. This is not "synthetic ties real"; it is synthetic-only-and-untuned beating
+real-adapted-and-tuned outright. §110's rank ordering already showed the top 14 are
+synthetic-pretrained; this is the same fact stated as a head-to-head.
+
+**Three engineering pillars, useful independent of the accuracy result:**
+
+- **A new synthetic-prior engine "designed for high pretraining diversity."** Cited by the
+  paper's own related-work section alongside MITRA's prior-mixture work and LimiX's
+  hierarchical SCMs, so this is now the third independent group treating prior *diversity*, not
+  scale, as the lever — directly reinforcing task 48.14, which asks whether this project's
+  prior has ever been measured on that axis at all.
+- **A "scalable softmax" claimed to improve generalisation to larger datasets "without
+  prohibitive long-sequence pretraining."** Mechanism not available from the abstract; worth a
+  follow-up read once the primary claim (below) is scoped, since "generalise to more rows
+  without training at that length" is close to this project's own `max_context` ceiling (§79,
+  §84, §94, §108's batch-4 wall).
+- **Muon replacing AdamW** as the pretraining optimiser. This project has never varied its
+  optimiser as an axis; worth a citation the next time a training-loop change is considered,
+  alongside the schedule-free optimiser already filed at task 48.9.
+- **Million-row datasets under 50 GB GPU memory.** A concrete number to benchmark this
+  project's own `n_cell_blocks=1` memory wall against (§79's 16 GB at N=2024) — not a fair
+  comparison as stated, since the architectures differ, but a number worth having when
+  `factorized-attention` (44.x) needs a target to beat.
+
+**Their own related-work paragraph is a ready-made citation for this project's prior-family
+taxonomy**, more current than anything already in `RELATED_WORK.md`: TabPFN uses SCMs;
+TabICL/TabForestPFN mix in tree priors; MITRA studies prior-design principles and proposes
+mixed SCM+tree priors; TabPFNv2 enriches DAG construction; **LimiX introduces hierarchical SCMs
+with controllable difficulty** — a mechanism this project's own prior does not have and
+`prior-width-and-fidelity` should read against; Drift-Resilient TabPFN modulates SCM parameters
+over time for distribution shift, which is directly relevant to `temporal-financial-prior`.
+
 ### TabPFN-2.5, the line at the top of the board, read for engineering rather than headline
 
 **Prior Labs (2025).** *TabPFN-2.5: Advancing the State of the Art in Tabular Foundation

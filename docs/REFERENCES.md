@@ -284,6 +284,17 @@ hyperparameter search using TabPFNv2 itself to score 10,000 configurations from 
 Ships a distillation engine converting a fitted model to a dataset-specific MLP or tree
 ensemble for low-latency deployment. See `docs/paper/RELATED_WORK.md`.
 
+**Soda-Inria (2026).** *TabICLv2: A Better, Faster, Scalable, and Open Tabular Foundation
+Model.* [arXiv:2602.11139](https://arxiv.org/abs/2602.11139). Code BSD-3-Clause (a subdirectory
+derived from TabPFN-TS separately Apache-2.0); weights BSD-3-Clause, checked independently via
+the HF API. **Untuned TabICLv2 beats hyperparameter-tuned, ensembled, real-data-fine-tuned
+RealTabPFN-2.5** on TabArena and TALENT — the sharpest single data point for §110's synthetic-
+top-14 finding. New synthetic-prior engine for pretraining diversity, a "scalable softmax" for
+generalising to larger datasets without long-sequence pretraining, Muon replacing AdamW, and
+million-row datasets under 50 GB GPU memory. Its own related-work section is a current,
+citable taxonomy of prior families across TabPFN/TabICL/MITRA/TabPFNv2/LimiX/Drift-Resilient
+TabPFN. See `docs/paper/RELATED_WORK.md`.
+
 **What none of these licenses.** Reading a paper licenses an *idea*. Nothing in this section
 authorises copying an implementation, a weight file, or a pretraining corpus, and a repository
 under a permissive code licence proves nothing about the weights inside it.

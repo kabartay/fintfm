@@ -143,3 +143,27 @@
       runs already in `runs/`, predict the untried points on the `column_id_dim` curve absent
       from §104's five, and check the surrogate's prediction against a real run before trusting
       it on anything expensive.
+- [ ] 48.17 **Randomise the SCM prior's graph connectivity, not just its weights.**
+      `sample_scm_task` draws a fixed-depth layered graph with independent sparse edges;
+      TabICLv2 (arXiv:2602.11139, Appendix E.4) samples edge probability as
+      `sigmoid(A + B_i + C_j)` with `A, B_i, C_j` drawn i.i.d. standard Cauchy — heavy tails
+      giving "higher probabilities of exceptions to the rule". Five-line change, highest
+      expected-gain-per-line-of-code in the whole peer sweep. Verify: task-difficulty spread
+      (the statistic §42 already tracks) is measured before and after, since the claim is
+      about diversity, not about any single accuracy number moving.
+- [ ] 48.18 **Implement the tree-based node function from TabICLv2's Appendix E.8 for task
+      48.13**, rather than inventing one. Oblivious (CatBoost-style) trees, split dimension
+      chosen proportional to feature standard deviation, leaf values standard normal, ensemble
+      of `LogInt(1, 128)` trees averaged. Verify: read their stated reason for ensembles over
+      single trees (computational, not accuracy) before choosing between single-tree and
+      ensemble for the first implementation — a wrong guess here duplicates MITRA's own
+      SCM-vs-TBP distinctiveness result without adding anything.
+- [ ] 48.19 **Widen the SCM prior's activation set with order-statistic functions.** Ours is
+      5 fixed activations (`tanh`, `sin`, ReLU, identity, signed-sqrt); TabICLv2 lists 21 fixed
+      plus 4 parametric, including `rank`, `softmax`, `one-hot argmax`, `argsort`. §35 measures
+      that this project's *inference-time* rank conditioning is worth +0.086 AUC on real
+      financial ratios — but the *prior's label mechanism* never generates rank-like structure
+      for the model to learn from. Verify: `rank` and at least one other order-statistic
+      activation are added to `_ACTS` and a checkpoint trained with them is compared against
+      the current one on V4FinBench, since this is a plausible mechanism for part of §35's
+      result rather than a proven one.
