@@ -43,14 +43,26 @@
       widened back to the full bin grid before it meets the representatives (misalignment
       there produces a plausible-looking number paired with the wrong bin); and `n_bins`
       above the head's width is refused rather than truncated.
-- [ ] 46.5 **Report calibration, not only error.** Verify: prediction-interval coverage is
+- [x] 46.5 **Report calibration, not only error.** Verify: prediction-interval coverage is
       reported beside RMSE on held-out synthetic tasks — an 80% interval should contain the
       truth 80% of the time, and a head that is accurate but badly calibrated would pass an
       RMSE-only check while being useless for the risk quantities this exists to serve.
-- [ ] 46.6 **Bounded and bimodal targets specifically.** LGD lives in [0, 1] and piles up at
+      **Done (§106).** 80% intervals cover 0.771–0.847 without tuning; the untrained control
+      under-covers at 0.70, so it is not automatic. Read against the nominal level rather than
+      maximised — 0.8469 is mild over-coverage, not a win. The sweep also carries a
+      `binning_oracle` arm (each query's true bin representative), which is what makes a
+      shortfall against unquantised ridge attributable: on `linear` roughly half the gap is
+      quantisation, on `nonlinear` almost none.
+- [x] 46.6 **Bounded and bimodal targets specifically.** LGD lives in [0, 1] and piles up at
       both ends. Verify: a synthetic bimodal-bounded task is scored and the predicted
       distribution is shown to place mass at both modes rather than averaging to the middle —
       the specific failure a point estimate or a Gaussian head would exhibit.
+      **Done (§106), and the control nearly produced a false positive.** The binned head puts
+      0.8083 outer-third mass where the truth puts 0.8362 and the Gaussian manages 0.6162 —
+      but the *untrained* control scores 0.8628, because quantile-bin representatives are
+      themselves concentrated at the ends of a bimodal target. Outer mass alone measures the
+      binning, not the model. The claim that survives is the conjunction with per-row
+      assignment: Spearman 0.6579 and nRMSE 0.7199 against the control's 0.0555 and 1.0235.
 - [ ] 46.7 **Only then, coverage.** Re-run the TabArena eligibility count and report the new
       fraction. Verify: the coverage number is recomputed from TabArena's task metadata rather
       than assumed from this proposal's estimate.

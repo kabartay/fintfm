@@ -34,8 +34,12 @@ measured at **51% coverage**; multiclass and regression have since taken coverag
 **90% (46 of 51)**, with `max_features` the only remaining exclusion — but the new arms are
 *runnable*, not yet *scored*, and a coverage fraction is not a result.
 
-**The honest one-line summary: this is not a competitive general tabular model, and its best
-public results are the corporate-credit panels it was designed for.**
+**The honest one-line summary: this is not a competitive general tabular model, and on
+TabArena its median rank is 94 of 95 — including on the credit panels.** An earlier version of
+this line claimed its best public results were the corporate-credit panels it was designed
+for. §107 retracts that: those panels rank 83–95, and the high absolute AUC on them (0.9287 on
+Taiwanese bankruptcy) is what everyone scores there, not an edge. Whether a credit specialism
+exists is a question for V4FinBench's five-fold protocol, not for a single-fold leaderboard.
 
 ## How it works
 
@@ -158,7 +162,7 @@ extras lightgbm MIT, xgboost Apache-2.0, catboost Apache-2.0, pyarrow Apache-2.0
 - [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md) — **start here.** Every claim this project
   could make, tagged by status, newest evidence wins.
 - [`docs/FINDINGS.md`](docs/FINDINGS.md) — the full measurement log, numbered sequentially
-  (104 entries and counting), each declaring how its numbers were produced.
+  (107 entries and counting), each declaring how its numbers were produced.
 - [`docs/DECISIONS.md`](docs/DECISIONS.md) — why the project is built the way it is, and what
   would reverse each choice.
 - [`docs/STRATEGY.md`](docs/STRATEGY.md) — the plan of record.
@@ -180,7 +184,7 @@ bought — plus a public, self-correcting record of what has and has not been sh
 
 Actively developed research codebase, not a PoC skeleton: 222 tests (`uv run pytest`), a
 config-driven experiment harness, real GPU pretraining infrastructure (Hugging Face Jobs on
-T4), an external benchmark integration (TabArena, `docs/TABARENA.md`, 90% coverage), and 104
+T4), an external benchmark integration (TabArena, `docs/TABARENA.md`, 90% coverage), and 107
 numbered, provenance-tagged findings. What is currently proven, currently open, and
 currently retracted is tracked continuously in
 [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md) rather than restated here, because the honest

@@ -579,6 +579,276 @@ def summarise_multiclass_sweep(sweep: dict) -> str:
     return "\n".join(lines)
 
 
+#: Target shapes the regression sweep measures. Each names a *different* way a regression head
+#: can fail, so a single aggregate RMSE over all of them would hide exactly what this exists to
+#: find.
+_REGRESSION_SHAPES = ("linear", "nonlinear", "bounded_bimodal")
+
+
+def make_regression_probe(
+    shape: str = "linear", n: int = 8000, n_features: int = 20, seed: int = 0
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Build a continuous-target task with a known, reachable ceiling.
+
+    Three shapes, chosen because each isolates a different failure:
+
+    - ``linear`` — ``y = X @ w + noise``. **Ridge is the correctly specified model**, so it
+      sits at the ceiling and any shortfall is the in-context model's own. This is the
+      regression analogue of the binary suite's ``linear`` probe and serves the same purpose:
+      it makes a bad number unambiguous.
+    - ``nonlinear`` — a smooth function of latent factors (products and a ``tanh``) that ridge
+      **cannot** reach. Separates "cannot regress" from "cannot regress nonlinearly"; without
+      it a model that merely matches ridge would look complete.
+    - ``bounded_bimodal`` — loss given default's actual shape: bounded to ``[0, 1]`` with mass
+      piled at both ends and little in the middle. Task 46.6's instrument. A Gaussian head
+      answering this task predicts the *middle*, where almost no truth lives, and still scores
+      a respectable RMSE — which is the whole reason a point-estimate-only evaluation is not
+      good enough here.
+
+    Args:
+        shape: One of ``_REGRESSION_SHAPES``.
+        n: Total rows, split evenly into context and query.
+        n_features: Feature width.
+        seed: Random seed.
+
+    Returns:
+        ``(X_train, y_train, X_test, y_test)`` with continuous ``y``.
+
+    Raises:
+        ValueError: If ``shape`` is unknown.
+    """
+    if shape not in _REGRESSION_SHAPES:
+        raise ValueError(f"unknown shape {shape!r}, expected one of {_REGRESSION_SHAPES}")
+    rng = np.random.default_rng(seed)
+    X = rng.normal(size=(n, n_features)).astype(np.float32)
+    if shape == "linear":
+        w = rng.normal(size=n_features)
+        y = X @ w + rng.normal(scale=0.5, size=n)
+    elif shape == "nonlinear":
+        # Products and a saturation, so the Bayes-optimal predictor is outside ridge's class.
+        y = (
+            np.tanh(X[:, 0] * 1.5) * 3.0
+            + X[:, 1] * X[:, 2]
+            + np.abs(X[:, 3])
+            + rng.normal(scale=0.4, size=n)
+        )
+    else:
+        # A latent drives which mode a row lands in; the feature information is in *which*
+        # end, not in a location along a continuum. Beta draws keep it inside [0, 1] without
+        # clipping, which would manufacture point masses at the bounds that are an artefact
+        # of the clip rather than of the process.
+        latent = X[:, 0] * 1.2 + X[:, 1] * 0.8 + rng.normal(scale=0.5, size=n)
+        high = latent > np.median(latent)
+        y = np.where(high, rng.beta(6.0, 1.5, size=n), rng.beta(1.5, 6.0, size=n))
+    k = n // 2
+    return X[:k], y[:k].astype(np.float64), X[k:], y[k:].astype(np.float64)
+
+
+def _outer_mass(values: np.ndarray, lo: float, hi: float) -> float:
+    """Fraction of ``values`` in the outer thirds of ``[lo, hi]``.
+
+    The bimodality statistic for task 46.6. Deliberately computed on *predictions* and on
+    *truth* by the same function, because the claim is comparative — "places mass where the
+    truth is" — and a statistic applied asymmetrically would prove nothing.
+    """
+    span = hi - lo
+    if span <= 0:
+        return float("nan")
+    a, b = lo + span / 3.0, hi - span / 3.0
+    return float(np.mean((values <= a) | (values >= b)))
+
+
+def regression_sweep(
+    model_paths: dict[str, str],
+    shapes: tuple[str, ...] = _REGRESSION_SHAPES,
+    n_features: int = 20,
+    seeds: tuple[int, ...] = (0, 1, 2),
+    max_context: int = 1000,
+    n_bins: int = 10,
+    interval_level: float = 0.8,
+) -> dict:
+    """Does the model regress, and is its predicted *distribution* usable? (46.5, 46.6)
+
+    Reported per shape, per arm:
+
+    - **nRMSE** — RMSE divided by the query targets' standard deviation, so 1.0 is exactly the
+      predict-the-mean baseline at every shape and the number stays legible when the shapes
+      have wildly different scales.
+    - **Spearman** — rank correlation, which survives the binning's quantisation where RMSE
+      partly measures it.
+    - **coverage** — the fraction of truths inside the nominal ``interval_level`` interval.
+      **An RMSE-only check would pass a head that is accurate and useless**, which is task
+      46.5's entire point: the risk quantities this project exists to serve are quantiles, not
+      means.
+    - **outer-third mass** — where the predicted distribution puts its weight, against the
+      truth's own. Task 46.6: on ``bounded_bimodal`` a Gaussian predictor concentrates in the
+      middle, where almost no truth lives.
+
+    Two controls, both mandatory for the numbers to be readable:
+
+    - an **untrained control** of the same architecture, which separates "the model learned
+      to regress" from "quantile bins plus a context are informative on their own";
+    - **ridge with a Gaussian interval** from its training residuals. It is the *correctly
+      specified* model on ``linear`` and the standard point-estimate-plus-normal-error
+      approach everywhere, so it is both the ceiling on one shape and, on
+      ``bounded_bimodal``, the specific thing the binned head claims to beat.
+
+    Args:
+        model_paths: ``{arm name: checkpoint path}``.
+        shapes: Target shapes to sweep.
+        n_features: Probe feature width.
+        seeds: Seeds per cell.
+        max_context: Context rows for the in-context arms.
+        n_bins: Quantile bins; clamped per arm to the checkpoint's ``max_classes``.
+        interval_level: Nominal interval coverage.
+
+    Returns:
+        ``{"shapes": [...], "truth_outer_mass": [...], "arms": {name: {metric: [...]}},
+        "skipped": [...], "config": {...}}``.
+    """
+    import torch
+    from scipy.stats import norm, spearmanr
+    from sklearn.linear_model import Ridge
+
+    from fintfm.inference.binning import QuantileBinner, interval_coverage
+    from fintfm.inference.regressor import FinancialTFMRegressor
+    from fintfm.modeling.model import FinancialTFM
+
+    models = {n: FinancialTFM.load(p) for n, p in model_paths.items()}
+    if models:
+        first = next(iter(models.values()))
+        torch.manual_seed(UNTRAINED_SEED)
+        models["untrained_control"] = FinancialTFM(first.cfg)
+
+    metrics = ("nrmse", "spearman", "coverage", "outer_mass")
+    # `binning_oracle` predicts each query's *true* bin representative. It cheats, deliberately:
+    # it is the error a model would still carry if it named the right bin every single time, so
+    # it separates "wrong because binned" from "wrong because it does not know". Without it a
+    # shortfall against ridge is unattributable -- ridge is not quantised and the binned head is.
+    arm_names = [*models, "ridge_gaussian", "binning_oracle"]
+    arms: dict[str, dict[str, list[float]]] = {
+        n: {m: [] for m in metrics} for n in arm_names
+    }
+    skipped: list[str] = []
+    truth_outer: list[float] = []
+    for shape in shapes:
+        cell: dict[str, dict[str, list[float]]] = {
+            n: {m: [] for m in metrics} for n in arm_names
+        }
+        per_seed_truth: list[float] = []
+        for seed in seeds:
+            Xtr, ytr, Xte, yte = make_regression_probe(
+                shape=shape, n_features=n_features, seed=seed
+            )
+            lo, hi = float(min(ytr.min(), yte.min())), float(max(ytr.max(), yte.max()))
+            sd = float(np.std(yte))
+            per_seed_truth.append(_outer_mass(yte, lo, hi))
+            for name, m in models.items():
+                bins = min(n_bins, m.cfg.max_classes)
+                if bins < 2:
+                    skipped.append(f"{name}: max_classes={m.cfg.max_classes} < 2 bins")
+                    continue
+                if bins < n_bins:
+                    skipped.append(
+                        f"{name}@{shape}: n_bins {n_bins} -> {bins} (max_classes)"
+                    )
+                reg = FinancialTFMRegressor(
+                    m, n_bins=bins, max_context=max_context, context_strategy="uniform",
+                    feature_transform="rank", random_state=seed,
+                ).fit(Xtr, ytr)
+                pred = reg.predict(Xte)
+                ilo, ihi = reg.predict_interval(Xte, level=interval_level)
+                cell[name]["nrmse"].append(
+                    float(np.sqrt(np.mean((pred - yte) ** 2)) / sd)
+                )
+                cell[name]["spearman"].append(float(spearmanr(pred, yte).statistic))
+                cell[name]["coverage"].append(interval_coverage(yte, ilo, ihi))
+                # Mass the predicted distribution itself places in the outer thirds -- read
+                # off the representatives, not off the point estimate, because a mean of a
+                # bimodal distribution sits in the middle by construction and would make
+                # every distributional model look unimodal.
+                proba = reg.predict_proba(Xte)
+                reps = reg.binner_.representatives_
+                span = hi - lo
+                outer = (reps <= lo + span / 3.0) | (reps >= hi - span / 3.0)
+                cell[name]["outer_mass"].append(float(proba[:, outer].sum(axis=1).mean()))
+            oracle_binner = QuantileBinner(n_bins).fit(ytr)
+            op = oracle_binner.representatives_[oracle_binner.transform(yte)]
+            cell["binning_oracle"]["nrmse"].append(
+                float(np.sqrt(np.mean((op - yte) ** 2)) / sd)
+            )
+            cell["binning_oracle"]["spearman"].append(float(spearmanr(op, yte).statistic))
+            # No interval: the oracle is a point on the grid, not a distribution.
+            cell["binning_oracle"]["coverage"].append(float("nan"))
+            cell["binning_oracle"]["outer_mass"].append(_outer_mass(op, lo, hi))
+            ridge = Ridge().fit(Xtr, ytr)
+            rp = ridge.predict(Xte)
+            resid_sd = float(np.std(ytr - ridge.predict(Xtr)))
+            z = float(norm.ppf(0.5 + interval_level / 2.0))
+            cell["ridge_gaussian"]["nrmse"].append(
+                float(np.sqrt(np.mean((rp - yte) ** 2)) / sd)
+            )
+            cell["ridge_gaussian"]["spearman"].append(float(spearmanr(rp, yte).statistic))
+            cell["ridge_gaussian"]["coverage"].append(
+                interval_coverage(yte, rp - z * resid_sd, rp + z * resid_sd)
+            )
+            # A Gaussian's mass in the outer thirds, evaluated analytically per query.
+            a, b = lo + (hi - lo) / 3.0, hi - (hi - lo) / 3.0
+            with np.errstate(divide="ignore", invalid="ignore"):
+                below = norm.cdf((a - rp) / max(resid_sd, 1e-12))
+                above = 1.0 - norm.cdf((b - rp) / max(resid_sd, 1e-12))
+            cell["ridge_gaussian"]["outer_mass"].append(float(np.mean(below + above)))
+        for name, mm in cell.items():
+            for metric, vals in mm.items():
+                arms[name][metric].append(float(np.mean(vals)) if vals else float("nan"))
+        truth_outer.append(float(np.mean(per_seed_truth)))
+        print(f"  {shape} done", flush=True)
+    return {
+        "shapes": list(shapes),
+        "truth_outer_mass": truth_outer,
+        "arms": arms,
+        "skipped": sorted(set(skipped)),
+        "config": {
+            "models": model_paths, "seeds": list(seeds), "max_context": max_context,
+            "n_features": n_features, "n_bins": n_bins, "interval_level": interval_level,
+        },
+    }
+
+
+def summarise_regression_sweep(sweep: dict) -> str:
+    """Render the regression sweep with each metric's floor or target stated on its own row."""
+    shapes = sweep["shapes"]
+    level = sweep["config"]["interval_level"]
+    blocks = (
+        ("nrmse", "predict-the-mean", [1.0] * len(shapes)),
+        ("spearman", "chance", [0.0] * len(shapes)),
+        ("coverage", f"nominal {level:.0%}", [level] * len(shapes)),
+        ("outer_mass", "truth", sweep["truth_outer_mass"]),
+    )
+    lines = []
+    for metric, ref_name, ref in blocks:
+        lines.append(metric)
+        lines.append(f"{'arm':>22} " + " ".join(f"{s:>17}" for s in shapes))
+        lines.append(f"{ref_name:>22} " + " ".join(f"{v:>17.4f}" for v in ref))
+        for name, mm in sweep["arms"].items():
+            lines.append(f"{name:>22} " + " ".join(f"{v:>17.4f}" for v in mm[metric]))
+        lines.append("")
+    for note in sweep.get("skipped", []):
+        lines.append(f"note: {note}")
+    lines += [
+        "",
+        "nRMSE is divided by the query targets' standard deviation, so 1.0 is exactly the",
+        "predict-the-mean baseline at every shape, and binning_oracle is the floor a K-bin",
+        "head cannot beat -- read a shortfall against ridge relative to that, since ridge is",
+        "not quantised. Coverage is read against the nominal",
+        "level, not maximised: over-covering is a wide useless interval, not a win. Outer-",
+        "third mass is read against the truth row -- on bounded_bimodal the truth is near 1.0",
+        "and a Gaussian predictor sits near 0, which is the shape a point estimate cannot",
+        "express and an RMSE-only check would never reveal.",
+    ]
+    return "\n".join(lines)
+
+
 def run(
     model_paths: dict[str, str],
     out_dir: Path,
@@ -714,8 +984,28 @@ def main() -> None:
              "makes 'the model does multiclass' a measurement rather than a command line",
     )
     p.add_argument("--class-counts", type=str, default="3,5,10")
+    p.add_argument(
+        "--regression-sweep", action="store_true",
+        help="sweep continuous-target shapes instead (tasks 46.5/46.6): reports interval "
+             "coverage and where the predicted distribution puts its mass, not only error",
+    )
+    p.add_argument("--shapes", type=str, default="linear,nonlinear,bounded_bimodal")
+    p.add_argument("--n-bins", type=int, default=10)
+    p.add_argument("--interval-level", type=float, default=0.8)
     args = p.parse_args()
     paths = dict(pair.split("=", 1) for pair in args.models.split(",") if pair)
+    if args.regression_sweep:
+        sweep = regression_sweep(
+            paths, shapes=tuple(x for x in args.shapes.split(",") if x),
+            seeds=tuple(int(s) for s in args.seeds.split(",")),
+            max_context=args.max_context, n_features=args.n_features,
+            n_bins=args.n_bins, interval_level=args.interval_level,
+        )
+        out = Path(args.out)
+        out.mkdir(parents=True, exist_ok=True)
+        (out / "regression_sweep.json").write_text(json.dumps(sweep, indent=2))
+        print("\n" + summarise_regression_sweep(sweep))
+        return
     if args.class_sweep:
         sweep = multiclass_sweep(
             paths, class_counts=tuple(int(k) for k in args.class_counts.split(",")),

@@ -7108,3 +7108,220 @@ It does not say 16 is optimal at another model size, another `max_features`, or 
 prior. The curve is measured at 885K parameters on financial-prior-only training, and a
 capacity-linked optimum would be expected to move with capacity. If the 5.0M checkpoint
 changes the picture, this curve is the thing to re-run — not the thing to cite.
+
+## §105 — Training for 10 classes and regression costs binary accuracy nothing measurable
+
+**How these numbers were produced.** MEASURED. `run_fintfm_lite.py --full` on TabArena's 27
+eligible binary datasets, `FINTFM_RUN_NAME=mixedprior` so the results cache could not return
+§101's numbers (the failure mode `docs/TABARENA.md` records). The arm is `v4-multiclass.pt` —
+885K parameters, `--max-classes 10`, the generic SCM prior mixed into the financial one —
+against §101's `cat_full` run of the binary-only `v4-cellattn-labels.pt`. Both use the
+out-of-fold target-statistics categorical path, so the only difference is the checkpoint.
+Paired per dataset on the 27 tasks both ran.
+
+### The result: a clean null
+
+| | §98 label encoding | §101 binary checkpoint | mixed-prior checkpoint |
+| --- | --- | --- | --- |
+| mean ROC-AUC | 0.7642 | **0.7823** | **0.7817** |
+| rank | 93 / 95 | 93 / 95 | 93 / 95 |
+| Elo | 662 (+123/−211) | 765 (+125/−175) | 813 (+179/−301) |
+| harmonic rank | 90.74 | 88.04 | 86.26 |
+
+Paired, per dataset: **mean delta −0.0006**, better on **13 of 27**, two-sided sign test
+**p = 1.000**. Deltas span −0.0867 to +0.0341 with no sign of structure.
+
+**Capacity spent on 10-class structure and continuous targets is not capacity taken from the
+binary task** — at least not at 885K parameters, and not measurably. Task 46.2 raised this as
+the cost that would have to be paid for coverage. At this size there is no bill.
+
+### The Elo moved and the mean did not, and that is not a contradiction
+
+Elo rose 765 → 813 while mean ROC-AUC fell 0.0006. These measure different things: Elo is
+built from **pairwise win rates across datasets**, so it rewards losing less badly where a
+loss is decided, and is insensitive to the size of a gap on a dataset already lost. The mixed
+prior wins 13 comparisons outright while its mean is dragged by one dataset at −0.0867.
+
+**Do not read the +48 as an improvement.** The confidence intervals are +179/−301 and
++125/−175; they overlap almost entirely. The honest statement is that all three runs are the
+same rank with overlapping Elo, and the only well-resolved movement in the series is §101's
+mean (+0.0181), which is a per-dataset paired quantity rather than a leaderboard-derived one.
+
+### What this licenses, and what it does not
+
+It licenses using the mixed-prior checkpoint as the **default** rather than maintaining two:
+it covers strictly more problem types at no measured binary cost. That removes a maintenance
+axis and the risk of scoring binary tasks with the wrong one (the adapter still selects by
+problem type, since that guarantee is worth keeping even when the arms tie).
+
+It does **not** close task 46.2, which asks specifically for V4FinBench five folds with a
+paired bootstrap. TabArena's binary suite is general tabular data; the claim 46.2 cares about
+is corporate credit, where §73/§75 set the reference and where this project's thesis lives. A
+null on general tables is evidence, not the measurement that was specified.
+
+Nor does it say anything about whether the model *regresses*. Per-task AUC is undefined for a
+binned continuous target, so every number here comes from the binary slice of a mixed prior.
+That measurement is §106's.
+
+## §106 — The binned head regresses, beats ridge where ridge is wrong, and is calibrated
+
+**How these numbers were produced.** MEASURED. `fintfm-capability --regression-sweep --seeds
+0,1,2` on `v4-regression.pt` (885K parameters, `--p-financial 0.35 --p-regression 0.35
+--max-classes 10`, 6,000 steps). Three target shapes, 4,000 context and 4,000 query rows each,
+10 quantile bins, 80% nominal intervals. Four arms, two of them controls.
+
+| nRMSE (1.0 = predict-the-mean) | linear | nonlinear | bounded_bimodal |
+| --- | --- | --- | --- |
+| **fintfm** | **0.3396** | **0.4879** | **0.7199** |
+| ridge + Gaussian | 0.1035 | 0.5733 | 0.7288 |
+| untrained control | 1.0119 | 1.0205 | 1.0235 |
+| *binning oracle (floor)* | *0.2017* | *0.1743* | *0.0979* |
+
+| Spearman | linear | nonlinear | bounded_bimodal |
+| --- | --- | --- | --- |
+| **fintfm** | 0.9495 | 0.8796 | 0.6579 |
+| ridge | 0.9941 | 0.8752 | 0.6922 |
+| untrained control | −0.0974 | 0.0943 | 0.0555 |
+
+| 80% interval coverage | linear | nonlinear | bounded_bimodal |
+| --- | --- | --- | --- |
+| **fintfm** | 0.8469 | 0.7712 | 0.8239 |
+| ridge + Gaussian | 0.7989 | 0.8265 | 0.7783 |
+| untrained control | 0.6977 | 0.6971 | 0.7068 |
+
+### It regresses
+
+The untrained control of the same architecture sits at the predict-the-mean baseline on every
+shape (1.01–1.02 nRMSE, Spearman ≈ 0). The trained model is at 0.34–0.72. **Quantile binning
+plus a context is not informative on its own**; the capability is learned.
+
+**It beats ridge on `nonlinear`** — 0.4879 against 0.5733 — which is the shape whose
+generative function lies outside ridge's hypothesis class. On `linear`, where ridge is
+*correctly specified*, ridge wins 0.1035 to 0.3396. Both are the expected ordering and
+together they say the model has learned something a linear model has not, rather than having
+learned to imitate one.
+
+### The oracle row is what makes the ridge comparison legible
+
+`binning_oracle` predicts each query's **true** bin representative — the error a model still
+carries if it names the right bin every time. It cheats deliberately, and it separates "wrong
+because binned" from "wrong because it does not know":
+
+- **`linear`**: floor 0.2017, model 0.3396. Roughly **half** the gap to ridge (0.1035) is
+  quantisation, not ignorance. Without this row the model looks 3.3× worse than ridge; with
+  it, the model-attributable part is 0.14 nRMSE.
+- **`nonlinear`**: floor 0.1743, model 0.4879. Binning explains almost none of it — this
+  shortfall is the model's, and it still beats ridge.
+- **`bounded_bimodal`**: floor 0.0979, both real arms ≈ 0.72. Neither is binning-limited; the
+  within-mode Beta draw is close to irreducible noise, so this task's difficulty is the task's.
+
+### Calibration, and why coverage alone is not the test (46.5)
+
+Coverage lands at 0.771–0.847 against a nominal 0.800 — usable intervals without tuning. The
+untrained control under-covers at 0.70, so this is not automatic either.
+
+**Coverage is read against the nominal level, not maximised.** An interval that covers 99% by
+being enormous is worse, not better, and 0.8469 on `linear` is mild over-coverage rather than
+a win.
+
+### Bimodality, and the control that nearly produced a false positive (46.6)
+
+Mass in the outer thirds of the target's range, against the truth's own:
+
+| outer-third mass | linear | nonlinear | **bounded_bimodal** |
+| --- | --- | --- | --- |
+| truth | 0.2335 | 0.2585 | **0.8362** |
+| **fintfm** | 0.2656 | 0.2463 | **0.8083** |
+| ridge + Gaussian | 0.2327 | 0.2383 | **0.6162** |
+| untrained control | 0.1980 | 0.1963 | **0.8628** |
+
+The headline reads cleanly: the binned head puts 0.8083 where the truth puts 0.8362, and the
+Gaussian manages 0.6162 — it cannot place mass at both ends of a bounded target, exactly as
+`inference/binning.py` argues.
+
+**But the untrained control scores 0.8628, higher than both.** That is decisive and it is the
+reason the control is mandatory: on a bimodal target, *quantile bin representatives are
+themselves concentrated at the ends*, so a model outputting a near-uniform distribution over
+bins scores high outer mass while knowing nothing. **Outer-third mass alone does not
+demonstrate bimodal modelling — it partly measures the binning.**
+
+The claim that survives is the conjunction: the model places the mass in the right *region*
+(0.8083 vs the Gaussian's 0.6162) **and** assigns it to the right *rows* (Spearman 0.6579 and
+nRMSE 0.7199, against the control's 0.0555 and 1.0235). Either half alone is satisfiable
+without the capability.
+
+### Scope
+
+Synthetic probes with known structure, three seeds, one checkpoint. Nothing here is a real
+regression panel, and TabArena's 12 eligible regression datasets remain unscored. This closes
+46.5 and 46.6 as *instruments with results*, not as a claim that fintfm regresses well on real
+data.
+
+## §107 — The "specialist profile" was one dataset, one fold, and 0.0026 AUC — retracted
+
+**How these numbers were produced.** MEASURED, re-analysis of §105's own
+`eval/mixedprior/results_per_split.csv`. No new run. Per-dataset rank of fintfm among all 95
+methods on the 27 eligible binary datasets.
+
+### What prompted it
+
+TabArena's leaderboard reports **mean rank 86.26** and **harmonic rank 20.72** for fintfm — a
+spread of 65.5, **the largest of any of the 95 methods** (second is TabSTAR at 51.6). Harmonic
+rank weights a method's best datasets, so the pair reads as the signature of a specialist:
+near-last typically, near-the-top where it belongs. That reading was written down and acted on
+before it was decomposed. It does not survive decomposition.
+
+### The decomposition
+
+| dataset | rank of 95 |
+| --- | --- |
+| Is-this-a-good-customer | **1** |
+| blood-transfusion-service-center | 33 |
+| seismic-bumps | 77 |
+| *the other 24* | **83 – 95** |
+
+**Median rank 94 of 95. Top-25 on 1 of 27 datasets.** A harmonic mean is dominated by its
+minimum, so a single rank-1 among 27 values in the eighties and nineties moves it from ~90 to
+20.72 on its own. The statistic is not wrong; the inference from it was.
+
+**And that rank-1 is a single draw.** TabArena-Lite runs **fold 0 only** — every per-dataset
+number in §98, §101 and §105 is one fold — and the margin over the runner-up is **0.0026
+ROC-AUC** (0.7545 against XIAOMI-TABLDM's 0.7519, with EBM, EXAONE-TABULAR and tuned CatBoost
+inside 0.0034). One fold, one dataset, a margin smaller than the gaps between the next four
+methods.
+
+### The part that costs a standing claim
+
+`README.md` and §98 state that fintfm's best public results are the corporate-credit panels it
+was designed for. By **rank**, they are not:
+
+| credit panel | rank | ROC-AUC |
+| --- | --- | --- |
+| taiwanese_bankruptcy_prediction | 83 | 0.9287 |
+| polish_companies_bankruptcy | 91 | 0.8449 |
+| GiveMeSomeCredit | 91 | 0.8371 |
+| credit_card_clients_default | 93 | 0.7445 |
+| heloc | 94 | 0.7715 |
+| credit-g | **95** | 0.6520 |
+
+**High absolute AUC on a credit panel is not competitiveness on that panel.** 0.9287 on
+Taiwanese bankruptcy reads as a home-turf win until the rank shows every other method scoring
+there too. §98's claim was made on raw AUC across a handful of datasets, which is the same
+error in the same place: an absolute number compared against nothing.
+
+**Retracted:** "its best public results are the corporate-credit panels it was designed for",
+as a statement about TabArena. It may still hold on V4FinBench — five folds, paired bootstrap,
+the published protocol — but that is a different benchmark and the claim has to be made there
+or not at all.
+
+### What this changes
+
+There is **no measured specialist peak to protect**, so "stay narrow and deepen" has nothing
+to stand on. Breadth is not a retreat from a specialism; it is the only position the evidence
+supports. The uniform ~0.035 residual (§101) remains the whole target, and it is uniform
+across credit and non-credit datasets alike — which §101 already said, and which this finding
+is simply the rank-space view of.
+
+It also sets a standing rule: **a per-dataset claim from TabArena-Lite is a single fold.**
+Ranks aggregated over 27 datasets are usable; a statement about one dataset is an anecdote and
+must be labelled as one.

@@ -24,7 +24,7 @@ because TabArena discovers models from its own registry:
 
 ```text
 <tabarena clone>/packages/tabarena/src/tabarena/models/fintfm/
-    model.py   # FinTFMModel(AbstractTorchModel), ag_key = "TA-FINTFM-0.3"
+    model.py   # FinTFMModel(AbstractTorchModel), ag_key = "FinTFM"
     info.py    # ModelInfo(model_cls=..., search_space=..., method_metadata=...)
 <tabarena clone>/run_fintfm_lite.py
 ```
@@ -102,6 +102,19 @@ represent raises, so the harness records a skip instead of a meaningless score. 
 exception is regression's bin count, which is *our* parameter rather than the task's: a
 10-bin request against an 8-logit head is clamped to 8 and logged, because the coarser grid
 is a real answer where a truncated class set would not be.
+
+## The leaderboard name is `FinTFM`, with no version
+
+The leaderboard renders `ag_key`, and it lists **models**, not releases — TabSTAR, OrionMSP,
+TabFlex and iLTM all appear unversioned. `0.3` is a version of one model, so it belongs in
+`docs/CHANGELOG.md` next to the numbers it produced, not in the row a reader compares against
+TabPFN. Registered as `TA-FINTFM-0.3` through §105; renamed after.
+
+**The rename moves the results cache.** AutoGluon derives the stored config name from
+`ag_name`, so §98 / §101 / §105 live under `TA-fintfm-0.3_c1_default_BAG_L1` and are *not*
+picked up under the new name. Nothing is lost and nothing is silently mixed — but a
+comparison spanning the rename has to read those directories directly, which is how §105's
+paired deltas were computed, rather than trusting the harness to merge them.
 
 ## On submitting a PR
 
