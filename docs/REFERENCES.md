@@ -273,6 +273,17 @@ discarded before decoding; a published instance of `explicit-task-representation
 **gated attention** (`sigmoid(W·x)` per head, head-wise or element-wise). Row-wise `(B, N, d)`
 attention rather than element-level 2D — the third peer to choose the cheap form.
 
+**Prior Labs (2025).** *TabPFN-2.5: Advancing the State of the Art in Tabular Foundation
+Models.* [arXiv:2511.08667](https://arxiv.org/abs/2511.08667). Purely synthetic-pretrained
+(§110's frontier); a separately released real-data variant (Real-TabPFN-2.5) is fine-tuned on
+43 OpenML/Kaggle datasets **deduplicated against the full TabArena suite** — the contamination
+discipline §109 argues for. Depth 12→18/24 layers, feature group size 2→3, 64 learned "thinking"
+rows acting partly as attention sinks (third independent relative of `explicit-task-
+representation`'s task token, after TabSwift's register tokens), and a surrogate-model
+hyperparameter search using TabPFNv2 itself to score 10,000 configurations from 100 real runs.
+Ships a distillation engine converting a fitted model to a dataset-specific MLP or tree
+ensemble for low-latency deployment. See `docs/paper/RELATED_WORK.md`.
+
 **What none of these licenses.** Reading a paper licenses an *idea*. Nothing in this section
 authorises copying an implementation, a weight file, or a pretraining corpus, and a repository
 under a permissive code licence proves nothing about the weights inside it.

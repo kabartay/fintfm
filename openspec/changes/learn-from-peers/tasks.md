@@ -133,3 +133,13 @@
       The failure mode to name in advance: masked modelling spends capacity on reconstructing
       features nobody will ever query, and at 885K parameters that trade may be strictly bad —
       LimiX-2 is 16M and its 2M variant is the relevant comparison, not its headline.
+- [ ] 48.16 **Use a trained checkpoint as a surrogate for the next sweep, instead of brute
+      force.** TabPFN-2.5's report: ~100 real hyperparameter runs, scored by an in-house
+      validation suite, then TabPFNv2 itself used as a regression surrogate to rank 10,000
+      candidate configurations before spending compute on the winners. Every sweep in this
+      project's history (`column_id_dim`, §104; volume, §93; scale, §108) has paid full price
+      per arm. Verify: scoped as a **method test on cheap data first** — fit a surrogate (even
+      a plain gradient-boosted regressor, no TFM needed to start) on the ~15 architecture/prior
+      runs already in `runs/`, predict the untried points on the `column_id_dim` curve absent
+      from §104's five, and check the surrogate's prediction against a real run before trusting
+      it on anything expensive.

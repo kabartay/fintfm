@@ -86,7 +86,30 @@ accuracy bar in regulated domains is lower than the validation bar.
 
 ## The 2026-09-21 peer sweep, and what it costs this project's positioning
 
-Seven TabArena entrants opened on 2026-09-21 (full entries in `docs/REFERENCES.md`). Two of
+**Executive digest, for anyone who reads one section of this file.** Ten TabArena entrants
+opened from primary sources in one afternoon. The three findings worth carrying into any
+future draft or conversation:
+
+1. **The scale hypothesis is capped by evidence we didn't have to generate.** Nori's published
+   curve (6M→100M params, +0.0049 R²) and TabPFN-2.5's own numbers (see below) both show
+   parameter scale returning single-digit thousandths at this point in the curve, against our
+   0.035 residual. §108's own scaling attempt (−0.0077, confounded) is consistent with this,
+   not contradicted by it.
+2. **Every top-14 TabArena rank is synthetic-pretrained (§110).** TabPFN-2.5 and its lineage,
+   LimiX-2, Mitra-v2, TabICLv2 — all synthetic. The best real-data model (TabDPT-Turbo) is
+   21st. Decision D2's synthetic-only constraint costs nothing measurable in rank; the frontier
+   is *there*, not despite it.
+3. **The lever nobody here has pulled is the prior, not the architecture.** §104 closed the one
+   architectural knob that ever moved real-data accuracy; MITRA's entire contribution — rank 8,
+   synthetic-only — is prior design (performance/diversity/distinctiveness) plus a tree-based
+   prior this project's mixture lacks. `learn-from-peers` (48.x) is the resulting task list,
+   led by 48.13 (tree prior) and 48.14 (score our own mixture against MITRA's criteria).
+
+Also recorded as a process lesson: the synthetic-vs-real conclusion above was **rewritten three
+times in one session**, once per arriving abstract, before anyone checked the rank ordering
+that actually settles it (§110). Read the measurement before writing the claim.
+
+Ten TabArena entrants opened on 2026-09-21 (full entries in `docs/REFERENCES.md`). Two of
 them change what this file can claim.
 
 ### Nori is what we are, executed further — and it is public
@@ -264,6 +287,41 @@ and the predicted density can be bimodal. For loss given default, which is bound
 at both ends, a scalar head cannot express the shape at all. Their single checkpoint serving
 both tasks is the better engineering; our head is the better statistics, and they are
 independent choices.
+
+### TabPFN-2.5, the line at the top of the board, read for engineering rather than headline
+
+**Prior Labs (2025).** *TabPFN-2.5: Advancing the State of the Art in Tabular Foundation
+Models.* [arXiv:2511.08667](https://arxiv.org/abs/2511.08667). TabPFN-3.5 (the checkpoint on
+today's leaderboard, rank 1, Elo 1812) is the next generation past this report; the report
+itself documents TabPFNv2 → 2.5, which is instructive regardless of which exact checkpoint
+currently sits on top. **Purely synthetic** — "Like the original TabPFNv2, TabPFN-2.5 is
+trained purely on synthetically generated data" — with a *separately released* real-data
+variant, Real-TabPFN-2.5, fine-tuned on 43 OpenML/Kaggle datasets **deduplicated against the
+full TabArena suite**. That dedup step is the discipline §109 argues this project needs and
+most peers do not disclose; naming it here is a citation worth having on hand.
+
+**What changed from v2, concretely — six items, none of them "bigger":**
+
+| change | detail | relevance here |
+| --- | --- | --- |
+| depth | 12 → 18 layers (regression), 24 (classification) | depth, not width — §108 scaled width and lost; task 48.1 already tests the opposite corner |
+| feature grouping | group size 2 → 3, embedding several features together | a cheap lever this project has never had a knob for |
+| regression encoder | linear → 2-layer MLP | trivial to test against our binned head (§106) |
+| **"thinking" rows** | 64 additional learned rows appended to the input, present only at pretraining, acting partly as **attention sinks** so the model can learn to ignore rows | closest published relative of `explicit-task-representation`'s task token and TabSwift's register tokens — a third independent group solving the same problem a different way |
+| preprocessing | robust scaling + soft clipping + quantile transforms + standard scaling, combined and diversified across ensemble members | our `feature_transform="rank"` (§35, +0.086 AUC) is one point in this space; theirs argues for combining several rather than picking one |
+| **surrogate hyperparameter search** | used TabPFNv2 itself as a regression surrogate over ~50 hyperparameters, from 100 real runs to 10,000 evaluated configurations | "TabPFN tunes TabPFN" — a general pattern for expensive prior/architecture sweeps that this project has never used and every `openspec` sweep task pays for by brute force |
+
+**Distillation is the one idea here aimed at deployment rather than accuracy**, and it is the
+answer to a question this project has not yet had to answer: their engine converts a fitted
+TabPFN-2.5 into a dataset-specific MLP or tree ensemble — no in-context learning, single-row
+inference, "orders-of-magnitude lower latency". Worth returning to once `FinancialTFMClassifier`
+has a customer whose deployment constraints (latency, interpretability, a regulator's model
+inventory) rule out shipping the foundation model itself.
+
+**Threshold tuning and temperature scaling are named as separate, off-by-default steps** — "all
+classification results in this report are computed using uncalibrated, default scores". That
+discipline is one `docs/paper/LIMITATIONS.md`'s multiclass entry already asks for (temperature
+scaling, currently unimplemented, with multiclass 94th of 94 on log loss despite decent AUC).
 
 ### The three remaining entrants, as design references only
 
