@@ -385,6 +385,39 @@ with controllable difficulty** — a mechanism this project's own prior does not
 `prior-width-and-fidelity` should read against; Drift-Resilient TabPFN modulates SCM parameters
 over time for distribution shift, which is directly relevant to `temporal-financial-prior`.
 
+### Causilo (Nums AI): a self-reported rank that does not match this project's own leaderboard run
+
+**Nums AI (2026).** *Causilo.* `github.com/nums-ai/causilo`. **On this project's own live
+leaderboard run: rank 6, Elo 1751** (`Causilo (default)`, 1751±115). Their README claims
+"Elo position 1, 1792.9 (Full) / 1817.4 (Lite)" — a materially different, and higher, number.
+**Neither figure is corrected here**; the discrepancy is recorded rather than resolved,
+following the same rule that caught EXAONE's stale self-report a session prior: quote from a
+re-derivation of the measurement in hand, never from a vendor's own framing, and when the two
+disagree say so rather than picking one silently. Possible causes not distinguished — a
+different leaderboard snapshot, a different subset, a self-selected framing of "Elo position"
+— and this project has no basis to adjudicate which.
+
+**Fourth confirmed instance of the licence-split trap** (after Google TabFM/TimesFM at §24,
+and EXAONE above): code Apache-2.0, verified from the repository's own `LICENSE` file. Weights
+under a **separate "Causilo License v1.0"**, verified from the README's explicit statement
+rather than assumed from the permissive code licence — "Non-commercial research and free
+research redistribution are permitted... Commercial or production use, and hosted/API/SaaS
+services whether paid or free, require separate licenses." TabArena's own published numbers
+may be cited; the checkpoint may never be loaded here.
+
+**No architectural detail was available from what was read** — the page returned no
+description of method, training data, or whether the prior is causal despite the name. Not
+enough to compare against this project's own choices; noted as an open item rather than
+guessed at.
+
+**The user's observation that this resembles Neuralk's Seldon is plausible on the surface —
+a causally-named proprietary tabular foundation model — but unverified and not investigatable
+further here.** `docs/LANDSCAPE.md` records Neuralk (Seldon) as proprietary with no public
+technical report; nothing about Causilo's method has been read that would confirm or refute a
+relationship, and `CLAUDE.md`'s boundary against Neuralk's code/weights/training data is
+unaffected either way — Causilo is a separate legal entity (Nums AI Inc.) under its own
+licence, evaluated on its own terms.
+
 ### EXAONE Tabular: the third confirmed instance of the licence trap, and above us at rank 7
 
 **LG AI Research (2026).** *EXAONE Tabular.* `github.com/LGAI-Research/EXAONE-Tabular`,

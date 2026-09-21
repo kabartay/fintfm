@@ -305,6 +305,15 @@ may never be loaded here. Cross-axis Summary Transformer (~21M params) with item
 feature-summary tokens — a fourth published cross-axis summary mechanism, after TabSwift's
 register tokens and TabPFN-2.5's thinking rows. See `docs/paper/RELATED_WORK.md`.
 
+**Nums AI (2026).** *Causilo*, `github.com/nums-ai/causilo`. **Rank 6, Elo 1751 on this
+project's own TabArena run** — the README's self-reported "Elo position 1, 1792.9" is a
+different, higher figure not reconciled here; the discrepancy is recorded, not resolved.
+**Fourth confirmed licence-split**: code Apache-2.0 (verified from the repo's `LICENSE` file),
+weights under a separate non-commercial "Causilo License v1.0" (verified from the README).
+No architectural detail obtained. See `docs/paper/RELATED_WORK.md` for the full note,
+including why a surface resemblance to Neuralk's Seldon is noted as unverified speculation
+and does not change `CLAUDE.md`'s Neuralk boundary either way.
+
 **What none of these licenses.** Reading a paper licenses an *idea*. Nothing in this section
 authorises copying an implementation, a weight file, or a pretraining corpus, and a repository
 under a permissive code licence proves nothing about the weights inside it.
