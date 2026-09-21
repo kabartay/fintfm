@@ -136,3 +136,80 @@ def test_rejects_nonsense_input():
         b.expected_value(np.ones((3, 2)))
     with pytest.raises(ValueError, match="q must be in"):
         b.quantile(np.ones((1, b.n_bins_)) / b.n_bins_, 1.5)
+
+
+# --- the regression prior (task 46.4) -------------------------------------------------
+
+
+def test_the_regression_prior_spans_difficulty():
+    """Task 46.4's stated verification, and §42's lesson stated as a test.
+
+    A prior of only easy targets teaches the model that every task is solvable, and a prior
+    of only noise teaches nothing. The first version of this sampler projected the exposed
+    features *linearly* and produced Spearman 0.74-0.98 across every draw -- uniformly easy,
+    and undetectable without a test that looks at the spread rather than the mean.
+    """
+    import numpy as np
+    from scipy.stats import spearmanr
+    from sklearn.linear_model import Ridge
+
+    from fintfm.prior.scm import sample_scm_regression_task
+
+    rng = np.random.default_rng(0)
+    scores = []
+    for _ in range(30):
+        t = sample_scm_regression_task(rng, 300, max_features=8)
+        X = np.nan_to_num(t.X, nan=0.0)
+        fit = Ridge().fit(X[:150], t.y_continuous[:150])
+        scores.append(spearmanr(fit.predict(X[150:]), t.y_continuous[150:]).statistic)
+    scores = np.abs(np.array(scores))
+
+    assert scores.min() < 0.35, f"no hard task was drawn: min {scores.min():.3f}"
+    assert scores.max() > 0.60, f"no learnable task was drawn: max {scores.max():.3f}"
+    assert np.ptp(scores) > 0.40, f"difficulty barely varies: spread {np.ptp(scores):.3f}"
+
+
+def test_the_regression_prior_emits_more_than_one_target_shape():
+    """LGD is bounded and bimodal; a prior of only symmetric targets would not teach it."""
+    import numpy as np
+
+    from fintfm.prior.scm import _TARGET_SHAPES, sample_scm_regression_task
+
+    rng = np.random.default_rng(1)
+    # Skew and boundedness separate the shapes without depending on the private mapping.
+    profiles = set()
+    for _ in range(40):
+        y = sample_scm_regression_task(rng, 200, max_features=6).y_continuous
+        bounded = bool(y.min() >= -1e-9 and y.max() <= 1 + 1e-9)
+        heavy = bool(np.abs(float(((y - y.mean()) ** 3).mean() / (y.std() ** 3 + 1e-12))) > 1.5)
+        profiles.add((bounded, heavy))
+
+    assert len(_TARGET_SHAPES) >= 4
+    assert len(profiles) >= 2, f"the prior emits one shape of target: {profiles}"
+
+
+def test_collate_bins_continuous_targets_on_context_rows_only():
+    """The no-leakage property, asserted rather than commented.
+
+    Bin edges must come from the first `n_ctx` rows. If query targets influenced the edges,
+    the model would train against a discretisation inference cannot reproduce from context
+    alone -- a subtle contamination that no accuracy metric would reveal.
+    """
+    import numpy as np
+
+    from fintfm.inference.binning import QuantileBinner
+    from fintfm.prior.base import collate
+    from fintfm.prior.scm import sample_scm_regression_task
+
+    rng = np.random.default_rng(2)
+    task = sample_scm_regression_task(rng, 200, max_features=6, n_bins=5)
+    n_ctx = 100
+    batch = collate([task], n_ctx=n_ctx, max_features=6)
+
+    expected = QuantileBinner(n_bins=5).fit(task.y_continuous[:n_ctx])
+    assert np.array_equal(batch.y[0].numpy(), expected.transform(task.y_continuous))
+    assert int(batch.n_classes[0]) == expected.n_bins_
+
+    # And the edges must actually differ from whole-task edges, or the test proves nothing.
+    whole = QuantileBinner(n_bins=5).fit(task.y_continuous)
+    assert not np.allclose(expected.edges_, whole.edges_), "context and full edges coincide"

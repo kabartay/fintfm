@@ -14,16 +14,25 @@
       five folds with paired bootstrap against a `--max-classes 2` checkpoint matched on prior
       mixture, so the comparison isolates class count rather than confounding it with the
       prior change multiclass requires.
-- [ ] 46.3 **Implement the binned regression head.** Bin edges from the context targets'
+- [x] 46.3 **Implement the binned regression head.** Bin edges from the context targets'
       quantiles per task, logits over bins, cross-entropy on the bin index. Verify: a test
       asserts the predicted distribution integrates to one and that the induced point estimate
       recovers a known linear target to a stated tolerance on a synthetic task — a head that
       trains but cannot recover `y = 2x + noise` is not a regression head.
-- [ ] 46.4 **Extend the prior to emit continuous targets.** `prior/scm.py` already computes a
+      **Done, and cheaper than this task assumed:** no architecture change is needed.
+      `FinancialTFM.head` is already `Linear(d_model, max_classes)` trained by cross-entropy
+      on an integer index, and a target binned into K quantile bins *is* such an index. The
+      work is `inference/binning.py` plus a prior; the head, loss and per-cell label
+      injection are untouched.
+- [x] 46.4 **Extend the prior to emit continuous targets.** `prior/scm.py` already computes a
       continuous latent before thresholding it into classes; regression tasks use that latent
       directly. Verify: a test asserts the regression prior spans difficulty in the same sense
       `tests/test_prior.py` already pins for classification — a prior of only easy or only
       noise targets teaches the wrong thing (§42).
+      **Done, after the first attempt failed this exact check.** Projecting the exposed
+      features linearly gave ridge-Spearman 0.74–0.98 on every draw — uniformly easy. Using
+      the SCM's own pre-threshold latent (a node of the same random graph, so nonlinear in
+      the features) with a log-uniform noise multiplier spans 0.01–0.87.
 - [ ] 46.5 **Report calibration, not only error.** Verify: prediction-interval coverage is
       reported beside RMSE on held-out synthetic tasks — an 80% interval should contain the
       truth 80% of the time, and a head that is accurate but badly calibrated would pass an

@@ -7,6 +7,8 @@ from dataclasses import dataclass
 import numpy as np
 import torch
 
+from fintfm.inference.binning import QuantileBinner
+
 
 @dataclass
 class Task:
@@ -25,6 +27,10 @@ class Task:
             ``y`` is exactly ``period != CENSORED``, so a survival task can still train a
             classifier without change.
         n_horizons: Length of the horizon grid ``period`` indexes into, or ``None``.
+        y_continuous: Optional ``(n_rows,)`` float continuous target for a **regression**
+            task. When present, ``y`` is a placeholder and :func:`collate` overwrites it by
+            binning this array on the **context rows' quantiles** -- see the note there for
+            why binning cannot happen in the prior itself.
     """
 
     X: np.ndarray
@@ -34,6 +40,7 @@ class Task:
     source: str = "unknown"
     period: np.ndarray | None = None
     n_horizons: int | None = None
+    y_continuous: np.ndarray | None = None
 
     @property
     def n_rows(self) -> int:
@@ -99,6 +106,16 @@ def collate(tasks: list[Task], n_ctx: int, max_features: int) -> TaskBatch:
         if t.n_rows != n_rows:
             raise ValueError("all tasks in a batch must share n_rows")
         X[i, :, : t.n_features] = t.X
+        if t.y_continuous is not None:
+            # **Binning belongs here, not in the prior.** Edges come from the context rows'
+            # quantiles, which only this function knows the boundary of (`n_ctx`). Binning in
+            # the prior would have to use the whole task, leaking query targets into the
+            # discretisation the model is trained against -- and would train the model on a
+            # boundary that inference, which sees context only, can never reproduce.
+            binner = QuantileBinner(n_bins=t.n_classes).fit(t.y_continuous[:n_ctx])
+            y[i] = binner.transform(t.y_continuous)
+            n_classes[i] = binner.n_bins_
+            continue
         y[i] = t.y
         n_classes[i] = t.n_classes
         if period is not None:
