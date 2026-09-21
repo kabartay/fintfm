@@ -235,6 +235,35 @@ query-conditioned form (§38, Claim 5). The real-data pretraining is the half th
 off-limits here — not for licence reasons but for the contamination-auditability argument in
 `docs/STRATEGY.md`, which is a positioning asset rather than a constraint.
 
+**Amazon Science (2025).** *MITRA: Mixed Synthetic Priors for Enhancing Tabular Foundation
+Models.* [arXiv:2510.21204](https://arxiv.org/abs/2510.21204). **Rank 8 on TabArena, Elo 1729.**
+**The most directly relevant paper in this list.** Synthetic-only and state of the art, beating
+TabPFNv2 and TabICL on classification and regression with better sample efficiency — the
+counterweight to TabDPT/ConTextTab/iLTM, and evidence that the field's real division is prior
+quality rather than synthetic-versus-real. Contributes three criteria for prior selection
+(**performance, diversity, distinctiveness**) and a mixture of SCM plus **tree-based priors**
+(gradient boosting, random forest, decision tree, extra tree), the latter chosen because
+SCM-pretrained models generalise poorly to tree-generated structure. Reported **model-agnostic**:
+the same mixture improves 1D row attention and 2D element attention alike. See tasks 48.13/48.14.
+
+**Ma, Thomas et al. (2024).** *TabDPT: Scaling Tabular Foundation Models on Real Data.*
+[arXiv:2410.18164](https://arxiv.org/abs/2410.18164). Opened in full 2026-09-21, promoted from
+the unverified leads below. ICL retrieval plus self-supervised learning, pretrained on **real**
+OpenML tables; reports real data giving faster convergence and better generalisation than
+"purely open-source synthetic data generators", and **power-law scaling in both model and data**.
+Open weights, training code and pretraining dataset list. Two parts matter here beyond the
+headline: **Table B.1** enumerates the training corpus, which §109 intersects with TabArena; and
+**Appendix A, "Bitter Lessons"**, lists what did not work, including that cell-token
+architectures with vertical+horizontal attention "proved more memory intensive" than the simpler
+`(B, N, d)` form — this project's architecture and its measured wall. Scored against our own
+choices in `docs/paper/RELATED_WORK.md`.
+
+**Defazio, Mehta, Mishchenko, Khaled & Cutkosky (2024).** *The Road Less Scheduled.* NeurIPS
+2024. Schedule-free optimisation, cited by TabDPT. Relevant here for an operational reason
+rather than an accuracy one: this project's cosine schedule couples the learning rate to a fixed
+step budget, which is why §108's matched-task rerun had to start fresh rather than extend. See
+task 48.9.
+
 **What none of these licenses.** Reading a paper licenses an *idea*. Nothing in this section
 authorises copying an implementation, a weight file, or a pretraining corpus, and a repository
 under a permissive code licence proves nothing about the weights inside it.

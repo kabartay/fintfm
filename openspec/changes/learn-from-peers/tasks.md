@@ -94,3 +94,24 @@
       assumed — re-targeting the same graph could produce correlated tasks that inflate the
       count without adding signal, which would look identical to a win in the step counter and
       nowhere else. Compare against §93's 5×-volume null, which is the result this has to beat.
+- [ ] 48.13 **Add a tree-based prior, the family MITRA singles out and this project does not
+      have.** `PriorConfig` is financial (0.7) plus SCM, with no prior that generates threshold
+      structure — while every baseline fintfm loses to is a tree ensemble. MITRA
+      (arXiv:2510.21204) selects tree-based priors (gradient boosting, random forest, decision
+      tree, extra tree) specifically on **distinctiveness**: TFMs pretrained on SCMs "do not
+      always generalize well to all types of data generated from TBPs". Their priors are
+      reported model-agnostic, so this needs no architecture change and is cheaper than anything
+      in `factorized-attention`. Verify: a checkpoint trained with the tree prior mixed in is
+      compared against the current mixture on the same five V4FinBench folds **and** the 27
+      TabArena binary datasets, with the mixture weight stated — this is the first prior change
+      since the regression prior and must not be confounded with one.
+- [ ] 48.14 **Score our own prior mixture against MITRA's three criteria.** They propose
+      **performance** (does a TFM pretrained on this prior alone do well on real data),
+      **diversity** (does it cover a wide region of task space) and **distinctiveness** (does it
+      generate structure the other priors do not). This project has never evaluated its prior on
+      any of the three, despite the prior being its one genuinely distinctive asset. Verify:
+      each of `financial`, `scm` and any new prior is trained alone at matched budget and scored
+      on real data (performance), and distinctiveness is measured by cross-evaluation — a model
+      trained on prior A scored on tasks from prior B — rather than asserted from the generator's
+      source code. A prior whose tasks another prior's model already solves is adding step count,
+      not signal, which is the §93 null's most likely explanation.

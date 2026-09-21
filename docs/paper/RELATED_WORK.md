@@ -124,6 +124,48 @@ reach for and it is quantitatively insufficient.
 Nori is also **regression-only** (`_supported_problem_types = ["regression"]`), which is the
 one axis where our declared coverage is broader.
 
+### MITRA is the paper this project should have written, and it names our gap
+
+**Amazon Science (2025).** *MITRA: Mixed Synthetic Priors for Enhancing Tabular Foundation
+Models*, arXiv:2510.21204. **Rank 8 on TabArena, Elo 1729** (Mitra-v2 default).
+
+**Synthetic-only, and state of the art.** It beats TabPFNv2 and TabICL on classification and
+regression with better sample efficiency. That single fact is the counterweight to TabDPT,
+ConTextTab and iLTM: the field's real division is not synthetic-versus-real, it is
+**well-designed prior versus poorly-designed prior**.
+
+Their framing is the one this project has been operating without: *"This shifts the focus in
+tabular machine learning from model architecture design to the design of synthetic datasets, or,
+more precisely, to the prior distributions that generate them. Yet the guiding principles for
+prior design remain poorly understood."*
+
+**Three criteria for a prior**, which is the contribution and is directly reusable:
+
+| criterion | what it asks |
+| --- | --- |
+| **performance** | does a TFM pretrained on this prior alone do well on real data? |
+| **diversity** | does it cover a wide region of task space? |
+| **distinctiveness** | does it generate structure the *other* priors do not? |
+
+They select SCMs for performance and diversity, then add **tree-based priors** — gradient
+boosting, random forest, decision tree, extra tree — purely on distinctiveness: SCM-pretrained
+TFMs "do not always generalize well to all types of data generated from TBPs".
+
+**This project has no tree prior.** `PriorConfig` is `p_financial=0.7`, SCM for the remainder,
+with `p_trivial`/`p_crossed` diagnostic-only and `p_regression` new. Every baseline we lose to
+is a tree ensemble, real tabular data is full of threshold structure, and our prior generates
+none of it. `mechanism-diverse-prior` asked this question; MITRA answers it with a measurement.
+
+**And their priors are model-agnostic** — the same mixture improves both 1D row attention and 2D
+element-based attention. So this is a prior-side gain that needs no change to the architecture
+this project is memory-bound by (§79, §94, §108), which makes it cheaper than anything in
+`factorized-attention` and testable on the existing checkpoint pipeline.
+
+**The uncomfortable read.** §104 closed an architectural lever, §102/§103 found no axis, §108
+lost on parameters, §93 lost on volume. MITRA's thesis is that the lever is the prior, and this
+project's one genuinely distinctive asset *is* a prior — which has never been evaluated against
+performance, diversity or distinctiveness, and is missing the one family MITRA singles out.
+
 ### The counter-thesis is now the field's direction, and it is aimed at our foundation
 
 **Spinaci, Polewczyk, Hoffart, Kohler, Thelin, Klein (2025).** *ConTextTab: A Semantics-Aware

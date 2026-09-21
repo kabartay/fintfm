@@ -309,12 +309,32 @@ evidence for *real-data* scaling. They are not evidence that synthetic-prior sca
 power laws — and §93, §108 and Nori's curve are three independent observations that it does
 not.
 
-**So the honest limitation is sharper than "we are small".** The field's own evidence — TabDPT
-explicitly, ConTextTab explicitly, iLTM by construction — converges on synthetic-only
-pretraining **saturating**, with real-table pretraining as the axis that keeps paying. This
-project cannot take that axis without destroying decision D2's auditability claim, which is its
-differentiator in a regulated domain. **That is a real and permanent cost, and a draft must
-state it as one** rather than treating synthetic-only as costless purity.
+**Three groups argue synthetic-only saturates — and one result says they are wrong about the
+reason.** TabDPT explicitly, ConTextTab explicitly and iLTM by construction all take real-table
+pretraining as the axis that keeps paying. But **MITRA** (arXiv:2510.21204) is synthetic-only,
+beats TabPFNv2 and TabICL on classification *and* regression, and sits at **rank 8, Elo 1729**
+on the TabArena board this project places 93rd on. Its entire contribution is **prior design**:
+a curated mixture chosen for *performance, diversity and distinctiveness*.
+
+**That relocates the limitation rather than removing it.** The evidence does not say synthetic
+data saturates; it says synthetic data saturates **when the prior is wrong**, and that a better
+prior beats a bigger corpus. Which is the best news this project's thesis has had — a financial
+prior is exactly a bet on prior design — and simultaneously the sharpest indictment of where its
+effort has gone: §54, §104 and §44 are architecture, while MITRA reports its priors are
+**model-agnostic**, improving both 1D row attention and 2D element attention.
+
+**The specific, named gap is a tree-based prior.** MITRA finds that TFMs pretrained on SCMs
+"do not always generalize well to all types of data generated from TBPs" — gradient boosting,
+random forest, decision tree, extra tree. This project's mixture is financial (0.7) and SCM
+(0.3) with no tree prior at all, while every baseline it loses to is a tree ensemble and real
+tabular data is full of threshold structure. A draft must state that the prior mixture was never
+evaluated against MITRA's three criteria, because that is a gap in the work rather than a
+property of the domain.
+
+Decision D2's cost is therefore **narrower than the pessimistic reading**: real-table
+pretraining is one route to the frontier and MITRA demonstrates another that D2 permits. What
+remains a genuine cost is that the auditability claim forecloses an axis the field is actively
+mining, and a draft must say so rather than treating synthetic-only as costless purity.
 
 **State this, because "the model is small" is the explanation a reader will reach for.** It is
 the explanation this project reached for too, for weeks, and it is quantitatively insufficient
