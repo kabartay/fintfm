@@ -142,6 +142,37 @@ labels to leak.
 These three interact, and none is visible in an AUC-only evaluation. That is the whole
 argument for `evaluation/metrics.py`.
 
+**What the encoder does with a non-binary target** is the same decision one level up. A rate
+is a mean of an indicator, so a *continuous* target takes the identical out-of-fold treatment
+with the level's smoothed mean in place of its smoothed rate. An *integer class code* does
+not: "class 3" is a name, so a mean taken against those codes is §100's mistake moved to the
+target side of the problem, and multiclass falls back to frequency encoding instead. The line
+is quantity versus name, not binary versus not.
+
+## Regression is the classification head, read differently
+
+`inference/regressor.py` adds no architecture. `FinancialTFM.head` is already
+`nn.Linear(d_model, max_classes)` trained by cross-entropy on an integer index, and a
+continuous target cut into `K` quantile bins **is** an integer index over `K` outcomes — so
+the head, the loss and the per-cell label injection all work unchanged.
+`FinancialTFMRegressor` bins on fit and takes the predicted distribution's mean on predict.
+
+Bin edges come from the **context** targets' quantiles, per task, which buys three things at
+once: scale invariance (the model never sees the target's units), balanced occupancy (no bin
+starved of signal), and no query leakage (edges fitted where the labels are allowed to be
+seen). The cost is that bin widths vary, so the point estimate weights *within-bin means*
+rather than evenly spaced centres — the estimator that stays correct when the outer bins are
+unbounded, which for financial targets is the usual case.
+
+**The point estimate is the least interesting output.** The head emits a distribution, so
+`predict_quantile` and `predict_interval` come free, and the distribution can be multimodal —
+which is precisely what loss given default is, piling up at both ends of `[0, 1]`, and
+precisely what a Gaussian head cannot represent. The limits are equally structural:
+resolution is bounded by `K` no matter how confident the model is, an interval can never be
+narrower than one bin, and a prediction is a convex combination of representatives so it
+cannot leave the training target's range. `binning.interval_coverage` exists to measure the
+first of those rather than assume it.
+
 ## Pretraining loop
 
 There is no dataset and there are no epochs. Each step samples a fresh batch of synthetic

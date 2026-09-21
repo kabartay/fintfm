@@ -29,7 +29,10 @@ rather than architecture: it correlated −0.668 with log categorical cardinalit
 replacing label encoding with out-of-fold target statistics lifted the mean from 0.7642 to
 0.7823 while collapsing that correlation to −0.025 (§101). **The rank did not move.** What is
 left is a uniform ~0.035 ROC-AUC deficit that no longer depends on categorical content,
-cardinality or width — a sharper target than before, and still a losing one.
+cardinality or width — a sharper target than before, and still a losing one. That rank was
+measured at **51% coverage**; multiclass and regression have since taken coverage to
+**90% (46 of 51)**, with `max_features` the only remaining exclusion — but the new arms are
+*runnable*, not yet *scored*, and a coverage fraction is not a result.
 
 **The honest one-line summary: this is not a competitive general tabular model, and its best
 public results are the corporate-credit panels it was designed for.**
@@ -73,6 +76,12 @@ public results are the corporate-credit panels it was designed for.**
    not a refinement: the naive form puts a row's own label into its own encoding, which makes
    the context self-predictive and the feature absent at query time — it harms the model
    rather than flattering the score, so it survives careless validation.
+   `inference/regressor.py` adds a `FinancialTFMRegressor` on the same frozen network and no
+   new architecture: a continuous target cut into K quantile bins is an integer index over K
+   outcomes, so the existing classification head regresses as-is, and the output is natively
+   **distributional** — quantiles and prediction intervals come free, and the predicted
+   density can be bimodal, which is what loss given default actually is and what a Gaussian
+   head cannot represent.
 5. **Evaluation** (`src/fintfm/evaluation/`, `src/fintfm/experiments/`) — real corporate-default
    panels (V4FinBench via its published protocol, `fintfm-v4protocol`; Polish and Taiwan
    bankruptcy, `fintfm-bench`), an out-of-time harness, a synthetic capability suite
@@ -149,7 +158,7 @@ extras lightgbm MIT, xgboost Apache-2.0, catboost Apache-2.0, pyarrow Apache-2.0
 - [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md) — **start here.** Every claim this project
   could make, tagged by status, newest evidence wins.
 - [`docs/FINDINGS.md`](docs/FINDINGS.md) — the full measurement log, numbered sequentially
-  (100 entries and counting), each declaring how its numbers were produced.
+  (103 entries and counting), each declaring how its numbers were produced.
 - [`docs/DECISIONS.md`](docs/DECISIONS.md) — why the project is built the way it is, and what
   would reverse each choice.
 - [`docs/STRATEGY.md`](docs/STRATEGY.md) — the plan of record.
@@ -169,10 +178,10 @@ bought — plus a public, self-correcting record of what has and has not been sh
 
 ## Status
 
-Actively developed research codebase, not a PoC skeleton: 198 tests (`uv run pytest`), a
+Actively developed research codebase, not a PoC skeleton: 222 tests (`uv run pytest`), a
 config-driven experiment harness, real GPU pretraining infrastructure (Hugging Face Jobs on
-T4), an external benchmark integration (TabArena, `docs/TABARENA.md`), and 100 numbered,
-provenance-tagged findings. What is currently proven, currently open, and
+T4), an external benchmark integration (TabArena, `docs/TABARENA.md`, 90% coverage), and 103
+numbered, provenance-tagged findings. What is currently proven, currently open, and
 currently retracted is tracked continuously in
 [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md) rather than restated here, because the honest
 state changes faster than this file gets edited — that is exactly the failure mode the claims

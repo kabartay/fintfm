@@ -18,6 +18,17 @@ to the model and a part that does not.
   regression. The out-of-fold step is load-bearing rather than a refinement: the naive form
   puts a row's own label into its own encoding, which makes the model worse while leaving
   aggregate scores looking reasonable.
+- **Regression, by de-binning** (`inference/regressor.py`). A continuous target cut into K
+  quantile bins *is* an index over K outcomes, so `FinancialTFMRegressor` needed no change to
+  the head, the loss or the label injection — it bins on fit and takes the predicted
+  distribution's mean on predict. The output is natively distributional: `predict_quantile`
+  and `predict_interval` expose a shape that a Gaussian head could not represent, which is
+  the property loss given default actually needs.
+- **TabArena coverage 51% -> 90%** (46 of 51). Declaring `multiclass` and `regression` leaves
+  `max_features=136` as the only remaining exclusion. The fraction is derived from TabArena's
+  task metadata at run time, not written down, so it cannot drift from what was executed.
+  `FINTFM_PROBLEM_TYPES` narrows a run to one type, which is what keeps a binary score
+  comparable with §98/§101 after the other two were added.
 - **A multiclass instrument** (`fintfm-capability --class-sweep`). The capability suite was
   binary-only, so "trained at `--max-classes 10`" was a statement about a command line. The
   trained checkpoint clears its own untrained control at K = 3, 5 and 10 (§99). The accuracy
@@ -38,6 +49,14 @@ to the model and a part that does not.
   the headline. §98's attribution was one dataset deep and is corrected.
 
 ### Fixed
+
+- **Target statistics were gated to binary targets**, so every regression dataset would have
+  silently fallen through to frequency encoding on the very run that declared regression
+  supported — discarding the label information on a quarter of the suite. A rate is a mean of
+  an indicator, so the out-of-fold arithmetic already worked for continuous targets; the gate
+  was narrower than the maths. The line that actually matters is quantity versus name:
+  integer multiclass codes stay on frequency encoding, because averaging against "class 3" is
+  §100's mistake moved to the target side.
 
 - `hf jobs run` attaches and streams logs unless given `--detach`, so a loop launching three
   jobs silently launched one. Recorded in `docs/HF_JOBS.md`.

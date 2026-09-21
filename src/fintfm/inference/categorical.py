@@ -48,11 +48,19 @@ to leak. This is the K-fold analogue of CatBoost's ordered target statistics; it
 over the ordered variant because it needs no row ordering and is exactly reproducible from a
 seed.
 
-Multiclass and regression targets take **frequency encoding** instead -- the level's relative
-count in the context. It is weaker, but it is ordered, leak-free without folding, and it does
-not multiply the feature count by the number of classes, which would collide with the
-architecture's ``max_features`` cap. Extending target statistics to multiclass is deliberately
-left until a measurement asks for it.
+**Continuous targets take the same treatment**, with the level's smoothed *mean* target in
+place of its smoothed rate. The arithmetic is identical -- a rate is a mean of an indicator --
+and so is the leak, so the out-of-fold machinery applies unchanged. This matters because 12
+of TabArena's 46 eligible datasets are regression, and frequency-encoding all of them would
+have thrown away the label information on a quarter of the suite.
+
+**Multiclass targets take frequency encoding** -- the level's relative count in the context.
+It is weaker, but it is ordered, leak-free without folding, and it does not multiply the
+feature count by the number of classes, which would collide with the architecture's
+``max_features`` cap. The alternative that suggests itself -- encode against the integer class
+code -- is the §100 mistake in a new place: class 3 is not "more" than class 1, so a mean
+taken against those codes is a number with no meaning. Extending proper target statistics to
+multiclass is deliberately left until a measurement asks for it.
 """
 
 from __future__ import annotations
@@ -68,6 +76,35 @@ DEFAULT_SMOOTHING = 10.0
 #: Default number of out-of-fold partitions. Five keeps 80% of the context in each statistic
 #: while ensuring no row informs its own encoding.
 DEFAULT_N_FOLDS = 5
+
+
+def _supports_target_statistics(y: np.ndarray) -> bool:
+    """Whether target statistics are meaningful for this target, or frequency is the fallback.
+
+    A mean is meaningful when the target's *values* carry magnitude: a 0/1 indicator (whose
+    mean is a rate) or a continuous quantity (whose mean is a mean). It is meaningless for an
+    integer class code, where "class 3" is a name rather than a quantity -- averaging those is
+    the same error as label-encoding a categorical feature, moved to the other side of the
+    problem.
+
+    Args:
+        y: ``(n,)`` context targets.
+
+    Returns:
+        True for binary ``{0, 1}`` and for continuous targets; False otherwise.
+    """
+    y = np.asarray(y)
+    if not np.issubdtype(y.dtype, np.number):
+        return False
+    uniq = np.unique(y[np.isfinite(y)] if np.issubdtype(y.dtype, np.floating) else y)
+    if len(uniq) == 2 and set(np.asarray(uniq, dtype=np.float64).tolist()) <= {0.0, 1.0}:
+        return True
+    # Continuous: a float target that is not a disguised integer code. Ten distinct values is
+    # a deliberately loose floor -- a genuinely continuous column clears it trivially, and a
+    # class code that does not is safer in the frequency branch either way.
+    if np.issubdtype(y.dtype, np.floating) and not np.all(uniq == np.round(uniq)):
+        return True
+    return np.issubdtype(y.dtype, np.floating) and len(uniq) > 10
 
 
 class CategoricalTargetEncoder:
@@ -138,10 +175,9 @@ class CategoricalTargetEncoder:
         """
         X = np.asarray(X, dtype=np.float64)
         y = np.asarray(y)
-        # Binary targets get target statistics; anything else falls back to frequency, which
-        # is ordered and leak-free but carries no label information.
-        uniq = np.unique(y)
-        self._frequency = not (len(uniq) == 2 and set(uniq.tolist()) <= {0, 1})
+        # Binary and continuous targets get target statistics; integer-coded multiclass falls
+        # back to frequency, which is ordered and leak-free but carries no label information.
+        self._frequency = not _supports_target_statistics(y)
         target = y.astype(np.float64) if not self._frequency else np.zeros(len(y))
         self.prior_ = float(target.mean()) if len(target) else 0.0
         self.maps_ = {

@@ -72,13 +72,36 @@ OpenML instead (`openml.tasks.get_task(tid).get_dataset().get_data()`), as §100
 
 ## Coverage, which must be reported with any score
 
-`_supported_problem_types = ["binary"]` and `max_features=136` exclude 13 regression, 8
-multiclass and 3 wide datasets. **26 of 51 ran: 51%.** A mean over 27 datasets is not
-comparable with a mean over 51, and the leaderboard's Elo is computed only where a method
-actually ran.
+The suite is 30 binary, 13 regression and 8 multiclass. Coverage has moved twice:
+
+| declared | eligible | why the rest are excluded |
+| --- | --- | --- |
+| `["binary"]` | **26 of 51 (51%)** | 13 regression, 8 multiclass, 3 wide, 1 over 10 classes |
+| `+ multiclass` | **34 of 51 (67%)** | 13 regression, 4 wide |
+| `+ regression` | **46 of 51 (90%)** | 5 wide — `max_features=136`, nothing else |
+
+A mean over 27 datasets is not comparable with a mean over 51, and the leaderboard's Elo is
+computed only where a method actually ran, so the fraction goes beside the number every time.
+
+**Read the coverage number off `eligible_datasets()`, never off this table.** It is derived
+from TabArena's own task metadata at run time, which is what stops the documented fraction
+drifting from the executed one — the fraction here is a record of what was measured when,
+not an input to anything.
+
+Both extensions are checkpoint-gated, not merely declaration changes: multiclass needs
+`max_classes >= K`, and regression needs a checkpoint whose prior emitted continuous targets
+at all. Declaring a problem type whose checkpoint is missing would score the wrong model,
+so the adapter selects by problem type (`FINTFM_CHECKPOINT_MULTICLASS`,
+`FINTFM_CHECKPOINT_REGRESSION`) and raises when the head is too narrow.
+
+`FINTFM_PROBLEM_TYPES` narrows a run to a subset of them, which is how a binary score stays
+comparable with §98/§101 after regression was added.
 
 Capability limits are declared rather than worked around — a task the checkpoint cannot
-represent raises, so the harness records a skip instead of a meaningless score.
+represent raises, so the harness records a skip instead of a meaningless score. The one
+exception is regression's bin count, which is *our* parameter rather than the task's: a
+10-bin request against an 8-logit head is clamped to 8 and logged, because the coarser grid
+is a real answer where a truncated class set would not be.
 
 ## On submitting a PR
 
@@ -86,3 +109,8 @@ represent raises, so the harness records a skip instead of a meaningless score.
 categorical path, the submitted number would measure the workaround as much as the model. The
 order is: native categoricals (47.x), then multiclass and regression (46.x), then a submission
 whose number means what it says.
+
+Two of the three are now done — the categorical path is target statistics (§101) and coverage
+is 90% — so the remaining condition is that the multiclass and regression arms have actually
+been *scored*, not merely made runnable. A declaration without a measurement behind it is the
+same failure in a new costume: it would submit a capability whose quality nobody has checked.

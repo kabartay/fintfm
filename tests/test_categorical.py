@@ -131,3 +131,51 @@ def test_rejects_nonsense_configuration():
         CategoricalTargetEncoder(n_folds=1)
     with pytest.raises(RuntimeError, match="fit_transform must be called"):
         CategoricalTargetEncoder(categorical_features=[0]).transform(np.zeros((2, 1)))
+
+
+def test_continuous_target_gets_target_statistics_not_frequency():
+    # 19 of TabArena's 51 datasets are regression. Frequency-encoding them would discard the
+    # label information on the larger half of the suite, so this asserts the branch taken.
+    from fintfm.inference.categorical import _supports_target_statistics
+
+    rng = np.random.default_rng(0)
+    y = rng.normal(size=200)
+    assert _supports_target_statistics(y)
+    X = np.column_stack([rng.integers(0, 4, size=200).astype(float), rng.normal(size=200)])
+    enc = CategoricalTargetEncoder(categorical_features=[0], random_state=0)
+    enc.fit_transform(X, y)
+    assert not enc._frequency
+
+
+def test_integer_multiclass_codes_stay_on_frequency():
+    # Averaging class codes is the §100 mistake moved to the target side: class 3 is a name,
+    # not a quantity.
+    from fintfm.inference.categorical import _supports_target_statistics
+
+    rng = np.random.default_rng(1)
+    y = rng.integers(0, 5, size=200)
+    assert not _supports_target_statistics(y)
+    assert not _supports_target_statistics(y.astype(np.float64))
+
+
+def test_binary_target_still_gets_target_statistics():
+    from fintfm.inference.categorical import _supports_target_statistics
+
+    rng = np.random.default_rng(2)
+    assert _supports_target_statistics(rng.integers(0, 2, size=100))
+    assert _supports_target_statistics(rng.integers(0, 2, size=100).astype(np.float64))
+
+
+def test_continuous_target_encoding_is_out_of_fold():
+    # The leak that matters is the same one: a row's own target inside its own encoding. A
+    # constant-within-level target makes it visible -- with leakage the encoding reproduces
+    # the target exactly, out of fold it cannot.
+    rng = np.random.default_rng(3)
+    levels = rng.integers(0, 5, size=300).astype(float)
+    y = levels * 10.0 + rng.normal(scale=0.01, size=300)
+    X = np.column_stack([levels, rng.normal(size=300)])
+    enc = CategoricalTargetEncoder(categorical_features=[0], random_state=0)
+    oof = enc.fit_transform(X, y)[:, 0]
+    full = enc.transform(X)[:, 0]
+    # out-of-fold and full-context encodings must differ; identical means no folding happened
+    assert np.abs(oof - full).max() > 1e-6
