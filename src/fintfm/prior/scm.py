@@ -5,6 +5,11 @@ nonlinear boundaries, multi-class targets, categorical inputs) rather than
 only the financial story. Independent implementation of the well-known idea:
 sample a random layered MLP with random activations, feed Gaussian noise,
 read features and target from random hidden nodes.
+
+Task 48.17/48.19 (`openspec/changes/learn-from-peers`): edge connectivity and the
+activation set were widened against TabICLv2's published prior appendix
+(arXiv:2602.11139, Appendix E), reimplemented from the description rather than
+copied -- no code or weights from that project enter this repository.
 """
 
 from __future__ import annotations
@@ -13,7 +18,63 @@ import numpy as np
 
 from fintfm.prior.base import Task
 
-_ACTS = (np.tanh, np.sin, lambda v: np.maximum(v, 0.0), lambda v: v, lambda v: np.sign(v) * np.sqrt(np.abs(v)))
+
+def _rank_act(v: np.ndarray) -> np.ndarray:
+    """Per-column rank, rescaled to [-1, 1]. An order-statistic activation.
+
+    §35 measures that this project's *inference-time* rank conditioning is worth +0.086 AUC on
+    real financial ratios; the prior's label mechanism had no analogous function to generate
+    rank-like structure for the model to learn from. Rank is taken down each column (across
+    rows) rather than elementwise, since a rank is only defined relative to a population.
+    """
+    order = np.argsort(np.argsort(v, axis=0), axis=0).astype(np.float64)
+    n = v.shape[0]
+    return (order / max(n - 1, 1) - 0.5) * 2.0
+
+
+def _softmax_act(v: np.ndarray) -> np.ndarray:
+    """Row-wise softmax. The other order-statistic activation named in task 48.19."""
+    m = v.max(axis=1, keepdims=True)
+    e = np.exp(v - m)
+    return e / np.maximum(e.sum(axis=1, keepdims=True), 1e-12)
+
+
+_ACTS = (
+    np.tanh,
+    np.sin,
+    lambda v: np.maximum(v, 0.0),
+    lambda v: v,
+    lambda v: np.sign(v) * np.sqrt(np.abs(v)),
+    _rank_act,
+    _softmax_act,
+)
+
+
+def _cauchy_edge_mask(rng: np.random.Generator, n_in: int, n_out: int) -> np.ndarray:
+    """Sample a boolean edge mask with heterogeneous per-node connectivity.
+
+    Reimplements the mechanism described in TabICLv2's Appendix E.4: edge probability
+    ``sigmoid(A + B_i + C_j)`` with ``A``, ``B_i``, ``C_j`` drawn i.i.d. standard Cauchy. ``A``
+    sets overall connectivity; ``B_i``/``C_j`` give each source/destination node its own
+    outgoing/incoming connectivity. Cauchy's heavy tails put some node pairs near-certain and
+    others near-impossible to connect -- "exceptions to the rule" -- rather than the uniform
+    per-layer sparsity threshold this prior used before, which could not express that some
+    nodes matter far more than others.
+
+    Args:
+        rng: NumPy random generator.
+        n_in: Number of source nodes (rows of the mask).
+        n_out: Number of destination nodes (columns of the mask).
+
+    Returns:
+        ``(n_in, n_out)`` boolean mask.
+    """
+    a = rng.standard_cauchy()
+    b = rng.standard_cauchy(n_in)
+    c = rng.standard_cauchy(n_out)
+    logits = np.clip(a + b[:, None] + c[None, :], -30.0, 30.0)
+    prob = 1.0 / (1.0 + np.exp(-logits))
+    return rng.random((n_in, n_out)) < prob
 
 
 def sample_scm_task(
@@ -44,7 +105,7 @@ def sample_scm_task(
     nodes: list[np.ndarray] = []
     for _ in range(n_layers):
         w = rng.normal(0, 1, size=(h.shape[1], width)) / np.sqrt(h.shape[1])
-        w *= rng.random((h.shape[1], width)) < rng.uniform(0.3, 1.0)  # sparse edges
+        w *= _cauchy_edge_mask(rng, h.shape[1], width)
         act = _ACTS[int(rng.integers(len(_ACTS)))]
         h = act(h @ w + rng.normal(0, 0.3, size=width)) + rng.normal(0, rng.uniform(0, 0.2), size=(n_rows, width))
         nodes.append(h)
