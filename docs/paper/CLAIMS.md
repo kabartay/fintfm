@@ -407,22 +407,33 @@ cannot detect a harness-level error that flatters every arm equally. This breaks
 confirms the direction the internal measurements already pointed. A project whose public
 record contains only its own benchmarks has not been tested; this one now has.
 
-**The one genuinely favourable detail, stated at its true weight.** Two of the three best
-results are the corporate-bankruptcy panels the model was designed for
-(`taiwanese_bankruptcy_prediction` 0.9291, `polish_companies_bankruptcy` 0.8436), with
-`GiveMeSomeCredit` sixth. That is consistent with §96 rather than in tension with it: the
-deficit is general, and the target domain is where it is least bad. It is **not** evidence of
-domain-specific competence, because the gap to the baselines on those same panels is still
-negative.
+**The "genuinely favourable detail" was withdrawn in §107 and must not be reinstated.** This
+claim previously noted that two of the three best results were the corporate-bankruptcy panels
+the model was designed for (`taiwanese_bankruptcy_prediction` 0.9291,
+`polish_companies_bankruptcy` 0.8436). Those are **absolute** AUCs compared against nothing.
+By rank among the 95 methods they are **83rd and 91st**; `GiveMeSomeCredit` is 91st, `heloc`
+94th and `credit-g` 95th. Every other method scores well on Taiwanese bankruptcy too. **High
+absolute AUC on a credit panel is not competitiveness on that panel**, and the earlier
+paragraph made the error it explicitly disclaimed.
 
-**Three bounds a citation must carry.** Coverage is 51% (binary-only, ≤136 features), so the
-mean is not comparable with a full-suite mean. The categorical path was knowingly degraded,
-which §100 quantifies. And one earlier run died of `TimeLimitExceeded` from a CUDA-only device
-check on Apple Silicon — an integration defect that must not be cited as evidence about
-deployability.
+**Nor is there a specialist profile.** TabArena reports mean rank 86.26 against harmonic rank
+20.72 — the largest spread of any of the 95 methods — which reads as "near-last typically,
+near-top where it belongs". It decomposes to **one** dataset at rank 1, one at 33, one at 77,
+and 24 in the 83–95 band; **median rank 94**. The rank-1 is a single fold with a 0.0026 AUC
+margin. A harmonic mean is dominated by its minimum, and here the minimum is n = 1 (§107).
 
-**Do not submit a leaderboard PR yet.** At 51% coverage with a degraded categorical path the
-number would measure the workaround as much as the model.
+**Four bounds a citation must carry.** Coverage was 51% at §98 (binary-only, ≤136 features)
+and is now 90% by declaring multiclass and regression — the two figures are not comparable, so
+each number carries its own. The categorical path was knowingly degraded at §98, which §100
+quantifies and §101 fixes. One earlier run died of `TimeLimitExceeded` from a CUDA-only device
+check on Apple Silicon — an integration defect, not evidence about deployability. And
+**TabArena-Lite runs fold 0 only**: any per-dataset statement from it is a single draw and must
+be labelled as one.
+
+**Do not submit a leaderboard PR yet.** The two original conditions are met — the categorical
+path is target statistics (§101) and coverage is 90% — but the multiclass and regression arms
+are *runnable*, not *scored* on real data. Submitting a declared capability whose quality
+nobody has measured is the same failure as submitting the label-encoding workaround.
 
 ---
 
@@ -488,3 +499,35 @@ content, cardinality and width — a far sharper target than §98 presented.
 move: 93 of 95, unchanged**, because a uniform −0.035 still loses to the methods above.
 `RF (default)` leads on 21 of 27 datasets. The stated target — untuned trees < fintfm < tuned
 trees — is not reached.
+
+---
+
+## Claim 14 — Regression and multiclass are real capabilities, not declarations
+
+**Status: OPEN.** Evidence: §99 (multiclass on synthetics), §105 (multiclass costs binary
+nothing), §106 (regression on synthetics). Open because no real-data regression or multiclass
+number exists yet.
+
+What is measured:
+
+- **Coverage 51% → 90%** (46 of 51 TabArena datasets), derived from TabArena's task metadata
+  at run time rather than asserted. `max_features=136` is the only remaining exclusion.
+- **The mixed prior is free.** A `--max-classes 10` checkpoint with the generic SCM prior
+  mixed in scores **0.7817** against the binary-only checkpoint's **0.7823** on the same 27
+  binary datasets — paired mean delta **−0.0006**, better on 13 of 27, sign test **p = 1.000**
+  (§105). Capacity spent on 10-class structure is not capacity taken from the binary task, at
+  885K parameters.
+- **The binned head regresses** (§106). The untrained control of the same architecture sits at
+  the predict-the-mean baseline on all three target shapes; the trained model reaches
+  0.34–0.72 nRMSE, beats ridge where ridge is misspecified, and produces 80% intervals
+  covering 0.771–0.847 untuned.
+
+What is **not** measured, and why the claim stays open: no real regression panel, and
+TabArena's 12 eligible regression datasets are unscored. §106's evidence is synthetic probes
+with known structure.
+
+**The trap this claim exists to flag.** On a bimodal target, an *untrained* model scores
+**higher** outer-third mass (0.8628) than the trained one (0.8083) and the truth (0.8362),
+because quantile-bin representatives are themselves concentrated at the ends. A distributional
+claim supported by outer mass alone would be measuring the binning. Only the conjunction with
+per-row assignment (Spearman 0.658 against the control's 0.055) carries it.

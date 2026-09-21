@@ -194,6 +194,51 @@ avoid sacrificing general capability. Also the cost benchmark the FinGPT line de
 against — ~$2.67M of compute, which is the asymmetry `docs/STRATEGY.md` argues not to fight
 head-on.
 
+### TabArena's nearer neighbours — the four methods immediately above us
+
+Opened 2026-09-21 because §107 needs the competitive context, and because these four sit in
+the band fintfm is trying to leave rather than at the top of the board. **Ideas only.**
+`CLAUDE.md`'s prohibition on ingesting code or weights from tabular-foundation-model products
+applies to every one of them, and a weights licence is checked separately from a code licence,
+every time — none of these has had its weights licence checked, because nothing from them is
+being ingested.
+
+**Arazi, Shapira & Reichart (2025).** *TabSTAR: A Tabular Foundation Model for Tabular Data
+with Text Fields.* [arXiv:2505.18125](https://arxiv.org/abs/2505.18125). Paper CC-BY-4.0;
+code at `github.com/alanarazi7/TabSTAR`. **The nearest structural analogue.** Learns
+*semantically target-aware* representations of text and categorical fields rather than
+encoding them by a fixed rule — the principled version of what §100/§101 does with out-of-fold
+target statistics, which is `openspec/changes/native-categoricals` task 47.4's open question.
+On TabArena it has the **second-largest rank/harmonic-rank spread** (67.67 vs 16.10) for the
+structural reason fintfm's turned out to be spurious: it is genuinely a text-field specialist.
+
+**Zeng, Dinh, Kang & Mueller (2025).** *TabFlex: Scaling Tabular Learning to Millions with
+Linear Attention.* [arXiv:2506.05584](https://arxiv.org/abs/2506.05584). Replaces quadratic
+attention with a linear variant so in-context learning reaches millions of rows. Directly
+relevant to our binding constraint: attention cost is why `max_context` is 1000 and why §83/§84
+had to measure whether context even helps. Note the trade this implies — linear attention is
+not free, and §80's finding that context is nearly flat on a 1M-row panel means more context is
+not obviously the lever for us.
+
+**Bouadi, Seth, Tanna & Sankarapu (2025).** *Orion-MSP: Multi-Scale Sparse Attention for
+Tabular In-Context Learning.* [arXiv:2511.02818](https://arxiv.org/abs/2511.02818). Code at
+`github.com/Lexsi-Labs/Orion-MSP`. Multi-scale **sparse** attention over tabular structure.
+Our two-way cell attention (§54) is dense in both directions, and `openspec/changes/
+factorized-attention` (44.x) is the remaining architectural candidate for the uniform residual
+— this is prior art on the same axis.
+
+**Bonet, Comajoan Cara, Calafell, Mas Montserrat & Ioannidis (2025).** *iLTM: Integrated Large
+Tabular Model.* [arXiv:2511.15941](https://arxiv.org/abs/2511.15941), KDD '26. Hypernetworks
+plus retrieval plus boosted-tree integration, **pretrained on real tabular datasets**. The
+retrieval component is an axis this project already measured and rejected in its
+query-conditioned form (§38, Claim 5). The real-data pretraining is the half that is
+off-limits here — not for licence reasons but for the contamination-auditability argument in
+`docs/STRATEGY.md`, which is a positioning asset rather than a constraint.
+
+**What none of these licenses.** Reading a paper licenses an *idea*. Nothing in this section
+authorises copying an implementation, a weight file, or a pretraining corpus, and a repository
+under a permissive code licence proves nothing about the weights inside it.
+
 ### Still unverified — do not cite
 
 - Credit-risk TFM evaluations reporting that TFMs are strongest in small-data PD/LGD
