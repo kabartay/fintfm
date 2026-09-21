@@ -226,6 +226,45 @@ axis found), §93 (5× data, null) and §108 (parameters, negative), this projec
 most of its effort on the half they say matters least — while being locked out of the half they
 say matters most, since "high-quality data" means real tables.
 
+### TabSwift, which independently arrived at our attention mask and has two things we lack
+
+**LAMDA-Tabular (2025).** *TabSwift: An Efficient Tabular Foundation Model with Row-Wise
+Attention.* `github.com/LAMDA-Tabular/TabSwift`.
+
+**Their split attention pattern is our row mask, arrived at independently.** "Training rows
+(with their label embeddings added) attend to each other via self-attention. Test rows attend to
+all training rows but not to each other." That is exactly the mask that makes this project's
+query chunking *exact rather than approximate* — a property asserted in `tests/` and relied on
+for every score above 2,048 queries. Independent convergence on a load-bearing design choice is
+worth citing; it is not a contribution either of us can claim.
+
+**They are the third data point against our 2D architecture.** TabSwift treats each row as a
+single token — the `(B, N, d)` form — rather than embedding cells individually. With TabDPT's
+Bitter Lessons and TabFlex's linear attention, three independent groups have chosen the cheap
+form. TabPFN, MITRA and this project use element-level 2D attention. The split is not random:
+TabDPT's own hypothesis is that synthetic-versus-real changes which architecture wins, and the
+2D camp is the synthetic camp.
+
+**Two mechanisms this project does not have:**
+
+- **Register tokens** — learnable tokens prepended to the ICL sequence, providing "additional
+  capacity for storing dataset-level information without interfering with the data tokens", and
+  discarded before decoding. `explicit-task-representation` (41.x) asks whether this model forms
+  a representation of *which task it is looking at*; register tokens are a published
+  implementation of exactly that, and 41.2 should be designed against it rather than from
+  scratch. Note this is a **dataset-level** slot — orthogonal to `column_id_dim`, which §104
+  closed and which carries *column* identity.
+- **Gated attention** — a learned `sigmoid(W·x)` gate on each attention head's output,
+  head-wise or element-wise. Cheap, architecture-local, and untested here.
+
+**One place this project is ahead, and the draft should say so.** TabSwift's regression head is
+`Linear → GELU → Linear(1)`: a **scalar**. Ours reuses the classification head over quantile
+bins (§106), so the output is a *distribution* — prediction intervals and quantiles come free,
+and the predicted density can be bimodal. For loss given default, which is bounded and piles up
+at both ends, a scalar head cannot express the shape at all. Their single checkpoint serving
+both tasks is the better engineering; our head is the better statistics, and they are
+independent choices.
+
 ### The three remaining entrants, as design references only
 
 - **TabSTAR** (arXiv:2505.18125) — semantically target-aware representations of text and

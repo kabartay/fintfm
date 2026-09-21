@@ -4,6 +4,12 @@
       proposal's first pretraining task (41.3) cites the probe-separation finding that
       justifies starting it, not merely a calendar date.
 - [ ] 41.2 **Design the explicit task token** as a config-gated addition
+      **Prior art, found 2026-09-21: TabSwift's register tokens** (`github.com/LAMDA-Tabular/
+      TabSwift`) are a published implementation — learnable tokens prepended to the ICL
+      sequence, carrying dataset-level information "without interfering with the data tokens",
+      discarded after the final layer so only data positions decode. Design against that rather
+      than from scratch, and note it is a *dataset*-level slot, orthogonal to `column_id_dim`
+      (which carries column identity and which §104 closed at 16).
       (`ModelConfig.task_token: bool = False`, matching the established additive-change pattern
       of `pooling`, `column_id_dim`, `n_cell_blocks`), pooling across context rows into one
       `z_task` that query predictions condition on. Verify: `task_token=False` reproduces every

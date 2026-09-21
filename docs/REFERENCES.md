@@ -264,6 +264,15 @@ rather than an accuracy one: this project's cosine schedule couples the learning
 step budget, which is why §108's matched-task rerun had to start fresh rather than extend. See
 task 48.9.
 
+**LAMDA-Tabular (2025).** *TabSwift: An Efficient Tabular Foundation Model with Row-Wise
+Attention.* `github.com/LAMDA-Tabular/TabSwift`. Synthetic-only, in-context, one checkpoint for
+classification and regression. Independently uses **this project's exact attention mask** —
+context rows self-attend, query rows attend to context but not to each other — which is what
+makes our query chunking exact. Contributes **register tokens** (learnable dataset-level slots,
+discarded before decoding; a published instance of `explicit-task-representation` 41.2) and
+**gated attention** (`sigmoid(W·x)` per head, head-wise or element-wise). Row-wise `(B, N, d)`
+attention rather than element-level 2D — the third peer to choose the cheap form.
+
 **What none of these licenses.** Reading a paper licenses an *idea*. Nothing in this section
 authorises copying an implementation, a weight file, or a pretraining corpus, and a repository
 under a permissive code licence proves nothing about the weights inside it.
