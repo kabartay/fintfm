@@ -385,6 +385,37 @@ with controllable difficulty** — a mechanism this project's own prior does not
 `prior-width-and-fidelity` should read against; Drift-Resilient TabPFN modulates SCM parameters
 over time for distribution shift, which is directly relevant to `temporal-financial-prior`.
 
+### EXAONE Tabular: the third confirmed instance of the licence trap, and above us at rank 7
+
+**LG AI Research (2026).** *EXAONE Tabular.* `github.com/LGAI-Research/EXAONE-Tabular`,
+arXiv:2608.25774. **On this project's own live leaderboard run: rank 7, Elo 1741** (its own
+README's self-reported 1755/2nd is a different, presumably earlier, snapshot — re-derived from
+this session's own data rather than quoted from the source, per the standing rule on re-reading
+a number before quoting it).
+
+**Code and weights checked separately, and they diverge — a third confirmed instance of the
+exact trap `docs/FINDINGS.md` §24 already names for Google's TabFM/TimesFM.** Code is
+BSD-3-Clause-LG AI Research License (permissive, commercial use fine). Weights are
+**"EXAONE AI Model License Agreement 1.2 - NC"**, verified from the licence file itself rather
+than the model card summary: §3.1 prohibits commercial use of the Model **and of its Output**
+— not only redeploying the weights, but *using predictions from them* commercially. `tabarena`
+may evaluate it because TabArena's own published leaderboard numbers are being read, not the
+checkpoint run; this project may never load `LG-AI-Research/EXAONE-Tabular` weights itself.
+
+**Architecture: Cross-axis Summary Transformer (CAST), ~20.8–21.1M parameters** — item-summary
+tokens (shape `[batch, items, 3, width]`, concatenated along the feature axis) and
+feature-summary tokens (`[batch, 32, features, width]`, concatenated along the item axis). This
+is a **fourth** independent group building a compressed cross-axis summary mechanism, after
+TabSwift's register tokens and TabPFN-2.5's "thinking" rows — `explicit-task-representation`
+(41.2) now has four published implementations to design against rather than one.
+
+**"SSMax" attention normalisation** is named but not documented in what was read; a primary-
+source detail worth chasing only if 41.2 is actually scoped, not before.
+
+**Native support for only 10 classes**, with larger label spaces needing ECOC decomposition —
+the same ceiling our own multiclass checkpoint has (`--max-classes 10`, §99), independently
+arrived at, which is at minimum a sign the ceiling is not an obviously wrong design choice.
+
 ### TabPFN-2.5, the line at the top of the board, read for engineering rather than headline
 
 **Prior Labs (2025).** *TabPFN-2.5: Advancing the State of the Art in Tabular Foundation

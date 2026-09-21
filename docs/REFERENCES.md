@@ -295,6 +295,16 @@ million-row datasets under 50 GB GPU memory. Its own related-work section is a c
 citable taxonomy of prior families across TabPFN/TabICL/MITRA/TabPFNv2/LimiX/Drift-Resilient
 TabPFN. See `docs/paper/RELATED_WORK.md`.
 
+**LG AI Research (2026).** *EXAONE Tabular*, `github.com/LGAI-Research/EXAONE-Tabular`,
+arXiv:2608.25774. Rank 7, Elo 1741 on this project's own TabArena run. **Code and weights
+licences diverge, checked separately** — code BSD-3-Clause-LG AI Research License; weights
+under "EXAONE AI Model License Agreement 1.2 - NC", whose §3.1 prohibits commercial use of the
+model's **output**, not only the weights. The third confirmed instance of the trap §24 names
+for Google's TabFM/TimesFM. May be evaluated via TabArena's own published numbers; its weights
+may never be loaded here. Cross-axis Summary Transformer (~21M params) with item- and
+feature-summary tokens — a fourth published cross-axis summary mechanism, after TabSwift's
+register tokens and TabPFN-2.5's thinking rows. See `docs/paper/RELATED_WORK.md`.
+
 **What none of these licenses.** Reading a paper licenses an *idea*. Nothing in this section
 authorises copying an implementation, a weight file, or a pretraining corpus, and a repository
 under a permissive code licence proves nothing about the weights inside it.
