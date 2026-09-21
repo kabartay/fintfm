@@ -84,14 +84,99 @@ is a source of code, weights or data (`CLAUDE.md`). Fundamental's published oil-
 beats *linear regression* rather than gradient boosting (§2), which is the evidence that the
 accuracy bar in regulated domains is lower than the validation bar.
 
+## The 2026-09-21 peer sweep, and what it costs this project's positioning
+
+Seven TabArena entrants opened on 2026-09-21 (full entries in `docs/REFERENCES.md`). Two of
+them change what this file can claim.
+
+### Nori is what we are, executed further — and it is public
+
+**Synthefy (2025).** *Nori.* `github.com/Synthefy/synthefy-nori`. **Code and weights both
+Apache-2.0**, checked separately on 2026-09-21 as the rule requires.
+
+Trained **entirely on synthetic data**, in-context, single forward pass, no fine-tuning.
+Alternating **feature attention and sample attention** — independently the same two-way
+structure as this project's cell attention (§54), which is mild external validation of that
+design and simultaneously removes it from the contribution list. Hierarchical-DAG SCM prior
+with 8 edge-function types, 9 regression target families, an ExtraTrees learnability filter,
+and a **999-quantile pinball head**.
+
+**"Synthetic-only" is no longer a differentiator.** Claim 2 rests on a synthetic-only prior
+with an auditable provenance argument; the *synthetic-only* half is now published, permissively
+licensed, and better executed by someone else. What survives is the **financial** prior, the
+provenance *argument* (not the technique), and the calibration result — a narrower claim than
+the one currently written, and the paper must make it in that narrower form.
+
+**Their scaling curve is the most useful number anyone has published for us:**
+
+| variant | parameters | TabArena R² | overall R² (95 tasks) |
+| --- | --- | --- | --- |
+| nori-6m | 6M | 0.8069 | 0.7567 |
+| nori-30m | 30M | 0.8099 | 0.7588 |
+| nori-100m | 100M | 0.8118 | 0.7601 |
+
+16.7× parameters returns **+0.0049** on TabArena and **+0.0034** overall. The metric is not
+ours and the number does not transfer; the order of magnitude does. Our residual is **0.035**
+(§101). **A perfectly executed scaling programme would not have closed it** — which is worth
+stating in the paper explicitly, because "the model is small" is the explanation a reader will
+reach for and it is quantitatively insufficient.
+
+Nori is also **regression-only** (`_supported_problem_types = ["regression"]`), which is the
+one axis where our declared coverage is broader.
+
+### The counter-thesis is now the field's direction, and it is aimed at our foundation
+
+**Spinaci, Polewczyk, Hoffart, Kohler, Thelin, Klein (2025).** *ConTextTab: A Semantics-Aware
+Tabular In-Context Learner*, arXiv:2506.10707. Since renamed **SAP-RPT-1-OSS**
+(`github.com/SAP-samples/sap-rpt-1-oss`); the checkpoint is unchanged.
+
+Their abstract states the position directly: table-native ICL architectures' "**exclusive
+training on synthetic data limits their ability to fully leverage the rich semantics and world
+knowledge contained in real-world tabular data**". They train on large-scale real tables and
+set a new standard on CARTE.
+
+**Bonet, Comajoan Cara, Calafell, Mas Montserrat, Ioannidis (2025).** *iLTM*,
+arXiv:2511.15941, KDD '26. Pretrained on **more than 1,800 heterogeneous classification
+datasets**; tree-derived embeddings, a meta-trained hypernetwork, MLPs and retrieval in one
+architecture. Reports beating well-tuned GBDTs and leading deep tabular models.
+
+**TabDPT** (already recorded below as a lead) makes the same argument from the other side.
+
+**This is three independent groups arguing that synthetic-only is a ceiling, not a virtue.**
+This project cannot follow them, and the reason is not licensing: `docs/STRATEGY.md`'s
+differentiator is *auditable* freedom from benchmark contamination, which real-table
+pretraining destroys by construction. That trade must be argued in the paper rather than
+assumed, with the accuracy cost named — and the honest framing is that we are choosing a
+provenance property over accuracy, in a regulated domain where the provenance property is
+worth paying for. Task 48.7 records it as a reversible decision.
+
+### The three remaining entrants, as design references only
+
+- **TabSTAR** (arXiv:2505.18125) — semantically target-aware representations of text and
+  categorical fields. The principled version of §100/§101's out-of-fold target statistics, and
+  `native-categoricals` task 47.4's open question. Second-largest rank/harmonic-rank spread on
+  TabArena, for the structural reason §107 showed ours was spurious: it is genuinely a
+  specialist.
+- **TabFlex** (arXiv:2506.05584) — linear attention, in-context learning at millions of rows.
+  Aimed at the constraint that caps `max_context` at 1000 here.
+- **Orion-MSP** (arXiv:2511.02818) — multi-scale **sparse** attention. Prior art on exactly the
+  axis `factorized-attention` (44.x) proposes, and 44.x should cite it rather than presenting
+  the idea as new.
+
+**Nothing from any of these enters the repository.** `CLAUDE.md`'s boundary is independent of
+licence, and Apache-2.0 on Nori's weights changes only whether we may *evaluate* it.
+
 ## What is left for us
 
 After the above, the defensible list is short and should be stated as such:
 
 1. **Measuring that the field's standard PD term structure is incoherent on 39% of real
    firms**, invisibly at portfolio level, and removing it by construction (Claim 1).
-2. **A synthetic-only prior with an auditable provenance argument** that transfers to real
-   corporate default data (Claim 2).
+2. **A ~~synthetic-only prior~~ *financial* prior with an auditable provenance argument**
+   that transfers to real corporate default data (Claim 2). **Narrowed 2026-09-21:** Nori is
+   synthetic-only, in-context, Apache-2.0 in both code and weights, and further along. The
+   technique is not ours to claim; the domain-specific generative story and the provenance
+   *argument* are what remain.
 3. **Rank conditioning for financial ratios** — a preprocessing default inherited from general
    tabular work that is wrong here, quantified at +0.086 AUC (Claim 3).
 4. ~~Query-conditioned retrieval over global prototype selection~~ — **resolved against us**
@@ -102,7 +187,12 @@ After the above, the defensible list is short and should be stated as such:
 Not on the list: the architecture, in-context learning, hazard models, conformal prediction,
 "context construction matters", or retrieval.
 
-**Three of the eight candidate claims have now been superseded or retracted by reading one
+**Four of the eight candidate claims have now been superseded, narrowed or retracted by
+reading papers and running comparisons** — the fourth by a single afternoon's reading of the
+TabArena field, which cost nothing and removed a differentiator that would otherwise have been
+written into a draft.
+
+**Three of the original eight were superseded or retracted by reading one
 paper and running one comparison.** That is the value of this file existing before a draft
 does, and it is an argument for reading the benchmark's own paper *before* scoring on its
 data rather than after.

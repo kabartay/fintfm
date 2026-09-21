@@ -277,3 +277,29 @@ The one encouraging pattern: **two of its three best datasets are the corporate 
 panels it was designed for** (`taiwanese_bankruptcy_prediction` 0.9291,
 `polish_companies_bankruptcy` 0.8436), with `GiveMeSomeCredit` sixth. The model is least bad
 where it was aimed.
+
+## Scale cannot close the gap, and a peer's published curve is why we know
+
+§104 closed `column_id_dim`, §102 found no axis in the uniform ~0.035 residual and §103
+weakened the mechanism it proposed, leaving **scale** as the only standing explanation. §108's
+first attempt at it lost 0.0077 on TabArena binary — on a confounded design, since the larger
+model ran at batch 4 against the baseline's batch 8 and therefore saw **half the tasks** at
+matched steps. A matched-task rerun is in flight and a confounded negative is not a negative.
+
+**But the hypothesis was already capped by evidence we did not generate.** Synthefy's Nori
+publishes a clean scaling curve for a synthetic-prior in-context model: 6M → 100M parameters,
+a 16.7× increase, returns **+0.0049 R² on TabArena** and **+0.0034 overall across 95 tasks**.
+The metric is not ours and the number does not transfer. The order of magnitude does: in this
+model class an order-of-magnitude scale-up returns single-digit thousandths, and our deficit is
+**0.035**.
+
+**State this in any draft, because "the model is small" is the explanation a reader will reach
+for.** It is the explanation this project reached for too, for weeks, and it is quantitatively
+insufficient by roughly an order of magnitude. The residual is therefore something other than
+capacity — architecture, prior, or inference — and `openspec/changes/learn-from-peers` task
+48.1 tests the cheapest remaining candidate: that §108 scaled the wrong dimension, since
+Nori-6M is 16 layers at width 128 where our scale-up went wide rather than deep.
+
+The honest limitation is broader than the finding. **This project spent GPU budget on a
+hypothesis that a competitor's public README had already bounded**, and the cost of reading the
+field was one afternoon. That is now a standing instruction in `CLAUDE.md`.

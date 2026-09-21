@@ -374,6 +374,44 @@ otherwise get relearned the hard way; `README.md` is what the repository is and 
 right now. Keep `README.md`'s status section honest — it's the one document nothing tests, so
 it goes stale silently if a claim in it stops being true and nobody rereads it.
 
+## Read the field periodically, and write what you find into `docs/paper/`
+
+Standing instruction, 2026-09-21. **The competitive landscape is a research input, not
+background.** One afternoon spent opening seven TabArena entrants produced three things no
+experiment here would have produced:
+
+- **A published scaling curve that caps a hypothesis.** Nori reports 6M → 100M parameters
+  buying +0.0049 R². Our residual is 0.035 (§101). Scale was the leading remaining explanation
+  and a *perfectly executed* scaling programme would not have closed the gap — knowable for
+  free, and not knowable from our own runs at any price.
+- **A differentiator quietly lost.** Nori is synthetic-only, in-context, Apache-2.0 in both
+  code and weights. "Synthetic-only prior" was half of Claim 2 and is no longer ours to claim.
+  Finding that in a reviewer's report instead would have been much more expensive.
+- **A design axis we had never varied.** Nori-6M is 16 layers at width 128; our scale-up went
+  wide, not deep, and lost (§108). The peer's aspect ratio is a cheap experiment nobody here
+  had thought to run.
+
+So, periodically — when a benchmark run lands, or a peer appears on a leaderboard:
+
+- **Open the primary source.** An abstract or a relayed summary is a lead, not a citation
+  (`docs/REFERENCES.md` quarantines these for a reason, and `docs/POSTMORTEM.md` records a
+  WebFetch summariser fabricating a results table).
+- **Check the weights licence separately from the code licence, every time** — the rule above
+  applies here and nowhere is it more tempting to skip.
+- **Write it into `docs/paper/RELATED_WORK.md`** (positioning and what is left for us) and
+  `docs/REFERENCES.md` (the verified literature list). A finding about the field belongs in
+  the paper workspace, not in a chat log — same argument as "findings live here, not in commit
+  messages".
+- **Update `docs/paper/CLAIMS.md` when a claim narrows.** It records supersessions as
+  prominently as wins; a claim that quietly stopped being ours is the failure mode the ledger
+  exists to prevent.
+- **File the adoptable ideas as openspec tasks with named falsifications**, not as a wish list.
+  `openspec/changes/learn-from-peers` is the pattern.
+
+**Reading is not ingesting.** The licensing boundary above is independent of licence: no code,
+weights or training data from any tabular-foundation-model product enters this repository, and
+a permissive licence changes only whether we may *evaluate* it.
+
 ## Re-read a number before quoting it, and check what it was measured on
 
 Cost a wrong headline caveat in `docs/FINDINGS.md` §80, propagated into the claims ledger and

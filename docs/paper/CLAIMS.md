@@ -58,7 +58,18 @@ measurement of a live defect, never as a new method.
 
 ## Claim 2 — A synthetic-only prior transfers to real corporate default data
 
-**Status: SINGLE DRAW, and narrower than originally hoped.** The mechanism that broke the
+**Status: SINGLE DRAW, narrower than originally hoped, and NARROWED AGAIN 2026-09-21.**
+
+**The "synthetic-only" half is no longer ours to claim.** Synthefy's Nori is synthetic-only,
+in-context, single-forward-pass, **Apache-2.0 in both code and weights** (checked separately),
+and further along — alternating feature/sample attention, an 8-edge-function SCM prior, 9
+target families, a learnability filter, a 999-quantile head, and a published scaling curve.
+The *technique* is public and permissively licensed. What remains defensible is the
+**financial** generative story, the provenance *argument* (not the mechanism), and the
+calibration result. Any draft must make the claim in that narrower form; see
+`docs/paper/RELATED_WORK.md`.
+
+**Everything below still holds as measured.** The mechanism that broke the
 original measurement is fixed and independently confirmed; what transfer exists is now
 measured, and it does not generalise the way the original claim assumed.
 
