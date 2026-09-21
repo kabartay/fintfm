@@ -309,12 +309,19 @@ evidence for *real-data* scaling. They are not evidence that synthetic-prior sca
 power laws — and §93, §108 and Nori's curve are three independent observations that it does
 not.
 
-**Three groups argue synthetic-only saturates — and one result says they are wrong about the
-reason.** TabDPT explicitly, ConTextTab explicitly and iLTM by construction all take real-table
-pretraining as the axis that keeps paying. But **MITRA** (arXiv:2510.21204) is synthetic-only,
-beats TabPFNv2 and TabICL on classification *and* regression, and sits at **rank 8, Elo 1729**
-on the TabArena board this project places 93rd on. Its entire contribution is **prior design**:
-a curated mixture chosen for *performance, diversity and distinctiveness*.
+**Three groups argue synthetic-only saturates, and the leaderboard says otherwise.** §110
+classifies all 95 TabArena methods by pretraining corpus: **every one of the top 14 ranks is
+synthetic-pretrained**. LimiX-2 is first at Elo 1872 on SCM-generated synthetic data alone;
+TabPFN-3.5, Mitra-v2 and TabICLv2 follow. The first entry with any real data is RealTabPFN-2.5
+at 15 — itself synthetic-pretrained with real adaptation — and the best model trained on a real
+corpus is TabDPT-Turbo at **21**. TabDPT, ConTextTab and iLTM are each right about their own
+ablations and none of them places above the synthetic frontier.
+
+**So decision D2's synthetic-only constraint costs nothing measurable in rank.** It forecloses
+an axis three groups are actively mining, and the benchmark says that axis is not where the
+frontier is. **MITRA** (arXiv:2510.21204) shows what does move: synthetic-only, beating TabPFNv2
+and TabICL, at **rank 8** — with **prior design** as its entire contribution, a curated mixture
+chosen for *performance, diversity and distinctiveness*.
 
 **That relocates the limitation rather than removing it.** The evidence does not say synthetic
 data saturates; it says synthetic data saturates **when the prior is wrong**, and that a better
@@ -331,10 +338,13 @@ tabular data is full of threshold structure. A draft must state that the prior m
 evaluated against MITRA's three criteria, because that is a gap in the work rather than a
 property of the domain.
 
-Decision D2's cost is therefore **narrower than the pessimistic reading**: real-table
-pretraining is one route to the frontier and MITRA demonstrates another that D2 permits. What
-remains a genuine cost is that the auditability claim forecloses an axis the field is actively
-mining, and a draft must say so rather than treating synthetic-only as costless purity.
+**Decision D2's cost is therefore smaller than two earlier drafts of this section claimed,
+and the drafting itself is the limitation worth reporting.** This entry was rewritten three
+times in one session — once per arriving abstract — before anyone checked the rank ordering that
+settles it (§110). A related-work argument assembled in the order papers arrive is a reading
+log. What remains a genuine cost is narrow: real adaptation *on top of* synthetic pretraining
+(RealTabPFN-2.5, rank 15) is a route D2 forecloses and the frontier does use, so the honest
+statement is that D2 costs the adaptation step, not the foundation.
 
 **State this, because "the model is small" is the explanation a reader will reach for.** It is
 the explanation this project reached for too, for weeks, and it is quantitatively insufficient

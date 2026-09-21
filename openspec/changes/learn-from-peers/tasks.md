@@ -115,3 +115,21 @@
       trained on prior A scored on tasks from prior B — rather than asserted from the generator's
       source code. A prior whose tasks another prior's model already solves is adding step count,
       not signal, which is the §93 null's most likely explanation.
+- [ ] 48.15 **Evaluate moving the objective from `p(y | x, D)` to `p(x, y | D)`.** LimiX-2 —
+      **rank 0 on TabArena, Elo 1872, synthetic-only, SCM-pretrained, Apache-2.0** — replaces
+      target-centric prediction with "a context-dependent representation of the joint structure
+      underlying data generation", trained by context-conditional masked modelling. This project
+      amortises `p(y | x, D_context)` explicitly, in `README.md` and `docs/ARCHITECTURE.md`.
+      Three things follow from the change and the first is why it matters here: **every column
+      becomes a training signal rather than only the designated target**, which is the general
+      form of 48.12 and attacks the 48,000-task shortfall without real data; one model then
+      serves classification, regression, imputation and generation as conditional queries,
+      where this project needs a checkpoint per problem type plus a binning wrapper (§106); and
+      LimiX-2 reports feature attention recovering the causal skeleton, which
+      `cell-attention-and-task-inference` 39.7 proposed probing and never did.
+      Verify: scope this as a **measurement before a rewrite** — a masked-column objective is
+      added behind a flag and compared against the current target-only objective at matched
+      tasks on the same five V4FinBench folds, *before* anything in the inference API changes.
+      The failure mode to name in advance: masked modelling spends capacity on reconstructing
+      features nobody will ever query, and at 885K parameters that trade may be strictly bad —
+      LimiX-2 is 16M and its 2M variant is the relevant comparison, not its headline.

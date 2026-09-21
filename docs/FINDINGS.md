@@ -7398,3 +7398,95 @@ inside the subset we are scored on.
 nothing from a project that cannot be audited either. The prior's generator is in this
 repository and the checkpoints are reproducible from it; that must stay true, and a draft making
 this argument has to say exactly how a reader would verify our side.
+
+## §110 — The top of TabArena is synthetic-only, and I concluded the opposite twice before measuring it
+
+**How these numbers were produced.** MEASURED, from the leaderboard §105's own run printed
+(`eval/mixedprior`, 95 methods), cross-referenced against each model's stated pretraining
+corpus in its paper or repository. No model was run. **Classification of a corpus as synthetic
+or real is from the authors' own statements**; two entries are marked inferred and should not
+be cited without checking.
+
+### The measurement
+
+| rank | model | Elo | pretraining corpus |
+| --- | --- | --- | --- |
+| **0** | **LimiX-2** | **1872** | **synthetic** — SCMs "spanning diverse graph structures, functional mechanisms, and observation processes" |
+| 1 | TabPFN-3.5 | 1812 | synthetic |
+| 2 | TabPFN-3.5-Fast | 1801 | synthetic |
+| 8 | Mitra-v2 | 1729 | synthetic (curated prior mixture) |
+| 10 | TabICLv2 | 1632 | synthetic *(inferred from the TabICL line)* |
+| 12 | TabPFN-3 | 1628 | synthetic |
+| 13 | TabPFN-2.6 | 1578 | synthetic |
+| 15 | RealTabPFN-2.5 | 1532 | **hybrid** — synthetic pretraining, real adaptation |
+| 21 | TabDPT-Turbo | 1431 | **real** (OpenML corpus) |
+| 23 | LimiX | 1405 | synthetic |
+| 24 | iLTM (tuned+ens) | 1397 | **real** (>1,800 datasets) |
+| 25 | TabICL | 1391 | synthetic |
+| 38 | BetaTabPFN | 1343 | synthetic *(inferred)* |
+| 55 | SAP-RPT-OSS (ConTextTab) | 1249 | **real** |
+| 56 | TabDPT | 1247 | **real** |
+| 67–78 | TabSTAR | 1101–1178 | **real + text** |
+| 93 | FinTFM | 813 | synthetic (financial + SCM) |
+
+**Every one of the top 14 ranks is synthetic-pretrained.** The first entry with any real data is
+RealTabPFN-2.5 at 15, and it is *synthetic-pretrained with real adaptation*. The best model
+trained on a real corpus is TabDPT-Turbo at **21**.
+
+### The conclusion, which is the opposite of what three abstracts assert
+
+TabDPT states real data "can lead to significantly faster training and better downstream
+generalization"; ConTextTab that "exclusive training on synthetic data limits" a model; iLTM
+pretrains on 1,800 real datasets. **All three are correct about their own ablations and wrong
+as a description of the field**, at least on this benchmark: their thesis does not place them
+above the synthetic-only frontier.
+
+So decision D2's synthetic-only constraint costs **nothing measurable in rank**. It forecloses
+an axis three groups are mining, and the benchmark says that axis is not where the frontier is.
+That is a materially stronger position than the one recorded earlier today, and it was available
+from a table this project had already printed.
+
+### The methodological failure, recorded because it is the point
+
+**I revised this conclusion three times in one session, each time from whichever abstract had
+arrived most recently:**
+
+1. After Nori's scaling curve — "scale cannot close the gap", written into `LIMITATIONS.md`.
+2. After TabDPT, ConTextTab and iLTM — "the field converges on synthetic-only saturating, with
+   real-table pretraining the axis that keeps paying", written into the same file.
+3. After MITRA — "synthetic saturates only when the prior is wrong", written into the same file
+   again.
+
+Each revision was defensible on its evidence and the sequence was still wrong, because **the
+evidence that settles it is a rank ordering, not an abstract**, and it was in a file on this
+machine the whole time. Three papers arguing for real data is a fact about who publishes, not
+about what wins.
+
+The rule this earns: **when peer claims conflict, find the measurement that adjudicates them
+before writing any of them down.** A related-work section assembled from abstracts in arrival
+order is a reading log, and `docs/paper/CLAIMS.md` exists because this project has made the
+equivalent mistake with its own numbers (§80, §98, §107).
+
+### What LimiX-2 actually contributes, and why it is the deepest idea in the sweep
+
+Its **contextual mechanism network** changes the objective. Conventional tabular PFNs — this
+project included, explicitly so in `README.md` and `docs/ARCHITECTURE.md` — amortise
+`p(y | x, D_context)`. LimiX-2 learns **`p(x, y | D_context)`**: "a context-dependent
+representation of the joint structure underlying data generation", trained by
+context-conditional masked modelling.
+
+Three consequences follow, and the first is the one this project should care about:
+
+- **Every column becomes a training signal**, not just the designated target. That is the
+  general form of TabDPT's SSL re-targeting and of task 48.12, and it attacks the 48,000-task
+  shortfall without real data (`CLAUDE.md`, "Count the tasks, not the steps").
+- **One model serves classification, regression, imputation and generation**, because all four
+  are conditional queries against a joint — where this project needs a separate checkpoint per
+  problem type and a binning wrapper for regression (§106).
+- **Causal awareness falls out**: they report feature attention recovering the causal skeleton.
+  This project has a feature-attention stage and has never probed it, which is
+  `cell-attention-and-task-inference` task 39.7 sitting unstarted.
+
+**It is also first-place, synthetic-only, SCM-based and Apache-2.0** — the closest thing to an
+existence proof that this project's chosen constraints are compatible with the frontier, and
+the clearest statement of how far its current objective is from it.
