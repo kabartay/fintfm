@@ -336,6 +336,13 @@ def main() -> None:
              "that separates 'our prior is too hard' from 'the model cannot learn'",
     )
     p.add_argument(
+        "--p-regression", type=float, default=0.0,
+        help="probability of drawing a regression task: the SCM prior's continuous latent "
+             "kept rather than thresholded, binned on context quantiles. Bins share the "
+             "classification head, so this needs no architecture change (see "
+             "fintfm/inference/binning.py)",
+    )
+    p.add_argument(
         "--p-crossed", type=float, default=0.0,
         help="probability of a crossed-design task (docs/FINDINGS.md §66, prior/crossed.py): "
              "SCM features under the financial prior's label mechanism, isolating whether the "
@@ -459,6 +466,7 @@ def main() -> None:
         n_horizons=args.n_horizons,
         p_trivial=args.p_trivial,
         p_crossed=args.p_crossed,
+        p_regression=args.p_regression,
         identity_shuffle=args.identity_shuffle,
         # the default-rate envelope comes from configuration, because a prior that cannot
         # generate the regime being evaluated is the defect behind docs/FINDINGS.md §26

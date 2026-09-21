@@ -213,3 +213,42 @@ def test_collate_bins_continuous_targets_on_context_rows_only():
     # And the edges must actually differ from whole-task edges, or the test proves nothing.
     whole = QuantileBinner(n_bins=5).fit(task.y_continuous)
     assert not np.allclose(expected.edges_, whole.edges_), "context and full edges coincide"
+
+
+def test_the_mixture_draws_regression_tasks_and_they_batch_with_classification():
+    """Regression and classification must share a batch, or training needs two loops.
+
+    `collate` refuses to mix survival with binary-only tasks because a padded period would
+    corrupt the likelihood. Regression carries no such hazard: each task's bin count travels
+    in `TaskBatch.n_classes` exactly as a classification task's class count does, so a mixed
+    batch is well-formed. This asserts that rather than leaving it to inspection.
+    """
+    import numpy as np
+
+    from fintfm.prior.base import collate
+    from fintfm.prior.mixture import PriorConfig, sample_task
+
+    rng = np.random.default_rng(0)
+    cfg = PriorConfig(max_features=8, max_classes=6, p_financial=0.5, p_regression=0.5)
+    tasks = [sample_task(rng, cfg, n_rows=120) for _ in range(30)]
+    sources = {t.source for t in tasks}
+
+    assert "scm-regression" in sources, f"no regression task drawn: {sources}"
+    assert len(sources) > 1, f"the mixture collapsed to one prior: {sources}"
+
+    batch = collate(tasks[:8], n_ctx=60, max_features=8)
+    assert batch.y.min() >= 0
+    assert int(batch.n_classes.max()) <= 6
+    assert batch.y.max() < batch.n_classes.max()
+
+
+def test_a_regression_task_is_refused_when_a_survival_horizon_is_requested():
+    """A regression target has no event time; silently dropping the horizon would mislead."""
+    import numpy as np
+    import pytest
+
+    from fintfm.prior.mixture import PriorConfig, sample_task
+
+    cfg = PriorConfig(max_features=8, p_financial=1.0, p_regression=1.0, n_horizons=4)
+    with pytest.raises(ValueError, match="regression task has no event time"):
+        sample_task(np.random.default_rng(0), cfg, n_rows=60)

@@ -17,7 +17,7 @@ from fintfm.prior.financial import (
     MIN_EXPECTED_POSITIVES,
     sample_financial_task,
 )
-from fintfm.prior.scm import sample_scm_task
+from fintfm.prior.scm import sample_scm_regression_task, sample_scm_task
 from fintfm.prior.trivial import sample_trivial_task
 
 
@@ -40,6 +40,11 @@ class PriorConfig:
             identities (``equity = assets - liabilities``) while leaving the label and each
             column's own marginal distribution untouched. Diagnostic for ``docs/FINDINGS.md``
             §67-§71 (task 38.11); default False reproduces every prior checkpoint's behaviour.
+        p_regression: Probability of drawing a **regression** task instead — the SCM prior's
+            continuous latent kept rather than thresholded, binned on context quantiles by
+            :func:`fintfm.prior.base.collate`. Mixing freely with classification tasks in one
+            batch is safe: each task carries its own bin count in ``TaskBatch.n_classes``,
+            exactly as a classification task carries its own class count.
         p_crossed: Probability of drawing a **crossed-design** task instead —
             ``prior/crossed.py``'s ``sample_scm_features_financial_label``: the generic SCM
             prior's feature-generating computational graph, labelled with the financial
@@ -78,6 +83,7 @@ class PriorConfig:
     p_financial: float = 0.7
     p_trivial: float = 0.0
     p_crossed: float = 0.0
+    p_regression: float = 0.0
     identity_shuffle: bool = False
     n_rows: int = 256
     min_ctx_frac: float = 0.3
@@ -104,6 +110,14 @@ def sample_task(rng: np.random.Generator, cfg: PriorConfig, n_rows: int | None =
         raise ValueError(
             "n_horizons requires p_financial=1.0; the SCM prior has no time axis and a "
             "mixed batch cannot carry a coherent survival likelihood"
+        )
+    if cfg.p_regression and rng.random() < cfg.p_regression:
+        if cfg.n_horizons is not None:
+            raise ValueError(
+                "n_horizons requires a survival label; a regression task has no event time"
+            )
+        return sample_scm_regression_task(
+            rng, n, max_features=cfg.max_features, n_bins=cfg.max_classes
         )
     if cfg.p_trivial and rng.random() < cfg.p_trivial:
         return sample_trivial_task(rng, n, max_features=min(8, cfg.max_features))

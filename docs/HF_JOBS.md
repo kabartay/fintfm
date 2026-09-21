@@ -84,8 +84,17 @@ what fills the card:
 | model | parameters | T4 (14.74 GiB), 1,024-row tasks | L4 (23 GiB) |
 | --- | --- | --- | --- |
 | small | 846,818 | fits at batch 8 | — |
-| medium | 4,878,146 | fits at batch 8 | — |
+| medium | 4,878,146 | fits at batch 8 **on the pre-cell-attention architecture only** | — |
 | large | 14,506,466 | fits at batch **4**; batch 8 OOMs by ~1.2 GiB with only 26 MiB unallocated, so this one is real capacity rather than fragmentation | used for batch 8, to keep the scaling curve matched |
+
+**Cell attention invalidates the table above, and the probe that says so was already run.**
+`n_cell_blocks=1` keeps cells un-pooled and attends across rows within each feature, which the
+2026-09-19 `fintfm-memprobe` measured as OOM for **medium at batch 8 / 1,024 rows even on a
+23.7 GB L4**, fitting only at 512 rows (12.28 GB). Feature chunking changes nothing there —
+12.28 GB at `chunk=None` against 12.31 GB at `chunk=4` — exactly as §94 found for training
+memory generally. A medium cell-attention run therefore needs **batch 4**, which keeps the
+same batch x rows product as the probe's passing cell. One run was lost to OOM in 2026-09-21
+by reading this table instead of that probe.
 
 The practical consequence: **wide tables are memory-bound before they are compute-bound here**,
 and a scaling study has to hold batch size constant across sizes or it is comparing two things
