@@ -7325,3 +7325,76 @@ is simply the rank-space view of.
 It also sets a standing rule: **a per-dataset claim from TabArena-Lite is a single fold.**
 Ranks aggregated over 27 datasets are usable; a statement about one dataset is an anecdote and
 must be labelled as one.
+
+## §109 — A competitor's published training list overlaps the benchmark it is scored on, and only publishing it made that visible
+
+**How these numbers were produced.** MEASURED, set intersection of two published lists. TabDPT's
+training datasets are enumerated in Ma, Thomas et al. (arXiv:2410.18164) Table B.1 — 123 named
+OpenML datasets. TabArena's 51 evaluation datasets come from `TabArenaContext().task_metadata`.
+Matched on dataset name, exactly and after normalising case/separators. **No model was run.**
+
+### The overlap
+
+**7 of TabArena's 51 evaluation datasets (13.7%) appear by name in TabDPT's training list:**
+
+| dataset | problem type | features | eligible for fintfm |
+| --- | --- | --- | --- |
+| Amazon_employee_access | binary | 9 | **yes** |
+| Diabetes130US | binary | 47 | **yes** |
+| heloc | binary | 23 | **yes** |
+| wine_quality | regression | 12 | **yes** |
+| APSFailure | binary | 170 | no (>136 features) |
+| kddcup09_appetency | binary | 212 | no |
+| QSAR-TID-11 | regression | 1024 | no |
+
+Three of them — `Amazon_employee_access`, `Diabetes130US`, `heloc` — are inside the 27-dataset
+binary subset every fintfm TabArena number in §98, §101, §105 and §108 is averaged over.
+
+### What this is, and what it is not
+
+**It is not an accusation, and the paper must not make it one.** TabDPT's entire stated
+contribution is that real-data pretraining beats synthetic, and it names its corpus. TabArena
+draws from OpenML; so does everyone. The overlap is a structural property of a field that
+pretrains on the public dataset pool and evaluates on the public dataset pool.
+
+**Name equality is not data equality.** TabArena carries its own `tid`, not OpenML dataset
+ids, so this establishes that datasets *of the same name* appear on both sides. Confirming the
+underlying tables are identical needs an id-level or hash-level comparison that neither project
+publishes. Cite this as a **name-level overlap**, precisely, or not at all.
+
+**It is also not evidence that TabDPT's leaderboard position is unearned.** Four of the seven
+are outside fintfm's eligible set entirely, memorisation is not the only route to a high score,
+and no per-dataset attribution has been attempted here.
+
+### The finding that actually matters
+
+**TabDPT can be checked only because it published its training list.** iLTM reports pretraining
+on "more than 1,800 heterogeneous classification datasets" and ConTextTab / SAP-RPT-1 on
+"large-scale real-world tabular data"; neither enumerates them, so neither can be audited at
+all. The same is true of every commercial entrant.
+
+So the measurable overlap is **13.7% for the one project transparent enough to make it
+measurable, and unknown for the rest**. That asymmetry is the point: a benchmark with no
+contamination audit rewards opacity, because the only training list anyone can check is the
+only one anyone published.
+
+This is the concrete instance of the argument §1 imported from Meyer et al. in the abstract and
+decision D2 rests on. Until now that argument was made with someone else's general result about
+leakage; it can now be made with two named lists and a set intersection that anyone can
+reproduce in ten lines.
+
+### What it does and does not buy this project
+
+It does **not** improve any fintfm number, and must never be deployed to soften §107's
+retraction or §98's placement. A synthetic-only model that loses is still losing.
+
+What it buys is that the provenance claim stops being a promise. `docs/STRATEGY.md`'s
+differentiator is *auditable* freedom from contamination; this is the first measurement showing
+that (a) the property is not free — the field's strongest scaling results come from the corpus
+that forfeits it — and (b) it is not vacuous either, because the overlap is real, nonzero, and
+inside the subset we are scored on.
+
+**The obligation it creates is ours.** An argument that competitors cannot be audited is worth
+nothing from a project that cannot be audited either. The prior's generator is in this
+repository and the checkpoints are reproducible from it; that must stay true, and a draft making
+this argument has to say exactly how a reader would verify our side.

@@ -381,9 +381,12 @@ background.** One afternoon spent opening seven TabArena entrants produced three
 experiment here would have produced:
 
 - **A published scaling curve that caps a hypothesis.** Nori reports 6M → 100M parameters
-  buying +0.0049 R². Our residual is 0.035 (§101). Scale was the leading remaining explanation
-  and a *perfectly executed* scaling programme would not have closed the gap — knowable for
-  free, and not knowable from our own runs at any price.
+  buying +0.0049 R². Our residual is 0.035 (§101), and §93 had already measured a 5× *data*
+  increase at −0.0012 AP. Scale was the leading remaining explanation and a *perfectly
+  executed* parameter-scaling programme would not have closed the gap — knowable for free, and
+  not knowable from our own runs at any price. **Read such a curve for which axis it varies:**
+  TabDPT reports power laws in both model and data, but its own contribution is that *real*
+  data beats synthetic, so its laws are not evidence about synthetic-prior scaling.
 - **A differentiator quietly lost.** Nori is synthetic-only, in-context, Apache-2.0 in both
   code and weights. "Synthetic-only prior" was half of Claim 2 and is no longer ours to claim.
   Finding that in a reviewer's report instead would have been much more expensive.

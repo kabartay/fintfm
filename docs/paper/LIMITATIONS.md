@@ -293,13 +293,35 @@ The metric is not ours and the number does not transfer. The order of magnitude 
 model class an order-of-magnitude scale-up returns single-digit thousandths, and our deficit is
 **0.035**.
 
-**State this in any draft, because "the model is small" is the explanation a reader will reach
-for.** It is the explanation this project reached for too, for weeks, and it is quantitatively
-insufficient by roughly an order of magnitude. The residual is therefore something other than
-capacity — architecture, prior, or inference — and `openspec/changes/learn-from-peers` task
-48.1 tests the cheapest remaining candidate: that §108 scaled the wrong dimension, since
-Nori-6M is 16 layers at width 128 where our scale-up went wide rather than deep.
+**Parameters and data are separate axes, and both have now been tested here.** §93 scaled
+*tasks* 5× (48,000 → 240,000) and measured **−0.0012 AP** across five folds. §108 scaled
+*parameters* 5.7× and measured −0.0077 on TabArena binary, confounded. Nori scales parameters
+16.7× for +0.0049 R². Three measurements, three directions of "scale", no gain anywhere near
+0.035.
 
-The honest limitation is broader than the finding. **This project spent GPU budget on a
-hypothesis that a competitor's public README had already bounded**, and the cost of reading the
-field was one afternoon. That is now a standing instruction in `CLAUDE.md`.
+**TabDPT is the apparent counter-example, and reading it carefully makes the picture worse
+rather than better.** Ma, Thomas et al. (arXiv:2410.18164) report that scaling both model and
+data "leads to consistent performance improvements that follow power laws". But their
+contribution is precisely that **real** data beats synthetic: "incorporating real data during
+the pre-training phase can lead to significantly faster training and better downstream
+generalization", against "purely open-source synthetic data generators". Their power laws are
+evidence for *real-data* scaling. They are not evidence that synthetic-prior scaling follows
+power laws — and §93, §108 and Nori's curve are three independent observations that it does
+not.
+
+**So the honest limitation is sharper than "we are small".** The field's own evidence — TabDPT
+explicitly, ConTextTab explicitly, iLTM by construction — converges on synthetic-only
+pretraining **saturating**, with real-table pretraining as the axis that keeps paying. This
+project cannot take that axis without destroying decision D2's auditability claim, which is its
+differentiator in a regulated domain. **That is a real and permanent cost, and a draft must
+state it as one** rather than treating synthetic-only as costless purity.
+
+**State this, because "the model is small" is the explanation a reader will reach for.** It is
+the explanation this project reached for too, for weeks, and it is quantitatively insufficient
+by roughly an order of magnitude. `openspec/changes/learn-from-peers` task 48.1 tests the
+cheapest remaining candidate — that §108 scaled the wrong *dimension*, since Nori-6M is 16
+layers at width 128 where our scale-up went wide rather than deep.
+
+The limitation is broader than the finding. **This project spent GPU budget on a hypothesis
+that a competitor's public README had already bounded**, and the cost of reading the field was
+one afternoon. That is now a standing instruction in `CLAUDE.md`.

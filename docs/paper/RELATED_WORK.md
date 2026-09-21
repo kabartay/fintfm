@@ -150,6 +150,40 @@ assumed, with the accuracy cost named — and the honest framing is that we are 
 provenance property over accuracy, in a regulated domain where the provenance property is
 worth paying for. Task 48.7 records it as a reversible decision.
 
+### TabDPT's "Bitter Lessons" appendix, scored against what we do
+
+**Ma, Thomas et al. (2024).** *TabDPT: Scaling Tabular Foundation Models on Real Data*,
+arXiv:2410.18164, Appendix A. They list what **did not** work while building an ICL TFM. Read
+against this project's choices, one entry is a direct hit and three others contradict a peer
+or a finding here — which is more useful than agreement.
+
+| their negative result | our status |
+| --- | --- |
+| **Cell-token architectures with vertical+horizontal attention "proved more memory intensive"**; the simpler `(B, N, d)` form "permits a higher embedding dimension `d`" | **This is our architecture.** §79's 16 GB at N=2024, §84's unreachable `max_context=4000`, §94's OOM for 5M parameters at `n_rows=1024`, and §108's forced batch 4 are all the same wall. They chose the cheaper form and got a wider `d`. |
+| Robust Scaler / Power Transform: "no improvement", "slowing the training process" | **Contradicted here.** §35's rank conditioning is worth **+0.086 AUC**, six of six configurations. Their tables are general OpenML; ours have 110 of 136 features with sd > 10× IQR. Domain, not technique. |
+| NaN tokens no better than mean imputation; binary is-missing features "also failed" | **Agrees with our default** (`fillna(0)`, which is the mean post-normalisation). Note **Nori disagrees** — it uses learned mask embeddings. Two peers, opposite conclusions, so this is unsettled and cheap to test. |
+| Class embeddings and proto-network query-class similarity "hurt the performance, especially on real data" | Relevant to `regression-and-multiclass`; we use a plain `Linear(d_model, max_classes)` head and should keep it. |
+| Alternative `y_ctx` embeddings "did not lead to performance improvements **in large models with sufficient data**" | **Do not transfer this one.** §91 found removing per-cell label injection drops this model **below chance**. Their qualifier is the whole sentence — we are neither large nor data-sufficient. |
+
+**The entry that matters most is the first, and their own explanation is the reason not to
+panic.** They write: "While Hollmann et al. is able to make this architecture work, we suspect
+that the **differences between synthetic and real data** are enough to change which
+architectures are performant." TabPFN is synthetic-only and makes cell attention work; TabDPT
+is real-data and does not. **This project is synthetic-only**, so their negative result may
+simply not apply — and §78/§80/§91 measured cell attention as load-bearing here (+0.0486 AP,
+and below chance without labels).
+
+What does transfer is the **cost**: they got a wider `d` for the same memory, and this project
+is memory-bound at every turn. That is `factorized-attention` (44.x)'s thesis with an
+independent measurement behind it, and 44.x should cite this appendix.
+
+They also frame the whole list as an endorsement of the Bitter Lesson — "efficient use of
+computation and access to high-quality data are much more important for driving performance
+than architectural manipulations". Against §104 (a closed architectural lever), §102/§103 (no
+axis found), §93 (5× data, null) and §108 (parameters, negative), this project has now spent
+most of its effort on the half they say matters least — while being locked out of the half they
+say matters most, since "high-quality data" means real tables.
+
 ### The three remaining entrants, as design references only
 
 - **TabSTAR** (arXiv:2505.18125) — semantically target-aware representations of text and

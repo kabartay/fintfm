@@ -58,3 +58,39 @@
       *narrows* with dataset size. Verify: the two are reconciled or the contradiction is
       recorded — if our deficit is worst on small tables, the segment this project targets is
       the one where it is currently weakest, and that is a strategy finding, not a modelling one.
+- [ ] 48.9 **Try schedule-free optimisation, which would decouple the run length from the
+      schedule.** Defazio, Mehta, Mishchenko, Khaled & Cutkosky, *The Road Less Scheduled*
+      (NeurIPS 2024), cited by TabDPT. This project's cosine schedule is a real operational
+      constraint, not just a hyperparameter: §108's matched-task rerun had to start **fresh**
+      rather than resume, because a schedule spanning 6,000 steps cannot be extended to 12,000
+      without training the second half at an annealed-to-zero rate. Schedule-free removes the
+      horizon from the optimiser entirely. Verify: a schedule-free run is compared against the
+      cosine baseline at matched tasks on the same five V4FinBench folds, **and** the claim that
+      a run can be extended without restarting is demonstrated rather than assumed — the second
+      property is worth more here than any accuracy delta.
+- [ ] 48.10 **Test the is-missing encoding, where two peers disagree.** TabDPT reports NaN
+      tokens and binary is-missing features as no better than mean imputation; Nori uses learned
+      mask embeddings. Our adapter does `fillna(0)`, which is the mean after normalisation.
+      Verify: a learned mask embedding is measured against the current default on V4FinBench,
+      whose missingness is structural rather than random — and the result is reported as
+      settling *our* case only, since two published projects already disagree and a third data
+      point does not resolve a disagreement it was not designed to arbitrate.
+- [ ] 48.11 **Record the Bitter-Lesson critique against this project's own effort allocation.**
+      TabDPT's appendix concludes that compute and high-quality data matter more than
+      architectural manipulation. This project has spent its effort on architecture (§54, §104,
+      §44) while §93 (5× data) and §108 (5.7× parameters) both returned nulls or losses, and it
+      is locked out of "high-quality data" by decision D2. Verify: `docs/DECISIONS.md` states
+      what this project believes it gets in exchange, and names the observation that would show
+      the trade is not worth it — an unfalsifiable differentiator is a slogan.
+- [ ] 48.12 **Multiply tasks per prior draw by re-targeting, the way TabDPT's SSL does.** Their
+      procedure generates **both** classification and regression targets from *every* training
+      table, so 123 datasets yield far more than 123 tasks. The synthetic analogue is free and
+      this project does not do it: `prior/scm.py` samples a random DAG and then uses **one**
+      node as the target, discarding a graph whose every other node is an equally valid target
+      with a different, genuinely non-redundant dependency structure. Sampling `k` targets per
+      draw multiplies task count by `k` at roughly `1/k` the generation cost per task.
+      **This is the one idea here that attacks the 48,000-task shortfall without real data**
+      (`CLAUDE.md`, "Count the tasks, not the steps"). Verify: task diversity is measured, not
+      assumed — re-targeting the same graph could produce correlated tasks that inflate the
+      count without adding signal, which would look identical to a win in the step counter and
+      nowhere else. Compare against §93's 5×-volume null, which is the result this has to beat.
