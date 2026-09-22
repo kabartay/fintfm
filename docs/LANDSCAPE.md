@@ -228,3 +228,60 @@ the number must be defensible rather than merely fast. That is a narrower market
   specialist. But it cuts both ways: nothing stops them adding depth once a customer pays
   for it, so the defence has to be regulatory substance and an accumulated track record, not
   a head start.
+
+## How the open TFM projects present themselves, and what fintfm should copy
+
+Recorded 2026-09-22 after reading ten peer projects from primary sources. **Licensing posture
+and README structure both reveal commercial intent more reliably than any stated positioning
+does**, and the pattern is consistent enough to plan against.
+
+### Three postures, distinguishable at a glance
+
+| posture | who | code / weights | what the README leads with |
+| --- | --- | --- | --- |
+| **Research-adoption** | TabICL (Soda-Inria), LimiX (Stable AI + Tsinghua), Nori (Synthefy) | permissive **both** — BSD-3, Apache-2.0 | method, ablations, full pretraining code, the synthetic generator |
+| **Commercial hedge** | EXAONE (LG AI Research), Causilo (Nums AI), Google TabFM/TimesFM | permissive **code**, non-commercial **weights** | benchmark rank, usually self-reported |
+| **Productised** | Prior Labs (TabPFN) | permissive, plus a paid tier | a Nature paper, an extensions ecosystem, and a **distillation engine** for deployment |
+
+**The commercial-hedge pattern is the one to recognise.** Permissive code costs them nothing —
+the architecture is reproducible from the literature in days, which is exactly why this project
+chose Apache-2.0 (decision D6). The weights carry the restriction because the weights are the
+asset. EXAONE's licence goes further than most and bars commercial use of the **Output**, not
+just the model. Four of the projects read this month split their licences this way, and in
+every case the split is invisible from the repository's headline licence badge.
+
+### What they lead with, and why fintfm must not copy it
+
+**Every commercial entrant leads with a leaderboard rank**, and Causilo leads with one that does
+not match this project's own measurement of it (§109's neighbour: their README claims Elo
+position 1 at 1792.9; our live run puts them 6th at 1751). Leading with rank is rational when
+you have one.
+
+**We place 93rd of 95.** So rank-first presentation is unavailable, and imitating it would mean
+either burying the number or reporting a favourable slice of it — which is exactly the
+absolute-AUC-without-rank error §107 already retracted once.
+
+### What fintfm should copy instead
+
+- **From the research-adoption camp: publish the generator.** TabICL, LimiX and Nori all ship
+  their synthetic data generation. This project's prior is its distinctive asset *and* its
+  auditability argument, and those pull in the same direction: a provenance claim nobody can
+  check is a slogan. `CLAUDE.md` currently treats the mature prior as the private moat, which
+  is defensible commercially and in tension with the audit story — a decision to make
+  deliberately rather than by inertia.
+- **From TabPFN: the deployment path.** Their distillation engine converts a fitted model into
+  a dataset-specific MLP or tree ensemble for "orders-of-magnitude lower latency", aimed at
+  pipelines "constrained by latency, interpretability, or regulatory requirements". That is a
+  precise description of this project's target buyer, and this project's predict time is
+  **8.6 s/1K against a field norm near 0.1**.
+- **From nobody: lead with the claims ledger.** No peer publishes a document that tags its own
+  claims SURVIVES / SUPERSEDED / RETRACTED and records the retractions as prominently as the
+  wins. That is a genuine differentiator in a regulated domain where a model must arrive with
+  its own validation evidence, and it is the one axis on which this project is ahead of the
+  field rather than behind it.
+
+**The honest positioning that follows:** not "a competitive tabular foundation model" — the
+measurement says otherwise — but *a credit model that arrives with an auditable record of what
+has and has not been shown about it*. That is `docs/STRATEGY.md`'s existing thesis, and the peer
+sweep confirms it is the only claim here that no better-funded competitor is also making.
+
