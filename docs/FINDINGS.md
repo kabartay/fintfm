@@ -7493,6 +7493,13 @@ the clearest statement of how far its current objective is from it.
 
 ## §111 — This project's SCM prior generates tasks a *linear* model wins on, and never taught tree structure
 
+> **SUPERSEDED IN PART BY §112.** The linear baseline below was fitted on raw, heavy-tailed
+> features and failed to converge, which understated its AUC and inflated every distinctiveness
+> number here. Corrected, the SCM prior's gap is **−0.0021** (no effect), not −0.0233, so this
+> section's title claim is **withdrawn**. The conclusion it was used to justify — that no
+> member of the mixture generated axis-aligned structure — survives and is better supported
+> after the correction. Read §112 before citing anything below.
+
 **How these numbers were produced.** MEASURED, locally, no checkpoint involved. 25 binary
 tasks per prior at 800 rows, split half context / half query. Two fitted baselines —
 `ExtraTreesClassifier(n_estimators=100)` and `LogisticRegression(max_iter=1000)` — trained on
@@ -7550,3 +7557,83 @@ independent of this project's architecture, checkpoints and context construction
 diagnostic that depended on our own model could not distinguish "the prior lacks this
 structure" from "our model cannot learn this structure" — the exact confound §49 and §51 cost
 days to untangle on the capacity question.
+
+## §112 — §111's numbers were inflated by an unconditioned linear baseline; the conclusion survives, the mechanism does not
+
+**How these numbers were produced.** MEASURED, `fintfm-priorscore --priors
+financial,scm,tree,trivial --n-tasks 25`, locally, no checkpoint. Identical protocol to §111
+with one change: the linear baseline is now `QuantileTransformer(output_distribution="normal")`
+→ `LogisticRegression(max_iter=2000)` rather than raw `LogisticRegression`.
+
+### Why the change was necessary
+
+§111's run emitted `ConvergenceWarning: lbfgs failed to converge` on eight of its tasks. That
+is not cosmetic. An unconverged linear fit **understates the linear AUC**, and since
+distinctiveness is defined as `tree_auc − linear_auc`, understating the linear arm **inflates
+distinctiveness** — worst exactly where the feature tails are heaviest.
+
+Which is the financial prior. §35 measured 110 of 136 V4FinBench features with a standard
+deviation over ten times their interquartile range, and `FinancialTFMClassifier` has defaulted
+to `feature_transform="rank"` since that finding **for this exact reason**. The diagnostic was
+denying its baseline the conditioning this project's own inference path has used for weeks.
+
+### The correction
+
+| prior | distinctiveness, §111 (raw linear) | distinctiveness, corrected | swing |
+| --- | --- | --- | --- |
+| **financial** | **+0.0754** | **−0.0292** | **−0.105, sign flipped** |
+| **scm** | −0.0234 | **−0.0021** | +0.021, effectively zero |
+| tree | +0.0304 | +0.0225 | −0.008 |
+| trivial | −0.0163 | −0.0142 | — |
+
+Full corrected table:
+
+| prior | performance | diversity | distinctiveness | tree AUC | linear AUC | n |
+| --- | --- | --- | --- | --- | --- | --- |
+| financial | 0.6880 | 0.1343 | −0.0292 | 0.6261 | 0.6553 | 25 |
+| scm | 0.7106 | **0.2046** | −0.0021 | 0.6806 | 0.6827 | 21 |
+| **tree** | **0.7555** | 0.1065 | **+0.0225** | 0.7296 | 0.7071 | 25 |
+| *trivial (control)* | *0.9968* | *0.0024* | *−0.0142* | *0.9826* | *0.9968* | *25* |
+
+### What survives, and what does not
+
+**§111's headline claim does not survive as stated.** "This project's SCM prior generates
+tasks a *linear* model wins on" was measured at −0.0234; corrected, it is **−0.0021**, which is
+no effect. The SCM prior is **neutral** on this axis, not linear-favourable. Any statement
+resting on that −0.0234 is withdrawn.
+
+**§111's conclusion survives, and is now better supported.** The reason the tree prior was
+added was that no member of the mixture generated axis-aligned structure. After the correction
+that is *more* clearly true, not less: **`tree` is the only prior with positive
+distinctiveness**, and the two incumbent priors sit at −0.029 and −0.002. Before the
+correction, the financial prior appeared to be the *most* tree-favourable member at +0.0754 —
+which would have made the tree prior largely redundant and was the strongest available argument
+against building it. That argument was an artefact.
+
+**The other two criteria are unaffected and worth reading.** The SCM prior has by far the
+widest difficulty spread (diversity 0.2046 against 0.107–0.134), which is the property §42
+established this project needed and which argues against reducing its weight. The financial
+prior is the *hardest* (performance 0.6880, lowest of the three), consistent with §96's
+framing rather than in tension with it.
+
+**The `trivial` control did its job.** 0.9968 performance at 0.0024 diversity is what a
+known-easy, known-uniform prior should look like, and a harness that could not produce that
+shape on a prior built to be trivial would not be calibrated to produce any other number
+either.
+
+### The methodological point, which is the expensive part
+
+**A diagnostic this project wrote to evaluate its priors contained the exact defect this
+project had already measured, published and fixed elsewhere.** §35 is one of the older findings
+here, the rank transform has been the inference default since, and the prior scorer still
+handed raw heavy-tailed features to a linear model.
+
+The failure mode is specific and worth naming: **a baseline in a diagnostic is not a baseline
+in a benchmark.** In a benchmark a weak baseline makes our model look good and someone notices.
+In a diagnostic, a weak baseline silently becomes the *measurement*, and the number it produces
+is not obviously wrong — +0.0754 for a prior full of accounting thresholds is entirely
+plausible, which is why it was committed.
+
+The rule that follows: **a fitted baseline used as an instrument gets the same preprocessing
+the model under study gets**, and a convergence warning in a measurement is a failed
+measurement, not a log line.

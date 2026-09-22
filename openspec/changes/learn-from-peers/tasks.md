@@ -105,7 +105,7 @@
       compared against the current mixture on the same five V4FinBench folds **and** the 27
       TabArena binary datasets, with the mixture weight stated — this is the first prior change
       since the regression prior and must not be confounded with one.
-- [ ] 48.14 **Score our own prior mixture against MITRA's three criteria.** They propose
+- [x] 48.14 **Score our own prior mixture against MITRA's three criteria.** They propose
       **performance** (does a TFM pretrained on this prior alone do well on real data),
       **diversity** (does it cover a wide region of task space) and **distinctiveness** (does it
       generate structure the other priors do not). This project has never evaluated its prior on
@@ -115,6 +115,19 @@
       trained on prior A scored on tasks from prior B — rather than asserted from the generator's
       source code. A prior whose tasks another prior's model already solves is adding step count,
       not signal, which is the §93 null's most likely explanation.
+      **Done (§111, corrected by §112): `fintfm-priorscore`.** All three criteria computed
+      from *fitted* baselines rather than our own model, so the statistic cannot confuse "the
+      prior lacks this structure" with "our model cannot learn it". Result: `tree` is the only
+      prior with positive tree-versus-linear distinctiveness (+0.0225, against −0.0292
+      financial and −0.0021 SCM); the SCM prior has by far the widest difficulty spread
+      (diversity 0.2046), which argues against reducing its weight; the financial prior is the
+      hardest (0.6880). **The first version of this instrument was wrong in a plausible way** —
+      an unconditioned linear baseline on heavy-tailed features inflated distinctiveness and
+      reported the financial prior as the *most* tree-favourable, which would have argued
+      against building the tree prior at all. §112 records the correction and the rule: a
+      fitted baseline used as an instrument gets the same preprocessing the model under study
+      gets. The cross-evaluation half of this task (train on prior A, score on prior B) still
+      needs checkpoints and is not done.
 - [ ] 48.15 **Evaluate moving the objective from `p(y | x, D)` to `p(x, y | D)`.** LimiX-2 —
       **rank 0 on TabArena, Elo 1872, synthetic-only, SCM-pretrained, Apache-2.0** — replaces
       target-centric prediction with "a context-dependent representation of the joint structure

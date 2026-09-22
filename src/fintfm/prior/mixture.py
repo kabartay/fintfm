@@ -32,9 +32,10 @@ class PriorConfig:
         p_tree: Probability of drawing a **tree-structured** task
             (:func:`fintfm.prior.tree.sample_tree_task`) instead. Zero by default so existing
             checkpoints are unaffected. Selected on *distinctiveness*, not performance: §111
-            measures that this project's SCM prior generates tasks a linear model wins on
-            (ExtraTrees −0.0233 against logistic regression), so it has never taught the model
-            the axis-aligned structure every tree baseline exploits. Draws from the financial
+            measures (as corrected by §112) that `tree` is the **only** prior in this
+            mixture with positive tree-versus-linear distinctiveness, +0.0225, against −0.0292
+            for the financial prior and −0.0021 for the SCM one — so the mixture had no member
+            generating the axis-aligned structure every tree baseline exploits. Draws from the financial
             budget, since it is a general-structure prior like the SCM one.
         scm_legacy: Draw SCM tasks from the pre-48.17/48.19 prior. The control arm for the
             widened prior; see :func:`fintfm.prior.scm.sample_scm_task`. **Note that this knob
