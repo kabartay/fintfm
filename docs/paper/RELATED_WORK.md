@@ -288,6 +288,27 @@ at both ends, a scalar head cannot express the shape at all. Their single checkp
 both tasks is the better engineering; our head is the better statistics, and they are
 independent choices.
 
+### TabICL's repository, read for inference cost — the liability we measured today
+
+Implementation detail from `github.com/soda-inria/tabicl`'s README, absent from the paper.
+Recorded because **inference speed stopped being a footnote on 2026-09-22**: the deep-narrow
+architecture arm (48.1) failed to score on TabArena at all, hitting `TimeLimitExceeded` after
+8 of 27 datasets, and this project's median predict time is **8.6 s/1K against a field norm
+near 0.1**.
+
+| their mechanism | our position |
+| --- | --- |
+| **KV caching** — "cached key-value projections" for repeated inference | not implemented. Our context is fixed after `fit()` and re-projected on every `predict_proba` chunk, which is exactly the case a cache serves. The most concrete speed lever available. |
+| **O(n² + nm²)** complexity, "10× faster than TabPFN-2.5", 50K×100 in under 10 s on an H100 | the cost model `factorized-attention` (44.x) predicts, now with a peer's measured number beside it |
+| **class permutation** as an ensemble axis (`class_shuffle_method="shift"`) | independent support for `ensemble_label_swap`, which exists here to cancel a *measured defect* — §45 found predictions correlated **−0.62** with their label-swapped twin. They use the same operation as routine diversity; we use it as a repair, and the difference is worth stating rather than eliding. |
+| **feature shuffling** for diversity (`feat_shuffle_method="latin"`) | deliberately **not** an axis here: predictions are column-order invariant by construction (decision D4, asserted at 1.19e-07 maximum change), so permuting would average identical members. Their needing it is evidence their architecture is not invariant. |
+| **outlier removal** by z-score threshold before scaling | we rank-condition instead (§35, +0.086 AUC). Same problem, and ours is measured on financial tails specifically. |
+| `support_many_classes=True` beyond 10 | our ceiling is also 10 (§99); EXAONE's is too. Three independent projects at the same limit. |
+
+**The actionable item is KV caching**, and it is not an optimisation in the discretionary sense:
+a configuration that cannot finish the benchmark is not a candidate regardless of its accuracy,
+which is what 48.1's failure demonstrated. Filed as task 48.20.
+
 ### TabICLv2's prior appendix, read against `prior/scm.py` line by line
 
 **Soda-Inria (2026).** Appendix E of the same paper. Kept separate from the main entry above

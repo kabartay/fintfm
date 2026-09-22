@@ -191,3 +191,15 @@
       activation are added to `_ACTS` and a checkpoint trained with them is compared against
       the current one on V4FinBench, since this is a plausible mechanism for part of §35's
       result rather than a proven one.
+- [ ] 48.20 **Cache the context's key/value projections across query chunks.** Inference cost
+      became a blocking liability on 2026-09-22: the deep-narrow arm (48.1) could not finish
+      TabArena, raising `TimeLimitExceeded` after 8 of 27 datasets, and this project's median
+      predict time is **8.6 s/1K against a field norm near 0.1**. TabICL reports KV caching
+      plus `O(n² + nm²)` giving "10× faster than TabPFN-2.5" and 50,000×100 in under 10 s.
+      The structure here suits it exactly: `fit()` fixes the context, and `predict_proba`
+      re-projects that same context for every query chunk. Verify: predictions are **identical**
+      before and after to within float tolerance — this is an optimisation and any accuracy
+      change means it is wrong — and the speedup is reported at V4FinBench's shape (136
+      features, `max_context=1000`, 48,000 queries) rather than a synthetic best case. Note it
+      does **not** apply to `context_strategy="retrieval"`, where the context is chosen per
+      query group, the same exception that already breaks exact query chunking.
