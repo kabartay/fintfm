@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from fintfm.prior import PriorConfig, sample_financial_task, sample_scm_task, sample_task
 from fintfm.prior.mixture import sample_batch
@@ -212,3 +213,56 @@ def test_trivial_prior_is_off_by_default():
     from fintfm.prior.mixture import PriorConfig
 
     assert PriorConfig().p_trivial == 0.0
+
+
+def test_scm_task_group_shares_features_and_varies_targets():
+    # Task 48.12's whole premise: one graph, several targets. Features shared means the
+    # expensive part was amortised; labels differing means the extra tasks are tasks.
+    from fintfm.prior.scm import sample_scm_task_group
+
+    g = sample_scm_task_group(np.random.default_rng(0), 300, n_targets=4)
+    assert len(g) == 4
+    assert all(t.X.shape == g[0].X.shape for t in g)
+    # Every sibling must differ from every other in its labels; two identical targets would
+    # mean a node was reused and the batch silently contains duplicates.
+    for i, a in enumerate(g):
+        for b in g[i + 1 :]:
+            assert not np.array_equal(a.y, b.y)
+    assert all(t.source == "scm" for t in g)
+
+
+def test_scm_task_group_of_one_matches_the_single_task_path():
+    # A group of one must be an ordinary task, or `scm_reuse_graph=1` would silently change
+    # the prior rather than leaving it alone.
+    from fintfm.prior.scm import sample_scm_task_group
+
+    g = sample_scm_task_group(np.random.default_rng(3), 200, n_targets=1)
+    assert len(g) == 1 and g[0].source == "scm" and len(np.unique(g[0].y)) >= 2
+
+
+def test_scm_task_group_rejects_zero_targets():
+    from fintfm.prior.scm import sample_scm_task_group
+
+    with pytest.raises(ValueError, match="n_targets"):
+        sample_scm_task_group(np.random.default_rng(0), 100, n_targets=0)
+
+
+def test_reuse_graph_preserves_batch_size_and_mixture():
+    # The grouping must not change how many tasks a batch has, nor smuggle SCM tasks into a
+    # financial-only mixture.
+    from fintfm.prior.mixture import PriorConfig, sample_batch
+
+    for k in (1, 3, 8):
+        cfg = PriorConfig(scm_reuse_graph=k, p_financial=0.3, max_features=16)
+        b = sample_batch(np.random.default_rng(0), cfg, batch_size=8)
+        assert b.X.shape[0] == 8
+
+    cfg = PriorConfig(scm_reuse_graph=4, p_financial=1.0, max_features=16)
+    b = sample_batch(np.random.default_rng(1), cfg, batch_size=6)
+    assert b.X.shape[0] == 6
+
+
+def test_reuse_graph_defaults_to_one():
+    from fintfm.prior.mixture import PriorConfig
+
+    assert PriorConfig.scm_reuse_graph == 1

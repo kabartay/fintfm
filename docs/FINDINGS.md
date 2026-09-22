@@ -7637,3 +7637,67 @@ plausible, which is why it was committed.
 The rule that follows: **a fitted baseline used as an instrument gets the same preprocessing
 the model under study gets**, and a convergence warning in a measurement is a failed
 measurement, not a log line.
+
+## §113 — Re-targeting one SCM graph gives 2.5× the tasks per second, and the siblings are not duplicates
+
+**How these numbers were produced.** MEASURED, locally, no checkpoint. Throughput timed over
+40 tasks at 512 rows each, drawn either independently or as 10 groups of 4 sharing a graph.
+Distinctness measured with a fitted `ExtraTreesClassifier(n_estimators=80)` over 12 graphs:
+train on the context half of sibling A, score on the held-out half of A and on the held-out
+half of sibling B, both from the same graph.
+
+### The two numbers
+
+| | |
+| --- | --- |
+| 40 independent tasks | **0.20 s** |
+| 40 tasks from 10 graphs (`n_targets=4`) | **0.08 s** |
+| **speedup** | **2.53×** |
+
+| model fitted on sibling A | ROC-AUC |
+| --- | --- |
+| own task (A) | **0.7023** |
+| sibling task (B), same graph, same feature columns | **0.4775** |
+| **transfer gap** | **+0.2248** |
+
+**0.4775 is chance.** A model that solves its own target has learned nothing whatsoever about
+a sibling target computed from the same graph over literally the same feature columns.
+
+### Why this matters more than the speedup
+
+`CLAUDE.md`'s "count the tasks, not the steps" records the standing shortfall: every checkpoint
+here has trained on **48,000 tasks against a field norm near 10⁷**, roughly 200× under. §93
+tested the obvious response — 5× the volume — and measured **−0.0012 AP**, a null. §110 and
+MITRA both argue the lever is prior *quality*, not quantity.
+
+Re-targeting is the one route to volume that is not simply "more of the same", and the named
+risk was exactly that it would be: a graph's nodes are computed from shared upstream
+activations, so sibling tasks could easily be near-duplicates that inflate the step counter
+without adding signal. **That risk is measured and absent.** The transfer gap of +0.2248,
+landing the sibling at chance, is as strong a distinctness result as this measurement can
+produce.
+
+The prior was already discarding this for free: `sample_scm_task` built a graph, took one node
+as the target and threw away every other node — each an equally valid target with a different
+dependency structure over the same features.
+
+### What it does not show
+
+**Nothing about downstream accuracy.** §93's null is the standing case of a volume increase
+that measured as real and changed nothing, and this is a volume increase. Distinct tasks are a
+necessary condition for extra volume to teach anything, not a sufficient one. The measurement
+that decides it is a checkpoint trained at `scm_reuse_graph > 1` against one at 1, matched on
+*steps* so the task count genuinely differs — which is the opposite of the matching discipline
+§108 needed, and worth stating explicitly so the two are not confused.
+
+**And the speedup is not free capacity.** 2.5× tasks per second is 2.5× tasks per *step* only
+if the prior was the bottleneck; on GPU the forward/backward pass usually is. The honest claim
+is that the tasks cost less, not that training got faster.
+
+### Implementation note
+
+Splitting `_sample_graph_pool` and `_finish_scm_task` out of `sample_scm_task` was load-bearing
+rather than tidying: with the discretisation, degenerate-label repair, categorical coding and
+missingness duplicated across the single and group paths, the two would silently drift into
+generating different task distributions, and nothing in any accuracy number would say so.
+`scm_reuse_graph` defaults to **1**, so no existing checkpoint or published number changes.

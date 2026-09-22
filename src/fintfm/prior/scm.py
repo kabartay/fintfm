@@ -77,6 +77,104 @@ def _cauchy_edge_mask(rng: np.random.Generator, n_in: int, n_out: int) -> np.nda
     return rng.random((n_in, n_out)) < prob
 
 
+def _sample_graph_pool(
+    rng: np.random.Generator, n_rows: int, n_features: int, max_features: int, legacy: bool
+) -> np.ndarray:
+    """Build one random layered graph and return every node's activations.
+
+    Split out of :func:`sample_scm_task` so several tasks can be drawn from **one** graph
+    (task 48.12). The graph is the expensive part — layers of matrix multiplies over
+    ``n_rows`` — and using it for a single target throws away every other node, each of which
+    is an equally valid target with a different dependency structure over the same features.
+
+    Args:
+        rng: NumPy random generator.
+        n_rows: Rows to generate.
+        n_features: Features the caller intends to expose; sets the graph's minimum width.
+        max_features: Upper bound used to size the layer width.
+        legacy: Use the pre-48.17/48.19 edge sampling and activation set.
+
+    Returns:
+        ``(n_rows, n_nodes)`` activations of every node in the graph.
+    """
+    acts = _ACTS[:5] if legacy else _ACTS
+    n_layers = int(rng.integers(1, 5))
+    width = int(rng.integers(max(4, n_features + 1), 3 * max_features + 8))
+    n_noise = int(rng.integers(2, 8))
+    h = rng.normal(0, 1, size=(n_rows, n_noise)) * np.exp(rng.normal(0, 0.5, n_noise))
+    nodes: list[np.ndarray] = []
+    for _ in range(n_layers):
+        w = rng.normal(0, 1, size=(h.shape[1], width)) / np.sqrt(h.shape[1])
+        w *= (
+            rng.random((h.shape[1], width)) < rng.uniform(0.3, 1.0)
+            if legacy
+            else _cauchy_edge_mask(rng, h.shape[1], width)
+        )
+        act = acts[int(rng.integers(len(acts)))]
+        h = act(h @ w + rng.normal(0, 0.3, size=width)) + rng.normal(
+            0, rng.uniform(0, 0.2), size=(n_rows, width)
+        )
+        nodes.append(h)
+    return np.concatenate(nodes, axis=1)
+
+
+def sample_scm_task_group(
+    rng: np.random.Generator,
+    n_rows: int,
+    n_targets: int,
+    max_features: int = 24,
+    min_features: int = 2,
+    max_classes: int = 10,
+    legacy: bool = False,
+) -> list[Task]:
+    """Draw ``n_targets`` tasks that share one random graph, re-targeting a different node each.
+
+    Task 48.12, the synthetic analogue of TabDPT's self-supervised re-targeting and the weak
+    form of LimiX-2's joint objective: `CLAUDE.md`'s "count the tasks, not the steps" records
+    that every checkpoint here has seen 48,000 tasks against a field norm near 10^7, and this
+    is the one route to that shortfall that needs no real data.
+
+    **The tasks are not independent draws and must not be counted as if they were.** They
+    share a graph, so their features are literally the same columns; only the target node
+    differs. That is the point — a different node is a genuinely different function of those
+    features — but it also caps what this buys: §93 measured a 5x volume increase as inert,
+    and correlated tasks are the most likely way this one reproduces that null rather than
+    beating it. :func:`fintfm.experiments.prior_score.score_prior` is the instrument for
+    checking whether the extra tasks carry extra signal.
+
+    Args:
+        rng: NumPy random generator.
+        n_rows: Rows per task.
+        n_targets: Tasks to draw from the shared graph. ``1`` reproduces the single-task path.
+        max_features: Upper bound on exposed features.
+        min_features: Lower bound on exposed features.
+        max_classes: Upper bound on classes.
+        legacy: Use the pre-48.17/48.19 prior.
+
+    Returns:
+        A list of ``n_targets`` tasks. Shorter only if the graph has too few nodes to supply
+        distinct targets, which cannot happen at the widths this prior samples.
+
+    Raises:
+        ValueError: If ``n_targets`` is below one.
+    """
+    if n_targets < 1:
+        raise ValueError(f"n_targets must be >= 1, got {n_targets}")
+    n_features = int(rng.integers(min_features, max_features + 1))
+    pool = _sample_graph_pool(rng, n_rows, n_features, max_features, legacy)
+    n_nodes = pool.shape[1]
+    # Feature columns are shared; only the target node varies. Drawing the features once is
+    # what makes this cheap, and holding them fixed is what makes the tasks comparable.
+    take = min(n_features + n_targets, n_nodes)
+    idx = rng.choice(n_nodes, size=take, replace=False)
+    feat_idx, target_idx = idx[:n_features], idx[n_features:]
+    X_base = pool[:, feat_idx].astype(np.float64)
+    return [
+        _finish_scm_task(rng, X_base.copy(), pool[:, j], n_features, max_classes)
+        for j in target_idx
+    ]
+
+
 def sample_scm_task(
     rng: np.random.Generator,
     n_rows: int,
@@ -103,24 +201,8 @@ def sample_scm_task(
             appended to it, so :func:`sample_scm_regression_task` can reuse this exact
             generative process instead of approximating it.
     """
-    acts = _ACTS[:5] if legacy else _ACTS
     n_features = int(rng.integers(min_features, max_features + 1))
-    n_layers = int(rng.integers(1, 5))
-    width = int(rng.integers(max(4, n_features + 1), 3 * max_features + 8))
-    n_noise = int(rng.integers(2, 8))
-    h = rng.normal(0, 1, size=(n_rows, n_noise)) * np.exp(rng.normal(0, 0.5, n_noise))
-    nodes: list[np.ndarray] = []
-    for _ in range(n_layers):
-        w = rng.normal(0, 1, size=(h.shape[1], width)) / np.sqrt(h.shape[1])
-        w *= (
-            rng.random((h.shape[1], width)) < rng.uniform(0.3, 1.0)
-            if legacy
-            else _cauchy_edge_mask(rng, h.shape[1], width)
-        )
-        act = acts[int(rng.integers(len(acts)))]
-        h = act(h @ w + rng.normal(0, 0.3, size=width)) + rng.normal(0, rng.uniform(0, 0.2), size=(n_rows, width))
-        nodes.append(h)
-    pool = np.concatenate(nodes, axis=1)
+    pool = _sample_graph_pool(rng, n_rows, n_features, max_features, legacy)
     idx = rng.choice(pool.shape[1], size=n_features + 1, replace=False)
     X = pool[:, idx[:-1]].astype(np.float64)
     t = pool[:, idx[-1]]
@@ -130,6 +212,34 @@ def sample_scm_task(
         # which is the property that makes a regression task drawn from it as hard as the
         # classification task drawn from the same node.
         _latent_out.append(t.copy())
+    return _finish_scm_task(rng, X, t, n_features, max_classes)
+
+
+def _finish_scm_task(
+    rng: np.random.Generator,
+    X: np.ndarray,
+    t: np.ndarray,
+    n_features: int,
+    max_classes: int,
+) -> Task:
+    """Turn a continuous target node and a feature block into a finished classification Task.
+
+    Shared by the single-task and re-targeting paths (task 48.12) so the two cannot drift.
+    Discretisation, the degenerate-label repair, categorical coding and missingness all live
+    here; a second copy of this in the group path is how the two would silently start
+    generating different task distributions.
+
+    Args:
+        rng: NumPy random generator.
+        X: ``(n_rows, n_features)`` feature block. Modified in place.
+        t: ``(n_rows,)`` continuous target node.
+        n_features: Number of features in ``X``.
+        max_classes: Upper bound on classes.
+
+    Returns:
+        A finished :class:`Task` with ``source="scm"``.
+    """
+    n_rows = X.shape[0]
     n_classes = int(rng.integers(2, max_classes + 1))
     # discretise target either by quantiles (balanced) or random cut points (imbalanced)
     if rng.random() < 0.5:
@@ -144,7 +254,6 @@ def sample_scm_task(
     # remap to a dense label space so n_classes reflects classes actually present
     remap = {c: i for i, c in enumerate(present)}
     y = np.vectorize(remap.get)(y).astype(np.int64)
-    n_classes = len(present)
     # categorical columns: quantise a few features into integer codes
     is_cat = rng.random(n_features) < rng.uniform(0.0, 0.4)
     for j in np.flatnonzero(is_cat):
@@ -152,7 +261,9 @@ def sample_scm_task(
         X[:, j] = np.searchsorted(np.quantile(X[:, j], np.linspace(0, 1, k + 1)[1:-1]), X[:, j])
     if rng.random() < 0.5:
         X[rng.random(X.shape) < rng.uniform(0, 0.2)] = np.nan
-    return Task(X=X.astype(np.float32), y=y, n_classes=n_classes, is_categorical=is_cat, source="scm")
+    return Task(
+        X=X.astype(np.float32), y=y, n_classes=len(present), is_categorical=is_cat, source="scm"
+    )
 
 
 #: Target shapes a regression task is drawn from. Real continuous financial targets are not

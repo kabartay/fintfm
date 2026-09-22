@@ -82,7 +82,7 @@
       is locked out of "high-quality data" by decision D2. Verify: `docs/DECISIONS.md` states
       what this project believes it gets in exchange, and names the observation that would show
       the trade is not worth it — an unfalsifiable differentiator is a slogan.
-- [ ] 48.12 **Multiply tasks per prior draw by re-targeting, the way TabDPT's SSL does.** Their
+- [x] 48.12 **Multiply tasks per prior draw by re-targeting, the way TabDPT's SSL does.** Their
       procedure generates **both** classification and regression targets from *every* training
       table, so 123 datasets yield far more than 123 tasks. The synthetic analogue is free and
       this project does not do it: `prior/scm.py` samples a random DAG and then uses **one**
@@ -94,6 +94,13 @@
       assumed — re-targeting the same graph could produce correlated tasks that inflate the
       count without adding signal, which would look identical to a win in the step counter and
       nowhere else. Compare against §93's 5×-volume null, which is the result this has to beat.
+      **Implemented and measured (§113), downstream still open.** `scm_reuse_graph`, default 1.
+      2.53× tasks per second at `n_targets=4`, and the named failure mode is absent: a model
+      fitted on one sibling scores **0.4775 — chance — on another** from the same graph over
+      the same feature columns, against 0.7023 on its own. The remaining half of this task is a
+      checkpoint trained at `scm_reuse_graph > 1` against one at 1, matched on **steps** so the
+      task count genuinely differs — the opposite of §108's matching discipline, and worth
+      stating so the two are not confused.
 - [ ] 48.13 **Add a tree-based prior, the family MITRA singles out and this project does not
       have.** `PriorConfig` is financial (0.7) plus SCM, with no prior that generates threshold
       structure — while every baseline fintfm loses to is a tree ensemble. MITRA

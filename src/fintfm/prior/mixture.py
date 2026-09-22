@@ -17,7 +17,11 @@ from fintfm.prior.financial import (
     MIN_EXPECTED_POSITIVES,
     sample_financial_task,
 )
-from fintfm.prior.scm import sample_scm_regression_task, sample_scm_task
+from fintfm.prior.scm import (
+    sample_scm_regression_task,
+    sample_scm_task,
+    sample_scm_task_group,
+)
 from fintfm.prior.tree import sample_tree_task
 from fintfm.prior.trivial import sample_trivial_task
 
@@ -37,6 +41,14 @@ class PriorConfig:
             for the financial prior and −0.0021 for the SCM one — so the mixture had no member
             generating the axis-aligned structure every tree baseline exploits. Draws from the financial
             budget, since it is a general-structure prior like the SCM one.
+        scm_reuse_graph: Tasks drawn per SCM graph within a batch (task 48.12). ``1`` keeps
+            the original one-graph-one-task behaviour. Above 1, a graph is built once and
+            several of its nodes are used as targets in turn, which is **2.5x more tasks per
+            second** at ``4`` and directly attacks the shortfall `CLAUDE.md`'s "count the
+            tasks, not the steps" records — 48,000 tasks per checkpoint against a field norm
+            near 10^7. §113 measures that the siblings are genuinely distinct problems rather
+            than correlated duplicates: a model fitted on one target scores 0.4775 on a
+            sibling, against 0.7023 on its own task.
         scm_legacy: Draw SCM tasks from the pre-48.17/48.19 prior. The control arm for the
             widened prior; see :func:`fintfm.prior.scm.sample_scm_task`. **Note that this knob
             is inert at ``p_financial=1.0``**, where no SCM task is ever drawn -- the mistake
@@ -94,6 +106,7 @@ class PriorConfig:
     max_features: int = 24
     max_classes: int = 10
     scm_legacy: bool = False
+    scm_reuse_graph: int = 1
     p_tree: float = 0.0
     p_financial: float = 0.7
     p_trivial: float = 0.0
@@ -171,6 +184,43 @@ def sample_task(rng: np.random.Generator, cfg: PriorConfig, n_rows: int | None =
     )
 
 
+def _sample_tasks_reusing_graphs(
+    rng: np.random.Generator, cfg: PriorConfig, n_rows: int, batch_size: int
+) -> list[Task]:
+    """Fill a batch, drawing several SCM tasks per graph (task 48.12).
+
+    Non-SCM draws are unaffected and go through :func:`sample_task` one at a time; only the
+    SCM slots are grouped, since the financial and tree priors have no shared-graph structure
+    to amortise.
+
+    Args:
+        rng: NumPy random generator.
+        cfg: Prior configuration.
+        n_rows: Rows per task, already drawn for this batch.
+        batch_size: Tasks required.
+
+    Returns:
+        Exactly ``batch_size`` tasks, in draw order.
+    """
+    tasks: list[Task] = []
+    while len(tasks) < batch_size:
+        # Decide the slot's source the same way sample_task would, then either group it or
+        # fall through. Drawing the source first keeps the mixture proportions intact.
+        if (cfg.p_tree and rng.random() < cfg.p_tree) or (
+            cfg.p_regression and rng.random() < cfg.p_regression
+        ) or rng.random() < cfg.p_financial:
+            tasks.append(sample_task(rng, cfg, n_rows=n_rows))
+            continue
+        want = min(cfg.scm_reuse_graph, batch_size - len(tasks))
+        tasks.extend(
+            sample_scm_task_group(
+                rng, n_rows, n_targets=want, max_features=cfg.max_features,
+                max_classes=cfg.max_classes, legacy=cfg.scm_legacy,
+            )[:want]
+        )
+    return tasks[:batch_size]
+
+
 def sample_batch(rng: np.random.Generator, cfg: PriorConfig, batch_size: int) -> TaskBatch:
     """Draw a padded batch with a shared task size and context/query split.
 
@@ -180,7 +230,10 @@ def sample_batch(rng: np.random.Generator, cfg: PriorConfig, batch_size: int) ->
     n_rows = (
         int(rng.choice(cfg.n_rows_choices)) if cfg.n_rows_choices else cfg.n_rows
     )
-    tasks = [sample_task(rng, cfg, n_rows=n_rows) for _ in range(batch_size)]
+    if cfg.scm_reuse_graph > 1:
+        tasks = _sample_tasks_reusing_graphs(rng, cfg, n_rows, batch_size)
+    else:
+        tasks = [sample_task(rng, cfg, n_rows=n_rows) for _ in range(batch_size)]
     n_ctx = int(rng.integers(int(cfg.min_ctx_frac * n_rows), int(cfg.max_ctx_frac * n_rows) + 1))
     n_ctx = min(max(n_ctx, 2), n_rows - 1)
     return collate(tasks, n_ctx=n_ctx, max_features=cfg.max_features)

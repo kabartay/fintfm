@@ -353,6 +353,10 @@ def main() -> None:
              "selected on distinctiveness, see docs/FINDINGS.md 111",
     )
     p.add_argument(
+        "--scm-reuse-graph", type=int, default=None,
+        help="tasks drawn per SCM graph (task 48.12); >1 gives ~2.5x tasks/second at 4",
+    )
+    p.add_argument(
         "--p-crossed", type=float, default=0.0,
         help="probability of a crossed-design task (docs/FINDINGS.md §66, prior/crossed.py): "
              "SCM features under the financial prior's label mechanism, isolating whether the "
@@ -469,6 +473,7 @@ def main() -> None:
         ),
         # the survival objective needs every task to carry a period
         scm_legacy=args.scm_legacy,
+        scm_reuse_graph=(PriorConfig.scm_reuse_graph if args.scm_reuse_graph is None else args.scm_reuse_graph),
         p_tree=(PriorConfig.p_tree if args.p_tree is None else args.p_tree),
         p_financial=(
             1.0
