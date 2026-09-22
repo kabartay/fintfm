@@ -343,6 +343,11 @@ def main() -> None:
              "fintfm/inference/binning.py)",
     )
     p.add_argument(
+        "--scm-legacy", action="store_true",
+        help="draw SCM tasks from the pre-48.17/48.19 prior (uniform edge sparsity, five "
+             "activations); the control arm for the widened prior. Inert at --p-financial 1.0",
+    )
+    p.add_argument(
         "--p-crossed", type=float, default=0.0,
         help="probability of a crossed-design task (docs/FINDINGS.md §66, prior/crossed.py): "
              "SCM features under the financial prior's label mechanism, isolating whether the "
@@ -458,6 +463,7 @@ def main() -> None:
             tuple(int(v) for v in args.n_rows_choices.split(",")) if args.n_rows_choices else None
         ),
         # the survival objective needs every task to carry a period
+        scm_legacy=args.scm_legacy,
         p_financial=(
             1.0
             if args.n_horizons

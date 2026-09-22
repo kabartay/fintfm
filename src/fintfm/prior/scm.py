@@ -83,6 +83,7 @@ def sample_scm_task(
     max_features: int = 24,
     min_features: int = 2,
     max_classes: int = 10,
+    legacy: bool = False,
     _latent_out: list[np.ndarray] | None = None,
 ) -> Task:
     """Sample one classification task from a random structural causal model.
@@ -93,10 +94,16 @@ def sample_scm_task(
         max_features: Upper bound on the number of exposed features.
         min_features: Lower bound on the number of exposed features.
         max_classes: Upper bound on the number of classes (>= 2).
+        legacy: Use the pre-48.17/48.19 prior -- uniform per-layer edge sparsity and the
+            original five elementwise activations. Exists so the widened prior has a control
+            arm trained at the same prior *mixture*, since comparing it against a checkpoint
+            trained at ``p_financial=1.0`` would confound the mechanism change with the
+            mixture change. Delete once the comparison is recorded.
         _latent_out: Internal. When a list is passed, the continuous pre-threshold latent is
             appended to it, so :func:`sample_scm_regression_task` can reuse this exact
             generative process instead of approximating it.
     """
+    acts = _ACTS[:5] if legacy else _ACTS
     n_features = int(rng.integers(min_features, max_features + 1))
     n_layers = int(rng.integers(1, 5))
     width = int(rng.integers(max(4, n_features + 1), 3 * max_features + 8))
@@ -105,8 +112,12 @@ def sample_scm_task(
     nodes: list[np.ndarray] = []
     for _ in range(n_layers):
         w = rng.normal(0, 1, size=(h.shape[1], width)) / np.sqrt(h.shape[1])
-        w *= _cauchy_edge_mask(rng, h.shape[1], width)
-        act = _ACTS[int(rng.integers(len(_ACTS)))]
+        w *= (
+            rng.random((h.shape[1], width)) < rng.uniform(0.3, 1.0)
+            if legacy
+            else _cauchy_edge_mask(rng, h.shape[1], width)
+        )
+        act = acts[int(rng.integers(len(acts)))]
         h = act(h @ w + rng.normal(0, 0.3, size=width)) + rng.normal(0, rng.uniform(0, 0.2), size=(n_rows, width))
         nodes.append(h)
     pool = np.concatenate(nodes, axis=1)

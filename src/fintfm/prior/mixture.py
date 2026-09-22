@@ -28,6 +28,10 @@ class PriorConfig:
     Attributes:
         max_features: Feature width the model is built for.
         max_classes: Class-head width of the model.
+        scm_legacy: Draw SCM tasks from the pre-48.17/48.19 prior. The control arm for the
+            widened prior; see :func:`fintfm.prior.scm.sample_scm_task`. **Note that this knob
+            is inert at ``p_financial=1.0``**, where no SCM task is ever drawn -- the mistake
+            that wasted one 6,000-step run.
         p_financial: Probability of drawing a financial task instead of an SCM task.
         p_trivial: Probability of drawing a **trivial** task instead — few clean features, a
             deterministic linear rule, no noise. Zero by default. This is the diagnostic
@@ -80,6 +84,7 @@ class PriorConfig:
 
     max_features: int = 24
     max_classes: int = 10
+    scm_legacy: bool = False
     p_financial: float = 0.7
     p_trivial: float = 0.0
     p_crossed: float = 0.0
@@ -142,7 +147,10 @@ def sample_task(rng: np.random.Generator, cfg: PriorConfig, n_rows: int | None =
             sharpness_min=cfg.sharpness_min,
             sharpness_max=cfg.sharpness_max,
         )
-    return sample_scm_task(rng, n, max_features=cfg.max_features, max_classes=cfg.max_classes)
+    return sample_scm_task(
+        rng, n, max_features=cfg.max_features, max_classes=cfg.max_classes,
+        legacy=cfg.scm_legacy,
+    )
 
 
 def sample_batch(rng: np.random.Generator, cfg: PriorConfig, batch_size: int) -> TaskBatch:
