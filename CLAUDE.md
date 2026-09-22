@@ -136,8 +136,22 @@ suite then reports skips rather than failures — which reads as success. On 202
 V4FinBench loader that every out-of-time finding depends on.
 
 ```bash
-uv sync --extra bench          # not a bare `uv sync`
-uv run pytest -q               # 1 skip is the expected count; more means look
+uv sync --extra bench --extra hf   # not a bare `uv sync`, and not one extra either
+uv run pytest -q                   # 1 skip is the expected count; more means look
+```
+
+**Naming one extra drops the others.** On 2026-09-22 a `uv sync --extra bench` mid-session
+removed the `hf` extra and with it the `hf` CLI, so every `hf jobs` call in a session with five
+GPU runs in flight failed with `Failed to spawn: hf`. Nothing said a dependency had been
+uninstalled; the command simply stopped existing. Sync every extra the session needs, together.
+
+**And `uv pip install` obeys the leaked `$VIRTUAL_ENV`.** The obvious recovery — `uv pip
+install huggingface_hub` — reported `Using Python 3.13.7 environment at
+/Users/morganoko/proj/finkele-alert/.venv` and installed into **another project's venv**, which
+is the leak this file already warns about one section above, now with a way to act on it:
+
+```bash
+env -u VIRTUAL_ENV uv pip install <pkg>    # or just re-run the full `uv sync` line above
 ```
 
 That incident also surfaced a real defect: `pyarrow` was declared only in the `kaggle` extra,
