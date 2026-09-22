@@ -542,3 +542,57 @@ with known structure.
 because quantile-bin representatives are themselves concentrated at the ends. A distributional
 claim supported by outer mass alone would be measuring the binning. Only the conjunction with
 per-row assignment (Spearman 0.658 against the control's 0.055) carries it.
+
+---
+
+## Claim 15 — The prior mixture had no member generating axis-aligned structure, and now it does
+
+**Status: OPEN**, with one component **RETRACTED**. Evidence: §111 (retracted in part), §112
+(the correction and the standing numbers). Open because no checkpoint trained with the tree
+prior has been scored yet — the arm is training.
+
+**The retraction, stated before the claim.** §111 reported that this project's SCM prior
+"generates tasks a *linear* model wins on", measured as a −0.0233 tree-versus-linear AUC gap.
+**That number is wrong and the claim built on it is withdrawn.** Its linear baseline was fitted
+on raw heavy-tailed features and failed to converge on eight of twenty-five tasks; since the
+statistic is `tree_auc − linear_auc`, understating the linear arm inflated it. Corrected, the
+SCM prior's gap is **−0.0021** — no effect. The SCM prior is *neutral* on this axis, not
+linear-favourable.
+
+**What the corrected measurement supports** (`fintfm-priorscore`, 25 tasks per prior, all
+statistics from *fitted* baselines rather than this project's model):
+
+| prior | performance | diversity | distinctiveness |
+| --- | --- | --- | --- |
+| financial | 0.6880 | 0.1343 | −0.0292 |
+| scm | 0.7106 | **0.2046** | −0.0021 |
+| **tree** (new) | **0.7555** | 0.1065 | **+0.0225** |
+| *trivial (control)* | *0.9968* | *0.0024* | *−0.0142* |
+
+`tree` is the **only** prior with positive distinctiveness. Both incumbent priors sit at or
+below zero, so the mixture contained no member generating the axis-aligned, piecewise-constant
+structure that every tree ensemble above fintfm on TabArena is built to exploit. That is the
+claim, and it is a statement about the *prior*, not about accuracy.
+
+**Two secondary readings that change what should be done.** The SCM prior has by far the widest
+difficulty spread (diversity 0.2046 against 0.107–0.134) — the property §42 established this
+project needed — so its weight should not be cut to make room for the tree prior. And the
+financial prior is the **hardest** of the three at 0.6880, consistent with §96 rather than in
+tension with it.
+
+**Why this claim cannot yet be upgraded.** Distinctiveness is a necessary condition for
+structure to be learnable in context, not a sufficient one. §93 measured a 5× training-volume
+increase as inert, and a distinctive prior can be inert the same way. Only the paired arms —
+`p_tree` against the current mixture at matched tasks, on V4FinBench and TabArena — decide it.
+
+**The methodological failure is part of the claim, not a footnote.** The first version of this
+instrument reported the financial prior as the *most* tree-favourable member (+0.0754), which
+would have made the tree prior largely redundant and was the strongest available argument
+against building it. That argument was an artefact of the diagnostic's own preprocessing —
+and the defect was one this project had already measured, published and fixed on the inference
+side four weeks earlier (§35, rank conditioning, worth +0.086 AUC). A weak baseline in a
+benchmark flatters the model and someone notices; **a weak baseline in a diagnostic silently
+becomes the measurement**, and +0.0754 for a prior full of accounting thresholds is plausible
+enough to pass review. Any paper reporting prior-selection statistics must state the baseline's
+preprocessing explicitly.
+

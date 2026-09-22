@@ -355,3 +355,42 @@ layers at width 128 where our scale-up went wide rather than deep.
 The limitation is broader than the finding. **This project spent GPU budget on a hypothesis
 that a competitor's public README had already bounded**, and the cost of reading the field was
 one afternoon. That is now a standing instruction in `CLAUDE.md`.
+
+## A diagnostic's baseline is the measurement, and ours was wrong for four weeks' worth of reasons
+
+`fintfm-priorscore` scores a synthetic prior on MITRA's three criteria — performance,
+diversity, distinctiveness — from fitted baselines rather than from this project's own model.
+That design is right and deliberate: a prior diagnostic routed through our checkpoint cannot
+separate "the prior does not contain this structure" from "our model cannot learn this
+structure", which is the confound §49 and §51 cost days to untangle on the capacity question.
+
+**Its first version was still wrong, in a way that survived review.** The linear arm was a bare
+`LogisticRegression` on raw features. Financial ratios are pathologically heavy-tailed — §35
+measured 110 of 136 V4FinBench features with a standard deviation over ten times their
+interquartile range — so the fit failed to converge on eight of twenty-five tasks. Since
+distinctiveness is `tree_auc − linear_auc`, an understated linear arm **inflates** it, worst
+exactly where the tails are heaviest.
+
+The consequence was not a small numerical shift. The financial prior moved from **+0.0754 to
+−0.0292**, a sign flip and a 0.105 swing (§112). The wrong version said the financial prior was
+the *most* tree-favourable member of the mixture — which would have made the tree prior
+redundant and was the strongest available argument against building it at all.
+
+**Two things make this worth reporting as a limitation rather than a fixed bug.**
+
+First, the defect was one this project had already found, measured and fixed *elsewhere*. §35
+is among the older findings here; `feature_transform="rank"` has been the inference default
+since, on the strength of +0.086 AUC across six of six configurations. A finding does not
+propagate to new code by having been published.
+
+Second, and more general: **a weak baseline behaves differently in a diagnostic than in a
+benchmark.** In a benchmark it flatters the model under test and a reader notices. In a
+diagnostic it silently *becomes* the measurement, and the resulting number need not look
+suspicious — +0.0754 for a prior full of accounting thresholds and policy cutoffs is exactly
+what one would expect to see.
+
+The rule now in force: a fitted baseline used as an instrument gets the same preprocessing the
+model under study gets, and a convergence warning inside a measurement is a failed measurement
+rather than a log line. Any prior-selection statistic in a draft must state its baseline's
+preprocessing explicitly, because the number is meaningless without it.
+
