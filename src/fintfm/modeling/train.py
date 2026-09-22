@@ -348,6 +348,11 @@ def main() -> None:
              "activations); the control arm for the widened prior. Inert at --p-financial 1.0",
     )
     p.add_argument(
+        "--p-tree", type=float, default=None,
+        help="probability of drawing a tree-structured task (axis-aligned boundaries); "
+             "selected on distinctiveness, see docs/FINDINGS.md 111",
+    )
+    p.add_argument(
         "--p-crossed", type=float, default=0.0,
         help="probability of a crossed-design task (docs/FINDINGS.md §66, prior/crossed.py): "
              "SCM features under the financial prior's label mechanism, isolating whether the "
@@ -464,6 +469,7 @@ def main() -> None:
         ),
         # the survival objective needs every task to carry a period
         scm_legacy=args.scm_legacy,
+        p_tree=(PriorConfig.p_tree if args.p_tree is None else args.p_tree),
         p_financial=(
             1.0
             if args.n_horizons

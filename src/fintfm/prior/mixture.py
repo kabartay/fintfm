@@ -18,6 +18,7 @@ from fintfm.prior.financial import (
     sample_financial_task,
 )
 from fintfm.prior.scm import sample_scm_regression_task, sample_scm_task
+from fintfm.prior.tree import sample_tree_task
 from fintfm.prior.trivial import sample_trivial_task
 
 
@@ -28,6 +29,13 @@ class PriorConfig:
     Attributes:
         max_features: Feature width the model is built for.
         max_classes: Class-head width of the model.
+        p_tree: Probability of drawing a **tree-structured** task
+            (:func:`fintfm.prior.tree.sample_tree_task`) instead. Zero by default so existing
+            checkpoints are unaffected. Selected on *distinctiveness*, not performance: §111
+            measures that this project's SCM prior generates tasks a linear model wins on
+            (ExtraTrees −0.0233 against logistic regression), so it has never taught the model
+            the axis-aligned structure every tree baseline exploits. Draws from the financial
+            budget, since it is a general-structure prior like the SCM one.
         scm_legacy: Draw SCM tasks from the pre-48.17/48.19 prior. The control arm for the
             widened prior; see :func:`fintfm.prior.scm.sample_scm_task`. **Note that this knob
             is inert at ``p_financial=1.0``**, where no SCM task is ever drawn -- the mistake
@@ -85,6 +93,7 @@ class PriorConfig:
     max_features: int = 24
     max_classes: int = 10
     scm_legacy: bool = False
+    p_tree: float = 0.0
     p_financial: float = 0.7
     p_trivial: float = 0.0
     p_crossed: float = 0.0
@@ -115,6 +124,14 @@ def sample_task(rng: np.random.Generator, cfg: PriorConfig, n_rows: int | None =
         raise ValueError(
             "n_horizons requires p_financial=1.0; the SCM prior has no time axis and a "
             "mixed batch cannot carry a coherent survival likelihood"
+        )
+    if cfg.p_tree and rng.random() < cfg.p_tree:
+        if cfg.n_horizons is not None:
+            raise ValueError(
+                "n_horizons requires p_financial=1.0; the tree prior has no time axis"
+            )
+        return sample_tree_task(
+            rng, n, max_features=cfg.max_features, max_classes=cfg.max_classes
         )
     if cfg.p_regression and rng.random() < cfg.p_regression:
         if cfg.n_horizons is not None:

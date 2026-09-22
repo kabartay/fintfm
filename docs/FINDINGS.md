@@ -7490,3 +7490,63 @@ Three consequences follow, and the first is the one this project should care abo
 **It is also first-place, synthetic-only, SCM-based and Apache-2.0** — the closest thing to an
 existence proof that this project's chosen constraints are compatible with the frontier, and
 the clearest statement of how far its current objective is from it.
+
+## §111 — This project's SCM prior generates tasks a *linear* model wins on, and never taught tree structure
+
+**How these numbers were produced.** MEASURED, locally, no checkpoint involved. 25 binary
+tasks per prior at 800 rows, split half context / half query. Two fitted baselines —
+`ExtraTreesClassifier(n_estimators=100)` and `LogisticRegression(max_iter=1000)` — trained on
+the context half and scored by ROC-AUC on the query half. The statistic is the **mean AUC gap
+between them**, which measures the *shape* of a prior's decision boundary rather than its
+difficulty.
+
+### The result
+
+| prior | ExtraTrees | LogisticRegression | gap |
+| --- | --- | --- | --- |
+| **`prior/tree.py`** (new) | 0.7296 | 0.6993 | **+0.0304** |
+| **`prior/scm.py`** (ours, since the beginning) | 0.6806 | 0.7039 | **−0.0233** |
+
+**The sign flips.** On this project's own generic prior, a *linear* model beats a tree
+ensemble. The SCM prior composes smooth activations over a random graph, and the structure
+that falls out is closer to a smooth function of the features than to the axis-aligned,
+piecewise-constant structure real tabular data is full of — thresholds, brackets, policy
+cutoffs.
+
+**So the prior has never taught the model the shape every baseline it loses to exploits.**
+Each of the tuned tree ensembles above fintfm on TabArena (§98, §101, §105) is a model of
+exactly the structure `prior/scm.py` does not generate.
+
+### Why this was worth measuring rather than assuming
+
+MITRA (arXiv:2510.21204) selects tree-based priors on **distinctiveness** — models pretrained
+on SCM priors "do not always generalize well to all types of data generated from TBPs" — and
+TabICL/TabForestPFN reach the same conclusion independently. That is three groups asserting
+the gap exists in general. This measures it **on our own prior**, which is a different claim
+and the only one that licenses changing this project's code.
+
+It also gives the distinctiveness criterion an operational form: **the AUC gap between a tree
+baseline and a linear baseline on a prior's own tasks**, computable in seconds with no
+pretraining. Task 48.14 asks for MITRA's three criteria to be scored; this is the third one,
+made cheap.
+
+### What it does not show
+
+**Nothing about downstream accuracy.** A prior generating distinctive structure is a necessary
+condition for that structure to be learnable in context, not a sufficient one, and §93's
+5x-volume null is a standing reminder that a prior change can be inert. The paired arms
+(`p_tree` against the current mixture at matched tasks) are the measurement that decides it;
+this finding only establishes that the arm is worth running.
+
+**Nor that the SCM prior is bad.** A prior that favours linear structure is not defective —
+smooth boundaries exist in real data too, and `prior/financial.py` carries the domain story
+regardless. The claim is narrower and specific: **the mixture had no member generating
+axis-aligned structure**, and now it can.
+
+### One methodological note
+
+The two baselines are *fitted* models, not in-context ones, which is what makes the statistic
+independent of this project's architecture, checkpoints and context construction. A prior
+diagnostic that depended on our own model could not distinguish "the prior lacks this
+structure" from "our model cannot learn this structure" — the exact confound §49 and §51 cost
+days to untangle on the capacity question.
