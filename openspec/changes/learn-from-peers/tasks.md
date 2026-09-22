@@ -99,8 +99,12 @@
       fitted on one sibling scores **0.4775 — chance — on another** from the same graph over
       the same feature columns, against 0.7023 on its own. The remaining half of this task is a
       checkpoint trained at `scm_reuse_graph > 1` against one at 1, matched on **steps** so the
-      task count genuinely differs — the opposite of §108's matching discipline, and worth
-      stating so the two are not confused.
+      task count genuinely differs. **That sentence is wrong and §113 corrects it**: a batch
+      returns `batch_size` tasks at any `scm_reuse_graph`, so at matched steps the volume is
+      identical. What changes is generation cost (~20% of step time, two-thirds of it saved,
+      worth ~13% more steps per dollar) and **batch-level graph diversity, which falls to a
+      quarter**. The deciding run is therefore the cheaper and less interesting question of
+      whether that diversity loss hurts — not whether extra volume helps.
 - [ ] 48.13 **Add a tree-based prior, the family MITRA singles out and this project does not
       have.** `PriorConfig` is financial (0.7) plus SCM, with no prior that generates threshold
       structure — while every baseline fintfm loses to is a tree ensemble. MITRA

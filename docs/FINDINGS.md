@@ -7681,18 +7681,49 @@ The prior was already discarding this for free: `sample_scm_task` built a graph,
 as the target and threw away every other node — each an equally valid target with a different
 dependency structure over the same features.
 
-### What it does not show
+### What it does not show — **and a correction to how this was first written up**
 
-**Nothing about downstream accuracy.** §93's null is the standing case of a volume increase
-that measured as real and changed nothing, and this is a volume increase. Distinct tasks are a
-necessary condition for extra volume to teach anything, not a sufficient one. The measurement
-that decides it is a checkpoint trained at `scm_reuse_graph > 1` against one at 1, matched on
-*steps* so the task count genuinely differs — which is the opposite of the matching discipline
-§108 needed, and worth stating explicitly so the two are not confused.
+**It does not increase the task count, and the first version of this section implied it did.**
+`sample_batch` still returns exactly `batch_size` tasks whether `scm_reuse_graph` is 1 or 4 —
+verified directly: 20 batches of 8 give 8 tasks per batch either way. What changes is that
+those 8 tasks come from ~2 graphs instead of 8. So at matched steps the task count is
+**identical**, and the sentence originally written here and in task 48.12 — "matched on steps
+so the task count genuinely differs" — is simply wrong. At matched steps nothing about volume
+differs at all.
 
-**And the speedup is not free capacity.** 2.5× tasks per second is 2.5× tasks per *step* only
-if the prior was the bottleneck; on GPU the forward/backward pass usually is. The honest claim
-is that the tasks cost less, not that training got faster.
+**What actually changes is cost and graph diversity, in opposite directions.**
+
+| `scm_reuse_graph` | 20 batches of 8, `max_features=136` | unique graphs per batch |
+| --- | --- | --- |
+| 1 | 4.56 s | 8 |
+| 4 | **1.56 s** | **~2** |
+
+Generation is ~0.23 s per batch at 1, against a GPU step of roughly 1 s — so it is **~20% of
+step time**, not the negligible fraction first assumed, and removing two-thirds of it buys
+around **13% more steps for the same money**. That is a real saving and a modest one.
+
+Against it, **a batch now samples a quarter as many independent graphs**. Batch-level graph
+diversity is a property nothing here has ever measured, and reducing it is a plausible way to
+make training *worse* at no visible cost in any logged number.
+
+**So the deciding experiment is the opposite of what was written.** It is not "does more volume
+help" — volume is unchanged. It is **"does reduced graph diversity per batch hurt, and is the
+13% saving worth it"**, run at matched steps with `scm_reuse_graph=4` against 1. That is a
+cheaper and much less interesting question than the one this section originally posed, which
+is precisely why it should be recorded rather than quietly restated.
+
+**The distinctness result above is unaffected.** Sibling tasks being genuinely different
+problems (0.4775, chance) is what makes the reuse defensible at all; had they been
+near-duplicates, the diversity reduction would compound rather than merely exist.
+
+### Why the original framing was wrong, which is the part worth keeping
+
+The error was reasoning about the *generator* in isolation. `sample_scm_task_group` really does
+produce 4 tasks for the price of ~1.6, and "2.5× the tasks per second" is a true statement
+about that function. It stops being true the moment the function is called inside a loop that
+requests a fixed number of tasks per batch — which is how it is actually used, and which the
+implementation in front of me made plain. **A throughput number measured on a component does
+not survive contact with the caller's control flow**, and the caller was two files away.
 
 ### Implementation note
 

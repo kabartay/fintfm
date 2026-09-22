@@ -43,12 +43,15 @@ class PriorConfig:
             budget, since it is a general-structure prior like the SCM one.
         scm_reuse_graph: Tasks drawn per SCM graph within a batch (task 48.12). ``1`` keeps
             the original one-graph-one-task behaviour. Above 1, a graph is built once and
-            several of its nodes are used as targets in turn, which is **2.5x more tasks per
-            second** at ``4`` and directly attacks the shortfall `CLAUDE.md`'s "count the
-            tasks, not the steps" records — 48,000 tasks per checkpoint against a field norm
-            near 10^7. §113 measures that the siblings are genuinely distinct problems rather
-            than correlated duplicates: a model fitted on one target scores 0.4775 on a
-            sibling, against 0.7023 on its own task.
+            several of its nodes are used as targets in turn. **This does not change how many
+            tasks a batch contains** — 8 either way — so it does not address the task shortfall
+            `CLAUDE.md`'s "count the tasks, not the steps" records; §113 corrects an earlier
+            claim here that it did. What it changes is generation cost (~20% of GPU step time,
+            two-thirds saved, worth roughly 13% more steps per dollar) against **a quarter as
+            many independent graphs per batch**, which is a diversity loss nothing has yet
+            measured. Defensible only because the siblings are genuinely distinct problems: a
+            model fitted on one target scores 0.4775 — chance — on another from the same graph
+            (§113).
         scm_legacy: Draw SCM tasks from the pre-48.17/48.19 prior. The control arm for the
             widened prior; see :func:`fintfm.prior.scm.sample_scm_task`. **Note that this knob
             is inert at ``p_financial=1.0``**, where no SCM task is ever drawn -- the mistake
