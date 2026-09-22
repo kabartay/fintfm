@@ -1,15 +1,42 @@
 # fintfm
 
-A from-scratch, independently implemented tabular foundation model — an in-context classifier
-pretrained on synthetic tasks, aimed first at corporate credit risk. This is a research
-project with a public claims ledger, not a product: it exists to find out whether in-context
-tabular learning (no gradient steps on a customer's own data) can be made competitive with
-gradient-boosted trees on financial tables, and to say honestly where it currently is not.
+**A from-scratch tabular foundation model for corporate credit risk.** An in-context classifier
+pretrained only on synthetic tasks — it never sees real data during training, and makes
+predictions in a single forward pass with your table supplied as context. No gradient steps on
+customer data, no per-dataset training.
 
-**Read [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md) for the current state of every claim
-this project could make, each tagged SURVIVES / SINGLE DRAW / SUPERSEDED / RETRACTED / OPEN
-against its evidence.** That file, not this one, is the source of truth for what is currently
-true. This README is an orientation map.
+| | |
+| --- | --- |
+| **Status** | research codebase, actively developed — not a product |
+| **Licence** | Apache-2.0, code **and** weights (see [Licensing](#licensing--provenance)) |
+| **Tests** | 242 (`uv run pytest`) |
+| **Measurement log** | 113 numbered findings, each declaring how it was produced |
+| **External benchmark** | [TabArena](docs/TABARENA.md), 90% coverage, **rank 93 of 95** |
+| **Problem types** | binary, multiclass, regression |
+
+**Read [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md) first** — every claim this project could
+make, tagged SURVIVES / SINGLE DRAW / SUPERSEDED / RETRACTED / OPEN against its evidence. That
+file, not this one, is the source of truth. This README is an orientation map.
+
+## Results, as measured
+
+Real corporate-default panels, five-fold published protocol:
+
+| | discrimination | calibration |
+| --- | --- | --- |
+| **fintfm** | loses to tuned gradient boosting, on every panel tried | **consistently among the best measured** |
+
+TabArena, 27 binary datasets, single fold each, against 94 other methods:
+
+| checkpoint / change | mean ROC-AUC | Elo | rank |
+| --- | --- | --- | --- |
+| label encoding (§98) | 0.7642 | 662 | 93 / 95 |
+| **+ out-of-fold target statistics** (§101) | **0.7823** | 765 | 93 / 95 |
+| + multiclass-capable prior (§105) | 0.7817 | **813** | 93 / 95 |
+| + 5.0M parameters (§108) | 0.7746 | 751 | 93 / 95 |
+
+**One change has ever moved the number**, and it was preprocessing, not architecture. Nothing
+since has been statistically significant. The rank has never moved.
 
 ## What is currently true
 
@@ -123,11 +150,38 @@ question for V4FinBench's five-fold protocol, not for a single-fold leaderboard.
 
 ```bash
 uv sync --extra bench --extra hf   # naming one extra uninstalls the others
+uv run pytest                      # 242 tests; 1 skip is expected, more means look
+```
+
+### Using a checkpoint
+
+The estimators are scikit-learn compatible. `fit()` **stores** the table as context — it takes
+no gradient steps — and `predict_proba()` runs the frozen network once.
+
+```python
+from fintfm.inference import FinancialTFMClassifier, FinancialTFMRegressor
+
+clf = FinancialTFMClassifier("runs/v4-cellattn-labels.pt", device="mps")
+clf.fit(X_train, y_train)          # stores context; no training happens
+proba = clf.predict_proba(X_test)[:, 1]
+
+reg = FinancialTFMRegressor("runs/v4-regression.pt", n_bins=10)
+reg.fit(X_train, y_cont)
+point = reg.predict(X_test)                     # distribution mean
+lo, hi = reg.predict_interval(X_test, 0.8)      # 80% interval, free from the same head
+```
+
+Categorical columns need encoding before they reach the model — it reads every cell as an
+ordered scalar, and label encoding is measurably worse than no order at all (§100). Use
+`fintfm.inference.categorical.CategoricalTargetEncoder`, which is out-of-fold on the context
+rows for reasons that are **not** optional; see [How it works](#how-it-works).
+
+### Training a checkpoint
+
+```bash
 uv run fintfm-train --steps 300 --d-model 32 --d-cell 16 --n-layers 2 --max-features 16 \
-    --max-classes 2 --device cpu --out runs/v0-smoke.pt   # pipeline check, a couple of
-                                                            # minutes, says nothing about quality
+    --max-classes 2 --device cpu --out runs/v0-smoke.pt   # pipeline check, a couple of minutes
 uv run fintfm-bench --model runs/v0-smoke.pt --credit      # real corporate-default panels
-uv run pytest
 ```
 
 That smoke config exists to check the pipeline runs, not to produce a usable checkpoint — see
@@ -177,6 +231,39 @@ assumed from a prior check. Current dependencies are all permissive: numpy, pand
 scikit-learn BSD-3, scipy BSD-3, torch Apache-2.0, PyYAML MIT, and the optional benchmark
 extras lightgbm MIT, xgboost Apache-2.0, catboost Apache-2.0, pyarrow Apache-2.0.
 
+## What would change the picture
+
+Stated so the project is falsifiable rather than open-ended. The uniform ~0.035 deficit has no
+measured axis; the levers that remain, in the order the evidence ranks them:
+
+| lever | status |
+| --- | --- |
+| **prior design** — a tree-structured prior, measured as the only distinctive member of the mixture | arms trained, scoring |
+| **factorized attention** — the current encoder is memory-bound at every turn, and three peers independently chose the cheaper form | proposed (44.x), prior art recorded |
+| **objective** — `p(x, y \| D)` rather than `p(y \| x, D)`, which makes every column a training signal | proposed (48.15), scoped as a measurement before a rewrite |
+| ~~parameter scale~~ | ruled out: a peer's curve returns +0.005 R² for 16× parameters |
+| ~~`column_id_dim`~~ | closed (§104) |
+| ~~training volume at 5×~~ | null (§93) |
+
+## Reproducing the measurements
+
+Every number in [`docs/FINDINGS.md`](docs/FINDINGS.md) names the command that produced it.
+The entry points:
+
+| command | what it measures |
+| --- | --- |
+| `fintfm-v4protocol` | V4FinBench under its **published** five-fold protocol — the benchmark this project's claims rest on |
+| `fintfm-bench --credit` | Polish and Taiwan bankruptcy panels |
+| `fintfm-v4oot` | out-of-time split, which the published protocol is not |
+| `fintfm-capability` | synthetic probes with a **known** ceiling, some with a closed-form Bayes-optimal AUC |
+| `fintfm-priorscore` | scores a *prior*, not a model, on performance / diversity / distinctiveness |
+| `fintfm-ctxsweep` | context construction, which explains more variance than model family (§5) |
+
+Two conventions worth knowing before reading any of it. **Every number declares how it was
+produced** — SMOKE-TEST, MEASURED, SIMULATED or ESTIMATED — because in an ML repository a wrong
+number does not crash, it looks like a result. And **negative and superseded results are kept**,
+because they are what stops the same wrong conclusion being reached twice.
+
 ## Where this is going
 
 [`docs/`](docs/) holds the project's reasoning, indexed in [`docs/README.md`](docs/README.md).
@@ -208,27 +295,14 @@ model that arrives with its own validation evidence — calibrated, auditably fr
 contamination, and eventually backed by a pre-registered forward track record that cannot be
 bought — plus a public, self-correcting record of what has and has not been shown to be true.
 
-## What would change the picture
-
-Stated so the project is falsifiable rather than open-ended. The uniform ~0.035 deficit has no
-measured axis; the levers that remain, in the order the evidence ranks them:
-
-| lever | status |
-| --- | --- |
-| **prior design** — a tree-structured prior, measured as the only distinctive member of the mixture | arms trained, scoring |
-| **factorized attention** — the current encoder is memory-bound at every turn, and three peers independently chose the cheaper form | proposed (44.x), prior art recorded |
-| **objective** — `p(x, y \| D)` rather than `p(y \| x, D)`, which makes every column a training signal | proposed (48.15), scoped as a measurement before a rewrite |
-| ~~parameter scale~~ | ruled out: a peer's curve returns +0.005 R² for 16× parameters |
-| ~~`column_id_dim`~~ | closed (§104) |
-| ~~training volume at 5×~~ | null (§93) |
-
 ## Status
 
-Actively developed research codebase, not a PoC skeleton: 222 tests (`uv run pytest`), a
-config-driven experiment harness, real GPU pretraining infrastructure (Hugging Face Jobs on
-T4), an external benchmark integration (TabArena, `docs/TABARENA.md`, 90% coverage), and 113
-numbered, provenance-tagged findings. What is currently proven, currently open, and
-currently retracted is tracked continuously in
-[`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md) rather than restated here, because the honest
-state changes faster than this file gets edited — that is exactly the failure mode the claims
-ledger exists to prevent.
+Actively developed research codebase, not a PoC skeleton: a config-driven experiment harness,
+real GPU pretraining infrastructure ([`docs/HF_JOBS.md`](docs/HF_JOBS.md)), an external
+benchmark integration at 90% coverage, and 113 numbered, provenance-tagged findings.
+
+**What is proven, open and retracted is tracked in
+[`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md), not here** — the honest state changes faster
+than this file gets edited, which is exactly the failure the claims ledger exists to prevent.
+This README has been wrong about its own results at least twice (§107, §112); the ledger is
+where that gets caught.
