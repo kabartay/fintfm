@@ -433,6 +433,13 @@ near-top where it belongs". It decomposes to **one** dataset at rank 1, one at 3
 and 24 in the 83–95 band; **median rank 94**. The rank-1 is a single fold with a 0.0026 AUC
 margin. A harmonic mean is dominated by its minimum, and here the minimum is n = 1 (§107).
 
+**Scale is not the explanation, and this is now measured rather than argued** (§114). A 5.0M
+model at *matched* task volume scores −0.0049 against the 885K baseline; training volume is
+null at 5× and +0.0028 at 2×; a peer's published curve returns +0.0049 R² for 16.7× the
+parameters; and the deep-narrow alternative could not complete the benchmark. A reader will
+reach for "the model is small" — it is quantitatively insufficient by roughly an order of
+magnitude.
+
 **Four bounds a citation must carry.** Coverage was 51% at §98 (binary-only, ≤136 features)
 and is now 90% by declaring multiclass and regression — the two figures are not comparable, so
 each number carries its own. The categorical path was knowingly degraded at §98, which §100

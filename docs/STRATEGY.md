@@ -95,7 +95,7 @@ See `changes/calibration-mechanism`.
 | the first version said | the evidence says | source |
 | --- | --- | --- |
 | V4FinBench is "the dataset this project needs" | 1.1M rows and 131 features are exactly where TFMs lose to trees. It is a **validation instrument** for temporal work, not the target market | `FINDINGS` §9 |
-| Phase 1 targets 10-50M parameters | Size is not the lever. Beyond IID finds TFMs lose on large/wide/non-IID data regardless of scale | `FINDINGS` §9 |
+| Phase 1 targets 10-50M parameters | **Withdrawn 2026-09-22.** Size is not the lever, now measured directly rather than inherited: 5.7x the parameters at *matched* tasks scores **-0.0049** (§114), volume is null at 5x (§93) and +0.0028 at 2x (§114), and a peer's published curve returns **+0.0049 R² for 16.7x** against our 0.035 deficit. The deep-narrow alternative could not complete the benchmark at all. Three independent lines, and "we are 200x under the field norm" does not survive any of them | `FINDINGS` §9, §93, §110, §114 |
 | Beat gradient boosting on the panels we hold | Our panels (6,000-10,500 rows) sit **at or above** the crossover. Every measurement so far was taken in the regime we lose | `FINDINGS` §9 |
 | The product is single-horizon PD plus a certificate | Single-horizon PD does not satisfy IFRS 9. The term structure is the object, and no camp predicts it | `FINDINGS` §9, `LANDSCAPE.md` |
 | The exit condition is "financial beats generic" | A win count across cells manufactures winners. Only 22 of 406 pairwise comparisons were significant in this domain | `FINDINGS` §9 |

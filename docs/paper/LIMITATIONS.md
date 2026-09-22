@@ -293,11 +293,18 @@ The metric is not ours and the number does not transfer. The order of magnitude 
 model class an order-of-magnitude scale-up returns single-digit thousandths, and our deficit is
 **0.035**.
 
-**Parameters and data are separate axes, and both have now been tested here.** §93 scaled
-*tasks* 5× (48,000 → 240,000) and measured **−0.0012 AP** across five folds. §108 scaled
-*parameters* 5.7× and measured −0.0077 on TabArena binary, confounded. Nori scales parameters
-16.7× for +0.0049 R². Three measurements, three directions of "scale", no gain anywhere near
-0.035.
+**Parameters and data are separate axes, both tested here, and the confound is now removed.**
+§93 scaled *tasks* 5× (48,000 → 240,000) and measured **−0.0012 AP** across five folds. §108
+scaled *parameters* 5.7× and measured −0.0077 on TabArena binary, but at half the baseline's
+task count. §114 reran it at **matched tasks** and measured **−0.0049** (12/27, p = 0.701): the
+confound explained +0.0028 of the loss and not the rest. Nori scales parameters 16.7× for
++0.0049 R². And the deep-narrow arm — the other corner of the design space, and the one §108's
+width-only change had left untested — **could not be scored at all**, raising
+`TimeLimitExceeded` after 8 of 27 datasets, because depth costs inference time and this
+project's predict time is already 8.6 s/1K against a field norm near 0.1.
+
+Four measurements, no gain anywhere near 0.035, and one configuration that cannot be ranked
+regardless of what its accuracy would have been.
 
 **TabDPT is the apparent counter-example, and reading it carefully makes the picture worse
 rather than better.** Ma, Thomas et al. (arXiv:2410.18164) report that scaling both model and
