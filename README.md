@@ -11,35 +11,48 @@ this project could make, each tagged SURVIVES / SINGLE DRAW / SUPERSEDED / RETRA
 against its evidence.** That file, not this one, is the source of truth for what is currently
 true. This README is an orientation map.
 
-## What is currently true, in four sentences
+## What is currently true
 
-A synthetic hazard-head architecture makes incoherent PD term structures (a real, measured
-defect in the field's standard per-horizon construction, 39% of firms on real data) impossible
-by construction, at zero accuracy cost. A severe capacity defect in the original architecture —
-capped discrimination regardless of true task difficulty, verified against an exactly-known
-Bayes-optimal AUC — was found, its cause isolated to the architecture rather than the prior
-after eliminating seven other candidates one at a time, closed by a two-way cell-attention
-change, and confirmed on real data: each architecture at its own best measured context, on
-identical rows, gives the new one +0.042 average precision on five folds of five. On real credit
-panels, this project's calibration is consistently among the best measured, and its
-discrimination consistently loses to tuned gradient boosting — both facts, together, on every
-panel tried. Measured externally for the first time on **TabArena**, under the field's own
-protocol and against 94 other methods, it places **93rd of 95** (§98) — and much of that deficit turned out to be *preprocessing*
-rather than architecture: it correlated −0.668 with log categorical cardinality (§100), and
+**On real credit panels, calibration is consistently among the best measured and discrimination
+consistently loses to tuned gradient boosting** — both facts together, on every panel tried.
+That is the project in one line, and everything below is detail.
+
+**Two things it does that nothing else does.** A hazard head makes incoherent PD term
+structures impossible by construction — a real, measured defect in the field's standard
+per-horizon construction, affecting 39% of firms on real data — at zero accuracy cost. And a
+severe capacity defect in the original architecture (capped discrimination regardless of true
+task difficulty, caught against an exactly-known Bayes-optimal AUC) was isolated to the
+architecture rather than the prior after eliminating seven other candidates one at a time, then
+closed by two-way cell attention and confirmed on real data at +0.042 average precision.
+
+**Measured externally on [TabArena](docs/TABARENA.md), it places 93rd of 95** (§98), and the
+diagnosis of that deficit is the most useful work here. Most of it was *preprocessing*, not
+architecture: the per-dataset gap correlated **−0.668** with log categorical cardinality, and
 replacing label encoding with out-of-fold target statistics lifted the mean from 0.7642 to
-0.7823 while collapsing that correlation to −0.025 (§101). **The rank did not move.** What is
-left is a uniform ~0.035 ROC-AUC deficit that no longer depends on categorical content,
-cardinality or width — a sharper target than before, and still a losing one. That rank was
-measured at **51% coverage**; multiclass and regression have since taken coverage to
-**90% (46 of 51)**, with `max_features` the only remaining exclusion — but the new arms are
-*runnable*, not yet *scored*, and a coverage fraction is not a result.
+**0.7823** while collapsing that correlation to −0.025 (§100, §101). **The rank did not move.**
+What remains is a uniform ~0.035 ROC-AUC deficit with no measured axis of variation — a sharper
+target than before, and still a losing one.
 
-**The honest one-line summary: this is not a competitive general tabular model, and on
-TabArena its median rank is 94 of 95 — including on the credit panels.** An earlier version of
-this line claimed its best public results were the corporate-credit panels it was designed
-for. §107 retracts that: those panels rank 83–95, and the high absolute AUC on them (0.9287 on
-Taiwanese bankruptcy) is what everyone scores there, not an edge. Whether a credit specialism
-exists is a question for V4FinBench's five-fold protocol, not for a single-fold leaderboard.
+**What has since been ruled out, which is most of what looked promising.** `column_id_dim`, the
+only untuned lever that had ever moved real-data accuracy, peaks at the value chosen by accident
+(§104). Parameter scale lost (§108). Training volume at 5× was inert (§93). Class balance did
+not survive testing (§102, §103). A widened SCM prior was a flat null against its own control
+(p = 1.000). Reading the field explains why: a peer's published scaling curve returns +0.005 R²
+for 16× the parameters, so **no scaling programme was ever going to close 0.035** — and every
+one of TabArena's top fourteen ranks is synthetic-pretrained (§110), which says the constraint
+this project chose costs nothing in rank and the lever is prior *design*.
+
+**Coverage, which any score must carry.** The 93rd place was measured at **51% coverage**;
+multiclass and regression have since taken it to **90% (46 of 51)**, with `max_features` the
+only remaining exclusion. Those arms are *runnable*, not yet *scored* on real data, and a
+coverage fraction is not a result.
+
+**The honest one-line summary: this is not a competitive general tabular model, and on TabArena
+its median rank is 94 of 95 — including on the credit panels.** An earlier version of this line
+claimed its best public results were the corporate-credit panels it was designed for. §107
+retracts that: those panels rank 83–95, and the high absolute AUC on them (0.9287 on Taiwanese
+bankruptcy) is what everyone scores there, not an edge. Whether a credit specialism exists is a
+question for V4FinBench's five-fold protocol, not for a single-fold leaderboard.
 
 ## How it works
 
@@ -52,6 +65,11 @@ exists is a question for V4FinBench's five-fold protocol, not for a single-fold 
    - `scm.py` — a generic random-graph structural-causal-model prior (the TabPFN/TabICL-style
      idea): random layered functions with several nonlinearities, for general nonlinear and
      multiclass structure the financial prior does not cover.
+   - `tree.py` — ensembles of oblivious decision trees, generating the **axis-aligned,
+     piecewise-constant** structure real tabular data is full of and the other priors do not.
+     Added on *distinctiveness* grounds after `fintfm-priorscore` measured it as the only
+     member of the mixture with a positive tree-versus-linear gap (§112). Off by default
+     (`p_tree=0.0`).
    - `trivial.py`, `crossed.py` — diagnostic-only priors used to isolate specific hypotheses
      (whether the architecture can learn at all; whether a prior's features or its label
      mechanism carries a measured effect). Not part of the default training mixture.
@@ -96,11 +114,15 @@ exists is a question for V4FinBench's five-fold protocol, not for a single-fold 
    ROC-AUC everywhere, and read first at low base rates (ROC-AUC's chance floor is 0.5
    regardless of prevalence; AP's floor is the prevalence itself, so it stays legible at the
    base rates this project's target segment actually has).
+   `fintfm-priorscore` scores a *prior* rather than a model, on the three criteria the
+   literature converged on — performance, diversity, distinctiveness — using **fitted**
+   baselines only, so it cannot confuse "the prior lacks this structure" with "our model cannot
+   learn it". Its first version could, and §112 is the record of what that cost.
 
 ## Quickstart
 
 ```bash
-uv sync --extra bench
+uv sync --extra bench --extra hf   # naming one extra uninstalls the others
 uv run fintfm-train --steps 300 --d-model 32 --d-cell 16 --n-layers 2 --max-features 16 \
     --max-classes 2 --device cpu --out runs/v0-smoke.pt   # pipeline check, a couple of
                                                             # minutes, says nothing about quality
@@ -168,6 +190,12 @@ extras lightgbm MIT, xgboost Apache-2.0, catboost Apache-2.0, pyarrow Apache-2.0
 - [`docs/STRATEGY.md`](docs/STRATEGY.md) — the plan of record.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — how the model works, in more depth than
   this file.
+- [`docs/TABARENA.md`](docs/TABARENA.md) — the external-evaluation recipe, the coverage
+  fraction any score must carry, and four silent failure modes including a results cache that
+  returns stale numbers after a preprocessing change.
+- [`docs/paper/RELATED_WORK.md`](docs/paper/RELATED_WORK.md) — the competing models, read from
+  primary sources, with what each costs this project's positioning. Its digest is the shortest
+  useful summary of why the remaining lever is the prior.
 - [`docs/POSTMORTEM.md`](docs/POSTMORTEM.md) — wrong diagnoses, each caught by measurement
   rather than review, kept on the record deliberately.
 - [`openspec/changes/`](openspec/changes/) — the live roadmap as structured proposals with
@@ -179,6 +207,20 @@ already owned by better-funded competitors, so the thesis is not the mechanism. 
 model that arrives with its own validation evidence — calibrated, auditably free of benchmark
 contamination, and eventually backed by a pre-registered forward track record that cannot be
 bought — plus a public, self-correcting record of what has and has not been shown to be true.
+
+## What would change the picture
+
+Stated so the project is falsifiable rather than open-ended. The uniform ~0.035 deficit has no
+measured axis; the levers that remain, in the order the evidence ranks them:
+
+| lever | status |
+| --- | --- |
+| **prior design** — a tree-structured prior, measured as the only distinctive member of the mixture | arms trained, scoring |
+| **factorized attention** — the current encoder is memory-bound at every turn, and three peers independently chose the cheaper form | proposed (44.x), prior art recorded |
+| **objective** — `p(x, y \| D)` rather than `p(y \| x, D)`, which makes every column a training signal | proposed (48.15), scoped as a measurement before a rewrite |
+| ~~parameter scale~~ | ruled out: a peer's curve returns +0.005 R² for 16× parameters |
+| ~~`column_id_dim`~~ | closed (§104) |
+| ~~training volume at 5×~~ | null (§93) |
 
 ## Status
 
