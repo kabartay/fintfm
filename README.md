@@ -10,7 +10,7 @@ customer data, no per-dataset training.
 | **Status** | research codebase, actively developed — not a product |
 | **Licence** | Apache-2.0, code **and** weights (see [Licensing](#licensing--provenance)) |
 | **Tests** | 242 (`uv run pytest`) |
-| **Measurement log** | 113 numbered findings, each declaring how it was produced |
+| **Measurement log** | 114 numbered findings, each declaring how it was produced |
 | **External benchmark** | [TabArena](docs/TABARENA.md), 90% coverage, **rank 93 of 95** |
 | **Problem types** | binary, multiclass, regression |
 
@@ -33,7 +33,8 @@ TabArena, 27 binary datasets, single fold each, against 94 other methods:
 | label encoding (§98) | 0.7642 | 662 | 93 / 95 |
 | **+ out-of-fold target statistics** (§101) | **0.7823** | 765 | 93 / 95 |
 | + multiclass-capable prior (§105) | 0.7817 | **813** | 93 / 95 |
-| + 5.0M parameters (§108) | 0.7746 | 751 | 93 / 95 |
+| + 5.0M parameters, confounded (§108) | 0.7746 | 751 | 93 / 95 |
+| + 5.0M parameters, **matched tasks** (§114) | 0.7774 | — | 93 / 95 |
 
 **One change has ever moved the number**, and it was preprocessing, not architecture. Nothing
 since has been statistically significant. The rank has never moved.
@@ -241,9 +242,10 @@ measured axis; the levers that remain, in the order the evidence ranks them:
 | **prior design** — a tree-structured prior, measured as the only distinctive member of the mixture | arms trained, scoring |
 | **factorized attention** — the current encoder is memory-bound at every turn, and three peers independently chose the cheaper form | proposed (44.x), prior art recorded |
 | **objective** — `p(x, y \| D)` rather than `p(y \| x, D)`, which makes every column a training signal | proposed (48.15), scoped as a measurement before a rewrite |
-| ~~parameter scale~~ | ruled out: a peer's curve returns +0.005 R² for 16× parameters |
+| ~~parameter scale~~ | closed (§114): −0.0049 at 5.7× **matched tasks**, and a peer's curve returns +0.005 R² for 16× |
 | ~~`column_id_dim`~~ | closed (§104) |
-| ~~training volume at 5×~~ | null (§93) |
+| ~~training volume~~ | null at 5× (§93) and +0.0028 at 2× (§114) |
+| ~~depth over width~~ | cannot be scored (§114): `TimeLimitExceeded` after 8 of 27 datasets |
 
 ## Reproducing the measurements
 
@@ -271,7 +273,7 @@ because they are what stops the same wrong conclusion being reached twice.
 - [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md) — **start here.** Every claim this project
   could make, tagged by status, newest evidence wins.
 - [`docs/FINDINGS.md`](docs/FINDINGS.md) — the full measurement log, numbered sequentially
-  (113 entries and counting), each declaring how its numbers were produced.
+  (114 entries and counting), each declaring how its numbers were produced.
 - [`docs/DECISIONS.md`](docs/DECISIONS.md) — why the project is built the way it is, and what
   would reverse each choice.
 - [`docs/STRATEGY.md`](docs/STRATEGY.md) — the plan of record.
@@ -299,7 +301,7 @@ bought — plus a public, self-correcting record of what has and has not been sh
 
 Actively developed research codebase, not a PoC skeleton: a config-driven experiment harness,
 real GPU pretraining infrastructure ([`docs/HF_JOBS.md`](docs/HF_JOBS.md)), an external
-benchmark integration at 90% coverage, and 113 numbered, provenance-tagged findings.
+benchmark integration at 90% coverage, and 114 numbered, provenance-tagged findings.
 
 **What is proven, open and retracted is tracked in
 [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md), not here** — the honest state changes faster

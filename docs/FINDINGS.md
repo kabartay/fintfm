@@ -7732,3 +7732,64 @@ rather than tidying: with the discretisation, degenerate-label repair, categoric
 missingness duplicated across the single and group paths, the two would silently drift into
 generating different task distributions, and nothing in any accuracy number would say so.
 `scm_reuse_graph` defaults to **1**, so no existing checkpoint or published number changes.
+
+## §114 — Scale closed: 5.7× parameters at matched tasks is −0.0049, and depth cannot even be scored
+
+**How these numbers were produced.** MEASURED. `run_fintfm_lite.py --full` on TabArena's 27
+eligible binary datasets, paired per dataset against §101's `cat_full` baseline. The 5.0M arm
+was trained **12,000 steps at batch 4 = 48,000 tasks**, exactly matching the 885K baseline's
+6,000 steps at batch 8. §108's arm ran 6,000 steps at batch 4 and therefore saw **half** the
+tasks — the confound this run exists to remove.
+
+### The result
+
+| arm | parameters | tasks | mean ROC-AUC | vs baseline | better | p |
+| --- | --- | --- | --- | --- | --- | --- |
+| `cat_full` (baseline) | 885K | 48,000 | **0.7823** | — | — | — |
+| §108 `medium5m` (confounded) | 5.0M | 24,000 | 0.7746 | −0.0077 | 9/27 | — |
+| **`medium-matched`** | **5.0M** | **48,000** | **0.7774** | **−0.0049** | **12/27** | **0.701** |
+
+**The confound accounted for +0.0028 of §108's loss and not the rest.** Doubling the larger
+model's task count moved it from 0.7746 to 0.7774 — the same order as §93's 5×-volume null —
+and it still sits below the model 5.7× smaller.
+
+Neither number is significant. What is reportable is the **absence of any signal in the
+favourable direction** across two independent attempts at the same hypothesis.
+
+### The depth arm could not be scored at all, which is a stronger result than its accuracy
+
+Task 48.1 tested the other corner of the design space: Nori-6M is 16 layers at width 128, so a
+`d_model=128, n_layers=12, n_col_layers=6` arm (2.6M parameters) was trained to the same 48,000
+tasks. It **failed to complete the benchmark**, raising AutoGluon's `TimeLimitExceeded` after 8
+of 27 datasets.
+
+Depth costs inference time roughly linearly, this arm is ~4.5× deeper than the baseline, and
+this project's median predict time is already **8.6 s/1K against a field norm near 0.1**. So the
+finding is not "deep-narrow is less accurate" — it is that **at our inference cost, deep-narrow
+is not a candidate**, because a configuration that cannot finish the benchmark cannot be
+ranked on it. That reframes 48.1 from an accuracy question to a feasibility one, and the
+feasibility answer arrived first.
+
+### Scale is now closed on three independent lines
+
+1. **Parameters, ours, matched** — −0.0049 at 5.7× (this finding).
+2. **Parameters, a peer's, clean** — Nori publishes 6M → 100M for **+0.0049 R²**; a 16.7×
+   increase returning single-digit thousandths against our 0.035 deficit.
+3. **Volume** — §93's 5× null, and this finding's +0.0028 for 2×.
+
+**Any future scaling argument has to explain all three**, and "we are 200× under the field norm"
+does not, because the field norm's own scaling curve is nearly flat here. `docs/STRATEGY.md`'s
+Phase 1 target of 10–50M parameters was written before any of this existed and should be
+restated or withdrawn (task 48.2).
+
+### What this leaves
+
+§104 closed `column_id_dim`. §102/§103 found no axis in the residual and weakened the mechanism
+proposed for it. §93 and this finding close volume and parameters. The clean SCM-mechanism test
+came back at **p = 1.000**. Every cheap lever is now spent.
+
+What remains is what §110 and MITRA point at: **prior design**, currently under test with a
+tree-structured prior measured as the only distinctive member of the mixture (§112); and the
+two architectural proposals that address *cost* rather than capacity — factorized attention
+(44.x) and KV caching (48.20) — which this finding's depth failure makes considerably more
+urgent than they were this morning.
