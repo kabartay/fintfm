@@ -7793,3 +7793,63 @@ tree-structured prior measured as the only distinctive member of the mixture (§
 two architectural proposals that address *cost* rather than capacity — factorized attention
 (44.x) and KV caching (48.20) — which this finding's depth failure makes considerably more
 urgent than they were this morning.
+
+## §115 — The tree-structured prior is the first change since §101 to survive replication
+
+**How these numbers were produced.** MEASURED. Four checkpoints, 6,000 steps at batch 8 =
+48,000 tasks each, identical architecture (885K), differing **only** in whether the mixture
+contains the tree prior: `p_financial=0.7, p_tree=0.3` against `p_financial=0.7` alone. Trained
+at two seeds, so the comparison is made **within** each seed and then across them. Scored on
+TabArena's 27 eligible binary datasets, paired per dataset.
+
+### The result
+
+| | tree prior | control | delta | better | p |
+| --- | --- | --- | --- | --- | --- |
+| **seed 0** | 0.7926 | 0.7843 | **+0.0083** | 17/27 | 0.248 |
+| **seed 1** | 0.7913 | 0.7808 | **+0.0105** | 20/27 | **0.019** |
+| **mean** | — | — | **+0.0094** | — | — |
+
+**0.7926 and 0.7913 are the two highest means this project has recorded**, against a previous
+best of 0.7869. Elo rises to **842** and **826** from the controls' 778 and 737.
+
+### Why this one is believable where the others were not
+
+**The seed effect was measured, not assumed.** The two controls differ from each other by
+**−0.0035** (9/27, p = 0.122) — that is this experiment's run-to-run noise, measured directly
+rather than guessed. The tree effect is **+0.0094, roughly 2.7× that**, and it appears in both
+seeds with the same sign.
+
+Every positive result earlier in this project's week failed one of those two tests. §108's
+scale arm, §105's mixed prior, and the +0.0020 to +0.0046 drift of the prior-mixture arms were
+all single seeds with no noise floor beside them, which is precisely why none of them could be
+called a result. The widened SCM mechanism, tested the same careful way against its own
+control, came back at **p = 1.000** — so the design distinguishes a real effect from a null
+rather than flattering everything it touches.
+
+### What it does not establish
+
+**Rank is unchanged at 93 of 95**, and the Elo confidence intervals (+145/−212, +175/−221)
+overlap the controls' comfortably. The effect is real and small; near the bottom of a
+95-method leaderboard, +0.0094 mean ROC-AUC does not pass anyone.
+
+**Two seeds is two seeds.** One arm reaches p = 0.019 and the other does not, and a
+sign-agreement argument over n = 2 is suggestive rather than conclusive. This is stronger
+evidence than anything else here and it is not a settled result.
+
+**And nothing has been measured on credit data.** The claim is about TabArena's general
+tabular suite. V4FinBench's five-fold protocol is where this project's actual claims live, and
+the tree prior has not been run there.
+
+### Why it was predicted before it was measured
+
+§112 measured the three criteria MITRA proposes for prior selection and found that `tree` was
+the **only** member of the mixture with positive tree-versus-linear distinctiveness (+0.0225,
+against −0.0292 financial and −0.0021 SCM). The prediction — that the mixture lacked
+axis-aligned structure and that supplying it should help — was recorded before this run, from
+an instrument built from fitted baselines that never touches this project's model.
+
+That is the first time in this project's record that a prior-side diagnostic has predicted a
+downstream effect. It is also the strongest available argument for `fintfm-priorscore` being
+worth its existence, and for MITRA's framing that the lever is prior design rather than scale
+(§110, §114).
