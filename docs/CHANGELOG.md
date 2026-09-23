@@ -4,7 +4,7 @@ Hard-wrapped, because it is read in an editor and a diff. Release bodies on GitH
 **not** wrapped — they are read in a browser at full width. Same words, different shape; do
 not paste one into the other. See `CLAUDE.md`.
 
-## [Unreleased]
+## [0.4.0] - 2026-09-22
 
 First external measurement, and the first decomposition of a deficit into a part that belongs
 to the model and a part that does not.
@@ -29,6 +29,17 @@ to the model and a part that does not.
   task metadata at run time, not written down, so it cannot drift from what was executed.
   `FINTFM_PROBLEM_TYPES` narrows a run to one type, which is what keeps a binary score
   comparable with §98/§101 after the other two were added.
+- **A tree-structured prior** (`prior/tree.py`, `--p-tree`): ensembles of oblivious decision
+  trees generating the axis-aligned, piecewise-constant structure real tabular data is full of
+  and the other priors are not. Added on measured *distinctiveness* grounds, not intuition —
+  it is the only member of the mixture with a positive tree-versus-linear gap (§112). Off by
+  default.
+- **`fintfm-priorscore`**: scores a *prior* rather than a model, on the three criteria the
+  literature converged on (performance, diversity, distinctiveness), using **fitted** baselines
+  only so it cannot confuse "the prior lacks this structure" with "our model cannot learn it".
+- **SCM graph re-targeting** (`--scm-reuse-graph`): several tasks per graph, each using a
+  different node as the target. Siblings are genuinely distinct problems — a model fitted on
+  one scores **0.4775, chance**, on another (§113).
 - **A multiclass instrument** (`fintfm-capability --class-sweep`). The capability suite was
   binary-only, so "trained at `--max-classes 10`" was a statement about a command line. The
   trained checkpoint clears its own untrained control at K = 3, 5 and 10 (§99). The accuracy
@@ -50,9 +61,45 @@ to the model and a part that does not.
   0.11%. It was the only untuned lever that had ever moved real-data accuracy, and it is now
   closed — which promotes **scale** from one hypothesis to the leading untested explanation
   for the uniform residual §101 left.
+- **The tree-structured prior works, and replicates** (§115). Two seeds, identical
+  architecture and task count, differing only in whether the mixture contains it:
+  **+0.0083** (17/27, p = 0.248) and **+0.0105** (20/27, p = 0.019), mean **+0.0094** with
+  signs agreeing. The two controls differ from each other by −0.0035, so the seed noise is
+  measured rather than assumed and the effect is ~2.7x it. Means of 0.7926 and 0.7913 are the
+  highest recorded, against a previous best of 0.7869; Elo 842 and 826. **The rank does not
+  move** — 93 of 95 — and nothing has been measured on credit data. Predicted before it was
+  measured, by §112's prior-scoring instrument.
+- **Scale is closed, on three independent lines** (§114). 5.7x the parameters at *matched*
+  task volume scores **-0.0049** (12/27, p = 0.701) — §108's earlier -0.0077 was confounded by
+  half the task count, and removing the confound recovered +0.0028 of it and no more. Training
+  volume is null at 5x (§93) and +0.0028 at 2x. A peer's published curve returns **+0.0049 R²
+  for 16.7x** the parameters, against our 0.035 deficit. `docs/STRATEGY.md`'s 10-50M Phase 1
+  target is withdrawn rather than questioned.
+- **The deep-narrow arm could not be scored at all** (§114), raising `TimeLimitExceeded` after
+  8 of 27 datasets. Depth costs inference time and this project is already at 8.6 s/1K against
+  a field norm near 0.1, so a configuration that cannot finish the benchmark is not a candidate
+  regardless of its accuracy. The question was posed as accuracy; the feasibility answer
+  arrived first.
+- **Every top-14 TabArena rank is synthetic-pretrained** (§110). The three groups arguing that
+  real-table pretraining is the axis that pays do not place above the synthetic frontier, so
+  decision D2's synthetic-only constraint costs nothing measurable in rank.
 - **82% of that gap is categorical preprocessing** (§100). The per-dataset gap correlates
   **−0.668** with log cardinality; the numeric-only residual is **−0.0320**, 2.8× smaller than
   the headline. §98's attribution was one dataset deep and is corrected.
+
+### Retracted
+
+- **§111's claim that the SCM prior favours linear models** (-0.0233) rested on a linear
+  baseline fitted on raw heavy-tailed features that failed to converge. Corrected, the gap is
+  **-0.0021** — no effect (§112). The conclusion it supported survives and is better supported:
+  `tree` is the only prior with positive distinctiveness. **The first version of the instrument
+  reported the financial prior as the most tree-favourable member**, which would have argued
+  against building the tree prior at all.
+- **§107 retracts "its best public results are the corporate-credit panels it was designed
+  for."** By rank those panels are 83rd to 95th of 95; the high absolute AUC on them is what
+  every method scores there. The apparent specialist profile (mean rank 86.26 against harmonic
+  rank 20.72, the largest spread on the board) decomposed to **one dataset, one fold, and a
+  0.0026 AUC margin**.
 
 ### Fixed
 
