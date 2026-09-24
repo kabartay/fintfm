@@ -8137,10 +8137,11 @@ and §114's depth arm would still have failed `TimeLimitExceeded`. TabICL's repo
 than TabPFN-2.5" comes from `O(n² + nm²)` **attention**, not from caching; reading their KV
 caching as the source of their speed was my error and this measurement corrects it.
 
-**Raising `query_chunk` buys most of the same thing for free.** Doubling it to 4,096 halves the
-chunk count and recovers 12 s of the 24 s; 8,192 recovers 18 s. That is a one-line default
-change gated only on memory, against an implementation that must restructure the attention call
-and prove itself identical to float tolerance.
+**~~Raising `query_chunk` buys most of the same thing for free.~~ WRONG — see §120.** The
+linear cost model was fitted over 256–2,048 queries and extrapolated past it. Attention is
+quadratic in `n_ctx + q`, so larger chunks are dramatically *slower*: 2,048 → 8,192 costs
+**24.75 s → 264.87 s**, a 10.7× regression, at 3.6× the memory. The recommendation in this
+paragraph was measured and reversed within the hour.
 
 ### The decision
 
@@ -8154,9 +8155,69 @@ generator's throughput did not survive the caller's control flow). **A quoted sp
 system, not a technique**, and the technique has to be re-costed against our own shape before
 it is worth writing.
 
-### What this does license
+### What this licensed, and what came of it
 
-Measuring whether `query_chunk` can safely rise, which is cheap, exact by construction — the
-row mask already forbids a query from attending to another query, so chunk size cannot change
-a prediction — and worth roughly two-thirds of what the discarded implementation would have
-bought.
+Measuring whether `query_chunk` could safely rise. It was measured (§120) and the answer is
+**no** — the opposite of what this section predicted, because the cost model above is linear
+and the thing it models is not.
+
+## §120 — Larger query chunks are 10.7× slower, not faster: §119's cost model was a line fitted to a parabola
+
+**How these numbers were produced.** MEASURED, locally on CPU with the machine quiet (`bwa`
+finished, load 11 and falling), `v4-priorctl.pt`, context 1,000 rows, 8,192 queries scored in
+chunks of three sizes. Peak RSS from `getrusage`. Predictions compared against the 2,048 result
+elementwise.
+
+### The result, which reverses §119's recommendation
+
+| `query_chunk` | seconds | peak RSS | max abs diff vs 2048 |
+| --- | --- | --- | --- |
+| **2,048** (current default) | **24.75** | **8.6 GB** | — |
+| 4,096 | 63.79 | 20.1 GB | 1.19e-07 |
+| 8,192 | **264.87** | **31.2 GB** | 0.00e+00 |
+
+**2,048 → 8,192 is a 10.7× slowdown at 3.6× the memory.** §119 predicted it would recover
+18 seconds of a 143-second run. It costs 240 seconds instead.
+
+### Why the cost model was wrong
+
+§119 fitted `cost = fixed + marginal × queries` to three points spanning **256 to 2,048**
+queries and extrapolated to 8,192. The fit was good over its range — and the function is not
+linear. Row attention is **quadratic in `n_ctx + q`**: at `q=2,048` the sequence is 3,048 rows;
+at `q=8,192` it is 9,192, three times longer and **nine times** the attention cost. The
+quadratic term is small enough inside the fitted range to hide inside the "marginal" slope and
+dominant outside it.
+
+**A cost model is only valid over the range it was fitted, and this one was extrapolated 4×
+past its largest point** — in a system whose dominant cost is known analytically to be
+quadratic. The shape was available from the architecture without measuring anything.
+
+### The default stays at 2,048, and it is now measured rather than inherited
+
+`query_chunk=2048` was chosen before any of this and turns out to be at or near the optimum of
+the three tested. That is luck, not judgement, and it is worth recording as luck — §104 found
+the same thing about `column_id_dim=16`, and two accidentally-good defaults is a pattern about
+how the values were chosen, not evidence that guessing works.
+
+### Exactness held, which is the more important half
+
+Maximum absolute difference is **0.00e+00** at 8,192 and **1.19e-07** at 4,096 — float
+reassociation, the same magnitude `tests/test_model.py` already records for column-order
+invariance. The row mask forbids a query attending to another query, so chunk size *cannot*
+change a prediction; this was a **guard on that invariant, not a test of chunking**. A nonzero
+diff beyond float noise would have been a far more serious finding than anything about speed.
+
+### The pattern this completes
+
+Three cost or speed estimates this cycle, all wrong, each in a different way:
+
+| | claimed | measured |
+| --- | --- | --- |
+| §113 | re-targeting gives 2.5× the tasks | task count unchanged; a generator's throughput did not survive the caller's control flow |
+| §119 | KV caching is the lever TabICL's 10× rests on | 17%; their speed comes from `O(n² + nm²)` attention |
+| **§120** | **larger chunks amortise the fixed cost** | **10.7× slower; the model was linear, the system is quadratic** |
+
+Each was *arithmetic on a measurement*, not a measurement. The rule that covers all three:
+**a performance claim is not established until it is measured end to end at the shape it will
+run at** — component throughput, a peer's headline, and an extrapolated fit are all the same
+kind of not-yet-evidence.
