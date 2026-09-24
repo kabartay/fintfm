@@ -79,7 +79,7 @@ def run_one(name: str, X: np.ndarray, y: np.ndarray, model_path: str, seed: int 
 
     # in-process: classical baselines and our own model
     models: dict[str, object] = dict(_baselines())
-    # n_ensemble=8, no retrieval: the lever fix docs/FINDINGS.md S70-S71 measured as a real,
+    # n_ensemble=8, no retrieval: the lever fix docs/results/FINDINGS.md S70-S71 measured as a real,
     # significant AP gain (+0.031, Holm p<0.001) over the library defaults this call used to
     # pass implicitly. context_strategy is left at its config default (uniform), not
     # retrieval, because S70 found retrieval actively harmful in this base-rate regime and
@@ -96,7 +96,7 @@ def run_one(name: str, X: np.ndarray, y: np.ndarray, model_path: str, seed: int 
         _report(model_name, proba, time.time() - t0)
 
     # Out-of-process: the boosting family. Fitting these in a process that has imported
-    # torch segfaults, because two OpenMP runtimes collide (docs/FINDINGS.md §25). These are
+    # torch segfaults, because two OpenMP runtimes collide (docs/results/FINDINGS.md §25). These are
     # the baselines that actually compete, so the process boundary is worth the cost.
     if len(classes) == 2:
         for model_name in BOOSTING_MODELS:

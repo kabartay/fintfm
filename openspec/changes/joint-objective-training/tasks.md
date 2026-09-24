@@ -10,5 +10,5 @@
       classification-only checkpoint. Verify: whether one checkpoint can match two, stated
       either way.
 - [ ] 34.4 If joint training wins, retire the two-checkpoint workflow and say so in
-      `docs/DECISIONS.md`; if it loses, record that the objectives conflict and keep the
+      `docs/design/DECISIONS.md`; if it loses, record that the objectives conflict and keep the
       guard as the fix. Verify: a decision with its reversal condition.

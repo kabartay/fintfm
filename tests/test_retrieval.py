@@ -1,6 +1,6 @@
 """Retrieved contexts, and the invariant retrieval knowingly gives up.
 
-`docs/FINDINGS.md` §31 established that 84% of the out-of-time gap is horizon-independent and
+`docs/results/FINDINGS.md` §31 established that 84% of the out-of-time gap is horizon-independent and
 cannot be closed by supplying more context rows, which leaves *which* rows as the only lever.
 These tests guard the mechanism and, as importantly, pin down the batch-independence property
 that retrieval trades away — an invariant that stops holding silently is worse than one that

@@ -129,15 +129,15 @@ def check_changes() -> list[str]:
 
 def check_findings() -> list[str]:
     """Every numbered finding declares how its numbers were produced (spec E1)."""
-    path = ROOT / "docs" / "FINDINGS.md"
+    path = ROOT / "docs" / "results" / "FINDINGS.md"
     if not path.exists():
-        return ["docs/FINDINGS.md is missing"]
+        return ["docs/results/FINDINGS.md is missing"]
     problems: list[str] = []
     sections = re.split(r"^## (\d+)\. ", path.read_text(), flags=re.MULTILINE)[1:]
     for num, body in zip(sections[::2], sections[1::2], strict=False):
         if not any(w in body for w in STATUS_WORDS):
             problems.append(
-                f"docs/FINDINGS.md §{num} declares no provenance "
+                f"docs/results/FINDINGS.md §{num} declares no provenance "
                 f"(one of {', '.join(STATUS_WORDS[:4])})"
             )
     return problems

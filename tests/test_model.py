@@ -92,7 +92,7 @@ def _ensemble_probs(model, X, y, n_ctx, n_classes=None, k=32):
     """Average predicted probabilities over ``k`` draws of the column identities.
 
     Column-order invariance is **distributional** once columns carry random identities
-    (``docs/FINDINGS.md`` §54): any single draw assigns a particular tag to a particular
+    (``docs/results/FINDINGS.md`` §54): any single draw assigns a particular tag to a particular
     column, so permuting columns changes that draw's answer. Averaging over draws recovers
     the invariance, at the 1/sqrt(k) rate measured when the mechanism was added -- 0.018 at
     k=1, 0.0056 at k=16, 0.0023 at k=64 in absolute probability.
@@ -226,7 +226,7 @@ def test_checkpoint_records_which_objectives_were_trained(tmp_path):
 
     A hazard checkpoint therefore leaves the classification head at random initialisation,
     and `predict_proba` served it as if it were real — mean predicted 0.69 against a 4.7%
-    base rate, AUC 0.37, no error (`docs/FINDINGS.md` §34).
+    base rate, AUC 0.37, no error (`docs/results/FINDINGS.md` §34).
     """
     from fintfm.modeling.model import FinancialTFM, ModelConfig
 
@@ -272,7 +272,7 @@ def test_predict_proba_refuses_a_survival_only_checkpoint(tmp_path):
 
 
 def test_eval_quality_handles_multi_class_tasks():
-    """A multi-class prior crashed the training metric mid-run (docs/FINDINGS.md §44).
+    """A multi-class prior crashed the training metric mid-run (docs/results/FINDINGS.md §44).
 
     `roc_auc_score` on the class-1 column alone raises "multi_class must be in ('ovo','ovr')"
     as soon as the generic SCM prior emits more than two classes, which is any run with
@@ -343,7 +343,7 @@ def test_checkpointing_is_off_by_default(tmp_path):
     assert out.exists()
 
 
-# --- attention pooling (docs/FINDINGS.md §50) --------------------------------------
+# --- attention pooling (docs/results/FINDINGS.md §50) --------------------------------------
 
 
 def _pool_model(pooling, n_feat=24, column_id_dim=None):
@@ -433,7 +433,7 @@ def test_attention_pooling_checkpoint_roundtrips(tmp_path):
 
 @pytest.mark.parametrize("n_ctx", [32, 512])
 def test_row_encoder_can_tell_its_own_columns_apart(n_ctx):
-    """The regression test for ``docs/FINDINGS.md`` §54, the project's most expensive bug.
+    """The regression test for ``docs/results/FINDINGS.md`` §54, the project's most expensive bug.
 
     Permuting the values *within each row independently* is not a column permutation: it
     destroys which value came from which column while leaving the multiset untouched. A row
@@ -510,7 +510,7 @@ def test_n_cell_blocks_zero_is_byte_identical_to_the_pre_39_1_architecture():
 def test_two_way_cell_attention_trains(n_cell_blocks, cell_labels):
     """Shapes, gradients and parameter coverage for task 39.1/39.2, before any GPU spend.
 
-    Not a claim that this fixes anything (docs/FINDINGS.md §74, §76) -- only that the new
+    Not a claim that this fixes anything (docs/results/FINDINGS.md §74, §76) -- only that the new
     path is mechanically sound: correct output shape, every parameter receives a finite
     gradient, nothing silently detached from the graph.
     """
@@ -583,7 +583,7 @@ def test_feature_chunking_is_an_identity():
 
     The whole justification for `openspec/changes/cell-attention-and-task-inference` task
     39.24 is that this is a memory/throughput knob and not an approximation -- it is what
-    lets `max_context=4000` run at all (``docs/FINDINGS.md`` §79/§81), and if it perturbed
+    lets `max_context=4000` run at all (``docs/results/FINDINGS.md`` §79/§81), and if it perturbed
     predictions it would silently invalidate every comparison made across chunk sizes.
 
     Chunk sizes deliberately include one that does not divide the feature count (5 into 17)

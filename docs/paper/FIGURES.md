@@ -83,7 +83,7 @@ to produce and disproportionately persuasive to the model-risk reader this proje
 
 ## Not a figure: the failure log
 
-`docs/POSTMORTEM.md`. Consider an appendix. Five wrong diagnoses in one day, each caught by
+`docs/results/POSTMORTEM.md`. Consider an appendix. Five wrong diagnoses in one day, each caught by
 measurement — unusual to publish, and the strongest available evidence that the numbers were
 checked adversarially rather than defended.
 

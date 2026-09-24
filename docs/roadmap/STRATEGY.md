@@ -6,7 +6,7 @@ properly. The first version of this document survived nine hours. What changed i
 plan.
 
 Opinionated on purpose. Where a claim rests on evidence, the evidence is in
-`docs/FINDINGS.md`; where it rests on judgment, it says so.
+`docs/results/FINDINGS.md`; where it rests on judgment, it says so.
 
 ## The thesis, in one sentence
 
@@ -16,7 +16,7 @@ validation evidence a model-risk committee needs.**
 
 **Revised again 2026-09-08 (second revision of the day) on the strength of measurement, not
 argument.** The previous version led with accuracy and calibration. Both were measured and
-both are *small* (`docs/FINDINGS.md` "Where we stand"): +0.033 AUC over logistic regression,
+both are *small* (`docs/results/FINDINGS.md` "Where we stand"): +0.033 AUC over logistic regression,
 ~2× calibration over a *calibrated* incumbent and only below ~250 rows, 1-2% Brier skill over
 a feature-free predictor. A sophisticated buyer finds that ceiling in an afternoon.
 
@@ -37,7 +37,7 @@ Four claims, ordered by how much evidence each carries:
    model instead of five**. Training five models at **5× compute** buys about **+0.008 AUC**
    and returns curves that contradict themselves for two firms in three — a poor trade for a
    regulated PD, and one that can now be *quantified* rather than asserted. No camp in the
-   field predicts this object at all (`docs/LANDSCAPE.md`).
+   field predicts this object at all (`docs/competition/LANDSCAPE.md`).
 2. **Auditable provenance.** Nothing real reaches pretraining, checkable by grep and enforced
    in CI-in-waiting. Competitors training on real tables cannot retrofit this, and the
    leakage literature prices contamination at up to 32 MAPE points (§1).
@@ -102,7 +102,7 @@ See `changes/calibration-mechanism`.
 
 ## Why the obvious framings are dead
 
-Every *mechanism* claim is owned (`docs/LANDSCAPE.md`): "no feature engineering" by Kumo in
+Every *mechanism* claim is owned (`docs/competition/LANDSCAPE.md`): "no feature engineering" by Kumo in
 AP and Forbes, "in-context, no training on your data" by KumoRFM in NVIDIA's own
 documentation, synthetic-prior TFMs by Google TabFM and Prior Labs and Neuralk, "universal
 tabular FM for financial risk" by Feedzai. Competing on mechanism means competing on capital
@@ -157,7 +157,7 @@ the two hard constraints as extreme accuracy *and tight regulatory scrutiny*, th
 neither calibration, validation, PD term structure, IFRS 9, Basel nor low-default portfolios.
 Their own demo shows a bare "Default risk 6%" with "Approve at 4.9% APR" attached — a point
 estimate driving a pricing decision, with no interval, no horizon and no refusal path
-(`docs/LANDSCAPE.md`). The distance between naming regulatory scrutiny and shipping something
+(`docs/competition/LANDSCAPE.md`). The distance between naming regulatory scrutiny and shipping something
 a model-risk function can validate is the product.
 
 `finkele-axiom` transfers directly here: a validation protocol producing a certificate with

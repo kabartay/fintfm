@@ -12,7 +12,7 @@ found no axis in the residual and §103 weakened the mechanism it proposed. That
 as the sole standing hypothesis — and §108's first attempt at it went the wrong way, on a
 confounded design.
 
-Seven peer models were opened on 2026-09-21 (`docs/REFERENCES.md`). One of them, **Nori**, is
+Seven peer models were opened on 2026-09-21 (`docs/research/REFERENCES.md`). One of them, **Nori**, is
 close enough to this project's design to be read as a controlled experiment someone else has
 already paid for: synthetic-only pretraining, in-context prediction, alternating
 feature/sample attention, and a distributional head. It publishes a scaling curve.
@@ -67,7 +67,7 @@ falsification, and several may fail for reasons specific to a 136-feature financ
 - **48.1 is blocked by nothing** and is the first thing to run — it is cheaper than §108's
   failed arm (2.6M against 4.98M parameters) and tests the axis §108 did not vary.
 - **48.2 blocks nothing but should precede any further scale spend**, since it decides whether
-  `docs/STRATEGY.md`'s 10–50M target survives.
+  `docs/roadmap/STRATEGY.md`'s 10–50M target survives.
 - **48.3 is blocked by 46.7**: the binned head's real-data numbers do not exist yet, so a
   quantile head would be replacing something unmeasured.
 - **48.4/48.5/48.6 belong to `mechanism-diverse-prior`** and should be sequenced against it

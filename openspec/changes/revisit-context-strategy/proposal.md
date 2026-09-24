@@ -2,7 +2,7 @@
 
 ## Why
 
-`docs/FINDINGS.md` §29 measured uniform context sampling beating balanced by **10-12 mean AUC
+`docs/results/FINDINGS.md` §29 measured uniform context sampling beating balanced by **10-12 mean AUC
 points** on the V4FinBench out-of-time survival split, at every context size tested, with the
 ordering uniform > hybrid > balanced replicated three times. That is the *reverse* of the
 published result the class default was adopted from (Tanna et al. 2026: balanced worth 3-4 AUC

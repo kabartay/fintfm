@@ -42,4 +42,4 @@ central bet is wrong.
 
 - **Blocked by** nothing. Harness built and tested; runs on Metal locally.
 - **Blocks** `scaling-curve` (no point plotting a curve for an effect that does not exist),
-  and everything in Phase 2+ of `docs/STRATEGY.md`.
+  and everything in Phase 2+ of `docs/roadmap/STRATEGY.md`.

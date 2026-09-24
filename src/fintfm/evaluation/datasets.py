@@ -1,7 +1,7 @@
 """Loaders for real credit-risk datasets used in evaluation only.
 
 **Nothing here may be used for pretraining.** The model's auditability rests on the
-pretraining corpus being entirely synthetic (see `docs/FINDINGS.md` §1): a benchmark number
+pretraining corpus being entirely synthetic (see `docs/results/FINDINGS.md` §1): a benchmark number
 from a model that never saw real data cannot be inflated by memorisation. These loaders exist
 so that claim can be tested, not weakened.
 
@@ -58,7 +58,7 @@ class CreditDataset:
         attribution: Text that must accompany any published use of this data.
         has_period_labels: Whether rows carry an observation date or period. **False for
             every currently loadable panel** — both UCI sets are anonymised cross-sectional
-            ratio tables (``docs/FINDINGS.md`` §7, §8). Time-based evaluation must refuse to
+            ratio tables (``docs/results/FINDINGS.md`` §7, §8). Time-based evaluation must refuse to
             run on a dataset where this is False rather than silently falling back to a
             random split, which would look like out-of-time validation and not be.
     """
@@ -166,7 +166,7 @@ def load_taiwan_bankruptcy() -> CreditDataset:
 
     Like the Polish set it carries **no dates and no company identifiers** — verified by
     column inspection, not assumed — so it supports discrimination and calibration work but
-    nothing temporal. See ``docs/FINDINGS.md`` §8.
+    nothing temporal. See ``docs/results/FINDINGS.md`` §8.
 
     Returns:
         A :class:`CreditDataset` with ``has_period_labels=False``.
@@ -207,7 +207,7 @@ _V4_HORIZON_FILES = tuple(f"company_years_h{i}.parquet" for i in range(1, 7))
 class SurvivalDataset:
     """A real corporate-default panel carrying a default **period**, not just a label.
 
-    This is the object the hazard head needs (``docs/FINDINGS.md`` §20) and the reason
+    This is the object the hazard head needs (``docs/results/FINDINGS.md`` §20) and the reason
     V4FinBench matters: the UCI panels have no firm identifiers (§7), so no per-firm hazard
     path can be scored against them at all.
 
@@ -259,7 +259,7 @@ def load_v4finbench(
 
     1,000,087 company-year rows over 188,338 companies in the Visegrád economies, 2006-2020,
     137 numeric features, positive rate 0.19-0.36%. Code MIT, **data CC BY 4.0** per the
-    repository's separate ``DATA_LICENSE.md`` (``docs/FINDINGS.md`` §8).
+    repository's separate ``DATA_LICENSE.md`` (``docs/results/FINDINGS.md`` §8).
 
     **The horizon files are joined, never stacked.** They have different row counts —
     1,000,087 at h=0 falling to 598,832 at h=5 — because a five-year-ahead label requires

@@ -175,7 +175,7 @@ def test_v4finbench_loader_joins_rather_than_stacks():
 
 @pytest.mark.parametrize("model", ["lightgbm", "catboost", "xgboost"])
 def test_boosting_baselines_fit_with_torch_loaded(model):
-    """Regression: fitting these in a torch process segfaulted (docs/FINDINGS.md §25).
+    """Regression: fitting these in a torch process segfaulted (docs/results/FINDINGS.md §25).
 
     PyTorch bundles its own OpenMP runtime and the boosting libraries load the system one;
     two in a process crash on macOS, and KMP_DUPLICATE_LIB_OK does not help. The subprocess

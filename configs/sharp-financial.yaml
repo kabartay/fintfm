@@ -1,6 +1,6 @@
 # Financial prior with its signal-to-noise floor raised, holding structure fixed.
 #
-# WHY THIS EXISTS. `docs/FINDINGS.md` §64 falsified the hypothesis that the financial prior
+# WHY THIS EXISTS. `docs/results/FINDINGS.md` §64 falsified the hypothesis that the financial prior
 # fails to teach column-specific in-context inference because its tasks do not need column
 # identity: measured, they need it as much as the generic SCM prior's do (identity advantage
 # +0.1480 against +0.1425). What separates them is how learnable the tasks are at all --
@@ -20,7 +20,7 @@
 #
 # NOT A PRODUCTION CONFIG, for exactly the reason §42 gives: a prior that cannot emit a
 # near-noise task teaches the model nothing about *abstaining*, and abstention is a stated
-# deliverable (`docs/GLOSSARY.md`, escalation/refusal). If this test succeeds, the production
+# deliverable (`docs/design/GLOSSARY.md`, escalation/refusal). If this test succeeds, the production
 # answer is a floor high enough to teach and low enough to keep hard tasks -- found by
 # measurement, not by adopting this file.
 

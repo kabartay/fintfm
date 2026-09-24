@@ -30,7 +30,7 @@ predict; cumulative PD follows from it and must be non-decreasing in the horizon
 **Cumulative PD.** Probability of default at any point up to horizon *k*. **Must not
 decrease** as *k* grows — a firm defaulted by year 3 has defaulted by year 5. Measured
 violation rate in this repository: 11.0% per step, with only 60.6% of firms fully monotone
-(`docs/FINDINGS.md` §11).
+(`docs/results/FINDINGS.md` §11).
 
 ## The regulatory objects
 
@@ -54,7 +54,7 @@ reliably by any method. A **named supervisory category**, not merely a small dat
 supervisors expect conservatism and explicit uncertainty in response. This is the project's
 target segment, and note that the field's own authoritative benchmark *named* the
 low-default case as promising and **did not test it** — their datasets average a 22% default
-rate (`docs/FINDINGS.md` §9). **[verify]** the specific supervisory expectations text.
+rate (`docs/results/FINDINGS.md` §9). **[verify]** the specific supervisory expectations text.
 
 **Point-in-time (PIT) versus through-the-cycle (TTC) PD.** A PIT PD reflects current
 economic conditions; a TTC PD averages across the cycle. They are materially different
@@ -79,7 +79,7 @@ nothing about whether a stated probability is correct.**
 **Calibration.** Agreement between stated probabilities and observed frequencies. If the model
 says 2% for a thousand obligors, about twenty should default. Measured by Brier score and
 expected calibration error. **This is where this project's measured advantage lies** — 2.3× to
-11.7× better than gradient boosting at every dataset size (`docs/FINDINGS.md` §12).
+11.7× better than gradient boosting at every dataset size (`docs/results/FINDINGS.md` §12).
 
 **Brier score.** Mean squared error of a predicted probability. A **proper scoring rule**,
 meaning it is minimised only by honest probabilities.
@@ -118,14 +118,14 @@ generic structural-causal-model prior.
 inference, with no gradient step. `fit()` stores the table; it does not train.
 
 **Context.** The labelled rows handed to the model at inference. **Context construction
-matters more than architecture choice** on imbalanced credit data (`docs/FINDINGS.md` §5).
+matters more than architecture choice** on imbalanced credit data (`docs/results/FINDINGS.md` §5).
 
 **Context strategy.** How the context is subsampled when the table exceeds `max_context`:
 `uniform`, `balanced`, or `hybrid`.
 
 **Base-rate correction.** The logit shift undoing the class-balance distortion that
 resampling the context introduces. Exact under label shift and provably ranking-preserving
-(`docs/FINDINGS.md` §6).
+(`docs/results/FINDINGS.md` §6).
 
 **Crossover.** The training-set size at which gradient boosting overtakes the in-context
 model on ranking. Measured here around 100-250 rows on an under-trained checkpoint; Baesens

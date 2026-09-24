@@ -1,6 +1,6 @@
 """The crossed-design prior: swap each generator's label function onto the other's features.
 
-``docs/FINDINGS.md`` §66 closed seven candidate explanations for why the financial prior
+``docs/results/FINDINGS.md`` §66 closed seven candidate explanations for why the financial prior
 fails to teach column-specific in-context inference while the generic SCM prior succeeds
 (0.535 against 0.993 on the antisymmetric probe) -- width, dilution, base rate, identity
 demand, learnability, label-dependence concentration, in-context value. All seven are
@@ -122,7 +122,7 @@ def _finish_binary(
     """Calibrate an intercept to a sampled base rate and draw Bernoulli labels.
 
     Identical policy to ``sample_financial_task``'s base-rate step, so base rate is not a
-    confound between the on-diagonal and off-diagonal cells (``docs/FINDINGS.md`` §62 already
+    confound between the on-diagonal and off-diagonal cells (``docs/results/FINDINGS.md`` §62 already
     showed base rate does not drive the teaching gap; holding it fixed here removes any doubt).
     """
     rate_floor = max(absolute_rate_floor, min_expected_positives / max(n_rows, 1))

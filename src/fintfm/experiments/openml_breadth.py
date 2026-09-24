@@ -2,7 +2,7 @@
 
 Every real-data number this project has is from corporate-default data: V4FinBench, Polish
 and Taiwan bankruptcy. All three are credit, and two of the three are severely imbalanced. So
-the ~0.22 AP deficit to tuned gradient boosting (``docs/FINDINGS.md`` §80, §93) has never been
+the ~0.22 AP deficit to tuned gradient boosting (``docs/results/FINDINGS.md`` §80, §93) has never been
 separated from the *kind of data* it was measured on.
 
 This module scores the same checkpoint across a spread of public OpenML binary tasks chosen to
@@ -155,7 +155,7 @@ def score_task(
 
     Returns:
         ``"<arm>"`` to average precision and ``"<arm>@auc"`` to ROC-AUC. Both are recorded
-        because this project reads AP first at low prevalence (``docs/DECISIONS.md`` D13)
+        because this project reads AP first at low prevalence (``docs/design/DECISIONS.md`` D13)
         while TabArena and TabBench report ROC-AUC, and a deficit in one does not convert to
         the other. fintfm is absent when the checkpoint cannot take the task's width.
     """

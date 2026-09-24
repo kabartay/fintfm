@@ -1,7 +1,7 @@
 # Tasks
 
 - [x] 38.1 **Settle whether base rate or domain content drives the regime effect.** Closed by
-      `docs/FINDINGS.md` §62 and §63: domain content is worth +0.0982 AP (Holm p 0.002),
+      `docs/results/FINDINGS.md` §62 and §63: domain content is worth +0.0982 AP (Holm p 0.002),
       density is worth +0.0047 (p 0.895). Verify: both findings record the paired-bootstrap
       intervals and the base-rate-curriculum framing this proposal originally carried is
       withdrawn in the proposal text.
@@ -47,7 +47,7 @@
       re-measure whether retrieval (fixed) beats `n_ensemble` + `max_context` alone; if not,
       record retrieval as regime-dependent and move on rather than disabling it silently.
 - [ ] 38.9 **Record any regression explicitly.** Verify: if a transfer-improving variant loses
-      on credit, the loss is written into `docs/FINDINGS.md` with the trade stated. Second-best
+      on credit, the loss is written into `docs/results/FINDINGS.md` with the trade stated. Second-best
       everywhere may still be the right product, but that must be argued rather than silent.
 - [x] 38.10 **Run the crossed design §66 specifies.** Done in §67: SCM features under a
       financial-style label collapse from 0.9932 to 0.5647 on the antisymmetric probe,

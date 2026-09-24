@@ -15,7 +15,7 @@ low-rank update. That is a *structural* lesson about how a small team competes, 
 to copy, and the arithmetic transfers directly — the deployment story only works if
 specialising to a lender is cheap.
 
-It also connects to the deployability gap (`docs/FINDINGS.md` §24): a model a lender can run
+It also connects to the deployability gap (`docs/results/FINDINGS.md` §24): a model a lender can run
 *and* tune on their own hardware is a categorically different product from one they may not
 legally deploy at all.
 

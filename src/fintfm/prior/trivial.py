@@ -2,7 +2,7 @@
 
 Why this exists
 ---------------
-``docs/FINDINGS.md`` §53: the model scores 0.67 on its own training distribution, 0.69 on a
+``docs/results/FINDINGS.md`` §53: the model scores 0.67 on its own training distribution, 0.69 on a
 partly-seen one and 0.63 on iid Gaussian tasks it has never seen — while logistic regression
 scores 0.73, 0.89 and 0.99 on the same three. **It produces roughly the same number whatever
 it is shown**, including on tasks with an achievable ceiling of 0.995. It is not tracking task

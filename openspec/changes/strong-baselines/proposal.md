@@ -2,7 +2,7 @@
 
 ## Why
 
-`docs/FINDINGS.md` §25: every "gradient boosting beats us" statement in this project was
+`docs/results/FINDINGS.md` §25: every "gradient boosting beats us" statement in this project was
 measured against **sklearn's `GradientBoostingClassifier`**, the weakest member of the
 family. LightGBM was silently skipped on every run for want of `libomp`, and CatBoost and
 XGBoost were never installed.
@@ -29,7 +29,7 @@ bisection, and `KMP_DUPLICATE_LIB_OK=TRUE` does not help.
 
 - Not hyper-parameter tuning the baselines. Out-of-the-box on both sides, matching how
   Baesens et al. framed it; a tuned-GBM comparison is a separate and harder claim.
-- Not adding tabular-neural or AutoML baselines yet, though `docs/RESEARCH_NOTES.md` lists
+- Not adding tabular-neural or AutoML baselines yet, though `docs/research/RESEARCH_NOTES.md` lists
   them as the eventual comparison set.
 
 ## Falsified by

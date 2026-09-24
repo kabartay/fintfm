@@ -1,6 +1,6 @@
 # Postmortem: seven wrong diagnoses in three days, and the one question nobody asked
 
-**Date:** 2026-09-09. Companion to `docs/FINDINGS.md` §28-§32, which carry the numbers. This
+**Date:** 2026-09-09. Companion to `docs/results/FINDINGS.md` §28-§32, which carry the numbers. This
 document exists for the *pattern*, because the individual findings each read as an isolated
 slip and they were not isolated.
 

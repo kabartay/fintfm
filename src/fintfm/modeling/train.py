@@ -46,7 +46,7 @@ class TrainConfig:
     #: a loss curve.
     resume: str | None = None
     #: Features per row-within-feature attention call, for ``n_cell_blocks > 0`` models.
-    #: Identity-preserving (``docs/FINDINGS.md`` §81), so it changes no number and only
+    #: Identity-preserving (``docs/results/FINDINGS.md`` §81), so it changes no number and only
     #: bounds memory. ``None`` keeps the unchunked path, which is what every checkpoint
     #: before §81 trained with; it is also what made §78's run OOM on a T4 and forced that
     #: finding's documented protocol deviation (§79).
@@ -73,7 +73,7 @@ def _eval_quality(
     **Not accuracy.** This function used to report query accuracy, and at the prior's mean base
     rate of about 0.047 a constant majority-class predictor scores 0.953 — so three pretraining
     runs logged "held-out accuracy 0.935-0.945", *below the constant predictor*, and it read as
-    progress (``docs/FINDINGS.md`` §42). ``CLAUDE.md`` already said accuracy is not a proper
+    progress (``docs/results/FINDINGS.md`` §42). ``CLAUDE.md`` already said accuracy is not a proper
     scoring rule and that this is why training optimises cross-entropy; the evaluation inside
     the training loop did not follow the repository's own rule for three runs.
 
@@ -85,7 +85,7 @@ def _eval_quality(
       any task. Measured on the financial prior, whose per-task rates span 0.003 to 0.986,
       pooled AUC read 0.9080 where the per-task mean was 0.6426 -- an overstatement of 0.26,
       and the reason a checkpoint could log "held-out AUC 0.943" while scoring 0.63-0.69 on
-      every probe (``docs/FINDINGS.md`` §57). The trivial prior hides this, because every one
+      every probe (``docs/results/FINDINGS.md`` §57). The trivial prior hides this, because every one
       of its tasks has the same base rate;
     - **AUC per task**, the mean of AUCs computed inside each task. This is the honest
       discrimination number and the one to read;
@@ -155,7 +155,7 @@ def _eval_quality(
     # class-1 column alone raises "multi_class must be in ('ovo', 'ovr')". That crash killed a
     # pretraining run, which is the right failure mode -- a silently wrong AUC here would have
     # been far worse, since this metric is the instrument everything else is read through
-    # (docs/FINDINGS.md §42).
+    # (docs/results/FINDINGS.md §42).
     k = p.shape[-1]
     onehot = np.zeros((len(y), k), dtype=np.float64)
     onehot[np.arange(len(y)), y] = 1.0
@@ -327,12 +327,12 @@ def main() -> None:
         "--n-rows-choices", type=str, default=None,
         help="comma-separated task sizes sampled per batch, e.g. 256,1024,2048. The "
              "base-rate floor scales with task size, so a fixed small value caps how "
-             "imbalanced any task can be (docs/FINDINGS.md #26)",
+             "imbalanced any task can be (docs/results/FINDINGS.md #26)",
     )
     p.add_argument("--max-features", type=int, default=24)
     p.add_argument(
         "--p-trivial", type=float, default=0.0,
-        help="probability of a deliberately trivial task (docs/FINDINGS.md §53): the control "
+        help="probability of a deliberately trivial task (docs/results/FINDINGS.md §53): the control "
              "that separates 'our prior is too hard' from 'the model cannot learn'",
     )
     p.add_argument(
@@ -350,7 +350,7 @@ def main() -> None:
     p.add_argument(
         "--p-tree", type=float, default=None,
         help="probability of drawing a tree-structured task (axis-aligned boundaries); "
-             "selected on distinctiveness, see docs/FINDINGS.md 111",
+             "selected on distinctiveness, see docs/results/FINDINGS.md 111",
     )
     p.add_argument(
         "--scm-reuse-graph", type=int, default=None,
@@ -358,20 +358,20 @@ def main() -> None:
     )
     p.add_argument(
         "--p-crossed", type=float, default=0.0,
-        help="probability of a crossed-design task (docs/FINDINGS.md §66, prior/crossed.py): "
+        help="probability of a crossed-design task (docs/results/FINDINGS.md §66, prior/crossed.py): "
              "SCM features under the financial prior's label mechanism, isolating whether the "
              "financial prior's teaching failure tracks its features or its label function",
     )
     p.add_argument(
         "--identity-shuffle", action="store_true",
         help="expose financial-task columns from independently-per-account-permuted accounts "
-             "(docs/FINDINGS.md §67-§71, task 38.11): breaks cross-account identities while "
+             "(docs/results/FINDINGS.md §67-§71, task 38.11): breaks cross-account identities while "
              "leaving the label and each column's marginal untouched",
     )
     p.add_argument(
         "--p-financial", type=float, default=None,
         help="probability of drawing a financial rather than a generic SCM task; the "
-             "survival objective forces 1.0 regardless (docs/FINDINGS.md §14)",
+             "survival objective forces 1.0 regardless (docs/results/FINDINGS.md §14)",
     )
     p.add_argument("--max-classes", type=int, default=10)
     p.add_argument(
@@ -383,20 +383,20 @@ def main() -> None:
     p.add_argument(
         "--pooling", type=str, default="meanmax", choices=("meanmax", "attention"),
         help="how feature tokens become a row vector; 'attention' can weight features "
-             "where a mean cannot (docs/FINDINGS.md §50)",
+             "where a mean cannot (docs/results/FINDINGS.md §50)",
     )
     p.add_argument(
         "--column-id-dim", type=int, default=None,
         help="width of the random per-task column identity; defaults to d_cell//4, and 0 "
              "reproduces the pre-fix architecture. Without it the row encoder is a symmetric "
              "function of the row's values and cannot represent 'column j matters' "
-             "(docs/FINDINGS.md §54)",
+             "(docs/results/FINDINGS.md §54)",
     )
     p.add_argument(
         "--n-cell-blocks", type=int, default=0,
         help="alternating two-way cell-attention blocks before pooling; 0 (default) "
              "reproduces every checkpoint trained before this existed. Task 39.1, testing "
-             "whether §74's capacity cap is architectural (docs/FINDINGS.md §74, §76)",
+             "whether §74's capacity cap is architectural (docs/results/FINDINGS.md §74, §76)",
     )
     p.add_argument(
         "--run-steps", type=int, default=None,
@@ -415,7 +415,7 @@ def main() -> None:
         "--feature-chunk", type=int, default=None,
         help="features per row-within-feature attention call (--n-cell-blocks > 0 only). "
              "Identity-preserving, so it changes no number and only bounds memory "
-             "(docs/FINDINGS.md S81): that stage's attention is (batch*F, heads, N, N), "
+             "(docs/results/FINDINGS.md S81): that stage's attention is (batch*F, heads, N, N), "
              "which is what made S78's run OOM on a T4 and forced its protocol deviation. "
              "Try 16 if a cell-attention run does not fit",
     )
@@ -428,7 +428,7 @@ def main() -> None:
         "--d-ff", type=int, default=None,
         help="feed-forward width; defaults to 4 x d_model, the transformer convention. "
              "Leaving it pinned while d_model grows makes the FFN a bottleneck and distorts "
-             "any scaling comparison (docs/HF_JOBS.md)",
+             "any scaling comparison (docs/infra/HF_JOBS.md)",
     )
     p.add_argument("--n-layers", type=int, default=6, help="row-attention layers")
     p.add_argument("--n-col-layers", type=int, default=2, help="column-attention layers")
@@ -486,7 +486,7 @@ def main() -> None:
         p_regression=args.p_regression,
         identity_shuffle=args.identity_shuffle,
         # the default-rate envelope comes from configuration, because a prior that cannot
-        # generate the regime being evaluated is the defect behind docs/FINDINGS.md §26
+        # generate the regime being evaluated is the defect behind docs/results/FINDINGS.md §26
         sharpness_min=cfg.prior.sharpness_min,
         sharpness_max=cfg.prior.sharpness_max,
         min_expected_positives=cfg.prior.min_expected_positives,

@@ -1,6 +1,6 @@
 """The monotonicity guarantee, and the survival likelihood that fits the whole curve.
 
-`docs/FINDINGS.md` §11 measured 39% of firms receiving a cumulative-PD curve that fell as
+`docs/results/FINDINGS.md` §11 measured 39% of firms receiving a cumulative-PD curve that fell as
 the horizon grew. These tests assert the property that makes that impossible **by
 construction** rather than by training, which is the difference between a design advantage
 and a scale one.

@@ -1,4 +1,4 @@
-# Real-data validation of the two-way cell-attention architecture (docs/FINDINGS.md S78),
+# Real-data validation of the two-way cell-attention architecture (docs/results/FINDINGS.md S78),
 # task 39.5 of `openspec/changes/cell-attention-and-task-inference`.
 #
 # NOT PRODUCTION. This file exists to make one comparison possible, and its context size is
@@ -22,7 +22,7 @@
 # WHY THIS IS NOT COMPARED AGAINST S69 DIRECTLY. S69/S71 scored at max_context=2000 and 4000,
 # neither of which is reachable for this architecture on this machine. Comparing a
 # cell-attention run at 1000 against a S69 number at 2000 would confound architecture with
-# context size -- the exact shape of error docs/POSTMORTEM.md already records twice. Both
+# context size -- the exact shape of error docs/results/POSTMORTEM.md already records twice. Both
 # checkpoints are re-scored under THIS file instead, so the only thing differing between the
 # two arms is n_cell_blocks/cell_labels.
 #

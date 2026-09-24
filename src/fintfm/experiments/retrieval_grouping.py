@@ -1,6 +1,6 @@
 """How much does sharing a retrieved context with other queries cost?
 
-``docs/FINDINGS.md`` §32 and §35 report retrieval as the largest accuracy gain in this
+``docs/results/FINDINGS.md`` §32 and §35 report retrieval as the largest accuracy gain in this
 project, and both rest on an approximation that has never been measured. Per-query retrieval
 is the correct operation — every firm gets the context of *its own* nearest neighbours — but it
 costs one forward pass per firm, roughly 500× the work of chunked scoring at a 2,000-row
@@ -201,7 +201,7 @@ def run(
         "note": (
             "AUC here is on a stratified subsample (all positives, sampled negatives) so it "
             "is comparable between these arms and NOT with the full-panel numbers in "
-            "docs/FINDINGS.md §35."
+            "docs/results/FINDINGS.md §35."
         ),
     }
     out_dir.mkdir(parents=True, exist_ok=True)

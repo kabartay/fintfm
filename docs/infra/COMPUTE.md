@@ -44,7 +44,7 @@ partly overlaps anyway.
 | Phase 1 full | 20,000 steps × 3 variants | ~12 h | 640k tasks/variant; overnight |
 | ~12M params | `d_model=384`, `n_layers=8`, 20k steps × 3 | ~1.5-2 days | ESTIMATED by scaling, not measured |
 
-Note the gap between the current configuration and `docs/STRATEGY.md`'s stated Phase 1
+Note the gap between the current configuration and `docs/roadmap/STRATEGY.md`'s stated Phase 1
 target of 10-50M parameters: `d_model=192` with 6 layers yields only **2.2M**. Reaching 10M+
 needs roughly `d_model=384` and 8 layers, which is a weekend on Metal. The first pass is
 deliberately below target — its job is to find out whether the effect exists at all before
@@ -53,7 +53,7 @@ spending a weekend measuring it precisely.
 ## Rented NVIDIA, measured
 
 Added 2026-09-09, on Hugging Face Jobs. Full recipe and the six probes behind it in
-`docs/HF_JOBS.md`.
+`docs/infra/HF_JOBS.md`.
 
 | device | model | s/step at batch 8 | vs Metal |
 | --- | --- | --- | --- |
@@ -128,7 +128,7 @@ deliberately.
 
 **Before this existed, LightGBM had never once run** and CatBoost and XGBoost were absent, so
 every gradient-boosting comparison used sklearn's weakest implementation and understated the
-field by 0.018-0.040 AUC (`docs/FINDINGS.md` §25).
+field by 0.018-0.040 AUC (`docs/results/FINDINGS.md` §25).
 
 **The wider lesson:** an exception guard converted a crash into a silent skip, and a silently
 absent baseline flatters us. Skips are now announced.
@@ -165,7 +165,7 @@ near-zero CPU while the worker runs at 88%, which briefly read as a stalled job 
 ## Retrieved contexts cost about 2.5x blind ones
 
 Measured 2026-09-09 on the V4FinBench out-of-time split, 47,378 queries scored against a
-72,622-row training pool, 64 query groups, CPU inference (`docs/FINDINGS.md` §32):
+72,622-row training pool, 64 query groups, CPU inference (`docs/results/FINDINGS.md` §32):
 
 | context rows | uniform | retrieval | ratio |
 | --- | --- | --- | --- |

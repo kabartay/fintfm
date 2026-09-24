@@ -2,7 +2,7 @@
 
 ## Why
 
-`docs/FINDINGS.md` §34: the training loop picks one objective per step with an `if/else`, so a
+`docs/results/FINDINGS.md` §34: the training loop picks one objective per step with an `if/else`, so a
 hazard checkpoint **never optimises the classification head**. That head keeps its random
 initialisation, and `predict_proba` served it — AUC 0.3745 and a stated 69% default
 probability against a 4.7% base rate, with no error.

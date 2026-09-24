@@ -130,7 +130,7 @@ transfers; and the resulting model is still far from competitive, in a way that 
 - Reproduction: `configs/`, the entry points, the packaged default config, and
   `config_sources` recorded in every run's JSON.
 - The prior's generative process in full.
-- **The failure log.** [`../POSTMORTEM.md`](../POSTMORTEM.md) — wrong diagnoses, each caught by
+- **The failure log.** [`../results/POSTMORTEM.md`](../results/POSTMORTEM.md) — wrong diagnoses, each caught by
   measurement rather than review. **Include it.** It is unusual, it is the strongest available
   evidence that the numbers were adversarially checked, and it costs nothing but candour.
 

@@ -3,7 +3,7 @@
 ## Purpose
 
 A table has no canonical column order, so an answer that depends on column position is
-wrong. The first architecture failed this by construction (`docs/ARCHITECTURE.md`), and it
+wrong. The first architecture failed this by construction (`docs/design/ARCHITECTURE.md`), and it
 was the main limit on transfer.
 
 ## Requirements

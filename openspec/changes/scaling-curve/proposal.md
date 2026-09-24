@@ -2,7 +2,7 @@
 
 ## Why
 
-Phase 2 of `docs/STRATEGY.md`. A model that does not improve with more pretraining is a
+Phase 2 of `docs/roadmap/STRATEGY.md`. A model that does not improve with more pretraining is a
 neural network with good marketing, not a foundation model. The scaling relationship is the
 scientific result worth publishing, and it is the claim that distinguishes this from an
 AutoML wrapper.
@@ -35,5 +35,5 @@ roadmap rather than ending it.
 - **Blocked by** `phase1-prior-ablation`. There is no point plotting a curve for an effect
   that does not exist.
 - **Blocked by** compute: this is the change that justifies renting NVIDIA
-  (`docs/COMPUTE.md`), because the run count multiplies.
+  (`docs/infra/COMPUTE.md`), because the run count multiplies.
 - **Blocks** any external claim that this is a foundation model rather than a model.

@@ -2,7 +2,7 @@
 
 ## Why
 
-The prior is the one component this project owns, and `docs/FINDINGS.md` §18 measured exactly
+The prior is the one component this project owns, and `docs/results/FINDINGS.md` §18 measured exactly
 how it diverges from the data it must transfer to:
 
 - **Width: 9-21 features generated against 64-95 in real panels.** The generator is

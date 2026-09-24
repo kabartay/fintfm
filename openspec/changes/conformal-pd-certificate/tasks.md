@@ -12,7 +12,7 @@
 - [ ] 5.4 OOD detection over features with escalation, reported as correct behaviour rather
       than failure. Verify: a synthetic disjoint family is escalated at a high rate.
 - [ ] 5.5 Coverage under regime shift: calibrate on one period, evaluate on another. Verify:
-      numbers into `docs/FINDINGS.md`, re-derived from `results.json`.
+      numbers into `docs/results/FINDINGS.md`, re-derived from `results.json`.
 - [ ] 5.6 Generate `certificate.md` where every clause cites a `results.json` field. Verify:
       a test that each numeric claim in the generated document resolves to a field.
 - [ ] 5.7 **Added 2026-09-14.** Make interval width conditional on the inferred task

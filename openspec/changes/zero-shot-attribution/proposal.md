@@ -8,7 +8,7 @@ with SHAP explainers**. They also name the comparison as their own future work â
 feature attributions derived from PFN and GBM pipelines using SHAP"*. It is open.
 
 Explanations are not a nicety here. Credit scorecards are logistic regression *because*
-regulators demand interpretability (`docs/DECISIONS.md` D3), adverse-action notices require a
+regulators demand interpretability (`docs/design/DECISIONS.md` D3), adverse-action notices require a
 reason per decision in several jurisdictions, and a model-risk reviewer will not accept a
 score without one. A model that beats GBM on AUC but cannot say why loses to GBM+SHAP anyway.
 

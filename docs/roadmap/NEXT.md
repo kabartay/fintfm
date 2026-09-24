@@ -2,7 +2,7 @@
 
 Ordered by urgency in tiers. Work it in tier order unless the conversation overrides that,
 and prefer the cheapest item that unblocks others. Proposals live in
-[`openspec/changes/`](../openspec/changes/); this file is the ordering.
+[`openspec/changes/`](../../openspec/changes/); this file is the ordering.
 
 **Derive the count, do not recall it:**
 
@@ -46,7 +46,7 @@ measured share attached to each candidate.
 
 **What is deliberately *not* at the top:** a TabArena leaderboard PR. At 51% coverage with a
 degraded categorical path it would measure the workaround as much as the model
-(`docs/TABARENA.md`).
+(`docs/results/TABARENA.md`).
 
 ---
 
@@ -67,7 +67,7 @@ was driving the ranking. The queue follows that.
    rows while the model sees a 2,000-row context. That is §16's crossover on real data. It
    cannot be closed by supplying more rows — uniform context peaks at 2,000 and *falls* at
    4,000, because pretraining used 256-1,024-row tasks — and pretraining on bigger tasks is
-   priced out at 32× per step for 2,048 rows (`docs/COMPUTE.md`). **Choosing which 2,000 rows
+   priced out at 32× per step for 2,048 rows (`docs/infra/COMPUTE.md`). **Choosing which 2,000 rows
    is therefore the only remaining lever on the dominant term.**
 
 2. **`revisit-context-strategy`** — §29 reversed a published default by 10-12 AUC points on

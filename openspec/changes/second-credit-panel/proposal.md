@@ -7,7 +7,7 @@ bankruptcy. A result on a single panel is a result about that panel. Polish firm
 2000-2013 are one economy, one accounting regime and one crisis, and the model could be
 learning that rather than credit risk.
 
-`docs/STRATEGY.md` lists this as a Phase 1 step for exactly this reason: results must not
+`docs/roadmap/STRATEGY.md` lists this as a Phase 1 step for exactly this reason: results must not
 rest on one dataset before anything is claimed externally.
 
 ## What
@@ -19,7 +19,7 @@ licensing. Candidates, none yet verified:
   similar shape, likely CC BY.
 - **V4FinBench** — described in conversation as ~1M company-year observations, 131 features,
   multiple horizons, with TabPFN baselines. **Unverified — not yet opened**, and quarantined
-  as a lead in `docs/REFERENCES.md`.
+  as a lead in `docs/research/REFERENCES.md`.
 - SEC EDGAR XBRL filings joined to Chapter 11 filings — free and public domain, but the join
   is real work and the label definition is a design decision, not a given.
 

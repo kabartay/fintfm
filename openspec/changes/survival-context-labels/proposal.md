@@ -7,14 +7,14 @@ The hazard head is asked to produce a six-horizon term structure from a context 
 binary `y`, so the context says which firms defaulted and never when. The model must infer the
 shape of the whole curve from covariates alone.
 
-The out-of-time AUC column is exactly what that predicts (`docs/FINDINGS.md` §30):
+The out-of-time AUC column is exactly what that predicts (`docs/results/FINDINGS.md` §30):
 
 | horizon | 0 | 1 | 2 | 3 |
 | --- | --- | --- | --- | --- |
 | fintfm hazard | 0.8398 | 0.7559 | 0.6842 | 0.5968 |
 | per-horizon logreg | 0.9717 | 0.8908 | 0.8310 | 0.7530 |
 
-**Corrected 2026-09-09 by `docs/FINDINGS.md` §31, before any work started.** This proposal
+**Corrected 2026-09-09 by `docs/results/FINDINGS.md` §31, before any work started.** This proposal
 was originally written claiming the widening gap was "the signature of missing timing
 evidence". Decomposition shows otherwise: the baseline decays almost as fast as we do (−0.2187
 against −0.2429 across the grid), so the gap is a **constant 0.132 deficit present already at

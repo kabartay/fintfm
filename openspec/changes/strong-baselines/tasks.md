@@ -20,7 +20,7 @@
 - [ ] 18.6 Repeat §27 across >= 3 seeds. The n=100 AUC win is 0.0005 over CatBoost, which is
       noise; only the ECE and skill margins are substantial. Verify: mean +/- std per arm in
       §27 before the result is quoted outside this repository.
-- [x] 18.5 Record the OpenMP conflict and its resolution in `docs/COMPUTE.md`, since it is an
+- [x] 18.5 Record the OpenMP conflict and its resolution in `docs/infra/COMPUTE.md`, since it is an
       environment fact any future contributor will hit. Verify: the section names the
       bisection that identified it. **Done 2026-09-09, including that
       `KMP_DUPLICATE_LIB_OK=TRUE` is not sufficient.**

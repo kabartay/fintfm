@@ -2,7 +2,7 @@
 
 - [ ] 35.1 **Gate:** `fintfm-capability` shows the trained model clearing the untrained control
       by a wide margin on `linear` and `conjunction`. Verify: the probe table recorded in
-      `docs/FINDINGS.md`. Until this passes, everything below measures §42.
+      `docs/results/FINDINGS.md`. Until this passes, everything below measures §42.
 - [ ] 35.2 Fetch TabBench v2 and check its licence against commercial use **before** running
       anything, adding a line to `README.md`'s licensing section. Verify: the licence quoted in
       the finding, not summarised.

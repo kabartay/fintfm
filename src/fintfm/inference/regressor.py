@@ -16,7 +16,7 @@ What it buys, concretely
 TabArena's 51 datasets are 30 binary, 13 regression and 8 multiclass; 46 of them fall inside
 the 136-feature cap (27 / 12 / 7). Declaring ``regression`` takes the suite from 34/51 to
 **46/51 (90%)**, which is the difference between a score that carries a coverage caveat in
-every sentence and one that does not (``docs/TABARENA.md``).
+every sentence and one that does not (``docs/results/TABARENA.md``).
 
 What it is not
 --------------

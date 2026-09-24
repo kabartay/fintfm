@@ -122,7 +122,7 @@ should not be the pitch while it is unproven.
 
 **And do not quote the small numbers as ceilings.** They are one under-trained checkpoint on
 one panel family with a prior that was too narrow at the time. The honest form is "not yet
-demonstrated", not "does not work". See `docs/STRATEGY.md`.
+demonstrated", not "does not work". See `docs/roadmap/STRATEGY.md`.
 
 ## 1. Synthetic-only pretraining is an auditability property, not just a cost saving
 
@@ -159,7 +159,7 @@ So a benchmark result from this model cannot be inflated by memorisation, and th
 *checkable by a third party* rather than asserted. Competitors pretrain on real tables
 (Fundamental: "billions of tables") or real relational data (Kumo: "real and synthetic"),
 which leaves their public-benchmark numbers open to exactly this critique. In a market where
-the deliverable is validation evidence (see `docs/LANDSCAPE.md`), this is a rare defensible
+the deliverable is validation evidence (see `docs/competition/LANDSCAPE.md`), this is a rare defensible
 property.
 
 ### A published paper now uses provenance as a competitive claim (added 2026-09-09)
@@ -207,7 +207,7 @@ generator on a real dataset.
 ## 2. The enterprise competitive baseline is linear regression, not gradient boosting
 
 **Date:** 2026-09-08. **Status:** MEASURED by others (Fundamental's own published figure);
-our reading of what it implies is inference, not measurement. See `docs/LANDSCAPE.md`.
+our reading of what it implies is inference, not measurement. See `docs/competition/LANDSCAPE.md`.
 
 Fundamental's published oil & gas result reports NEXUS beating **linear regression** by 75%
 MAE / 43% RMSE across 13 regional markets. That is the comparison a funded competitor chose
@@ -249,7 +249,7 @@ and long waiting periods.
 bought, back-dated, or acquired with a funding round; it has to be lived. A well-capitalised
 competitor entering credit in a year starts its clock then. Starting the clock costs almost
 nothing now — publish a hashed, timestamped cohort and its predictions — and the evidence
-compounds monthly while everything else in `docs/LANDSCAPE.md` says distribution and capital
+compounds monthly while everything else in `docs/competition/LANDSCAPE.md` says distribution and capital
 favour the incumbents. This is the one axis where being early beats being funded, and it
 converts the current weaknesses (no customers, no proprietary data, no compute) into the one
 asset nobody else can hold.
@@ -316,7 +316,7 @@ not because its data is not.**
 
 **Three consequences for this project:**
 
-- It explains **why Fundamental went to oil & gas before finance** (`docs/LANDSCAPE.md`):
+- It explains **why Fundamental went to oil & gas before finance** (`docs/competition/LANDSCAPE.md`):
   vendors follow available data, not the largest market.
 - **The synthetic prior is not a substitute for real data in this domain — it is the only
   affordable, licence-clean route.** That is why this space is empty while energy is crowded,
@@ -423,7 +423,7 @@ shift on a validation split instead of deriving it analytically, which would abs
 the model actually does rather than assuming.
 
 **Consequence for the project.** This is a small worked example of the thesis in
-`docs/LANDSCAPE.md`: the deliverable in regulated credit is the validation evidence, and the
+`docs/competition/LANDSCAPE.md`: the deliverable in regulated credit is the validation evidence, and the
 evidence only exists if the metrics can see the failure. Nothing here was visible in AUC.
 
 ## 7. The only real dataset has no dates and no company identifiers, which blocks two changes
@@ -582,7 +582,7 @@ condition where TFMs are supposed to win.
 - **Low Default Portfolios are a named regulatory category**, not just a small dataset. With a
   handful of defaults you cannot estimate PD reliably by any method, so supervisors demand
   uncertainty quantification and conservatism. That is exactly the conformal-certificate work
-  in `docs/DECISIONS.md` D3 — the niche where accuracy is hardest is the niche where the
+  in `docs/design/DECISIONS.md` D3 — the niche where accuracy is hardest is the niche where the
   certificate is worth most.
 - The incumbent is gradient boosting **plus SHAP**, so the comparison is not accuracy alone.
   A single in-context model that returns PD *and* attributions would replace both halves; see
@@ -785,7 +785,7 @@ which is the whole reason §9's AUC-only framing was insufficient.
 
 ### Consequence: the pitch is calibration, not accuracy
 
-This is the strongest evidence yet for `docs/DECISIONS.md` D3, and it sharpens it. The
+This is the strongest evidence yet for `docs/design/DECISIONS.md` D3, and it sharpens it. The
 defensible claim is **not** "more accurate than gradient boosting" — that is false above a
 few hundred rows and would be caught immediately. It is:
 
@@ -999,7 +999,7 @@ Consequence, and it is a demotion: **calibration alone is not a differentiator.*
 defensible position is the *combination* — domain prior for discrimination, mixture for
 calibration, and the certificate for evidence — not calibration as such. Any pitch resting
 on calibration versus other foundation models needs a head-to-head against TabPFN before it
-can be made, and `docs/STRATEGY.md` has been amended accordingly.
+can be made, and `docs/roadmap/STRATEGY.md` has been amended accordingly.
 
 ### Limitations, and two are serious
 
@@ -1634,7 +1634,7 @@ deploy the current best tabular or time-series foundation models at all. Not for
 quality or money — the licence forbids it. That is a gap that no amount of accuracy work by
 the frontier labs closes, because it is a deliberate business choice on their part.
 
-**What follows for this project.** `docs/DECISIONS.md` D6 chose Apache-2.0 on the reasoning
+**What follows for this project.** `docs/design/DECISIONS.md` D6 chose Apache-2.0 on the reasoning
 that the moat is the weights and the prior rather than the code. This finding suggests the
 sharper version: **commercially usable weights may themselves be the differentiator** in a
 market where the best models are locked. That does not mean giving the weights away — it
@@ -1783,7 +1783,7 @@ horizon, since the cumulative rate *falls* with horizon here and the model pushe
 
 ### The strategic problem this exposes
 
-`docs/STRATEGY.md` targets **low-default portfolios** — a Basel category defined by having
+`docs/roadmap/STRATEGY.md` targets **low-default portfolios** — a Basel category defined by having
 very few defaults — and §9 named them as the wedge because that is where the incumbent's
 remedies fail.
 
@@ -2086,7 +2086,7 @@ crossover — above a few hundred rows a fitted model wins — appearing exactly
 1,000/2,000/4,000 rows scores 0.6921 / **0.7192** / 0.6986 mean AUC. It peaks at 2,000 and
 *falls* at 4,000, because the model was pretrained on tasks of 256-1,024 rows and a 4,000-row
 context is out of distribution. Pretraining on larger tasks is the obvious response and
-`docs/COMPUTE.md` prices it out: 2,048-row tasks cost 32× per step and 4,096-row tasks 500×.
+`docs/infra/COMPUTE.md` prices it out: 2,048-row tasks cost 32× per step and 4,096-row tasks 500×.
 
 ### Consequence for the queue
 
@@ -2633,7 +2633,7 @@ at its default 64 groups, prototype at its paper value; the rematch at 256 group
 and it changed nothing. Both arms were fine. The lesson is narrower than "tune before
 comparing": a single-seed sweep is not tuning, it is noise with a direction.
 
-**This is the sixth wrong diagnosis in two days** (`docs/POSTMORTEM.md`), and the first where
+**This is the sixth wrong diagnosis in two days** (`docs/results/POSTMORTEM.md`), and the first where
 the error was over-crediting our own result rather than mis-attributing a failure.
 
 ---
@@ -2861,7 +2861,7 @@ mean+max pooling over features, which is structurally additive and may be unable
 conjunction whatever the training signal contains. That would be the more expensive finding and
 it is worth knowing either way.
 
-**Why this is written down first.** Over 2026-09-09 six diagnoses were wrong (`docs/POSTMORTEM.md`),
+**Why this is written down first.** Over 2026-09-09 six diagnoses were wrong (`docs/results/POSTMORTEM.md`),
 including two that over-credited a result. A hypothesis this tidy — one mechanism explaining
 four separate observations — is exactly the kind that gets confirmed by a story rather than by
 evidence. The numbers above are the test, and they were fixed before the experiment existed.
@@ -2993,7 +2993,7 @@ three orders of magnitude short, and have been reasoning about architecture and 
 basis for two days.
 
 **The remedy is compute, not research**, and it is cheap. Measured throughput on a T4 is
-0.64 s/step at 847K parameters and batch 8 (`docs/HF_JOBS.md`), i.e. 12.5 tasks per second:
+0.64 s/step at 847K parameters and batch 8 (`docs/infra/HF_JOBS.md`), i.e. 12.5 tasks per second:
 
 | tasks seen | GPU-hours (T4) | approx cost |
 | --- | --- | --- |
@@ -3011,7 +3011,7 @@ architectural work sit behind simply training the model once at a defensible vol
 every measurement taken before that is a measurement of an undertrained model.
 
 **The uncomfortable part:** this was always visible. The step count was in every command, and
-`docs/COMPUTE.md` has priced runs since day one. Nobody multiplied 6,000 by 8 and compared it
+`docs/infra/COMPUTE.md` has priced runs since day one. Nobody multiplied 6,000 by 8 and compared it
 to the literature the architecture was copied from.
 
 ---
@@ -3821,7 +3821,7 @@ stated reason). Ones we do not have: encoding **two features per position** as a
 win, and the multi-query attention variant that makes the cached train state cheap. The cell-level two-way design is the one with published evidence behind it, and
 is what a serious version of this model should end up with — with the caveat that it changes
 the memory profile substantially, since the state becomes ``(B, N, F, d)`` through the whole
-stack rather than ``(B, N, d_model)`` after the first stage (`docs/COMPUTE.md` already records
+stack rather than ``(B, N, d_model)`` after the first stage (`docs/infra/COMPUTE.md` already records
 that this model is memory-bound in ``batch x rows x features``).
 
 A second thing worth taking from the same source: TabPFN separates inference on training and
@@ -3840,7 +3840,7 @@ the gap is where their protocol is silent — is a conjecture until each half of
 and §55's whole value evaporates if it is quoted as though it were a result. It is
 a reading of the TabPFN Nature 2025 paper's methods sections, quoted directly so the claims
 can be checked against the source rather than against a summary of it (a summariser
-previously fabricated a results table for this project, `docs/POSTMORTEM.md`). Every
+previously fabricated a results table for this project, `docs/results/POSTMORTEM.md`). Every
 competitive inference drawn here is about **what their protocol reports**, which is
 verifiable, and not about how their model would score on an unreported metric, which is not.
 
@@ -3984,7 +3984,7 @@ ceiling.** Specifically:
   are unaffected; our side of every comparison is not.
 
 What survives untouched: the prior-side findings (§42's difficulty span, §47's sign bug), the
-protocol and honesty findings, `docs/COMPUTE.md`'s timings, and §55, which contains no numbers
+protocol and honesty findings, `docs/infra/COMPUTE.md`'s timings, and §55, which contains no numbers
 of ours.
 
 ### The weakest remaining cell
@@ -4116,7 +4116,7 @@ separability, which is worth the run either way.
 ### The uncomfortable part
 
 **The target segment is what starves the pretraining signal.** The low-default portfolio is
-what this project exists for (`docs/GLOSSARY.md`), and a prior faithful to it supplies too few
+what this project exists for (`docs/design/GLOSSARY.md`), and a prior faithful to it supplies too few
 positives for the model to learn the discrimination that regime demands. If the prediction
 holds, the resolution is a **curriculum** spanning both densities rather than a move to
 balanced tasks — a model trained only on balanced data would be trained away from its purpose,
@@ -4261,7 +4261,7 @@ thesis is untouched by this measurement rather than supported by it.
 ROC-AUC and accuracy, neither a proper scoring rule, and argues the gap is where their protocol
 is silent. Our own harness reported ROC-AUC and F1 and would have carried "second of five" into
 a document. The criticism was correct and we were committing a version of it at the same time.
-`docs/DECISIONS.md` should record AP as the metric read first on any low-base-rate split.
+`docs/design/DECISIONS.md` should record AP as the metric read first on any low-base-rate split.
 
 ### The ordering, tested rather than asserted
 
@@ -4748,7 +4748,7 @@ quantities in a way no correlation coefficient on standardised values necessaril
 
 **Not yet a trade with a stated cost.** If the accounting identities are confirmed as the
 cause, weakening them to test that hypothesis makes the generator progressively less a
-financial prior — which is why `docs/DECISIONS.md` and this project's stated non-goals treat
+financial prior — which is why `docs/design/DECISIONS.md` and this project's stated non-goals treat
 that trade as one requiring an explicit argument, not a default fix.
 
 ### Status
@@ -4892,7 +4892,7 @@ combination on the identical fold:
 | retrieval + n_ensemble=8 + ctx=4000 | 0.1225 | -0.063 | 1092s |
 | **n_ensemble=8 + ctx=4000, no retrieval** | **0.2116** | **+0.026** | 254s |
 
-**Retrieval alone drops AP by 0.133 — the opposite direction from `docs/FINDINGS.md` §32's
+**Retrieval alone drops AP by 0.133 — the opposite direction from `docs/results/FINDINGS.md` §32's
 +0.066 to +0.095 AUC gain on the same protocol.** Widening the context partially offsets the
 damage (0.0527 to 0.1184) but no combination that includes retrieval recovers the baseline,
 let alone improves on it. **Dropping retrieval and keeping the other two levers reaches 0.2116
@@ -5478,7 +5478,7 @@ Three consequences, all of which constrain what task 39.5 can honestly claim:
 1. **§69 cannot serve as the control.** §69 scored at `max_context=2000`, which is on the far
    side of the cliff. Comparing a cell-attention run at 1000 against a §69 number at 2000
    would confound architecture with context size — the precise error shape
-   `docs/POSTMORTEM.md` already records twice. Task 39.5 re-scores *both* checkpoints under
+   `docs/results/POSTMORTEM.md` already records twice. Task 39.5 re-scores *both* checkpoints under
    `configs/cellattn-v4-validation.yaml` instead, so `n_cell_blocks`/`cell_labels` is the only
    term that differs.
 2. **The cell-attention arm is scored at a context its own predecessor was still improving
@@ -5504,7 +5504,7 @@ hardware — the existence of the `F` factor will not.
 `experiments/v4_protocol.py` constructed `FinancialTFMClassifier` without passing
 `cfg.inference.query_chunk`, so that configuration key silently did nothing on the protocol
 path — it happened to agree with the classifier's own default (2048), so no run had ever
-diverged visibly. Same family as `docs/FINDINGS.md` §28 and the "misspelled key must be an
+diverged visibly. Same family as `docs/results/FINDINGS.md` §28 and the "misspelled key must be an
 error" rule in `CLAUDE.md`: a knob that is read from configuration, printed in
 `config_sources`, and then not used. Fixed, along with a new `--device` flag, since a
 cell-attention checkpoint is ~100x cheaper on MPS than CPU and nothing in the protocol path
@@ -6145,7 +6145,7 @@ difference — those intermediate checkpoints were in the same ephemeral `/tmp`.
 
 ### Why it happened, which is the part worth keeping
 
-`docs/HF_JOBS.md` carried a section headed **"Drafted run command [unverified]"** whose
+`docs/infra/HF_JOBS.md` carried a section headed **"Drafted run command [unverified]"** whose
 `pip install` line omitted `huggingface_hub` while ending in `hf upload`. The **working** §78
 job, visible in `hf jobs ps -a`, installed it. I followed the document rather than the command
 with a track record, and the document's own `[unverified]` marker was the warning I did not act
@@ -7113,7 +7113,7 @@ changes the picture, this curve is the thing to re-run — not the thing to cite
 
 **How these numbers were produced.** MEASURED. `run_fintfm_lite.py --full` on TabArena's 27
 eligible binary datasets, `FINTFM_RUN_NAME=mixedprior` so the results cache could not return
-§101's numbers (the failure mode `docs/TABARENA.md` records). The arm is `v4-multiclass.pt` —
+§101's numbers (the failure mode `docs/results/TABARENA.md` records). The arm is `v4-multiclass.pt` —
 885K parameters, `--max-classes 10`, the generic SCM prior mixed into the financial one —
 against §101's `cat_full` run of the binary-only `v4-cellattn-labels.pt`. Both use the
 out-of-fold target-statistics categorical path, so the only difference is the checkpoint.
@@ -7388,7 +7388,7 @@ reproduce in ten lines.
 It does **not** improve any fintfm number, and must never be deployed to soften §107's
 retraction or §98's placement. A synthetic-only model that loses is still losing.
 
-What it buys is that the provenance claim stops being a promise. `docs/STRATEGY.md`'s
+What it buys is that the provenance claim stops being a promise. `docs/roadmap/STRATEGY.md`'s
 differentiator is *auditable* freedom from contamination; this is the first measurement showing
 that (a) the property is not free — the field's strongest scaling results come from the corpus
 that forfeits it — and (b) it is not vacuous either, because the overlap is real, nonzero, and
@@ -7470,7 +7470,7 @@ equivalent mistake with its own numbers (§80, §98, §107).
 ### What LimiX-2 actually contributes, and why it is the deepest idea in the sweep
 
 Its **contextual mechanism network** changes the objective. Conventional tabular PFNs — this
-project included, explicitly so in `README.md` and `docs/ARCHITECTURE.md` — amortise
+project included, explicitly so in `README.md` and `docs/design/ARCHITECTURE.md` — amortise
 `p(y | x, D_context)`. LimiX-2 learns **`p(x, y | D_context)`**: "a context-dependent
 representation of the joint structure underlying data generation", trained by
 context-conditional masked modelling.
@@ -7778,7 +7778,7 @@ feasibility answer arrived first.
 3. **Volume** — §93's 5× null, and this finding's +0.0028 for 2×.
 
 **Any future scaling argument has to explain all three**, and "we are 200× under the field norm"
-does not, because the field norm's own scaling curve is nearly flat here. `docs/STRATEGY.md`'s
+does not, because the field norm's own scaling curve is nearly flat here. `docs/roadmap/STRATEGY.md`'s
 Phase 1 target of 10–50M parameters was written before any of this existed and should be
 restated or withdrawn (task 48.2).
 
@@ -8270,7 +8270,7 @@ approximately zero.
 
 ### What this decides about submission
 
-`docs/TABARENA.md` set the condition itself: *"a declaration without a measurement behind it is
+`docs/results/TABARENA.md` set the condition itself: *"a declaration without a measurement behind it is
 the same failure in a new costume: it would submit a capability whose quality nobody has
 checked."* The measurement now exists, and it says these two are not capabilities yet.
 

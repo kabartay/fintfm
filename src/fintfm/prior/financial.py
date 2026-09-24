@@ -15,7 +15,7 @@ missing (MCAR and MNAR-on-distress), a few redundant/noisy columns are added
 and the column order is shuffled. Nothing here is fitted to real data.
 
 **Width comes from a derived ratio family, which is how real panels are wide.**
-Measured 2026-09-08 (``docs/FINDINGS.md`` §18): the earlier version was capped
+Measured 2026-09-08 (``docs/results/FINDINGS.md`` §18): the earlier version was capped
 near 24 columns by a fixed dictionary of named quantities, while the real panels
 it must transfer to carry 64-95 features. Those real features are overwhelmingly
 *ratios over one balance sheet and P&L* — the UCI Polish panel's 64 columns are
@@ -41,10 +41,10 @@ _N_SECTORS = 12
 #:
 #: Set to 2.0, not 3.0, for a measured reason. Step cost is **worse than quadratic** in task
 #: size on Metal — 0.62 s at 256 rows, 1.61 s at 1,024, 19.76 s at 2,048 and 310.71 s at
-#: 4,096 (``docs/COMPUTE.md``) — so reaching a low base rate by growing the task is
+#: 4,096 (``docs/infra/COMPUTE.md``) — so reaching a low base rate by growing the task is
 #: prohibitively expensive past about 1,024 rows. Lowering the expected count instead puts a
 #: 0.195% floor within reach of a 1,024-row task, which covers V4FinBench's lowest
-#: cumulative rate of 0.19% (``docs/FINDINGS.md`` §26) at roughly a twelfth of the cost.
+#: cumulative rate of 0.19% (``docs/results/FINDINGS.md`` §26) at roughly a twelfth of the cost.
 #:
 #: Two defaults per task is thin, and it is also what a real low-default portfolio looks
 #: like: a Basel LDP may carry two defaults in a thousand obligors. Below two the
@@ -62,7 +62,7 @@ _RATE_CEILING = 0.30
 #: The low end is near-pure noise (a task with almost nothing to learn); the high end is
 #: near-deterministic (a task with a boundary that can be extracted exactly). **The span is
 #: the point** — a model trained only on hard tasks never learns to exploit clean signal
-#: (``docs/FINDINGS.md`` §42), and one trained only on easy tasks never learns to abstain.
+#: (``docs/results/FINDINGS.md`` §42), and one trained only on easy tasks never learns to abstain.
 _SHARPNESS_MIN = 0.3
 _SHARPNESS_MAX = 12.0
 
@@ -317,10 +317,10 @@ def sample_financial_task(
         max_features: Upper bound on exposed columns (after redundant/noise columns).
         min_features: Lower bound on exposed columns.
         n_horizons: When set, sample a **default period** on a grid of this many periods via
-            :func:`_sample_survival`, so a hazard head can be trained (``docs/FINDINGS.md``
+            :func:`_sample_survival`, so a hazard head can be trained (``docs/results/FINDINGS.md``
             §20). The binary label still falls out of it, so this is backwards compatible.
         sharpness_min / sharpness_max: Range the per-task logit scale is drawn from,
-            log-uniformly. **This is the prior's signal-to-noise knob.** ``docs/FINDINGS.md``
+            log-uniformly. **This is the prior's signal-to-noise knob.** ``docs/results/FINDINGS.md``
             §64 measured that what a prior *teaches* tracks how learnable its tasks are —
             gradient boosting reaches 0.7276 on this prior against 0.8306 on the generic SCM
             prior, and the two teach column-specific in-context inference at 0.5669 and 0.9932
@@ -333,7 +333,7 @@ def sample_financial_task(
         absolute_rate_floor: Hard floor on the sampled base rate.
         rate_ceiling: Upper end of the sampled base-rate range.
         n_sectors_max: Upper bound on the number of sectors drawn.
-        identity_shuffle: Diagnostic for ``docs/FINDINGS.md`` §67-§71 (task 38.11). When True,
+        identity_shuffle: Diagnostic for ``docs/results/FINDINGS.md`` §67-§71 (task 38.11). When True,
             every account independently reused across multiple exposed columns is given its
             own independent row permutation *for the exposed feature matrix only* -- so
             ``equity`` and ``total_assets`` no longer satisfy
@@ -412,7 +412,7 @@ def sample_financial_task(
     # The signs used to be fixed: `np.abs(...)` over drivers whose orientation is hardcoded
     # above, so in every task the prior had ever generated, higher leverage meant riskier and
     # higher margin meant safer. That is economically true and it was the single most damaging
-    # property of this prior (``docs/FINDINGS.md`` §47). A universal feature-to-label mapping
+    # property of this prior (``docs/results/FINDINGS.md`` §47). A universal feature-to-label mapping
     # can be memorised once and applied to every task, so the model never had any reason to
     # read its context labels — and measurably did not: shuffling the context labels changed
     # its predictions not at all (rank correlation 0.977) and left its AUC *higher* than with
@@ -465,8 +465,8 @@ def sample_financial_task(
     # Base rate range, and why the floor is not a constant.
     #
     # This floor was 1% and V4FinBench's cumulative default rates are 0.36% down to 0.19%
-    # (docs/FINDINGS.md §26), so the model had never seen a task as imbalanced as the
-    # low-default portfolios docs/STRATEGY.md targets — a contradiction between the prior and
+    # (docs/results/FINDINGS.md §26), so the model had never seen a task as imbalanced as the
+    # low-default portfolios docs/roadmap/STRATEGY.md targets — a contradiction between the prior and
     # the strategy that stood until a real panel was scored.
     #
     # But a low rate is only *learnable* if the task actually contains defaults. At 0.2% with
@@ -542,7 +542,7 @@ def sample_financial_task(
     }
     names = list(candidates)
     # Width: real panels carry 64-95 features because they compute many ratios over one
-    # balance sheet (docs/FINDINGS.md §18). Expose a sampled mix of named quantities and
+    # balance sheet (docs/results/FINDINGS.md §18). Expose a sampled mix of named quantities and
     # derived ratios up to max_features, rather than capping at the named set.
     n_expose = int(rng.integers(min_features, max_features + 1))
     n_named = int(min(len(names), max(1, round(n_expose * rng.uniform(0.2, 0.6)))))

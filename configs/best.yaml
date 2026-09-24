@@ -1,4 +1,4 @@
-# The best configuration measured to date on V4FinBench out of time (docs/FINDINGS.md §38):
+# The best configuration measured to date on V4FinBench out of time (docs/results/FINDINGS.md §38):
 # mean AUC 0.8143 ± 0.0038, mean ECE 0.0072 ± 0.0005, 0% coherence violations, ~56 s.
 #
 # It uses `prototype` context construction, which is **not ours** -- it is Kostrzewa et al.'s

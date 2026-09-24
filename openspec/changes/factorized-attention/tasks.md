@@ -17,7 +17,7 @@
 - [ ] 44.3 **Implement the factorized encoder** behind a config flag, defaulting off so every
       existing checkpoint reproduces unchanged. Verify: a test asserts the new path is
       permutation-equivariant in columns and permutation-invariant in context rows, the two
-      invariances `docs/DECISIONS.md` D4 requires and which the current encoder's tests
+      invariances `docs/design/DECISIONS.md` D4 requires and which the current encoder's tests
       already pin.
 - [ ] 44.4 **Measure cost before measuring accuracy.** Verify: peak training memory and
       seconds per step are reported for both encoders at matched shape, and the factorized

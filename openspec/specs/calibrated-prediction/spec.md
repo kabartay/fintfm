@@ -5,7 +5,7 @@
 A lender prices, provisions and holds capital against the *level* of a probability, not its
 ordering. Measured: gradient boosting's calibration error is 2.3× to 11.7× worse than this
 model's at every dataset size, while still winning AUC above a few hundred rows
-(`docs/FINDINGS.md` §12). The two properties are separable, and the level is the deliverable.
+(`docs/results/FINDINGS.md` §12). The two properties are separable, and the level is the deliverable.
 
 ## Requirements
 

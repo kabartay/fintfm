@@ -24,11 +24,11 @@ being trustworthy the first time that is allowed.
 
 **Workflow.** An idea becomes a proposal. A proposal becomes tasks. A task is ticked only
 when its stated verification passes, **with the result recorded next to it** rather than a
-bare `[x]`. When a change lands, its findings go to `docs/FINDINGS.md` and its decisions to
-`docs/DECISIONS.md`; the proposal keeps a `DONE` header rather than being deleted, so the
+bare `[x]`. When a change lands, its findings go to `docs/results/FINDINGS.md` and its decisions to
+`docs/design/DECISIONS.md`; the proposal keeps a `DONE` header rather than being deleted, so the
 reasoning stays readable.
 
-**The queue lives in [`docs/NEXT.md`](../docs/NEXT.md)**, tiered by urgency. Report the
+**The queue lives in [`docs/roadmap/NEXT.md`](../docs/roadmap/NEXT.md)**, tiered by urgency. Report the
 remaining count after finishing anything, and derive it rather than recalling it:
 
 ```bash

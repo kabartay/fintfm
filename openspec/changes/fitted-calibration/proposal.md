@@ -2,7 +2,7 @@
 
 ## Why
 
-`docs/FINDINGS.md` §6 established that balanced context inflates predicted default rates
+`docs/results/FINDINGS.md` §6 established that balanced context inflates predicted default rates
 threefold and that an analytic label-shift correction fixes it — ECE from 0.102 to 0.007 at
 the 3-year horizon. But the same measurement showed the correction **overshooting** at the
 1-year horizon, where ECE worsened from 0.0151 to 0.0173.

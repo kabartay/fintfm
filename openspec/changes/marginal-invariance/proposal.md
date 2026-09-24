@@ -2,7 +2,7 @@
 
 ## Why
 
-`docs/FINDINGS.md` §87 measured something nobody had checked: **the model is fitted on
+`docs/results/FINDINGS.md` §87 measured something nobody had checked: **the model is fitted on
 marginals of kurtosis 40.70 and served marginals of kurtosis 1.81.** `modeling/train.py`
 applies no feature transform at all, while `FinancialTFMClassifier` defaults to
 `feature_transform="rank"` — and every real-data number this project has ever reported was

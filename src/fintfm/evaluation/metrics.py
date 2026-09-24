@@ -44,7 +44,7 @@ class CreditMetrics:
         brier_skill: Improvement over a **feature-free constant predictor** at the base rate,
             ``1 - brier / brier_reference``. On an imbalanced problem raw Brier is dominated
             by the negatives, so a trivial baseline scores well and the achievable range is
-            narrow — measured at 1-2% for this project's best model (``docs/FINDINGS.md``
+            narrow — measured at 1-2% for this project's best model (``docs/results/FINDINGS.md``
             §17). Skill is the number that means something; raw Brier is not.
         is_degenerate: True when the model has essentially no discriminative content
             (AUC at or below 0.55) *despite* possibly excellent calibration. A constant
@@ -69,10 +69,10 @@ class CreditMetrics:
         """One-line rendering for benchmark output.
 
         AUC is reported first for continuity with prior output; **average precision is the
-        number to read at a low base rate** (``docs/DECISIONS.md`` D13) -- ROC-AUC's chance
+        number to read at a low base rate** (``docs/design/DECISIONS.md`` D13) -- ROC-AUC's chance
         floor is 0.5 regardless of prevalence, so at a low base rate it compresses the whole
         usable range into its top few percent, while AP's floor equals the prevalence and the
-        range stays legible. Measured consequence of reading AUC alone: `docs/FINDINGS.md`
+        range stays legible. Measured consequence of reading AUC alone: `docs/results/FINDINGS.md`
         S60 ranked fintfm second of five on V4FinBench by AUC and third by AP.
         """
         flag = "  [DEGENERATE: no discriminative content]" if self.is_degenerate else ""
@@ -207,7 +207,7 @@ def paired_auc_difference(
             low-base-rate split: ROC-AUC's chance floor is 0.5 whatever the prevalence, so it
             compresses the whole usable range into its top few percent, while average
             precision's floor **is** the prevalence and the range stays legible
-            (``docs/DECISIONS.md`` D13).
+            (``docs/design/DECISIONS.md`` D13).
 
     Returns:
         ``(delta, (lo, hi), p_two_sided)`` where ``delta`` is ``AUC(a) - AUC(b)`` on the
@@ -257,7 +257,7 @@ def holm_adjusted_p(p_values: list[float]) -> list[float]:
     comparisons usually wants the adjusted p-value itself, and reading a boolean list as
     though it held p-values silently inverts every verdict — ``True`` formats as ``1.0000``
     and reads as "not significant". That happened once here, in the write-up of
-    ``docs/FINDINGS.md`` §32, so both forms now exist and are named for what they return.
+    ``docs/results/FINDINGS.md`` §32, so both forms now exist and are named for what they return.
 
     Adjusted values are made monotone in the step-down order, as the method requires, and
     capped at 1.

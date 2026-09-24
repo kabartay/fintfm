@@ -92,7 +92,7 @@ def test_sample_efficiency_sizes_are_ascending_and_documented():
     assert max(sizes) >= 4000, "must reach the ~8000 crossover region to observe it"
 
 
-# --- capability probes (docs/FINDINGS.md §42) --------------------------------------
+# --- capability probes (docs/results/FINDINGS.md §42) --------------------------------------
 
 
 def test_probes_have_the_ceilings_they_claim():
@@ -159,7 +159,7 @@ def test_untrained_control_is_reproducible(tmp_path):
     """A floor that moves is not a floor.
 
     Unseeded, the control scored 0.344 to 0.569 on `linear` across invocations, so whether a
-    trained model "cleared the control" depended on the draw (docs/FINDINGS.md §47).
+    trained model "cleared the control" depended on the draw (docs/results/FINDINGS.md §47).
     """
     from fintfm.experiments.capability import run
     from fintfm.modeling.model import FinancialTFM, ModelConfig
@@ -228,7 +228,7 @@ def test_base_rate_sweep_keeps_the_linear_baseline_flat(tmp_path):
 def test_bayes_ceiling_closed_form_matches_empirical_bayes_optimal_auc():
     """Task 39.3's explicit verification: the closed form must match reality, not assumption.
 
-    Before this was trusted for a real measurement (docs/FINDINGS.md §74), the formula
+    Before this was trusted for a real measurement (docs/results/FINDINGS.md §74), the formula
     Phi(mu/sqrt(2)) was checked against the empirical AUC of the true Bayes-optimal statistic
     (the informative dimension itself) on 200,000 rows. Kept as a permanent regression test so
     the formula cannot silently drift from what the probe actually measures.

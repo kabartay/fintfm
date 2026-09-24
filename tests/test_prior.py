@@ -74,7 +74,7 @@ def test_batch_task_size_varies_when_choices_given():
     assert len(sizes) > 1, "task size should vary across batches"
 
 
-# --- difficulty span (docs/FINDINGS.md §42) ----------------------------------------
+# --- difficulty span (docs/results/FINDINGS.md §42) ----------------------------------------
 
 
 def test_prior_spans_difficulty_from_noise_to_learnable():

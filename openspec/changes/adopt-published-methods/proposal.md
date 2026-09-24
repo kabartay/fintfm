@@ -3,7 +3,7 @@
 ## Why
 
 The single most valuable thing found in two days of measurement came from the *literature*,
-not from our data: `docs/FINDINGS.md` §42 traced the model's failure to learn back to a prior
+not from our data: `docs/results/FINDINGS.md` §42 traced the model's failure to learn back to a prior
 clamped to a narrow difficulty band, and the fix — sample difficulty across orders of
 magnitude, from trivial to impossible — is how TabPFN-style priors are built. That was found
 by accident, while chasing a different hypothesis.

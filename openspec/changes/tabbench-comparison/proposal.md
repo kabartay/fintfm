@@ -47,7 +47,7 @@ distance from the frontier, in either direction.
 
 ## Blocked by
 
-**`docs/FINDINGS.md` §42.** The model scores 0.685 on a clean linear task that logistic
+**`docs/results/FINDINGS.md` §42.** The model scores 0.685 on a clean linear task that logistic
 regression solves at 0.9997 and beats its own random weights by 0.015. Running TabBench today
 would produce a number that measures §42 and nothing else. The gate is the capability probes
 (`fintfm-capability`) showing the trained model clearing the untrained control by a wide

@@ -9,7 +9,7 @@ learn the crisis rather than generalise across it. The same firm can appear on b
 
 The leakage literature names this directly as its second mode — memorisation of global
 patterns induced by external shocks — and supervisory out-of-time validation exists precisely
-to prevent it. Since the product is validation evidence (`docs/DECISIONS.md` D3), reporting
+to prevent it. Since the product is validation evidence (`docs/design/DECISIONS.md` D3), reporting
 random-split numbers undermines the one thing being sold.
 
 ## What
@@ -35,7 +35,7 @@ how large the gap is, and that is what the change measures.
 ## Blocked by / blocks
 
 - **Blocked by `second-credit-panel` task 7.5 only.** Established 2026-09-08
-  (`docs/FINDINGS.md` §7): the UCI panels carry no dates, periods or identifiers, so this is
+  (`docs/results/FINDINGS.md` §7): the UCI panels carry no dates, periods or identifiers, so this is
   impossible on them. **Unblocked in principle by V4FinBench** (§8) — 1.1M company-year rows
   spanning 2006-2021, CC BY 4.0 — which covers the financial crisis and COVID and therefore
   supports out-of-time validation across genuine regime shift. Needs that ingest first.

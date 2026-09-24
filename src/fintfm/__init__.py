@@ -13,7 +13,7 @@ Package layout follows the pipeline:
     evaluation/   real datasets, calibration-aware metrics, benchmark harnesses
     experiments/  designed experiments with pre-stated exit conditions
 
-See ``docs/ARCHITECTURE.md`` for how the model works and ``docs/STRATEGY.md`` for why.
+See ``docs/design/ARCHITECTURE.md`` for how the model works and ``docs/roadmap/STRATEGY.md`` for why.
 """
 
 from fintfm.evaluation.metrics import CreditMetrics, evaluate_binary

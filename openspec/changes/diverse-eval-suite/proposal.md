@@ -2,7 +2,7 @@
 
 ## Why
 
-`docs/FINDINGS.md` §44 located the defect: the model reaches held-out AUC 0.83-0.88 with
+`docs/results/FINDINGS.md` §44 located the defect: the model reaches held-out AUC 0.83-0.88 with
 positive Brier skill on tasks from its own prior, and collapses to 0.685 on iid Gaussian
 features. **It learns in context; it does not generalise across feature distributions.**
 

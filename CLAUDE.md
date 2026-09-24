@@ -103,7 +103,7 @@ about to hit an untested branch. Read the log.
 ## A correction that lives in one method will be bypassed by the next caller
 
 Cost a 6,000-step retrain and a wrong root-cause diagnosis on 2026-09-09
-(`docs/FINDINGS.md` §28, decision D8).
+(`docs/results/FINDINGS.md` §28, decision D8).
 
 The base-rate correction of decision D5 was implemented in `predict_proba` and only there. The
 term-structure path was added later, built its own forward pass through
@@ -254,7 +254,7 @@ a judgement call to make on the owner's behalf.
 and TimesFM 3.0 both ship Apache-2.0 code with **non-commercial** weights, and TimesFM's
 weights were Apache-2.0 through 2.5 and are not at 3.0 — so a licence checked once is not
 checked. Evaluating against published *numbers* is always fine; running someone's checkpoint
-inside anything commercial is not. See `docs/FINDINGS.md` §24. Their public papers/blog posts are legitimate research context to read and cite in
+inside anything commercial is not. See `docs/results/FINDINGS.md` §24. Their public papers/blog posts are legitimate research context to read and cite in
 discussion, never a source to copy from. Before adding any third-party dataset or dependency,
 check its license against commercial use — see `README.md`'s licensing section for the current
 policy and add a line there when a new source is added.
@@ -294,7 +294,7 @@ labels, destroying any feature-label relationship, and predict:
 - predictions collapse toward chance → the model reads its context, and accuracy means what
   you think it means
 
-This took three days to run and it cost most of them (`docs/FINDINGS.md` §47). The
+This took three days to run and it cost most of them (`docs/results/FINDINGS.md` §47). The
 financial-only checkpoint scored **higher with random labels than with true ones** — 0.6895
 against 0.6841, rank correlation 0.977 — so its apparent 0.68 was unsupervised feature
 structure, not learning. Four hypotheses were tested and discarded before anyone asked the one
@@ -309,7 +309,7 @@ prior cannot teach in-context inference — whatever else is right about it.
 ## Measuring a model that might not work
 
 Five rules, each of which cost real time before it was written down
-(`docs/FINDINGS.md` §42, §43).
+(`docs/results/FINDINGS.md` §42, §43).
 
 **A prior must span difficulty.** Ours was clamped so synthetic difficulty *matched* real
 difficulty, which sounds correct and left only 8% of tasks with a learnable boundary. The model
@@ -374,7 +374,7 @@ measured reasoning for them.
 
 - **A misspelled key must be an error.** `load_config` refuses unknown keys and names the
   path. A tolerant loader completes the run, reports numbers, and used the default — which is
-  the same failure shape as `docs/FINDINGS.md` §28.
+  the same failure shape as `docs/results/FINDINGS.md` §28.
 - **Mirrored defaults need a drift guard.** The `inference` section duplicates
   `FinancialTFMClassifier`'s literal defaults on purpose, because a library must behave the
   same without reading a file. That duplication is only safe because
@@ -404,7 +404,7 @@ it goes stale silently if a claim in it stops being true and nobody rereads it.
 ## Score on the benchmark this project claims, before the one that is convenient
 
 Cost four checkpoints and two days on 2026-09-22/23, and produced a result that reversed
-(`docs/FINDINGS.md` §115, §116).
+(`docs/results/FINDINGS.md` §115, §116).
 
 A tree-structured prior was selected on a measured criterion, trained at two seeds against
 matched controls, and scored **+0.0094 on TabArena** — replicating in sign against a measured
@@ -424,7 +424,7 @@ this happened, and it will recur unless the order is fixed rather than remembere
 - **A prior, architecture or training change is scored on V4FinBench before it is believed.**
   TabArena afterwards, for breadth. Not the reverse.
 - **A general-tabular gain is not a project result** until it has a credit number beside it.
-  Presenting one as a result is `docs/FINDINGS.md` §107's error — reporting a favourable
+  Presenting one as a result is `docs/results/FINDINGS.md` §107's error — reporting a favourable
   measurement of the wrong thing — in a new place.
 - **Read average precision first**, always, and never report a low-base-rate result on ROC-AUC
   alone. In §116 ROC-AUC moved 0.9856 → 0.9840, a 0.16% relative change any reader would call a
@@ -457,12 +457,12 @@ experiment here would have produced:
 So, periodically — when a benchmark run lands, or a peer appears on a leaderboard:
 
 - **Open the primary source.** An abstract or a relayed summary is a lead, not a citation
-  (`docs/REFERENCES.md` quarantines these for a reason, and `docs/POSTMORTEM.md` records a
+  (`docs/research/REFERENCES.md` quarantines these for a reason, and `docs/results/POSTMORTEM.md` records a
   WebFetch summariser fabricating a results table).
 - **Check the weights licence separately from the code licence, every time** — the rule above
   applies here and nowhere is it more tempting to skip.
 - **Write it into `docs/paper/RELATED_WORK.md`** (positioning and what is left for us) and
-  `docs/REFERENCES.md` (the verified literature list). A finding about the field belongs in
+  `docs/research/REFERENCES.md` (the verified literature list). A finding about the field belongs in
   the paper workspace, not in a chat log — same argument as "findings live here, not in commit
   messages".
 - **Update `docs/paper/CLAIMS.md` when a claim narrows.** It records supersessions as
@@ -477,7 +477,7 @@ a permissive licence changes only whether we may *evaluate* it.
 
 ## Re-read a number before quoting it, and check what it was measured on
 
-Cost a wrong headline caveat in `docs/FINDINGS.md` §80, propagated into the claims ledger and
+Cost a wrong headline caveat in `docs/results/FINDINGS.md` §80, propagated into the claims ledger and
 the limitations page before it was caught a day later (§82).
 
 §80 compared a new architecture's five-fold mean on the **full** 1,000,087-row V4FinBench

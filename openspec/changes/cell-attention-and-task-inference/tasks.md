@@ -136,7 +136,7 @@
 
 ## Backlog: sequenced after architecture, per the external review and the user's ordering
 
-Recorded so none of this is lost. Each is a `docs/FINDINGS.md`-worthy experiment on its own;
+Recorded so none of this is lost. Each is a `docs/results/FINDINGS.md`-worthy experiment on its own;
 none is scoped or scheduled yet. Verify: the label-functional-form experiment is scoped as its own task before being started, not assumed.
 
 - [ ] 39.7 **DGP/task-representation probe.** Twenty-plus canonical task families (linear,

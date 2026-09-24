@@ -36,7 +36,7 @@ credibility one — but it is unresolved either way.
 Uniform context peaks at 2,000 rows and *falls* at 4,000, because pretraining used tasks of
 256-1,024 rows (§31, §33). The obvious response — pretrain on larger tasks — is measured as
 prohibitive on the available hardware: step cost is worse than quadratic in task size, at 32×
-for 2,048-row tasks and 500× for 4,096 (`docs/COMPUTE.md`). So a large part of the remaining
+for 2,048-row tasks and 500× for 4,096 (`docs/infra/COMPUTE.md`). So a large part of the remaining
 gap is a compute limitation rather than a modelling insight, and it will not be argued away.
 
 ## Retrieval breaks batch independence, and one firm moved 0.64
@@ -66,7 +66,7 @@ limitation of their own.
 §37's grouping numbers, §36's figure readings, and the group-count sweep are single draws.
 More importantly, this project produced **five wrong diagnoses in one day** (§28, §30, §32's
 monotonicity claim, §34, and the retrieval correction), every one caught by measurement and
-none by review (`docs/POSTMORTEM.md`). The corrections all ran in the same direction — each
+none by review (`docs/results/POSTMORTEM.md`). The corrections all ran in the same direction — each
 made the result worse for the project's story before it got better.
 
 That history is a reason to trust the *current* numbers more than the earlier ones, and a
@@ -98,7 +98,7 @@ the time (§77) — a structural property of averaging bounded driver weights, n
 ## No LGD, no EAD, therefore no ECL
 
 The project produces PD only. Expected credit loss requires PD × LGD × EAD, so this supplies
-one of three inputs (`docs/GLOSSARY.md`). Any claim about IFRS 9 provisioning is a claim about
+one of three inputs (`docs/design/GLOSSARY.md`). Any claim about IFRS 9 provisioning is a claim about
 an *input* to provisioning.
 
 **No regression head exists**, which is the binding constraint here rather than an oversight:
@@ -119,7 +119,7 @@ three seeds: `SINGLE DRAW` in the ledger's vocabulary, and not quotable external
 
 ## Regulatory terms are used without primary-source verification
 
-Several entries in `docs/GLOSSARY.md` are marked **[verify]** — IFRS 9 stage-transition
+Several entries in `docs/design/GLOSSARY.md` are marked **[verify]** — IFRS 9 stage-transition
 mechanics, SICR operational definitions, which Basel version and approach, the specific
 supervisory expectations for low-default portfolios, and whether the model's output is
 point-in-time or through-the-cycle. **None of these may be asserted to a regulator or in a

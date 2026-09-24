@@ -7,7 +7,7 @@ real credit panels — column count, inter-feature correlation. That is realism-
 synthetic tables look statistically like the real ones. It is a different axis from what this
 proposal is about.
 
-`docs/FINDINGS.md` §76 bisected four content-side candidates for why training on the financial
+`docs/results/FINDINGS.md` §76 bisected four content-side candidates for why training on the financial
 prior caps basic signal extraction (§74) — base rate, raw signal-to-noise, feature cleanliness,
 accounting-identity structure — and none of them closed the gap. What was common to every
 capped variant and absent from the one that was not (`fin00`, pure generic SCM) was the
@@ -45,7 +45,7 @@ should not be cited as established without checking the primary source first.
    relevant features), dense, latent-factor (`z -> X`, `z -> y`), tree-structured — most of
    these do not exist in either current prior; the SCM prior's random-graph construction
    covers some implicitly but not by controllable, labelled family.
-2. **A controlled difficulty axis independent of family**, reusing `docs/FINDINGS.md` §74's
+2. **A controlled difficulty axis independent of family**, reusing `docs/results/FINDINGS.md` §74's
    closed-form Bayes-AUC construction so difficulty is *known*, not estimated, for every family.
 3. **Interaction-order curriculum**: `y=f(x_{i1},...,x_{ik})` for `k=1..5`, measuring the
    AUC-vs-k curve per family — the direct, controlled version of what §76's bisection could

@@ -1,5 +1,5 @@
 # The best configuration measured to date on V4FinBench out of time:
-# mean AUC 0.8118, mean ECE 0.0126, 0% coherence violations (docs/FINDINGS.md §35).
+# mean AUC 0.8118, mean ECE 0.0126, 0% coherence violations (docs/results/FINDINGS.md §35).
 #
 # Retrieval is opt-in rather than the library default because it costs about 2.5x the scoring
 # time and makes a prediction depend on its query group-mates (decision D10). Choosing it here

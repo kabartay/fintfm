@@ -1,8 +1,8 @@
 """Which context construction wins, measured out of time rather than cited.
 
-``docs/FINDINGS.md`` §29. The default ``context_strategy="balanced"`` was adopted from
+``docs/results/FINDINGS.md`` §29. The default ``context_strategy="balanced"`` was adopted from
 published evidence (Tanna et al. 2026: balanced worth 3-4 AUC points over uniform on
-credit-risk TFMs, ``docs/FINDINGS.md`` §5, decision D5). On the V4FinBench out-of-time split
+credit-risk TFMs, ``docs/results/FINDINGS.md`` §5, decision D5). On the V4FinBench out-of-time split
 the ordering is **reversed and three times larger**: uniform beats balanced by 10-12 mean AUC
 points at every context size tested.
 

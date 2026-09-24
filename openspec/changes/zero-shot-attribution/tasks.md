@@ -1,10 +1,10 @@
 # Tasks
 
 - [ ] 12.1 Read ExplainerPFN in full and record how attribution targets are generated and
-      what fidelity they claim. Verify: entry expanded in `docs/REFERENCES.md`; currently
+      what fidelity they claim. Verify: entry expanded in `docs/research/REFERENCES.md`; currently
       only the abstract has been read.
 - [ ] 12.2 Establish the baseline to beat: SHAP over gradient boosting on the UCI panels,
-      including runtime. Verify: numbers into `docs/FINDINGS.md`, re-derived from the run.
+      including runtime. Verify: numbers into `docs/results/FINDINGS.md`, re-derived from the run.
 - [ ] 12.3 Emit ground-truth attributions from `prior/financial.py`, which knows the true
       driver weights. Verify: a test that a feature with zero weight receives near-zero
       attribution.

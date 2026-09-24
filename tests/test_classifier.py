@@ -288,7 +288,7 @@ def test_ensembling_recovers_column_order_invariance():
     """Decision D12's stated remedy, asserted rather than promised.
 
     Random column identities make the model expressive enough to learn column-specific rules
-    (``docs/FINDINGS.md`` §54, §56) at the cost of exact column-order invariance, which
+    (``docs/results/FINDINGS.md`` §54, §56) at the cost of exact column-order invariance, which
     becomes distributional. D12 says callers recover it by ensembling, and each ensemble
     member draws its own identities -- so a wider ensemble must agree more closely across a
     column permutation than a single member does. If it does not, D12's mitigation is a

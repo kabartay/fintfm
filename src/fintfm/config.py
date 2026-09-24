@@ -14,7 +14,7 @@ Why unknown keys are an error
 A misspelled key in a silently-tolerant loader is the worst kind of configuration bug: the run
 completes, reports numbers, and used the default. This repository has already lost a
 pretraining run to a value that was quietly not what it appeared to be
-(``docs/FINDINGS.md`` §28), so :func:`load_config` refuses unknown keys and names the path of
+(``docs/results/FINDINGS.md`` §28), so :func:`load_config` refuses unknown keys and names the path of
 the offender.
 
 Why library defaults are duplicated rather than moved

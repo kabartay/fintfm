@@ -26,7 +26,7 @@ one, rather than hoping it emerges from the prediction objective alone.
    (linear-like, tree-like, interaction-heavy, financial-SCM, ...). This is a mixture over task
    *priors*, not a mixture-of-experts over architecture — the distinction the source review
    draws explicitly, and the more natural fit to this project's own "prior over
-   data-generating-processes" framing (`docs/RESEARCH_NOTES.md`).
+   data-generating-processes" framing (`docs/research/RESEARCH_NOTES.md`).
 3. **Retrieval over mechanisms, not rows** — a reframing of what `retrieval-context` already
    builds. Instead of `D_query -> nearest training rows`, `D_query -> task-family embedding ->
    most relevant prior family -> in-context inference`. Worth testing only once (1) and (2)

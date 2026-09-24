@@ -23,7 +23,7 @@ invariant where it must be:
    to context rows to perform in-context learning.
 
 This is an independent implementation of the general alternating row/column attention idea
-described in the public TabPFN / TabICL / TabFM literature (see ``docs/REFERENCES.md``). No
+described in the public TabPFN / TabICL / TabFM literature (see ``docs/research/REFERENCES.md``). No
 code or weights from those projects are used; see the licensing boundary in ``CLAUDE.md``.
 
 Checkpoints written by the earlier flat-vector architecture are not loadable here. They were
@@ -68,7 +68,7 @@ class ModelConfig:
             averaged.
 
             **This is the one architecture change in the project with evidence behind it**
-            (``docs/FINDINGS.md`` §50). A mean is weight-blind: every feature token
+            (``docs/results/FINDINGS.md`` §50). A mean is weight-blind: every feature token
             contributes ``1/F`` however much it matters. Measured, the model scores 0.826 on a
             five-feature linear task and 0.551 at eighty — and three checkpoints spanning 17×
             in parameters produce *identical* curves to three decimal places, which rules out
@@ -80,7 +80,7 @@ class ModelConfig:
             **Without this the model cannot represent "column j matters."** ``cell_embed`` is
             shared across columns, the column encoder has no positional encoding, and pooling
             reduces over the feature axis — so the row representation is a *symmetric function
-            of the multiset of that row's values* (``docs/FINDINGS.md`` §54, verified: the
+            of the multiset of that row's values* (``docs/results/FINDINGS.md`` §54, verified: the
             embedding converges to exactly permutation-invariant as the context grows). A rule
             like ``x_0 - x_1`` is then unlearnable in principle, and was measured at AUC 0.5097
             against a provable symmetric ceiling of 0.5.
@@ -98,13 +98,13 @@ class ModelConfig:
         n_horizons: When set, the model also carries a :class:`HazardHead` producing a
             **provably monotone** cumulative-PD term structure over this many periods. The
             object IFRS 9 lifetime expected credit loss consumes, and the fix for the 39%
-            incoherence measured in ``docs/FINDINGS.md`` §11. ``None`` keeps the model
+            incoherence measured in ``docs/results/FINDINGS.md`` §11. ``None`` keeps the model
             classification-only.
         n_cell_blocks: Number of alternating two-way cell-attention blocks run **before**
             pooling. ``0`` (default) reproduces every checkpoint trained before this field
             existed, byte-for-byte -- this is additive, not a replacement.
 
-            **Why this exists.** ``docs/FINDINGS.md`` §74 found training on the financial
+            **Why this exists.** ``docs/results/FINDINGS.md`` §74 found training on the financial
             prior caps basic signal extraction at ~0.73 AUC regardless of true task
             difficulty, on a probe with *no column-identity structure at all* -- one
             informative dimension, five inert companions. §76 bisected four content-side
@@ -314,7 +314,7 @@ class FinancialTFM(nn.Module):
         results is an identity, not an approximation.
 
         **Why it is worth doing.** This stage's attention scores are ``(B*F, heads, N, N)``,
-        a feature-count factor the pooled architecture never carried. ``docs/FINDINGS.md``
+        a feature-count factor the pooled architecture never carried. ``docs/results/FINDINGS.md``
         §79 measured ~16 GB at ``N=2024`` on V4FinBench's 136 features and a 92x performance
         cliff by ``N=2512``, which put §71's best inference configuration
         (``max_context=4000``, an estimated ~63 GB) out of reach entirely and forced §80 to
@@ -360,7 +360,7 @@ class FinancialTFM(nn.Module):
         fixed meaning and so keeps the task distribution column-order invariant. Inference
         wants reproducibility: a credit model whose score changes between two identical calls
         fails model validation before anyone looks at its accuracy, and stochastic predictions
-        are exactly what ``docs/FINDINGS.md`` §55 argues supervisors grade against.
+        are exactly what ``docs/results/FINDINGS.md`` §55 argues supervisors grade against.
 
         Generated on the CPU and moved, so the stream does not depend on the accelerator and
         a seeded prediction reproduces across CPU, Metal and CUDA alike.
@@ -612,7 +612,7 @@ class FinancialTFM(nn.Module):
         """Discrete-time survival negative log-likelihood over the query rows.
 
         Fits the whole term structure at once rather than one horizon at a time, which is
-        what makes the horizons mutually consistent (``docs/FINDINGS.md`` §20). Independent
+        what makes the horizons mutually consistent (``docs/results/FINDINGS.md`` §20). Independent
         per-horizon models cannot do this in principle, since they share no parameters.
 
         Args:

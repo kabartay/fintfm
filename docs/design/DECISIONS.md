@@ -6,7 +6,7 @@ and a decision recorded without a reversal condition cannot be revisited honestl
 evidence changes.
 
 Newest last. Where a decision rests on measurement, the measurement is in
-`docs/FINDINGS.md`.
+`docs/results/FINDINGS.md`.
 
 ---
 
@@ -149,7 +149,7 @@ the architecture is far more novel than currently believed.
 
 ## D7 — Metal for local training
 
-**Date:** 2026-09-08. **Status:** active. See `docs/COMPUTE.md`.
+**Date:** 2026-09-08. **Status:** active. See `docs/infra/COMPUTE.md`.
 
 **Chose `--device mps`.** Measured 3.5x faster than CPU at identical loss, but the deciding
 factor is that it runs on the GPU, which the genomics pipeline sharing this machine does not

@@ -9,7 +9,7 @@
       p-values recorded beside every AUC difference quoted.
 - [ ] 32.4 Test the majority-class mechanism: gap against portfolio default rate. Verify: the
       relationship plotted and stated numerically, with the prediction marked hit or miss.
-- [x] 32.5 Resolve D9 either way, in `docs/DECISIONS.md`, and change the class default if the
+- [x] 32.5 Resolve D9 either way, in `docs/design/DECISIONS.md`, and change the class default if the
       evidence supports it. Verify: `uv run pytest -q` green, and the default's justification in
       `classifier.py`'s docstring updated to cite the measurement rather than the paper.
 
@@ -36,4 +36,4 @@ direction from two panels rather than fitting the relationship.
       transfer to the other — §35 found the blind strategies nearly tied on the binary panels
       because "balanced" there cannot reach 50/50. Verify: AUC and ECE against `uniform` and
       `retrieval` with a Holm-corrected paired bootstrap, and the class default changed or
-      explicitly left alone in `docs/DECISIONS.md`.
+      explicitly left alone in `docs/design/DECISIONS.md`.

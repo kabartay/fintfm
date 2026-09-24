@@ -60,13 +60,13 @@ class PriorConfig:
         p_trivial: Probability of drawing a **trivial** task instead — few clean features, a
             deterministic linear rule, no noise. Zero by default. This is the diagnostic
             control of ``prior/trivial.py``: it answers whether the architecture can learn
-            in-context prediction at all (``docs/FINDINGS.md`` §53), and a prior made only of
+            in-context prediction at all (``docs/results/FINDINGS.md`` §53), and a prior made only of
             trivial tasks would teach nothing about abstention.
         identity_shuffle: When True, every financial task drawn (whether via ``p_financial``
             or as the default source) exposes its named/ratio columns from an
             independently-per-account-permuted copy of the accounts, breaking cross-account
             identities (``equity = assets - liabilities``) while leaving the label and each
-            column's own marginal distribution untouched. Diagnostic for ``docs/FINDINGS.md``
+            column's own marginal distribution untouched. Diagnostic for ``docs/results/FINDINGS.md``
             §67-§71 (task 38.11); default False reproduces every prior checkpoint's behaviour.
         p_regression: Probability of drawing a **regression** task instead — the SCM prior's
             continuous latent kept rather than thresholded, binned on context quantiles by
@@ -77,7 +77,7 @@ class PriorConfig:
             ``prior/crossed.py``'s ``sample_scm_features_financial_label``: the generic SCM
             prior's feature-generating computational graph, labelled with the financial
             prior's signed-linear-driver mechanism instead of a fresh SCM label node. Zero by
-            default. Diagnostic for ``docs/FINDINGS.md`` §66: isolates whether the financial
+            default. Diagnostic for ``docs/results/FINDINGS.md`` §66: isolates whether the financial
             prior's failure to teach column-specific in-context inference tracks its
             *features* or its *label function*, after seven other candidates were eliminated.
             A prior made only of crossed tasks is not a candidate for production; see
@@ -92,7 +92,7 @@ class PriorConfig:
             both the dense-small and sparse-large regimes. All tasks *within* a batch share a
             size, since :func:`fintfm.prior.base.collate` requires it.
         sharpness_min / sharpness_max: The financial prior's signal-to-noise range, drawn
-            log-uniformly per task. ``docs/FINDINGS.md`` §64: what a prior teaches tracks how
+            log-uniformly per task. ``docs/results/FINDINGS.md`` §64: what a prior teaches tracks how
             learnable its tasks are, not how much column identity they demand.
         min_expected_positives / absolute_rate_floor / rate_ceiling / n_sectors_max: The
             financial prior's default-rate envelope, defaulting to the measured constants in
@@ -100,7 +100,7 @@ class PriorConfig:
             by the training entry point, so a run can widen or narrow the regime it covers
             without a code change — the gap that produced §26.
         n_horizons: When set, financial tasks additionally carry a default **period** so a
-            hazard head can be trained on the survival likelihood (``docs/FINDINGS.md`` §20).
+            hazard head can be trained on the survival likelihood (``docs/results/FINDINGS.md`` §20).
             The generic SCM prior has no notion of time, so **``p_financial`` must be 1.0**
             when this is set — a batch mixing survival and binary-only tasks is refused by
             :func:`fintfm.prior.base.collate` rather than silently padded.

@@ -169,7 +169,7 @@ not a seat licence. And take the **auto-refund** detail as a signal that inferen
 disputes are real enough to engineer around.
 
 Do **not** take the product framing. "Predict anything" from a CSV is the exact generic
-positioning `docs/STRATEGY.md` rules out: it competes with Neuralk, Kumo and Google BigQuery
+positioning `docs/roadmap/STRATEGY.md` rules out: it competes with Neuralk, Kumo and Google BigQuery
 simultaneously on the one axis where this project has no advantage. An API is eventually the
 delivery mechanism for the certificate, but the thing delivered has to be narrow — a PD term
 structure with its interval, its calibration and its attributions — or it is a worse copy of
@@ -204,7 +204,7 @@ personal loan applicant with a credit score of 721 and:
 
 A bare point estimate, with a pricing decision attached, and no interval, no horizon, no
 calibration statement, no refusal path for an applicant unlike anything in the context. That
-is precisely the object `docs/STRATEGY.md` argues is insufficient: a single 6% carries no
+is precisely the object `docs/roadmap/STRATEGY.md` argues is insufficient: a single 6% carries no
 information about whether 6% means anything, and a model-risk function cannot validate it or
 provision against it.
 
@@ -282,6 +282,6 @@ absolute-AUC-without-rank error §107 already retracted once.
 
 **The honest positioning that follows:** not "a competitive tabular foundation model" — the
 measurement says otherwise — but *a credit model that arrives with an auditable record of what
-has and has not been shown about it*. That is `docs/STRATEGY.md`'s existing thesis, and the peer
+has and has not been shown about it*. That is `docs/roadmap/STRATEGY.md`'s existing thesis, and the peer
 sweep confirms it is the only claim here that no better-funded competitor is also making.
 

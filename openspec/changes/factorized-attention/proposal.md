@@ -4,7 +4,7 @@
 
 Three separate walls this project has hit are the same wall.
 
-`docs/FINDINGS.md` §78/§91 established that two-way cell attention is load-bearing: the
+`docs/results/FINDINGS.md` §78/§91 established that two-way cell attention is load-bearing: the
 row-attention-within-feature stage plus per-cell labels is worth +0.0486 AP on real data
 (§80), and removing the labels alone drops the model **below chance** (§91). The mechanism
 works. It is also the most expensive possible way to get it.

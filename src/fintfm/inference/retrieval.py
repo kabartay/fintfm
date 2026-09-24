@@ -2,7 +2,7 @@
 
 Why this exists
 ---------------
-``docs/FINDINGS.md`` §31 decomposed the out-of-time gap against per-horizon logistic
+``docs/results/FINDINGS.md`` §31 decomposed the out-of-time gap against per-horizon logistic
 regression and found **84% of it is horizon-independent**: a constant 0.132 AUC deficit
 present already at the first horizon, against a baseline fitted on 72,622 rows while the
 model sees a 2,000-row context. That is §16's crossover appearing on real data.
@@ -10,7 +10,7 @@ model sees a 2,000-row context. That is §16's crossover appearing on real data.
 Two escape routes are closed. Supplying more rows does not work — uniform context scores
 0.6921 / 0.7192 / 0.6986 mean AUC at 1,000 / 2,000 / 4,000 rows, peaking in the middle and
 falling beyond it, because pretraining used 256-1,024-row tasks. Pretraining on larger tasks
-is priced out at 32x per step for 2,048 rows and 500x for 4,096 (``docs/COMPUTE.md``).
+is priced out at 32x per step for 2,048 rows and 500x for 4,096 (``docs/infra/COMPUTE.md``).
 
 So the only remaining lever on the dominant term is **which** rows go in the context. A
 credit analyst comparing a firm to its sector and size peers is doing retrieval; a uniform
@@ -138,7 +138,7 @@ def retrieve(
     ``min_positive`` guarantees a floor by admitting the nearest positives even when they
     fall outside the plain neighbourhood.
 
-    Note this is deliberately *not* class balancing. ``docs/FINDINGS.md`` §29 measured
+    Note this is deliberately *not* class balancing. ``docs/results/FINDINGS.md`` §29 measured
     balancing as costing 10-12 AUC points here, so the floor is set low enough to insure
     against an empty class rather than to equalise the classes.
 
@@ -184,7 +184,7 @@ def prototype_context(
     to a fixed minority-to-majority ratio, but choose the majority subset by clustering it with
     MiniBatchKMeans and keeping, per cluster, **the real observation closest to the centroid**
     rather than an arbitrary draw. Their conclusion — that preserving majority-class structure
-    matters beyond increasing minority exposure — is the mechanism ``docs/FINDINGS.md`` §29
+    matters beyond increasing minority exposure — is the mechanism ``docs/results/FINDINGS.md`` §29
     arrived at independently and later (§36).
 
     No code or data from that work is used here; only the method as described in the paper,

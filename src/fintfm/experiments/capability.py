@@ -4,7 +4,7 @@ Why this exists
 ---------------
 Every accuracy claim in this project was measured on real credit panels, where a strong
 baseline already scores well and the interesting quantity is a small delta. That hid a
-fundamental defect for two days: ``docs/FINDINGS.md`` §42 found the model scoring **0.68 on a
+fundamental defect for two days: ``docs/results/FINDINGS.md`` §42 found the model scoring **0.68 on a
 clean linear task that logistic regression solves at 0.9997**, not improving with context size,
 and beating its own randomly-initialised weights by **0.015**.
 
@@ -185,7 +185,7 @@ def bayes_ceiling_probe(
 ) -> dict[float, tuple[float, float]]:
     """Achieved AUC against an *exactly known* Bayes-optimal AUC, not an estimated one.
 
-    ``docs/FINDINGS.md`` §74: the decisive test of whether a capped predictor (§51, §53) is
+    ``docs/results/FINDINGS.md`` §74: the decisive test of whether a capped predictor (§51, §53) is
     an architecture/capacity bottleneck or a prior-content effect. Found that training
     predominantly on the financial prior caps achieved AUC at ~0.73 regardless of how strong
     the true signal is (0.728 achieved at Bayes AUC 0.999), while the identical architecture
@@ -197,7 +197,7 @@ def bayes_ceiling_probe(
     Uses the model directly (not :class:`~fintfm.inference.classifier.FinancialTFMClassifier`)
     with the context split via ``n_ctx`` and column-identity draws averaged over
     ``n_ensemble``, matching exactly how §74's original measurement was taken -- so numbers
-    from this function are comparable to every value already recorded in ``docs/FINDINGS.md``.
+    from this function are comparable to every value already recorded in ``docs/results/FINDINGS.md``.
 
     Args:
         model: A loaded :class:`~fintfm.modeling.model.FinancialTFM`, trained for
@@ -246,7 +246,7 @@ def feature_sweep(
 ) -> dict:
     """How does each model hold up as the number of features grows?
 
-    ``docs/FINDINGS.md`` §49: the model reaches 0.846 on a five-feature linear task and
+    ``docs/results/FINDINGS.md`` §49: the model reaches 0.846 on a five-feature linear task and
     collapses to 0.551 at eighty, while logistic regression is flat at ~0.999 across the whole
     range. Both widths are **inside** the prior's training distribution — it produces a median
     of 77 columns with half of all tasks at 80 or more — so this is an aggregation failure
@@ -310,7 +310,7 @@ def summarise_sweep(sweep: dict) -> str:
         "",
         "`drop` is widest minus narrowest. A flat arm aggregates features; a steeply negative",
         "one does not. If larger models drop less, the constraint is capacity; if they drop",
-        "the same, it is the pooling design (docs/FINDINGS.md §49).",
+        "the same, it is the pooling design (docs/results/FINDINGS.md §49).",
     ]
     return "\n".join(lines)
 
@@ -324,7 +324,7 @@ def base_rate_sweep(
 ) -> dict:
     """How does each model hold up as the task becomes balanced?
 
-    ``docs/FINDINGS.md`` §51: performance falls monotonically as the base rate rises — 0.850
+    ``docs/results/FINDINGS.md`` §51: performance falls monotonically as the base rate rises — 0.850
     at 5% down to 0.658 at 50% — while a linear baseline holds 1.0000 throughout. That is
     backwards on its face, since more positives means more information about the positive
     class.
@@ -394,7 +394,7 @@ def summarise_rate_sweep(sweep: dict) -> str:
     lines += [
         "",
         "`drop` is balanced minus rare. A model that orders the distribution is flat; one that",
-        "only detects extremes falls as the task balances (docs/FINDINGS.md §51).",
+        "only detects extremes falls as the task balances (docs/results/FINDINGS.md §51).",
     ]
     return "\n".join(lines)
 
@@ -951,7 +951,7 @@ def summarise(record: dict) -> str:
         "must sit at ~0.5 — an arm above it is leaking, not learning.",
         "",
         "The untrained control is the floor. A trained arm that does not clear it by a wide",
-        "margin has not learned to do in-context prediction (docs/FINDINGS.md §42).",
+        "margin has not learned to do in-context prediction (docs/results/FINDINGS.md §42).",
     ]
     return "\n".join(lines)
 

@@ -11,7 +11,7 @@
       `cat_full`. A null is publishable; the point is to learn whether the aspect ratio, not
       the parameter count, is what §108 got wrong.
 - [ ] 48.2 **Recalibrate the scaling expectation in writing, before spending more GPU on it.**
-      Verify: `docs/STRATEGY.md`'s Phase 1 target of 10–50M parameters is restated with Nori's
+      Verify: `docs/roadmap/STRATEGY.md`'s Phase 1 target of 10–50M parameters is restated with Nori's
       published curve beside it, and either defended with a reason the return should be larger
       here or revised. A target inherited from a plan written before any scaling evidence
       existed should not survive contact with evidence merely because it is in the document.
@@ -48,8 +48,8 @@
       data limits their ability to fully leverage the rich semantics and world knowledge
       contained in real-world tabular data", and trains on large-scale real tables instead;
       iLTM and TabSTAR do likewise. This project cannot follow, and not for licence reasons —
-      `docs/STRATEGY.md`'s differentiator is auditable freedom from benchmark contamination,
-      which real-table pretraining destroys. Verify: `docs/DECISIONS.md` carries this as a
+      `docs/roadmap/STRATEGY.md`'s differentiator is auditable freedom from benchmark contamination,
+      which real-table pretraining destroys. Verify: `docs/design/DECISIONS.md` carries this as a
       decision with its cost stated and **what would reverse it** named, rather than as an
       assumption nobody has revisited since the field moved.
 - [ ] 48.8 **Re-examine the small-data premise against §102.** TabPFN v2 (Nature 2025) claims
@@ -79,7 +79,7 @@
       TabDPT's appendix concludes that compute and high-quality data matter more than
       architectural manipulation. This project has spent its effort on architecture (§54, §104,
       §44) while §93 (5× data) and §108 (5.7× parameters) both returned nulls or losses, and it
-      is locked out of "high-quality data" by decision D2. Verify: `docs/DECISIONS.md` states
+      is locked out of "high-quality data" by decision D2. Verify: `docs/design/DECISIONS.md` states
       what this project believes it gets in exchange, and names the observation that would show
       the trade is not worth it — an unfalsifiable differentiator is a slogan.
 - [x] 48.12 **Multiply tasks per prior draw by re-targeting, the way TabDPT's SSL does.** Their
@@ -152,7 +152,7 @@
       **rank 0 on TabArena, Elo 1872, synthetic-only, SCM-pretrained, Apache-2.0** — replaces
       target-centric prediction with "a context-dependent representation of the joint structure
       underlying data generation", trained by context-conditional masked modelling. This project
-      amortises `p(y | x, D_context)` explicitly, in `README.md` and `docs/ARCHITECTURE.md`.
+      amortises `p(y | x, D_context)` explicitly, in `README.md` and `docs/design/ARCHITECTURE.md`.
       Three things follow from the change and the first is why it matters here: **every column
       becomes a training signal rather than only the designated target**, which is the general
       form of 48.12 and attacks the 48,000-task shortfall without real data; one model then

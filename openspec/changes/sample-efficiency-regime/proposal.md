@@ -7,7 +7,7 @@ we lose.** `bench.py` evaluates the full panel — 6,000 to 10,500 rows for the 
 Baesens et al. (arXiv:2605.18147) put the crossover where tuned gradient boosting catches up
 at roughly **8,000 observations**, with substantial TFM advantage **below 1,000**. So the
 benchmark has been measuring the wrong end of the size axis since it was written, and the
-gradient-boosting dominance we recorded in `docs/FINDINGS.md` §5 is partly a consequence of
+gradient-boosting dominance we recorded in `docs/results/FINDINGS.md` §5 is partly a consequence of
 that choice rather than only of a small checkpoint.
 
 This is not a refinement. If the model never wins at any size, the small-data thesis is dead

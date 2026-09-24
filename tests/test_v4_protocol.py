@@ -1,6 +1,6 @@
 """V4FinBench's published protocol, reimplemented — the parts that must be exact.
 
-`docs/FINDINGS.md` §36: our out-of-time numbers cannot be placed against their published
+`docs/results/FINDINGS.md` §36: our out-of-time numbers cannot be placed against their published
 table, and reproducing their protocol is the only route to a comparable number. A protocol
 that is *nearly* theirs produces a number that looks comparable and is not, which is worse
 than having none — so the fold algebra is tested rather than trusted.

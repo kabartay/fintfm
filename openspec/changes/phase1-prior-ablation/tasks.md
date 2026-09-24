@@ -4,7 +4,7 @@
       `results.json`. Verify: `uv run pytest tests/test_experiments.py -q`.
       **Done 2026-09-08: 4 tests, refuses to report on diverging parameter counts**
 - [x] 1.2 Add device selection so it can run on Metal. Verify: `uv run fintfm-ablate --help`
-      shows `--device`; `docs/COMPUTE.md` records 0.702 s/step on mps vs 2.476 on cpu at
+      shows `--device`; `docs/infra/COMPUTE.md` records 0.702 s/step on mps vs 2.476 on cpu at
       identical loss. **Done 2026-09-08**
 - [x] 1.3 Fix the device mismatch in the held-out eval path. Verify:
       `uv run pytest tests/test_model.py -q` passes the device-parametrised training test on
@@ -14,7 +14,7 @@
       "cannot be evaluated". **Done 2026-09-08. Note: launched before the untrained control
       and paired test existed, so the control is absent and the paired test was run
       post-hoc by re-evaluating the saved checkpoints into results-paired.json.**
-- [ ] 1.5 Record the outcome in `docs/FINDINGS.md` as MEASURED, with the delta between
+- [ ] 1.5 Record the outcome in `docs/results/FINDINGS.md` as MEASURED, with the delta between
       financial and generic and the honest read of whether the exit condition was met.
       Numbers re-derived from `runs/phase1-5k/results.json`, never retyped. Verify:
       `uv run python openspec/tools/validate.py --findings` passes and the finding cites the

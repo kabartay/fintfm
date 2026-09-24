@@ -3,7 +3,7 @@ schema: spec-driven
 context: |
   ## Domain
 
-  The **ubiquitous language** lives in `docs/GLOSSARY.md` and is the source of truth for it.
+  The **ubiquitous language** lives in `docs/design/GLOSSARY.md` and is the source of truth for it.
   Credit-risk terminology is legally loaded: PD, LGD, EAD, ECL, IFRS 9, SICR, LDP,
   point-in-time versus through-the-cycle are specific regulatory objects, and using one
   loosely in a document a supervisor reads is a product defect rather than a style slip.
@@ -28,9 +28,9 @@ context: |
 
   WHAT IT IS NOT: not a general tabular foundation model, not a fraud system, not a
   time-series forecaster, not a warehouse connector or an agent. Each is contested by
-  better-funded teams; see docs/STRATEGY.md "What we are deliberately not building".
+  better-funded teams; see docs/roadmap/STRATEGY.md "What we are deliberately not building".
 
-  POSITIONING — SETTLED, DO NOT RE-OPEN (docs/LANDSCAPE.md, docs/DECISIONS.md):
+  POSITIONING — SETTLED, DO NOT RE-OPEN (docs/competition/LANDSCAPE.md, docs/design/DECISIONS.md):
 
   1. Every mechanism claim is already owned. "No feature engineering" is Kumo's, in AP
      and Forbes. "In-context, no training on your data" is KumoRFM's, documented on
@@ -50,7 +50,7 @@ context: |
      not research. Being first is not a defence; regulatory depth and elapsed track
      record are.
 
-  ARCHITECTURE FACTS THAT CONSTRAIN EVERY DESIGN DECISION (docs/ARCHITECTURE.md):
+  ARCHITECTURE FACTS THAT CONSTRAIN EVERY DESIGN DECISION (docs/design/ARCHITECTURE.md):
 
   1. NO REAL DATA MAY REACH PRETRAINING. It is the basis of the auditability claim and
      it can be destroyed silently by a change that improves benchmarks. Real datasets
@@ -70,13 +70,13 @@ context: |
 
   EVIDENCE DISCIPLINE: every number is labelled SMOKE-TEST, MEASURED, SIMULATED or
   ESTIMATED (CLAUDE.md). In an ML repo a wrong number does not crash, it looks like a
-  result. Findings live in docs/FINDINGS.md with the command that produced them, never
+  result. Findings live in docs/results/FINDINGS.md with the command that produced them, never
   only in a commit message. Negative and superseded results are kept deliberately.
 
   ## Repository structure
 
   Single Python package, `src/fintfm/`, organised by pipeline stage with a one-way dependency
-  direction (see docs/ARCHITECTURE.md):
+  direction (see docs/design/ARCHITECTURE.md):
 
   - `prior/`      synthetic task generation — the ONLY source of pretraining data
   - `modeling/`   architecture (`model.py`) and the pretraining loop (`train.py`)
@@ -104,7 +104,7 @@ context: |
     verified until that lands.
   - Local training on Apple Metal (`--device mps`): 3.5x faster than CPU here and, more
     importantly, it leaves the CPU cores to the genomics pipeline sharing this machine.
-    See docs/COMPUTE.md for measured step times.
+    See docs/infra/COMPUTE.md for measured step times.
   - Releases: git tag AND GitHub Release; changelog hard-wrapped, release body unwrapped.
     See CLAUDE.md.
 

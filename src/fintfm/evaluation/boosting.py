@@ -2,7 +2,7 @@
 
 **Why a subprocess.** PyTorch bundles its own OpenMP runtime and LightGBM loads the system
 one. Two OpenMP runtimes in a single process segfault on macOS — confirmed by bisection, and
-``KMP_DUPLICATE_LIB_OK=TRUE`` does not help (``docs/FINDINGS.md`` §25). Since this project
+``KMP_DUPLICATE_LIB_OK=TRUE`` does not help (``docs/results/FINDINGS.md`` §25). Since this project
 imports torch everywhere and the boosting libraries are the baselines that matter, the only
 reliable separation is a process boundary.
 
@@ -68,7 +68,7 @@ def fit_predict_boosting(
             on V4FinBench's protocol, default LightGBM and XGBoost score *below* logistic
             regression on ROC-AUC while the published benchmark grid-searches every
             baseline, so reporting untuned boosters understates the field exactly as
-            ``docs/FINDINGS.md`` §25 did in the other direction.
+            ``docs/results/FINDINGS.md`` §25 did in the other direction.
 
     Returns:
         ``(n_test,)`` probabilities, or ``None`` if the baseline could not be fitted — which

@@ -49,7 +49,7 @@ Series Foundation Models: (Un)known Information Leakage Challenges.*
 Data lineage of 15 prominent TSFMs; two leakage modes (test-set contamination via
 multi-purpose dataset reuse, and memorisation of global patterns from external shocks);
 measured effect sizes; 11 requirements for fair benchmarking. Fully worked through in
-`docs/FINDINGS.md` §1, including the caveat that limits how strongly this project may claim
+`docs/results/FINDINGS.md` §1, including the caveat that limits how strongly this project may claim
 the advantage.
 
 **Makridakis, Spiliotis & Assimakopoulos (2022).** *The M5 competition: Background,
@@ -64,7 +64,7 @@ doi:[10.1016/j.ijforecast.2024.11.002](https://doi.org/10.1016/j.ijforecast.2024
 Cited within Meyer et al. above as the leakage-resistant evaluation design: forecasts are
 registered *before* the outcome exists. **M6 went furthest** — live data from 100 financial
 assets, predictions registered into the real future. The critique noted there is
-administrative cost and long waiting periods between competitions. See `docs/FINDINGS.md` §3
+administrative cost and long waiting periods between competitions. See `docs/results/FINDINGS.md` §3
 for why this design matters more to this project than to a forecasting vendor.
 
 ## Domain benchmarks and datasets
@@ -74,7 +74,7 @@ Architecture: Resampling Strategies for Credit Risk Prediction with Tabular Foun
 Models.* [arXiv:2605.18635](https://arxiv.org/abs/2605.18635)
 Seven context-construction strategies across four classical models and five TFMs on Home
 Credit and Lending Club. Balanced and hybrid sampling add 3-4 AUC points over uniform, a gap
-wider than the spread between TFM families. Acted on in `docs/FINDINGS.md` §5, and its
+wider than the spread between TFM families. Acted on in `docs/results/FINDINGS.md` §5, and its
 AUC-only framing corrected by §6.
 
 **Tomczak et al. (2026).** *V4FinBench: Benchmarking Tabular Foundation Models, LLMs, and
@@ -83,7 +83,7 @@ Standard Methods on Corporate Bankruptcy Prediction.*
 1,106,879 company-year observations, Visegrád Group economies, 2006-2021, 131 features, six
 horizons, 0.19-0.36% positive rate. Code [MIT](https://github.com/genwro-ai/V4FinBench);
 **data CC BY 4.0** on Kaggle per the repository's separate `DATA_LICENSE.md`. The dataset
-this project needs — see `docs/FINDINGS.md` §8.
+this project needs — see `docs/results/FINDINGS.md` §8.
 
 **Zieba, Tomczak & Tomczak.** *Polish companies bankruptcy data.* UCI Machine Learning
 Repository, CC BY 4.0. [doi:10.24432/C5F600](https://doi.org/10.24432/C5F600)
@@ -100,7 +100,7 @@ Prediction: A Game Changer?* [arXiv:2605.18147](https://arxiv.org/abs/2605.18147
 TabPFN-Real, MITRA, TabICL) against 29 PD and 22 LGD methods over 14 PD datasets
 (1,000-532,428 rows) and 7 LGD datasets. TFMs win more often and their advantage grows as
 data shrinks, with the LGD crossover near 8,000 observations. Read the caveats in
-`docs/FINDINGS.md` §9 before quoting it: margins are small, only 22 of 406 pairwise PD
+`docs/results/FINDINGS.md` §9 before quoting it: margins are small, only 22 of 406 pairwise PD
 comparisons were significant, and the low-default-portfolio benefit is conjectured rather
 than tested.
 
@@ -108,7 +108,7 @@ than tested.
 Foundation Models, Really?* [arXiv:2606.30410](https://arxiv.org/abs/2606.30410)
 Introduces BeyondArena over IID, temporal and grouped tasks. TFMs excel on tiny-to-medium
 IID data; trees and deep learning still dominate on non-IID, large and high-dimensional
-data. Defines which half of credit risk is winnable (`docs/FINDINGS.md` §9).
+data. Defines which half of credit risk is winnable (`docs/results/FINDINGS.md` §9).
 
 **Hollmann, Müller, Purucker, Krishnakumar, Körfer, Hoo, Schirrmeister & Hutter (2025).**
 *Accurate predictions on small data with a tabular foundation model.* Nature 637:319-326.
@@ -171,7 +171,7 @@ Their motivation is ours verbatim: general foundation models (TimesFM, Chronos, 
 "do not specifically address the idiosyncrasies of financial data, such as volatility, noise,
 and pattern shift". A 1B-parameter decoder trained on 20B+ financial time points reports
 20-23% error reductions over the general models — i.e. **domain-specific pretraining beats
-general pretraining in finance**, which is exactly what `docs/FINDINGS.md` §14 measured for
+general pretraining in finance**, which is exactly what `docs/results/FINDINGS.md` §14 measured for
 tabular credit (+0.049 AUC, financial prior over generic).
 
 Two ideas worth borrowing as *concepts*, not code. Their **Point-Quantile loss** jointly fits
@@ -189,9 +189,9 @@ inherits the benefit.
 [arXiv:2303.17564](https://arxiv.org/abs/2303.17564)
 50B parameters, 363B financial tokens plus 345B general-purpose. The landmark
 domain-specific financial model, and the third independent data point on pretraining
-mixture (see `docs/FINDINGS.md` §14): its **51% domain / 49% general** split was chosen to
+mixture (see `docs/results/FINDINGS.md` §14): its **51% domain / 49% general** split was chosen to
 avoid sacrificing general capability. Also the cost benchmark the FinGPT line defines itself
-against — ~$2.67M of compute, which is the asymmetry `docs/STRATEGY.md` argues not to fight
+against — ~$2.67M of compute, which is the asymmetry `docs/roadmap/STRATEGY.md` argues not to fight
 head-on.
 
 ### TabArena's nearer neighbours — the four methods immediately above us
@@ -233,7 +233,7 @@ plus retrieval plus boosted-tree integration, **pretrained on real tabular datas
 retrieval component is an axis this project already measured and rejected in its
 query-conditioned form (§38, Claim 5). The real-data pretraining is the half that is
 off-limits here — not for licence reasons but for the contamination-auditability argument in
-`docs/STRATEGY.md`, which is a positioning asset rather than a constraint.
+`docs/roadmap/STRATEGY.md`, which is a positioning asset rather than a constraint.
 
 **Amazon Science (2025).** *MITRA: Mixed Synthetic Priors for Enhancing Tabular Foundation
 Models.* [arXiv:2510.21204](https://arxiv.org/abs/2510.21204). **Rank 8 on TabArena, Elo 1729.**

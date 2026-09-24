@@ -2,7 +2,7 @@
 
 ## Why
 
-This is the product (`docs/DECISIONS.md` D3). Everything upstream exists to make it cheap to
+This is the product (`docs/design/DECISIONS.md` D3). Everything upstream exists to make it cheap to
 produce. A credit risk function under supervisory obligation does not buy a point estimate;
 it buys the ability to answer "where can I trust this, and where must I not" in a document a
 validation committee accepts without the vendor in the room.

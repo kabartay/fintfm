@@ -4,7 +4,7 @@
 
 A benchmark number from this model cannot be inflated by memorising the benchmark, and that
 is checkable by a third party rather than asserted. The leakage literature measures
-contamination at up to 32 points of MAPE (`docs/FINDINGS.md` §1), and every competitor
+contamination at up to 32 points of MAPE (`docs/results/FINDINGS.md` §1), and every competitor
 pretraining on real tables carries public-benchmark numbers open to that critique.
 
 This is the project's cheapest durable advantage and the easiest to destroy by accident.
@@ -37,5 +37,5 @@ dataset.
 
 ## What would legitimately change this spec
 
-Only a decision to abandon the auditability claim, which is D2 in `docs/DECISIONS.md` and
+Only a decision to abandon the auditability claim, which is D2 in `docs/design/DECISIONS.md` and
 would need to be argued there first, not here.

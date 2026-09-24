@@ -31,7 +31,7 @@ This is the largest known gap between the prior and the task it is meant to prep
   The Forecasting Company's argument that time series are not tables is correct, and this
   proposal deliberately stays on the tabular side of that line.
 - Not fitting trajectory dynamics to a real panel — that would break the parametric-prior
-  invariant (`docs/ARCHITECTURE.md`).
+  invariant (`docs/design/ARCHITECTURE.md`).
 
 ## Falsified by
 

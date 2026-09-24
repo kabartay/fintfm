@@ -1,4 +1,4 @@
-"""Tests for out-of-fold target encoding (docs/FINDINGS.md §100).
+"""Tests for out-of-fold target encoding (docs/results/FINDINGS.md §100).
 
 The leak test is the load-bearing one. Naive target encoding fails in a way that makes the
 model *worse* while leaving every aggregate score looking reasonable, so it has to be pinned

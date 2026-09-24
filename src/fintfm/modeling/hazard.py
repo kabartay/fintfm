@@ -3,7 +3,7 @@
 Why this exists
 ---------------
 Independent per-horizon predictions produce curves that disagree with themselves. Measured
-on real data (``docs/FINDINGS.md`` §11): **11% of horizon steps and 39% of firms** received a
+on real data (``docs/results/FINDINGS.md`` §11): **11% of horizon steps and 39% of firms** received a
 cumulative default probability that *fell* as the horizon grew, while the portfolio aggregate
 stayed monotone and hid it. A firm that has defaulted by year three has defaulted by year
 five, so such a curve is not merely inaccurate, it is incoherent — and IFRS 9 lifetime
@@ -158,7 +158,7 @@ def base_rate_shift(context_rate: float, true_rate: float) -> float:
 
     An in-context model reads its default rate out of its context, so a context resampled
     to be class-balanced makes it state a default rate near the context's, not the
-    portfolio's (``docs/FINDINGS.md`` §5, decision D5). On the term-structure path this is
+    portfolio's (``docs/results/FINDINGS.md`` §5, decision D5). On the term-structure path this is
     severe: a balanced 2,000-row context against a 1.5% portfolio inflates the stated PD by
     more than an order of magnitude while leaving AUC untouched, because every prediction
     inflates alike.

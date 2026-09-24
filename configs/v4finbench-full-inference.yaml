@@ -1,6 +1,6 @@
 # fintfm scored with its own context-quality levers turned on, instead of at their defaults.
 #
-# WHY THIS EXISTS. `docs/FINDINGS.md` §69 ran the V4FinBench protocol at five tuned folds and
+# WHY THIS EXISTS. `docs/results/FINDINGS.md` §69 ran the V4FinBench protocol at five tuned folds and
 # found fintfm tied with logistic regression and clearly behind all three gradient boosters
 # (Holm p<0.001 each). That comparison scored fintfm at context_strategy=uniform,
 # n_ensemble=1, max_context=2000 -- the library defaults, none of which are what this
@@ -18,7 +18,7 @@
 #     retrieval draw from a wider pool without being capped before it can be selective.
 #
 # UPDATE (this file, 2026-09-13): the first version of this file used
-# context_strategy=retrieval. A single-fold isolation (`docs/FINDINGS.md` S70) found retrieval
+# context_strategy=retrieval. A single-fold isolation (`docs/results/FINDINGS.md` S70) found retrieval
 # actively HARMS AP here (0.1853 -> 0.0527 alone), and it is not rescued by the other two
 # levers -- retrieval + n_ensemble + max_context together score 0.1225, still below baseline.
 # n_ensemble and max_context each help on their own (+0.025, +0.013) and combined without

@@ -4,7 +4,7 @@ Why this exists
 ---------------
 Every number this project has produced on V4FinBench uses an out-of-time split of our own
 design. The benchmark's published protocol is different in four ways that each break
-comparability (``docs/FINDINGS.md`` §36):
+comparability (``docs/results/FINDINGS.md`` §36):
 
 1. **5-fold company-grouped cross-validation, not out-of-time.** Grouping is by company, not
    by date, so a fold may contain 2019 observations while predicting a 2008 one.
@@ -72,7 +72,7 @@ TARGET = "main_label"
 #: their protocol specifies. Reproducing their baselines means reproducing their tuning:
 #: measured here, default LightGBM and XGBoost score *below* logistic regression on ROC-AUC
 #: (0.95 and 0.81-0.96 against 0.98), which would understate the field in a comparison we
-#: intend to publish — the same defect as ``docs/FINDINGS.md`` §25, pointed the other way.
+#: intend to publish — the same defect as ``docs/results/FINDINGS.md`` §25, pointed the other way.
 #:
 #: Searching this is expensive: roughly 76 fits per fold on ~600,000 rows, and the boosters
 #: fit out-of-process one configuration at a time. It is therefore opt-in via ``--tune``,
@@ -239,7 +239,7 @@ class FoldResult:
     #: their published protocol** -- kept separate so the comparable columns stay comparable.
     #: At a 0.38% base rate ROC-AUC is dominated by the negative majority and can read 0.98
     #: while precision in the decision region is poor; AP is the metric that notices
-    #: (``docs/FINDINGS.md`` §59).
+    #: (``docs/results/FINDINGS.md`` §59).
     avg_precision: float = float("nan")
     #: Best F1 achievable on *test* by any threshold. Compared against ``f1``, which uses the
     #: threshold chosen on validation, this separates a ranking that is weak near the decision
@@ -303,7 +303,7 @@ def run(
 
     Args:
         model_path: Checkpoint. Its classification head is used, so it must have been trained
-            for classification (``docs/FINDINGS.md`` §34 — a hazard-only checkpoint is
+            for classification (``docs/results/FINDINGS.md`` §34 — a hazard-only checkpoint is
             refused rather than silently served).
         out_dir: Directory for ``v4_protocol.json``.
         horizon: Paper horizon, 0-5. Note the file mapping is off by one; see
@@ -312,7 +312,7 @@ def run(
         max_rows: Development cap. Companies are kept whole, so the grouping guarantee holds.
         root: Directory holding the parquet files.
         with_boosting: Run LightGBM, CatBoost and XGBoost as baselines. They fit
-            out-of-process because of the macOS OpenMP conflict (``docs/COMPUTE.md``), and
+            out-of-process because of the macOS OpenMP conflict (``docs/infra/COMPUTE.md``), and
             they are the baselines that actually compete — the paper reports gradient-boosted
             trees as its strongest classical cluster.
         tune: Grid-search each baseline on the validation fold, per their protocol and
@@ -425,7 +425,7 @@ def run(
         # Two models scored on the same rows have correlated errors, so an unpaired interval
         # overstates the uncertainty of their difference; without the raw vectors the only
         # available comparison is point estimates, which is how a 79-positive fold turns into
-        # a league table nobody can check (docs/FINDINGS.md §60).
+        # a league table nobody can check (docs/results/FINDINGS.md §60).
         np.savez_compressed(
             out_dir / f"predictions_fold{fold}.npz",
             y_true=y[te],
@@ -522,7 +522,7 @@ def summarise(record: dict) -> str:
             "ROC-AUC is dominated by the negative majority, and F1-oracle tunes the "
             "threshold on test, so it is an upper bound rather than a score. Read "
             "`F1-oracle - F1` as how much was lost in transferring the threshold "
-            "(docs/FINDINGS.md §59)."
+            "(docs/results/FINDINGS.md §59)."
         ),
     ]
     tuned = c.get("tuned", False)
@@ -536,7 +536,7 @@ def summarise(record: dict) -> str:
                  "and understate the field -- re-run with --tune before quoting. ***"
         ),
         "",
-        "Their published reference at this horizon is in docs/FINDINGS.md §36. Their TabPFN is",
+        "Their published reference at this horizon is in docs/results/FINDINGS.md §36. Their TabPFN is",
         "fine-tuned on this data and ours never sees real data, so the like-for-like comparison",
         "is against their classical baselines, not their fine-tuned TabPFN.",
     ]

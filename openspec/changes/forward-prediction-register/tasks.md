@@ -2,11 +2,11 @@
 
 - [ ] 6.1 Establish the data source. Check UK Companies House bulk products and API for
       accounts data, insolvency status and licence terms permitting commercial use. Verify:
-      record the licence verbatim in `docs/REFERENCES.md`; do not proceed on a recalled
+      record the licence verbatim in `docs/research/REFERENCES.md`; do not proceed on a recalled
       licence. **The earlier check reached only the overview page and settled nothing.**
 - [ ] 6.2 Power calculation before any cohort is fixed. Verify: state the cohort size, the
       expected default count per year, and the smallest AUC difference detectable, in
-      `docs/FINDINGS.md` §3. If it cannot detect anything useful, say so and reconsider scope.
+      `docs/results/FINDINGS.md` §3. If it cannot detect anything useful, say so and reconsider scope.
 - [ ] 6.3 Write the inclusion rule as executable code, not prose, so the cohort is mechanical
       and reproducible. Verify: rerunning it on the same snapshot yields an identical cohort
       hash.

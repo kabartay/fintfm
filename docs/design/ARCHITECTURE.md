@@ -1,9 +1,9 @@
 # Architecture
 
 How the system is put together and why each piece is shaped the way it is. For *what* is
-being built and in what order, see `docs/STRATEGY.md`; for decisions and the alternatives
-that were priced against them, `docs/DECISIONS.md`; for measured throughput,
-`docs/COMPUTE.md`.
+being built and in what order, see `docs/roadmap/STRATEGY.md`; for decisions and the alternatives
+that were priced against them, `docs/design/DECISIONS.md`; for measured throughput,
+`docs/infra/COMPUTE.md`.
 
 ## The core idea in one paragraph
 
@@ -39,7 +39,7 @@ src/fintfm/
 The dependency direction is one-way down that list. `prior/` knows nothing about models,
 `modeling/` knows nothing about real datasets, and `evaluation/` is the only place a real
 dataset is ever loaded. That last boundary is not stylistic — it is what makes the
-provenance claim in `docs/FINDINGS.md` §1 checkable by grep:
+provenance claim in `docs/results/FINDINGS.md` §1 checkable by grep:
 
 ```bash
 grep -rn "fetch_openml\|read_csv\|urlopen" src/fintfm/   # evaluation/ only, never prior/
@@ -112,7 +112,7 @@ happen that are not obvious:
 **Context construction.** Attention is quadratic in context length, so tables above
 `max_context` must be subsampled. Doing that *uniformly* on a 4% default rate throws away
 almost every defaulter before the model sees one, and context strategy turns out to explain
-more variance in AUC than the choice of model family (`docs/FINDINGS.md` §5). Balanced and
+more variance in AUC than the choice of model family (`docs/results/FINDINGS.md` §5). Balanced and
 hybrid strategies keep the minority class.
 
 **Base-rate correction.** But rebalancing the context *lies to the model about how common
@@ -120,12 +120,12 @@ default is*, because an in-context learner reads the base rate out of its contex
 at a 14.9% predicted mean against a 4.7% actual rate. The fix shifts the logits by
 `log P_true(y) − log P_context(y)`, which is exact under label shift (guaranteed here,
 because context selection looks only at `y`) and provably leaves ranking untouched. See
-`docs/FINDINGS.md` §6.
+`docs/results/FINDINGS.md` §6.
 
 **Categorical encoding** (`inference/categorical.py`). Every stage above reads a cell as an
 *ordered numeric scalar*, so a categorical column has to arrive as a number and the choice of
 number is a modelling decision, not plumbing. Label encoding asserts that resource code 4127
-lies between 4126 and 4128; `docs/FINDINGS.md` §100 measured what that costs — a −0.0894
+lies between 4126 and 4128; `docs/results/FINDINGS.md` §100 measured what that costs — a −0.0894
 ROC-AUC deficit on mostly-categorical datasets against −0.0320 on numeric ones, correlating
 −0.668 with log cardinality. The replacement gives each level the smoothed target rate among
 context rows carrying it, which is ordered on the axis the model actually reads.

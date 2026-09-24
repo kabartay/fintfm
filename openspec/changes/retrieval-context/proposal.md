@@ -2,7 +2,7 @@
 
 ## Why
 
-`docs/FINDINGS.md` §5 established the single most useful engineering fact in this project:
+`docs/results/FINDINGS.md` §5 established the single most useful engineering fact in this project:
 **how the context is built explains more variance than which architecture is used.** Tanna et
 al. measured it, and our own results turn on it.
 

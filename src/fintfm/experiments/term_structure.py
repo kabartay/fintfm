@@ -1,6 +1,6 @@
 """Does fitting the whole curve also help discrimination, or only coherence?
 
-`docs/FINDINGS.md` §20 established that a hazard parameterisation makes the PD term structure
+`docs/results/FINDINGS.md` §20 established that a hazard parameterisation makes the PD term structure
 monotone **by construction**, fixing the 39% incoherence measured in §11. That is a coherence
 result and it says nothing about accuracy.
 

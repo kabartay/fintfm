@@ -5,7 +5,7 @@ Why this exists
 
 MITRA (arXiv:2510.21204) proposes that a synthetic prior be selected on **performance**,
 **diversity** and **distinctiveness**, and reports that this is what separates a
-state-of-the-art synthetic-only model from a mediocre one. `docs/FINDINGS.md` §110 measures
+state-of-the-art synthetic-only model from a mediocre one. `docs/results/FINDINGS.md` §110 measures
 that the top fourteen TabArena ranks are all synthetic-pretrained, and §104/§102/§103/§108
 between them close or weaken every architectural and scale lever this project had. The prior
 is what is left, and this project has never evaluated its own prior on any of the three.

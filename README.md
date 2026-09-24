@@ -41,7 +41,7 @@ evidence. That file, not this one, is the source of truth — and it records wha
 true as prominently as what holds.
 
 > Throughout this repository, **§N** refers to entry N in
-> [`docs/FINDINGS.md`](docs/FINDINGS.md), a measurement log in which every number states how it
+> [`docs/results/FINDINGS.md`](docs/results/FINDINGS.md), a measurement log in which every number states how it
 > was produced (MEASURED, SMOKE-TEST, SIMULATED or ESTIMATED) and negative results are kept
 > deliberately, because they are what stops the same wrong conclusion being reached twice.
 
@@ -188,10 +188,10 @@ uv run fintfm-bench --model runs/v0-smoke.pt --credit      # real corporate-defa
 ```
 
 That smoke config exists to check the pipeline runs, not to produce a usable checkpoint — see
-[`docs/COMPUTE.md`](docs/COMPUTE.md) for measured step costs at real scale. A real pretraining
+[`docs/infra/COMPUTE.md`](docs/infra/COMPUTE.md) for measured step costs at real scale. A real pretraining
 run (thousands of steps, `--d-model 128`+, `--max-features` matching your data) takes
 hours-to-a-day and needs a GPU: `--device mps` on Apple Silicon, `--device cuda`, or see
-[`docs/HF_JOBS.md`](docs/HF_JOBS.md) for the Hugging Face Jobs recipe this project actually
+[`docs/infra/HF_JOBS.md`](docs/infra/HF_JOBS.md) for the Hugging Face Jobs recipe this project actually
 uses for training runs. **Check `uptime` before running anything heavy locally** — see
 [`CLAUDE.md`](CLAUDE.md) for why.
 
@@ -251,7 +251,7 @@ measured axis; the levers that remain, in the order the evidence ranks them:
 
 ## Reproducing the measurements
 
-Every number in [`docs/FINDINGS.md`](docs/FINDINGS.md) names the command that produced it.
+Every number in [`docs/results/FINDINGS.md`](docs/results/FINDINGS.md) names the command that produced it.
 The entry points:
 
 | command | what it measures |
@@ -274,20 +274,20 @@ because they are what stops the same wrong conclusion being reached twice.
 
 - [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md) — **start here.** Every claim this project
   could make, tagged by status, newest evidence wins.
-- [`docs/FINDINGS.md`](docs/FINDINGS.md) — the full measurement log, numbered sequentially
+- [`docs/results/FINDINGS.md`](docs/results/FINDINGS.md) — the full measurement log, numbered sequentially
   (121 entries and counting), each declaring how its numbers were produced.
-- [`docs/DECISIONS.md`](docs/DECISIONS.md) — why the project is built the way it is, and what
+- [`docs/design/DECISIONS.md`](docs/design/DECISIONS.md) — why the project is built the way it is, and what
   would reverse each choice.
-- [`docs/STRATEGY.md`](docs/STRATEGY.md) — the plan of record.
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — how the model works, in more depth than
+- [`docs/roadmap/STRATEGY.md`](docs/roadmap/STRATEGY.md) — the plan of record.
+- [`docs/design/ARCHITECTURE.md`](docs/design/ARCHITECTURE.md) — how the model works, in more depth than
   this file.
-- [`docs/TABARENA.md`](docs/TABARENA.md) — the external-evaluation recipe, the coverage
+- [`docs/results/TABARENA.md`](docs/results/TABARENA.md) — the external-evaluation recipe, the coverage
   fraction any score must carry, and four silent failure modes including a results cache that
   returns stale numbers after a preprocessing change.
 - [`docs/paper/RELATED_WORK.md`](docs/paper/RELATED_WORK.md) — the competing models, read from
   primary sources, with what each costs this project's positioning. Its digest is the shortest
   useful summary of why the remaining lever is the prior.
-- [`docs/POSTMORTEM.md`](docs/POSTMORTEM.md) — wrong diagnoses, each caught by measurement
+- [`docs/results/POSTMORTEM.md`](docs/results/POSTMORTEM.md) — wrong diagnoses, each caught by measurement
   rather than review, kept on the record deliberately.
 - [`openspec/changes/`](openspec/changes/) — the live roadmap as structured proposals with
   verifiable tasks, not prose. `uv run python openspec/tools/validate.py` checks every

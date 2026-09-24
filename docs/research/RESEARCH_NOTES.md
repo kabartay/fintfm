@@ -2,7 +2,7 @@
 
 Ideas, references and framings gathered during the founding sessions, kept so they are not
 lost when a conversation compacts. **Nothing here is a measurement.** Findings live in
-`docs/FINDINGS.md`; verified citations in `docs/REFERENCES.md`; this file is the map.
+`docs/results/FINDINGS.md`; verified citations in `docs/research/REFERENCES.md`; this file is the map.
 
 ## The four fields, and how they differ
 
@@ -18,7 +18,7 @@ The most useful mental model, and the reason "financial foundation model" is amb
 "Financial FM" splits further into a **language** branch (BloombergGPT, FinGPT, PIXIU,
 FinBen) and a **numerical/time-series** branch (FinCast), plus multimodal ambitions combining
 them. This project is in none of those: it is tabular, and specifically the panel-hazard
-object no camp predicts (`docs/LANDSCAPE.md`).
+object no camp predicts (`docs/competition/LANDSCAPE.md`).
 
 ## The concept that ties it together
 
@@ -33,7 +33,7 @@ finance      p(R_future | market_past, information_past)
 
 Pretraining approximates `p(possible worlds)`. Inference asks which worlds are compatible
 with the evidence in front of it. That is why Bayesian reasoning, meta-learning and
-in-context learning are the right lenses, and it is the framing behind `docs/FINDINGS.md`
+in-context learning are the right lenses, and it is the framing behind `docs/results/FINDINGS.md`
 §13's explanation of where our calibration comes from.
 
 ## Syllabus — concepts, audited against what this repo implements

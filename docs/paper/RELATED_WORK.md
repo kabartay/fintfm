@@ -109,7 +109,7 @@ Also recorded as a process lesson: the synthetic-vs-real conclusion above was **
 times in one session**, once per arriving abstract, before anyone checked the rank ordering
 that actually settles it (§110). Read the measurement before writing the claim.
 
-Ten TabArena entrants opened on 2026-09-21 (full entries in `docs/REFERENCES.md`). Two of
+Ten TabArena entrants opened on 2026-09-21 (full entries in `docs/research/REFERENCES.md`). Two of
 them change what this file can claim.
 
 ### Nori is what we are, executed further — and it is public
@@ -208,7 +208,7 @@ architecture. Reports beating well-tuned GBDTs and leading deep tabular models.
 **TabDPT** (already recorded below as a lead) makes the same argument from the other side.
 
 **This is three independent groups arguing that synthetic-only is a ceiling, not a virtue.**
-This project cannot follow them, and the reason is not licensing: `docs/STRATEGY.md`'s
+This project cannot follow them, and the reason is not licensing: `docs/roadmap/STRATEGY.md`'s
 differentiator is *auditable* freedom from benchmark contamination, which real-table
 pretraining destroys by construction. That trade must be argued in the paper rather than
 assumed, with the accuracy cost named — and the honest framing is that we are choosing a
@@ -433,7 +433,7 @@ guessed at.
 
 **The user's observation that this resembles Neuralk's Seldon is plausible on the surface —
 a causally-named proprietary tabular foundation model — but unverified and not investigatable
-further here.** `docs/LANDSCAPE.md` records Neuralk (Seldon) as proprietary with no public
+further here.** `docs/competition/LANDSCAPE.md` records Neuralk (Seldon) as proprietary with no public
 technical report; nothing about Causilo's method has been read that would confirm or refute a
 relationship, and `CLAUDE.md`'s boundary against Neuralk's code/weights/training data is
 unaffected either way — Causilo is a separate legal entity (Nums AI Inc.) under its own
@@ -448,7 +448,7 @@ this session's own data rather than quoted from the source, per the standing rul
 a number before quoting it).
 
 **Code and weights checked separately, and they diverge — a third confirmed instance of the
-exact trap `docs/FINDINGS.md` §24 already names for Google's TabFM/TimesFM.** Code is
+exact trap `docs/results/FINDINGS.md` §24 already names for Google's TabFM/TimesFM.** Code is
 BSD-3-Clause-LG AI Research License (permissive, commercial use fine). Weights are
 **"EXAONE AI Model License Agreement 1.2 - NC"**, verified from the licence file itself rather
 than the model card summary: §3.1 prohibits commercial use of the Model **and of its Output**
@@ -556,7 +556,7 @@ data rather than after.
 
 An externally-relayed review cited several specific results while discussing architecture
 priorities. **Read before citing** — this project has already been burned once by a WebFetch
-summariser fabricating a results table (`docs/POSTMORTEM.md`), and the discipline that caught
+summariser fabricating a results table (`docs/results/POSTMORTEM.md`), and the discipline that caught
 it applies here too: an abstract or a relayed summary is a lead, not a citation.
 
 - **TabDPT** (Ma, Thomas et al., NeurIPS 2025, arXiv link supplied and the abstract read in

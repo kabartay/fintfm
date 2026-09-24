@@ -20,7 +20,7 @@
       on all eight datasets, and the gap-versus-log-cardinality correlation fell from -0.668
       to -0.025. Rank unchanged at 93 of 95.
 - [ ] 47.4 **Decide on a learned categorical path** from 47.3's result rather than in advance.
-      Verify: the decision is recorded in `docs/DECISIONS.md` with the measured gain that
+      Verify: the decision is recorded in `docs/design/DECISIONS.md` with the measured gain that
       triggered it and the threshold that would reverse it.
 - [ ] 47.5 **Handle the unseen-level case on real data specifically.** High-cardinality columns
       guarantee query levels absent from context. Verify: the fraction of query cells falling

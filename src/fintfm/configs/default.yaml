@@ -28,15 +28,15 @@
 # one, it fails until you change the other.
 inference:
   max_context: 2000
-  context_strategy: uniform      # docs/DECISIONS.md D10; was "balanced" before 2026-09-09
-  feature_transform: rank        # docs/FINDINGS.md §35
+  context_strategy: uniform      # docs/design/DECISIONS.md D10; was "balanced" before 2026-09-09
+  feature_transform: rank        # docs/results/FINDINGS.md §35
   n_ensemble: 1                  # D12's stated mitigation for the column-order invariance
   correct_prior: true
   query_chunk: 2048
-  feature_chunk: 16              # identity-preserving memory knob; docs/FINDINGS.md §81
+  feature_chunk: 16              # identity-preserving memory knob; docs/results/FINDINGS.md §81
   retrieval_groups: 64
   retrieval_min_positive: 8
-  prototype_minority_ratio: 0.3   # Kostrzewa et al.'s value; docs/FINDINGS.md §38
+  prototype_minority_ratio: 0.3   # Kostrzewa et al.'s value; docs/results/FINDINGS.md §38
   winsor_quantile: 0.01
   transform_subsample: 20000
 
@@ -47,7 +47,7 @@ evaluation:
   alpha: 0.05
   ece_bins: 10
   # a horizon with fewer observed rows than this, or only one class, is reported as NaN
-  # rather than scored -- see docs/FINDINGS.md on degenerate splits poisoning aggregates
+  # rather than scored -- see docs/results/FINDINGS.md on degenerate splits poisoning aggregates
   min_rows_per_horizon: 100
 
 # The V4FinBench out-of-time protocol. The split years are the load-bearing numbers here:
@@ -58,13 +58,13 @@ v4finbench:
   test_from: 2017
   max_context: 2000
   # scored side by side; the uncorrected arm is permanent by decision D8, so that the
-  # base-rate distortion of docs/FINDINGS.md §28 is measured rather than assumed absent
+  # base-rate distortion of docs/results/FINDINGS.md §28 is measured rather than assumed absent
   hazard_arms:
     - {name: fintfm_hazard, strategy: prototype, correct_prior: true}   # best, §38
     - {name: fintfm_hazard_uncorrected, strategy: balanced, correct_prior: false}
     - {name: fintfm_hazard_uniform, strategy: uniform, correct_prior: true}
 
-# The context-strategy sweep behind docs/FINDINGS.md §29, §32 and §33.
+# The context-strategy sweep behind docs/results/FINDINGS.md §29, §32 and §33.
 context_sweep:
   strategies: [balanced, hybrid, uniform, retrieval]
   # 2000 is the operating point: on three seeds 4000 ties with it for 1.7x the time (§33)
@@ -74,10 +74,10 @@ context_sweep:
 
 # The financial prior's default-rate envelope. The floor is what lets the prior reach the
 # low-default regime the strategy targets: at two expected defaults a 512-row task reaches
-# 0.195%, which covers V4FinBench's 0.19% (docs/COMPUTE.md).
+# 0.195%, which covers V4FinBench's 0.19% (docs/infra/COMPUTE.md).
 prior:
   # The financial prior's signal-to-noise range, drawn log-uniformly per task. Spans
-  # near-pure-noise to near-deterministic (docs/FINDINGS.md §42), and §64 measured this as
+  # near-pure-noise to near-deterministic (docs/results/FINDINGS.md §42), and §64 measured this as
   # the variable that predicts what a prior teaches.
   sharpness_min: 0.3
   sharpness_max: 12.0

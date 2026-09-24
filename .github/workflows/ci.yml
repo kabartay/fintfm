@@ -19,7 +19,7 @@ jobs:
       # `requires-python` says >=3.12, so 3.12 must actually be exercised. It was >=3.13 for
       # no reason beyond the local interpreter, and that cost a GPU probe: the standard CUDA
       # PyTorch images ship 3.12.3, so installing the wheel failed outright. A floor nobody
-      # tests is a guess (docs/HF_JOBS.md).
+      # tests is a guess (docs/infra/HF_JOBS.md).
       matrix:
         python-version: ["3.12", "3.13"]
     steps:
@@ -33,8 +33,8 @@ jobs:
 
       # The `bench` extra carries LightGBM, CatBoost and XGBoost. They are the baselines
       # that actually compete, and they were silently absent from every comparison until
-      # docs/FINDINGS.md #25 - so CI installs them rather than letting them skip quietly.
-      # Linux uses libgomp and does not hit the macOS OpenMP conflict (docs/COMPUTE.md).
+      # docs/results/FINDINGS.md #25 - so CI installs them rather than letting them skip quietly.
+      # Linux uses libgomp and does not hit the macOS OpenMP conflict (docs/infra/COMPUTE.md).
       - name: Sync dependencies
         run: uv sync --extra bench
 

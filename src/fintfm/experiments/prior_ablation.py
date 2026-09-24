@@ -1,7 +1,7 @@
 """Phase 1: does a financial prior beat a generic one at matched compute?
 
 This is the experiment that decides whether the project's core bet is real
-(``docs/STRATEGY.md``). Everything else — the architecture, the calibration work, the
+(``docs/roadmap/STRATEGY.md``). Everything else — the architecture, the calibration work, the
 positioning — is downstream of its answer.
 
 **The design.** Train several models that differ in *one* variable, the pretraining task
@@ -125,7 +125,7 @@ def evaluate_on_credit(
             metrics = evaluate_binary(y_test, proba)
             cell = asdict(metrics)
             # keep predictions and labels so variants can be compared as PAIRED samples
-            # afterwards; a win count across cells is not a result (docs/FINDINGS.md §9).
+            # afterwards; a win count across cells is not a result (docs/results/FINDINGS.md §9).
             cell["_y_true"] = y_test.tolist()
             cell["_proba"] = proba.tolist()
             out[f"{ds.name}/{strategy}"] = cell
@@ -159,7 +159,7 @@ def run_ablation(
         horizons: Bankruptcy horizons to evaluate on. Pass ``()`` to train only.
         device: Training device. ``"mps"`` uses the Apple GPU, which is ~3.5x faster than
             CPU here *and* leaves the CPU cores to whatever else shares the machine — see
-            ``docs/COMPUTE.md`` for measured step times.
+            ``docs/infra/COMPUTE.md`` for measured step times.
         include_untrained_control: Also evaluate a **randomly initialised, untrained** model.
             Without this control the ablation is uninterpretable when the priors tie: "the
             financial prior adds nothing over a generic one" and "no pretraining adds
@@ -326,7 +326,7 @@ def summarise(record: dict) -> str:
 
         lines += [
             "",
-            "EXIT CONDITION (docs/STRATEGY.md Phase 1): the financial prior must beat the",
+            "EXIT CONDITION (docs/roadmap/STRATEGY.md Phase 1): the financial prior must beat the",
             "generic one on real credit data, and the difference must survive the paired test",
             "above with family-wise correction. Baesens et al. (arXiv:2605.18147) found only",
             "22 of 406 pairwise comparisons significant in this domain, so expect small",
@@ -540,7 +540,7 @@ def term_structure_coherence(
     a product defect rather than a curiosity. See ``openspec/changes/pd-term-structure``.
 
     **Design, and the constraint that forced it.** The UCI panels carry no company
-    identifiers (``docs/FINDINGS.md`` §7), so a firm cannot be followed across horizon
+    identifiers (``docs/results/FINDINGS.md`` §7), so a firm cannot be followed across horizon
     files. Instead the *query rows are held fixed* — one panel's held-out rows — and only
     the labelled context varies, taking each horizon's data in turn. The same firms are
     therefore scored under contexts meaning "defaults within 1 year" through "within 5

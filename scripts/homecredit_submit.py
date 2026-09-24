@@ -5,7 +5,7 @@
 Home Credit is *consumer* credit — bureau features, payment histories, demographics — while
 this project's prior generates *corporate* balance sheets and P&L, so the domain prior
 contributes nothing here and what is being measured is the generic architecture. The dataset
-is also large (307k train, 49k test), which `docs/FINDINGS.md` §9 identifies as the regime
+is also large (307k train, 49k test), which `docs/results/FINDINGS.md` §9 identifies as the regime
 where tabular foundation models lose to gradient boosting.
 
 It is run anyway because an external, unfakeable placement is cheap and a real reality check.

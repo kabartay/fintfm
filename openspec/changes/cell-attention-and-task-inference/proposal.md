@@ -2,7 +2,7 @@
 
 ## Why
 
-`docs/FINDINGS.md` §74 found that training predominantly or exclusively on the financial prior
+`docs/results/FINDINGS.md` §74 found that training predominantly or exclusively on the financial prior
 caps basic signal extraction at ~0.73 AUC regardless of true task difficulty — measured against
 an *exactly known* Bayes-optimal AUC, on a probe with a single informative dimension and no
 column-identity structure at all. Training on the generic SCM prior instead, with the identical
@@ -17,7 +17,7 @@ essentially the same capped curve, while only a wholesale generator swap escapes
 signature of a representational limitation in what the current architecture can extract, not a
 content property of the prior that the next experiment happens to fix.
 
-`docs/DECISIONS.md` D12 already named the unresolved piece when it traded exact column-order
+`docs/design/DECISIONS.md` D12 already named the unresolved piece when it traded exact column-order
 invariance for random per-task identities: *"the cell-level two-way design is the one with
 published evidence behind it, and is what a serious version of this model should end up with."*
 Random column identities (D12) fixed whether the model can tell `x_0` from `x_1` — the trivial

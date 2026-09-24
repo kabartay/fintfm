@@ -47,6 +47,6 @@ unknown config key(s) v4finbench.train_untill; valid keys here are hazard_arms, 
 
 A silently-tolerant loader is the worst kind: the run completes, reports numbers, and used the
 default. This project has already lost a pretraining run to a value that was quietly not what
-it appeared to be (`docs/FINDINGS.md` §28), so validation happens before a run starts —
+it appeared to be (`docs/results/FINDINGS.md` §28), so validation happens before a run starts —
 including refusing an overlapping train/test split, which would be reported as out-of-time
 validation while not being it.

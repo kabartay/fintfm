@@ -2,7 +2,7 @@
 
 **The first experiment in this project that tests the actual thesis on real data.**
 Everything before it was either synthetic, or on panels that structurally could not carry
-the claim: the UCI sets have no firm identifiers and no dates (``docs/FINDINGS.md`` §7), so
+the claim: the UCI sets have no firm identifiers and no dates (``docs/results/FINDINGS.md`` §7), so
 no per-firm hazard path could be scored and no split could cross a date.
 
 V4FinBench changes that — 1,000,087 company-years over 188,338 companies, 2006-2020
@@ -87,7 +87,7 @@ def time_split(
     if ds.year is None:
         raise ValueError(
             f"{ds.name} carries no year column, so it cannot support a time-based split; "
-            "see docs/FINDINGS.md §7"
+            "see docs/results/FINDINGS.md §7"
         )
     if test_from <= train_until:
         raise ValueError(
@@ -213,7 +213,7 @@ def run(
     # Three arms, not one. The first out-of-time run scored only a balanced, *uncorrected*
     # context and reported a 12.8% mean PD against a 0.47% truth; that was misread as the
     # prior failing to reach low default rates, and a 6,000-step retrain was spent on it
-    # before the cause turned out to be the missing correction (docs/FINDINGS.md §28). The
+    # before the cause turned out to be the missing correction (docs/results/FINDINGS.md §28). The
     # uncorrected arm stays in the harness permanently so the distortion is measured beside
     # the fix rather than argued about.
     if model.hazard is not None:
@@ -312,7 +312,7 @@ def summarise(record: dict) -> str:
         lines.append(f"{a['name']:>26} " + " ".join(f"{h['ece']:>8.4f}" for h in a["horizons"]))
     # The level, printed beside the truth. A term structure can be perfectly monotone and
     # perfectly ranked while stating a default rate 27x too high, and AUC and the violation
-    # rate both report that curve as healthy (docs/FINDINGS.md §28).
+    # rate both report that curve as healthy (docs/results/FINDINGS.md §28).
     obs = record["arms"][0]["horizons"]
     lines += ["", "mean predicted PD by horizon (observed in the last row):"]
     for a in record["arms"]:

@@ -3,7 +3,7 @@
 Why this module exists
 ----------------------
 
-``docs/FINDINGS.md`` §100 measured where this project's TabArena deficit actually lives. On
+``docs/results/FINDINGS.md`` §100 measured where this project's TabArena deficit actually lives. On
 the eight datasets with no categorical columns, fintfm is 0.0320 ROC-AUC behind tuned logistic
 regression. On the nine that are more than half categorical it is 0.0894 behind, and on the
 five with a level count above 25 it is 0.1109 behind. The correlation between the per-dataset

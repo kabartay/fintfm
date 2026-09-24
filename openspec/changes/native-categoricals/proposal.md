@@ -2,7 +2,7 @@
 
 ## Why
 
-`docs/FINDINGS.md` §100 located this project's TabArena deficit. It is not spread evenly
+`docs/results/FINDINGS.md` §100 located this project's TabArena deficit. It is not spread evenly
 across the suite: on the eight datasets with no categorical columns fintfm is 0.0320 ROC-AUC
 behind tuned logistic regression, and on the nine that are more than half categorical it is
 0.0894 behind. Against maximum level count the pattern is sharper still — 0.0320 at zero
@@ -44,7 +44,7 @@ honest size of the modelling problem `factorized-attention` (44.x) and §97 are 
   any training cost is committed.
 - **47.4 is blocked by 47.3's number**, deliberately. Deciding to change the architecture and
   the prior before knowing what the cheap fix recovers would be choosing the expensive
-  branch on an assumption, which is the failure mode `docs/POSTMORTEM.md` already records
+  branch on an assumption, which is the failure mode `docs/results/POSTMORTEM.md` already records
   twice.
 
 ## Non-goals

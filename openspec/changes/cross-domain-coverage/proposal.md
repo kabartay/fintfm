@@ -2,7 +2,7 @@
 
 ## Why
 
-`docs/FINDINGS.md` §63 controlled the two explanations that §61 left confounded, on the same
+`docs/results/FINDINGS.md` §63 controlled the two explanations that §61 left confounded, on the same
 V4FinBench fold with a paired bootstrap:
 
 | contrast | dAP | 95% CI | Holm p |

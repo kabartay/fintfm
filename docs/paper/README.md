@@ -32,11 +32,11 @@ one.
 
 ## The rule for this folder
 
-> **No claim enters without a `docs/FINDINGS.md` section number, and no number enters without
+> **No claim enters without a `docs/results/FINDINGS.md` section number, and no number enters without
 > the command that produced it.**
 
 This is not ceremony. Over 2026-09-08/09 this project produced five wrong diagnoses in one day
-(`docs/POSTMORTEM.md`), every one caught by measurement and none by review. A paper drafted
+(`docs/results/POSTMORTEM.md`), every one caught by measurement and none by review. A paper drafted
 from recollection would have stated at least three claims that were true when believed and
 false a day later — including one that a retrain was spent on.
 

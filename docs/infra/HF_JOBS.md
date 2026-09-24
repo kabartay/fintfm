@@ -8,11 +8,11 @@ established the working configuration; the three training runs are in flight.
 ## Why GPU at all
 
 Every accuracy number in this project comes from a checkpoint of **846,818 parameters** trained
-for 6,000 steps at batch 8. `docs/STRATEGY.md`'s Phase 1 target is 10-50M. That is 12-60× under
+for 6,000 steps at batch 8. `docs/roadmap/STRATEGY.md`'s Phase 1 target is 10-50M. That is 12-60× under
 size and has never been tested, so "the model is small" is currently an untested explanation
 for the 0.047 out-of-time AUC gap rather than a measured one.
 
-There is recorded counter-evidence — `docs/FINDINGS.md` §9, that TFMs lose on large/wide
+There is recorded counter-evidence — `docs/results/FINDINGS.md` §9, that TFMs lose on large/wide
 non-IID data regardless of scale — so this is a real experiment with a real chance of a null
 result, not a formality.
 
@@ -108,7 +108,7 @@ parameters instead of 4.9M and 14.5M, and the FFN silently became a bottleneck a
 widened. `--d-ff` now exists and defaults to `4 × d_model`, the transformer convention.
 
 Nothing failed. The run completed and reported a parameter count, which is the only reason it
-was caught — the same shape as `docs/FINDINGS.md` §28, where the wrong number was computed,
+was caught — the same shape as `docs/results/FINDINGS.md` §28, where the wrong number was computed,
 stored and simply not looked at.
 
 ## Scopes the token needs
@@ -170,7 +170,7 @@ not a detail.
 it, and every command in it ends with `hf upload`. A job then trains for three hours, saves the
 checkpoint into the container, and dies on `bash: line 1: hf: command not found` — the
 checkpoint is lost with the container, the job is billed in full, and the log's last useful
-line is a successful save. Two runs were lost this way (`docs/FINDINGS.md` §90).
+line is a successful save. Two runs were lost this way (`docs/results/FINDINGS.md` §90).
 
 **Fail fast on the upload path.** Put `hf --version || exit 1` immediately after the installs,
 so a broken upload costs seconds rather than the whole run. Anything a job needs *at the end*
@@ -201,8 +201,8 @@ Carried lessons from `finkele-axiom`, each of which cost a probe there:
 
 Run `small` alone before the other two, on the cheapest flavour that has a GPU, and read
 **seconds per step** off the log. The Metal reference is 6,372 s for 6,000 steps at this size
-(`docs/COMPUTE.md`). Size `medium` and `large` from the measured rate rather than from a guess
-— `docs/COMPUTE.md` already records that step cost here is worse than quadratic in task size,
+(`docs/infra/COMPUTE.md`). Size `medium` and `large` from the measured rate rather than from a guess
+— `docs/infra/COMPUTE.md` already records that step cost here is worse than quadratic in task size,
 so extrapolation across configurations has burned this project once.
 
 ## Cost

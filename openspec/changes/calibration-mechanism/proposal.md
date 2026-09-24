@@ -2,7 +2,7 @@
 
 ## Why
 
-`docs/FINDINGS.md` §12 measured a 2.3-11.7× calibration advantage over gradient boosting and
+`docs/results/FINDINGS.md` §12 measured a 2.3-11.7× calibration advantage over gradient boosting and
 §13 traced it to Bayesian shrinkage: a prior-fitted network approximates the posterior
 predictive, which is calibrated by construction and prior-dominated at small *n*. The
 measured decay of the advantage with *n* matches that prediction.
@@ -43,7 +43,7 @@ the measured advantage is a moat or a footnote.
 - If calibrated gradient boosting closes the gap at n≈100, the advantage is a comparison
   artefact and §12 must be rewritten.
 - If the generic prior calibrates as well as the financial one, calibration is not a
-  domain-specific advantage. Say so in `docs/STRATEGY.md` and move the differentiator to the
+  domain-specific advantage. Say so in `docs/roadmap/STRATEGY.md` and move the differentiator to the
   certificate alone.
 
 ## Blocked by / blocks

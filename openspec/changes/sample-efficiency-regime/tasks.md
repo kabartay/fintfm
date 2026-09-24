@@ -9,9 +9,9 @@
 - [x] 13.3 Run the probe on the Phase 1 winning checkpoint. Verify:
       `runs/*/sample_efficiency.json` exists and reports a crossover size.
       **Done 2026-09-08 on the financial checkpoint: crossover at n=250 (single seed).**
-- [x] 13.4 Record the crossover in `docs/FINDINGS.md`, re-derived from that JSON, and state
+- [x] 13.4 Record the crossover in `docs/results/FINDINGS.md`, re-derived from that JSON, and state
       plainly whether the model wins anywhere. **If it wins nowhere, say so in the finding and
-      in `docs/STRATEGY.md`, and do not soften it.**
+      in `docs/roadmap/STRATEGY.md`, and do not soften it.**
       **Done 2026-09-08, `FINDINGS` §12. It wins on AUC only at n=100; the real finding is
       that calibration is 2.3-11.7x better at EVERY size.**
 - [x] 13.5 Extend the probe to multiple seeds. Verify: crossover reported with a range
@@ -21,7 +21,7 @@
       baseline (Platt or isotonic on a validation split). The 11.7x calibration advantage is
       currently measured against an uncalibrated incumbent, which is the obvious counter and
       must be pre-empted rather than discovered by a reviewer. Verify: the probe reports a
-      third arm (`gboost_calibrated`) and `docs/FINDINGS.md` §12 is updated with the ratio
+      third arm (`gboost_calibrated`) and `docs/results/FINDINGS.md` §12 is updated with the ratio
       against it, re-derived from the run.
 - [ ] 13.8 Extend the probe to the Taiwan panel and to V4FinBench once ingested. Verify: the
       calibration advantage reported per panel, and stated plainly if it does not replicate.

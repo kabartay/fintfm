@@ -42,7 +42,7 @@ bench = [
     "pyarrow>=17",
 ]
 # Hugging Face Jobs, for GPU pretraining runs. huggingface_hub is Apache-2.0.
-# See docs/HF_JOBS.md; secrets go through `--secrets`, never `-e`.
+# See docs/infra/HF_JOBS.md; secrets go through `--secrets`, never `-e`.
 hf = [
     # not `[cli]` -- that extra was removed by hub 1.30 and resolves to a warning plus no CLI.
     # The `hf` command ships in the base package.
@@ -50,7 +50,7 @@ hf = [
 ]
 
 # V4FinBench data lives on Kaggle and needs an account. Data is CC BY 4.0; the
-# kagglehub client is Apache-2.0. See docs/FINDINGS.md §8.
+# kagglehub client is Apache-2.0. See docs/results/FINDINGS.md §8.
 kaggle = [
     "kaggle>=1.6",
     "kagglehub>=0.3",

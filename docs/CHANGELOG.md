@@ -84,7 +84,7 @@ to the model and a part that does not.
   trained checkpoint clears its own untrained control at K = 3, 5 and 10 (§99). The accuracy
   floor is the *measured* majority-class rate, not `1/K`, which would have understated it by
   0.06 at K = 10.
-- **`docs/TABARENA.md`** — the external-evaluation recipe, including four silent failure
+- **`docs/results/TABARENA.md`** — the external-evaluation recipe, including four silent failure
   modes. The costliest: TabArena caches results per config name, so a preprocessing change
   re-run in place returns the previous numbers to four decimal places and reads as "no
   effect".
@@ -116,7 +116,7 @@ to the model and a part that does not.
   task volume scores **-0.0049** (12/27, p = 0.701) — §108's earlier -0.0077 was confounded by
   half the task count, and removing the confound recovered +0.0028 of it and no more. Training
   volume is null at 5x (§93) and +0.0028 at 2x. A peer's published curve returns **+0.0049 R²
-  for 16.7x** the parameters, against our 0.035 deficit. `docs/STRATEGY.md`'s 10-50M Phase 1
+  for 16.7x** the parameters, against our 0.035 deficit. `docs/roadmap/STRATEGY.md`'s 10-50M Phase 1
   target is withdrawn rather than questioned.
 - **The deep-narrow arm could not be scored at all** (§114), raising `TimeLimitExceeded` after
   8 of 27 datasets. Depth costs inference time and this project is already at 8.6 s/1K against
@@ -155,7 +155,7 @@ to the model and a part that does not.
   §100's mistake moved to the target side.
 
 - `hf jobs run` attaches and streams logs unless given `--detach`, so a loop launching three
-  jobs silently launched one. Recorded in `docs/HF_JOBS.md`.
+  jobs silently launched one. Recorded in `docs/infra/HF_JOBS.md`.
 
 ## [0.3.0] — 2026-09-19
 
@@ -235,7 +235,7 @@ Kept in the record rather than quietly edited, because each was propagated befor
   fitted estimator's private context, bypassing `predict_proba` — the only place decision
   D5's correction was ever applied. Fourth-horizon calibration error falls **32×** (0.3677 →
   0.0114) on the same checkpoint and the same split, and mean AUC is unchanged to four
-  decimals, as the rank-preservation property requires. `docs/FINDINGS.md` §28.
+  decimals, as the rank-preservation property requires. `docs/results/FINDINGS.md` §28.
 - `pyarrow` was declared only in the `kaggle` extra, so `uv sync --extra bench` broke the
   V4FinBench loader that every out-of-time finding depends on. CI never caught it because CI
   has no data and the test skips.
@@ -251,7 +251,7 @@ Kept in the record rather than quietly edited, because each was propagated befor
   (arXiv:2605.10896 §5.1), implemented from their description for comparison. It is now the
   **recommended** construction: mean AUC 0.8143 ± 0.0038 and ECE 0.0072 out of time, against
   our query-conditioned retrieval's 0.8130 ± 0.0069 and 0.0119, while being 4× cheaper and
-  keeping batch independence. `configs/best.yaml`. `docs/FINDINGS.md` §38.
+  keeping batch independence. `configs/best.yaml`. `docs/results/FINDINGS.md` §38.
 - **`docs/paper/`** — a workspace for a potential paper: a claims ledger mapping every
   candidate claim to its evidence and status, an outline, related work, limitations, and the
   figure list with the command behind each. Nothing enters without a `FINDINGS.md` section
@@ -280,7 +280,7 @@ Kept in the record rather than quietly edited, because each was propagated befor
   out-of-time split, and improving AUC in seven of eight configurations across two further
   panels. 110 of 136 features here have a standard deviation more than ten times their
   interquartile range, which is what the model's mean/standard-deviation normalisation could
-  not survive. `docs/FINDINGS.md` §35.
+  not survive. `docs/results/FINDINGS.md` §35.
 - **Checkpoints record which objectives they were trained on**, and a head that was never
   trained can no longer be served. The training loop optimises one objective per step, so a
   hazard checkpoint's classification head sat at random initialisation and `predict_proba`
@@ -291,7 +291,7 @@ Kept in the record rather than quietly edited, because each was propagated befor
   strategy** on the V4FinBench out-of-time split, Holm-significant at three of four horizons
   — the first accuracy gain in this project to survive a family-wise correction. Costs about
   2.5× the scoring time and gives up batch independence: a query's prediction depends on its
-  group-mates. `docs/FINDINGS.md` §32.
+  group-mates. `docs/results/FINDINGS.md` §32.
 - `holm_adjusted_p`, beside `holm_bonferroni`, which returns booleans. Reading those booleans
   as p-values inverted every verdict in the first write-up of §32.
 - `FinancialTFMClassifier.predict_term_structure`, the corrected public path for a PD term
@@ -340,7 +340,7 @@ Kept in the record rather than quietly edited, because each was propagated befor
 - §26's headline is **retracted**: the synthetic prior's 1% base-rate floor was real and is
   now 0.195%, but it was never what caused the out-of-time failure. The retrain it prompted
   is worth +0.023 mean AUC and 2.7× better calibration, which the broken evaluation
-  configuration had hidden. `docs/FINDINGS.md` §30.
+  configuration had hidden. `docs/results/FINDINGS.md` §30.
 
 ## [0.1.0] — 2026-09-08
 
@@ -383,7 +383,7 @@ real corporate defaults, plus the strategic and evidentiary scaffolding around i
 
 ### Findings
 
-Six numbered findings in `docs/FINDINGS.md`, of which two changed the code:
+Six numbered findings in `docs/results/FINDINGS.md`, of which two changed the code:
 
 - Balanced context sampling improves ranking but **inflated predicted default rates roughly
   threefold** (14.9% against a 4.7% actual rate), because an in-context model reads the base
@@ -398,11 +398,11 @@ Six numbered findings in `docs/FINDINGS.md`, of which two changed the code:
 
 ### Documentation
 
-- `docs/STRATEGY.md`, the plan of record, with a falsifiable exit condition per phase.
-- `docs/ARCHITECTURE.md`, `docs/DECISIONS.md` with seven decisions and what would reverse
-  each, `docs/COMPUTE.md` with measured throughput, `docs/LANDSCAPE.md`, and
-  `docs/REFERENCES.md` where every entry was verified against its source.
-- `openspec/` with nine proposals and 42 tasks, and `docs/NEXT.md` as the tiered queue.
+- `docs/roadmap/STRATEGY.md`, the plan of record, with a falsifiable exit condition per phase.
+- `docs/design/ARCHITECTURE.md`, `docs/design/DECISIONS.md` with seven decisions and what would reverse
+  each, `docs/infra/COMPUTE.md` with measured throughput, `docs/competition/LANDSCAPE.md`, and
+  `docs/research/REFERENCES.md` where every entry was verified against its source.
+- `openspec/` with nine proposals and 42 tasks, and `docs/roadmap/NEXT.md` as the tiered queue.
 
 ### Known gaps
 

@@ -4,7 +4,7 @@
 
 The question "are we ready to benchmark somewhere public" has a measured answer as of
 2026-09-09, and it is **not on accuracy**. Best out-of-time configuration against the
-incumbent it must displace (`docs/FINDINGS.md` §32):
+incumbent it must displace (`docs/results/FINDINGS.md` §32):
 
 | arm | mean AUC | mean ECE | coherence violations |
 | --- | --- | --- | --- |
@@ -28,7 +28,7 @@ published table, on their protocol** is a credible public claim with no leaderbo
 
 ## What
 
-**Updated 2026-09-09 after task 33.1 (`docs/FINDINGS.md` §36).** The published protocol has now
+**Updated 2026-09-09 after task 33.1 (`docs/results/FINDINGS.md` §36).** The published protocol has now
 been read, and it is further from ours than this proposal assumed: 5-fold company-grouped
 stratified cross-validation rather than out-of-time, horizon tasks built on *different rows*,
 a 10,000-row inference context, and a TabPFN **fine-tuned on their data**. Our numbers cannot

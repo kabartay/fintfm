@@ -1,10 +1,10 @@
 # Tasks
 
-- [x] 33.1 Read V4FinBench's published protocol and baseline table into `docs/FINDINGS.md`:
+- [x] 33.1 Read V4FinBench's published protocol and baseline table into `docs/results/FINDINGS.md`:
       split construction, metric definitions, which models they ran, and the numbers. Verify:
       a finding recording them with the paper cited, **before** any comparison is attempted,
       so our protocol is not quietly tuned to flatter the comparison.
-      **Done 2026-09-09 (`docs/FINDINGS.md` §36), and it changed this proposal.** Their
+      **Done 2026-09-09 (`docs/results/FINDINGS.md` §36), and it changed this proposal.** Their
       protocol is **5-fold company-grouped stratified cross-validation, not out-of-time**;
       their horizon tasks are built on **different rows** than ours; their inference context
       is 10,000 rows; and their TabPFN is **fine-tuned on V4FinBench**. Our numbers are not
@@ -46,5 +46,5 @@
 - [ ] 33.5 Write the report, leading with the accuracy gap rather than burying it. Verify: a
       reviewer reading only the first paragraph learns that we lose on AUC and win on
       coherence. If that is not true of the draft, the draft is wrong.
-- [ ] 33.6 Only then decide the venue. Verify: a decision recorded in `docs/DECISIONS.md`
+- [ ] 33.6 Only then decide the venue. Verify: a decision recorded in `docs/design/DECISIONS.md`
       with the alternatives considered, including "do not publish yet".

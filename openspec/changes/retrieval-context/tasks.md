@@ -13,7 +13,7 @@
       per-query mode and a grouped mode exist so the approximation is measurable; the trade
       is asserted in both directions in `tests/test_retrieval.py`.
 - [x] 17.2 Measure inference cost against blind sampling; retrieval must not make scoring
-      impractical. Verify: timings into `docs/COMPUTE.md`, measured on the same hardware as
+      impractical. Verify: timings into `docs/infra/COMPUTE.md`, measured on the same hardware as
       §23's context sweep.
       **Done 2026-09-09 (§32).** Roughly 2.5x blind sampling on 47,378 queries: 24/33/61 s
       for uniform against 44/73/155 s for retrieval at 1,000/2,000/4,000 context rows. Usable
@@ -21,7 +21,7 @@
       real-time API.
 - [x] 17.3 Compare all four strategies at matched context size on the UCI panels and
       V4FinBench, with the paired bootstrap from `metrics.py`. Verify: numbers into
-      `docs/FINDINGS.md`, re-derived from the run.
+      `docs/results/FINDINGS.md`, re-derived from the run.
       **Done for V4FinBench 2026-09-09 (§32):** retrieval beats uniform by +0.0665/+0.0632/
       +0.0952 at the first three horizons, all Holm-significant; the fourth is inconclusive
       on 18 positives. **Still open for the UCI panels**, which have no firm identifiers and
@@ -38,7 +38,7 @@
       an approximation adopted for cost and its error has never been quantified. Verify:
       `retrieval_groups=0` against the grouped default on a few thousand queries, with the
       AUC and ECE difference recorded.
-      **Done 2026-09-09 (`docs/FINDINGS.md` §37), via `fintfm-retrgroup`.** About 0.012 AUC
+      **Done 2026-09-09 (`docs/results/FINDINGS.md` §37), via `fintfm-retrgroup`.** About 0.012 AUC
       at the portfolio level, mean absolute deviation 0.0004-0.0009 in cumulative PD, Spearman
       0.98-0.997 — so grouping keeps roughly six-sevenths of retrieval's gain. Exact retrieval
       costs 1.05 s/query, measured, against 0.0023 s/query grouped: ~450x, confirming the
@@ -52,7 +52,7 @@
       stayed inside an hour. The deviation and Spearman columns do not depend on labels and
       stand; the **AUC deltas do not transfer to a real book**. Verify: `fintfm-retrgroup
       --n-positives 150 --n-negatives 3000`, three seeds, with the AUC delta re-derived.
-- [x] 17.8 **Done 2026-09-13/14 (`docs/FINDINGS.md` §70, §71).** Task 17.7's concern was
+- [x] 17.8 **Done 2026-09-13/14 (`docs/results/FINDINGS.md` §70, §71).** Task 17.7's concern was
       confirmed and sharpened: at V4FinBench's real regime (0.380% base rate, one fold, six
       configurations, reproduced twice to four decimals), grouped retrieval alone drops AP by
       **0.133** relative to uniform sampling — not merely "deltas don't transfer," actively

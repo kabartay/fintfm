@@ -9,7 +9,7 @@ alongside the query rows. This mirrors how TabPFN-style models are used.
 context-construction strategies for credit-risk TFMs and find balanced and hybrid sampling
 worth 3-4 AUC points over uniform sampling — a gap wider than the spread between model
 families. That is why :class:`ContextStrategy` exists and why the default is ``"balanced"``
-(``docs/FINDINGS.md`` §5).
+(``docs/results/FINDINGS.md`` §5).
 
 **The premise held and the conclusion did not.** Measured on the V4FinBench out-of-time
 split, the ordering is reversed and three times larger: **uniform beats balanced by 10-12
@@ -134,7 +134,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         feature_chunk: Features processed per row-within-feature attention call, for
             checkpoints with ``n_cell_blocks > 0``. Purely a memory/throughput knob: the
             ``B*F`` attention problems in that stage are independent, so chunking them is an
-            identity and changes no prediction. ``docs/FINDINGS.md`` §81 measured 21.0 GB and
+            identity and changes no prediction. ``docs/results/FINDINGS.md`` §81 measured 21.0 GB and
             10.6 s unchunked against 3.4 GB and 6.8 s at ``feature_chunk=16`` on V4FinBench's
             136 features, and it is what makes ``max_context=4000`` runnable at all (§79/§80).
             ``None`` disables chunking.
@@ -153,7 +153,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         feature_transform: Conditioning applied to features before the model sees them, to
             blunt the heavy tails that break its mean/standard-deviation normalisation. See
             :mod:`fintfm.inference.preprocess`. **Defaults to ``"rank"``** on the evidence
-            in ``docs/FINDINGS.md`` §35: it improves AUC in six of six configurations on the
+            in ``docs/results/FINDINGS.md`` §35: it improves AUC in six of six configurations on the
             V4FinBench out-of-time split and seven of eight across two independent panels,
             because 110 of 136 features here have a standard deviation more than ten times
             their interquartile range. Every number recorded before 2026-09-09 was produced
@@ -173,7 +173,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             context 0<->1, predict, invert. **This cancels a measured defect rather than
             merely reducing variance.** Swapping the class names and inverting should return
             the same probabilities; on a real checkpoint it returns predictions correlated
-            **−0.62** with the original (``docs/FINDINGS.md`` §45), so the model's output
+            **−0.62** with the original (``docs/results/FINDINGS.md`` §45), so the model's output
             depends on which class occupies the "1" slot. Averaging removes that component.
             It is a workaround, not a cure, and should be reported as one.
         ensemble_feature_frac: Fraction of features each member sees, sampled without
@@ -184,7 +184,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             1.19e-07 maximum change, so permuting would average identical members.
         prototype_minority_ratio: Target minority-to-majority ratio for
             ``context_strategy="prototype"``, the published best method on this benchmark.
-            0.3 is the value Kostrzewa et al. use (``docs/FINDINGS.md`` §36).
+            0.3 is the value Kostrzewa et al. use (``docs/results/FINDINGS.md`` §36).
         retrieval_min_positive: Floor on positive-class rows in a retrieved context. A
             nearest-neighbour draw at a 0.19% default rate can return **zero** defaults, and
             a context with no positives says nothing about default. Deliberately a floor and
@@ -331,7 +331,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         high and it is shifted *down* hardest, erasing exactly the between-group risk
         differences that carry the signal. Measured on the V4FinBench out-of-time split, a
         per-group correction drove mean AUC to **0.3679 — below chance** — where the same
-        contexts uncorrected score 0.7872 (``docs/FINDINGS.md`` §32).
+        contexts uncorrected score 0.7872 (``docs/results/FINDINGS.md`` §32).
 
         A single pooled shift is applied to every query instead. Being constant it cannot
         reorder anything, so it corrects the level while leaving ranking untouched.
@@ -531,7 +531,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         pretraining run and a wrong diagnosis: the term-structure arm of the out-of-time
         harness reached into the fitted context and ran the model itself, so it reported a
         12.8% default rate against a 0.47% truth and the error was misread as the synthetic
-        prior being unable to reach low default rates (``docs/FINDINGS.md`` §28).
+        prior being unable to reach low default rates (``docs/results/FINDINGS.md`` §28).
 
         Chunked exactly, for the reason given on :meth:`predict_proba`.
 
