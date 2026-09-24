@@ -53,6 +53,21 @@ jobs:
       - name: Tests
         run: uv run pytest -q
 
+      # A hand-written list of dependency licences in README.md is a claim about the past.
+      # This is the project's most-repeated rule (`CLAUDE.md`) and it was enforced only by
+      # memory; a rule enforced by memory fails silently the first time someone is busy.
+      # Code licences of Python distributions only -- it cannot see a *weights* licence,
+      # which is the one that actually bites.
+      - name: Dependency licences are permissive
+        run: uv run python scripts/check_licences.py
+
+      # Grouping docs/ into subfolders rewrote 234 references across 135 files. Two links
+      # were already broken beforehand and nobody had noticed, because a broken link costs
+      # nothing until someone follows it -- by which time the document has been wrong for
+      # weeks.
+      - name: Documentation links resolve
+        run: uv run python scripts/check_doc_links.py
+
       - name: Build wheel and sdist
         run: uv build
 
