@@ -4,7 +4,46 @@ Hard-wrapped, because it is read in an editor and a diff. Release bodies on GitH
 **not** wrapped — they are read in a browser at full width. Same words, different shape; do
 not paste one into the other. See `CLAUDE.md`.
 
-## [0.4.0] - 2026-09-22
+## [Unreleased]
+
+Measuring the things this release declared, and finding that two of them do not hold.
+
+### Measured
+
+- **Multiclass and regression run correctly and rank last** (§121). Scored on real data for the
+  first time: multiclass **93.4 of 95** over 7 datasets, regression **93.1 of 94** over 12 and
+  **last on 5 of them**. Both completed with no crashes and no timeouts, every prediction in the
+  right units. **Running without error is not working**, and §106 established only the first
+  while reading as though it established the second.
+- **The binning limit is real and is not the binding constraint** (§121). Error ratios track it
+  exactly — 6.5× on wide smooth targets, 1.2× on near-discrete ones — while **rank is flat
+  against that axis**. On `wine_quality`, where binning costs least, the model ranks last. So the
+  quantile head proposed to fix it would recover the ratio and leave the rank.
+- **The tree prior harms credit** (§116, §117): −0.0221 AP, with the mechanism measured — at a
+  0.4% base rate the tree prior's own tasks are the **least learnable** of the three priors,
+  because axis-aligned splits need positives on both sides of a threshold.
+- **A prior-selection prediction was falsified** (§118). Raising the structural-causal prior's
+  share, which the diagnostic ranked most learnable at credit's base rate, cost **−0.0339 AP** —
+  0/5 folds, all five significant. The instrument's ranking is *inverted* on the question it was
+  built for.
+- **KV caching would save 17%, not the order of magnitude claimed** (§119), and **larger query
+  chunks are 10.7× slower, not faster** (§120) — a cost model fitted over 256–2,048 queries and
+  extrapolated to 8,192, in a system whose dominant cost is quadratic.
+
+### Changed
+
+- **TabArena declares `binary` only.** Multiclass and regression remain implemented, tested and
+  documented but undeclared, on §121's measurement. Coverage is reported as **27 of 51 (53%)**,
+  derived from the model's own declaration rather than a duplicated list that had already
+  drifted.
+
+### Fixed
+
+- **A `ruff` failure shipped red on the 0.4.0 release commit**, and that release's notes claimed
+  this repository had no CI — a stale sentence in `CLAUDE.md`, quoted as though checked. Both
+  corrected; `CLAUDE.md` now names `ruff check` and `gh run list` in the release procedure.
+
+## [0.4.0] — 2026-09-23
 
 First external measurement, and the first decomposition of a deficit into a part that belongs
 to the model and a part that does not.
@@ -61,7 +100,11 @@ to the model and a part that does not.
   0.11%. It was the only untuned lever that had ever moved real-data accuracy, and it is now
   closed — which promotes **scale** from one hypothesis to the leading untested explanation
   for the uniform residual §101 left.
-- **The tree-structured prior works, and replicates** (§115). Two seeds, identical
+- **The tree-structured prior works on general tabular data, and replicates** (§115).
+  **Superseded in scope by §116, after this release**: it costs **−0.0221 average precision on
+  credit data**, negative on 5 of 5 folds with three surviving Holm correction at p < 0.001,
+  and ships **off by default** (`p_tree=0.0`). Both results hold; the credit one decides. The
+  entry below stands as written and describes the general-tabular half only. Two seeds, identical
   architecture and task count, differing only in whether the mixture contains it:
   **+0.0083** (17/27, p = 0.248) and **+0.0105** (20/27, p = 0.019), mean **+0.0094** with
   signs agreeing. The two controls differ from each other by −0.0035, so the seed noise is
