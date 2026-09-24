@@ -8027,7 +8027,20 @@ in every other respect: 885K parameters, 6,000 steps at batch 8, identical archi
 | *logistic regression, untuned* | — | *0.1614* | *0.9839* | *0.2439* |
 
 **−0.0339 AP**, a *larger* loss than the tree prior's −0.0221, and in the direction opposite to
-the one predicted.
+the one predicted. Paired at the row level, 2,000 resamples per fold, Holm-corrected:
+
+| fold | scm50 AP | control AP | ΔAP | Holm p |
+| --- | --- | --- | --- | --- |
+| 0 | 0.1408 | 0.1792 | −0.0383 | **0.000** |
+| 1 | 0.1384 | 0.1616 | −0.0231 | **0.001** |
+| 2 | 0.1168 | 0.1574 | −0.0406 | **0.000** |
+| 3 | 0.1227 | 0.1517 | −0.0290 | **0.000** |
+| 4 | 0.1520 | 0.1905 | −0.0385 | **0.000** |
+
+**Negative on 5 of 5 folds, with all five surviving Holm correction.** Unlike §116, which was
+heterogeneous (−0.004 to −0.041) and significant on three folds, this is uniform: every fold
+loses by 0.023 to 0.041 and every one clears p ≤ 0.001. There is no reading of this run under
+which the change is neutral.
 
 ### The instrument's ranking is inverted on the question it was built for
 
