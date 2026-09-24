@@ -139,6 +139,15 @@
       fitted baseline used as an instrument gets the same preprocessing the model under study
       gets. The cross-evaluation half of this task (train on prior A, score on prior B) still
       needs checkpoints and is not done.
+      **Extended by §117, after §116 showed the criteria were incomplete.** `--base-rate`
+      subsamples every task to a given positive rate and scores by average precision, so the
+      instrument asks this project's question rather than a general-tabular paper's. It
+      **inverts the performance ordering** — the tree prior is the best of the three at natural
+      balance (0.7555) and the worst at 0.4% (0.0225 AP) — and would have flagged the tree
+      prior before four checkpoints were spent on it. Whether low-rate learnability *predicts*
+      credit performance has been measured on **one prior, retrospectively**: the instrument
+      now asks a question it previously could not, which is not the same as its answers being
+      established.
 - [ ] 48.15 **Evaluate moving the objective from `p(y | x, D)` to `p(x, y | D)`.** LimiX-2 —
       **rank 0 on TabArena, Elo 1872, synthetic-only, SCM-pretrained, Apache-2.0** — replaces
       target-centric prediction with "a context-dependent representation of the joint structure
