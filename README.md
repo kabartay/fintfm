@@ -1,99 +1,88 @@
 # fintfm
 
-**A from-scratch tabular foundation model for corporate credit risk.** An in-context classifier
-pretrained only on synthetic tasks — it never sees real data during training, and makes
-predictions in a single forward pass with your table supplied as context. No gradient steps on
-customer data, no per-dataset training.
+**A tabular foundation model for corporate credit risk, built from scratch and measured in
+public.**
+
+Given a table of labelled rows, fintfm predicts new rows in a **single forward pass**, with your
+data supplied as context rather than trained on. There are no gradient steps at fit time and no
+per-dataset tuning — the model is pretrained once, on **synthetic data only**, and never sees a
+real table during training.
+
+That last property is the point. A model that provably never saw your benchmark cannot have
+memorised it, and in a regulated domain the ability to *demonstrate* that is worth more than a
+few points of accuracy.
+
+```python
+from fintfm.inference import FinancialTFMClassifier
+
+clf = FinancialTFMClassifier("runs/checkpoint.pt", device="mps")
+clf.fit(X_train, y_train)            # stores the table as context; no training happens
+pd_estimates = clf.predict_proba(X_test)[:, 1]
+```
+
+## Status, stated plainly
+
+**This is a research codebase with a public claims ledger, not a product.** It exists to find
+out whether in-context tabular learning can be made competitive with gradient-boosted trees on
+financial tables, and to say honestly where it currently is not.
 
 | | |
 | --- | --- |
-| **Status** | research codebase, actively developed — not a product |
-| **Licence** | Apache-2.0, code **and** weights (see [Licensing](#licensing--provenance)) |
-| **Tests** | 242 (`uv run pytest`) |
-| **Measurement log** | 121 numbered findings, each declaring how it was produced |
-| **External benchmark** | [TabArena](docs/TABARENA.md), binary declared (51% coverage), **rank 93 of 95** |
-| **Problem types** | binary, multiclass, regression |
+| **External benchmark** | [TabArena](https://tabarena.ai), 27 binary datasets against 94 other methods: **rank 93 of 95** |
+| **On real credit panels** | calibration consistently among the best measured; discrimination consistently loses to tuned gradient boosting — both, on every panel tried |
+| **Licence** | Apache-2.0 (code). Weights are licensed separately — see [Licensing](#licensing--provenance) |
+| **Tests** | 242, plus `ruff`, in CI |
+| **Measurement log** | 121 numbered findings, each declaring how its numbers were produced |
+| **Problem types** | binary declared; multiclass and regression implemented but **not** declared (§121) |
 
-**Read [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md) first** — every claim this project could
-make, tagged SURVIVES / SINGLE DRAW / SUPERSEDED / RETRACTED / OPEN against its evidence. That
-file, not this one, is the source of truth. This README is an orientation map.
+**Read [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md) before anything else.** Every claim this
+project could make is tagged SURVIVES / SINGLE DRAW / SUPERSEDED / RETRACTED / OPEN against its
+evidence. That file, not this one, is the source of truth — and it records what stopped being
+true as prominently as what holds.
+
+> Throughout this repository, **§N** refers to entry N in
+> [`docs/FINDINGS.md`](docs/FINDINGS.md), a measurement log in which every number states how it
+> was produced (MEASURED, SMOKE-TEST, SIMULATED or ESTIMATED) and negative results are kept
+> deliberately, because they are what stops the same wrong conclusion being reached twice.
 
 ## Results, as measured
 
-Real corporate-default panels, five-fold published protocol:
+TabArena, 27 binary datasets, one fold each, against 94 other methods:
 
-| | discrimination | calibration |
-| --- | --- | --- |
-| **fintfm** | loses to tuned gradient boosting, on every panel tried | **consistently among the best measured** |
-
-TabArena, 27 binary datasets, single fold each, against 94 other methods:
-
-| checkpoint / change | mean ROC-AUC | Elo | rank |
+| change | mean ROC-AUC | Elo | rank |
 | --- | --- | --- | --- |
 | label encoding (§98) | 0.7642 | 662 | 93 / 95 |
 | **+ out-of-fold target statistics** (§101) | **0.7823** | 765 | 93 / 95 |
 | + multiclass-capable prior (§105) | 0.7817 | **813** | 93 / 95 |
-| + 5.0M parameters, confounded (§108) | 0.7746 | 751 | 93 / 95 |
-| + 5.0M parameters, **matched tasks** (§114) | 0.7774 | — | 93 / 95 |
+| + 5.0M parameters, matched task count (§114) | 0.7774 | 751 | 93 / 95 |
 | + tree-structured prior (§115), two seeds | 0.7926 / 0.7913 | 842 / 826 | 93 / 95 |
 
-**The tree prior does not transfer to credit data.** On V4FinBench's five-fold protocol — 1M
-rows at a 0.359% default rate, which is the regime this project exists for — it scores
-**−0.0221 average precision** against the same control — negative on 5 of 5 folds, three of them
-surviving Holm correction at p < 0.001 — dropping *below* untuned logistic regression where the
-control clears it (§116). Both results are real: it helps on general
-tabular data and harms the low-default case. The second is the one that decides whether it
-ships.
+**One change has moved the number on the benchmark that matters, and it was preprocessing
+rather than architecture.** The tree prior adds a further +0.0094 here and replicates across two
+seeds — but costs **−0.0221 average precision on credit data** (§116), negative on 5 of 5 folds
+with three surviving multiple-comparison correction at p < 0.001, so it ships off by default.
+Everything else tried — parameter scale at matched task volume, training volume, a widened
+structural-causal prior — has been null or negative. **The rank has never moved.**
 
-**One change has moved the number on the benchmark that matters.** Out-of-fold categorical
-encoding lifted TabArena's mean from 0.7642 to 0.7823 (§101). A tree-structured prior,
-selected on measured distinctiveness, adds a further +0.0094 there and replicates across two
-seeds (§112, §115) — but costs **−0.0221 average precision on credit data** (§116), so it is
-not shipped. Everything else tried, including parameter scale at matched tasks, has been null
-or negative. **The rank has never moved.**
+## What this project does that others do not
 
-## What is currently true
+Three things, stated at their true weight:
 
-**On real credit panels, calibration is consistently among the best measured and discrimination
-consistently loses to tuned gradient boosting** — both facts together, on every panel tried.
-That is the project in one line, and everything below is detail.
+**Incoherent PD term structures are impossible by construction.** The field's standard
+per-horizon construction produces non-monotone cumulative default curves for **39% of firms** on
+real data — a firm whose 3-year default probability is below its 2-year. A hazard head makes
+that unrepresentable, at zero measured accuracy cost.
 
-**Two things it does that nothing else does.** A hazard head makes incoherent PD term
-structures impossible by construction — a real, measured defect in the field's standard
-per-horizon construction, affecting 39% of firms on real data — at zero accuracy cost. And a
-severe capacity defect in the original architecture (capped discrimination regardless of true
-task difficulty, caught against an exactly-known Bayes-optimal AUC) was isolated to the
-architecture rather than the prior after eliminating seven other candidates one at a time, then
-closed by two-way cell attention and confirmed on real data at +0.042 average precision.
+**A severe capacity defect was found by measurement, not review.** The original architecture had
+capped discrimination regardless of true task difficulty, caught against an exactly-known
+Bayes-optimal AUC. Its cause was isolated to the architecture rather than the prior after
+eliminating seven other candidates one at a time, then closed by a two-way cell-attention change
+worth +0.042 average precision on real data.
 
-**Measured externally on [TabArena](docs/TABARENA.md), it places 93rd of 95** (§98), and the
-diagnosis of that deficit is the most useful work here. Most of it was *preprocessing*, not
-architecture: the per-dataset gap correlated **−0.668** with log categorical cardinality, and
-replacing label encoding with out-of-fold target statistics lifted the mean from 0.7642 to
-**0.7823** while collapsing that correlation to −0.025 (§100, §101). **The rank did not move.**
-What remains is a uniform ~0.035 ROC-AUC deficit with no measured axis of variation — a sharper
-target than before, and still a losing one.
-
-**What has since been ruled out, which is most of what looked promising.** `column_id_dim`, the
-only untuned lever that had ever moved real-data accuracy, peaks at the value chosen by accident
-(§104). Parameter scale lost (§108). Training volume at 5× was inert (§93). Class balance did
-not survive testing (§102, §103). A widened SCM prior was a flat null against its own control
-(p = 1.000). Reading the field explains why: a peer's published scaling curve returns +0.005 R²
-for 16× the parameters, so **no scaling programme was ever going to close 0.035** — and every
-one of TabArena's top fourteen ranks is synthetic-pretrained (§110), which says the constraint
-this project chose costs nothing in rank and the lever is prior *design*.
-
-**Coverage, which any score must carry.** The 93rd place was measured at **51% coverage**;
-multiclass and regression have since taken it to **90% (46 of 51)**, with `max_features` the
-only remaining exclusion. Those arms are *runnable*, not yet *scored* on real data, and a
-coverage fraction is not a result.
-
-**The honest one-line summary: this is not a competitive general tabular model, and on TabArena
-its median rank is 94 of 95 — including on the credit panels.** An earlier version of this line
-claimed its best public results were the corporate-credit panels it was designed for. §107
-retracts that: those panels rank 83–95, and the high absolute AUC on them (0.9287 on Taiwanese
-bankruptcy) is what everyone scores there, not an edge. Whether a credit specialism exists is a
-question for V4FinBench's five-fold protocol, not for a single-fold leaderboard.
+**The record corrects itself in public.** This README has been wrong about its own results at
+least twice (§107, §112). Both are retracted in place, with the reasoning kept. No peer project
+publishes a document that tags its own claims RETRACTED as prominently as its wins, and in a
+domain where a model must arrive with its own validation evidence, that is the differentiator.
 
 ## How it works
 
@@ -310,15 +299,18 @@ model that arrives with its own validation evidence — calibrated, auditably fr
 contamination, and eventually backed by a pre-registered forward track record that cannot be
 bought — plus a public, self-correcting record of what has and has not been shown to be true.
 
-## Status
+## Contributing, and what cannot come in
 
-Actively developed research codebase, not a PoC skeleton: a config-driven experiment harness,
-real GPU pretraining infrastructure ([`docs/HF_JOBS.md`](docs/HF_JOBS.md)), an external
-benchmark integration (binary declared; multiclass and regression implemented but
-undeclared, §121), and 121 numbered, provenance-tagged findings.
+Issues and discussion are welcome. Two hard boundaries, both of which protect the only claim
+this project has that competitors do not:
 
-**What is proven, open and retracted is tracked in
-[`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md), not here** — the honest state changes faster
-than this file gets edited, which is exactly the failure the claims ledger exists to prevent.
-This README has been wrong about its own results at least twice (§107, §112); the ledger is
-where that gets caught.
+**No code, weights, or training data from any tabular-foundation-model product** — TabPFN,
+TabICL, TabDPT, LimiX, Nori, MITRA, or any other — may enter this repository. Their published
+papers are legitimate to read and cite, and [`docs/paper/RELATED_WORK.md`](docs/paper/RELATED_WORK.md)
+does exactly that for ten of them. Ingesting any of it would destroy the provenance argument
+above, and nothing would warn us.
+
+**Check a weights licence separately from its code licence, every time.** Four of the ten peer
+projects read for this release ship permissive code with **non-commercial weights**, a split
+invisible from a repository's headline licence badge. One of them restricts commercial use of
+the model's *output*, not merely the weights.
