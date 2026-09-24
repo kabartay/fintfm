@@ -46,7 +46,7 @@ def main() -> int:
     problems: list[str] = []
     for path in files:
         text = path.read_text()
-        anchors = {anchor_slug(h) for h in re.findall(r"^#+\s+(.+)$", text, re.M)}
+        anchors = {anchor_slug(h) for h in re.findall(r"^#+\s+(.+)$", text, re.MULTILINE)}
         for target in LINK.findall(text):
             target = target.split()[0]  # drop an optional "title"
             if target.startswith(("http://", "https://", "mailto:")):
