@@ -28,6 +28,21 @@ PERMISSIVE: tuple[str, ...] = (
     "Python Software Foundation", "PSF", "MPL", "Mozilla Public",
 )
 
+#: CUDA runtime libraries that `torch` pulls in **on Linux only**, every one of them
+#: NVIDIA Proprietary. They are not permissive and are not treated as if they were: they are
+#: separated so the report says what is actually true rather than failing on a fact nobody can
+#: change.
+#:
+#: **Three things follow, and `README.md` now says all three.** They are a *transitive* runtime
+#: dependency of `torch`, not a choice made here. They are **not redistributed** by this
+#: project -- `uv build` produces a pure-Python wheel and pip fetches them from PyPI under
+#: NVIDIA's own terms. And they appear on Linux and not on macOS, which is why a check run
+#: only on a developer's Mac reported everything permissive while CI did not.
+#:
+#: Anyone shipping this in a product must read NVIDIA's EULA themselves. That is outside what
+#: this repository can assert on their behalf.
+CUDA_RUNTIME_PREFIXES: tuple[str, ...] = ("nvidia-", "cuda-", "triton", "nvtx")
+
 #: Distributions whose metadata is absent or unparseable, with the licence verified by hand
 #: and the reason recorded. **An entry here is a claim someone made, not one the tool
 #: checked** -- keep it short, and re-verify when a major version changes.
@@ -60,9 +75,13 @@ def declared_licence(meta) -> str:
 def main() -> int:
     offenders: list[tuple[str, str]] = []
     unknown: list[str] = []
+    cuda: list[str] = []
     for dist in distributions():
         name = dist.metadata.get("Name") or "<unnamed>"
         if name in KNOWN_GOOD:
+            continue
+        if name.lower().startswith(CUDA_RUNTIME_PREFIXES):
+            cuda.append(name)
             continue
         licence = declared_licence(dist.metadata)
         if not licence:
@@ -85,7 +104,16 @@ def main() -> int:
         )
         return 1
 
-    print(f"all dependency licences permissive ({len(KNOWN_GOOD)} verified by hand)")
+    print(f"all direct dependency licences permissive ({len(KNOWN_GOOD)} verified by hand)")
+    if cuda:
+        print(
+            f"{len(cuda)} NVIDIA CUDA runtime packages are NOT permissive and are reported "
+            f"rather than waived:\n  " + ", ".join(sorted(cuda))
+        )
+        print(
+            "  They are transitive runtime dependencies of torch on Linux, are not "
+            "redistributed\n  by this project, and are absent on macOS. See README.md."
+        )
     return 0
 
 

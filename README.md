@@ -230,9 +230,19 @@ for this project. **No weights, datasets, or source from Neuralk (Seldon), Funda
 are used or may be added.** Those are cited in project discussion purely as public
 research/product context. Every third-party dataset or dependency's licence is checked before
 use, and a *weight* licence is checked separately from its *code* licence, every time — never
-assumed from a prior check. Current dependencies are all permissive: numpy, pandas and
-scikit-learn BSD-3, scipy BSD-3, torch Apache-2.0, PyYAML MIT, and the optional benchmark
-extras lightgbm MIT, xgboost Apache-2.0, catboost Apache-2.0, pyarrow Apache-2.0.
+assumed from a prior check. Direct dependencies are all permissive — numpy, pandas and
+scikit-learn BSD-3, scipy BSD-3, torch BSD-3, PyYAML MIT, and the optional benchmark extras
+lightgbm MIT, xgboost Apache-2.0, catboost Apache-2.0, pyarrow Apache-2.0 — and
+`scripts/check_licences.py` enforces that in CI rather than leaving it to this paragraph.
+
+**One honest exception, which CI found and this paragraph previously did not mention.** On
+**Linux**, `torch` pulls in around fifteen NVIDIA CUDA runtime packages that are **NVIDIA
+Proprietary**, not permissive. They are a transitive runtime dependency rather than a choice
+made here, this project does **not redistribute them** — `uv build` produces a pure-Python
+wheel and pip fetches them from PyPI under NVIDIA's own terms — and they are absent on macOS,
+which is why a check run only on a developer's Mac reported everything permissive while CI did
+not. **Anyone shipping this in a product must read NVIDIA's EULA themselves**; it is not
+something this repository can assert on their behalf.
 
 ## What would change the picture
 
