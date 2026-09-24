@@ -77,6 +77,7 @@ class FinancialTFMRegressor(BaseEstimator, RegressorMixin):
         n_bins: int = DEFAULT_N_BINS,
         **classifier_kwargs: object,
     ) -> None:
+        """Configure the regressor. See the class docstring for what each argument means."""
         self.model = model
         self.n_bins = int(n_bins)
         self.classifier_kwargs = classifier_kwargs
@@ -180,5 +181,10 @@ class FinancialTFMRegressor(BaseEstimator, RegressorMixin):
         return self.binner_.interval(self.predict_proba(X), level)
 
     def _check_fitted(self) -> None:
+        """Raise if :meth:`fit` has not run.
+
+        Raises:
+            RuntimeError: If either the binner or the wrapped classifier is missing.
+        """
         if self.classifier_ is None or self.binner_ is None:
             raise RuntimeError("fit must be called before predicting")

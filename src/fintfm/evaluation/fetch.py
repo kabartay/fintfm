@@ -97,6 +97,11 @@ def fetch_v4finbench(dest: Path | None = None) -> Path:
 
 
 def main() -> None:
+    """Fetch the benchmark datasets this project evaluates on.
+
+    Entry point for the ``fetch`` console script; see
+    ``--help`` for the flags. Writes its record as JSON under ``--out``.
+    """
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("dataset", choices=["v4finbench"], help="which dataset to fetch")
     p.add_argument("--dest", type=str, default=None)

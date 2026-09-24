@@ -44,10 +44,12 @@ class Task:
 
     @property
     def n_rows(self) -> int:
+        """Rows in this task."""
         return int(self.X.shape[0])
 
     @property
     def n_features(self) -> int:
+        """Exposed feature columns in this task."""
         return int(self.X.shape[1])
 
 
@@ -74,6 +76,14 @@ class TaskBatch:
     period: torch.Tensor | None = None
 
     def to(self, device: torch.device | str) -> TaskBatch:
+        """Move every tensor in the batch to ``device``.
+
+        Args:
+            device: Torch device or device string.
+
+        Returns:
+            A new batch; the original is unchanged.
+        """
         return TaskBatch(
             self.X.to(device),
             self.y.to(device),

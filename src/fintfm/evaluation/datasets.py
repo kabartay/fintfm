@@ -73,6 +73,12 @@ class CreditDataset:
 
     @property
     def default_rate(self) -> float:
+        """Observed positive rate.
+
+        Reported beside every score because it is the floor for average precision and the
+        thing ROC-AUC cannot see: a 0.4% panel and a 40% panel both have a 0.5 chance floor
+        under ROC-AUC (`docs/results/FINDINGS.md` §43).
+        """
         return float(self.y.mean())
 
 
@@ -242,6 +248,12 @@ class SurvivalDataset:
 
     @property
     def default_rate(self) -> float:
+        """Observed positive rate.
+
+        Reported beside every score because it is the floor for average precision and the
+        thing ROC-AUC cannot see: a 0.4% panel and a 40% panel both have a 0.5 chance floor
+        under ROC-AUC (`docs/results/FINDINGS.md` §43).
+        """
         return float(self.y.mean())
 
     @property

@@ -66,6 +66,15 @@ class ArmResult:
 
 
 def _cfg(max_features: int, n_horizons: int | None) -> ModelConfig:
+    """A small matched configuration, so the two arms differ only in the hazard head.
+
+    Args:
+        max_features: Feature cap for both arms.
+        n_horizons: Horizon grid length for the survival arm; ``None`` for the binary one.
+
+    Returns:
+        The configuration.
+    """
     return ModelConfig(
         max_features=max_features, max_classes=2, d_cell=24, d_model=48, n_heads=4,
         n_col_layers=1, n_layers=3, d_ff=96, n_horizons=n_horizons,
@@ -80,6 +89,16 @@ def _eval_batches(
 
 
 def _auc_safe(y: np.ndarray, p: np.ndarray) -> float:
+    """ROC-AUC, or NaN when the split has one class and the metric is undefined.
+
+    Args:
+        y: ``(n,)`` labels.
+        p: ``(n,)`` scores.
+
+    Returns:
+        ROC-AUC, or NaN. NaN rather than 0.0 so a degenerate split is visibly unscorable
+        instead of silently contributing a worst-case value to a mean.
+    """
     return float(roc_auc_score(y, p)) if len(np.unique(y)) > 1 else float("nan")
 
 
@@ -233,6 +252,11 @@ def summarise(record: dict) -> str:
 
 
 def main() -> None:
+    """Measure PD term-structure coherence against a per-horizon baseline.
+
+    Entry point for the ``term-structure`` console script; see
+    ``--help`` for the flags. Writes its record as JSON under ``--out``.
+    """
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--out", type=str, default="runs/term-structure")
     p.add_argument("--steps", type=int, default=1500)

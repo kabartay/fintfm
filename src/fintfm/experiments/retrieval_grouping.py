@@ -130,6 +130,15 @@ def run(
     )
 
     def fitted(groups: int) -> FinancialTFMClassifier:
+        """Build a classifier using ``groups`` retrieval groups, fitted on this arm's rows.
+
+        Args:
+            groups: Query groups sharing one retrieved context. ``0`` means exact per-query
+                retrieval — correct, and one forward pass per query.
+
+        Returns:
+            The fitted estimator.
+        """
         return FinancialTFMClassifier(
             model_path,
             max_context=cfg.v4finbench.max_context,
@@ -233,6 +242,11 @@ def summarise(record: dict) -> str:
 
 
 def main() -> None:
+    """Sweep the retrieval group count and report the approximation it costs.
+
+    Entry point for the ``retrieval-grouping`` console script; see
+    ``--help`` for the flags. Writes its record as JSON under ``--out``.
+    """
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--model", required=True)
     p.add_argument("--out", type=str, default="runs/retrieval-grouping")

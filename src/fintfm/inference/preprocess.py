@@ -52,6 +52,7 @@ class FeatureConditioner:
         subsample: int = 20_000,
         random_state: int = 0,
     ) -> None:
+        """Configure the conditioner. See the class docstring for what each argument means."""
         if not 0.0 <= quantile < 0.5:
             raise ValueError(f"quantile must lie in [0, 0.5), got {quantile}")
         self.kind = kind

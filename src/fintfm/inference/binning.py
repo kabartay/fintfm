@@ -69,6 +69,16 @@ class QuantileBinner:
     """
 
     def __init__(self, n_bins: int = DEFAULT_N_BINS) -> None:
+        """Configure the bin count. Edges are fitted later, from context targets only.
+
+        Args:
+            n_bins: Requested bins. The fitted count may be lower when the target has fewer
+                distinct values, which is the normal case for a target piling up at a few
+                points.
+
+        Raises:
+            ValueError: If ``n_bins`` is below two.
+        """
         if n_bins < 2:
             raise ValueError(f"n_bins must be >= 2, got {n_bins}")
         self.n_bins = int(n_bins)
@@ -186,10 +196,29 @@ class QuantileBinner:
         return self.quantile(proba, tail), self.quantile(proba, 1.0 - tail)
 
     def _check_fitted(self) -> None:
+        """Raise if the binner has no edges yet.
+
+        Raises:
+            RuntimeError: If :meth:`fit` has not been called. Without this the binner would
+                silently use an empty edge array, sending every value to bin 0.
+        """
         if self.n_bins_ == 0:
             raise RuntimeError("fit must be called before this method")
 
     def _validate(self, proba: np.ndarray) -> np.ndarray:
+        """Coerce a predicted distribution to float64 and check its width.
+
+        Args:
+            proba: ``(n, n_bins_)`` probabilities.
+
+        Returns:
+            The same array as float64.
+
+        Raises:
+            ValueError: If the shape does not match the fitted bin count. A silent mismatch
+                would pair probabilities with the wrong representatives and produce a
+                plausible number from the wrong bins.
+        """
         proba = np.asarray(proba, dtype=np.float64)
         if proba.ndim != 2 or proba.shape[1] != self.n_bins_:
             raise ValueError(

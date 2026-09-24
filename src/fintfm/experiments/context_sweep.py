@@ -207,6 +207,11 @@ def summarise(record: dict) -> str:
 
 
 def main() -> None:
+    """Sweep context size and construction strategy.
+
+    Entry point for the ``context-sweep`` console script; see
+    ``--help`` for the flags. Writes its record as JSON under ``--out``.
+    """
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--model", required=True)
     p.add_argument("--out", type=str, default="runs/context-sweep")

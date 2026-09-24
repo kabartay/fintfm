@@ -68,6 +68,14 @@ _SHARPNESS_MAX = 12.0
 
 
 def _sigmoid(z: np.ndarray) -> np.ndarray:
+    """Logistic function, mapping a latent to a per-period hazard.
+
+    Args:
+        z: ``(...,)`` latent values.
+
+    Returns:
+        Values in ``(0, 1)``, elementwise.
+    """
     return 1.0 / (1.0 + np.exp(-z))
 
 
@@ -275,6 +283,15 @@ def _sample_survival(
     z = scale * distress
 
     def cumulative(b: float) -> np.ndarray:
+        """Cumulative default probability at the final horizon, for a bias ``b``.
+
+        Args:
+            b: Additive shift on the latent hazard, the quantity being solved for so the
+                task hits its target default rate.
+
+        Returns:
+            ``(n_rows,)`` cumulative probabilities.
+        """
         h = _sigmoid(z[:, None] + shape[None, :] + b).clip(1e-7, 1 - 1e-7)
         return 1.0 - np.cumprod(1.0 - h, axis=1)[:, -1]
 
@@ -390,6 +407,14 @@ def sample_financial_task(
     )
     # --- latent distress -----------------------------------------------------
     def z(v: np.ndarray) -> np.ndarray:
+        """Standardise, guarding a constant column against division by zero.
+
+        Args:
+            v: ``(n,)`` values.
+
+        Returns:
+            ``(n,)`` standardised values; the input unchanged in level if it is constant.
+        """
         s = v.std()
         return (v - v.mean()) / (s if s > 1e-9 else 1.0)
 

@@ -32,6 +32,7 @@ property it deliberately trades away.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Literal
 
 import numpy as np
@@ -209,6 +210,8 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         ensemble_feature_frac: float = 1.0,
         feature_chunk: int | None = 16,
     ) -> None:
+        """Configure the classifier. See the class docstring — every argument is documented
+        there with the measurement that set its default."""
         self.model = FinancialTFM.load(model, map_location=device) if isinstance(model, str) else model
         self.device = device
         self.max_context = max_context
@@ -231,6 +234,27 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         self.model.to(device).eval()
 
     def fit(self, X: np.ndarray, y: np.ndarray) -> FinancialTFMClassifier:
+        """Store the table as in-context evidence. **No gradient steps are taken.**
+
+        The name is sklearn's, and it is misleading here by convention rather than by choice:
+        nothing is learned. The table is conditioned, subsampled to at most ``max_context``
+        rows by the configured strategy, and kept. Everything that would be "training" in
+        another estimator happened during pretraining, on synthetic data.
+
+        Args:
+            X: ``(n, n_features)`` training features. Must not exceed the checkpoint's
+                ``max_features``.
+            y: ``(n,)`` labels. The number of distinct values must not exceed the
+                checkpoint's ``max_classes``.
+
+        Returns:
+            self.
+
+        Raises:
+            ValueError: If the task exceeds the checkpoint's class or feature capacity. It
+                raises rather than truncating, so a caller records a skip instead of a
+                meaningless score.
+        """
         X = np.asarray(X, dtype=np.float32)
         y = np.asarray(y)
         # kept unconditioned so an ensemble member can redraw its own context and refit the
@@ -390,7 +414,12 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             )
         return plan
 
-    def _run_retrieval(self, X: np.ndarray, chunk_fn, width: int) -> np.ndarray:
+    def _run_retrieval(
+        self,
+        X: np.ndarray,
+        chunk_fn: Callable[..., np.ndarray],
+        width: int,
+    ) -> np.ndarray:
         """Score every query under its group's retrieved context.
 
         Args:
@@ -495,6 +524,23 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         ctx: tuple[np.ndarray, np.ndarray] | None = None,
         pooled_rate: float | None = None,
     ) -> np.ndarray:
+        """Score one chunk of queries against a context, in a single forward pass.
+
+        **Chunking is exact, not an approximation.** The row mask forbids a query attending to
+        any other query, so a prediction depends only on the context and itself and splitting
+        the queries changes nothing. That does not hold for ``context_strategy="retrieval"``,
+        where the context is chosen per group.
+
+        Args:
+            X: ``(n, n_features)`` conditioned query rows.
+            ctx: Optional ``(context_X, context_y)`` override, used by the retrieval path.
+                Defaults to the context stored at fit time.
+            pooled_rate: Optional positive rate for the base-rate correction, used when the
+                retrieval path pools several groups whose contexts imply different priors.
+
+        Returns:
+            ``(n, n_classes)`` probabilities.
+        """
         ctx_X, ctx_y = ctx if ctx is not None else (self._ctx_X, self._ctx_y)
         n_ctx = ctx_X.shape[0]
         cfg = self.model.cfg
@@ -599,5 +645,17 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         return out[0].cpu().numpy()
 
     def predict(self, X: np.ndarray) -> np.ndarray:
+        """Hard class labels, as the arg-max of :meth:`predict_proba`.
+
+        **Prefer `predict_proba` for credit work.** A lender provisions against the *level* of
+        a default probability, and an arg-max at a 0.4% base rate predicts the majority class
+        for nearly every row — which is accurate and useless.
+
+        Args:
+            X: ``(n, n_features)`` query rows.
+
+        Returns:
+            ``(n,)`` labels drawn from ``classes_``.
+        """
         proba = self.predict_proba(X)
         return self.classes_[proba.argmax(axis=1)]

@@ -42,10 +42,14 @@ import argparse
 import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 
 from fintfm.config import Config, load_config
+
+if TYPE_CHECKING:  # sklearn is imported lazily below; this keeps the annotation free
+    from sklearn.base import ClassifierMixin
 
 #: Paper horizon to Kaggle file, from their ``docs/benchmark_protocol.md``. The off-by-one is
 #: theirs and is a trap: ``h=0`` is ``company_years_h1.parquet``.
@@ -112,7 +116,7 @@ def _grid(space: dict[str, list]) -> list[dict]:
     return [dict(zip(keys, combo)) for combo in product(*(space[k] for k in keys))]
 
 
-def _classical_estimator(name: str, params: dict):
+def _classical_estimator(name: str, params: dict) -> ClassifierMixin:
     """Build one of the paper's non-boosting baselines."""
     from sklearn.ensemble import RandomForestClassifier
     from sklearn.linear_model import LogisticRegression
@@ -261,7 +265,9 @@ class ArmSummary:
     folds: list[FoldResult] = field(default_factory=list)
 
 
-def _load_horizon(root: Path, horizon: int, max_rows: int | None):
+def _load_horizon(
+    root: Path, horizon: int, max_rows: int | None
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, list[str]]:
     """Read one horizon file, returning features, target, and the fold-grouping columns."""
     import pyarrow.parquet as pq
 
@@ -544,6 +550,11 @@ def summarise(record: dict) -> str:
 
 
 def main() -> None:
+    """Run V4FinBench under its published five-fold protocol.
+
+    Entry point for the ``v4-protocol`` console script; see
+    ``--help`` for the flags. Writes its record as JSON under ``--out``.
+    """
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--model", required=True)
     p.add_argument("--out", type=str, default="runs/v4-protocol")

@@ -48,6 +48,17 @@ class HazardHead(nn.Module):
     """
 
     def __init__(self, d_model: int, n_horizons: int, max_hazard: float = 0.999) -> None:
+        """Build the hazard head.
+
+        Args:
+            d_model: Width of the row representation this head reads.
+            n_horizons: Length of the horizon grid. Cumulative PD is produced for each.
+            max_hazard: Ceiling on a single period's hazard, keeping the cumulative product
+                strictly below one so a log-likelihood stays finite.
+
+        Raises:
+            ValueError: If ``n_horizons`` is below one.
+        """
         super().__init__()
         if n_horizons < 1:
             raise ValueError(f"n_horizons must be >= 1, got {n_horizons}")

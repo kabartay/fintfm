@@ -21,6 +21,14 @@ from fintfm.prior.mixture import sample_batch
 
 @dataclass
 class TrainConfig:
+    """Everything the pretraining loop reads, in one place.
+
+    Carried into each checkpoint's sidecar so a resumed chunk reconstructs the same schedule
+    and the same prior, and so a finished run records what produced it. Defaults here are the
+    library's; the values actually used by an experiment come from
+    ``src/fintfm/configs/default.yaml`` layered under ``--config`` and explicit flags.
+    """
+
     steps: int = 20_000
     batch_size: int = 64
     lr: float = 3e-4
@@ -54,6 +62,21 @@ class TrainConfig:
 
 
 def _lr_schedule(step: int, cfg: TrainConfig) -> float:
+    """Learning-rate multiplier: linear warmup, then cosine decay to zero.
+
+    **The schedule is a function of the full ``cfg.steps`` budget, not of progress so far.**
+    That is what makes a chunked run resumable — a chunk starting at step 4,000 of 12,000
+    picks up the same multiplier it would have had in one continuous run — and it is also why
+    a run cannot simply be extended past its budget: the rate has already annealed to zero
+    (`docs/results/FINDINGS.md` §108, §114).
+
+    Args:
+        step: Zero-based global step.
+        cfg: Training configuration, read for ``warmup_steps`` and ``steps``.
+
+    Returns:
+        Multiplier in ``[0, 1]`` applied to the base learning rate.
+    """
     if step < cfg.warmup_steps:
         return (step + 1) / cfg.warmup_steps
     progress = (step - cfg.warmup_steps) / max(1, cfg.steps - cfg.warmup_steps)
@@ -318,6 +341,11 @@ def train(model_cfg: ModelConfig, prior_cfg: PriorConfig, train_cfg: TrainConfig
 
 
 def main() -> None:
+    """Pretrain a checkpoint on synthetic tasks.
+
+    Entry point for the ``train`` console script; see
+    ``--help`` for the flags. Writes its record as JSON under ``--out``.
+    """
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--steps", type=int, default=20_000)
     p.add_argument("--batch-size", type=int, default=64)

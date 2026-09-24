@@ -64,6 +64,14 @@ PRIORS: dict[str, str] = {
 
 
 def _load(spec: str) -> Callable[..., Task]:
+    """Resolve a ``"module:function"`` string to the sampler it names.
+
+    Args:
+        spec: Entry from :data:`PRIORS`, e.g. ``"fintfm.prior.tree:sample_tree_task"``.
+
+    Returns:
+        The sampling function.
+    """
     module, fn = spec.split(":")
     import importlib
 
@@ -250,6 +258,11 @@ def summarise(scores: dict[str, dict], base_rate: float | None = None) -> str:
 
 
 def main() -> None:
+    """Score a prior on performance, diversity and distinctiveness.
+
+    Entry point for the ``prior-score`` console script; see
+    ``--help`` for the flags. Writes its record as JSON under ``--out``.
+    """
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument(
         "--priors", type=str, default="financial,scm,tree",

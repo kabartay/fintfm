@@ -62,6 +62,13 @@ class ArmScore:
 
     @property
     def mean_auc(self) -> float:
+        """Mean ROC-AUC across horizons, ignoring any that could not be scored.
+
+        Returns:
+            The mean, or NaN when no horizon was scorable. A degenerate single-class split is
+            skipped rather than counted as zero, which would drag the mean toward a number
+            describing the split rather than the model.
+        """
         vals = [h.auc for h in self.horizons if np.isfinite(h.auc)]
         return float(np.mean(vals)) if vals else float("nan")
 
@@ -324,6 +331,11 @@ def summarise(record: dict) -> str:
 
 
 def main() -> None:
+    """Run the out-of-time split, which the published protocol is not.
+
+    Entry point for the ``v4-out-of-time`` console script; see
+    ``--help`` for the flags. Writes its record as JSON under ``--out``.
+    """
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--model", required=True)
     p.add_argument("--out", type=str, default="runs/v4-out-of-time")

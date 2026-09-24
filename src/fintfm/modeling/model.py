@@ -192,6 +192,13 @@ class FinancialTFM(nn.Module):
     """
 
     def __init__(self, cfg: ModelConfig) -> None:
+        """Build the network from a configuration.
+
+        Args:
+            cfg: Architecture configuration. Every field is load-bearing at load time too —
+                it is stored in the checkpoint and used to reconstruct the model, so a field
+                added later needs a default in :meth:`load` or old checkpoints stop opening.
+        """
         super().__init__()
         self.cfg = cfg
         # Runtime-only, deliberately NOT a ModelConfig field: it changes no weight and no
@@ -515,6 +522,16 @@ class FinancialTFM(nn.Module):
         return F.cross_entropy(logits.reshape(-1, self.cfg.max_classes), y[:, n_ctx:].reshape(-1))
 
     def num_parameters(self) -> int:
+        """Total trainable parameters.
+
+        Reported in every training log because a configuration can silently come out the wrong
+        size: ``--d-ff`` did not exist once and the feed-forward width stayed pinned at 512
+        while ``d_model`` grew, producing a 3.3M "medium" instead of 4.9M
+        (``docs/infra/HF_JOBS.md``). Nothing failed; the number was simply not looked at.
+
+        Returns:
+            Parameter count.
+        """
         return sum(p.numel() for p in self.parameters())
 
     def save(self, path: str, trained_objectives: tuple[str, ...] = ()) -> None:
@@ -542,6 +559,16 @@ class FinancialTFM(nn.Module):
 
     @classmethod
     def load(cls, path: str, map_location: str | torch.device = "cpu") -> FinancialTFM:
+        """Rebuild a model from a checkpoint, in eval mode.
+
+        Args:
+            path: Checkpoint written by :meth:`save`.
+            map_location: Torch device to load onto.
+
+        Returns:
+            The model, in ``eval()`` mode, carrying ``trained_objectives`` so
+            :meth:`assert_trained_for` can refuse a head that was never optimised.
+        """
         ckpt = torch.load(path, map_location=map_location, weights_only=True)
         cfg = dict(ckpt["config"])
         # Checkpoints written before §54 have no column identities and no ``col_id_proj``

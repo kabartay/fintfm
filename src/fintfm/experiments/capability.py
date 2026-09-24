@@ -41,8 +41,12 @@ import argparse
 import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
+
+if TYPE_CHECKING:  # torch and the model are imported lazily inside each sweep
+    from fintfm.modeling.model import FinancialTFM
 
 #: Probe names, in the order they are reported.
 PROBES: tuple[str, ...] = (
@@ -170,6 +174,21 @@ def _bayes_optimal_mu(target_auc: float) -> float:
 def _make_bayes_task(
     rng: np.random.Generator, n: int, mu: float, d: int = _BAYES_TASK_DIM
 ) -> tuple[np.ndarray, np.ndarray]:
+    """Two equal-variance Gaussians separated by ``mu``, whose Bayes-optimal AUC is known.
+
+    The separation is chosen so the optimal classifier scores exactly ``Phi(mu / sqrt(2))``,
+    which is what makes this probe able to catch a model that looks fine on average while
+    capped below the achievable ceiling — a defect no aggregate score can see.
+
+    Args:
+        rng: NumPy random generator.
+        n: Total rows, split evenly between the classes.
+        mu: Mean separation, set by :func:`_bayes_optimal_mu` from a target AUC.
+        d: Feature width.
+
+    Returns:
+        ``(X, y)``.
+    """
     y = (rng.random(n) < 0.5).astype(np.int64)
     X = rng.normal(size=(n, d))
     X[:, 0] += mu * y  # mean shift only in the informative dimension, only for class 1
@@ -177,7 +196,7 @@ def _make_bayes_task(
 
 
 def bayes_ceiling_probe(
-    model,
+    model: FinancialTFM,
     targets: tuple[float, ...] = BAYES_AUC_TARGETS,
     seeds: int = 10,
     n: int = 1600,
@@ -957,6 +976,11 @@ def summarise(record: dict) -> str:
 
 
 def main() -> None:
+    """Run the synthetic capability suite, or one of its sweeps.
+
+    Entry point for the ``capability`` console script; see
+    ``--help`` for the flags. Writes its record as JSON under ``--out``.
+    """
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument(
         "--models", type=str, required=True,

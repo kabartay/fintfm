@@ -31,6 +31,10 @@ import subprocess
 import time
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:  # sklearn is imported lazily inside the arms
+    from sklearn.pipeline import Pipeline
 from pathlib import Path
 
 import numpy as np
@@ -337,6 +341,11 @@ def summarise(record: dict) -> str:
 
 
 def main() -> None:
+    """Ablate the prior: train short arms and score them against each other.
+
+    Entry point for the ``prior-ablation`` console script; see
+    ``--help`` for the flags. Writes its record as JSON under ``--out``.
+    """
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--out", type=str, default="runs/phase1")
     p.add_argument("--steps", type=int, default=20_000)
@@ -481,7 +490,13 @@ def sample_efficiency_probe(
             "fintfm": evaluate_binary(y_test, tfm.predict_proba(X_test)[:, 1])
         }
 
-        def _gbm():
+        def _gbm() -> Pipeline:
+            """Gradient boosting with median imputation, built fresh per arm.
+
+            Returns:
+                An unfitted pipeline. Constructed per call rather than shared, so no arm
+                inherits another's fitted state.
+            """
             return make_pipeline(
                 SimpleImputer(strategy="median"),
                 GradientBoostingClassifier(random_state=seed),

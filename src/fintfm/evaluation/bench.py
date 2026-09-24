@@ -38,12 +38,30 @@ from fintfm.prior.mixture import sample_task
 
 
 def _auc(y_true: np.ndarray, proba: np.ndarray, classes: np.ndarray) -> float:
+    """ROC-AUC, binary or macro one-vs-rest depending on the class count.
+
+    Args:
+        y_true: ``(n,)`` labels.
+        proba: ``(n, n_classes)`` predicted probabilities.
+        classes: The label space, used only to decide binary versus multiclass.
+
+    Returns:
+        ROC-AUC. Read average precision beside it at low base rates — ROC-AUC's chance floor
+        is 0.5 whatever the prevalence.
+    """
     if len(classes) == 2:
         return roc_auc_score(y_true, proba[:, 1])
     return roc_auc_score(y_true, proba, multi_class="ovr", labels=classes)
 
 
 def _baselines() -> dict[str, object]:
+    """The fitted comparators every benchmark run scores alongside the model.
+
+    Returns:
+        ``{name: estimator}``. Each is a pipeline with imputation, because a baseline that
+        crashes on a NaN is a baseline silently absent from the comparison — which is how
+        gradient boosting went missing from every early result (§25).
+    """
     return {
         "logreg": make_pipeline(
             SimpleImputer(strategy="median"), StandardScaler(), LogisticRegression(max_iter=1000)
@@ -69,6 +87,13 @@ def run_one(name: str, X: np.ndarray, y: np.ndarray, model_path: str, seed: int 
     results: dict[str, float] = {}
 
     def _report(model_name: str, proba: np.ndarray, seconds: float) -> None:
+        """Score one arm and print its row.
+
+        Args:
+            model_name: Arm name, used as the results key.
+            proba: ``(n, n_classes)`` predictions for the test split.
+            seconds: Wall-clock time for that arm.
+        """
         auc = _auc(y_test, proba, classes)
         results[model_name] = auc
         if len(classes) == 2:
@@ -143,6 +168,12 @@ def run_synthetic(model_path: str, n_tasks: int = 20, n_rows: int = 1000, seed: 
 
 
 def run_openml(model_path: str, dataset_ids: list[int]) -> None:
+    """Score a checkpoint against the baselines on OpenML datasets.
+
+    Args:
+        model_path: Pretrained checkpoint.
+        dataset_ids: OpenML dataset ids to fetch and score.
+    """
     from sklearn.datasets import fetch_openml
 
     for did in dataset_ids:
@@ -205,6 +236,11 @@ def _compare_context_strategies(
 
 
 def main() -> None:
+    """Run the credit-panel and OpenML benchmarks from the command line.
+
+    Entry point for the ``bench`` console script; see
+    ``--help`` for the flags. Writes its record as JSON under ``--out``.
+    """
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--model", type=str, default="runs/v0.pt")
     p.add_argument("--synthetic-tasks", type=int, default=20)

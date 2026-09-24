@@ -135,6 +135,7 @@ class CategoricalTargetEncoder:
         n_folds: int = DEFAULT_N_FOLDS,
         random_state: int = 0,
     ) -> None:
+        """Configure the encoder. See the class docstring for what each argument means."""
         if smoothing < 0:
             raise ValueError(f"smoothing must be >= 0, got {smoothing}")
         if n_folds < 2:
