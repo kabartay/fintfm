@@ -65,3 +65,41 @@ def test_summarise_renders_all_priors():
     s = {"tree": score_prior(sample_tree_task, n_tasks=3, n_rows=300)}
     text = summarise(s)
     assert "tree" in text and "distinct" in text
+
+
+def test_base_rate_arm_hits_the_requested_rate():
+    # §116: selecting a prior on a general-tabular criterion imported the wrong objective. The
+    # credit-regime arm must actually reach the rate it claims, or it measures nothing new.
+    from fintfm.experiments.prior_score import _subsample_to_rate
+
+    rng = np.random.default_rng(0)
+    y = np.r_[np.ones(300, int), np.zeros(5000, int)]
+    idx = _subsample_to_rate(rng, y, 0.004)
+    assert abs(y[idx].mean() - 0.004) < 0.001
+
+
+def test_base_rate_arm_refuses_unreachable_tasks():
+    # Returning a best effort would silently average over tasks at different base rates.
+    from fintfm.experiments.prior_score import _subsample_to_rate
+
+    rng = np.random.default_rng(0)
+    assert _subsample_to_rate(rng, np.r_[np.ones(2, int), np.zeros(50, int)], 0.004) is None
+    assert _subsample_to_rate(rng, np.zeros(500, int), 0.004) is None
+
+
+def test_base_rate_arm_switches_metric_and_says_so():
+    # A table that does not name its metric is the defect §116 exists to prevent: AP and AUC
+    # are not comparable and 0.02 means opposite things under each.
+    from fintfm.experiments.prior_score import summarise
+
+    s = {"tree": score_prior(sample_tree_task, n_tasks=4, n_rows=4000, base_rate=0.01)}
+    text = summarise(s, base_rate=0.01)
+    assert "average precision" in text and "1.000%" in text
+    assert "ROC-AUC" not in text.split("perf")[0]
+
+
+def test_natural_balance_still_reports_auc():
+    from fintfm.experiments.prior_score import summarise
+
+    s = {"tree": score_prior(sample_tree_task, n_tasks=3, n_rows=400)}
+    assert "ROC-AUC" in summarise(s)

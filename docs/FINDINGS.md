@@ -7921,3 +7921,73 @@ trusted to select a prior for this project again.
 - **Every future prior change must be scored on V4FinBench before it is believed**, not after.
   This cycle ran TabArena first because it is faster and returns a rank, and spent four
   checkpoints and two days before asking the question that reversed the answer.
+
+## §117 — Scored at credit's base rate, the tree prior is the least learnable of the three
+
+**How these numbers were produced.** MEASURED. `fintfm-priorscore --n-tasks 20 --n-rows 6000
+--base-rate 0.004`, the arm §116 said the instrument was missing. Every task is subsampled to a
+**0.4% positive rate** — V4FinBench's regime — by dropping majority rows rather than duplicating
+minority ones, and **average precision replaces ROC-AUC**, whose chance floor is 0.5 whatever the
+prevalence and which therefore compresses real differences into its fourth decimal at 0.4%.
+
+### The two tables, side by side
+
+At each prior's natural balance (§112), ROC-AUC:
+
+| prior | performance | distinctiveness |
+| --- | --- | --- |
+| financial | 0.6880 | −0.0292 |
+| scm | 0.7106 | −0.0021 |
+| **tree** | **0.7555** | **+0.0225** |
+
+At 0.4%, average precision:
+
+| prior | **performance** | diversity | distinctiveness | n |
+| --- | --- | --- | --- | --- |
+| financial | 0.0332 | 0.0657 | +0.0056 | 20 |
+| scm | **0.1337** | **0.2293** | −0.0030 | 15 |
+| **tree** | **0.0225** | 0.0387 | +0.0105 | 17 |
+
+**The ordering on performance inverts.** The tree prior is the *best* of the three at natural
+balance (0.7555, highest) and the *worst* at 0.4% (0.0225, lowest — below financial's 0.0332 and
+far below scm's 0.1337).
+
+### The mechanism §116 left open
+
+§116 recorded that the tree prior cost −0.0221 AP on credit and offered a plausible story:
+capacity spent on threshold functions is capacity taken from the financial story. This is the
+measurement behind it, and it is more specific than that story.
+
+**At a 0.4% positive rate the tree prior's tasks are close to unlearnable.** A fitted tree
+ensemble — the model best matched to a tree-generated target — reaches only 0.0202 AP on them.
+Axis-aligned structure needs enough positives on each side of a threshold to locate it, and at
+four positives per thousand rows most splits separate nothing. So 30% of the training mixture
+was spent on tasks that teach little about what a rare positive looks like, which is precisely
+the capability V4FinBench demands.
+
+**Distinctiveness stayed positive** (+0.0105) — the prior still generates structure the others
+do not. It is the *learnability* of that structure at low prevalence that collapses. A
+distinctiveness-only criterion cannot see this, which is why §116's fix was a new arm rather
+than a new threshold on the old one.
+
+### What this fixes about the instrument
+
+`fintfm-priorscore` would now have flagged the tree prior **before** four checkpoints and two
+days were spent on it — not on the axis it was selected for, but on the one that decides
+whether a prior teaches anything in this project's regime.
+
+Two implementation points, both load-bearing:
+
+- **Subsampling drops majority rows, never duplicates minority ones.** Duplication would let a
+  tree memorise a repeated row and inflate the statistic this exists to measure.
+- **A task that cannot reach the rate is skipped, not approximated.** Returning a best effort
+  would silently average over tasks at several different base rates — the SCM prior loses 5 of
+  20 tasks this way and that is reported as `n=15` rather than hidden.
+
+### The caution that applies to this finding too
+
+**This is a property of the priors, not a prediction about checkpoints.** §112 predicted a
+general-tabular gain and §115 confirmed it; that is one confirmed prediction, not a track
+record. Whether low-base-rate learnability predicts credit performance has been measured on
+exactly one prior, retrospectively, and the honest status is that the instrument now asks a
+question it previously could not — not that its answers are established.

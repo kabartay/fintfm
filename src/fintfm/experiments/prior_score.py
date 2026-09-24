@@ -70,11 +70,52 @@ def _load(spec: str) -> Callable[..., Task]:
     return getattr(importlib.import_module(module), fn)
 
 
+def _subsample_to_rate(
+    rng: np.random.Generator, y: np.ndarray, rate: float
+) -> np.ndarray | None:
+    """Row indices giving a binary target the requested positive rate.
+
+    Drops majority rows rather than duplicating minority ones: duplication would let a tree
+    memorise a repeated row and inflate the very statistic this is meant to measure.
+
+    Args:
+        rng: NumPy random generator.
+        y: ``(n,)`` binary labels.
+        rate: Target positive fraction, e.g. ``0.004`` for a low-default portfolio.
+
+    Returns:
+        Index array, or ``None`` when the task cannot reach the rate with enough rows left to
+        score — too few positives, or a majority class too small to dilute them. Returning
+        ``None`` rather than a best effort keeps an unreachable task out of the average
+        instead of silently contributing a different base rate than the one requested.
+    """
+    pos = np.flatnonzero(y == y.max())
+    neg = np.flatnonzero(y != y.max())
+    if len(pos) < 4 or len(neg) < 4:
+        return None
+    # Keep every positive and take as many negatives as the rate implies; if the task has more
+    # positives than the rate allows, thin them instead.
+    n_neg_needed = int(len(pos) * (1.0 - rate) / rate)
+    if n_neg_needed <= len(neg):
+        keep_pos, keep_neg = pos, rng.choice(neg, size=n_neg_needed, replace=False)
+    else:
+        n_pos_allowed = int(len(neg) * rate / (1.0 - rate))
+        if n_pos_allowed < 4:
+            return None
+        keep_pos, keep_neg = rng.choice(pos, size=n_pos_allowed, replace=False), neg
+    idx = np.concatenate([keep_pos, keep_neg])
+    if len(idx) < 200:
+        return None
+    rng.shuffle(idx)
+    return idx
+
+
 def score_prior(
     sampler: Callable[..., Task],
     n_tasks: int = 30,
     n_rows: int = 800,
     seed0: int = 0,
+    base_rate: float | None = None,
 ) -> dict:
     """Compute the three criteria for one prior.
 
@@ -83,6 +124,16 @@ def score_prior(
         n_tasks: Tasks drawn. Each contributes one point to every statistic.
         n_rows: Rows per task, split half context / half query.
         seed0: First seed; tasks use ``seed0 .. seed0 + n_tasks``.
+        base_rate: When set, each task is subsampled to this positive rate before scoring,
+            and **average precision replaces ROC-AUC** as the statistic. This is §116's
+            correction and it is not cosmetic. The tree prior was selected on a
+            distinctiveness number measured at each prior's natural balance, gained +0.0094 on
+            TabArena, and cost **−0.0221 AP** on V4FinBench at a 0.359% default rate. A
+            criterion borrowed from a general-tabular paper optimises for general tabular data;
+            scoring at the base rate this project actually serves is what makes the instrument
+            answer *our* question. ROC-AUC is unusable here — its chance floor is 0.5 whatever
+            the prevalence, so at 0.4% it compresses real differences into the fourth decimal,
+            which is exactly how §116's effect would have been missed.
 
     Returns:
         ``{"performance", "diversity", "distinctiveness", "tree_auc", "linear_auc",
@@ -90,10 +141,11 @@ def score_prior(
     """
     from sklearn.ensemble import ExtraTreesClassifier
     from sklearn.linear_model import LogisticRegression
-    from sklearn.metrics import roc_auc_score
+    from sklearn.metrics import average_precision_score, roc_auc_score
     from sklearn.pipeline import make_pipeline
     from sklearn.preprocessing import QuantileTransformer
 
+    metric = average_precision_score if base_rate is not None else roc_auc_score
     tree_aucs: list[float] = []
     linear_aucs: list[float] = []
     for seed in range(seed0, seed0 + n_tasks):
@@ -104,6 +156,11 @@ def score_prior(
             # Not every prior takes max_classes; the financial one is binary by construction.
             t = sampler(rng, n_rows)
         X, y = np.nan_to_num(np.asarray(t.X, dtype=np.float64)), np.asarray(t.y)
+        if base_rate is not None:
+            keep = _subsample_to_rate(rng, y, base_rate)
+            if keep is None:
+                continue
+            X, y = X[keep], y[keep]
         k = len(y) // 2
         # A split with one class on either side is unscorable, not a zero -- recording it as
         # a low AUC would make an imbalanced prior look like a weak one, which is the
@@ -127,8 +184,8 @@ def score_prior(
             ),
             LogisticRegression(max_iter=2000),
         ).fit(X[:k], y[:k])
-        tree_aucs.append(float(roc_auc_score(y[k:], et.predict_proba(X[k:])[:, 1])))
-        linear_aucs.append(float(roc_auc_score(y[k:], lr.predict_proba(X[k:])[:, 1])))
+        tree_aucs.append(float(metric(y[k:], et.predict_proba(X[k:])[:, 1])))
+        linear_aucs.append(float(metric(y[k:], lr.predict_proba(X[k:])[:, 1])))
 
     if not tree_aucs:
         nan = float("nan")
@@ -147,9 +204,23 @@ def score_prior(
     }
 
 
-def summarise(scores: dict[str, dict]) -> str:
-    """Render the scores, with each criterion's reading stated beside it."""
+def summarise(scores: dict[str, dict], base_rate: float | None = None) -> str:
+    """Render the scores, with each criterion's reading stated beside it.
+
+    Args:
+        scores: Output of :func:`score_prior`, keyed by prior name.
+        base_rate: The rate the scores were computed at, when one was set. Changes the metric
+            label from AUC to AP, because the two are not comparable and a table that does not
+            say which it holds is the defect §116 exists to prevent.
+    """
+    unit = "AP" if base_rate is not None else "AUC"
+    head = (
+        f"scored at base rate {base_rate:.3%}, metric = average precision"
+        if base_rate is not None
+        else "scored at each prior's natural balance, metric = ROC-AUC"
+    )
     lines = [
+        head,
         f"{'prior':>12}{'perf':>9}{'diversity':>11}{'distinct':>10}"
         f"{'tree':>9}{'linear':>9}{'n':>5}",
     ]
@@ -161,10 +232,12 @@ def summarise(scores: dict[str, dict]) -> str:
         )
     lines += [
         "",
-        "perf       best fitted baseline's mean AUC -- 0.5 is noise, 1.0 teaches nothing",
-        "diversity  standard deviation of that AUC -- a prior of one difficulty is a prior",
+        f"perf       best fitted baseline's mean {unit}"
+        + ("  -- the floor is the base rate itself, not 0.5" if base_rate is not None
+           else " -- 0.5 is noise, 1.0 teaches nothing"),
+        f"diversity  standard deviation of that {unit} -- a prior of one difficulty is a prior",
         "           that cannot teach a model when to abstain (§42)",
-        "distinct   mean (tree - linear) AUC. Positive = axis-aligned structure a linear",
+        f"distinct   mean (tree - linear) {unit}. Positive = axis-aligned structure a linear",
         "           model cannot reach; negative = smooth structure it can (§111). Two priors",
         "           with the same sign and magnitude are the same prior on this axis.",
         "",
@@ -185,6 +258,11 @@ def main() -> None:
     p.add_argument("--n-tasks", type=int, default=30)
     p.add_argument("--n-rows", type=int, default=800)
     p.add_argument("--seed0", type=int, default=0)
+    p.add_argument(
+        "--base-rate", type=float, default=None,
+        help="subsample every task to this positive rate and score by average precision "
+             "instead of ROC-AUC (§116). Use 0.004 for V4FinBench's regime",
+    )
     p.add_argument("--out", type=str, default="runs/prior-score")
     args = p.parse_args()
 
@@ -196,14 +274,15 @@ def main() -> None:
     scores = {}
     for name in names:
         scores[name] = score_prior(
-            _load(PRIORS[name]), n_tasks=args.n_tasks, n_rows=args.n_rows, seed0=args.seed0
+            _load(PRIORS[name]), n_tasks=args.n_tasks, n_rows=args.n_rows,
+            seed0=args.seed0, base_rate=args.base_rate,
         )
         print(f"  {name} done", flush=True)
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     record = {"scores": scores, "config": vars(args)}
     (out / "prior_score.json").write_text(json.dumps(record, indent=2))
-    print("\n" + summarise(scores))
+    print("\n" + summarise(scores, base_rate=args.base_rate))
 
 
 if __name__ == "__main__":
