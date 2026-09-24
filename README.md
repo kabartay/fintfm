@@ -39,8 +39,9 @@ TabArena, 27 binary datasets, single fold each, against 94 other methods:
 
 **The tree prior does not transfer to credit data.** On V4FinBench's five-fold protocol — 1M
 rows at a 0.359% default rate, which is the regime this project exists for — it scores
-**−0.0221 average precision** against the same control, dropping *below* untuned logistic
-regression where the control clears it (§116). Both results are real: it helps on general
+**−0.0221 average precision** against the same control — negative on 5 of 5 folds, three of them
+surviving Holm correction at p < 0.001 — dropping *below* untuned logistic regression where the
+control clears it (§116). Both results are real: it helps on general
 tabular data and harms the low-default case. The second is the one that decides whether it
 ships.
 

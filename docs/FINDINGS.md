@@ -7875,6 +7875,22 @@ alongside an active `bwa` campaign, with a memory watchdog armed; both completed
 not merely fail to transfer; it reverses. And it drops the model **below untuned logistic
 regression** (0.1460 against 0.1614) on a panel the control clears.
 
+Paired at the row level, 2,000 resamples per fold, Holm-corrected across the five:
+
+| fold | tree AP | control AP | ΔAP | Holm p |
+| --- | --- | --- | --- | --- |
+| 0 | 0.1381 | 0.1792 | −0.0411 | **0.000** |
+| 1 | 0.1575 | 0.1616 | −0.0040 | 0.528 |
+| 2 | 0.1301 | 0.1574 | −0.0273 | **0.000** |
+| 3 | 0.1434 | 0.1517 | −0.0083 | 0.320 |
+| 4 | 0.1609 | 0.1905 | −0.0296 | **0.000** |
+
+**Negative on 5 of 5 folds, with three surviving Holm correction at p < 0.001.** This is the
+most strongly supported result in this project's record — §115's TabArena gain reached p = 0.019
+on its better seed, and this reaches p < 0.001 on three folds independently. The effect is
+also heterogeneous (−0.004 to −0.041), which is why the paired bootstrap matters and the fold
+mean alone would have understated the confidence.
+
 ### Read AP, not ROC-AUC, and this is the clearest case yet
 
 ROC-AUC moves from 0.9856 to 0.9840 — a 0.16% relative change that any reader would call a
