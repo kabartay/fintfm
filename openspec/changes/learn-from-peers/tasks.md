@@ -200,7 +200,7 @@
       activation are added to `_ACTS` and a checkpoint trained with them is compared against
       the current one on V4FinBench, since this is a plausible mechanism for part of §35's
       result rather than a proven one.
-- [ ] 48.20 **Cache the context's key/value projections across query chunks.** Inference cost
+- [x] 48.20 **Cache the context's key/value projections across query chunks.** **Closed without implementing (§119).** Inference cost
       became a blocking liability on 2026-09-22: the deep-narrow arm (48.1) could not finish
       TabArena, raising `TimeLimitExceeded` after 8 of 27 datasets, and this project's median
       predict time is **8.6 s/1K against a field norm near 0.1**. TabICL reports KV caching
@@ -212,3 +212,11 @@
       features, `max_context=1000`, 48,000 queries) rather than a synthetic best case. Note it
       does **not** apply to `context_strategy="retrieval"`, where the context is chosen per
       query group, the same exception that already breaks exact query chunking.
+      **Measured before writing it, and the measurement said no.** The context costs **1.022 s
+      fixed per chunk** against **2.474 ms per query** marginal, so at V4FinBench's 48,000
+      queries perfect caching saves **17%** (143.3 s → 118.8 s). Against a median predict time
+      of 8.6 s/1K versus a field norm near 0.1 — an 86× gap — 17% leaves 71×. TabICL's 10×
+      comes from `O(n² + nm²)` attention, not caching; attributing their speed to the cache was
+      the error. Raising `query_chunk` recovers two-thirds of the same saving as a one-line
+      default change. The marginal cost is 83% of the total and only `factorized-attention`
+      (44.x) touches it.

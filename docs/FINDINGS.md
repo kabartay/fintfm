@@ -8101,3 +8101,62 @@ optimum and strong evidence that the instrument cannot yet find a better one.
 a general-tabular number would have been recorded first and this finding would have arrived
 after the claim was written down — which is exactly the sequence §115/§116 had just cost two
 days to correct.
+
+## §119 — KV caching would save 17%, not the order of magnitude the liability needs
+
+**How these numbers were produced.** MEASURED, locally on CPU, `v4-priorctl.pt` (885K,
+`n_cell_blocks=1`, `max_features=136`), context 1,000 rows, timing `_predict_chunk` at three
+query-chunk sizes and fitting `cost = fixed + marginal × queries` to the three points. **No
+implementation was written**; this is the measurement that decided whether to write one.
+
+### The cost model
+
+| chunk | measured | | |
+| --- | --- | --- | --- |
+| 256 queries | 1.63 s | | |
+| 1,024 queries | 3.60 s | | |
+| 2,048 queries | 6.07 s | | |
+| **fit** | **1.022 s fixed per chunk** | **+ 2.474 ms per query** | |
+
+The fixed cost is the context: 1,000 rows re-encoded on every chunk, through cell attention
+over `B·F` sequences, because `predict_proba` re-runs the whole forward pass per chunk.
+
+### What caching it buys, and why that is not enough
+
+At V4FinBench's shape — 48,000 queries, `query_chunk=2048`, 24 chunks:
+
+| | total |
+| --- | --- |
+| today | 24.5 s fixed + 118.8 s marginal = **143.3 s** |
+| with perfect context caching | 0 s fixed + 118.8 s marginal = **118.8 s** |
+| **saving** | **17%** |
+
+**17% does not address the liability.** This project's median predict time on TabArena is
+**8.6 s/1K against a field norm near 0.1** — an 86× gap. A 17% improvement leaves it at 71×,
+and §114's depth arm would still have failed `TimeLimitExceeded`. TabICL's reported "10× faster
+than TabPFN-2.5" comes from `O(n² + nm²)` **attention**, not from caching; reading their KV
+caching as the source of their speed was my error and this measurement corrects it.
+
+**Raising `query_chunk` buys most of the same thing for free.** Doubling it to 4,096 halves the
+chunk count and recovers 12 s of the 24 s; 8,192 recovers 18 s. That is a one-line default
+change gated only on memory, against an implementation that must restructure the attention call
+and prove itself identical to float tolerance.
+
+### The decision
+
+**Task 48.20 is closed without implementation.** The marginal cost — 2.474 ms per query,
+83% of the total — is where the time is, and it is set by the architecture that attends over
+`B·F` sequences of `N` rows. Only `factorized-attention` (44.x) touches it.
+
+This is the second time this cycle a peer's reported speedup has turned out to rest on a
+different mechanism than the one it was attributed to (the first: §113's re-targeting, where a
+generator's throughput did not survive the caller's control flow). **A quoted speedup names a
+system, not a technique**, and the technique has to be re-costed against our own shape before
+it is worth writing.
+
+### What this does license
+
+Measuring whether `query_chunk` can safely rise, which is cheap, exact by construction — the
+row mask already forbids a query from attending to another query, so chunk size cannot change
+a prediction — and worth roughly two-thirds of what the discarded implementation would have
+bought.
