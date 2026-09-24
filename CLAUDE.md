@@ -403,8 +403,28 @@ measured reasoning for them.
 New code gets full treatment in the same pass it's written, not after being asked separately:
 a module docstring saying what the file is for, a docstring on every public function/class
 (Args/Returns, not restating the name), and explicit type hints throughout. This mirrors
-`finkele-axiom`'s convention. Don't retrofit this onto anything — there's nothing here yet that
-predates the convention.
+`finkele-axiom`'s convention.
+
+**This used to say "don't retrofit — nothing here predates the convention", and by 2026-09-25
+that was false:** an AST sweep before going public found **47 functions and classes without a
+docstring** and six signatures with incomplete hints. The rule was applied to each new file and
+never checked across the tree, so exceptions accumulated silently.
+
+The sweep is three lines and worth running before any release:
+
+```python
+import ast, pathlib
+for p in pathlib.Path("src").rglob("*.py"):
+    for n in ast.walk(ast.parse(p.read_text())):
+        if isinstance(n, (ast.FunctionDef, ast.ClassDef)) and not ast.get_docstring(n):
+            print(f"{p}:{n.lineno} {n.name}")
+```
+
+Two conventions came out of doing it. A constructor whose class docstring already documents
+every argument gets a one-line pointer rather than a second copy — two argument lists drift.
+And a private helper still gets a docstring when its *reason* is not obvious from its body:
+`_auc_safe` returning NaN rather than 0.0 for a single-class split is a decision, not an
+implementation detail.
 
 ## Commits
 
