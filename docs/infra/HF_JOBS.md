@@ -149,8 +149,11 @@ hf jobs run --secrets HF_TOKEN ...     # taken from the environment, encrypted s
 
 ## Getting our code into the container
 
-`github.com/kabartay/fintfm` is **private**, so the job cannot `pip install git+https://...`
-without a GitHub credential. The route used here is an HF repo instead:
+`github.com/kabartay/fintfm` was **private** when this recipe was written, so the job could not
+`pip install git+https://...` without a GitHub credential, and the route below uses an HF repo
+instead. **The repository went public on 2026-09-25**, so a direct install from GitHub is now
+possible; the wheel route is kept because it is faster and pins an exact build rather than
+whatever `main` happens to be during a three-hour run.
 
 1. `uv build --wheel` — 111 KB, pure Python, and the packaged `configs/default.yaml` is
    inside it **[verified]**.
@@ -159,7 +162,8 @@ without a GitHub credential. The route used here is an HF repo instead:
 4. `pip install --no-deps /build/fintfm-*.whl` so the image's own torch is not replaced
    **[unverified]**.
 
-**The repo must be private.** `CLAUDE.md` records the trained weights and the mature prior as
+**The HF build repo must stay private, even though the source repository no longer is.**
+`CLAUDE.md` records the trained weights and the mature prior as
 the private asset — the moat — and this uploads both the generator and, afterwards, the
 weights to a third party. That is an acceptable trade for rented compute and it is a decision,
 not a detail.

@@ -222,8 +222,25 @@ and rejected: customers consume predictions through an API or licensed weights a
 deploy the training code, so there is no copyleft obligation for them to pay to escape, and
 AGPL is blanket-banned at many of the target buyers.
 
-**The repository is still private, so the grant has reached nobody yet and the choice remains
-changeable until it goes public.** After that it is one-way for anyone holding a copy.
+**The repository went public on 2026-09-25, so the Apache-2.0 grant has now reached everyone
+who takes a copy and the choice is one-way from here.** It cannot be narrowed retroactively for
+anyone already holding the code. Relicensing future work is still possible; taking back what
+has shipped is not.
+
+**Two consequences that were theoretical while it was private and are not now.**
+
+A bad release can no longer be replaced. v0.4.0 was re-tagged on 2026-09-24 because its
+original tag pointed at a commit with a failing lint check, and that was only safe because
+nobody held the tag. From now on a flawed release is **superseded by the next version**, never
+rewritten — someone may already have fetched it.
+
+The prior generator in `src/fintfm/prior/` is now published. `docs/competition/LANDSCAPE.md`
+recorded the tension this resolves: a provenance claim nobody can check is a slogan, and the
+three peer projects that publish their generators (TabICL, LimiX, Nori) are the ones whose
+synthetic-only claims can be verified. **Trained weights are still not published and remain
+gitignored** — publishing one is a separate decision with a separate licence, which is the
+distinction this file already requires for everyone else's checkpoints and now applies to
+ours.
 
 **Trained weights never enter git**, and neither does the mature prior if it diverges from
 the reference version here — those are the private asset. `.gitignore` excludes `*.pt`; keep
