@@ -236,18 +236,34 @@ extras lightgbm MIT, xgboost Apache-2.0, catboost Apache-2.0, pyarrow Apache-2.0
 
 ## What would change the picture
 
-Stated so the project is falsifiable rather than open-ended. The uniform ~0.035 deficit has no
-measured axis; the levers that remain, in the order the evidence ranks them:
+Stated so the project is falsifiable rather than open-ended. The ~0.035 deficit to the field
+has no measured axis of variation, and these are the remaining candidates:
 
-| lever | status |
+| still open | why it is a candidate | status |
+| --- | --- | --- |
+| **factorized attention** | the encoder is memory-bound at every turn, and three peers independently chose the cheaper form | proposed (44.x), prior art recorded |
+| **a joint objective** | `p(x, y \| D)` rather than `p(y \| x, D)` makes every column a training signal, not just the target | proposed (48.15), scoped as a measurement before a rewrite |
+| **prior design** | the only lever a peer's own ablations identify as decisive | instrument built and partly falsified — see below |
+
+### Closed by measurement
+
+Not abandoned — **tested and ruled out**, which is the more useful half of the record and the
+reason the list above is short:
+
+| candidate | what the measurement said |
 | --- | --- |
-| prior design — measurable, and predicts *breadth* | +0.0094 on TabArena, replicated (§115); **−0.0221 AP on credit** (§116). The credit arm added in §117 then predicted the wrong direction on its first real test (§118, −0.0339), so **no arm of the instrument currently predicts fit**. `p_financial` stays 0.7 |
-| **factorized attention** — the current encoder is memory-bound at every turn, and three peers independently chose the cheaper form | proposed (44.x), prior art recorded |
-| **objective** — `p(x, y \| D)` rather than `p(y \| x, D)`, which makes every column a training signal | proposed (48.15), scoped as a measurement before a rewrite |
-| ~~parameter scale~~ | closed (§114): −0.0049 at 5.7× **matched tasks**, and a peer's curve returns +0.005 R² for 16× |
-| ~~`column_id_dim`~~ | closed (§104) |
-| ~~training volume~~ | null at 5× (§93) and +0.0028 at 2× (§114) |
-| ~~depth over width~~ | cannot be scored (§114): `TimeLimitExceeded` after 8 of 27 datasets |
+| parameter scale | **−0.0049** at 5.7× the parameters on *matched* task volume (§114). A peer's published curve returns +0.0049 R² for 16.7×, against a 0.035 deficit. |
+| training volume | null at 5× (§93); **+0.0028** at 2× (§114). |
+| depth over width | **could not be scored at all** — the harness's per-dataset time limit, after 8 of 27 datasets (§114). Depth costs inference time and this model is already slow. |
+| `column_id_dim` | peaks at the value chosen by accident; all four non-peak arms below it on all five folds (§104). |
+| a widened structural-causal prior | **p = 1.000** against its own matched control. |
+| a tree-structured prior | +0.0094 on general tabular data, replicated across two seeds (§115) — and **−0.0221 average precision on credit** (§116). Ships off by default. |
+
+**The prior-scoring instrument is half-confirmed and half-falsified.** It predicted the
+general-tabular gain above before it was measured (§112 → §115). A second arm, added to ask the
+credit question, then predicted the wrong direction on its first real test — raising the
+structural-causal prior's share cost **−0.0339 AP**, 0 of 5 folds, all five significant (§118).
+So it predicts **breadth, not fit**, and no claim rests on its credit arm.
 
 ## Reproducing the measurements
 
