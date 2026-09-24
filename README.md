@@ -10,7 +10,7 @@ customer data, no per-dataset training.
 | **Status** | research codebase, actively developed — not a product |
 | **Licence** | Apache-2.0, code **and** weights (see [Licensing](#licensing--provenance)) |
 | **Tests** | 242 (`uv run pytest`) |
-| **Measurement log** | 115 numbered findings, each declaring how it was produced |
+| **Measurement log** | 116 numbered findings, each declaring how it was produced |
 | **External benchmark** | [TabArena](docs/TABARENA.md), 90% coverage, **rank 93 of 95** |
 | **Problem types** | binary, multiclass, regression |
 
@@ -35,12 +35,21 @@ TabArena, 27 binary datasets, single fold each, against 94 other methods:
 | + multiclass-capable prior (§105) | 0.7817 | **813** | 93 / 95 |
 | + 5.0M parameters, confounded (§108) | 0.7746 | 751 | 93 / 95 |
 | + 5.0M parameters, **matched tasks** (§114) | 0.7774 | — | 93 / 95 |
-| **+ tree-structured prior** (§115), two seeds | **0.7926 / 0.7913** | 842 / 826 | 93 / 95 |
+| + tree-structured prior (§115), two seeds | 0.7926 / 0.7913 | 842 / 826 | 93 / 95 |
 
-**Two changes have moved the number**: out-of-fold categorical encoding, and a tree-structured
-prior selected on measured distinctiveness (§112, §115) — the latter replicating across two
-seeds at +0.0094 against a measured seed noise of 0.0035. Everything else tried, including
-parameter scale at matched tasks, has been null or negative. **The rank has never moved.**
+**The tree prior does not transfer to credit data.** On V4FinBench's five-fold protocol — 1M
+rows at a 0.359% default rate, which is the regime this project exists for — it scores
+**−0.0221 average precision** against the same control, dropping *below* untuned logistic
+regression where the control clears it (§116). Both results are real: it helps on general
+tabular data and harms the low-default case. The second is the one that decides whether it
+ships.
+
+**One change has moved the number on the benchmark that matters.** Out-of-fold categorical
+encoding lifted TabArena's mean from 0.7642 to 0.7823 (§101). A tree-structured prior,
+selected on measured distinctiveness, adds a further +0.0094 there and replicates across two
+seeds (§112, §115) — but costs **−0.0221 average precision on credit data** (§116), so it is
+not shipped. Everything else tried, including parameter scale at matched tasks, has been null
+or negative. **The rank has never moved.**
 
 ## What is currently true
 
@@ -242,7 +251,7 @@ measured axis; the levers that remain, in the order the evidence ranks them:
 
 | lever | status |
 | --- | --- |
-| **prior design** — a tree-structured prior, measured as the only distinctive member of the mixture | **+0.0094, replicated across two seeds** (§115); untested on credit data |
+| **prior design** — distinctiveness is measurable and predicts general-tabular gains | +0.0094 on TabArena, replicated (§115); **−0.0221 AP on credit** (§116). The instrument works; this particular prior does not ship |
 | **factorized attention** — the current encoder is memory-bound at every turn, and three peers independently chose the cheaper form | proposed (44.x), prior art recorded |
 | **objective** — `p(x, y \| D)` rather than `p(y \| x, D)`, which makes every column a training signal | proposed (48.15), scoped as a measurement before a rewrite |
 | ~~parameter scale~~ | closed (§114): −0.0049 at 5.7× **matched tasks**, and a peer's curve returns +0.005 R² for 16× |
@@ -276,7 +285,7 @@ because they are what stops the same wrong conclusion being reached twice.
 - [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md) — **start here.** Every claim this project
   could make, tagged by status, newest evidence wins.
 - [`docs/FINDINGS.md`](docs/FINDINGS.md) — the full measurement log, numbered sequentially
-  (115 entries and counting), each declaring how its numbers were produced.
+  (116 entries and counting), each declaring how its numbers were produced.
 - [`docs/DECISIONS.md`](docs/DECISIONS.md) — why the project is built the way it is, and what
   would reverse each choice.
 - [`docs/STRATEGY.md`](docs/STRATEGY.md) — the plan of record.
@@ -304,7 +313,7 @@ bought — plus a public, self-correcting record of what has and has not been sh
 
 Actively developed research codebase, not a PoC skeleton: a config-driven experiment harness,
 real GPU pretraining infrastructure ([`docs/HF_JOBS.md`](docs/HF_JOBS.md)), an external
-benchmark integration at 90% coverage, and 115 numbered, provenance-tagged findings.
+benchmark integration at 90% coverage, and 116 numbered, provenance-tagged findings.
 
 **What is proven, open and retracted is tracked in
 [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md), not here** — the honest state changes faster

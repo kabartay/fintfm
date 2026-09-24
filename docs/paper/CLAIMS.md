@@ -554,7 +554,14 @@ per-row assignment (Spearman 0.658 against the control's 0.055) carries it.
 
 ## Claim 15 — The prior mixture had no member generating axis-aligned structure, and now it does
 
-**Status: OPEN**, with one component **RETRACTED**. Evidence: §111 (retracted in part), §112
+**Status: OPEN**, with one component **RETRACTED** and the headline result **bounded to
+general tabular data**. §116 measures the tree prior at **−0.0221 AP on V4FinBench** — the
+low-default credit panel this project exists to serve — against +0.0094 on TabArena. Both hold.
+`p_tree` stays 0.0 by default and the prior is not shipped. What survives is the *instrument*:
+§112 predicted a general-tabular gain from a distinctiveness statistic and §115 confirmed it at
+two seeds, which is the first prior-side prediction this project has had confirmed.
+**Distinctiveness predicts breadth, not fit** — a criterion taken from a general-tabular paper
+optimises for general tabular data. Evidence: §111 (retracted in part), §112
 (the correction and the standing numbers). Open because no checkpoint trained with the tree
 prior has been scored yet — the arm is training.
 

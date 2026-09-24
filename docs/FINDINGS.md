@@ -7853,3 +7853,71 @@ That is the first time in this project's record that a prior-side diagnostic has
 downstream effect. It is also the strongest available argument for `fintfm-priorscore` being
 worth its existence, and for MITRA's framing that the lever is prior design rather than scale
 (§110, §114).
+
+## §116 — The tree prior helps on general tabular data and harms credit, which is the case that decides it
+
+**How these numbers were produced.** MEASURED. `fintfm-v4protocol --no-boosting --device mps`
+on V4FinBench horizon 0 under its **published** five-fold protocol: 1,000,087 company-years,
+130 features, **3,587 positives (0.359%)**, released fold indices, thresholds calibrated on the
+validation fold. Two checkpoints identical except for the prior mixture — `p_financial=0.7`
+with and without `p_tree=0.3` — the same pair §115 compared on TabArena. Run at `nice 19`
+alongside an active `bwa` campaign, with a memory watchdog armed; both completed exit 0.
+
+### The result
+
+| arm | ROC-AUC | **AP** | F1 | F1-oracle |
+| --- | --- | --- | --- | --- |
+| **`priorctl`** (control) | 0.9856 ± 0.0012 | **0.1681** | 0.2439 ± 0.0121 | 0.2505 |
+| **`treeclean`** (tree prior) | 0.9840 ± 0.0016 | **0.1460** | 0.2213 ± 0.0225 | 0.2290 |
+| *logistic regression, untuned* | *0.9839 ± 0.0013* | *0.1614* | *0.2439 ± 0.0177* | *0.2502* |
+
+**The tree prior costs −0.0221 AP on credit**, against **+0.0094 on TabArena** (§115). It does
+not merely fail to transfer; it reverses. And it drops the model **below untuned logistic
+regression** (0.1460 against 0.1614) on a panel the control clears.
+
+### Read AP, not ROC-AUC, and this is the clearest case yet
+
+ROC-AUC moves from 0.9856 to 0.9840 — a 0.16% relative change that any reader would call a
+null. AP moves from 0.1681 to 0.1460, a **13% relative drop**. At a 0.359% base rate ROC-AUC's
+chance floor is 0.5 regardless of prevalence while AP's floor is the prevalence itself, so
+ROC-AUC flatters every arm and compresses real differences into its fourth decimal.
+
+`CLAUDE.md` has required AP alongside ROC-AUC since §43. **A ROC-AUC-only report of this run
+would have concluded the tree prior was harmless and shipped it.**
+
+### Both results are real, and the second is the one that decides
+
+§115 stands exactly as measured: two seeds, matched controls, a measured noise floor, +0.0094
+replicating in sign. Nothing about it is withdrawn. Its **scope** narrows to what it actually
+tested — TabArena's general tabular suite.
+
+The mechanism is not mysterious. §112 selected this prior on **distinctiveness**: it generates
+axis-aligned, piecewise-constant structure the other priors do not, and TabArena's datasets are
+full of that structure. V4FinBench at 0.359% over a million rows is a different regime, and
+committing 30% of the prior mixture to threshold functions is capacity taken from the financial
+story that matches it. **A prior selected for covering a benchmark's structure will cover that
+benchmark's structure.**
+
+### What this says about the method, as distinct from the result
+
+The prior-scoring instrument **worked**. §112 predicted a general-tabular gain from a
+distinctiveness measurement taken with fitted baselines that never touch this project's model,
+and §115 confirmed it at two seeds. That is the first prior-side prediction this project has
+made and had confirmed, and it is not undone by the prior failing elsewhere.
+
+What §116 adds is the boundary: **distinctiveness predicts breadth, not fit.** A criterion drawn
+from a general-tabular paper (MITRA) optimises for general tabular data, which is what MITRA
+was doing. Using it unmodified to select a prior for a low-default credit model imports someone
+else's objective function. The instrument should keep a credit-regime arm — a
+distinctiveness-style statistic computed on tasks at realistic base rates — before it is
+trusted to select a prior for this project again.
+
+### Consequences
+
+- **`p_tree` stays 0.0 by default.** It is not shipped.
+- **§115's README framing is corrected**: the tree prior is presented with its credit result
+  beside its TabArena result, not as a live improvement. Presenting a general-tabular gain as
+  a project result is the §107 error in a new place.
+- **Every future prior change must be scored on V4FinBench before it is believed**, not after.
+  This cycle ran TabArena first because it is faster and returns a rank, and spent four
+  checkpoints and two days before asking the question that reversed the answer.
