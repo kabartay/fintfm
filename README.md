@@ -1,9 +1,9 @@
-# fintfm
+# FinTFM
 
 **A tabular foundation model for corporate credit risk, built from scratch and measured in
 public.**
 
-Given a table of labelled rows, fintfm predicts new rows in a **single forward pass**, with your
+Given a table of labelled rows, FinTFM predicts new rows in a **single forward pass**, with your
 data supplied as context rather than trained on. There are no gradient steps at fit time and no
 per-dataset tuning — the model is pretrained once, on **synthetic data only**, and never sees a
 real table during training.
@@ -30,7 +30,7 @@ variant of it.
 
 ## Status, stated plainly
 
-**This is a research codebase with a public claims ledger, not a product.** It exists to find
+**FinTFM is a research codebase with a public claims ledger, not a product.** It exists to find
 out whether in-context tabular learning can be made competitive with gradient-boosted trees on
 financial tables, and to say honestly where it currently is not.
 
@@ -207,7 +207,7 @@ uses for training runs. **Check `uptime` before running anything heavy locally**
 Both `fintfm-bench --credit` (Polish/Taiwan need 64/95 features) and `fintfm-v4protocol`
 (V4FinBench needs 136) will print `SKIPPED for fintfm: model takes 16 features, data has N` —
 correct, expected behaviour for the smoke checkpoint above, not a bug. Baselines still run and
-score normally; only the fintfm arm needs a checkpoint pretrained with a matching
+score normally; only the FinTFM arm needs a checkpoint pretrained with a matching
 `--max-features` to be evaluated.
 
 ## Configuration
