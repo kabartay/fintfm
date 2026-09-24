@@ -8221,3 +8221,70 @@ Each was *arithmetic on a measurement*, not a measurement. The rule that covers 
 **a performance claim is not established until it is measured end to end at the shape it will
 run at** — component throughput, a peer's headline, and an extrapolated fit are all the same
 kind of not-yet-evidence.
+
+## §121 — Multiclass and regression run correctly and rank last; the binning limit is not the binding constraint
+
+**How these numbers were produced.** MEASURED. `run_fintfm_lite.py --full` with
+`FINTFM_PROBLEM_TYPES` set to each type in turn, scoring the arms declared in §106 on real data
+for the first time. `v4-multiclass.pt` on TabArena's 7 eligible multiclass datasets and
+`v4-regression.pt` on its 12 regression datasets. Both completed **exit 0 with no
+`TimeLimitExceeded` and no crashes**.
+
+### The result
+
+| arm | datasets | mean rank | median | best | ranked **last** |
+| --- | --- | --- | --- | --- | --- |
+| multiclass | 7 of 95 methods | **93.4** | 94 | 90 | 3 of 7 |
+| regression | 12 of 94 methods | **93.1** | 93 | 90 | **5 of 12** |
+| *binary, for reference (§107)* | *27 of 95* | *86.3* | *94* | *1* | *—* |
+
+**Both capabilities work mechanically and neither is competitive.** Every regression prediction
+is in the right units and the right order of magnitude — the de-binning is correct — and the
+error is uniformly **1.1× to 6.5×** the best method's.
+
+### The binning limit is real, measurable, and not what is holding the rank
+
+§106 named the structural limit plainly: resolution is bounded by `K` bins, so an interval can
+never be narrower than one bin. The per-dataset error ratios confirm it — the worst are
+`airfoil_self_noise` (6.5×) and `diamonds` (3.2×), wide smooth targets where 10 quantile bins
+are a coarse grid, and the best is `wine_quality` (1.2×), a target nearly discrete already.
+
+**But rank is flat against that axis:**
+
+| where binning costs | error ratio | our ranks |
+| --- | --- | --- |
+| least | 1.1–1.2× | 92, 93, 93, 94 |
+| most | 2.2–6.5× | 90, 93, 93, 93, 94, 94 |
+
+Identical. `wine_quality` is the decisive case: binning costs least there and we rank **94 of
+94**, last. If binning were the constraint, that is the dataset where it would not bite.
+
+**So task 48.3's quantile head would recover the ratio and leave the rank.** At rank 93 the
+methods above are 1.1× better; closing a 6.5× gap to 1.1× passes nobody. The binding constraint
+is the same uniform deficit the binary arm carries — and the binary arm has **no binning at
+all** and also ranks 93.
+
+This is §119's discipline applied to a fix rather than a peer's claim: **cost the change against
+our own shape before writing it.** Estimated ~1 day and $1.40 for an expected rank change of
+approximately zero.
+
+### What this decides about submission
+
+`docs/TABARENA.md` set the condition itself: *"a declaration without a measurement behind it is
+the same failure in a new costume: it would submit a capability whose quality nobody has
+checked."* The measurement now exists, and it says these two are not capabilities yet.
+
+**The submission declares `binary` only** — 27 datasets, 51% coverage, rank 93 of 95, every
+declared capability measured. `multiclass` and `regression` stay implemented, tested and
+documented but **undeclared**, with this finding as the reason.
+
+Declaring 90% coverage on arms that rank last on 5 of 12 would be reporting a favourable
+framing of something unverified, which is §107's retracted error with a measurement now
+attached instead of an assumption.
+
+### The part worth keeping
+
+**Running without error is not working.** Both arms cleared every integration gate — no crashes,
+no timeouts, correct units, plausible magnitudes — and both are last. An integration test and a
+capability claim are different things, and §106 established only the first while reading as
+though it established the second.

@@ -124,6 +124,19 @@ order is: native categoricals (47.x), then multiclass and regression (46.x), the
 whose number means what it says.
 
 Two of the three are now done — the categorical path is target statistics (§101) and coverage
-is 90% — so the remaining condition is that the multiclass and regression arms have actually
-been *scored*, not merely made runnable. A declaration without a measurement behind it is the
-same failure in a new costume: it would submit a capability whose quality nobody has checked.
+is 90% — so the remaining condition was that the multiclass and regression arms be actually
+*scored*, not merely made runnable. A declaration without a measurement behind it is the same
+failure in a new costume: it would submit a capability whose quality nobody has checked.
+
+**They have now been scored, and they do not pass (§121).** Multiclass ranks 93.4 of 95 on
+average over 7 datasets; regression ranks 93.1 of 94 over 12 and is **last on 5 of them**. Both
+run correctly — no crashes, no timeouts, correct units — and neither is competitive.
+
+**So the submission declares `binary` only**: 27 datasets, 51% coverage, rank 93 of 95, with
+every declared capability measured. `multiclass` and `regression` stay implemented, tested and
+documented but undeclared. Declaring 90% coverage on arms that rank last would report a
+favourable framing of something unverified, which is §107's retracted error with a measurement
+attached instead of an assumption.
+
+**Running without error is not working.** Both arms cleared every integration gate and both are
+last; an integration test and a capability claim are different things.

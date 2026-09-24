@@ -10,8 +10,8 @@ customer data, no per-dataset training.
 | **Status** | research codebase, actively developed — not a product |
 | **Licence** | Apache-2.0, code **and** weights (see [Licensing](#licensing--provenance)) |
 | **Tests** | 242 (`uv run pytest`) |
-| **Measurement log** | 120 numbered findings, each declaring how it was produced |
-| **External benchmark** | [TabArena](docs/TABARENA.md), 90% coverage, **rank 93 of 95** |
+| **Measurement log** | 121 numbered findings, each declaring how it was produced |
+| **External benchmark** | [TabArena](docs/TABARENA.md), binary declared (51% coverage), **rank 93 of 95** |
 | **Problem types** | binary, multiclass, regression |
 
 **Read [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md) first** — every claim this project could
@@ -286,7 +286,7 @@ because they are what stops the same wrong conclusion being reached twice.
 - [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md) — **start here.** Every claim this project
   could make, tagged by status, newest evidence wins.
 - [`docs/FINDINGS.md`](docs/FINDINGS.md) — the full measurement log, numbered sequentially
-  (120 entries and counting), each declaring how its numbers were produced.
+  (121 entries and counting), each declaring how its numbers were produced.
 - [`docs/DECISIONS.md`](docs/DECISIONS.md) — why the project is built the way it is, and what
   would reverse each choice.
 - [`docs/STRATEGY.md`](docs/STRATEGY.md) — the plan of record.
@@ -314,7 +314,8 @@ bought — plus a public, self-correcting record of what has and has not been sh
 
 Actively developed research codebase, not a PoC skeleton: a config-driven experiment harness,
 real GPU pretraining infrastructure ([`docs/HF_JOBS.md`](docs/HF_JOBS.md)), an external
-benchmark integration at 90% coverage, and 120 numbered, provenance-tagged findings.
+benchmark integration (binary declared; multiclass and regression implemented but
+undeclared, §121), and 121 numbered, provenance-tagged findings.
 
 **What is proven, open and retracted is tracked in
 [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md), not here** — the honest state changes faster
