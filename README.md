@@ -334,6 +334,16 @@ model that arrives with its own validation evidence — calibrated, auditably fr
 contamination, and eventually backed by a pre-registered forward track record that cannot be
 bought — plus a public, self-correcting record of what has and has not been shown to be true.
 
+## Citing
+
+A `CITATION.cff` is in the repository root, so GitHub's **"Cite this repository"** button
+renders BibTeX and APA directly.
+
+Cite the **repository** for the method, the measurement log or any finding; cite the
+**checkpoint** ([kabartay/fintfm-binary](https://huggingface.co/kabartay/fintfm-binary)) when
+the specific weights matter to what you are reporting. They are different artifacts and a
+reader can only check the one you name.
+
 ## Contributing, and what cannot come in
 
 Issues and discussion are welcome. Two hard boundaries, both of which protect the only claim

@@ -1,0 +1,30 @@
+cff-version: 1.2.0
+title: "FinTFM: a tabular foundation model for corporate credit risk, pretrained only on synthetic data"
+message: >-
+  If you use this software, the checkpoint, or the measurement log, please cite it.
+type: software
+authors:
+  - family-names: Organokov
+    given-names: Mukharbek
+    email: mukharbek.organokov@gmail.com
+repository-code: "https://github.com/kabartay/fintfm"
+url: "https://huggingface.co/kabartay/fintfm-binary"
+abstract: >-
+  An in-context tabular classifier for corporate credit risk, pretrained
+  exclusively on synthetic data and never on real tables. Prediction is a single
+  forward pass with the user's table supplied as context; there are no gradient
+  steps at fit time and no per-dataset tuning. The repository is organised around
+  a numbered measurement log and a claims ledger that records retractions and
+  superseded results as prominently as confirmations. Measured externally on
+  TabArena it places 93rd of 95; on real corporate-default panels its calibration
+  is consistently among the best measured while its discrimination consistently
+  loses to tuned gradient boosting. Both facts are reported together.
+keywords:
+  - tabular foundation model
+  - in-context learning
+  - prior-fitted networks
+  - credit risk
+  - synthetic data
+license: Apache-2.0
+version: 0.4.0
+date-released: "2026-09-23"
