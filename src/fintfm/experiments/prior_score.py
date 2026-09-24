@@ -219,11 +219,11 @@ def summarise(scores: dict[str, dict], base_rate: float | None = None) -> str:
         if base_rate is not None
         else "scored at each prior's natural balance, metric = ROC-AUC"
     )
-    lines = [
-        head,
+    header = (
         f"{'prior':>12}{'perf':>9}{'diversity':>11}{'distinct':>10}"
-        f"{'tree':>9}{'linear':>9}{'n':>5}",
-    ]
+        f"{'tree':>9}{'linear':>9}{'n':>5}"
+    )
+    lines = [head, header]
     for name, s in scores.items():
         lines.append(
             f"{name:>12}{s['performance']:>9.4f}{s['diversity']:>11.4f}"

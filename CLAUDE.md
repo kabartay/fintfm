@@ -188,9 +188,22 @@ A correct body measures 300+. One at 80-95 is prose broken at a column.
 **Commit messages stay hard-wrapped** at ~78 columns, because they are read in a terminal by
 `git log`. The same text does not serve both, so never reuse a tag message as a release body.
 
-**Confirm the run is green afterwards.** Creating the release is not the end of the job. There
-is no CI in this repository yet (`openspec/changes/ci-and-release-gates`), so until there is,
-say so explicitly rather than implying a release was verified.
+**Confirm the run is green afterwards.** Creating the release is not the end of the job.
+
+**There IS CI, and on 2026-09-23 a release went out while it was failing.** This paragraph used
+to say there was none, that sentence went stale when CI landed, and the v0.4.0 release body
+repeated it — claiming "no CI in this repository yet, so this release is verified by a local run
+and nothing else" while a `ruff` error sat red on the release commit. Local `pytest` was green;
+lint was not, and `uv run pytest` does not run `ruff`.
+
+```bash
+uv run ruff check src/ tests/     # CI runs this and pytest does not
+uv run pytest -q
+gh run list --limit 3             # after pushing a tag, before announcing anything
+```
+
+A stale sentence in this file is worse than no sentence, because it gets quoted into a release
+body as if it were checked.
 
 ## Licensing: what this repo carries
 
