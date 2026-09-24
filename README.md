@@ -13,12 +13,20 @@ memorised it, and in a regulated domain the ability to *demonstrate* that is wor
 few points of accuracy.
 
 ```python
+from huggingface_hub import hf_hub_download
 from fintfm.inference import FinancialTFMClassifier
 
-clf = FinancialTFMClassifier("runs/checkpoint.pt", device="mps")
+ckpt = hf_hub_download("kabartay/fintfm-binary", "v4-cellattn-labels.pt")
+clf = FinancialTFMClassifier(ckpt, device="cpu")
 clf.fit(X_train, y_train)            # stores the table as context; no training happens
 pd_estimates = clf.predict_proba(X_test)[:, 1]
 ```
+
+The checkpoint is on Hugging Face at
+[**kabartay/fintfm-binary**](https://huggingface.co/kabartay/fintfm-binary) — 885K parameters,
+binary, up to 136 features, **Apache-2.0**. It is the checkpoint every published binary number
+below was measured on, so those results are reproducible against this file rather than a
+variant of it.
 
 ## Status, stated plainly
 
@@ -30,7 +38,8 @@ financial tables, and to say honestly where it currently is not.
 | --- | --- |
 | **External benchmark** | [TabArena](https://tabarena.ai), 27 binary datasets against 94 other methods: **rank 93 of 95** |
 | **On real credit panels** | calibration consistently among the best measured; discrimination consistently loses to tuned gradient boosting — both, on every panel tried |
-| **Licence** | Apache-2.0 (code). Weights are licensed separately — see [Licensing](#licensing--provenance) |
+| **Licence** | Apache-2.0, **code and weights** — chosen separately, not inherited (see [Licensing](#licensing--provenance)) |
+| **Checkpoint** | [kabartay/fintfm-binary](https://huggingface.co/kabartay/fintfm-binary) — 885K, binary, ≤136 features |
 | **Tests** | 246, plus `ruff`, the openspec validator, a dependency-licence check and a documentation-link check — all in CI |
 | **Measurement log** | 121 numbered findings, each declaring how its numbers were produced |
 | **Problem types** | binary declared; multiclass and regression implemented but **not** declared (§121) |
@@ -164,7 +173,7 @@ no gradient steps — and `predict_proba()` runs the frozen network once.
 ```python
 from fintfm.inference import FinancialTFMClassifier, FinancialTFMRegressor
 
-clf = FinancialTFMClassifier("runs/v4-cellattn-labels.pt", device="mps")
+clf = FinancialTFMClassifier(ckpt, device="mps")   # ckpt from hf_hub_download, above
 clf.fit(X_train, y_train)          # stores context; no training happens
 proba = clf.predict_proba(X_test)[:, 1]
 

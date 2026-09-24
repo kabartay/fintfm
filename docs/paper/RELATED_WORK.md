@@ -439,6 +439,35 @@ relationship, and `CLAUDE.md`'s boundary against Neuralk's code/weights/training
 unaffected either way — Causilo is a separate legal entity (Nums AI Inc.) under its own
 licence, evaluated on its own terms.
 
+### Xiaomi TabLDM, the model that beat us by 0.0026 on our one first place
+
+**Xiaomi Corporation (2026).** `huggingface.co/occams/Xiaomi-TabLDM`. Code **Apache-2.0**; the
+card states no separate weights licence, which by the standard applied to every other entry here
+means **unverified rather than permissive** — the four splits already found in this survey were
+each invisible until the licence file itself was opened.
+
+**It is the runner-up on the single dataset where fintfm ranked first of 95.** On
+`Is-this-a-good-customer`, TabLDM scores 0.7519 against our 0.7545 — the 0.0026 margin §107
+retracted a claim over. Worth recording precisely because that margin is the whole content of a
+"specialist profile" this project briefly believed in.
+
+**Synthetic-only, SCM-pretrained, and near the top of regression.** "Pretrained exclusively on
+synthetic data generated from structural causal models", claiming 1st on OpenML-CTR23 and 2nd on
+regression across TALENT, TabArena and BCCO. **That is a fifth independent data point for §110**
+— every strong TabArena placement examined in this survey comes from a synthetic prior, and the
+three groups arguing real-table pretraining is the axis that pays remain below them.
+
+**Three mechanisms, none of which this project has:** dual-stream feature grouping, a lightweight
+attention residual, and a **sparse mixture-of-experts**. The MoE is the interesting one —
+`docs/research/RESEARCH_NOTES.md` lists sector/country mixture-of-experts as an open thread
+judged "premature at 850K parameters", and TabLDM is evidence the mechanism pays at a scale
+reachable from here rather than only at frontier size.
+
+**They report the trade this project's §114 could not make.** Second-highest Elo on TabArena
+regression at **82% less training time and 68% less prediction time** than the top performer.
+Inference cost as a *reported axis* rather than a footnote is exactly what §114's depth arm
+failed on — it could not finish the benchmark — and what §119 measured as unfixable by caching.
+
 ### EXAONE Tabular: the third confirmed instance of the licence trap, and above us at rank 7
 
 **LG AI Research (2026).** *EXAONE Tabular.* `github.com/LGAI-Research/EXAONE-Tabular`,
