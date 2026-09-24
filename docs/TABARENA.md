@@ -3,8 +3,10 @@
 External evaluation, under someone else's protocol, against 94 other methods. This file is
 the reproduction recipe and the list of things that cost a run.
 
-**Result so far: 93rd of 95** (§98), mean ROC-AUC 0.7642 over 26 of 27 eligible datasets.
-§100 then located the deficit: it is mostly categorical preprocessing, not architecture.
+**Result: 93rd of 95.** §98 first measured mean ROC-AUC **0.7642** over 26 of 27 eligible
+datasets; §100 located most of that deficit in categorical preprocessing rather than
+architecture, and §101's fix lifted the mean to **0.7823** with the rank unchanged. Every
+binary arm since has landed between 0.7746 and 0.7926, and none has moved the rank.
 
 ## Why bother, given the rank
 
@@ -79,14 +81,25 @@ The suite is 30 binary, 13 regression and 8 multiclass. Coverage has moved twice
 | `["binary"]` | **26 of 51 (51%)** | 13 regression, 8 multiclass, 3 wide, 1 over 10 classes |
 | `+ multiclass` | **34 of 51 (67%)** | 13 regression, 4 wide |
 | `+ regression` | **46 of 51 (90%)** | 5 wide — `max_features=136`, nothing else |
+| **`["binary"]` again — current** | **27 of 51 (53%)** | **21 undeclared problem types, 3 wide** |
+
+**The last row is a reversion, not a regression.** Multiclass and regression were declared,
+then scored on real data for the first time, and both rank last — multiclass 93.4 of 95 over
+7 datasets, regression 93.1 of 94 over 12 and **last on 5 of them** (§121). They remain
+implemented and tested; declaring them would publish a capability the measurement says is not
+there. **A higher coverage fraction is not worth a claim that does not hold.**
 
 A mean over 27 datasets is not comparable with a mean over 51, and the leaderboard's Elo is
 computed only where a method actually ran, so the fraction goes beside the number every time.
 
 **Read the coverage number off `eligible_datasets()`, never off this table.** It is derived
-from TabArena's own task metadata at run time, which is what stops the documented fraction
-drifting from the executed one — the fraction here is a record of what was measured when,
-not an input to anything.
+from TabArena's own task metadata **and from the model's own `_supported_problem_types`** at run
+time, which is what stops the documented fraction drifting from the executed one — the fraction
+here is a record of what was measured when, not an input to anything.
+
+That derivation was itself a bug fix. The runner used to restate the problem types in its own
+tuple, so narrowing the adapter to binary left it reporting 90% coverage for a model that would
+refuse 19 of those datasets. Mirrored values drift; the single source of truth already existed.
 
 Both extensions are checkpoint-gated, not merely declaration changes: multiclass needs
 `max_classes >= K`, and regression needs a checkpoint whose prior emitted continuous targets
@@ -118,15 +131,35 @@ paired deltas were computed, rather than trusting the harness to merge them.
 
 ## On submitting a PR
 
-**Not yet, and the ranking is not the reason.** At 51% coverage with a knowingly degraded
-categorical path, the submitted number would measure the workaround as much as the model. The
-order is: native categoricals (47.x), then multiclass and regression (46.x), then a submission
-whose number means what it says.
+**The conditions are now met, and they were met by losing an argument with the measurement.**
 
-Two of the three are now done — the categorical path is target statistics (§101) and coverage
-is 90% — so the remaining condition was that the multiclass and regression arms be actually
-*scored*, not merely made runnable. A declaration without a measurement behind it is the same
-failure in a new costume: it would submit a capability whose quality nobody has checked.
+The original position was: not yet, and the ranking is not the reason. At 51% coverage with a
+knowingly degraded categorical path, the submitted number would have measured the workaround as
+much as the model. The stated order was native categoricals (47.x), then multiclass and
+regression (46.x), then a submission whose number means what it says.
+
+- **Native categoricals: done** (§101). Out-of-fold target statistics, mean 0.7642 → 0.7823.
+- **Multiclass and regression: implemented, scored, and withdrawn** (§121). The condition was
+  never "make them runnable" — it was that a declaration must have a measurement behind it. The
+  measurement now exists and says they rank last, so they are not declared.
+
+**So the submission declares `binary` only**: 27 eligible datasets, 53% coverage, rank 93 of
+95, with every declared capability measured. That is a narrower entry than the 90% one, and a
+truer one.
+
+**What a submission still needs, and is not a code question.** Weights live in a private
+repository. A reviewer cannot reproduce a number without them, so either a checkpoint is
+published or the PR is not reviewable. `CLAUDE.md` records the trained weights as the private
+asset and publishing is one-way — a decision, not a detail. Publishing one binary checkpoint
+(the ~3.5 MB `v4-cellattn-labels.pt`, on which every published binary number was measured) is
+the narrow version of that trade; the mature prior and the remaining checkpoints need not go
+with it.
+
+**Read a weights licence separately from a code licence, including our own.** Four of the ten
+peer projects surveyed in `docs/paper/RELATED_WORK.md` ship permissive code with
+non-commercial weights, and one restricts commercial use of the model's *output* rather than
+merely the weights. Apache-2.0 on this repository says nothing about a checkpoint published
+from it.
 
 **They have now been scored, and they do not pass (§121).** Multiclass ranks 93.4 of 95 on
 average over 7 datasets; regression ranks 93.1 of 94 over 12 and is **last on 5 of them**. Both
