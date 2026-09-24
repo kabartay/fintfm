@@ -8007,3 +8007,84 @@ general-tabular gain and §115 confirmed it; that is one confirmed prediction, n
 record. Whether low-base-rate learnability predicts credit performance has been measured on
 exactly one prior, retrospectively, and the honest status is that the instrument now asks a
 question it previously could not — not that its answers are established.
+
+## §118 — The prior scorer's credit arm predicted the wrong direction, and the ranking is inverted
+
+**How these numbers were produced.** MEASURED. `fintfm-v4protocol --no-boosting`, horizon 0,
+published five-fold protocol, 1,000,087 rows at 0.359% positive. One checkpoint at
+`p_financial=0.5` (so the SCM prior takes 0.5) against §116's `p_financial=0.7` control, matched
+in every other respect: 885K parameters, 6,000 steps at batch 8, identical architecture.
+
+**This arm was launched on a prediction made in §117 and the prediction was wrong.**
+
+### The result
+
+| arm | prior mixture | **AP** | ROC-AUC | F1 |
+| --- | --- | --- | --- | --- |
+| `priorctl` (control) | 0.7 financial / 0.3 SCM | **0.1681** | 0.9856 | 0.2439 |
+| `treeclean` (§116) | 0.7 / 0.3 + 0.3 tree | 0.1460 | 0.9840 | 0.2213 |
+| **`scm50`** | **0.5 financial / 0.5 SCM** | **0.1342** | 0.9835 | 0.2108 |
+| *logistic regression, untuned* | — | *0.1614* | *0.9839* | *0.2439* |
+
+**−0.0339 AP**, a *larger* loss than the tree prior's −0.0221, and in the direction opposite to
+the one predicted.
+
+### The instrument's ranking is inverted on the question it was built for
+
+§117 measured, at a 0.4% base rate:
+
+| prior | AP at 0.4% | diversity |
+| --- | --- | --- |
+| financial | 0.0332 | 0.0657 |
+| **scm** | **0.1337** | **0.2293** |
+| tree | 0.0225 | 0.0387 |
+
+The SCM prior is 4× more learnable and 3.5× more diverse than the financial prior by that
+statistic. Raising its share from 0.3 to 0.5 made credit performance **worse**, and the prior
+the instrument ranks *worst* is the one more of which helps.
+
+So `fintfm-priorscore`'s record is now:
+
+| prediction | outcome |
+| --- | --- |
+| §112 → §115: tree prior improves general tabular | **confirmed**, +0.0094 at two seeds |
+| §117 → §118: more SCM improves credit | **falsified**, −0.0339 |
+
+One confirmation and one falsification, with the failure in the arm built specifically to
+answer this project's question. **§117's credit arm does not predict credit performance**, and
+no claim should rest on it until that changes.
+
+### What the reasoning got wrong
+
+I treated *"this prior's tasks are learnable at 0.4%"* as a proxy for *"training on this prior
+teaches low-base-rate credit prediction."* Those are different claims and the second does not
+follow.
+
+**Difficulty and irrelevance look identical to that statistic.** The financial prior is the only
+member of the mixture with a structural story matching the target — accounting identities,
+sector and macro effects, a default-rate envelope reaching real low-default-portfolio rates. Its
+low AP at 0.4% plausibly reflects that it generates genuinely *hard* tasks of the *right kind*,
+which is what §42 established a prior must do. A statistic that rewards learnability cannot
+distinguish that from a prior generating easy tasks of the wrong kind, and it ranked the
+financial prior last on exactly that confusion.
+
+**§117 flagged this and I acted against it.** Its own closing paragraph says the relationship
+was "measured on exactly one prior, retrospectively" and that the instrument "asks a question it
+previously could not, which is not the same as its answers being established." The arm was
+launched anyway, within the hour, on a single retrospective data point.
+
+### What survives
+
+**The general-tabular arm still has its one confirmation** (§112 → §115) and nothing here
+touches it. The distinction §116 drew — distinctiveness predicts breadth, not fit — stands, and
+this finding sharpens it: **no arm of this instrument currently predicts fit.**
+
+**`p_financial` stays at 0.7.** Two prior changes have now been tested against that control on
+V4FinBench and both lost, which is weak evidence that the current mixture is near a local
+optimum and strong evidence that the instrument cannot yet find a better one.
+
+**The measurement discipline held, and is the reason this cost $1.40 rather than a release.**
+§116's standing rule sent this arm to V4FinBench *before* TabArena. Had it gone the other way,
+a general-tabular number would have been recorded first and this finding would have arrived
+after the claim was written down — which is exactly the sequence §115/§116 had just cost two
+days to correct.

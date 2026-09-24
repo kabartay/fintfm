@@ -10,7 +10,7 @@ customer data, no per-dataset training.
 | **Status** | research codebase, actively developed — not a product |
 | **Licence** | Apache-2.0, code **and** weights (see [Licensing](#licensing--provenance)) |
 | **Tests** | 242 (`uv run pytest`) |
-| **Measurement log** | 117 numbered findings, each declaring how it was produced |
+| **Measurement log** | 118 numbered findings, each declaring how it was produced |
 | **External benchmark** | [TabArena](docs/TABARENA.md), 90% coverage, **rank 93 of 95** |
 | **Problem types** | binary, multiclass, regression |
 
@@ -252,7 +252,7 @@ measured axis; the levers that remain, in the order the evidence ranks them:
 
 | lever | status |
 | --- | --- |
-| **prior design** — distinctiveness is measurable and predicts general-tabular gains | +0.0094 on TabArena, replicated (§115); **−0.0221 AP on credit** (§116), because at a 0.4% base rate the tree prior's own tasks are the least learnable of the three (§117). The instrument now asks the credit question it previously could not |
+| prior design — measurable, and predicts *breadth* | +0.0094 on TabArena, replicated (§115); **−0.0221 AP on credit** (§116). The credit arm added in §117 then predicted the wrong direction on its first real test (§118, −0.0339), so **no arm of the instrument currently predicts fit**. `p_financial` stays 0.7 |
 | **factorized attention** — the current encoder is memory-bound at every turn, and three peers independently chose the cheaper form | proposed (44.x), prior art recorded |
 | **objective** — `p(x, y \| D)` rather than `p(y \| x, D)`, which makes every column a training signal | proposed (48.15), scoped as a measurement before a rewrite |
 | ~~parameter scale~~ | closed (§114): −0.0049 at 5.7× **matched tasks**, and a peer's curve returns +0.005 R² for 16× |
@@ -286,7 +286,7 @@ because they are what stops the same wrong conclusion being reached twice.
 - [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md) — **start here.** Every claim this project
   could make, tagged by status, newest evidence wins.
 - [`docs/FINDINGS.md`](docs/FINDINGS.md) — the full measurement log, numbered sequentially
-  (117 entries and counting), each declaring how its numbers were produced.
+  (118 entries and counting), each declaring how its numbers were produced.
 - [`docs/DECISIONS.md`](docs/DECISIONS.md) — why the project is built the way it is, and what
   would reverse each choice.
 - [`docs/STRATEGY.md`](docs/STRATEGY.md) — the plan of record.
@@ -314,7 +314,7 @@ bought — plus a public, self-correcting record of what has and has not been sh
 
 Actively developed research codebase, not a PoC skeleton: a config-driven experiment harness,
 real GPU pretraining infrastructure ([`docs/HF_JOBS.md`](docs/HF_JOBS.md)), an external
-benchmark integration at 90% coverage, and 117 numbered, provenance-tagged findings.
+benchmark integration at 90% coverage, and 118 numbered, provenance-tagged findings.
 
 **What is proven, open and retracted is tracked in
 [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md), not here** — the honest state changes faster
