@@ -1,4 +1,4 @@
-# Running fintfm on TabArena
+# Running FinTFM on TabArena
 
 External evaluation, under someone else's protocol, against 94 other methods. This file is
 the reproduction recipe and the list of things that cost a run.
@@ -147,29 +147,18 @@ regression (46.x), then a submission whose number means what it says.
 95, with every declared capability measured. That is a narrower entry than the 90% one, and a
 truer one.
 
-**What a submission still needs, and is not a code question.** Weights live in a private
-repository. A reviewer cannot reproduce a number without them, so either a checkpoint is
-published or the PR is not reviewable. `CLAUDE.md` records the trained weights as the private
-asset and publishing is one-way — a decision, not a detail. Publishing one binary checkpoint
-(the ~3.5 MB `v4-cellattn-labels.pt`, on which every published binary number was measured) is
-the narrow version of that trade; the mature prior and the remaining checkpoints need not go
-with it.
+**The weights are now published, which was the last blocker.** A reviewer could not reproduce
+a number without them. `kabartay/fintfm-binary` is public and **Apache-2.0** as of 2026-09-25 —
+the ~3.5 MB `v4-cellattn-labels.pt`, on which every published binary number was measured. The
+remaining checkpoints stay private deliberately: multiclass and regression rank last (§121),
+and the scale and tree arms lost (§114, §116). Publishing weights this project has measured as
+worse than the one it published would mislead rather than inform.
 
 **Read a weights licence separately from a code licence, including our own.** Four of the ten
 peer projects surveyed in `docs/paper/RELATED_WORK.md` ship permissive code with
 non-commercial weights, and one restricts commercial use of the model's *output* rather than
 merely the weights. Apache-2.0 on this repository says nothing about a checkpoint published
 from it.
-
-**They have now been scored, and they do not pass (§121).** Multiclass ranks 93.4 of 95 on
-average over 7 datasets; regression ranks 93.1 of 94 over 12 and is **last on 5 of them**. Both
-run correctly — no crashes, no timeouts, correct units — and neither is competitive.
-
-**So the submission declares `binary` only**: 27 datasets, 51% coverage, rank 93 of 95, with
-every declared capability measured. `multiclass` and `regression` stay implemented, tested and
-documented but undeclared. Declaring 90% coverage on arms that rank last would report a
-favourable framing of something unverified, which is §107's retracted error with a measurement
-attached instead of an assumption.
 
 **Running without error is not working.** Both arms cleared every integration gate and both are
 last; an integration test and a capability claim are different things.

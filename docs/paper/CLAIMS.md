@@ -440,18 +440,20 @@ parameters; and the deep-narrow alternative could not complete the benchmark. A 
 reach for "the model is small" — it is quantitatively insufficient by roughly an order of
 magnitude.
 
-**Four bounds a citation must carry.** Coverage was 51% at §98 (binary-only, ≤136 features)
-and is now 90% by declaring multiclass and regression — the two figures are not comparable, so
+**Four bounds a citation must carry.** Coverage was 51% at §98 (26 of 51 scored, binary-only,
+≤136 features), briefly 90% while multiclass and regression were declared, and is **53% now**
+(27 of 51) after §121 withdrew both — they rank last. The three figures are not comparable, so
 each number carries its own. The categorical path was knowingly degraded at §98, which §100
 quantifies and §101 fixes. One earlier run died of `TimeLimitExceeded` from a CUDA-only device
 check on Apple Silicon — an integration defect, not evidence about deployability. And
 **TabArena-Lite runs fold 0 only**: any per-dataset statement from it is a single draw and must
 be labelled as one.
 
-**Do not submit a leaderboard PR yet.** The two original conditions are met — the categorical
-path is target statistics (§101) and coverage is 90% — but the multiclass and regression arms
-are *runnable*, not *scored* on real data. Submitting a declared capability whose quality
-nobody has measured is the same failure as submitting the label-encoding workaround.
+**The PR conditions are now met, by losing an argument with the measurement.** The categorical
+path is target statistics (§101); multiclass and regression were declared, scored, and
+**withdrawn** when §121 measured them ranking last. The submission declares `binary` only at
+53% coverage — narrower than the 90% entry, and true. Weights are public and Apache-2.0, so the
+number is reproducible.
 
 ---
 
@@ -528,8 +530,10 @@ number exists yet.
 
 What is measured:
 
-- **Coverage 51% → 90%** (46 of 51 TabArena datasets), derived from TabArena's task metadata
-  at run time rather than asserted. `max_features=136` is the only remaining exclusion.
+- **Coverage 51% → 90% → 53%** (27 of 51), derived at run time from TabArena's task
+  metadata **and the model's own declaration**, never asserted. The last figure is after
+  §121 withdrew multiclass and regression for ranking last; `max_features=136` excludes the
+  remaining 3 binary datasets.
 - **The mixed prior is free.** A `--max-classes 10` checkpoint with the generic SCM prior
   mixed in scores **0.7817** against the binary-only checkpoint's **0.7823** on the same 27
   binary datasets — paired mean delta **−0.0006**, better on 13 of 27, sign test **p = 1.000**
