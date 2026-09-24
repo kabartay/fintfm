@@ -31,7 +31,7 @@ financial tables, and to say honestly where it currently is not.
 | **External benchmark** | [TabArena](https://tabarena.ai), 27 binary datasets against 94 other methods: **rank 93 of 95** |
 | **On real credit panels** | calibration consistently among the best measured; discrimination consistently loses to tuned gradient boosting — both, on every panel tried |
 | **Licence** | Apache-2.0 (code). Weights are licensed separately — see [Licensing](#licensing--provenance) |
-| **Tests** | 242, plus `ruff`, in CI |
+| **Tests** | 246, plus `ruff`, the openspec validator, a dependency-licence check and a documentation-link check — all in CI |
 | **Measurement log** | 121 numbered findings, each declaring how its numbers were produced |
 | **Problem types** | binary declared; multiclass and regression implemented but **not** declared (§121) |
 
@@ -153,7 +153,7 @@ domain where a model must arrive with its own validation evidence, that is the d
 
 ```bash
 uv sync --extra bench --extra hf   # naming one extra uninstalls the others
-uv run pytest                      # 242 tests; 1 skip is expected, more means look
+uv run pytest                      # 246 tests; 1 skip is expected, more means look
 ```
 
 ### Using a checkpoint

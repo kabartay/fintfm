@@ -7326,6 +7326,53 @@ It also sets a standing rule: **a per-dataset claim from TabArena-Lite is a sing
 Ranks aggregated over 27 datasets are usable; a statement about one dataset is an anecdote and
 must be labelled as one.
 
+## §108 — 5.7× the parameters lost 0.0077, on a design that also halved the task count
+
+**How these numbers were produced.** MEASURED. `run_fintfm_lite.py --full` on TabArena's 27
+eligible binary datasets, `FINTFM_RUN_NAME=medium5m`, scoring a 4,979,778-parameter checkpoint
+(`d_cell=64, d_model=256, n_layers=6, n_col_layers=3, d_ff=1024`) against §101's `cat_full`
+baseline at 885,650 parameters. Paired per dataset.
+
+**Written retrospectively on 2026-09-25.** This entry was referenced 31 times across the
+repository before it existed — by §110, §113, §114, `CHANGELOG.md`, `RELATED_WORK.md` and
+others — because the run happened, the number was quoted from the session that produced it, and
+the write-up was skipped while the follow-up work continued. A number circulating without the
+entry that qualifies it is exactly what this file exists to prevent, and the gap was found by
+auditing heading numbers for continuity rather than by anyone following a link.
+
+### The result
+
+| | parameters | tasks seen | mean ROC-AUC | vs baseline | better | p |
+| --- | --- | --- | --- | --- | --- | --- |
+| `cat_full` (baseline) | 885,650 | 48,000 | **0.7823** | — | — | — |
+| **`medium5m`** | **4,979,778** | **24,000** | **0.7746** | **−0.0077** | **9/27** | — |
+
+Elo fell from 765 to 751; rank unchanged at 93 of 95.
+
+### The confound, which was mine and is the reason §114 exists
+
+Cell attention makes a medium model OOM at batch 8 on a 23.7 GB L4 (`docs/infra/HF_JOBS.md`),
+so this arm ran at **batch 4**. At the same 6,000 steps that is **24,000 tasks against the
+baseline's 48,000** — half the training volume. `CLAUDE.md`'s "count the tasks, not the steps"
+says precisely this, and the run was designed against it anyway: matching *steps* felt like
+matching the experiment.
+
+So −0.0077 is not the cost of scale. It is the cost of scale **and** halved volume, entangled.
+§114 reran the arm at 12,000 steps for a matched 48,000 tasks and measured **−0.0049**,
+which places the confound at +0.0028 and the rest elsewhere.
+
+### What it established anyway
+
+Even confounded, the direction was informative: a model 5.7× larger, on half the data, was
+**not** better — and the field norm for this class is ~10⁷ tasks, so a genuinely scale-limited
+model should have shown something. §114 then closed the question properly, and Nori's published
+curve (+0.0049 R² for 16.7× parameters, §110) bounded it from outside.
+
+**The lesson is about experiment design rather than scale.** A memory constraint forced a batch
+size, the batch size changed the training volume, and the volume change was invisible in the
+command line because only the step count is written there. When a hardware limit forces one
+parameter, check what else moved with it.
+
 ## §109 — A competitor's published training list overlaps the benchmark it is scored on, and only publishing it made that visible
 
 **How these numbers were produced.** MEASURED, set intersection of two published lists. TabDPT's
