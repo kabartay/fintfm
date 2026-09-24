@@ -388,6 +388,39 @@ otherwise get relearned the hard way; `README.md` is what the repository is and 
 right now. Keep `README.md`'s status section honest — it's the one document nothing tests, so
 it goes stale silently if a claim in it stops being true and nobody rereads it.
 
+## Score on the benchmark this project claims, before the one that is convenient
+
+Cost four checkpoints and two days on 2026-09-22/23, and produced a result that reversed
+(`docs/FINDINGS.md` §115, §116).
+
+A tree-structured prior was selected on a measured criterion, trained at two seeds against
+matched controls, and scored **+0.0094 on TabArena** — replicating in sign against a measured
+noise floor, one seed reaching p = 0.019. It was written into the README as an improvement. It
+was then scored on **V4FinBench**, the low-default credit panel this project's claims actually
+rest on, and came back at **−0.0221 average precision: negative on 5 of 5 folds, three of them
+surviving Holm correction at p < 0.001**, dropping the model below untuned logistic regression
+where its own control cleared it.
+
+Both results are real. The general-tabular one is not the one that decides anything here.
+
+**TabArena is not a proxy for credit, and it is seductive because it is fast and returns a
+rank.** A 27-dataset single-fold run takes about an hour and prints a leaderboard position;
+V4FinBench is five folds over a million rows and prints no rank at all. That asymmetry is why
+this happened, and it will recur unless the order is fixed rather than remembered:
+
+- **A prior, architecture or training change is scored on V4FinBench before it is believed.**
+  TabArena afterwards, for breadth. Not the reverse.
+- **A general-tabular gain is not a project result** until it has a credit number beside it.
+  Presenting one as a result is `docs/FINDINGS.md` §107's error — reporting a favourable
+  measurement of the wrong thing — in a new place.
+- **Read average precision first**, always, and never report a low-base-rate result on ROC-AUC
+  alone. In §116 ROC-AUC moved 0.9856 → 0.9840, a 0.16% relative change any reader would call a
+  null, while AP fell 13% relative. A ROC-AUC-only report would have shipped the regression.
+
+The general form, worth keeping when the specific benchmarks change: **when two benchmarks
+disagree, the one you optimised against is the one you should distrust**, and the cheap one is
+almost always the one you optimised against.
+
 ## Read the field periodically, and write what you find into `docs/paper/`
 
 Standing instruction, 2026-09-21. **The competitive landscape is a research input, not
