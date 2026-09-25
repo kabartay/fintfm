@@ -1,5 +1,10 @@
 # FinTFM
 
+[![CI](https://github.com/kabartay/fintfm/actions/workflows/ci.yml/badge.svg)](https://github.com/kabartay/fintfm/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue.svg)](pyproject.toml)
+[![Checkpoint](https://img.shields.io/badge/%F0%9F%A4%97%20weights-fintfm--binary-yellow)](https://huggingface.co/kabartay/fintfm-binary)
+
 **A tabular foundation model for corporate credit risk, built from scratch and measured in
 public.**
 

@@ -471,6 +471,21 @@ The general form, worth keeping when the specific benchmarks change: **when two 
 disagree, the one you optimised against is the one you should distrust**, and the cheap one is
 almost always the one you optimised against.
 
+## Install the pre-commit hook, once per clone
+
+```bash
+uv run pre-commit install
+```
+
+`ruff` errors reached `main` **twice on 2026-09-24** — once on the v0.4.0 release commit, which
+shipped with CI red, and once in the commit that fixed it. Both times `uv run pytest` was green
+locally and `ruff` was simply not run. The release checklist in this file said to run it; a
+checklist is a thing a human has to remember, and the hook is not.
+
+Only the fast checks are hooked. `pytest`, the licence and link checkers and the openspec
+validator stay in CI, because a hook that takes a minute gets bypassed with `--no-verify`,
+which is worse than not having one.
+
 ## Read the field periodically, and write what you find into `docs/paper/`
 
 Standing instruction, 2026-09-21. **The competitive landscape is a research input, not

@@ -68,6 +68,16 @@ jobs:
       - name: Documentation links resolve
         run: uv run python scripts/check_doc_links.py
 
+      # **Non-blocking, deliberately.** `py.typed` is shipped and every signature is annotated,
+      # but a check on 2026-09-25 found 40 diagnostics in 64 places, nearly all in this
+      # repository's own code — so the hints are present and not yet sound. Gating on it today
+      # would fail every push, and a gate that always fails is one people learn to bypass.
+      # It runs so the count is visible and can be driven down; make it blocking when it hits
+      # zero, not before.
+      - name: Type check (informational)
+        continue-on-error: true
+        run: uv run --with ty ty check src/
+
       - name: Build wheel and sdist
         run: uv build
 
