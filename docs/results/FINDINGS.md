@@ -8466,6 +8466,11 @@ CUDA. Any local result is a direction to escalate, never a number to publish.
 
 ## §124 — Depth at constant width is null, and the held-out score predicted the wrong sign again
 
+> **Superseded in part by §126.** The conclusion holds: depth is null, and §126 confirms it
+> at a matched learning rate. But the run below was mis-tuned, the limitation recorded at the
+> end turned out to matter more than the variable under test, and the learning rate it names
+> as unvaried is worth **+0.0243 AP** at this batch size. Read §126 before citing this.
+
 **How these numbers were produced.** MEASURED. Two checkpoints, `n_layers` 4 against 16 at
 `d_model=128`, matched on everything else including seed: 6,000 steps, batch 2, `n_rows`
 256/512, `max_features=136`, `p_financial=1.0`, MPS. Scored with `fintfm-v4protocol
@@ -8521,6 +8526,11 @@ scales initialisation by depth, so the 16-layer arm ran at settings tuned for 4 
 Identical loss on 3.7x the parameters is what capacity-present-but-not-exploited looks like. The
 claim this run supports is "depth does not help **at the learning rate and initialisation tuned
 for depth 4**", and arms at 1e-4 and 5e-5 follow.
+
+**§126 ran them, and this was the load-bearing limitation.** Depth stays null at a matched rate,
+so the headline survives. But the learning rate turned out to be worth +0.0243 AP on 5 of 5
+folds, twelve times the depth effect, and it was found only because this caveat was written down
+instead of being waved past.
 
 **The operating point is degraded.** Batch 2 is the MPS ceiling (§123), and the L=4 control
 scores AP 0.0952 where §118's batch-8 control on CUDA scored 0.1681, below untuned logistic
@@ -8594,3 +8604,87 @@ obviously safe.
 third of the training distribution and its two candidate answers, filter or span, predict
 opposite treatments of that third. It is the larger lever of the two, and `docs/roadmap/ROADMAP.md`
 already ranks it second in Phase A.
+
+## §126 — The depth null was mis-tuned: at batch 2 the default learning rate costs +0.0243 AP
+
+**How these numbers were produced.** MEASURED. A 2x2 over `n_layers` {4, 16} and `--lr`
+{3e-4, 1e-4}, everything else matched including seed: `d_model=128`, 6,000 steps, batch 2,
+`n_rows` 256/512, `max_features=136`, `p_financial=1.0`, MPS. Each cell scored with
+`fintfm-v4protocol --no-boosting` at horizon 0 on the published five-fold protocol, 1,000,087
+rows at 0.359% positive, then a row-level paired bootstrap, 2,000 resamples per fold,
+Holm-corrected.
+
+This experiment exists because §124 concluded "depth is null" while the deep arm ran at a
+learning rate tuned for the shallow one, and that limitation was recorded rather than waved
+past. Closing it changed which variable the result is about.
+
+### The factorial
+
+Mean AP over the five folds:
+
+| | lr 3e-4 | lr 1e-4 | lr effect |
+| --- | --- | --- | --- |
+| **L=4** | 0.0952 | **0.1196** | **+0.0243** |
+| **L=16** | 0.0972 | **0.1196** | **+0.0224** |
+| depth effect | +0.0019 | +0.0000 | |
+
+| effect | ΔAP |
+| --- | --- |
+| **learning rate** | **+0.0234** |
+| depth | +0.0010 |
+| interaction | −0.0019 |
+
+**Both learning-rate arms land on 0.1196 to four decimals.** Depth contributes nothing whether
+the optimiser is set for it or not, so §124's conclusion survives the confound being removed:
+Nori's 16-layers-at-width-128 shape does not transfer here, and §114's closure of scale extends
+to the axis it never tested.
+
+The learning rate contributes more than twelve times as much, on every fold:
+
+| fold | 3e-4 | 1e-4 | ΔAP | Holm p |
+| --- | --- | --- | --- | --- |
+| 0 | 0.1037 | 0.1292 | +0.0255 | 0.000 * |
+| 1 | 0.0911 | 0.1265 | +0.0354 | 0.000 * |
+| 2 | 0.0787 | 0.1059 | +0.0272 | 0.000 * |
+| 3 | 0.1211 | 0.1410 | +0.0199 | 0.000 * |
+| 4 | 0.0817 | 0.0953 | +0.0136 | 0.000 * |
+| **mean** | **0.0952** | **0.1196** | **+0.0243** | 5 of 5 |
+
+Same direction on all five, unlike §124's split-sign null where significance came from row count
+rather than from a reproducible effect.
+
+### Three constraints, none of which this run clears
+
+**This is batch 2, and optimal learning rate scales with batch size.** Batch 2 is the MPS
+ceiling (§123); the reference recipe is batch 8 on CUDA. A smaller batch gives noisier gradients
+and wants a lower rate, so *this is the expected direction* and may say nothing about the
+shipped recipe. **`--lr 3e-4` is not shown to be wrong. It is shown to be wrong at batch 2.**
+
+**One seed per cell.** Task 39.28 already flags single-run arms as insufficient, and that
+applies here.
+
+**Still losing.** 0.1196 is below untuned logistic regression at 0.1614 and far below §118's
+batch-8 control at 0.1681. A +0.0243 gain inside a degraded regime does not recover the regime.
+
+### What follows, and what does not
+
+**Do not change the default.** Nothing here licenses that, and the checkpoints behind every
+published number were trained at batch 8 where the rate may be correct.
+
+**Run one LR sweep at the reference recipe.** This is the first item in Phase A to earn GPU
+budget: §123 priced a run, the arms already spent on 3e-4 are the expensive part, and the sweep
+is cheap beside them. If 1e-4 also wins at batch 8, every checkpoint this project has trained is
+under-optimised and §114's scale arms were measured on mis-tuned models. If it does not, the
+effect is a batch-size artifact and the default stands.
+
+### The methodological finding, which outranks both
+
+All four cells score **0.768 to 0.771 pooled AUC on held-out synthetic**, and 0.2124 to 0.2134
+final loss. The metric is flat across arms whose downstream AP spans 0.0952 to 0.1196.
+
+**The cheap screening signal cannot see an effect the credit panels measure at 5 of 5 folds.**
+That is now three failures of the same kind: §117 predicted the wrong sign downstream, §124's
+held-out score predicted the wrong sign, and here it sees nothing at all. Any arm this project
+screened on held-out synthetic and dropped before downstream evaluation is suspect, and the
+remaining Phase A items should be scored on the credit protocol directly rather than filtered
+cheaply first.

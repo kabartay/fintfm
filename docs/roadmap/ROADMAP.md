@@ -20,6 +20,12 @@ Proposals live in [`openspec/changes/`](../../openspec/changes/); the IDs below 
 Elo here is over the 27 binary datasets at one split each that §122 ran, not the public board.
 See `TABARENA_BAR.md` on why the two cannot be mixed.
 
+**Screen downstream, not on held-out synthetic.** All four cells of §126's factorial score
+0.768 to 0.771 pooled held-out AUC while their downstream AP spans 0.0952 to 0.1196. The cheap
+signal is blind to an effect the credit protocol resolves on 5 of 5 folds, and it has now
+mispredicted three times (§117, §124, §126). Score the arms below on the credit protocol
+directly; the screening step costs a run and buys nothing.
+
 **The calibration that matters:** §101 gained **+0.018 mean ROC-AUC and moved the rank by
 zero.** The standing deficit is about −0.035 uniform. Anything proposed below has to be sized
 against a multiple of that, not a fraction of it. A result that improves ROC-AUC and leaves the
@@ -51,8 +57,20 @@ committing to any architectural rewrite. **Exit condition for the phase: at leas
 rank by 3 or more positions.** If none does, the deficit is structural and Phase B is the only
 remaining move.
 
-1. **Depth at constant width.** Nori-6M is 16 layers at width 128; every scale-up here went
-   wide and lost. This is the one design axis never varied. Not currently queued; scope it.
+1. ~~**Depth at constant width.**~~ **Done, null.** §123 priced it, §124 ran it, §126 confirmed
+   it at a matched learning rate: depth contributes **+0.0010 AP** and the two tuned arms are
+   identical to four decimals. Nori's shape does not transfer here.
+
+   **It produced a better lead than itself.** Closing the learning-rate confound §124 recorded
+   showed `--lr 1e-4` worth **+0.0243 AP on 5 of 5 folds** at batch 2, twelve times the depth
+   effect (§126). That is not yet a reason to change a default, because optimal rate scales with
+   batch size and the reference recipe is batch 8.
+
+1b. **Sweep the learning rate at the reference recipe.** The first item here to earn GPU budget.
+   If 1e-4 also wins at batch 8, every checkpoint this project has trained is under-optimised
+   and §114's scale arms were measured on mis-tuned models. If it does not, the effect is a
+   batch-size artifact and the default stands. Either answer is worth more than the remaining
+   Phase A items, so it goes first.
 2. **Learnability filter on the prior** (48.5). Nori filters tasks a simple learner cannot fit.
    §112 measured this prior's distinctiveness as weak, so the filter is aimed at a known gap.
 3. **Cheap realism augmentations** (48.6): discretized features, noise, missingness. Published
