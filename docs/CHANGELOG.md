@@ -4,9 +4,36 @@ Hard-wrapped, because it is read in an editor and a diff. Release bodies on GitH
 **not** wrapped — they are read in a browser at full width. Same words, different shape; do
 not paste one into the other. See `CLAUDE.md`.
 
-## [Unreleased]
+## [0.5.0] — 2026-09-25
 
-Measuring the things this release declared, and finding that two of them do not hold.
+Measuring the things v0.4.0 declared, finding that two of them do not hold, and preparing the
+repository to be read by people other than its author.
+
+### Added
+
+- **The binary checkpoint is published**:
+  [kabartay/fintfm-binary](https://huggingface.co/kabartay/fintfm-binary), **Apache-2.0**,
+  chosen deliberately rather than inherited. Every published binary number was measured on it,
+  and a clean-room install was verified to download, fit and predict. The remaining checkpoints
+  stay private because this project has measured them as *worse* (§114, §116, §121).
+- **`fintfm-priorscore`** scores a *prior* rather than a model, on performance, diversity and
+  distinctiveness, from fitted baselines only — so it cannot confuse "the prior lacks this
+  structure" with "our model cannot learn it".
+- **A tree-structured prior** (`prior/tree.py`, `--p-tree`, off by default) and **SCM graph
+  re-targeting** (`--scm-reuse-graph`).
+- **Release, licence and documentation gates in CI**: a release workflow that re-runs every
+  check on the tagged commit and verifies tag = wheel = `CITATION.cff`; a dependency-licence
+  check; a documentation-link check; pre-commit hooks; `CITATION.cff`; `SECURITY.md`.
+
+### Changed
+
+- **`docs/` grouped into subfolders** — results, design, roadmap, competition, research, infra,
+  paper — with 234 references rewritten and 19 stale prose references fixed.
+- **Every function and class is documented and annotated.** An AST sweep found 47 missing
+  docstrings and six incomplete signatures; `CLAUDE.md`'s claim that nothing predated the
+  convention had quietly stopped being true.
+- **`FinancialTFMRegressor` is exported at the top level**, which it was not — an asymmetric
+  public API nobody had noticed because nothing imported it that way.
 
 ### Measured
 
