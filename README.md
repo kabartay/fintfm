@@ -360,10 +360,78 @@ model that arrives with its own validation evidence — calibrated, auditably fr
 contamination, and eventually backed by a pre-registered forward track record that cannot be
 bought — plus a public, self-correcting record of what has and has not been shown to be true.
 
+## Project structure
+
+```
+src/fintfm/
+  prior/         the synthetic data-generating processes: a structural model of company
+                 financials, a random-graph SCM, and the mixture that samples them
+  modeling/      the network and the pretraining loop
+  inference/     scikit-learn compatible estimators, plus the categorical target encoder
+  evaluation/    benchmark harnesses and baselines
+  experiments/   one module per measured question; each writes a numbered finding
+  configs/       packaged defaults, read at runtime by path
+
+docs/
+  results/       FINDINGS.md, the numbered measurement log this project is organised around,
+                 plus TABARENA.md and POSTMORTEM.md
+  paper/         CLAIMS.md (what holds, what was retracted), RELATED_WORK.md, LIMITATIONS.md
+  design/        ARCHITECTURE.md, DECISIONS.md, GLOSSARY.md
+  roadmap/       ROADMAP.md (what to do next), STRATEGY.md, NEXT.md, TABARENA_BAR.md
+  competition/   LANDSCAPE.md, SUBMISSION.md
+  infra/         COMPUTE.md, HF_JOBS.md
+  research/      REFERENCES.md, RESEARCH_NOTES.md
+
+openspec/changes/   one proposal per change, with its task list; the queue lives here
+scripts/            the repository's own gates: licence, documentation links, Zenodo metadata
+```
+
+**Read `docs/results/FINDINGS.md` first.** Every number quoted anywhere in this repository
+points at a numbered entry there stating how it was produced, and entries that were later
+retracted stay in place rather than being edited away.
+
+## Acknowledgements
+
+**No code, weights, or training data from any tabular foundation model was used here**; see
+[Licensing / provenance](#licensing--provenance). What follows is credit for what *was* used.
+
+- **[V4FinBench](https://github.com/genwro-ai/V4FinBench)** (Kostrzewa et al.,
+  [arXiv:2605.10896](https://arxiv.org/abs/2605.10896), CC BY 4.0) for the corporate-default
+  panel and its evaluation protocol, which this project reimplements from the published
+  specification rather than vendoring.
+- **[TabArena](https://tabarena.ai)** for the external protocol, and its maintainers for
+  reviewing the submission and confirming the integration and numbers are correct while
+  declining the entry on competitiveness (§122). That review is the only independent check this
+  project has had.
+- **The published work of TabPFN, TabICL, TabDPT, LimiX, Nori, MITRA, TabSTAR, TabSwift,
+  OrionMSP, iLTM, ConTextTab and EXAONE-Tabular**, read as literature. Several decisions here
+  were made or unmade on their *published numbers*: Nori's scaling curve capped a scale
+  hypothesis GPU budget was being spent on (§114), MITRA's three prior criteria shaped how the
+  prior is scored, and TabICLv2's tree prior was reimplemented from its appendix and then
+  measured as harmful for credit and dropped (§118).
+
+Reading a paper is not ingesting a codebase, and the distinction is enforced in `CLAUDE.md`.
+
 ## Citing
 
 A `CITATION.cff` is in the repository root, so GitHub's **"Cite this repository"** button
-renders BibTeX and APA directly.
+renders BibTeX and APA directly. The same entry, to copy:
+
+```bibtex
+@software{Organokov_FinTFM_2026,
+  author    = {Organokov, Mukharbek},
+  title     = {{FinTFM: a tabular foundation model for corporate credit risk,
+               pretrained only on synthetic data}},
+  year      = {2026},
+  version   = {0.5.5},
+  doi       = {10.5281/zenodo.22949759},
+  url       = {https://github.com/kabartay/fintfm},
+  publisher = {Zenodo},
+}
+```
+
+There is **no paper**; the numbered measurement log is this project's public record, so the
+software entry above is the citable artifact rather than a stand-in for one.
 
 Cite the **repository** for the method, the measurement log or any finding; cite the
 **checkpoint** ([kabartay/fintfm-binary](https://huggingface.co/kabartay/fintfm-binary)) when
