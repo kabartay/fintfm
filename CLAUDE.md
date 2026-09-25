@@ -179,9 +179,11 @@ gh release create vX.Y.Z --draft --target main --title "..." --notes-file notes.
 gh release edit vX.Y.Z --draft=false     # this is what fires Zenodo
 ```
 
-**A DOI is not minted until the records API says so.** Zenodo's interface lists a failed
-release as *received*, which is also the state a successful deposit passes through, and
-GitHub's delivery log shows `202` either way. Neither one can tell you it worked:
+**A DOI is not minted until the records API says so, and it can take hours.** Zenodo lists a
+queued release as *received*, which is also the state a failed one sits in, and GitHub's
+delivery log shows `202` either way. All five 0.5.x releases minted overnight, several hours
+after publication, during an announced backlog. So *received* means "not yet", not "broken",
+and the only way to know is to look:
 
 ```bash
 curl -s "https://zenodo.org/api/records?q=fintfm&all_versions=true" \

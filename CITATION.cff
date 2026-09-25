@@ -9,6 +9,13 @@ authors:
     email: mukharbek.organokov@gmail.com
     orcid: "https://orcid.org/0000-0002-3093-3456"
 repository-code: "https://github.com/kabartay/fintfm"
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.22949759
+    description: >-
+      The concept DOI, which always resolves to the newest version. Cite a version DOI
+      instead when the specific numbers matter, because this repository retracts and
+      supersedes results.
 url: "https://huggingface.co/kabartay/fintfm-binary"
 abstract: >-
   An in-context tabular classifier for corporate credit risk, pretrained

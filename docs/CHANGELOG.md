@@ -4,6 +4,37 @@ Hard-wrapped, because it is read in an editor and a diff. Release bodies on GitH
 **not** wrapped — they are read in a browser at full width. Same words, different shape; do
 not paste one into the other. See `CLAUDE.md`.
 
+## [Unreleased]
+
+### Fixed
+
+- **The Zenodo deposits were never broken, only queued.** All five releases minted DOIs
+  overnight, several hours after they were published. The concept DOI is
+  [10.5281/zenodo.22949759](https://doi.org/10.5281/zenodo.22949759) and each release has its
+  own.
+
+  Two real bugs were found and fixed on the way there, and both were worth fixing: an
+  invalidated webhook token in v0.5.1, and a capitalised licence identifier in v0.5.2 where
+  Zenodo requires lowercase SPDX. But the reason nothing appeared after those fixes was a
+  processing backlog, which Zenodo had announced as slowness from automated traffic.
+
+  **The diagnosis recorded in 0.5.4 was wrong.** It concluded the failure was specific to this
+  account, on the evidence that Zenodo was completing GitHub deposits for other repositories in
+  the same minutes. That observation was true and the inference from it was not: a queue can
+  drain unevenly, so other repositories completing says nothing about whether ours was stuck or
+  merely waiting. The correct reading was available and was not taken, which is the same error
+  as the retracted race diagnosis one release earlier: a mechanism that fits the evidence is not
+  the same as a mechanism the evidence establishes.
+
+  That `.zenodo.json` was worth having is visible in the result. v0.5.1 predates it and Zenodo
+  recorded its version as `vv0.5.1` from the tag; every later release carries the correct
+  version, title, keywords, licence and ORCID.
+
+### Added
+
+- The concept DOI in `CITATION.cff`, a DOI badge in `README.md`, and a note in the citing
+  section on when to cite a version DOI rather than the concept one.
+
 ## [0.5.5] — 2026-09-25
 
 The first release published to PyPI, and the packaging metadata corrected before that becomes

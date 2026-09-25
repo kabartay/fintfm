@@ -1,6 +1,7 @@
 # FinTFM
 
 [![PyPI](https://img.shields.io/pypi/v/fintfm?color=blue)](https://pypi.org/project/fintfm/)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22949759.svg)](https://doi.org/10.5281/zenodo.22949759)
 [![CI](https://github.com/kabartay/fintfm/actions/workflows/ci.yml/badge.svg)](https://github.com/kabartay/fintfm/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue.svg)](pyproject.toml)
@@ -368,6 +369,13 @@ Cite the **repository** for the method, the measurement log or any finding; cite
 **checkpoint** ([kabartay/fintfm-binary](https://huggingface.co/kabartay/fintfm-binary)) when
 the specific weights matter to what you are reporting. They are different artifacts and a
 reader can only check the one you name.
+
+Every release is archived on Zenodo with its own DOI. The **concept DOI**
+[10.5281/zenodo.22949759](https://doi.org/10.5281/zenodo.22949759) always resolves to the
+newest version; each release also has one of its own. That distinction is load-bearing here,
+because this repository retracts and supersedes results: §107 and §112 both withdrew earlier
+claims. Cite a **version** DOI to pin what you actually read, and the **concept** DOI to point
+at current state.
 
 ## Contributing, and what cannot come in
 
