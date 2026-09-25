@@ -404,11 +404,20 @@ retracted stay in place rather than being edited away.
   declining the entry on competitiveness (§122). That review is the only independent check this
   project has had.
 - **The published work of TabPFN, TabICL, TabDPT, LimiX, Nori, MITRA, TabSTAR, TabSwift,
-  OrionMSP, iLTM, ConTextTab and EXAONE-Tabular**, read as literature. Several decisions here
-  were made or unmade on their *published numbers*: Nori's scaling curve capped a scale
-  hypothesis GPU budget was being spent on (§114), MITRA's three prior criteria shaped how the
-  prior is scored, and TabICLv2's tree prior was reimplemented from its appendix and then
-  measured as harmful for credit and dropped (§118).
+  OrionMSP, iLTM, ConTextTab and EXAONE-Tabular** — for **ideas**, which this project took
+  freely and then measured:
+
+  | idea | from | what happened |
+  | --- | --- | --- |
+  | three criteria for scoring a prior: performance, diversity, distinctiveness | MITRA | built into `fintfm-priorscore`; §112 then measured this prior's distinctiveness as weak |
+  | a tree-structured prior | TabICLv2, reimplemented from its appendix | **+0.0094** on general tabular data, **−0.0221 AP** on credit; ships off (§118) |
+  | published scaling curve | Nori | capped a scale hypothesis GPU budget was being spent on, before more was spent (§114) |
+  | rejecting unlearnable synthetic tasks | Nori | measured: would reject 35% of this prior, and discards signal the model uses (§125) |
+  | narrow-and-deep shape, 16 layers at width 128 | Nori | measured: null here, +0.0010 AP (§124, §126) |
+
+  Four of those five ideas were measured and **not** adopted. That is the point of taking them:
+  a published result from a different prior and architecture is a hypothesis about this one, not
+  a conclusion about it.
 
 Reading a paper is not ingesting a codebase, and the distinction is enforced in `CLAUDE.md`.
 
