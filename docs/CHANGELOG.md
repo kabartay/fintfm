@@ -4,6 +4,19 @@ Hard-wrapped, because it is read in an editor and a diff. Release bodies on GitH
 **not** wrapped — they are read in a browser at full width. Same words, different shape; do
 not paste one into the other. See `CLAUDE.md`.
 
+## [0.5.1] — 2026-09-25
+
+Archival release. Zenodo's GitHub integration only archives releases published *after* its
+webhook is enabled, so v0.5.0 could not be caught retroactively and this tag exists to trigger
+the first deposit. No code changes.
+
+### Added
+
+- **A Zenodo DOI**, minted from this release. The **concept DOI** always resolves to the newest
+  version; each release also gets its own. That distinction matters for a repository whose
+  numbers change — §107 and §112 both retracted claims — so a reader citing a specific version
+  gets what they actually read, and one citing the concept DOI gets current state.
+
 ## [0.5.0] — 2026-09-25
 
 Measuring the things v0.4.0 declared, finding that two of them do not hold, and preparing the
