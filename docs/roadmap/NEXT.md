@@ -15,6 +15,14 @@ one item often discovers two, and that is the queue working.
 
 ---
 
+## Tier 0 — superseded 2026-09-25 by ROADMAP.md
+
+[`ROADMAP.md`](ROADMAP.md) is the ordering now. TabArena reviewed the submission, confirmed the
+integration correct, and declined it on competitiveness (§122), which replaced the guess about
+what matters with a stated bar. Items 1 and 3 below have since landed (§101, §121); items 2 and
+4 survive as ROADMAP items 2 and 9-14. The tier reasoning is kept because it records why the
+order was what it was.
+
 ## Tier 0 — reordered 2026-09-20, after the first external measurement
 
 §98 placed the project 93rd of 95 on TabArena and §100 decomposed that result. The queue now
