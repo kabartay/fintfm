@@ -8401,3 +8401,196 @@ run that could not be listed.
   TabArena-protocol numbers may be used to assess the model. "94 of 95 under the official
   protocol, integration confirmed correct by a maintainer" is a stronger and more checkable
   statement than this repository could make on its own.
+
+## §123 — Depth is free at production feature counts, because the per-cell encoder dominates
+
+**How these numbers were produced.** MEASURED. Forward plus backward plus optimiser step,
+timed on MPS at `d_cell=48, d_model=128, n_col_layers=2, n_cell_blocks=1, cell_labels=True`,
+three timed repetitions after two warm-up steps, `torch.mps.synchronize()` around the timing.
+Cost model written **before** the pretraining run it authorises, which is the discipline §119
+and §120 exist to enforce.
+
+### The measurement
+
+Step time at `B=2, N=512`, varying the feature count:
+
+| features | L=4 | L=16 | cost of 4x the depth |
+| --- | --- | --- | --- |
+| 8 | 24 ms | 45 ms | **1.89x** |
+| 24 | 50 ms | 75 ms | 1.52x |
+| 64 | 153 ms | 183 ms | 1.19x |
+| **136** (production) | 378 ms | 381 ms | **1.01x** |
+
+Parameters over the same depths, at `d_model=128`: 885,458 at L=4 (the published checkpoint's
+shape), 1,678,546 at L=8, 2,471,634 at L=12, 3,264,722 at L=16.
+
+### What it means
+
+**Going from 4 row-attention layers to 16 costs 3.7x the parameters and 1% of the step time.**
+At production width the cost is dominated by the per-cell encoder, which runs over `B x N x F`
+cells and is unchanged by row-layer depth. The row layers are a rounding error next to it.
+
+The first version of this probe used `F=32` and reported 1.90x, which would have priced a
+depth experiment at nearly double. That number is real and it is the wrong one: it describes a
+regime this model does not run in. Extrapolating it would have been §120 again, a line fitted
+where the system is not linear.
+
+### Why this matters for the roadmap
+
+`docs/roadmap/ROADMAP.md` item 1 is depth at constant width, on the grounds that Nori-6M is 16
+layers at width 128 while every scale-up here went wide and lost. That item was ranked first on
+evidence, not cost. It turns out to be nearly free as well, so there is no argument for
+deferring it.
+
+It also reframes §114. Scale was closed on three lines, but every arm there varied **width or
+data**, not depth at fixed width. Depth was never priced, and had it been, it would have been
+the cheapest axis available throughout.
+
+### The end-to-end cost is 1.16x, not 1.01x
+
+The table above times one fixed-size step. A real run varies `n_rows` over 256/512 and samples
+the prior between steps, and neither scales with row-layer depth. Measured wall clock for 6,000
+steps: **1,016 s at L=4 against 1,174 s at L=16**, so depth costs **16%** end to end rather than
+1%.
+
+Both numbers are right about what they measure and the 1% one is the misleading one to quote.
+Recorded here so the next person reads the cost of a *run*, not the cost of a *step*.
+
+### The local ceiling, recorded because it bounds every experiment here
+
+The reference recipe's `--batch-size 8 --n-rows 1024 --max-features 136` **cannot run on MPS**:
+`NotImplementedError: MPS all_reduction: tensors requiring 64-bit indexing are not supported
+(numel=4,563,402,752)`. `B=2, N=512, F=136` fits. So local arms are internally comparable to
+each other and **not** comparable to the published checkpoint, which was trained at batch 8 on
+CUDA. Any local result is a direction to escalate, never a number to publish.
+
+## §124 — Depth at constant width is null, and the held-out score predicted the wrong sign again
+
+**How these numbers were produced.** MEASURED. Two checkpoints, `n_layers` 4 against 16 at
+`d_model=128`, matched on everything else including seed: 6,000 steps, batch 2, `n_rows`
+256/512, `max_features=136`, `p_financial=1.0`, MPS. Scored with `fintfm-v4protocol
+--no-boosting` at horizon 0 on the published five-fold protocol, 1,000,087 rows at 0.359%
+positive, then a row-level paired bootstrap at 2,000 resamples per fold with Holm correction.
+
+`docs/roadmap/ROADMAP.md` ranked this first because Nori-6M is 16 layers at width 128 while
+every scale-up here went wide and lost, and because §123 priced it at 16% of a run.
+
+### Held-out synthetic said one thing
+
+12 paired evaluation points during training, same seed, same points:
+
+| metric | L=4 | L=16 | delta | L=16 better on |
+| --- | --- | --- | --- | --- |
+| AUC/task | 0.6339 | 0.6276 | −0.0063 | 4 of 12 |
+| AUC pooled | 0.7804 | 0.7772 | −0.0032 | **0 of 12** |
+| Brier skill | 0.1065 | 0.0997 | −0.0068 | 1 of 12 |
+
+Final training loss was identical (0.2124 against 0.2126) on 3.7x the parameters. Read alone,
+this is a clean negative, significant on two of three metrics.
+
+### Real credit data said the opposite
+
+| fold | L=4 AP | L=16 AP | ΔAP | Holm p |
+| --- | --- | --- | --- | --- |
+| 0 | 0.1037 | 0.1008 | −0.0029 | 0.056 |
+| 1 | 0.0911 | 0.0945 | +0.0034 | 0.030 * |
+| 2 | 0.0787 | 0.0852 | **+0.0065** | 0.000 * |
+| 3 | 0.1211 | 0.1141 | **−0.0070** | 0.000 * |
+| 4 | 0.0817 | 0.0912 | **+0.0095** | 0.000 * |
+| **mean** | **0.0952** | **0.0972** | **+0.0019** | |
+
+**This is §117 to §118 again.** A prior-side score predicted the downstream sign and got it
+wrong. Stopping at the held-out numbers would have produced "depth hurts" in writing, and the
+credit panels say the opposite, weakly.
+
+### The conclusion is null, and the significance column is why that needs saying
+
+Four of five folds reach significance after Holm correction and **they disagree in sign**: two
+say depth helps significantly, one says it hurts significantly. That is not a direction. It is
+fold-to-fold variance exceeding the consistent effect, and at 200,000 rows per fold a row-level
+bootstrap will certify nearly any difference. **Significance at row level is not a reproducible
+effect**, and a mean of +0.0019 against a −0.035 deficit would not move rank even if its sign
+were stable: §101 gained +0.018 and moved the rank by zero.
+
+### What this does not establish
+
+Two limits, both real.
+
+**The learning rate was not varied.** `--lr` defaults to a flat 3e-4 and nothing in the model
+scales initialisation by depth, so the 16-layer arm ran at settings tuned for 4 layers.
+Identical loss on 3.7x the parameters is what capacity-present-but-not-exploited looks like. The
+claim this run supports is "depth does not help **at the learning rate and initialisation tuned
+for depth 4**", and arms at 1e-4 and 5e-5 follow.
+
+**The operating point is degraded.** Batch 2 is the MPS ceiling (§123), and the L=4 control
+scores AP 0.0952 where §118's batch-8 control on CUDA scored 0.1681, below untuned logistic
+regression at 0.1614 rather than above it. A null measured here is weaker evidence than a null
+at the reference recipe.
+
+### A defect found in the analysis, not the model
+
+The first version of the bootstrap counted ties as losses, so `2 * min(wins, R - wins) / R`
+returned **p = 0.000 for two identical arms**. It was caught by self-testing the script on L=4
+against itself before trusting it, which is the only reason a null result did not ship as a
+confident one. Ties are now split between the tails, and the self-test returns ΔAP 0.0000 at
+p = 1.000.
+
+## §125 — A learnability filter would reject a third of the prior, and discard signal the model uses
+
+**How these numbers were produced.** MEASURED. Tasks drawn from `PriorConfig` at
+`max_features=136, n_rows=512`, split 70/30 within each task, an `ExtraTreesClassifier` (50
+trees) fitted on the first part and scored on the second. 200 tasks per prior for the rejection
+rates; 420 draws yielding 275 binary tasks for the model comparison, where the published
+checkpoint `v4-cellattn-labels.pt` was given the same split and scored the same rows.
+
+Task 48.5 asks for this and states the expected outcome: "if the rejection rate is near zero the
+filter is inert here and that is the finding." It is not near zero.
+
+### The filter would bite hard
+
+| prior | degenerate | unscorable | reject at AUC <= 0.51 | <= 0.55 | <= 0.60 |
+| --- | --- | --- | --- | --- | --- |
+| financial only | 9.0% | 0.0% | **30.0%** | 33.5% | 42.0% |
+| **production mix, 0.7/0.3** | **13.5%** | 6.5% | **35.0%** | 40.5% | 46.5% |
+| SCM only | 4.5% | 15.0% | 35.5% | 45.0% | 51.0% |
+
+**Over a third of the production prior's tasks carry no signal an ExtraTrees can find**, and a
+fifth are single-class or unscorable outright. On the face of it that is a third of pretraining
+compute spent on noise.
+
+### But the rejected tasks are not empty
+
+The same tasks, scored by the model rather than by the filter:
+
+| subset | n | ExtraTrees | FinTFM |
+| --- | --- | --- | --- |
+| all binary tasks | 275 | 0.690 | **0.715** |
+| filter would **reject** (ET <= 0.51) | 54 | 0.392 | **0.520** |
+| filter would keep | 221 | 0.763 | 0.763 |
+
+On the tasks the filter would throw away, the model scores 0.520 against the filter's 0.392,
+and exceeds 0.55 on **27 of 54**. On the tasks the filter would keep, the two are identical to
+three decimals.
+
+**ExtraTrees is a poor judge of what this model can extract.** Where it succeeds it is
+interchangeable with the model; where it fails, the model still finds something about half the
+time. A Nori-style filter with this judge would discard training signal, which is evidence for
+§42's decision to *span* difficulty rather than filter it.
+
+### What this does not establish, which is the part that matters
+
+This measures whether the **trained** model can score a task, not whether **training on** that
+task helped produce the model that scores it. A task the model already handles does not need to
+be in the mixture. The two are different claims and only the second decides 48.5.
+
+So the decisive experiment is unchanged and is the one 48.5 specifies: a checkpoint trained with
+filtering against one without, on matched seeds. What is established here is that the experiment
+is worth running, because the filter is far from inert, and that the naive version of it is not
+obviously safe.
+
+### Why this ranks above depth now
+
+§124 measured depth as null at +0.0019 ΔAP with folds disagreeing in sign. This axis touches a
+third of the training distribution and its two candidate answers, filter or span, predict
+opposite treatments of that third. It is the larger lever of the two, and `docs/roadmap/ROADMAP.md`
+already ranks it second in Phase A.

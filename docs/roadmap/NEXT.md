@@ -19,8 +19,8 @@ one item often discovers two, and that is the queue working.
 
 [`ROADMAP.md`](ROADMAP.md) is the ordering now. TabArena reviewed the submission, confirmed the
 integration correct, and declined it on competitiveness (§122), which replaced the guess about
-what matters with a stated bar. Items 1 and 3 below have since landed (§101, §121); items 2 and
-4 survive as ROADMAP items 2 and 9-14. The tier reasoning is kept because it records why the
+what matters with a stated bar. Items 1 and 3 below have since landed (§101, §121),
+item 2 was closed by §104 (the curve peaks at 16), and item 4 survives as ROADMAP items 8-13. The tier reasoning is kept because it records why the
 order was what it was.
 
 ## Tier 0 — reordered 2026-09-20, after the first external measurement
