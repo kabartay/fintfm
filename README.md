@@ -6,7 +6,7 @@
 [![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue.svg)](pyproject.toml)
 [![Checkpoint](https://img.shields.io/badge/%F0%9F%A4%97%20weights-fintfm--binary-yellow)](https://huggingface.co/kabartay/fintfm-binary)
-[![TabArena](https://img.shields.io/badge/TabArena-93rd%20of%2095-critical)](docs/results/TABARENA.md)
+[![TabArena](https://img.shields.io/badge/TabArena-94th%20of%2095-critical)](docs/results/TABARENA.md)
 
 **A tabular foundation model for corporate credit risk, built from scratch and measured in
 public.**
@@ -44,7 +44,7 @@ financial tables, and to say honestly where it currently is not.
 
 | | |
 | --- | --- |
-| **External benchmark** | [TabArena](https://tabarena.ai), 27 binary datasets against 94 other methods: **rank 93 of 95** |
+| **External benchmark** | [TabArena](https://tabarena.ai), 27 binary datasets against 94 other methods: **rank 94 of 95**, integration confirmed correct by a maintainer and the entry declined on competitiveness (§122) |
 | **On real credit panels** | calibration consistently among the best measured; discrimination consistently loses to tuned gradient boosting — both, on every panel tried |
 | **Licence** | Apache-2.0, **code and weights** — chosen separately, not inherited (see [Licensing](#licensing--provenance)) |
 | **Checkpoint** | [kabartay/fintfm-binary](https://huggingface.co/kabartay/fintfm-binary) — 885K, binary, ≤136 features |

@@ -3,7 +3,13 @@
 External evaluation, under someone else's protocol, against 94 other methods. This file is
 the reproduction recipe and the list of things that cost a run.
 
-**Result: 93rd of 95.** §98 first measured mean ROC-AUC **0.7642** over 26 of 27 eligible
+**Result: 94th of 95.** §122 measured mean ROC-AUC **0.7823** over all 27 eligible datasets
+with zero failures, against `fintfm==0.5.5` from PyPI and the published checkpoint. The
+submission was reviewed by a TabArena collaborator, who confirmed the integration and the
+numbers are correct and declined the entry because it does not meet the leaderboard's
+competitiveness requirement.
+
+Earlier runs reported 93rd. §98 first measured mean ROC-AUC **0.7642** over 26 of 27 eligible
 datasets; §100 located most of that deficit in categorical preprocessing rather than
 architecture, and §101's fix lifted the mean to **0.7823** with the rank unchanged. Every
 binary arm since has landed between 0.7746 and 0.7926, and none has moved the rank.

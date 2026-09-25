@@ -24,7 +24,7 @@ abstract: >-
   steps at fit time and no per-dataset tuning. The repository is organised around
   a numbered measurement log and a claims ledger that records retractions and
   superseded results as prominently as confirmations. Measured externally on
-  TabArena it places 93rd of 95; on real corporate-default panels its calibration
+  TabArena it places 94th of 95; on real corporate-default panels its calibration
   is consistently among the best measured while its discrimination consistently
   loses to tuned gradient boosting. Both facts are reported together.
 keywords:

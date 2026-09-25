@@ -1,7 +1,7 @@
 {
   "upload_type": "software",
   "title": "FinTFM: a tabular foundation model for corporate credit risk, pretrained only on synthetic data",
-  "description": "<p>An in-context tabular classifier for corporate credit risk, pretrained exclusively on synthetic data and never on real tables. Prediction is a single forward pass with the user's table supplied as context; there are no gradient steps at fit time and no per-dataset tuning.</p><p>The repository is organised around a numbered measurement log and a claims ledger that record retractions and superseded results as prominently as confirmations. Measured externally on TabArena it places 93rd of 95; on real corporate-default panels its calibration is consistently among the best measured while its discrimination consistently loses to tuned gradient boosting. Both facts are reported together.</p><p>Code and the published binary checkpoint are Apache-2.0.</p>",
+  "description": "<p>An in-context tabular classifier for corporate credit risk, pretrained exclusively on synthetic data and never on real tables. Prediction is a single forward pass with the user's table supplied as context; there are no gradient steps at fit time and no per-dataset tuning.</p><p>The repository is organised around a numbered measurement log and a claims ledger that record retractions and superseded results as prominently as confirmations. Measured externally on TabArena it places 94th of 95; on real corporate-default panels its calibration is consistently among the best measured while its discrimination consistently loses to tuned gradient boosting. Both facts are reported together.</p><p>Code and the published binary checkpoint are Apache-2.0.</p>",
   "creators": [
     {
       "name": "Organokov, Mukharbek",

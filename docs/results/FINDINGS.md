@@ -8335,3 +8335,69 @@ attached instead of an assumption.
 no timeouts, correct units, plausible magnitudes — and both are last. An integration test and a
 capability claim are different things, and §106 established only the first while reading as
 though it established the second.
+
+## §122 — TabArena reviewed the submission, confirmed it correct, and declined it on competitiveness
+
+**How these numbers were produced.** MEASURED, then EXTERNALLY REVIEWED. `run_fintfm_lite.py
+--full` against `fintfm==0.5.5` installed from PyPI and the published checkpoint pinned at
+commit `f116bfd4`, with no local checkpoint path, so the run is reproducible from artifacts
+anyone can fetch. Submitted as
+[autogluon/tabarena#616](https://github.com/autogluon/tabarena/pull/616) on 2026-09-25 and
+reviewed the same day by a TabArena collaborator.
+
+### The run
+
+| | |
+| --- | --- |
+| datasets | **27 of 27** eligible, zero failures, no `TimeLimitExceeded` |
+| mean ROC-AUC | **0.7823** |
+| rank | **94 of 95** |
+| Elo | 764.6, win rate 0.074 |
+| median fit / predict | 71.4 s / 35.9 s |
+
+**The rank is 94, not the 93 this repository had been publishing.** The mean ROC-AUC is
+identical to §101's 0.7823, so the model has not changed; the board has. §98's 93 was measured
+over 26 of 27 datasets against an earlier snapshot. The number to quote is **94 of 95**, and
+the one place it is still worth quoting is that it sits below every linear and nearest-neighbour
+baseline.
+
+### What the review confirmed
+
+> "Based on the submission's code and numbers you shared, I think everything is correct. So,
+> from a submission and model perspective, everything looks reasonable to me."
+
+This is the first external check of the integration and the protocol, and it passed. It is
+worth more than the same claim made here, because it was not made here.
+
+### What the review rejected, and why it is right
+
+**The binary-only declaration is not eligible.** §121 excluded multiclass and regression because
+both were measured as ranking last, and §106's capability caps excluded three more datasets. The
+reviewer's response was that excluding datasets a model does poorly on is cherry-picking,
+whatever the reasoning behind it.
+
+That is correct, and the reasoning in §121 does not survive it. The argument there was that
+declaring a capability measured as worse would publish a claim the numbers do not support. But
+the binary arm ranks 94 of 95 and was declared anyway, so the principle was not applied evenly:
+what actually distinguished the arms was that binary was the least bad. A rule that admits your
+best arm and excludes your worst is a selection rule, not a capability rule, however it was
+arrived at.
+
+**Competitiveness is a submission requirement.** TabArena requires a minimum standard for
+leaderboard entries, following its own paper, and a model that loses to a tuned KNN does not
+meet it. The submission was withdrawn rather than have the maintainers spend cluster time on a
+run that could not be listed.
+
+### What this changes
+
+- **Any future submission needs all 51 datasets**, which means the multiclass and regression
+  checkpoints and a checkpoint above 1776 features (`Bioresponse`). Coverage is a precondition,
+  not a variable to optimise.
+- **Coverage is necessary and nowhere near sufficient.** The binding constraint is the one
+  §114 and §121 already located: a uniform deficit that scale does not close. Passing
+  `Linear (default)` at Elo 936 from 765 is the first milestone, and nothing currently queued
+  is sized for it.
+- **The external number stands even though the listing does not.** The reviewer confirmed the
+  TabArena-protocol numbers may be used to assess the model. "94 of 95 under the official
+  protocol, integration confirmed correct by a maintainer" is a stronger and more checkable
+  statement than this repository could make on its own.
