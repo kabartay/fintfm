@@ -1,5 +1,6 @@
 # FinTFM
 
+[![PyPI](https://img.shields.io/pypi/v/fintfm?color=blue)](https://pypi.org/project/fintfm/)
 [![CI](https://github.com/kabartay/fintfm/actions/workflows/ci.yml/badge.svg)](https://github.com/kabartay/fintfm/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue.svg)](pyproject.toml)
@@ -165,6 +166,24 @@ domain where a model must arrive with its own validation evidence, that is the d
    learn it". Its first version could, and §112 is the record of what that cost.
 
 ## Quickstart
+
+```bash
+pip install fintfm
+```
+
+The published checkpoint is Apache-2.0 and ungated, so nothing else is needed to predict:
+
+```python
+from huggingface_hub import hf_hub_download
+
+ckpt = hf_hub_download(
+    "kabartay/fintfm-binary",
+    "v4-cellattn-labels.pt",
+    revision="f116bfd43a2b15c65ed3551ea8c38e3364629ddc",  # pin it; weights behind a number should not move
+)
+```
+
+To work on the model rather than use it, clone the repository instead:
 
 ```bash
 uv sync --extra bench --extra hf   # naming one extra uninstalls the others
