@@ -471,6 +471,18 @@ The general form, worth keeping when the specific benchmarks change: **when two 
 disagree, the one you optimised against is the one you should distrust**, and the cheap one is
 almost always the one you optimised against.
 
+## Never test against `main`, and never on a public repository
+
+On 2026-09-25 a branch ruleset was enabled and then verified by pushing an **empty commit
+named `probe`** to `main` to see whether direct pushes still worked. They did. The commit is
+now permanent in public history, because the same ruleset blocks the force-push that would
+remove it — the protection worked exactly as designed, against its author, within a minute of
+being created.
+
+Test a ruleset on a throwaway branch (`git push origin HEAD:refs/heads/probe-delete-me`), read
+the rule's own documentation, or accept not knowing. A repository that other people can clone
+is not a place to find out what a setting does.
+
 ## Install the pre-commit hook, once per clone
 
 ```bash
