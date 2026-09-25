@@ -4,6 +4,32 @@ Hard-wrapped, because it is read in an editor and a diff. Release bodies on GitH
 **not** wrapped — they are read in a browser at full width. Same words, different shape; do
 not paste one into the other. See `CLAUDE.md`.
 
+## [0.5.5] — 2026-09-25
+
+The first release published to PyPI, and the packaging metadata corrected before that becomes
+permanent.
+
+### Added
+
+- **Publication to PyPI**, so `pip install fintfm` works and a dependent can pin an exact
+  version. This is what TabArena's submission checklist requires of a dependency: an exact pin
+  to a PyPI version or a git commit, with no vendored code.
+- **Trusted Publishing** rather than a stored API token. PyPI verifies a short-lived OIDC token
+  issued to the release workflow, so there is no credential in this repository to leak or
+  rotate. The publish job runs only after every gate in the build job has passed, because an
+  upload cannot be undone: a version number is spent permanently, and yanking hides a release
+  without freeing its number.
+- **`[project.urls]`**, so the PyPI page links back to the repository, the changelog, the
+  checkpoint and the measurement log. Without them the page is a dead end.
+
+### Fixed
+
+- **The Python classifier contradicted `requires-python`.** It advertised 3.13 alone while the
+  floor is 3.12. The floor was lowered deliberately, and at a cost: the comment above it
+  records that a GPU probe failed because the standard CUDA images ship Python 3.12.3 and
+  `pip install fintfm` refused them. The classifier still described the behaviour that fix was
+  meant to remove, and now lists both versions.
+
 ## [0.5.4] — 2026-09-25
 
 No code changes. This release ships the repository's own machinery and, more importantly,

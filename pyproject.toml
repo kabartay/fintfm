@@ -1,6 +1,6 @@
 [project]
 name = "fintfm"
-version = "0.5.4"
+version = "0.5.5"
 description = "A tabular foundation model for financial risk — pretrained on synthetic company financials, so it predicts credit default with no training on your data"
 readme = "README.md"
 authors = [
@@ -17,6 +17,7 @@ classifiers = [
     "Development Status :: 2 - Pre-Alpha",
     "Intended Audience :: Financial and Insurance Industry",
     "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Typing :: Typed",
@@ -56,6 +57,13 @@ kaggle = [
     "kagglehub>=0.3",
     "pyarrow>=17",
 ]
+
+[project.urls]
+Homepage = "https://github.com/kabartay/fintfm"
+Repository = "https://github.com/kabartay/fintfm"
+Changelog = "https://github.com/kabartay/fintfm/blob/main/docs/CHANGELOG.md"
+Checkpoint = "https://huggingface.co/kabartay/fintfm-binary"
+"Measurement log" = "https://github.com/kabartay/fintfm/blob/main/docs/results/FINDINGS.md"
 
 [project.scripts]
 fintfm-train = "fintfm.modeling.train:main"
