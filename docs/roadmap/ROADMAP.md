@@ -23,8 +23,9 @@ See `TABARENA_BAR.md` on why the two cannot be mixed.
 **Screen downstream, not on held-out synthetic.** All four cells of §126's factorial score
 0.768 to 0.771 pooled held-out AUC while their downstream AP spans 0.0952 to 0.1196. The cheap
 signal is blind to an effect the credit protocol resolves on 5 of 5 folds, and it has now
-mispredicted three times (§117, §124, §126). Score the arms below on the credit protocol
-directly; the screening step costs a run and buys nothing.
+mispredicted three times (§117, §124, §126) and called one correctly (§127). Score the arms
+below on the credit protocol directly; at one for four the screening step is not worth the run
+it costs, though it is not worthless either.
 
 **The calibration that matters:** §101 gained **+0.018 mean ROC-AUC and moved the rank by
 zero.** The standing deficit is about −0.035 uniform. Anything proposed below has to be sized
@@ -66,11 +67,10 @@ remaining move.
    effect (§126). That is not yet a reason to change a default, because optimal rate scales with
    batch size and the reference recipe is batch 8.
 
-1b. **Sweep the learning rate at the reference recipe.** The first item here to earn GPU budget.
-   If 1e-4 also wins at batch 8, every checkpoint this project has trained is under-optimised
-   and §114's scale arms were measured on mis-tuned models. If it does not, the effect is a
-   batch-size artifact and the default stands. Either answer is worth more than the remaining
-   Phase A items, so it goes first.
+1b. ~~**Sweep the learning rate at the reference recipe.**~~ **Done, the default stands.** §127
+   ran both arms at batch 8 for about $2.80: `3e-4` wins on 5 of 5 folds, so §126's result is a
+   batch-size artifact. §114's scale arms were not measured on mis-tuned models and the
+   published checkpoints are not under-optimised. Nothing changes.
 2. **Learnability filter on the prior** (48.5). Nori filters tasks a simple learner cannot fit.
    §112 measured this prior's distinctiveness as weak, so the filter is aimed at a known gap.
 3. **Cheap realism augmentations** (48.6): discretized features, noise, missingness. Published

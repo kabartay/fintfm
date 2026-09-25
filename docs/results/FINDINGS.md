@@ -8607,6 +8607,11 @@ already ranks it second in Phase A.
 
 ## §126 — The depth null was mis-tuned: at batch 2 the default learning rate costs +0.0243 AP
 
+> **Resolved by §127: this is a batch-size artifact and the default is correct.** At the
+> reference recipe (batch 8) `3e-4` wins on 5 of 5 folds. The depth conclusion below stands;
+> the learning-rate result holds only at batch 2, which is the constraint this entry
+> recorded and §127 tested.
+
 **How these numbers were produced.** MEASURED. A 2x2 over `n_layers` {4, 16} and `--lr`
 {3e-4, 1e-4}, everything else matched including seed: `d_model=128`, 6,000 steps, batch 2,
 `n_rows` 256/512, `max_features=136`, `p_financial=1.0`, MPS. Each cell scored with
@@ -8688,3 +8693,66 @@ held-out score predicted the wrong sign, and here it sees nothing at all. Any ar
 screened on held-out synthetic and dropped before downstream evaluation is suspect, and the
 remaining Phase A items should be scored on the credit protocol directly rather than filtered
 cheaply first.
+
+## §127 — At the reference recipe the default learning rate wins: §126 was a batch-size artifact
+
+**How these numbers were produced.** MEASURED. Two HF Jobs runs on `l4x1`, 1h 42m and 1h 43m,
+at the recipe that produced the published checkpoint: `--batch-size 8 --n-rows-choices
+256,512,1024 --d-cell 48 --d-model 128 --n-layers 4 --n-col-layers 2 --n-cell-blocks 1
+--cell-labels --column-id-dim 16 --feature-chunk 8 --max-features 136 --p-financial 1.0`, 6,000
+steps, seed 0, CUDA. Identical in every respect except `--lr`. Scored with `fintfm-v4protocol
+--no-boosting` at horizon 0, five folds, 1,000,087 rows at 0.359% positive, then a row-level
+paired bootstrap, 2,000 resamples per fold, Holm-corrected. Cost about $2.80.
+
+§126 measured `--lr 1e-4` as worth **+0.0243 AP on 5 of 5 folds** at batch 2 and attached a
+constraint: optimal learning rate scales with batch size, batch 2 was the MPS ceiling, and the
+result might not survive the reference recipe. This run tested that.
+
+### It did not survive, and the sign reverses
+
+| fold | 3e-4 | 1e-4 | ΔAP | Holm p |
+| --- | --- | --- | --- | --- |
+| 0 | 0.2089 | 0.1956 | −0.0133 | 0.004 * |
+| 1 | 0.2025 | 0.1791 | −0.0234 | 0.000 * |
+| 2 | 0.1789 | 0.1735 | −0.0054 | 0.228 |
+| 3 | 0.1757 | 0.1682 | −0.0075 | 0.228 |
+| 4 | 0.2124 | 0.2042 | −0.0082 | 0.168 |
+| **mean** | **0.1957** | **0.1841** | **−0.0116** | |
+
+**`1e-4` is behind on 5 of 5 folds**, significantly so on 2 after Holm correction.
+
+| batch size | winner | margin | folds |
+| --- | --- | --- | --- |
+| 2 (MPS ceiling, §126) | 1e-4 | +0.0243 | 5 of 5 |
+| **8 (reference recipe)** | **3e-4** | **+0.0116** | **5 of 5** |
+
+**The shipped default is correct and nothing changes.** §114's scale arms were not measured on
+mis-tuned models, and the published checkpoints are not under-optimised. The constraint recorded
+in §126 was the one that mattered, and writing it down is what made this a cheap question rather
+than a wrong conclusion.
+
+### What the reference recipe is worth
+
+| arm | AP | ROC-AUC |
+| --- | --- | --- |
+| **this run, 3e-4** | **0.1957** | 0.9882 |
+| this run, 1e-4 | 0.1841 | 0.9876 |
+| §118 control (0.7 financial / 0.3 SCM) | 0.1681 | 0.9856 |
+| logistic regression, untuned | 0.1614 | 0.9839 |
+| §126's best batch-2 arm | 0.1196 | — |
+
+Batch 2 was costing roughly **0.08 AP**, which dwarfs every effect measured against it today.
+Local arms remain internally comparable and externally meaningless, exactly as §123 said.
+
+**The 0.1957 against §118's 0.1681 is not a clean comparison.** This run used
+`--p-financial 1.0` from the HF Jobs recipe while §118's control used 0.7/0.3, so prior mixture
+and learning rate both differ. It is *consistent* with §118's direction, where shifting toward
+the SCM prior cost −0.0339, but a matched run is needed before claiming the financial-only prior
+is better.
+
+### The screening metric was right this time
+
+Held-out pooled AUC at batch 8 ranked 3e-4 above 1e-4 (0.878 against 0.866) and the credit
+protocol agreed. That is **one correct call in four**: wrong sign in §117, wrong sign in §124,
+blind in §126, right here. Not enough to restore it as a screening signal, and enough to stop
+`docs/roadmap/ROADMAP.md` describing it as uniformly useless.
