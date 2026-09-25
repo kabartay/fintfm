@@ -76,14 +76,22 @@ jobs:
         run: uv run python scripts/check_zenodo_metadata.py
 
       # **Non-blocking, deliberately.** `py.typed` is shipped and every signature is annotated,
-      # but a check on 2026-09-25 found 40 diagnostics in 64 places, nearly all in this
-      # repository's own code — so the hints are present and not yet sound. Gating on it today
-      # would fail every push, and a gate that always fails is one people learn to bypass.
+      # but `ty` found 41 diagnostics on 2026-09-25, nearly all in this repository's own code —
+      # so the hints are present and not yet sound. Gating on it today would fail every push,
+      # and a gate that always fails is one people learn to bypass.
       # It runs so the count is visible and can be driven down; make it blocking when it hits
       # zero, not before.
+      #
+      # `continue-on-error` keeps the run green but still posts a red annotation, which reads
+      # as "2 errors" on a passing build and has been mistaken for a real failure more than
+      # once. Surface the count as a notice and exit 0, so the number stays visible without
+      # claiming the build broke.
       - name: Type check (informational)
         continue-on-error: true
-        run: uv run --with ty ty check src/
+        run: |
+          uv run --with ty ty check src/ 2>&1 | tee "$RUNNER_TEMP/ty.log"
+          found=$(grep -oE 'Found [0-9]+ diagnostics?' "$RUNNER_TEMP/ty.log" | tail -1)
+          echo "::notice title=Type check (not gated)::${found:-no diagnostics reported}"
 
       - name: Build wheel and sdist
         run: uv build
