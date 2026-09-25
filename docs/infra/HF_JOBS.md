@@ -128,11 +128,20 @@ change from its original dataset-read-only purpose.
 
 ## `--detach`, or a loop launches exactly one job
 
+**Symptom: `hf jobs ps` shows one job when you launched several, and the shell has not
+returned.** There is no error. Check `hf jobs ps` immediately after any multi-job launch and
+count the rows before assuming the loop ran.
+
 `hf jobs run` **attaches and streams the job's logs** unless given `-d`/`--detach`. A shell
 loop that launches several runs therefore blocks on the first one's log stream forever, and
 the remaining iterations never execute. Measured on 2026-09-20: a three-job `column_id_dim`
 sweep registered `fintfm-colid20` and nothing else, with no error — the loop was simply still
 tailing. Always pass `--detach` when launching more than one job, then poll with `hf jobs ps`.
+
+**Hit again on 2026-09-25**, on a two-arm learning-rate sweep, by someone who had read this
+section. Killing the local process does not kill the job: it is already registered server-side,
+so relaunch only the arms that are missing. The rewrite above puts the symptom first because
+the explanation alone did not prevent a repeat.
 
 ## Secrets: `--secrets`, never `-e`
 
@@ -198,6 +207,7 @@ Carried lessons from `finkele-axiom`, each of which cost a probe there:
 | `pytorch/pytorch:2.12.1-cuda12.6-cudnn9-devel` | Docker Hub; ships Python 3.12.3. The `2.6.0-cuda12.4` tag ships 3.11 and produces a "no matching version" error that reads like a missing package |
 | `--break-system-packages` | PEP 668 marks the image's Python externally managed; the container is disposable |
 | `--no-deps` for our wheel | otherwise pip may replace the image's CUDA-matched torch |
+| **the wheel's exact filename, never `fintfm-*.whl`** | the build repo accumulates wheels. On 2026-09-25 it held 0.2.0, 0.3.0 and 0.5.5, and the glob in the line above matches all three. Name the one you mean |
 | Docker Hub image | `nvcr.io` is not an accepted registry |
 | credits, not Pro | Jobs need a positive credit balance, not a subscription |
 
