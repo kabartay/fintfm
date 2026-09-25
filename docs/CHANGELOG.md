@@ -4,31 +4,50 @@ Hard-wrapped, because it is read in an editor and a diff. Release bodies on GitH
 **not** wrapped — they are read in a browser at full width. Same words, different shape; do
 not paste one into the other. See `CLAUDE.md`.
 
-## [0.5.4] — unreleased
+## [0.5.4] — 2026-09-25
 
-Held. Three releases have now been published to trigger a Zenodo deposit and none has minted a
-DOI. All three sit at *received* in Zenodo's interface — with no error shown — while Zenodo
-continues to mint records for other repositories at the same moment, so the service is healthy
-and the failure is specific to this account.
+No code changes. This release ships the repository's own machinery and, more importantly,
+corrects a claim the previous one made.
 
-Two causes were found and fixed along the way, and neither was sufficient:
+### Fixed
 
-- v0.5.1: the webhook carried a token invalidated by an earlier revoke/reconnect cycle, and
-  every delivery returned `409`. Re-enabling the repository rebuilt it; deliveries now return
-  `202`.
-- v0.5.2: `.zenodo.json` gave the licence as `Apache-2.0` where Zenodo requires the lowercase
-  SPDX id `apache-2.0`. Fixed, and gated by `scripts/check_zenodo_metadata.py`.
+- **The type check no longer reports a passing build as broken.** It is informational by
+  design — `ty` finds 41 diagnostics and the step carries `continue-on-error` — but
+  `continue-on-error` suppresses the failure without suppressing the *annotation*, so every
+  green run displayed "2 errors" against it. Three separate readings of a green build took it
+  for a real failure, which is three times the annotation did the opposite of its job. The
+  diagnostic count is now emitted as a notice, so the number stays visible and can still be
+  driven to zero, without the run claiming it failed.
 
-A third hypothesis — that GitHub's three near-simultaneous events (`created`, `published`,
-`released`) race, and that Zenodo archives only on `published` while rejecting the rest with
-`409` — matches the delivery log but **has not been confirmed**. It does not explain why
-v0.5.2, whose `published` event *was* accepted, is also stuck. Recorded here as an open
-question rather than a diagnosis; releasing as a draft first is retained as a cheap
-precaution, not as a known fix.
+### Changed
 
-The remaining suspect is the account split: the webhook's access token identifies one Zenodo
-account while the repository enablement and the ORCID live on another. That is a question for
-Zenodo support, not something another tag will resolve.
+- `actions/checkout` and `astral-sh/setup-uv` moved to `v7`, which targets Node 24 natively.
+  GitHub had begun forcing the older majors onto Node 24 and warning on every run.
+- `CLAUDE.md` records how to publish a release so the Zenodo deposit has the best chance of
+  firing, and — the part that matters — how to verify that it did. Zenodo lists a failed
+  release as *received*, which is also the state a successful deposit passes through, and
+  GitHub's delivery log returns `202` either way. Only the records API distinguishes them.
+
+### Retracted
+
+- **The explanation given for v0.5.3's failed deposit was wrong.** It claimed that GitHub's
+  three near-simultaneous release events race, that Zenodo archives only on `published`, and
+  that `created` won by 0.17 s. That matches the delivery log but does not survive the next
+  observation: all three releases sit at *received* with no error shown, including v0.5.2,
+  whose `published` event *was* the one accepted. One stuck state with three different causes
+  is not a credible reading. Draft-then-publish is retained as a cheap precaution, not as a
+  known fix.
+
+### Still open
+
+- **No DOI has been minted.** Two genuine bugs were found and fixed along the way — an
+  invalidated webhook token (v0.5.1) and a capitalised licence identifier where Zenodo
+  requires lowercase SPDX (v0.5.2, now gated by `scripts/check_zenodo_metadata.py`) — and
+  neither was sufficient. Zenodo minted records for other repositories in the same minute, so
+  the service is healthy and the failure is specific to this account. The remaining suspect is
+  that the webhook's access token identifies one Zenodo account while the repository
+  enablement and the ORCID live on another. That is a question for Zenodo support, and not
+  something a further tag resolves.
 
 ## [0.5.3] — 2026-09-25
 
