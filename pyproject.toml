@@ -71,7 +71,10 @@ fintfm-priorscore = "fintfm.experiments.prior_score:main"
 fintfm-fetch = "fintfm.evaluation.fetch:main"
 
 [dependency-groups]
-dev = ["pytest>=8", "ruff>=0.6"]
+# `pre-commit` is here rather than installed ad hoc: `uv pip install` puts a tool in one
+# venv and not in the lockfile, so the next `uv sync` removes it and a fresh clone never has
+# it. That is how the `hf` CLI disappeared mid-session on 2026-09-24.
+dev = ["pytest>=8", "ruff>=0.6", "pre-commit>=4"]
 
 [build-system]
 requires = ["uv_build>=0.9.18,<0.10.0"]
