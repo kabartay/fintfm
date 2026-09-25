@@ -55,28 +55,32 @@ jobs:
       # The tag and the packaged version must agree. They can drift when a release is cut
       # without bumping pyproject.toml, and the wheel is what a user installs — so the tag
       # would be describing something the artifact does not claim to be.
-      # Three places state the version and all three must agree: the tag, the wheel built
-      # from pyproject.toml, and CITATION.cff. They drift when a release is cut without
-      # bumping one of them, and the failure is silent — the wheel is what a user installs
-      # and CITATION.cff is what ends up in someone else's reference list.
-      - name: Tag, wheel and CITATION.cff state the same version
+      # Four places state the version and all four must agree: the tag, the wheel built from
+      # pyproject.toml, CITATION.cff, and .zenodo.json. They drift when a release is cut
+      # without bumping one of them, and the failure is silent — the wheel is what a user
+      # installs, CITATION.cff is what ends up in someone else's reference list, and
+      # .zenodo.json is the metadata the minted DOI carries permanently.
+      - name: Tag, wheel, CITATION.cff and .zenodo.json state the same version
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           python - <<'PY'
-          import glob, os, re, sys
+          import glob, json, os, re, sys
           tag = os.environ["GITHUB_REF_NAME"].lstrip("v")
           whl = os.path.basename(sorted(glob.glob("dist/*.whl"))[-1])
           built = re.match(r"fintfm-([^-]+)-", whl).group(1)
           cff = open("CITATION.cff").read()
           cited = re.search(r"^version:\s*(\S+)", cff, re.M).group(1).strip('"')
+          deposited = json.load(open(".zenodo.json"))["version"]
           problems = []
           if tag != built:
               problems.append(f"tag v{tag} != wheel {built} (bump pyproject.toml)")
           if tag != cited:
               problems.append(f"tag v{tag} != CITATION.cff {cited} (bump CITATION.cff)")
+          if tag != deposited:
+              problems.append(f"tag v{tag} != .zenodo.json {deposited} (bump .zenodo.json)")
           if problems:
               sys.exit("version mismatch:\n  " + "\n  ".join(problems))
-          print(f"tag, wheel and CITATION.cff all say {tag}")
+          print(f"tag, wheel, CITATION.cff and .zenodo.json all say {tag}")
           PY
 
       # Presence in the archive is not usability once installed: the packaged config is read

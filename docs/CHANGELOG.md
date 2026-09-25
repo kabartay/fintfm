@@ -4,6 +4,28 @@ Hard-wrapped, because it is read in an editor and a diff. Release bodies on GitH
 **not** wrapped — they are read in a browser at full width. Same words, different shape; do
 not paste one into the other. See `CLAUDE.md`.
 
+## [0.5.2] — 2026-09-25
+
+Archival release. v0.5.1 was cut for the same reason and did not work: Zenodo's webhook
+carried a token invalidated by an earlier revoke/reconnect cycle, so every delivery returned
+`409 Conflict`. Zenodo recorded the release as *received* and never minted anything — a
+failure mode that looks like success in its interface. Re-enabling the repository rebuilt the
+webhook with a live token, and this tag is the first release published after that. No code
+changes.
+
+### Added
+
+- **`.zenodo.json`**, so the archived record states its own title, abstract, keywords, licence
+  and ORCID rather than inheriting them from the GitHub profile. Zenodo's default would have
+  titled the deposit `kabartay/fintfm: ...` and left the creator unidentified, which is the
+  version that would have been permanent.
+
+### Changed
+
+- The release workflow now checks **four** places for version agreement rather than three,
+  adding `.zenodo.json` to the tag, the wheel and `CITATION.cff`. A DOI carries its metadata
+  permanently, so a stale version there is worse than a stale version anywhere else.
+
 ## [0.5.1] — 2026-09-25
 
 Archival release. Zenodo's GitHub integration only archives releases published *after* its

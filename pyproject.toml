@@ -1,6 +1,6 @@
 [project]
 name = "fintfm"
-version = "0.5.1"
+version = "0.5.2"
 description = "A tabular foundation model for financial risk — pretrained on synthetic company financials, so it predicts credit default with no training on your data"
 readme = "README.md"
 authors = [
