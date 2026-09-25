@@ -4,24 +4,31 @@ Hard-wrapped, because it is read in an editor and a diff. Release bodies on GitH
 **not** wrapped — they are read in a browser at full width. Same words, different shape; do
 not paste one into the other. See `CLAUDE.md`.
 
-## [0.5.4] — 2026-09-25
+## [0.5.4] — unreleased
 
-Archival release, and the fourth attempt at one. v0.5.3 carried correct metadata and still
-minted no DOI, for a reason unrelated to the metadata: GitHub fires `created`, `published` and
-`released` for a single release within about 200 ms, and Zenodo accepts whichever of them
-arrives first while rejecting the others as duplicates with `409`. It archives only on
-`published`. On v0.5.3 `created` arrived 0.17 s earlier, was accepted, and the `published`
-event that would have triggered the deposit was discarded as a duplicate.
+Held. Three releases have now been published to trigger a Zenodo deposit and none has minted a
+DOI. All three sit at *received* in Zenodo's interface — with no error shown — while Zenodo
+continues to mint records for other repositories at the same moment, so the service is healthy
+and the failure is specific to this account.
 
-Both preceding failures therefore had different causes — a capitalised licence identifier in
-v0.5.2, a lost race in v0.5.3 — which is why fixing the first did not reveal the second.
+Two causes were found and fixed along the way, and neither was sufficient:
 
-### Changed
+- v0.5.1: the webhook carried a token invalidated by an earlier revoke/reconnect cycle, and
+  every delivery returned `409`. Re-enabling the repository rebuilt it; deliveries now return
+  `202`.
+- v0.5.2: `.zenodo.json` gave the licence as `Apache-2.0` where Zenodo requires the lowercase
+  SPDX id `apache-2.0`. Fixed, and gated by `scripts/check_zenodo_metadata.py`.
 
-- Releases are now created as a **draft** and published as a second step. GitHub sends no
-  webhook for a draft, so publishing fires only `published` and `released`; `released` is
-  rejected by Zenodo in every observed delivery, leaving `published` to be accepted. This
-  removes the race rather than re-running it and hoping for a better ordering.
+A third hypothesis — that GitHub's three near-simultaneous events (`created`, `published`,
+`released`) race, and that Zenodo archives only on `published` while rejecting the rest with
+`409` — matches the delivery log but **has not been confirmed**. It does not explain why
+v0.5.2, whose `published` event *was* accepted, is also stuck. Recorded here as an open
+question rather than a diagnosis; releasing as a draft first is retained as a cheap
+precaution, not as a known fix.
+
+The remaining suspect is the account split: the webhook's access token identifies one Zenodo
+account while the repository enablement and the ORCID live on another. That is a question for
+Zenodo support, not something another tag will resolve.
 
 ## [0.5.3] — 2026-09-25
 

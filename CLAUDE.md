@@ -167,12 +167,12 @@ workflow exists, fires nothing.
 
 **Title carries the version:** `vX.Y.Z — Title`, with an em dash.
 
-**Create the release as a draft, then publish it.** Not a style preference — it is the only
-way the Zenodo deposit fires reliably. GitHub sends `created`, `published` and `released` for
-one release within about 200 ms; Zenodo accepts whichever arrives first, rejects the rest with
-`409`, and archives only on `published`. v0.5.3 was lost because `created` won by 0.17 s. A
-draft sends no webhook at all, so publishing it fires only `published` and `released`, and
-`released` has been rejected in every delivery observed.
+**Create the release as a draft, then publish it.** A precaution, not a proven fix. GitHub
+sends `created`, `published` and `released` for one release within about 200 ms, Zenodo accepts
+whichever arrives first and rejects the rest with `409`, and it appears to archive only on
+`published` — so fewer competing events is likely better. This has **not** been confirmed to
+matter: v0.5.2's `published` event was accepted and its deposit is stuck anyway. Note also that
+GitHub documents `created` as firing when a draft is *saved*, so a draft may not suppress it.
 
 ```bash
 gh release create vX.Y.Z --draft --target main --title "..." --notes-file notes.md
