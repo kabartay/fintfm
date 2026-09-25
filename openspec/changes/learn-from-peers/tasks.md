@@ -1,6 +1,6 @@
 # Tasks
 
-- [ ] 48.1 **Test depth against width at matched parameters.** §108 scaled *width* — `d_model`
+- [x] 48.1 **Test depth against width at matched parameters.** §108 scaled *width* — `d_model`
       128→256, `d_ff` 512→1024, depth only 4+2→6+3 — and got −0.0077 on TabArena binary.
       Nori-6M is **16 transformer layers at embed_dim 128**: deep and narrow, the opposite
       corner of the design space, and a corner this project has never visited. A
@@ -10,6 +10,13 @@
       scored on the same 27 TabArena binary datasets with paired per-dataset deltas against
       `cat_full`. A null is publishable; the point is to learn whether the aspect ratio, not
       the parameter count, is what §108 got wrong.
+      **Answered, and not on the axis it asked about (§114).** The 2.6M deep-narrow arm trained
+      to a matched 48,000 tasks and then **could not be scored at all** — `TimeLimitExceeded`
+      after 8 of 27 TabArena datasets. Depth costs inference time roughly linearly, this arm is
+      ~4.5× deeper than the baseline, and the model's median predict time is already 8.6 s/1K
+      against a field norm near 0.1. **A configuration that cannot finish the benchmark is not a
+      candidate regardless of its accuracy**, so the feasibility answer arrived before the
+      accuracy question could be asked.
 - [ ] 48.2 **Recalibrate the scaling expectation in writing, before spending more GPU on it.**
       Verify: `docs/roadmap/STRATEGY.md`'s Phase 1 target of 10–50M parameters is restated with Nori's
       published curve beside it, and either defended with a reason the return should be larger
@@ -105,7 +112,7 @@
       worth ~13% more steps per dollar) and **batch-level graph diversity, which falls to a
       quarter**. The deciding run is therefore the cheaper and less interesting question of
       whether that diversity loss hurts — not whether extra volume helps.
-- [ ] 48.13 **Add a tree-based prior, the family MITRA singles out and this project does not
+- [x] 48.13 **Add a tree-based prior, the family MITRA singles out and this project does not
       have.** `PriorConfig` is financial (0.7) plus SCM, with no prior that generates threshold
       structure — while every baseline fintfm loses to is a tree ensemble. MITRA
       (arXiv:2510.21204) selects tree-based priors (gradient boosting, random forest, decision
@@ -116,6 +123,14 @@
       compared against the current mixture on the same five V4FinBench folds **and** the 27
       TabArena binary datasets, with the mixture weight stated — this is the first prior change
       since the regression prior and must not be confounded with one.
+      **Done, and the answer is both.** Two seeds against matched controls: **+0.0094 on
+      TabArena**, replicating in sign against a measured seed noise of 0.0035 (§115). And
+      **−0.0221 AP on V4FinBench** at a 0.359% default rate, negative on 5 of 5 folds with
+      three surviving Holm at p < 0.001, dropping below untuned logistic regression where the
+      control clears it (§116). `p_tree` stays **0.0** and the prior is **not shipped**. §117
+      gives the mechanism: at 0.4% the tree prior's own tasks are the least learnable of the
+      three (0.0225 AP against financial's 0.0332 and SCM's 0.1337). The lesson is scoped
+      narrowly — **distinctiveness predicts breadth, not fit**.
 - [x] 48.14 **Score our own prior mixture against MITRA's three criteria.** They propose
       **performance** (does a TFM pretrained on this prior alone do well on real data),
       **diversity** (does it cover a wide region of task space) and **distinctiveness** (does it
@@ -184,13 +199,17 @@
       expected-gain-per-line-of-code in the whole peer sweep. Verify: task-difficulty spread
       (the statistic §42 already tracks) is measured before and after, since the claim is
       about diversity, not about any single accuracy number moving.
-- [ ] 48.18 **Implement the tree-based node function from TabICLv2's Appendix E.8 for task
+- [x] 48.18 **Implement the tree-based node function from TabICLv2's Appendix E.8 for task
       48.13**, rather than inventing one. Oblivious (CatBoost-style) trees, split dimension
       chosen proportional to feature standard deviation, leaf values standard normal, ensemble
       of `LogInt(1, 128)` trees averaged. Verify: read their stated reason for ensembles over
       single trees (computational, not accuracy) before choosing between single-tree and
       ensemble for the first implementation — a wrong guess here duplicates MITRA's own
       SCM-vs-TBP distinctiveness result without adding anything.
+      **Done: `prior/tree.py`.** Oblivious trees, split dimension sampled proportional to
+      column spread, thresholds drawn from the arriving data, ensemble size log-uniform to
+      `MAX_TREES`. Their stated reason for ensembles over single trees was read first, as this
+      task required. Outcome is §116's — it works on general tabular data and harms credit.
 - [ ] 48.19 **Widen the SCM prior's activation set with order-statistic functions.** Ours is
       5 fixed activations (`tanh`, `sin`, ReLU, identity, signed-sqrt); TabICLv2 lists 21 fixed
       plus 4 parametric, including `rank`, `softmax`, `one-hot argmax`, `argsort`. §35 measures
