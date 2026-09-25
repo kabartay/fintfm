@@ -1,4 +1,4 @@
-"""FinancialTFM: prior-fitted tabular foundation model for financial risk.
+"""FinTFM: a prior-fitted tabular foundation model for corporate credit risk.
 
 The model is pretrained once on synthetic tasks drawn from a *financial prior* (a generative
 story for company tables and their default labels) mixed with a generic structural-causal
@@ -12,12 +12,14 @@ Package layout follows the pipeline:
     inference/    in-context prediction, context construction, calibration correction
     evaluation/   real datasets, calibration-aware metrics, benchmark harnesses
     experiments/  designed experiments with pre-stated exit conditions
+    config.py     the layered configuration loader; defaults in configs/default.yaml
 
 See ``docs/design/ARCHITECTURE.md`` for how the model works and ``docs/roadmap/STRATEGY.md`` for why.
 """
 
 from fintfm.evaluation.metrics import CreditMetrics, evaluate_binary
 from fintfm.inference.classifier import ContextStrategy, FinancialTFMClassifier
+from fintfm.inference.regressor import FinancialTFMRegressor
 from fintfm.modeling.model import FinancialTFM, ModelConfig
 
 __all__ = [
@@ -25,6 +27,7 @@ __all__ = [
     "CreditMetrics",
     "FinancialTFM",
     "FinancialTFMClassifier",
+    "FinancialTFMRegressor",
     "ModelConfig",
     "evaluate_binary",
 ]

@@ -1,0 +1,33 @@
+# Dependency updates, weekly and batched.
+#
+# Grouped into one pull request per ecosystem rather than one per package: this repository's
+# CI takes about three minutes and a scattered stream of single-package PRs would cost more
+# attention than the updates are worth. Grouping also means the licence check
+# (`scripts/check_licences.py`) runs once against the whole proposed set — a new transitive
+# dependency with a non-permissive licence fails that PR rather than arriving unnoticed.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "ci"
+
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      python:
+        patterns: ["*"]
+    commit-message:
+      prefix: "deps"
+    # torch is pinned by what the CUDA images ship and by what the GPU recipe was verified
+    # against (docs/infra/HF_JOBS.md); a bump here would silently diverge from the wheel the
+    # training jobs install.
+    ignore:
+      - dependency-name: "torch"
