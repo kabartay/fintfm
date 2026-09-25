@@ -83,6 +83,12 @@ jobs:
           print(f"tag, wheel, CITATION.cff and .zenodo.json all say {tag}")
           PY
 
+      # The version agreeing is not the same as the deposit being publishable. This is the
+      # last point at which a bad .zenodo.json can still be fixed cheaply: after the release
+      # is published, correcting it costs another tag.
+      - name: Zenodo deposit metadata is valid
+        run: uv run python scripts/check_zenodo_metadata.py
+
       # Presence in the archive is not usability once installed: the packaged config is read
       # at runtime by path, so install into a clean environment and load it there.
       - name: The installed wheel can load its packaged config

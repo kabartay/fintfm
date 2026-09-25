@@ -68,6 +68,13 @@ jobs:
       - name: Documentation links resolve
         run: uv run python scripts/check_doc_links.py
 
+      # Zenodo accepts a malformed deposit at the webhook (HTTP 202), discards it during
+      # asynchronous processing, and then shows it as "received" -- which looks exactly like
+      # success. v0.5.2 was lost that way over a capitalised licence id. Check it here, where
+      # failing is visible, rather than by noticing weeks later that no DOI exists.
+      - name: Zenodo deposit metadata is valid
+        run: uv run python scripts/check_zenodo_metadata.py
+
       # **Non-blocking, deliberately.** `py.typed` is shipped and every signature is annotated,
       # but a check on 2026-09-25 found 40 diagnostics in 64 places, nearly all in this
       # repository's own code — so the hints are present and not yet sound. Gating on it today

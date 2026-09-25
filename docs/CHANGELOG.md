@@ -4,6 +4,31 @@ Hard-wrapped, because it is read in an editor and a diff. Release bodies on GitH
 **not** wrapped — they are read in a browser at full width. Same words, different shape; do
 not paste one into the other. See `CLAUDE.md`.
 
+## [0.5.3] — 2026-09-25
+
+Archival release, and the third attempt at one. v0.5.2 fixed the webhook and still minted no
+DOI: `.zenodo.json` gave the licence as `Apache-2.0`, where Zenodo's vocabulary requires the
+lowercase SPDX identifier `apache-2.0`. The deposit failed validation and was discarded.
+
+The reason this took two releases to find is worth recording. Zenodo accepts the webhook
+payload (HTTP `202`), validates asynchronously, and on failure leaves the release listed as
+*received* — the same state a successful deposit passes through. Nothing in GitHub's delivery
+log or Zenodo's interface distinguishes the two. The only reliable signal is querying the
+records API and counting zero.
+
+### Fixed
+
+- The licence identifier in `.zenodo.json`, `Apache-2.0` → `apache-2.0`, resolved against
+  Zenodo's live vocabulary rather than assumed.
+
+### Added
+
+- **`scripts/check_zenodo_metadata.py`**, run by both CI and the release workflow. It checks
+  required fields, `upload_type`, `access_right`, creator name shape and ORCID form, and
+  resolves the licence id against Zenodo's vocabulary when the network permits — degrading to
+  local checks when it does not, so a release never depends on a third party being reachable.
+  A silent failure mode deserves a loud gate.
+
 ## [0.5.2] — 2026-09-25
 
 Archival release. v0.5.1 was cut for the same reason and did not work: Zenodo's webhook

@@ -8,9 +8,9 @@
       "orcid": "0000-0002-3093-3456"
     }
   ],
-  "license": "Apache-2.0",
+  "license": "apache-2.0",
   "access_right": "open",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "keywords": [
     "tabular foundation model",
     "in-context learning",
