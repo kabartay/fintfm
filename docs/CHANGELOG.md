@@ -4,6 +4,25 @@ Hard-wrapped, because it is read in an editor and a diff. Release bodies on GitH
 **not** wrapped — they are read in a browser at full width. Same words, different shape; do
 not paste one into the other. See `CLAUDE.md`.
 
+## [0.5.4] — 2026-09-25
+
+Archival release, and the fourth attempt at one. v0.5.3 carried correct metadata and still
+minted no DOI, for a reason unrelated to the metadata: GitHub fires `created`, `published` and
+`released` for a single release within about 200 ms, and Zenodo accepts whichever of them
+arrives first while rejecting the others as duplicates with `409`. It archives only on
+`published`. On v0.5.3 `created` arrived 0.17 s earlier, was accepted, and the `published`
+event that would have triggered the deposit was discarded as a duplicate.
+
+Both preceding failures therefore had different causes — a capitalised licence identifier in
+v0.5.2, a lost race in v0.5.3 — which is why fixing the first did not reveal the second.
+
+### Changed
+
+- Releases are now created as a **draft** and published as a second step. GitHub sends no
+  webhook for a draft, so publishing fires only `published` and `released`; `released` is
+  rejected by Zenodo in every observed delivery, leaving `published` to be accepted. This
+  removes the race rather than re-running it and hoping for a better ordering.
+
 ## [0.5.3] — 2026-09-25
 
 Archival release, and the third attempt at one. v0.5.2 fixed the webhook and still minted no

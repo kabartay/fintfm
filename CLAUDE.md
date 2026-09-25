@@ -167,6 +167,27 @@ workflow exists, fires nothing.
 
 **Title carries the version:** `vX.Y.Z — Title`, with an em dash.
 
+**Create the release as a draft, then publish it.** Not a style preference — it is the only
+way the Zenodo deposit fires reliably. GitHub sends `created`, `published` and `released` for
+one release within about 200 ms; Zenodo accepts whichever arrives first, rejects the rest with
+`409`, and archives only on `published`. v0.5.3 was lost because `created` won by 0.17 s. A
+draft sends no webhook at all, so publishing it fires only `published` and `released`, and
+`released` has been rejected in every delivery observed.
+
+```bash
+gh release create vX.Y.Z --draft --target main --title "..." --notes-file notes.md
+gh release edit vX.Y.Z --draft=false     # this is what fires Zenodo
+```
+
+**A DOI is not minted until the records API says so.** Zenodo's interface lists a failed
+release as *received*, which is also the state a successful deposit passes through, and
+GitHub's delivery log shows `202` either way. Neither one can tell you it worked:
+
+```bash
+curl -s "https://zenodo.org/api/records?q=fintfm&all_versions=true" \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['hits']['total'])"
+```
+
 **Two documents, opposite conventions, on purpose:**
 
 | document | shape | why |
