@@ -49,7 +49,7 @@
       `InferenceConfig.feature_chunk`. Measured 21.0 GB / 10.6 s unchunked against 3.4 GB /
       6.8 s chunked at N=2024 on 136 features — **6.2x less memory and 1.6x faster**, not the
       memory-for-time trade this task predicted; that wrong prediction is corrected in place
-      in §79, §80, Claim 10 and `LIMITATIONS.md`. `max_context=4000` now runs at 22.5 GB
+      in §79, §80, Claim 10 and `docs/paper/LIMITATIONS.md`. `max_context=4000` now runs at 22.5 GB
       against §79's ~63 GB estimate. Identity asserted byte-for-byte by
       `tests/test_model.py::test_feature_chunking_is_an_identity` at chunk sizes 1/2/5/16/17/64.
       Verify: a test asserts chunked and unchunked outputs are equal on a fixed seed. Done —

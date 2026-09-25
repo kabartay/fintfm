@@ -51,7 +51,7 @@ records supersessions and retractions as prominently as wins.
 
 A **claims ledger** mapping every candidate claim to its evidence and status, an outline,
 related work, limitations, and the figure list with the command behind each.
-**Nothing enters it without a `FINDINGS.md` section number** — which is why
+**Nothing enters it without a `results/FINDINGS.md` section number** — which is why
 `research/RESEARCH_NOTES.md` stays out of it.
 
 [`paper/RELATED_WORK.md`](paper/RELATED_WORK.md) and [`research/REFERENCES.md`](research/REFERENCES.md)

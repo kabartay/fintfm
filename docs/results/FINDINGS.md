@@ -794,7 +794,7 @@ few hundred rows and would be caught immediately. It is:
 
 For low-default portfolios, provisioning and capital, the level is the deliverable and the
 ranking is secondary. A lender cannot provision against an ordering. This also explains why
-Neuralk's demo showing a bare "Default risk 6%" (`LANDSCAPE.md`) is a weaker product than it
+Neuralk's demo showing a bare "Default risk 6%" (`docs/competition/LANDSCAPE.md`) is a weaker product than it
 appears: nothing in it establishes that 6% means 6%.
 
 ### What would falsify or complicate this
@@ -5636,7 +5636,7 @@ not: it is 1.6-2.4x *faster* as well as 6.2x smaller.** The reasoning behind the
 prediction was that chunking serialises work that was previously one batched call, which must
 cost time. What it actually does is keep each attention score tensor small enough to stay in
 cache instead of spilling — the same mechanism behind §79's 92x cliff, working in reverse.
-The earlier wording is corrected in place in §79, §80, Claim 10 and `LIMITATIONS.md` rather
+The earlier wording is corrected in place in §79, §80, Claim 10 and `docs/paper/LIMITATIONS.md` rather
 than left standing with a footnote, since "costs time" was an argument against using it by
 default. It is now the default (`feature_chunk: 16`).
 
@@ -6012,7 +6012,7 @@ unambiguous) and then on V4FinBench. Filed as `mechanism-diverse-prior` task 40.
 
 ### A documentation gap noticed alongside
 
-`docs/paper/` mentions the generic SCM prior only as a *comparison arm* — `OUTLINE.md` §3.1
+`docs/paper/` mentions the generic SCM prior only as a *comparison arm* — `docs/paper/OUTLINE.md` §3.1
 describes "the prior" as the financial one alone. Given §73/§75 found the SCM prior **beats**
 the financial prior on two of three real panels, the paper workspace currently under-describes
 the component that wins more often than it loses. Worth fixing before any write-up.
@@ -7334,7 +7334,7 @@ eligible binary datasets, `FINTFM_RUN_NAME=medium5m`, scoring a 4,979,778-parame
 baseline at 885,650 parameters. Paired per dataset.
 
 **Written retrospectively on 2026-09-25.** This entry was referenced 31 times across the
-repository before it existed — by §110, §113, §114, `CHANGELOG.md`, `RELATED_WORK.md` and
+repository before it existed — by §110, §113, §114, `docs/CHANGELOG.md`, `docs/paper/RELATED_WORK.md` and
 others — because the run happened, the number was quoted from the session that produced it, and
 the write-up was skipped while the follow-up work continued. A number circulating without the
 entry that qualifies it is exactly what this file exists to prevent, and the gap was found by
@@ -7498,7 +7498,7 @@ from a table this project had already printed.
 **I revised this conclusion three times in one session, each time from whichever abstract had
 arrived most recently:**
 
-1. After Nori's scaling curve — "scale cannot close the gap", written into `LIMITATIONS.md`.
+1. After Nori's scaling curve — "scale cannot close the gap", written into `docs/paper/LIMITATIONS.md`.
 2. After TabDPT, ConTextTab and iLTM — "the field converges on synthetic-only saturating, with
    real-table pretraining the axis that keeps paying", written into the same file.
 3. After MITRA — "synthetic saturates only when the prior is wrong", written into the same file

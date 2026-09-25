@@ -254,7 +254,7 @@ Kept in the record rather than quietly edited, because each was propagated befor
   keeping batch independence. `configs/best.yaml`. `docs/results/FINDINGS.md` §38.
 - **`docs/paper/`** — a workspace for a potential paper: a claims ledger mapping every
   candidate claim to its evidence and status, an outline, related work, limitations, and the
-  figure list with the command behind each. Nothing enters without a `FINDINGS.md` section
+  figure list with the command behind each. Nothing enters without a `docs/results/FINDINGS.md` section
   number. Three of eight candidate claims are already recorded as superseded or retracted.
 - **`fintfm-retrgroup`** — measures the retrieval grouping approximation against exact
   per-query retrieval, which §32 and §35 had relied on without quantifying. About 0.01 AUC at

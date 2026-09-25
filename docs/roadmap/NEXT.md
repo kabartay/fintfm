@@ -146,5 +146,5 @@ Discoveries append here rather than into a tier. Triage happens when Tier 0 empt
   Kumo's published answer is a two-stage distil. Only matters once latency is a requirement.
 - **GraphPFN convergence risk.** If tabular foundation models can be turned into graph ones,
   Kumo's structural advantage becomes reproducible from open weights, which changes the
-  competitive picture (`LANDSCAPE.md`).
+  competitive picture (`docs/competition/LANDSCAPE.md`).
 - **Homogenisation** belongs in the certificate's own caveats rather than as a separate change.

@@ -8,8 +8,12 @@ wrong for weeks.
 The same reorganisation broke `openspec/tools/validate.py`, which built its path from parts
 (``ROOT / "docs" / "FINDINGS.md"``) while its error message was a string that *did* get
 rewritten. It failed reporting a path that existed. This checker cannot catch that class —
-only a link a human would click — which is worth stating so its green is not read as more
-than it is.
+only a link a human would click.
+
+It now also checks **prose references in backticks**, because 16 of those survived the
+reorganisation pointing at paths that no longer existed. A reader cannot click them, so
+nothing broke visibly; they simply told the reader to look somewhere empty. `README.md` is
+exempt, since the repository has three of them and only a human can say which is meant.
 """
 
 from __future__ import annotations
@@ -20,6 +24,14 @@ import sys
 from pathlib import Path
 
 LINK = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
+
+#: Prose references like ``docs/results/FINDINGS.md`` inside backticks. Not clickable, so a
+#: stale one is invisible until a reader follows it by hand and finds nothing.
+PROSE_REF = re.compile(r"`((?:[a-z_]+/)*[A-Z_]+\.md)`")
+
+#: Filenames the repository has more than one of. Which is meant depends on context, so these
+#: are left to a human rather than guessed at.
+AMBIGUOUS: frozenset[str] = frozenset({"README.md"})
 
 
 def anchor_slug(heading: str) -> str:
@@ -57,6 +69,20 @@ def main() -> int:
                     problems.append(f"{path} -> {target} (no such file)")
             elif anchor and anchor_slug(anchor) not in anchors:
                 problems.append(f"{path} -> #{anchor} (no such heading)")
+
+    # Prose references: a bare or mis-pathed `NAME.md` that names a real file elsewhere.
+    real = {q.name: str(q) for q in Path("docs").rglob("*.md")}
+    for path in files:
+        for ref in PROSE_REF.findall(path.read_text()):
+            name = ref.split("/")[-1]
+            if name in AMBIGUOUS or name not in real or str(path) == real[name]:
+                continue
+            # A reference is fine if it resolves either from the repository root or from the
+            # file's own directory -- `paper/CLAIMS.md` inside docs/README.md is correct, and
+            # the first version of this check flagged six such references as broken.
+            if (path.parent / ref).exists() or Path(ref).exists():
+                continue
+            problems.append(f"{path} -> `{ref}` (stale prose reference; now {real[name]})")
 
     for p in problems:
         print(f"BROKEN LINK  {p}", file=sys.stderr)
