@@ -8352,7 +8352,7 @@ reviewed the same day by a TabArena collaborator.
 | datasets | **27 of 27** eligible, zero failures, no `TimeLimitExceeded` |
 | mean ROC-AUC | **0.7823** |
 | rank | **94 of 95** |
-| Elo | 764.6, win rate 0.074 |
+| Elo | 764.6, win rate 0.074 (over these 27 datasets and 95 methods, not a public-board Elo) |
 | median fit / predict | 71.4 s / 35.9 s |
 
 **The rank is 94, not the 93 this repository had been publishing.** The mean ROC-AUC is

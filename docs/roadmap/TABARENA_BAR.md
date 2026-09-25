@@ -44,9 +44,19 @@ FinTFM sits at **Elo 765**. The gap, from the run in §122:
 | RandomForest (default) | 1000 | +235 |
 | ExtraTrees (tuned + ensembled) | 1154 | **+389** |
 
-Beating *every* simple baseline means roughly **+389 Elo**. The honest floor for "a reasonable
-minimum" is somewhere between the two bolded rows, and the lower one is not a serious target: a
-model that beats tuned KNN and nothing else is still last among real methods.
+**These Elo values are not the ones on the public leaderboard, and the two must not be mixed.**
+Elo is relative to the set of methods and tasks it was computed over. This run covers **27
+binary datasets at one split each**, TabArena-Lite restricted to what FinTFM can run; the public
+board covers all 51 datasets across every split. The same method scores differently under each:
+TabSTAR (default) reads 1102 here and 987 there, Linear (default) 936 here and 858 there. Both
+are correct measurements of different things.
+
+The table above is the right target anyway, because it is the comparison the submission was
+judged on. It just cannot be quoted as a public-leaderboard number.
+
+Beating *every* simple baseline means roughly **+389 Elo** in this comparison. The honest floor
+for "a reasonable minimum" is somewhere between the two bolded rows, and the lower one is not a
+serious target: a model that beats tuned KNN and nothing else is still last among real methods.
 
 ### What is already closed, and must not be re-run
 
