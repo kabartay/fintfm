@@ -241,17 +241,36 @@
       (44.x) touches it.
 - [x] 48.21 **DONE (§129): power loses to rank on 5 of 5 folds, mean AP 0.1369 against 0.1986,
       and also falls behind untuned logistic regression where rank does not.** Unlike §101 this
-      is unambiguous, not a mean-moves-rank-does-not case. Implementing it surfaced two
-      independent numerical bugs in `PowerTransformer`, both now fixed in `preprocess.py`: a
-      literal ±inf from a near-zero-denominator ratio, and the Yeo-Johnson formula's own
-      overflow on 5 of 78,015,600 cells once the first was fixed. rank stays the default.
-- [ ] 48.22 **Test whether fintfm's context-conditioned representation is useful as a fixed
-      feature, independent of its own prediction head.** Neuralk-AI's `TabPfnVectorizer`
-      extracts a pretrained TFM's embeddings and hands them to a downstream model (LightGBM,
-      logistic regression) rather than using the TFM end-to-end (`docs/paper/RELATED_WORK.md`,
-      Seldon section). Every finding to date scores fintfm's own head; this asks a different
-      question, whether the representation transfers when the head is replaced. Verify: extract
-      a fixed-size representation from a mid-network layer for each row, fit a plain classifier
-      (logistic regression or LightGBM) on those features on V4FinBench, and compare against
-      (a) fintfm's own head and (b) the same classifier on raw features -- a representation
-      that helps (b) without matching (a) is still a real and reportable result, not a null one.
+      is unambiguous, not a mean-moves-rank-does-not case; rank stays the default. Implementing
+      it surfaced two independent numerical bugs in `PowerTransformer`, both now fixed in
+      `preprocess.py`: a literal ±inf from a near-zero-denominator ratio, and the Yeo-Johnson
+      formula's own overflow on 5 of 78,015,600 cells once the first was fixed. Original task,
+      kept for the record: **Ablate Yeo-Johnson power transform against the current rank
+      transform, on the heavy-tailed financial ratios §100 already flagged.** Neuralk-AI's
+      `Seldon` benchmark harness offers `PowerTransformer` as a config-toggled alternative to
+      standard scaling (`docs/paper/RELATED_WORK.md`, Seldon section). `feature_transform="rank"`
+      is the current default and every real-data number in this project was produced with it on;
+      this is a direct swap, not a new pipeline stage. Verify: a checkpoint or evaluation pass
+      using Yeo-Johnson in place of the rank transform is compared against the current default
+      on the same folds, matched on everything else, since §101 already showed a preprocessing
+      change here can move mean ROC-AUC without moving rank — the comparison needs both numbers,
+      not just the metric that looks better.
+- [x] 48.22 **DONE (§130): the representation beats the model's own head on 5 of 5 folds,
+      significant after Holm on 4 of 5, mean AP 0.2376 against 0.1986.** Not the expected
+      outcome — the original task below predicted (b) losing to (a). Raw features under the same
+      downstream classifier score 0.1660, so the ordering is representation > own_head >
+      raw_features on every fold. The mechanism is unmeasured: whether the head's own
+      label-conditioning dilutes the signal, whether query-token pooling loses information the
+      per-row representation keeps, or whether this is specific to this checkpoint, are three
+      different hypotheses this result does not distinguish. See `docs/roadmap/ROADMAP.md`
+      Phase A' for the follow-up this opens. Original task, kept for the record: **Test whether
+      fintfm's context-conditioned representation is useful as a fixed feature, independent of
+      its own prediction head.** Neuralk-AI's `TabPfnVectorizer` extracts a pretrained TFM's
+      embeddings and hands them to a downstream model (LightGBM, logistic regression) rather
+      than using the TFM end-to-end (`docs/paper/RELATED_WORK.md`, Seldon section). Every
+      finding to date scores fintfm's own head; this asks a different question, whether the
+      representation transfers when the head is replaced. Verify: extract a fixed-size
+      representation from a mid-network layer for each row, fit a plain classifier (logistic
+      regression or LightGBM) on those features on V4FinBench, and compare against (a) fintfm's
+      own head and (b) the same classifier on raw features — a representation that helps (b)
+      without matching (a) is still a real and reportable result, not a null one.

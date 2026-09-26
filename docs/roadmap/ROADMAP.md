@@ -53,6 +53,32 @@ Measured closed. Reopening any of them needs a new reason, stated first.
 
 ---
 
+## Phase A' — a lever §130 found, ahead of the queue because it needs no pretraining
+
+§130 (48.22) measured that a plain logistic regression on fintfm's own `encode_rows`
+representation beats the model's own classification head, 5 of 5 folds, significant after Holm
+on 4 of 5, +0.039 mean AP. This is the first positive result of the session that is not a null,
+and unlike everything in Phase A and B it needs no new checkpoint -- the representation already
+exists in every trained model. It goes first because the cost is a few hours of local
+inference, not a pretraining run.
+
+1. **Distinguish the three mechanisms §130 left open.** Ablate independently, on the existing
+   checkpoint, no retraining: (a) score the representation taken *before* `y_emb` is added
+   inside `forward` against one taken after, to isolate whether label-conditioning dilutes the
+   signal; (b) compare the per-row representation against whatever pooled/query-token summary
+   the head reads, to isolate whether pooling loses information; (c) repeat the full 48.22
+   protocol on a second checkpoint (`runs/lrsweep/lrsweep-3e4.pt` or another 5-fold-validated
+   one) to rule out "specific to this checkpoint."
+2. **If (a) implicates label-conditioning**, prototype a head that reads the raw representation
+   directly (skip or reweight `y_emb`) and score it downstream -- this is an architecture change
+   but a small, targeted one, sized by what 1(a) finds rather than guessed at.
+3. **If (b) implicates pooling**, the fix is in how predictions are read out, not in
+   pretraining, and is the cheaper of the two branches to act on.
+4. **Only if neither replicates does this become a dead end.** Given the effect size (+0.039
+   against a -0.035 deficit -- larger than the gap itself) and 5/5 fold agreement, this is the
+   best-evidenced lever currently in this file and should not wait behind Phase B's untested
+   architecture work.
+
 ## Phase A — cheap rank probes, in cost order
 
 **`column_id_dim` is not on this list, and was on an earlier draft of it.** §104 already swept

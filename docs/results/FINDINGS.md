@@ -8896,3 +8896,70 @@ Task 48.21 is answered: rank stays the default, power is not adopted. `docs/pape
 Seldon section already frames this as one candidate among several evaluation-and-preprocessing
 ideas worth testing rather than adopting on priors; this is the first of those tests to
 complete, and it completed negative.
+
+## §130 — fintfm's representation beats its own head: 5 of 5 folds, +0.039 mean AP
+
+**How these numbers were produced.** MEASURED. `runs/v4-cellattn-labels.pt`, the published
+checkpoint. Task 48.22, surfaced from Neuralk-AI's `TabPfnVectorizer`
+(`docs/paper/RELATED_WORK.md`, Seldon section): extract `encode_rows`'s `d_model=128`
+representation via the new `FinancialTFMClassifier.transform_representation`, fit a plain
+`LogisticRegression` on it, and compare against (a) the model's own head and (b) the same
+`LogisticRegression` on raw features. Five folds, V4FinBench horizon 0, 1,000,087 rows at
+0.359% positive. The downstream classifiers are fitted on a stratified 20,000-row training
+subsample per fold (every positive kept, negatives filled to budget) rather than the full
+~600,000-row split; see `src/fintfm/experiments/representation_transfer.py`'s module docstring
+for why that bound exists — the first version of this experiment priced at roughly 14 hours and
+was killed before finishing. Every arm is scored on the full test split, matching every other
+finding. Row-level paired bootstrap, 2,000 resamples per fold, Holm-corrected, matching
+§118/§124/§126/§127/§129.
+
+### The result
+
+| fold | own_head AP | representation AP | delta | Holm p |
+| --- | --- | --- | --- | --- |
+| 0 | 0.2113 | 0.2459 | +0.0346 | 0.000 * |
+| 1 | 0.2050 | 0.2427 | +0.0377 | 0.000 * |
+| 2 | 0.1786 | 0.2330 | +0.0545 | 0.000 * |
+| 3 | 0.1810 | 0.2405 | +0.0594 | 0.000 * |
+| 4 | 0.2172 | 0.2258 | +0.0086 | 0.346 |
+| **mean** | **0.1986** | **0.2376** | **+0.0390** | |
+
+**Representation wins on 5 of 5 folds, significant after Holm on 4 of 5.** Every fold agrees in
+direction, which is what distinguishes this from §124's and §126's split-sign nulls: fold 4 is a
+smaller effect, not an opposite one. Raw features under the same downstream classifier score a
+mean AP of 0.1660, so the ordering is representation > own_head > raw_features on every fold —
+the embedding is not merely "better than nothing," it beats both ends of the comparison it was
+designed to sit between.
+
+### What this means, stated at the size of the claim it supports
+
+**The context-conditioned representation carries more linearly-usable signal for this task
+than the model's own classification head extracts from it.** The head is not broken —
+`own_head`'s 0.1986 matches §127's and §129's rank-transform number exactly, so this is not a
+pipeline error — but a plain logistic regression on the embedding does better than the
+architecture's own read of it.
+
+**This does not mean logistic regression should replace the head in production.** The head
+handles variable class counts, the query-token mechanism, and everything else `predict_proba`
+does that a fixed-size embedding does not carry for free; this experiment tested one linear
+probe on one binary task, not a replacement pipeline. What it establishes is narrower and still
+real: the representation is worth having independently of the head, which is the question
+Neuralk-AI's pattern raised and nothing in this project's prior findings had asked.
+
+### Why this is more useful than it might look
+
+Every scale, depth and learning-rate result to date (§114, §124, §126) has asked whether a
+bigger or differently-tuned model closes the ~0.035 uniform deficit against the field. This is
+the first result suggesting the standing architecture already contains more than its own head
+uses. If a better head existed, it would not need new pretraining to test — the representation
+is already being produced. That reframes where to look next: not necessarily a bigger prior or
+more depth, but what the classification head does with a representation that a plain linear
+probe demonstrably reads better.
+
+### What is not yet known
+
+The mechanism is unmeasured. Whether the head's own label-conditioning (`y_emb`, added after
+`encode_rows`) is diluting rather than sharpening the signal, whether the query-token pooling
+loses information the raw per-row representation keeps, or whether this is specific to this
+checkpoint's training recipe are three different hypotheses this result does not distinguish
+between, and each implies a different fix.
