@@ -607,3 +607,62 @@ it applies here too: an abstract or a relayed summary is a lead, not a citation.
   downstream generalisation, and a shift-robustness evaluation of nine TFMs reporting gaps up
   to 0.060 AUC — were explicitly **not verified** when relayed and must not be cited without
   locating and reading the primary source first.
+
+## Seldon (Neuralk-AI), read 2026-09-26 — a benchmarking paper, not an architecture one
+
+Read via an agent that fetched the technical report PDF (`Seldon: Foundation, made tabular`,
+June 2026), `Neuralk-AI/NeuralkFoundry-CE` (their open benchmark harness, including its
+`feature_engineering/` module) and `docs.neuralk.ai`'s FAQ directly — primary sources, not a
+relayed summary, unlike the leads above. Recorded with the same discipline anyway: an agent's
+report is a lead until the primary claims it rests on are spot-checked here.
+
+**Seldon itself is architecturally unremarkable relative to what this project has already
+surveyed.** Column-transformer -> row-transformer -> in-context-learning-block, the same
+factorization as TabPFN v3 and TabICL. No prior generator, training curriculum, or loss is
+disclosed; the report is explicitly positioning and benchmarking, not architecture, and its own
+framing places Seldon as tied with TabPFN v3 and TabICL rather than distinct from them.
+
+**What is worth taking is evaluation methodology, not a mechanism:**
+
+- **An "industrial gap" finding.** On 189 OpenML datasets, TFMs sweep the top ranks over tuned
+  GBDTs by roughly 0.7 AUC points; on 22 private industrial datasets (retail, churn,
+  credit-adjacent behavioural panels, transport, energy) tuned XGBoost/LightGBM become
+  competitive again and the TFM ranking reshuffles. This is close enough to this project's own
+  domain claim to be worth a dedicated measurement rather than a citation: whether the synthetic
+  prior's advantage survives on a real, temporally-split credit panel is exactly Claim 2's
+  question, asked from the outside.
+- **A native-coverage column.** They report the fraction of benchmark datasets a model cannot
+  run on natively, distinguishing a model's own score from one borrowed via GBDT fallback. This
+  project already reports coverage prominently for itself (27 of 51, §121); applying the same
+  discipline when comparing against a peer that silently falls back would be new.
+- **Wilcoxon signed-rank plus Holm**, alongside the paired bootstrap plus Holm this project
+  already runs. A possible addition, not a gap -- worth checking whether it changes any standing
+  verdict before adopting it as a second test.
+
+**Two ideas from `feature_engineering/`, read as source rather than by filename:**
+
+- **`TabPfnVectorizer`** (`vectorizer/tabpfnvectorizer.py`) extracts a pretrained TabPFN's
+  context-conditioned embeddings and feeds them to a downstream model (LightGBM, logistic
+  regression) rather than using the TFM end-to-end. This is a different question from anything
+  measured here so far: every finding to date scores fintfm's own head, never whether its
+  representation is useful when handed to something else. Worth one experiment: extract fintfm's
+  representation and test it as input to a plain classifier.
+- **Yeo-Johnson `PowerTransformer`**, offered as a config-toggled alternative to standard
+  scaling. A direct, one-line alternative to this project's rank-based `feature_transform` on
+  the heavy-tailed financial ratios §100 already identified as a preprocessing lever. Cheapest
+  experiment on this list.
+
+**From the FAQ, for positioning rather than for the roadmap.** Verbatim: "Unlike LLMs, Tabular
+Foundation Models like Seldon do not contain broad, latent world knowledge. They act as
+inference engines that rely almost entirely on the information provided in the context." A
+usable contrastive quote for this project's synthetic-only framing. The FAQ also states no
+native missing-value handling today ("coming soon") and makes no calibration claim anywhere in
+its public docs -- both are precise, checkable points against which this project's own
+calibration reporting (`docs/results/POSTMORTEM.md`, the credit-panel findings) is a real
+difference, not a rhetorical one.
+
+Two smaller conventions, lower priority: `ColumnTypeDetection`'s cardinality-threshold column
+typer (>30 uniques routes numeric-looking strings to text rather than categorical), relevant
+only if this project ever accepts undeclared schemas; and a fixed small per-column embedding
+budget for free-text fields, relevant only if it ever ingests free text, which it does not
+today.
