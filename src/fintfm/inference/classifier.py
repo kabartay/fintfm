@@ -212,7 +212,9 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
     ) -> None:
         """Configure the classifier. See the class docstring — every argument is documented
         there with the measurement that set its default."""
-        self.model = FinancialTFM.load(model, map_location=device) if isinstance(model, str) else model
+        self.model = (
+            FinancialTFM.load(model, map_location=device) if isinstance(model, str) else model
+        )
         self.device = device
         self.max_context = max_context
         self.context_strategy = context_strategy
@@ -271,7 +273,9 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
                 f"model supports at most {self.model.cfg.max_classes} classes, got {len(self.classes_)}"
             )
         if X.shape[1] > self.model.cfg.max_features:
-            raise ValueError(f"model supports at most {self.model.cfg.max_features} features, got {X.shape[1]}")
+            raise ValueError(
+                f"model supports at most {self.model.cfg.max_features} features, got {X.shape[1]}"
+            )
         label_map = {c: i for i, c in enumerate(self.classes_)}
         y_coded = np.array([label_map[v] for v in y], dtype=np.int64)
         if self.context_strategy == "retrieval":
@@ -316,8 +320,9 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         # context was not resampled, so the correction is inert in that case.
         with np.errstate(divide="ignore"):
             self._log_prior_shift = np.where(
-                (full_prior > 0) & (ctx_prior > 0), np.log(np.maximum(full_prior, 1e-12))
-                - np.log(np.maximum(ctx_prior, 1e-12)), 0.0
+                (full_prior > 0) & (ctx_prior > 0),
+                np.log(np.maximum(full_prior, 1e-12)) - np.log(np.maximum(ctx_prior, 1e-12)),
+                0.0,
             )
         return self
 
@@ -339,8 +344,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         with np.errstate(divide="ignore"):
             return np.where(
                 (self._full_prior > 0) & (ctx_prior > 0),
-                np.log(np.maximum(self._full_prior, 1e-12))
-                - np.log(np.maximum(ctx_prior, 1e-12)),
+                np.log(np.maximum(self._full_prior, 1e-12)) - np.log(np.maximum(ctx_prior, 1e-12)),
                 0.0,
             )
 
@@ -371,9 +375,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         weight = sum(q.size for q, _ in plan)
         if weight == 0:
             return self._full_rate
-        total = sum(
-            q.size * float((self._pool_y[c] == pos_class).mean()) for q, c in plan
-        )
+        total = sum(q.size * float((self._pool_y[c] == pos_class).mean()) for q, c in plan)
         # cached so a caller reporting what was actually retrieved does not have to rebuild
         # the plan; recomputing it means a second k-means and a second pass over the pool,
         # which doubled the cost of every retrieval cell in the context sweep
@@ -470,18 +472,72 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
     ) -> FinancialTFMClassifier:
         """A sibling estimator differing in its context draw, features or label orientation."""
         twin = FinancialTFMClassifier(
-            self.model, device=self.device, max_context=self.max_context,
-            context_strategy=self.context_strategy, correct_prior=self.correct_prior,
-            random_state=seed, query_chunk=self.query_chunk,
+            self.model,
+            device=self.device,
+            max_context=self.max_context,
+            context_strategy=self.context_strategy,
+            correct_prior=self.correct_prior,
+            random_state=seed,
+            query_chunk=self.query_chunk,
             retrieval_groups=self.retrieval_groups,
             retrieval_min_positive=self.retrieval_min_positive,
             feature_transform=self.feature_transform,
             prototype_minority_ratio=self.prototype_minority_ratio,
             n_ensemble=1,
         )
-        return twin.fit(
-            self._raw_X if X is None else X, self._raw_y if y is None else y
-        )
+        return twin.fit(self._raw_X if X is None else X, self._raw_y if y is None else y)
+
+    @torch.no_grad()
+    def transform_representation(self, X: np.ndarray) -> np.ndarray:
+        """Row representations for ``X``, without the classification head.
+
+        Task 48.22: a pretrained TFM's context-conditioned embeddings, handed to a
+        downstream model rather than used end-to-end, is a pattern this project had not
+        tried (Neuralk-AI's ``TabPfnVectorizer``, ``docs/paper/RELATED_WORK.md``). This is a
+        different question from every other finding to date, which scores this model's own
+        head: whether the representation carries signal even when the head does not decide.
+
+        Uses :meth:`fit`'s stored context exactly as :meth:`predict_proba` does -- same
+        conditioner, same padding, same column identities at ``self.random_state`` -- so a
+        representation and a prediction for the same row come from the same forward pass in
+        spirit, differing only in which layer is read. Chunked the same way, for the same
+        reason: a query never attends to another query, so splitting the rows changes nothing.
+
+        Args:
+            X: ``(n, n_features)`` query rows, matching the width seen by :meth:`fit`.
+
+        Returns:
+            ``(n, d_model)`` row representations, one per query row.
+        """
+        self.model.assert_trained_for("classification")
+        X = np.asarray(X, dtype=np.float32)
+        if X.shape[1] != self._ctx_X.shape[1]:
+            raise ValueError("feature width at predict time must match fit time")
+        X = self._conditioner.transform(X)
+        if X.shape[0] > self.query_chunk:
+            return np.concatenate(
+                [
+                    self._representation_chunk(X[i : i + self.query_chunk])
+                    for i in range(0, X.shape[0], self.query_chunk)
+                ]
+            )
+        return self._representation_chunk(X)
+
+    @torch.no_grad()
+    def _representation_chunk(self, X: np.ndarray) -> np.ndarray:
+        """One chunk of query rows, encoded but not classified. See :meth:`transform_representation`."""
+        ctx_X, ctx_y = self._ctx_X, self._ctx_y
+        n_ctx = ctx_X.shape[0]
+        cfg = self.model.cfg
+        Xp = np.full((1, n_ctx + X.shape[0], cfg.max_features), np.nan, dtype=np.float32)
+        Xp[0, :n_ctx, : ctx_X.shape[1]] = ctx_X
+        Xp[0, n_ctx:, : X.shape[1]] = X
+        yp = np.zeros((1, n_ctx + X.shape[0]), dtype=np.int64)
+        yp[0, :n_ctx] = ctx_y
+        Xt = torch.from_numpy(Xp).to(self.device)
+        yt = torch.from_numpy(yp).to(self.device)
+        h = self.model.encode_rows(Xt, n_ctx, column_id_seed=int(self.random_state), y=yt)
+        return h[0, n_ctx:].cpu().numpy()
 
     @torch.no_grad()
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
@@ -498,9 +554,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             # average probabilities, not logits: the members disagree about the base rate
             # their context implies, and averaging in logit space would let one confident
             # member dominate the mean rather than contribute one vote to it
-            members = [
-                self._member_proba(X, self.random_state + i) for i in range(self.n_ensemble)
-            ]
+            members = [self._member_proba(X, self.random_state + i) for i in range(self.n_ensemble)]
             return np.mean(members, axis=0)
         X = np.asarray(X, dtype=np.float32)
         if X.shape[1] != self._ctx_X.shape[1]:
@@ -555,9 +609,9 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         # Each ensemble member draws its own column identities, keyed off its own seed, so
         # n_ensemble > 1 averages over them and recovers the column-order invariance that
         # decision D12 traded for expressiveness. A single member is still deterministic.
-        logits = self.model(
-            Xt, yt, n_ctx, nc, column_id_seed=int(self.random_state)
-        )[0, n_ctx:, : len(self.classes_)]
+        logits = self.model(Xt, yt, n_ctx, nc, column_id_seed=int(self.random_state))[
+            0, n_ctx:, : len(self.classes_)
+        ]
         if self.correct_prior:
             prior = (
                 self._log_prior_shift
@@ -593,9 +647,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             ValueError: If the feature width does not match :meth:`fit`.
         """
         if self.model.hazard is None:
-            raise RuntimeError(
-                "this checkpoint has no hazard head; pretrain with --n-horizons K"
-            )
+            raise RuntimeError("this checkpoint has no hazard head; pretrain with --n-horizons K")
         self.model.assert_trained_for("survival")
         X = np.asarray(X, dtype=np.float32)
         if X.shape[1] != self._ctx_X.shape[1]:
@@ -621,9 +673,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         ]
         curve = torch.from_numpy(np.concatenate(curves)) if curves else torch.empty(0)
         if self.correct_prior and 0.0 < self._ctx_rate < 1.0 and 0.0 < self._full_rate < 1.0:
-            curve = shift_cumulative_pd(
-                curve, base_rate_shift(self._ctx_rate, self._full_rate)
-            )
+            curve = shift_cumulative_pd(curve, base_rate_shift(self._ctx_rate, self._full_rate))
         return curve.numpy()
 
     @torch.no_grad()

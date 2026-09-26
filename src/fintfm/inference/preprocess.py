@@ -23,12 +23,13 @@ Neither requires retraining, which is why they are tried before anything that do
 
 from __future__ import annotations
 
+import warnings
 from typing import Literal
 
 import numpy as np
 
 #: Which transform to apply to features before the model sees them.
-FeatureTransform = Literal["none", "winsor", "rank"]
+FeatureTransform = Literal["none", "winsor", "rank", "power"]
 
 
 class FeatureConditioner:
@@ -39,7 +40,11 @@ class FeatureConditioner:
             quantile range, which keeps the shape of the distribution and removes only the
             extremes. ``"rank"`` replaces each value by its quantile mapped to a normal
             distribution, which discards the shape entirely and is therefore immune to tails
-            but also to genuine magnitude information.
+            but also to genuine magnitude information. ``"power"`` applies a Yeo-Johnson power
+            transform (task 48.21, surfaced from Neuralk-AI's benchmark harness, see
+            ``docs/paper/RELATED_WORK.md``): unlike ``"rank"`` it preserves the relative
+            *magnitude* within a monotonic reshaping rather than discarding it for pure order,
+            so it is worth comparing against ``"rank"`` rather than assumed better or worse.
         quantile: Tail fraction clipped at each end by ``"winsor"``.
         subsample: Rows sampled to estimate the quantiles, bounding cost on a large panel.
         random_state: Seed for that subsample.
@@ -87,6 +92,63 @@ class FeatureConditioner:
             self._lo = np.where(np.isfinite(lo), lo, -np.inf).astype(np.float32)
             self._hi = np.where(np.isfinite(hi), hi, np.inf).astype(np.float32)
             return self
+        if self.kind == "power":
+            from sklearn.preprocessing import PowerTransformer
+
+            # A ratio with a near-zero denominator produces a genuine +-inf, not merely a
+            # large value; replace it with the finite extreme per column, fitted on training
+            # rows only and reused at transform time -- the same discipline "winsor" applies
+            # -- so power is a genuine drop-in alternative rather than one that crashes on
+            # this data's tails.
+            finite = np.where(np.isfinite(S), S, np.nan)
+            # An all-NaN column (handled below) makes nanmax/nanmin warn; errstate does not
+            # cover it, since it is a RuntimeWarning rather than a floating-point exception.
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", category=RuntimeWarning)
+                self._pt_hi = np.nanmax(finite, axis=0)
+                self._pt_lo = np.nanmin(finite, axis=0)
+            # A column that is entirely +-inf in the fitting subsample has no finite value to
+            # clamp to; nanmax/nanmin then return NaN, which the formula below also rejects.
+            # Such a column carries no information in this subsample regardless, so 0.0 is an
+            # arbitrary but finite and harmless placeholder rather than a value someone chose
+            # to mean something.
+            self._pt_hi = np.where(np.isfinite(self._pt_hi), self._pt_hi, 0.0)
+            self._pt_lo = np.where(np.isfinite(self._pt_lo), self._pt_lo, 0.0)
+            S = np.where(np.isposinf(S), self._pt_hi, S)
+            S = np.where(np.isneginf(S), self._pt_lo, S)
+
+            # standardize=False: sklearn's Yeo-Johnson formula itself overflows to +-inf on a
+            # small fraction of cells (measured: 5 of 78,015,600 on this project's real V4
+            # panel) when a column's fitted lambda is poorly conditioned, and PowerTransformer's
+            # *internal* standardizing scaler then raises on its own output before this
+            # function ever sees it. Standardizing by hand below lets those rare cells be
+            # clipped the same way every other tail value here is, rather than crashing a run
+            # over 5 cells in 78 million.
+            with warnings.catch_warnings():
+                # scipy's own yeo-johnson math overflows on a poorly-conditioned lambda for a
+                # rare cell (measured: 5 of 78,015,600 on this project's real V4 panel); the
+                # result is clipped below the same way every other tail value here is, so the
+                # warning describes a case already handled rather than an unhandled one.
+                warnings.simplefilter("ignore", category=RuntimeWarning)
+                self._pt = PowerTransformer(method="yeo-johnson", standardize=False).fit(S)
+                yj = self._pt.transform(S)
+            yj_finite = np.where(np.isfinite(yj), yj, np.nan)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", category=RuntimeWarning)
+                self._pt_yj_hi = np.nanmax(yj_finite, axis=0)
+                self._pt_yj_lo = np.nanmin(yj_finite, axis=0)
+                self._pt_mean = np.nanmean(yj_finite, axis=0)
+                self._pt_std = np.nanstd(yj_finite, axis=0)
+            self._pt_yj_hi = np.where(np.isfinite(self._pt_yj_hi), self._pt_yj_hi, 0.0)
+            self._pt_yj_lo = np.where(np.isfinite(self._pt_yj_lo), self._pt_yj_lo, 0.0)
+            self._pt_mean = np.where(np.isfinite(self._pt_mean), self._pt_mean, 0.0)
+            # A column with zero (or unmeasurable) spread would divide by zero; 1.0 leaves it
+            # merely uncentred rather than turning a real value into nan or inf.
+            self._pt_std = np.where(
+                np.isfinite(self._pt_std) & (self._pt_std > 0), self._pt_std, 1.0
+            )
+            return self
+
         from sklearn.preprocessing import QuantileTransformer
 
         self._qt = QuantileTransformer(
@@ -111,4 +173,13 @@ class FeatureConditioner:
             return X
         if self.kind == "winsor":
             return np.clip(X, self._lo, self._hi).astype(np.float32)
+        if self.kind == "power":
+            X = np.where(np.isposinf(X), self._pt_hi, X)
+            X = np.where(np.isneginf(X), self._pt_lo, X)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", category=RuntimeWarning)
+                yj = self._pt.transform(X)
+            yj = np.where(np.isposinf(yj), self._pt_yj_hi, yj)
+            yj = np.where(np.isneginf(yj), self._pt_yj_lo, yj)
+            return ((yj - self._pt_mean) / self._pt_std).astype(np.float32)
         return self._qt.transform(X).astype(np.float32)

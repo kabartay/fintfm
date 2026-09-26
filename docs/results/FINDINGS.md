@@ -8835,3 +8835,64 @@ It also retires a lead. §127 noted its 0.1957 against §118's 0.1681 and flagge
 mixture as a confound rather than claiming the financial-only prior was better. The published
 checkpoint scores 0.1986 under the same conditions, so **the gap is the mixture and the shipped
 checkpoint already uses the better one.** There was nothing to chase.
+
+## §129 — Yeo-Johnson loses to rank on every fold, and cost two numerical bugs to measure
+
+**How these numbers were produced.** MEASURED. `runs/v4-cellattn-labels.pt`, the published
+checkpoint, scored with `feature_transform="power"` in place of the default `"rank"`, five
+folds, V4FinBench horizon 0, everything else identical to the `"rank"` run reported alongside
+it. Task 48.21, surfaced from Neuralk-AI's benchmark harness (`docs/paper/RELATED_WORK.md`,
+Seldon section), which offers Yeo-Johnson as a config-toggled alternative to standard scaling.
+
+### The result
+
+| fold | rank AP | power AP | delta |
+| --- | --- | --- | --- |
+| 0 | 0.2113 | 0.1432 | -0.0681 |
+| 1 | 0.2050 | 0.1373 | -0.0677 |
+| 2 | 0.1786 | 0.1196 | -0.0590 |
+| 3 | 0.1810 | 0.1199 | -0.0611 |
+| 4 | 0.2172 | 0.1646 | -0.0526 |
+| **mean** | **0.1986** | **0.1369** | **-0.0617** |
+
+**Power loses on 5 of 5 folds, by a large and consistent margin.** Unlike §101, where a
+preprocessing change moved the mean without moving the rank, this is unambiguous: power also
+falls behind untuned logistic regression (0.1614), where rank beats it. `feature_transform`
+needs no retraining to test (`preprocess.py`'s own docstring: "neither requires retraining"),
+so this was a five-fold protocol run, not a pretraining decision, and the result is a clean no.
+
+**Why rank wins is not measured here and is worth stating rather than guessing at.** One
+candidate: `preprocess.py`'s design note that rank "discards the shape entirely" is exactly what
+makes it immune to the tail behaviour a ratio-heavy panel produces, where power's whole purpose
+is to *preserve* shape through a monotonic reshaping — the property this data punishes rather
+than rewards.
+
+### Implementing it surfaced two numerical bugs before it produced a number
+
+Both were found because the naive port crashed rather than silently producing a wrong answer,
+and both are now general-purpose fixes rather than special-cased for this experiment.
+
+**A literal `+-inf` from a near-zero denominator.** `PowerTransformer` raises on it, where
+`QuantileTransformer` (what `"rank"` uses) silently tolerates it. Fixed by clamping to the
+finite extreme per column, fitted on training rows only — the same discipline `"winsor"`
+already applies.
+
+**A second, independent failure once the first was fixed.** Yeo-Johnson's own formula
+(`expm1(lambda * log1p(x)) / lambda`) overflows to `inf` on a small fraction of cells — measured
+at 5 of 78,015,600 on this project's real V4FinBench panel — when a column's fitted lambda is
+poorly conditioned, even on genuinely finite input. `PowerTransformer`'s *internal* standardizing
+scaler then raises on its own output, before this project's code ever sees it. Fixed by fitting
+Yeo-Johnson with `standardize=False` and standardizing by hand, clipping the rare overflow
+exactly like every other tail value in this module.
+
+**The lesson is procedural.** A crash on rare input is a better outcome than a transform that
+silently reshapes an outlier into something plausible-looking and wrong, and this class of bug
+would not have been caught by a metric that only checks whether the output "looks reasonable" —
+it needed sklearn's own validation to refuse the intermediate value.
+
+### What this closes
+
+Task 48.21 is answered: rank stays the default, power is not adopted. `docs/paper/RELATED_WORK.md`'s
+Seldon section already frames this as one candidate among several evaluation-and-preprocessing
+ideas worth testing rather than adopting on priors; this is the first of those tests to
+complete, and it completed negative.
