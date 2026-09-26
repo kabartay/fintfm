@@ -137,3 +137,85 @@ beats ours on accuracy at the first horizon, calibration, cost and batch indepen
 of the eight candidate claims in `docs/paper/CLAIMS.md` were superseded or retracted by
 reading one paper and running one comparison — which is an argument for reading a benchmark's
 own paper *before* scoring on its data, not after.
+
+---
+
+# Postmortem: a screening metric right once in four tries, and two cost estimates wrong before a third one held
+
+**Date:** 2026-09-26. Companion to `docs/results/FINDINGS.md` §123-§130, which carry the numbers.
+Different shape from the chain above — nothing here was a wrong diagnosis about the model.
+Every claim shipped was eventually correct. What recurred was a **cheap proxy standing in for an
+expensive measurement**, twice for cost and four times for direction, and the proxy was wrong
+often enough that the pattern is worth naming rather than filed under each individual finding.
+
+## The chain
+
+| # | The cheap signal said | The expensive measurement said | Cost |
+| --- | --- | --- | --- |
+| 1 | A depth probe at toy size (`F=32`) priced 16 layers at **1.90x** the step time of 4 | At production width (`F=136`) the per-cell encoder dominates and depth costs **1.01x** per step — later corrected again to **1.16x** end to end, since a full run also varies `n_rows` and samples the prior, neither of which scales with depth (§123) | A wrong number stated with confidence before the real recipe was run |
+| 2 | Held-out synthetic AUC ranked depth 16 **below** depth 4, cleanly, on two of three metrics | The five-fold credit protocol ranked depth 16 **above** depth 4, +0.0019 AP, though the folds disagreed in sign badly enough that the honest read was null either way (§124) | Would have shipped "depth hurts" in writing if the held-out number alone had been trusted |
+| 3 | At batch 2, `--lr 1e-4` beat the shipped default by **+0.0243 AP, 5 of 5 folds**, all significant after Holm | At the reference recipe (batch 8) the shipped default **beat** `1e-4` by +0.0116, also 5 of 5 folds — the whole effect was a batch-size artifact the finding's own text had flagged as the reason not to trust it yet | About $2.80 and two HF Jobs runs to find out the flagged caveat was the entire story |
+| 4 | Held-out pooled AUC at batch 8 ranked the shipped default above `1e-4` | The credit protocol agreed, for the first time this session | The one case where the cheap signal and the expensive one matched |
+| 5 | A per-task ExtraTrees judge, timed on the wall clock of a probe that also sampled each task, implied filtering 48,000 pretraining tasks would cost **~20 hours** | Timed on judging alone, the real cost was **~0.03-0.04 s/task**, under 30 minutes total (§125's docstring in `prior/learnability.py`) | Would have made a genuinely cheap experiment look prohibitive, and did briefly discourage running it |
+| 6 | `PowerTransformer.fit` on real V4FinBench data raised on a literal `+-inf` from a near-zero-denominator ratio; clamping it fixed the crash | Clamping the input revealed a **second, independent** overflow inside Yeo-Johnson's own formula, on 5 of 78,015,600 cells, that the first fix did nothing about (§129) | Two separate debugging passes for what looked like one bug |
+| 7 | A first design for testing whether fintfm's representation transfers extracted it over the full ~600,000-row training split, matching how `predict_proba` is normally costed | At this model's documented 8.6 s/1,000-row inference cost, that prices at roughly 14 hours; a bounded 20,000-row stratified subsample cut it to **under 15 minutes a fold** with no loss of signal (§130) | A run left going for over two hours before being killed on a projected cost rather than an observed completion |
+
+## What they had in common
+
+**A cheap proxy and the number it stands in for are not the same measurement, and nothing here
+checked that they agreed before trusting the cheap one.** Rows 1, 5 and 7 are the same mistake at
+three different distances: extrapolating a cost from a regime the real workload does not run in
+— a smaller feature count, a probe that timed two things as one, a training-set size no one
+asks the model to score in practice. Each was cheap to state and each was wrong in the direction
+that would have blocked or mispriced real work.
+
+Rows 2, 3 and 4 are a second, related pattern: **the held-out synthetic score and the downstream
+credit-panel score measure different things**, and this session treated them as interchangeable
+until the disagreement was counted. Combined with row 4 and the older §117 precedent (a
+prior-side score that predicted the wrong sign for the tree prior, `docs/results/FINDINGS.md`
+§118), the screening signal has now been checked against the real measurement four times across
+this project's history and agreed once.
+
+Row 6 is the odd one out and worth keeping distinct: not a wrong estimate but a **fix that
+solved a symptom rather than a cause**, which is why sklearn's own input validation — refusing
+to proceed on bad data rather than silently reshaping it — was what caught the second bug at
+all. A metric that "looks reasonable" would not have.
+
+## Why nothing caught them sooner
+
+Every one of these was, in isolation, a defensible thing to trust. A toy-size probe is the
+standard way to sanity-check a cost model before spending money on it. A held-out synthetic
+score is this project's own cheapest sanity check, run before every downstream evaluation. A
+wall-clock probe is a normal way to estimate a run's cost. None of the seven rows involved
+skipping a check that was known to be necessary — each involved a check that looked sufficient
+and was not.
+
+What would have caught four of the seven earlier: running the cheap and expensive measurement
+side by side on a small case *before* trusting the cheap one for a real decision, which is
+exactly what happened after each failure and never before it. The single-fold timing probe that
+found row 7's true cost (§130) is the pattern applied correctly, and it was only tried after row
+7 had already cost two hours proving the opposite lesson.
+
+## What changed
+
+- **`docs/roadmap/ROADMAP.md`'s Phase A now says to score candidates on the credit protocol
+  directly** rather than screening on held-out synthetic first, because the screening step has
+  cost more (in wrong conclusions) than it has saved.
+- **Every new cost estimate in this session's later findings names what regime it was measured
+  in** — production feature count, not a toy size; judging alone, not judging-plus-sampling;
+  a bounded training subsample, not the full split — after three estimates that did not.
+- **A single-fold or single-probe timing check is now the default before committing to a full
+  run**, the same discipline `docs/infra/COMPUTE.md`'s worst-case probing already asked for on
+  memory and applied here to wall-clock cost.
+
+## What this says about the project
+
+The chain above did not retract a single claim about the model — every number in §123-§130
+that survived to be written down held up under the expensive check. What it cost instead was
+**time spent on the wrong side of each check**: a depth conclusion nearly shipped on a metric
+later shown blind to the effect it was supposed to screen, a filter nearly deprioritised on a
+cost that was never real, a run left going for hours on an estimate that a fifteen-minute probe
+would have corrected immediately. None of these needed a smarter model or a better experiment.
+They needed the cheap number checked against the expensive one before being acted on, which is
+the same rule the first postmortem's failures 1 through 6 were already evidence for, applied
+here to engineering cost rather than to scientific conclusions.

@@ -41,6 +41,24 @@ pretraining run (anything past a smoke test — thousands of steps, GPU-scale ba
 without checking `uptime` first and getting an explicit go-ahead; that combination has frozen
 this Mac before. Ports `8080` (mlflow), `8001` (an unrelated API) and `3000` (Docker) are taken.
 
+## A backgrounded shell command does not inherit your `cd`
+
+**Symptom: a background job you just launched fails instantly with `ModuleNotFoundError` or
+`No such file or directory`, or a running job's PID reads as dead when it is not.** On
+2026-09-26 this hit three times in one session: a launch resolved `uv run` against the wrong
+directory and died immediately; a `kill -0 $PID` check against a stale PID reported "not
+running" on a process that was, seconds later, confirmed alive and mid-computation; and a
+"dead" job was relaunched as a duplicate, competing with the original for the same MPS device
+until the mistake was caught and the duplicate killed.
+
+The tool's own `cd` inside a foreground command does not persist to a background one issued
+later in the same turn — each backgrounded command gets a fresh shell reading the session's
+tracked cwd, not wherever a prior `cd` left off. **Put `cd /absolute/path &&` inside the
+backgrounded command itself**, every time, rather than relying on an earlier `cd` in the
+transcript. And prefer `ps aux | grep <name>` or `ps -p $PID` over a single `kill -0` check
+before declaring a process dead — a transient scheduling gap can make a live PID look absent
+for one sample.
+
 ## Claims: label every number by how it was produced
 
 This is the rule that matters most in an ML repo, because a wrong number here doesn't crash —
@@ -386,6 +404,19 @@ validator had been reporting three malformed tasks for an hour and the pipe cut 
 
 Read the whole output, or grep for what you want to see rather than for where it ends. Same
 family as the `| tee` trap above — a pipe that quietly discards the part that says "no".
+
+## Closing an openspec task rewrites nothing it already said
+
+**Prepend the result; never replace the original text.** On 2026-09-26, closing two tasks by
+overwriting their body with a "DONE (§N): ..." summary did two things wrong at once: it deleted
+the `Verify:` clause that stated what would count as evidence, which broke
+`test_every_proposal_is_well_formed_and_every_task_verifiable` (a case-sensitive check for the
+literal substring `"Done"` — writing `"DONE"` in capitals does not satisfy it); and it destroyed
+the historical record of what was originally asked, which is the opposite of what a findings-log
+project is for. Every other closed task in this repo (`48.20`, for one) keeps its original
+paragraph intact and inserts the closure summary as a **preceding** sentence, `**DONE (§N): ...**`
+or `**Closed without implementing (§N).**`, ahead of the untouched original. Match that, and run
+`pytest tests/test_openspec.py` before trusting a closure edit is complete.
 
 ## Count the tasks, not the steps
 
