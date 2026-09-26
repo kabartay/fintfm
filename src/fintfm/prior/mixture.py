@@ -17,6 +17,7 @@ from fintfm.prior.financial import (
     MIN_EXPECTED_POSITIVES,
     sample_financial_task,
 )
+from fintfm.prior.learnability import is_learnable
 from fintfm.prior.scm import (
     sample_scm_regression_task,
     sample_scm_task,
@@ -127,6 +128,27 @@ class PriorConfig:
     absolute_rate_floor: float = _ABSOLUTE_RATE_FLOOR
     rate_ceiling: float = _RATE_CEILING
     n_sectors_max: int = _N_SECTORS
+    p_learnability_filter: float = 0.0
+    """Reject a drawn task and resample when a cheap held-out learner cannot beat
+    :attr:`learnability_auc_floor` AUC on it. Nori rejects unlearnable synthetic datasets with
+    an ExtraTrees signal-quality filter; §125 measured that the naive version here would reject
+    35% of the production mixture's tasks, including a fifth that are single-class or otherwise
+    unscorable, and that on the rejected subset the model itself scores 0.520 against the
+    filter's judge at 0.392 -- the filter would discard signal this model can use. Named as a
+    probability rather than a bool so the filter's own effect can be swept (0.0 = off, 1.0 =
+    every task is judged) without a second flag; ``0.0`` reproduces every prior checkpoint's
+    behaviour. Costs about **0.03-0.04 s/task** to judge, measured directly rather than assumed:
+    a naive extrapolation from §125's per-task wall time (which included sampling the task, not
+    just judging it) would have priced a full run's filtering at roughly 20 hours. Judging every
+    one of 48,000 draws once is under 30 minutes; :attr:`learnability_max_resamples` bounds the
+    added cost of resampling the rejects."""
+    learnability_auc_floor: float = 0.51
+    """AUC threshold below which :attr:`p_learnability_filter` rejects a task. §125's value,
+    chosen to match a signal an ExtraTrees can barely distinguish from chance."""
+    learnability_max_resamples: int = 8
+    """Give up and keep the task rather than resample forever. A batch member must never be
+    silently dropped -- :func:`sample_batch` always returns exactly ``batch_size`` tasks -- and
+    a task family with a rejection rate above this bound would otherwise spin without limit."""
 
 
 def sample_task(rng: np.random.Generator, cfg: PriorConfig, n_rows: int | None = None) -> Task:
@@ -144,12 +166,8 @@ def sample_task(rng: np.random.Generator, cfg: PriorConfig, n_rows: int | None =
         )
     if cfg.p_tree and rng.random() < cfg.p_tree:
         if cfg.n_horizons is not None:
-            raise ValueError(
-                "n_horizons requires p_financial=1.0; the tree prior has no time axis"
-            )
-        return sample_tree_task(
-            rng, n, max_features=cfg.max_features, max_classes=cfg.max_classes
-        )
+            raise ValueError("n_horizons requires p_financial=1.0; the tree prior has no time axis")
+        return sample_tree_task(rng, n, max_features=cfg.max_features, max_classes=cfg.max_classes)
     if cfg.p_regression and rng.random() < cfg.p_regression:
         if cfg.n_horizons is not None:
             raise ValueError(
@@ -162,10 +180,14 @@ def sample_task(rng: np.random.Generator, cfg: PriorConfig, n_rows: int | None =
         return sample_trivial_task(rng, n, max_features=min(8, cfg.max_features))
     if cfg.p_crossed and rng.random() < cfg.p_crossed:
         return sample_scm_features_financial_label(
-            rng, n, max_features=cfg.max_features,
+            rng,
+            n,
+            max_features=cfg.max_features,
             min_expected_positives=cfg.min_expected_positives,
-            absolute_rate_floor=cfg.absolute_rate_floor, rate_ceiling=cfg.rate_ceiling,
-            sharpness_min=cfg.sharpness_min, sharpness_max=cfg.sharpness_max,
+            absolute_rate_floor=cfg.absolute_rate_floor,
+            rate_ceiling=cfg.rate_ceiling,
+            sharpness_min=cfg.sharpness_min,
+            sharpness_max=cfg.sharpness_max,
         )
     if rng.random() < cfg.p_financial:
         return sample_financial_task(
@@ -182,7 +204,10 @@ def sample_task(rng: np.random.Generator, cfg: PriorConfig, n_rows: int | None =
             sharpness_max=cfg.sharpness_max,
         )
     return sample_scm_task(
-        rng, n, max_features=cfg.max_features, max_classes=cfg.max_classes,
+        rng,
+        n,
+        max_features=cfg.max_features,
+        max_classes=cfg.max_classes,
         legacy=cfg.scm_legacy,
     )
 
@@ -209,19 +234,41 @@ def _sample_tasks_reusing_graphs(
     while len(tasks) < batch_size:
         # Decide the slot's source the same way sample_task would, then either group it or
         # fall through. Drawing the source first keeps the mixture proportions intact.
-        if (cfg.p_tree and rng.random() < cfg.p_tree) or (
-            cfg.p_regression and rng.random() < cfg.p_regression
-        ) or rng.random() < cfg.p_financial:
+        if (
+            (cfg.p_tree and rng.random() < cfg.p_tree)
+            or (cfg.p_regression and rng.random() < cfg.p_regression)
+            or rng.random() < cfg.p_financial
+        ):
             tasks.append(sample_task(rng, cfg, n_rows=n_rows))
             continue
         want = min(cfg.scm_reuse_graph, batch_size - len(tasks))
         tasks.extend(
             sample_scm_task_group(
-                rng, n_rows, n_targets=want, max_features=cfg.max_features,
-                max_classes=cfg.max_classes, legacy=cfg.scm_legacy,
+                rng,
+                n_rows,
+                n_targets=want,
+                max_features=cfg.max_features,
+                max_classes=cfg.max_classes,
+                legacy=cfg.scm_legacy,
             )[:want]
         )
     return tasks[:batch_size]
+
+
+def _resample_until_learnable(
+    rng: np.random.Generator, cfg: PriorConfig, n_rows: int, task: Task
+) -> Task:
+    """Return ``task`` if a cheap held-out learner clears the floor, else a resampled draw.
+
+    Bounded by :attr:`PriorConfig.learnability_max_resamples`: a batch member is always
+    returned, learnable or not, because silently shrinking a batch is a worse failure than
+    keeping one hard task in it.
+    """
+    for _ in range(cfg.learnability_max_resamples):
+        if is_learnable(task, auc_floor=cfg.learnability_auc_floor):
+            return task
+        task = sample_task(rng, cfg, n_rows=n_rows)
+    return task
 
 
 def sample_batch(rng: np.random.Generator, cfg: PriorConfig, batch_size: int) -> TaskBatch:
@@ -230,13 +277,18 @@ def sample_batch(rng: np.random.Generator, cfg: PriorConfig, batch_size: int) ->
     The task size is drawn per batch from ``cfg.n_rows_choices`` when set, because the
     base-rate floor scales with it and a fixed size caps how imbalanced any task can be.
     """
-    n_rows = (
-        int(rng.choice(cfg.n_rows_choices)) if cfg.n_rows_choices else cfg.n_rows
-    )
+    n_rows = int(rng.choice(cfg.n_rows_choices)) if cfg.n_rows_choices else cfg.n_rows
     if cfg.scm_reuse_graph > 1:
         tasks = _sample_tasks_reusing_graphs(rng, cfg, n_rows, batch_size)
     else:
         tasks = [sample_task(rng, cfg, n_rows=n_rows) for _ in range(batch_size)]
+    if cfg.p_learnability_filter > 0:
+        tasks = [
+            _resample_until_learnable(rng, cfg, n_rows, t)
+            if rng.random() < cfg.p_learnability_filter
+            else t
+            for t in tasks
+        ]
     n_ctx = int(rng.integers(int(cfg.min_ctx_frac * n_rows), int(cfg.max_ctx_frac * n_rows) + 1))
     n_ctx = min(max(n_ctx, 2), n_rows - 1)
     return collate(tasks, n_ctx=n_ctx, max_features=cfg.max_features)
