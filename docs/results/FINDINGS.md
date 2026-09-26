@@ -8756,3 +8756,82 @@ Held-out pooled AUC at batch 8 ranked 3e-4 above 1e-4 (0.878 against 0.866) and 
 protocol agreed. That is **one correct call in four**: wrong sign in §117, wrong sign in §124,
 blind in §126, right here. Not enough to restore it as a screening signal, and enough to stop
 `docs/roadmap/ROADMAP.md` describing it as uniformly useless.
+
+## §128 — Local training at batch 8 is possible: the MPS ceiling is an indexing bound with a formula
+
+**How these numbers were produced.** MEASURED. Forward, backward and optimiser step at the
+published architecture (`d_cell=48, d_model=128, n_layers=4, n_col_layers=2, n_cell_blocks=1,
+cell_labels`, `feature_chunk=8`), timed on an idle MPS device, two timed repetitions after one
+warm-up, `torch.mps.synchronize()` around the timing. CPU arm measured the same way.
+
+§123 recorded that the reference recipe cannot run on MPS and concluded local arms are
+"internally comparable and externally meaningless". §127 priced that at about **0.08 AP**, which
+is larger than every effect measured locally. That made the ceiling worth understanding rather
+than working around.
+
+### The ceiling is one number, and it is predictable
+
+The failure names its own cause:
+
+```
+NotImplementedError: MPS all_reduction: tensors requiring 64-bit indexing
+are not supported (numel=4,563,402,752)
+```
+
+That is exactly `batch x max_features x n_heads x n_rows^2` = `8 x 136 x 4 x 1024^2`. The bound
+is `2^31`, so the largest batch at a given task size follows:
+
+| `n_rows` | max batch on MPS | `numel` at batch 8 |
+| --- | --- | --- |
+| 512 | **15** | 1,140,850,688 (0.53x) |
+| 768 | 6 | 2,566,914,048 (1.20x) |
+| 1024 | 3 | 4,563,402,752 (2.13x) |
+
+**It is not a memory limit.** CPU peak RSS was 9.3 GB at every shape tried, including the one
+MPS refuses.
+
+### So batch 8 runs locally, at 1.74 s/step
+
+| device | shape | s/step | 6,000 steps |
+| --- | --- | --- | --- |
+| **MPS** | **B=8, N=512** | **1.74** | **2.9 h** |
+| MPS | B=12, N=512 | 2.77 | 4.6 h |
+| MPS | B=2, N=512 (what §124/§126 ran) | 0.38 | 0.6 h |
+| CPU | B=8, N=512 | 31.66 | 52.8 h |
+| CPU | B=8, N=1024 | 93.21 | 155.4 h |
+
+CPU clears the indexing bound and is 18x too slow to use. The useful configuration is MPS at
+batch 8.
+
+**A contended measurement is worthless.** The same B=8 probe read **14.59 s/step** while a
+five-fold evaluation held the GPU, an 8x overstatement that would have priced a 2.9-hour run at
+24 hours and closed this option. Time the device when it is idle, or do not time it.
+
+### What this changes
+
+Local arms move from batch 2 to batch 8, so the regime §127 measured as costing 0.08 AP is
+mostly recovered. The remaining difference from the reference recipe is one thing: `n_rows`
+draws from 256/512 locally against 256/512/1024 upstream, because only the 1024 draws exceed the
+bound. That is a narrower gap than batch size and it is now the only one.
+
+**Local results still do not go in a paper.** They screen candidates at roughly 3 hours and no
+cost, and the ones that move get confirmed at the reference recipe on rented GPU. What changed
+is that screening is now worth doing, where at batch 2 it was measuring a regime the model does
+not ship in.
+
+### The reference recipe reproduces
+
+Scoring the published checkpoint on the same five folds as the run that reproduced its recipe:
+
+| checkpoint | AP | ROC-AUC |
+| --- | --- | --- |
+| published `v4-cellattn-labels.pt` | **0.1986** | 0.9886 |
+| independent rerun of the documented recipe | 0.1957 | 0.9882 |
+
+Within 1.5%, the rerun marginally behind on 4 of 5 folds. The recipe in `docs/infra/HF_JOBS.md`
+produces the shipped model, which had never been checked.
+
+It also retires a lead. §127 noted its 0.1957 against §118's 0.1681 and flagged the prior
+mixture as a confound rather than claiming the financial-only prior was better. The published
+checkpoint scores 0.1986 under the same conditions, so **the gap is the mixture and the shipped
+checkpoint already uses the better one.** There was nothing to chase.

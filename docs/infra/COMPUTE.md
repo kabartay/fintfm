@@ -1,5 +1,11 @@
 # Compute
 
+**The MPS ceiling is `2^31` on `batch x max_features x n_heads x n_rows^2`, not a memory
+limit** (§128). At `n_rows 512` that allows batch 15; at 1024 it allows 3. Batch 8 at
+`n_rows 512` runs at **1.74 s/step**, so a 6,000-step arm takes about 2.9 hours locally. CPU
+clears the bound and is 18x too slow. Time the device idle: the same probe read 14.59 s/step
+while an evaluation held the GPU.
+
 Measured throughput, what a real run costs, and where to run it. Every number here was
 measured on this machine on the date given — none is estimated. Re-measure rather than
 trusting these after an architecture change, because they will move.

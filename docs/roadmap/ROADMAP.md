@@ -20,6 +20,13 @@ Proposals live in [`openspec/changes/`](../../openspec/changes/); the IDs below 
 Elo here is over the 27 binary datasets at one split each that §122 ran, not the public board.
 See `TABARENA_BAR.md` on why the two cannot be mixed.
 
+**Screen locally at batch 8, confirm on rented GPU.** §128 found the MPS ceiling is a `2^31`
+indexing bound, `batch x features x heads x rows^2`, not a memory limit: batch 8 at `n_rows 512`
+sits at 0.53x of it and runs at **1.74 s/step, about 2.9 hours per arm, free**. Every item below
+needs pretraining, so this is what makes them affordable. The only remaining gap to the
+reference recipe is that local runs never draw `n_rows 1024`. Confirm anything that moves at the
+reference recipe before it is quoted.
+
 **Screen downstream, not on held-out synthetic.** All four cells of §126's factorial score
 0.768 to 0.771 pooled held-out AUC while their downstream AP spans 0.0952 to 0.1196. The cheap
 signal is blind to an effect the credit protocol resolves on 5 of 5 folds, and it has now
