@@ -26,12 +26,21 @@ records supersessions and retractions as prominently as wins.
 | --- | --- |
 | [STRATEGY.md](roadmap/STRATEGY.md) | The plan of record: thesis, buyer, phases with falsifiable exit conditions, and what is deliberately not being built. |
 | [NEXT.md](roadmap/NEXT.md) | The near-term queue, in tiers. Larger proposals live in [`openspec/changes/`](../openspec/changes/) as structured tasks. |
+| [ROADMAP.md](roadmap/ROADMAP.md) | The ordered execution list toward one goal: listable on TabArena. Overrides NEXT.md's tier ordering where the two disagree, and says why. |
+| [TABARENA_BAR.md](roadmap/TABARENA_BAR.md) | What the bar actually is, in Elo, after the submission was reviewed and declined. |
 
 ## competition/ — who else is in this space
 
 | file | what it is for |
 | --- | --- |
 | [LANDSCAPE.md](competition/LANDSCAPE.md) | Competitors and what each claims about itself — positioning intelligence, not verified fact — plus how the open projects present themselves and what is worth copying. |
+| [SUBMISSION.md](competition/SUBMISSION.md) | The TabArena submission procedure: what was submitted, what the review found, and how to handle the maintainer sign-off when it arrives. |
+
+## leaderboard/ — public standing, own comparison
+
+| file | what it is for |
+| --- | --- |
+| [index.html](leaderboard/index.html) | fintfm's own TabArena comparison — not the official board. Labelled as such on the page itself, since Elo is only comparable within the population it was computed over. |
 
 ## research/ — the literature, and the map through it
 

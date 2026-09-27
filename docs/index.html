@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FinTFM</title>
+<style>
+  :root { color-scheme: light dark; --bg:#fafafa; --fg:#1a1a1a; --muted:#666; --link:#1d4ed8; --border:#ddd; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#16181d; --fg:#e6e6e6; --muted:#9aa0a6; --link:#7aa2ff; --border:#333; }
+  }
+  body {
+    margin:0; padding:3rem 1.25rem; background:var(--bg); color:var(--fg);
+    font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height:1.6;
+  }
+  .wrap { max-width:620px; margin:0 auto; }
+  h1 { font-size:1.5rem; margin-bottom:.25rem; }
+  p.sub { color:var(--muted); margin-top:0; }
+  a { color:var(--link); }
+  ul { padding-left:1.1rem; }
+  li { margin:.5rem 0; }
+  .note {
+    border:1px solid var(--border); border-radius:8px; padding:.9rem 1.1rem;
+    margin-top:1.75rem; font-size:.9rem; color:var(--muted);
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>FinTFM</h1>
+  <p class="sub">A tabular foundation model for corporate credit risk, pretrained only on synthetic data.</p>
+
+  <ul>
+    <li><a href="leaderboard/">FinTFM on TabArena</a> — this project's own comparison under TabArena's protocol, and the only page here meant to be read as a published page.</li>
+    <li><a href="https://github.com/kabartay/fintfm">The repository</a> — code, measurement log, and every retraction.</li>
+  </ul>
+
+  <div class="note">
+    Everything else served from this domain is the repository's working documentation — a numbered
+    measurement log, design decisions, roadmaps, postmortems — published as plain source text rather
+    than as a documentation site, because that is what it is. Read it
+    <a href="https://github.com/kabartay/fintfm/tree/main/docs">in the repository</a>, where it is
+    rendered and cross-linked.
+  </div>
+</div>
+</body>
+</html>

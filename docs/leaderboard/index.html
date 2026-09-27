@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FinTFM on TabArena</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #fafafa; --fg: #1a1a1a; --muted: #666; --border: #ddd;
+    --accent: #b45309; --accent-bg: #fff7ed; --card: #fff;
+    --link: #1d4ed8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #16181d; --fg: #e6e6e6; --muted: #9aa0a6; --border: #333;
+             --accent: #f59e0b; --accent-bg: #2a1f10; --card: #1e2127; --link: #7aa2ff; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 2rem 1rem 4rem; background: var(--bg); color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    line-height: 1.5;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; }
+  h1 { font-size: 1.6rem; margin-bottom: 0.25rem; }
+  .subtitle { color: var(--muted); margin-top: 0; margin-bottom: 1.5rem; font-size: 0.95rem; }
+  .disclaimer {
+    background: var(--accent-bg); border: 1px solid var(--accent); border-radius: 8px;
+    padding: 1rem 1.25rem; margin-bottom: 1.5rem; font-size: 0.92rem;
+  }
+  .disclaimer strong { color: var(--accent); }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 1.25rem 1.5rem; margin-bottom: 1.5rem;
+  }
+  .card h2 { font-size: 1.05rem; margin-top: 0; }
+  .stat-row { display: flex; gap: 1.5rem; flex-wrap: wrap; margin: 1rem 0; }
+  .stat { flex: 1; min-width: 140px; }
+  .stat .num { font-size: 1.6rem; font-weight: 600; }
+  .stat .lbl { color: var(--muted); font-size: 0.82rem; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  thead th {
+    text-align: left; padding: 0.5rem 0.6rem; border-bottom: 2px solid var(--border);
+    cursor: pointer; user-select: none; white-space: nowrap; color: var(--muted);
+    font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.02em;
+  }
+  thead th:hover { color: var(--fg); }
+  tbody td { padding: 0.42rem 0.6rem; border-bottom: 1px solid var(--border); }
+  tbody tr.highlight { background: var(--accent-bg); font-weight: 600; }
+  tbody tr.highlight td { color: var(--accent); }
+  .num-cell { text-align: right; font-variant-numeric: tabular-nums; }
+  .table-scroll { overflow-x: auto; }
+  a { color: var(--link); }
+  footer { color: var(--muted); font-size: 0.85rem; margin-top: 2rem; }
+  code { background: var(--accent-bg); padding: 0.1rem 0.35rem; border-radius: 4px; font-size: 0.85em; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>FinTFM on TabArena</h1>
+  <p class="subtitle">fintfm's own record of standing under TabArena's protocol — not the official leaderboard.</p>
+
+  <div class="disclaimer">
+    <strong>This is not tabarena.ai.</strong> The table below is fintfm's own comparison,
+    computed the same way <a href="https://github.com/kabartay/fintfm/blob/main/docs/results/FINDINGS.md#122">§122</a>'s
+    submitted entry was: 27 TabArena-Lite datasets (the subset fintfm's published checkpoint can run on), one split each,
+    against a cached snapshot of 94 other methods. The official board covers all 51 datasets across every split, and its
+    Elo values are <strong>not comparable</strong> to the ones here, even for a method with an identical name — Elo is
+    relative to the population it is computed over. See
+    <a href="https://tabarena.ai">tabarena.ai</a> for the real one.
+  </div>
+
+  <div class="card">
+    <h2>Two fintfm variants, same population</h2>
+    <div class="stat-row">
+      <div class="stat"><div class="num">765</div><div class="lbl">TA-FINTFM (own head) — rank 94 of 95</div></div>
+      <div class="stat"><div class="num" style="color:var(--accent)">910</div><div class="lbl">TA-FINTFM-LINPROBE — rank 93 of 95</div></div>
+    </div>
+    <p style="font-size:0.88rem;color:var(--muted);margin-bottom:0">
+      The submitted entry (<a href="https://github.com/autogluon/tabarena/pull/616">PR #616</a>, withdrawn on
+      competitiveness) uses the model's own classification head. The second is exploratory: a plain
+      <code>LogisticRegression</code> fit on the model's own pre-head representation instead of its trained head —
+      <a href="https://github.com/kabartay/fintfm/blob/main/docs/results/FINDINGS.md#130">§130</a>,
+      <a href="https://github.com/kabartay/fintfm/blob/main/docs/results/FINDINGS.md#131">§131</a>,
+      <a href="https://github.com/kabartay/fintfm/blob/main/docs/results/FINDINGS.md#132">§132</a> for how and why.
+      Neither result is on the table below twice — the table shown is the linear-probe run; the own-head number is
+      quoted from a separate, earlier run against the same cached population.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>Full comparison, 96 methods</h2>
+    <p style="font-size:0.85rem;color:var(--muted)">Click a column header to sort. fintfm's entry is highlighted.</p>
+    <div class="table-scroll">
+      <table id="lb">
+        <thead>
+          <tr>
+            <th data-k="rank">#</th>
+            <th data-k="method">Method</th>
+            <th data-k="elo" class="num-cell">Elo</th>
+            <th data-k="winrate" class="num-cell">Win rate</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <footer>
+    Generated from a real TabArena-Lite run, 2026-09-27. Data, methodology and every retraction live in
+    <a href="https://github.com/kabartay/fintfm/blob/main/docs/results/FINDINGS.md">FINDINGS.md</a>.
+    Modelled on how <a href="https://huggingface.co/spaces/Neuralk-AI/tabbench">Neuralk-AI hosts TabBench</a> —
+    an independent record, not a competing official board.
+  </footer>
+</div>
+
+<script>
+const data = [{"rank": 1, "method": "TA-LIMIX-2 (default)", "elo": 1877.4, "elo_hi": 204.8, "elo_lo": 130.3, "winrate": 0.9267, "new": false}, {"rank": 2, "method": "TA-TABPFN-3.5 (default)", "elo": 1817.5, "elo_hi": 187.6, "elo_lo": 118.1, "winrate": 0.9037, "new": false}, {"rank": 3, "method": "TA-TABPFN-3.5-FAST (default)", "elo": 1805.7, "elo_hi": 153.3, "elo_lo": 94.9, "winrate": 0.8986, "new": false}, {"rank": 4, "method": "TabFM+", "elo": 1800.0, "elo_hi": 194.5, "elo_lo": 120.7, "winrate": 0.8961, "new": false}, {"rank": 5, "method": "TABFM (default)", "elo": 1796.5, "elo_hi": 186.9, "elo_lo": 142.1, "winrate": 0.8945, "new": false}, {"rank": 6, "method": "AutoGluon 1.6 (noncommercial, 4h)", "elo": 1783.3, "elo_hi": 117.7, "elo_lo": 66.7, "winrate": 0.8885, "new": false}, {"rank": 7, "method": "CAUSILO (default)", "elo": 1756.1, "elo_hi": 150.6, "elo_lo": 76.4, "winrate": 0.8752, "new": false}, {"rank": 8, "method": "TA-EXAONE-TABULAR (default)", "elo": 1745.5, "elo_hi": 122.2, "elo_lo": 73.1, "winrate": 0.8698, "new": false}, {"rank": 9, "method": "MITRA_V2 (default)", "elo": 1733.7, "elo_hi": 171.7, "elo_lo": 101.7, "winrate": 0.8635, "new": false}, {"rank": 10, "method": "AutoGluon 1.6 (extreme, 4h)", "elo": 1722.3, "elo_hi": 90.2, "elo_lo": 51.6, "winrate": 0.8573, "new": false}, {"rank": 11, "method": "TABICLV2 (default)", "elo": 1636.2, "elo_hi": 83.0, "elo_lo": 66.1, "winrate": 0.8039, "new": false}, {"rank": 12, "method": "XIAOMI-TABLDM (default)", "elo": 1633.9, "elo_hi": 92.1, "elo_lo": 80.0, "winrate": 0.8023, "new": false}, {"rank": 13, "method": "TA-TABPFN-3 (default)", "elo": 1631.7, "elo_hi": 98.4, "elo_lo": 72.7, "winrate": 0.8008, "new": false}, {"rank": 14, "method": "TABPFN-V2.6 (default)", "elo": 1581.5, "elo_hi": 89.4, "elo_lo": 52.7, "winrate": 0.7639, "new": false}, {"rank": 15, "method": "AutoGluon 1.5 (extreme, 4h)", "elo": 1580.8, "elo_hi": 113.6, "elo_lo": 76.0, "winrate": 0.7634, "new": false}, {"rank": 16, "method": "REALTABPFN-V2.5 (default)", "elo": 1534.1, "elo_hi": 74.0, "elo_lo": 75.1, "winrate": 0.7253, "new": false}, {"rank": 17, "method": "REALTABPFN-V2.5 (tuned + ensemble)", "elo": 1531.8, "elo_hi": 103.8, "elo_lo": 77.4, "winrate": 0.7234, "new": false}, {"rank": 18, "method": "TABDPT-1.3 (default)", "elo": 1528.8, "elo_hi": 92.9, "elo_lo": 63.6, "winrate": 0.7209, "new": false}, {"rank": 19, "method": "AutoGluon 1.4 (best, 4h)", "elo": 1521.6, "elo_hi": 93.3, "elo_lo": 68.5, "winrate": 0.7146, "new": false}, {"rank": 20, "method": "REALTABPFN-V2.5 (tuned)", "elo": 1512.9, "elo_hi": 80.6, "elo_lo": 72.9, "winrate": 0.707, "new": false}, {"rank": 21, "method": "REALMLP_GPU (tuned + ensemble)", "elo": 1496.6, "elo_hi": 71.2, "elo_lo": 59.1, "winrate": 0.6924, "new": false}, {"rank": 22, "method": "REALMLP_GPU (tuned)", "elo": 1438.2, "elo_hi": 85.3, "elo_lo": 70.4, "winrate": 0.637, "new": false}, {"rank": 23, "method": "TABDPT_TURBO (default)", "elo": 1432.3, "elo_hi": 90.9, "elo_lo": 86.5, "winrate": 0.6312, "new": false}, {"rank": 24, "method": "TA-TABM (tuned + ensemble)", "elo": 1418.0, "elo_hi": 80.1, "elo_lo": 67.5, "winrate": 0.6168, "new": false}, {"rank": 25, "method": "TA-LIMIX (default)", "elo": 1406.5, "elo_hi": 113.6, "elo_lo": 94.1, "winrate": 0.6051, "new": false}, {"rank": 26, "method": "TA-ILTM (tuned + ensemble)", "elo": 1399.6, "elo_hi": 90.5, "elo_lo": 79.8, "winrate": 0.5981, "new": false}, {"rank": 27, "method": "TABICL_GPU (default)", "elo": 1394.3, "elo_hi": 84.8, "elo_lo": 61.8, "winrate": 0.5926, "new": false}, {"rank": 28, "method": "MNCA_GPU (tuned)", "elo": 1383.8, "elo_hi": 93.6, "elo_lo": 82.8, "winrate": 0.5817, "new": false}, {"rank": 29, "method": "TABDPT_GPU (tuned + ensemble)", "elo": 1378.3, "elo_hi": 72.8, "elo_lo": 62.1, "winrate": 0.5758, "new": false}, {"rank": 30, "method": "CHIMERA (tuned + ensemble)", "elo": 1371.4, "elo_hi": 73.4, "elo_lo": 64.4, "winrate": 0.5686, "new": false}, {"rank": 31, "method": "TA-TABM (tuned)", "elo": 1370.5, "elo_hi": 79.8, "elo_lo": 71.1, "winrate": 0.5676, "new": false}, {"rank": 32, "method": "CAT (tuned)", "elo": 1369.7, "elo_hi": 73.2, "elo_lo": 58.0, "winrate": 0.5669, "new": false}, {"rank": 33, "method": "CHIMERA (tuned)", "elo": 1368.5, "elo_hi": 81.4, "elo_lo": 76.9, "winrate": 0.5655, "new": false}, {"rank": 34, "method": "GBM (tuned + ensemble)", "elo": 1367.2, "elo_hi": 60.1, "elo_lo": 59.1, "winrate": 0.5641, "new": false}, {"rank": 35, "method": "CAT (default)", "elo": 1360.2, "elo_hi": 66.7, "elo_lo": 47.8, "winrate": 0.5567, "new": false}, {"rank": 36, "method": "CAT (tuned + ensemble)", "elo": 1359.6, "elo_hi": 79.7, "elo_lo": 58.3, "winrate": 0.5561, "new": false}, {"rank": 37, "method": "TA-TABSWIFT (default)", "elo": 1355.8, "elo_hi": 87.2, "elo_lo": 85.9, "winrate": 0.552, "new": false}, {"rank": 38, "method": "TABDPT_GPU (tuned)", "elo": 1353.0, "elo_hi": 82.6, "elo_lo": 72.1, "winrate": 0.5491, "new": false}, {"rank": 39, "method": "MNCA_GPU (tuned + ensemble)", "elo": 1347.9, "elo_hi": 97.1, "elo_lo": 86.2, "winrate": 0.5437, "new": false}, {"rank": 40, "method": "BETA_GPU (default)", "elo": 1346.7, "elo_hi": 80.2, "elo_lo": 76.4, "winrate": 0.5423, "new": false}, {"rank": 41, "method": "XGB (tuned + ensemble)", "elo": 1343.6, "elo_hi": 77.3, "elo_lo": 76.3, "winrate": 0.539, "new": false}, {"rank": 42, "method": "CTB (tuned + ensemble)", "elo": 1337.8, "elo_hi": 75.4, "elo_lo": 66.6, "winrate": 0.5327, "new": false}, {"rank": 43, "method": "TABPFNV2_GPU (tuned + ensemble)", "elo": 1331.4, "elo_hi": 104.7, "elo_lo": 95.5, "winrate": 0.5259, "new": false}, {"rank": 44, "method": "TA-ILTM (tuned)", "elo": 1327.5, "elo_hi": 76.6, "elo_lo": 57.6, "winrate": 0.5216, "new": false}, {"rank": 45, "method": "MITRA_GPU (default)", "elo": 1320.3, "elo_hi": 107.0, "elo_lo": 102.1, "winrate": 0.5138, "new": false}, {"rank": 46, "method": "REALMLP_GPU (default)", "elo": 1312.7, "elo_hi": 58.8, "elo_lo": 59.2, "winrate": 0.5057, "new": false}, {"rank": 47, "method": "XGB (tuned)", "elo": 1309.5, "elo_hi": 71.5, "elo_lo": 73.2, "winrate": 0.5021, "new": false}, {"rank": 48, "method": "GBM (tuned)", "elo": 1308.4, "elo_hi": 57.0, "elo_lo": 71.1, "winrate": 0.501, "new": false}, {"rank": 49, "method": "TA-TABM (default)", "elo": 1307.9, "elo_hi": 69.8, "elo_lo": 71.8, "winrate": 0.5004, "new": false}, {"rank": 50, "method": "CHIMERA (default)", "elo": 1307.3, "elo_hi": 71.2, "elo_lo": 60.7, "winrate": 0.4998, "new": false}, {"rank": 51, "method": "EBM (tuned + ensemble)", "elo": 1305.9, "elo_hi": 68.7, "elo_lo": 69.4, "winrate": 0.4982, "new": false}, {"rank": 52, "method": "CTB (tuned)", "elo": 1300.1, "elo_hi": 76.3, "elo_lo": 68.1, "winrate": 0.492, "new": false}, {"rank": 53, "method": "NN_TORCH (tuned + ensemble)", "elo": 1277.9, "elo_hi": 66.0, "elo_lo": 66.2, "winrate": 0.4678, "new": false}, {"rank": 54, "method": "TABPFNV2_GPU (tuned)", "elo": 1277.2, "elo_hi": 89.5, "elo_lo": 94.5, "winrate": 0.4671, "new": false}, {"rank": 55, "method": "XRFM_GPU (tuned + ensemble)", "elo": 1276.5, "elo_hi": 66.9, "elo_lo": 63.9, "winrate": 0.4663, "new": false}, {"rank": 56, "method": "EBM (default)", "elo": 1265.9, "elo_hi": 63.2, "elo_lo": 75.6, "winrate": 0.4548, "new": false}, {"rank": 57, "method": "SAP-RPT-OSS (default)", "elo": 1251.7, "elo_hi": 94.0, "elo_lo": 97.6, "winrate": 0.4394, "new": false}, {"rank": 58, "method": "EBM (tuned)", "elo": 1249.2, "elo_hi": 66.7, "elo_lo": 71.6, "winrate": 0.4366, "new": false}, {"rank": 59, "method": "TABDPT_GPU (default)", "elo": 1248.6, "elo_hi": 77.6, "elo_lo": 89.8, "winrate": 0.4361, "new": false}, {"rank": 60, "method": "XRFM_GPU (tuned)", "elo": 1247.0, "elo_hi": 61.3, "elo_lo": 76.3, "winrate": 0.4343, "new": false}, {"rank": 61, "method": "TABPFNV2_GPU (default)", "elo": 1238.9, "elo_hi": 89.6, "elo_lo": 91.6, "winrate": 0.4255, "new": false}, {"rank": 62, "method": "FASTAI (tuned + ensemble)", "elo": 1233.8, "elo_hi": 79.8, "elo_lo": 82.6, "winrate": 0.4201, "new": false}, {"rank": 63, "method": "TA-APLR (tuned + ensemble)", "elo": 1229.1, "elo_hi": 68.0, "elo_lo": 74.8, "winrate": 0.415, "new": false}, {"rank": 64, "method": "MNCA_GPU (default)", "elo": 1222.9, "elo_hi": 89.4, "elo_lo": 86.5, "winrate": 0.4084, "new": false}, {"rank": 65, "method": "NN_TORCH (tuned)", "elo": 1215.2, "elo_hi": 73.9, "elo_lo": 72.8, "winrate": 0.4002, "new": false}, {"rank": 66, "method": "CTB (default)", "elo": 1201.0, "elo_hi": 75.9, "elo_lo": 73.8, "winrate": 0.3852, "new": false}, {"rank": 67, "method": "TA-APLR (tuned)", "elo": 1186.8, "elo_hi": 53.8, "elo_lo": 82.1, "winrate": 0.3704, "new": false}, {"rank": 68, "method": "TABSTAR (tuned)", "elo": 1181.9, "elo_hi": 91.1, "elo_lo": 125.4, "winrate": 0.3653, "new": false}, {"rank": 69, "method": "XGB (default)", "elo": 1181.5, "elo_hi": 80.6, "elo_lo": 83.5, "winrate": 0.3649, "new": false}, {"rank": 70, "method": "TA-ILTM (default)", "elo": 1179.3, "elo_hi": 87.5, "elo_lo": 92.0, "winrate": 0.3626, "new": false}, {"rank": 71, "method": "TABSTAR (tuned + ensemble)", "elo": 1173.4, "elo_hi": 92.8, "elo_lo": 124.0, "winrate": 0.3565, "new": false}, {"rank": 72, "method": "FASTAI (tuned)", "elo": 1170.2, "elo_hi": 92.6, "elo_lo": 104.2, "winrate": 0.3532, "new": false}, {"rank": 73, "method": "TA-APLR (default)", "elo": 1169.8, "elo_hi": 83.7, "elo_lo": 97.2, "winrate": 0.3528, "new": false}, {"rank": 74, "method": "XT (tuned + ensemble)", "elo": 1154.6, "elo_hi": 68.9, "elo_lo": 70.8, "winrate": 0.3374, "new": false}, {"rank": 75, "method": "XT (tuned)", "elo": 1150.5, "elo_hi": 82.3, "elo_lo": 95.9, "winrate": 0.3333, "new": false}, {"rank": 76, "method": "RF (tuned + ensemble)", "elo": 1130.8, "elo_hi": 90.8, "elo_lo": 85.5, "winrate": 0.3138, "new": false}, {"rank": 77, "method": "GBM (default)", "elo": 1127.0, "elo_hi": 59.4, "elo_lo": 62.4, "winrate": 0.3101, "new": false}, {"rank": 78, "method": "PB (tuned + ensemble)", "elo": 1124.4, "elo_hi": 83.2, "elo_lo": 101.1, "winrate": 0.3076, "new": false}, {"rank": 79, "method": "RF (tuned)", "elo": 1105.7, "elo_hi": 73.2, "elo_lo": 77.6, "winrate": 0.2899, "new": false}, {"rank": 80, "method": "TABSTAR (default)", "elo": 1103.5, "elo_hi": 100.4, "elo_lo": 154.1, "winrate": 0.2877, "new": false}, {"rank": 81, "method": "TA-ORION-MSP (default)", "elo": 1102.0, "elo_hi": 74.6, "elo_lo": 100.1, "winrate": 0.2864, "new": false}, {"rank": 82, "method": "PB (tuned)", "elo": 1074.4, "elo_hi": 72.4, "elo_lo": 98.3, "winrate": 0.2612, "new": false}, {"rank": 83, "method": "NN_TORCH (default)", "elo": 1060.2, "elo_hi": 68.5, "elo_lo": 77.3, "winrate": 0.2487, "new": false}, {"rank": 84, "method": "FASTAI (default)", "elo": 1044.2, "elo_hi": 70.0, "elo_lo": 101.5, "winrate": 0.2351, "new": false}, {"rank": 85, "method": "TABFLEX_GPU (default)", "elo": 1033.4, "elo_hi": 95.9, "elo_lo": 135.5, "winrate": 0.2261, "new": false}, {"rank": 86, "method": "PB (default)", "elo": 1018.4, "elo_hi": 111.2, "elo_lo": 119.1, "winrate": 0.214, "new": false}, {"rank": 87, "method": "KNN (tuned + ensemble)", "elo": 1008.9, "elo_hi": 67.6, "elo_lo": 93.8, "winrate": 0.2066, "new": false}, {"rank": 88, "method": "RF (default)", "elo": 1000.0, "elo_hi": 96.0, "elo_lo": 143.4, "winrate": 0.1998, "new": false}, {"rank": 89, "method": "XT (default)", "elo": 997.2, "elo_hi": 104.8, "elo_lo": 158.6, "winrate": 0.1977, "new": false}, {"rank": 90, "method": "LR (tuned + ensemble)", "elo": 982.7, "elo_hi": 131.6, "elo_lo": 133.6, "winrate": 0.1869, "new": false}, {"rank": 91, "method": "LR (tuned)", "elo": 965.6, "elo_hi": 132.4, "elo_lo": 133.5, "winrate": 0.1749, "new": false}, {"rank": 92, "method": "XRFM_GPU (default)", "elo": 951.6, "elo_hi": 98.5, "elo_lo": 154.5, "winrate": 0.1653, "new": false}, {"rank": 93, "method": "LR (default)", "elo": 935.5, "elo_hi": 108.4, "elo_lo": 125.9, "winrate": 0.1548, "new": false}, {"rank": 94, "method": "[New] TA-FINTFM-LINPROBE (default)", "elo": 910.4, "elo_hi": 110.2, "elo_lo": 155.7, "winrate": 0.1394, "new": true}, {"rank": 95, "method": "KNN (tuned)", "elo": 858.6, "elo_hi": 56.3, "elo_lo": 96.1, "winrate": 0.1111, "new": false}, {"rank": 96, "method": "KNN (default)", "elo": 627.2, "elo_hi": 100.2, "elo_lo": 177.1, "winrate": 0.0343, "new": false}];
+
+function render(rows) {
+  const tbody = document.querySelector('#lb tbody');
+  tbody.innerHTML = rows.map(r => `
+    <tr class="${r.new ? 'highlight' : ''}">
+      <td>${r.rank}</td>
+      <td>${r.method}</td>
+      <td class="num-cell">${r.elo.toFixed(1)}</td>
+      <td class="num-cell">${(r.winrate * 100).toFixed(1)}%</td>
+    </tr>
+  `).join('');
+}
+
+let sortKey = 'rank', sortAsc = true;
+function sortAndRender(key) {
+  if (key === sortKey) sortAsc = !sortAsc; else { sortKey = key; sortAsc = true; }
+  const sorted = [...data].sort((a, b) => {
+    const va = a[key], vb = b[key];
+    const cmp = typeof va === 'string' ? va.localeCompare(vb) : va - vb;
+    return sortAsc ? cmp : -cmp;
+  });
+  render(sorted);
+}
+
+document.querySelectorAll('#lb thead th').forEach(th => {
+  th.addEventListener('click', () => sortAndRender(th.dataset.k));
+});
+
+render(data);
+</script>
+</body>
+</html>
