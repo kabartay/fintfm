@@ -488,14 +488,25 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         return twin.fit(self._raw_X if X is None else X, self._raw_y if y is None else y)
 
     @torch.no_grad()
-    def transform_representation(self, X: np.ndarray) -> np.ndarray:
-        """Row representations for ``X``, without the classification head.
+    def transform_representation(
+        self, X: np.ndarray, stage: Literal["encode_rows", "pre_head"] = "encode_rows"
+    ) -> np.ndarray:
+        """Row representations for ``X``, at a chosen depth short of the classification head.
 
         Task 48.22: a pretrained TFM's context-conditioned embeddings, handed to a
         downstream model rather than used end-to-end, is a pattern this project had not
-        tried (Neuralk-AI's ``TabPfnVectorizer``, ``docs/paper/RELATED_WORK.md``). This is a
-        different question from every other finding to date, which scores this model's own
-        head: whether the representation carries signal even when the head does not decide.
+        tried (Neuralk-AI's ``TabPfnVectorizer``, ``docs/paper/RELATED_WORK.md``). §130
+        measured that a plain classifier on the ``"encode_rows"`` stage beats the model's own
+        head, 5 of 5 folds. **That stage is shallower than "the head's own input."**
+        :meth:`FinancialTFM.forward` runs three more steps after ``encode_rows`` returns: it
+        adds ``y_emb`` (row-level label conditioning), passes the result through
+        ``self.encoder`` (a full row-to-row ``nn.TransformerEncoder``, not merely the
+        within-feature attention already inside ``encode_rows``), then normalises. Only that
+        final tensor -- ``"pre_head"`` here -- is what ``self.head`` actually reads. Comparing
+        a downstream classifier against the two stages separately is what distinguishes "a
+        linear probe reads any depth better than this head does" from "linear legibility falls
+        off through this specific stack," which is a different and more common finding in
+        representation learning generally.
 
         Uses :meth:`fit`'s stored context exactly as :meth:`predict_proba` does -- same
         conditioner, same padding, same column identities at ``self.random_state`` -- so a
@@ -505,6 +516,9 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
 
         Args:
             X: ``(n, n_features)`` query rows, matching the width seen by :meth:`fit`.
+            stage: ``"encode_rows"`` (§130's stage; cell/column/within-feature attention and
+                pooling, no label conditioning past the cell level, no row-to-row encoder) or
+                ``"pre_head"`` (every step ``forward`` runs short of ``self.head`` itself).
 
         Returns:
             ``(n, d_model)`` row representations, one per query row.
@@ -517,14 +531,16 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         if X.shape[0] > self.query_chunk:
             return np.concatenate(
                 [
-                    self._representation_chunk(X[i : i + self.query_chunk])
+                    self._representation_chunk(X[i : i + self.query_chunk], stage)
                     for i in range(0, X.shape[0], self.query_chunk)
                 ]
             )
-        return self._representation_chunk(X)
+        return self._representation_chunk(X, stage)
 
     @torch.no_grad()
-    def _representation_chunk(self, X: np.ndarray) -> np.ndarray:
+    def _representation_chunk(
+        self, X: np.ndarray, stage: Literal["encode_rows", "pre_head"] = "encode_rows"
+    ) -> np.ndarray:
         """One chunk of query rows, encoded but not classified. See :meth:`transform_representation`."""
         ctx_X, ctx_y = self._ctx_X, self._ctx_y
         n_ctx = ctx_X.shape[0]
@@ -536,7 +552,25 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         yp[0, :n_ctx] = ctx_y
         Xt = torch.from_numpy(Xp).to(self.device)
         yt = torch.from_numpy(yp).to(self.device)
+        N = Xt.shape[1]
         h = self.model.encode_rows(Xt, n_ctx, column_id_seed=int(self.random_state), y=yt)
+        if stage == "pre_head":
+            import torch.nn.functional as Fnn
+
+            B = h.shape[0]
+            y_onehot = Fnn.one_hot(yt[:, :n_ctx].clamp(0, cfg.max_classes - 1), cfg.max_classes).to(
+                h.dtype
+            )
+            y_emb = torch.cat(
+                [
+                    self.model.y_proj(y_onehot),
+                    self.model.query_token.expand(B, N - n_ctx, -1),
+                ],
+                dim=1,
+            )
+            h = h + y_emb
+            h = self.model.encoder(h, mask=self.model._row_mask(N, n_ctx, Xt.device))
+            h = self.model.norm(h)
         return h[0, n_ctx:].cpu().numpy()
 
     @torch.no_grad()

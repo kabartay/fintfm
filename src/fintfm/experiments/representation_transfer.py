@@ -82,6 +82,7 @@ def run(
     device: str = "cpu",
     train_sample_size: int = TRAIN_SAMPLE_SIZE,
     predictions_dir: Path | None = None,
+    stage: Literal["encode_rows", "pre_head"] = "encode_rows",
 ) -> dict:
     """Score the three arms on V4FinBench's published protocol. See module docstring.
 
@@ -95,6 +96,9 @@ def run(
         device: Torch device for the fintfm arm.
         train_sample_size: Budget for the downstream classifiers' training rows; see
             :data:`TRAIN_SAMPLE_SIZE`.
+        stage: Which representation to extract, passed through to
+            :meth:`FinancialTFMClassifier.transform_representation`. ``"encode_rows"`` is
+            §130's stage; ``"pre_head"`` is what the classification head actually reads.
         predictions_dir: When given, per-row test predictions for every arm are written here
             as ``predictions_fold{N}.npz``, matching :func:`v4_protocol.run`'s convention --
             two arms scored on the same rows have correlated errors, so a paired bootstrap
@@ -138,8 +142,8 @@ def run(
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            rep_tr = clf.transform_representation(Xtr)
-            rep_te = clf.transform_representation(Xte)
+            rep_tr = clf.transform_representation(Xtr, stage=stage)
+            rep_te = clf.transform_representation(Xte, stage=stage)
             lr_rep = LogisticRegression(max_iter=1000).fit(rep_tr, ytr)
             p_representation = lr_rep.predict_proba(rep_te)[:, 1]
 
@@ -201,6 +205,7 @@ def main() -> None:
     p.add_argument("--device", type=str, default="cpu")
     p.add_argument("--train-sample-size", type=int, default=TRAIN_SAMPLE_SIZE)
     p.add_argument("--predictions-dir", type=Path, default=None)
+    p.add_argument("--stage", choices=("encode_rows", "pre_head"), default="encode_rows")
     args = p.parse_args()
     run(
         args.model,
@@ -211,6 +216,7 @@ def main() -> None:
         device=args.device,
         train_sample_size=args.train_sample_size,
         predictions_dir=args.predictions_dir,
+        stage=args.stage,
     )
 
 

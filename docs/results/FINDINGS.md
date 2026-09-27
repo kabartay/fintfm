@@ -8899,6 +8899,16 @@ complete, and it completed negative.
 
 ## §130 — fintfm's representation beats its own head: 5 of 5 folds, +0.039 mean AP
 
+> **Correction, same day.** "`encode_rows`'s representation" undersold what this
+> compares. `forward` runs three more steps after `encode_rows` returns before the head
+> ever sees anything: it adds `y_emb` (row-level label conditioning), passes the result
+> through `self.encoder` (a full row-to-row `nn.TransformerEncoder`, separate from the
+> within-feature attention already inside `encode_rows`), then normalises. The stage
+> tested below never reaches `self.encoder` at all. §131 tests the representation
+> immediately before the head instead -- verified to reproduce the head's own logits
+> exactly when the head is applied to it -- and is the comparison this entry's title
+> implies. Read both before citing either.
+
 **How these numbers were produced.** MEASURED. `runs/v4-cellattn-labels.pt`, the published
 checkpoint. Task 48.22, surfaced from Neuralk-AI's `TabPfnVectorizer`
 (`docs/paper/RELATED_WORK.md`, Seldon section): extract `encode_rows`'s `d_model=128`
@@ -8963,3 +8973,69 @@ The mechanism is unmeasured. Whether the head's own label-conditioning (`y_emb`,
 loses information the raw per-row representation keeps, or whether this is specific to this
 checkpoint's training recipe are three different hypotheses this result does not distinguish
 between, and each implies a different fix.
+
+## §131 — At the head's own input, the linear probe still wins, but the margin roughly halves
+
+**How these numbers were produced.** MEASURED. Same checkpoint, same protocol, same 20,000-row
+stratified training subsample as §130, but `FinancialTFMClassifier.transform_representation(...,
+stage="pre_head")` in place of `stage="encode_rows"`: the tensor immediately before
+`self.head`, after `y_emb` is added and `self.encoder` (the row-to-row `nn.TransformerEncoder`)
+has run. Verified before running anything at V4FinBench scale that this stage reproduces the
+head's own logits exactly (`self.head` applied to the extracted tensor matches `predict_proba`
+to float tolerance, max abs diff 0.0) — the comparison this entry makes is to the literal input
+the head receives, not an approximation of it.
+
+### The result
+
+| fold | own_head AP | pre_head representation AP | delta | Holm p |
+| --- | --- | --- | --- | --- |
+| 0 | 0.2113 | 0.2351 | +0.0238 | 0.018 * |
+| 1 | 0.2050 | 0.2160 | +0.0109 | 0.271 |
+| 2 | 0.1786 | 0.2130 | +0.0344 | 0.000 * |
+| 3 | 0.1810 | 0.2394 | +0.0584 | 0.000 * |
+| 4 | 0.2172 | 0.1968 | -0.0203 | 0.184 |
+| **mean** | **0.1986** | **0.2201** | **+0.0214** | |
+
+**Representation wins on 4 of 5 folds, significant after Holm on 3 of 5.** Fold 4 reverses —
+the only fold in either this entry or §130 where `own_head` comes out ahead — and the reversal
+is not itself significant (Holm p=0.184), so it reads as a smaller or absent effect on that
+fold rather than a genuine sign flip.
+
+### What this settles from §130
+
+§130's 5-of-5, mean +0.0390 result was measured at a stage that never reached `self.encoder`
+at all — a shallower comparison than its title implied. This entry is the one that compares
+against what the head actually reads, and **the advantage survives, roughly halved**: +0.0214
+against +0.0390, one fold weaker instead of five. That rules out "§130's whole effect was an
+artifact of comparing the wrong two things" — a linear probe applied to the head's own input
+still beats the head's own final layer, most of the time, by a smaller margin.
+
+### The margin's shrinkage is itself informative
+
+Going from `encode_rows` to `pre_head` adds three things: `y_emb`, a full row-to-row
+transformer stack, and layer normalisation. The gap to a linear probe fell by about
+**45%** (0.0390 to 0.0214) across that addition. Two readings are both consistent with this
+result and neither is settled by it:
+
+- **Depth genuinely improves what the representation carries**, and the head's remaining
+  underperformance is smaller once that depth is accounted for — consistent with representation
+  learning's general finding that linear probes read early-to-middle layers better than final
+  ones, because later layers are shaped by the task's own decision boundary rather than by
+  general legibility.
+- **`self.encoder` and `y_emb` add real signal that partially closes the gap**, and a
+  differently-shaped final layer could close the rest.
+
+Distinguishing these needs a probe at an intermediate depth (inside `self.encoder`, not before
+or after all of it), which is not yet built.
+
+### What is now ruled out, and what still is not
+
+Ruled out: the effect being purely a stage-mismatch artifact (this entry uses the head's exact
+input) and the effect requiring a specific checkpoint quirk visible only in a shallow
+representation (it persists at the deepest point measurable).
+
+Still open: whether a differently-trained or differently-shaped head would close this margin,
+whether this holds on a second checkpoint (`docs/roadmap/ROADMAP.md` Phase A' item 3, not yet
+run), and — the question with an external answer rather than an internal one — whether the
+representation's advantage on V4FinBench's binary task transfers to TabArena's Lite protocol,
+where the comparison is against 94 other methods rather than two arms of the same model.
