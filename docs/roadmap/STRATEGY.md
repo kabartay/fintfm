@@ -253,7 +253,22 @@ path, and no longer the justification for renting NVIDIA.
 
 ## What we are deliberately not building
 
-- A general tabular foundation model. Contested on every axis by better-funded teams.
+- A general tabular foundation model. Contested on every axis by better-funded teams. **This
+  was a position when written; it is now measured, on two independent populations.** TabArena
+  places this project 94th of 95 (`docs/results/FINDINGS.md` §122); a private, unpublished
+  comparison against Neuralk-AI's TabBench places it at a mean rank of 15.1 of 16 against the
+  same field on a differently-constructed 55-dataset population, and checked that this is not
+  a preprocessing artefact -- fintfm loses to matched-preprocessing gradient-boosted trees by
+  a mean AUC of −0.0815 (§134). Scale (§114) and depth (§123/§124/§126) were each tried and
+  came back null, and Neuralk-AI's own published account of TFM scaling
+  (`docs/paper/RELATED_WORK.md`) independently corroborates why: a TFM they tested "failed
+  outright" when its capacity outran its prior's richness, which is this project's own §112
+  finding (prior distinctiveness measured weak) from the other side. **The conclusion this
+  supports is not "stop measuring general-tabular standing" -- `docs/roadmap/ROADMAP.md`'s
+  Phase A' and Phase C are still worth running, because a differently-shaped decision layer
+  (§130-§133) has already moved rank once and prior diversity is untested, not closed -- it is
+  "the credit-panel thesis below is the actual bet, and every general-tabular result is a
+  calibration check on that bet's cost, not a competing goal in its own right."**
 - Fraud. Owned by Kumo and Feedzai, and needs real-time serving infrastructure.
 - Time-series forecasting. Google has 330M parameters and 10^12 time points in BigQuery.
 - Market or return prediction. Harder science, severe validation traps, sophisticated

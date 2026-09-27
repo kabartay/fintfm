@@ -39,11 +39,22 @@ zero.** The standing deficit is about −0.035 uniform. Anything proposed below 
 against a multiple of that, not a fraction of it. A result that improves ROC-AUC and leaves the
 rank is a null result for this goal, and should be written up as one.
 
+**A second population confirms this isn't specific to TabArena.** A private, unpublished
+comparison against Neuralk-AI's TabBench (§134, not committed to this repo, no PR) found the
+same standing on a differently-built 55-dataset overlap: mean rank 15.1 of 16, and checked
+directly that it is not the categorical-encoding difference between fintfm and native-passthrough
+TFM peers -- fintfm loses to matched-preprocessing GBTs by a mean AUC of −0.0815. Combined with
+Neuralk-AI's own published account of why TFM scaling needs matched prior richness
+(`docs/paper/RELATED_WORK.md`), read alongside §112's own weak-prior-distinctiveness measurement,
+this is a second, independent reason scale and depth are closed and prior diversity (Phase C)
+is where an untested lever actually is.
+
 ## Do not re-run these
 
 Measured closed. Reopening any of them needs a new reason, stated first.
 
-- **Scale**, three independent lines (§114).
+- **Scale**, three independent lines (§114), independently consistent with Neuralk-AI's own
+  published account of TFM scaling requiring matched prior richness (`docs/paper/RELATED_WORK.md`).
 - **The binning head**, rank is flat against the axis it controls (§121).
 - **Inference-time knobs**: context nearly flat (S83/S84), retrieval harmful at low prevalence
   (S70).
