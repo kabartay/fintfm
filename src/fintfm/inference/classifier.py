@@ -489,7 +489,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
 
     @torch.no_grad()
     def transform_representation(
-        self, X: np.ndarray, stage: Literal["encode_rows", "pre_head"] = "encode_rows"
+        self, X: np.ndarray, stage: Literal["encode_rows", "encoder_mid", "pre_head"] = "encode_rows"
     ) -> np.ndarray:
         """Row representations for ``X``, at a chosen depth short of the classification head.
 
@@ -517,7 +517,10 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         Args:
             X: ``(n, n_features)`` query rows, matching the width seen by :meth:`fit`.
             stage: ``"encode_rows"`` (§130's stage; cell/column/within-feature attention and
-                pooling, no label conditioning past the cell level, no row-to-row encoder) or
+                pooling, no label conditioning past the cell level, no row-to-row encoder),
+                ``"encoder_mid"`` (§131's stage plus ``y_emb`` and the first half of
+                ``self.encoder``'s layers, rounded up -- partway through the row-to-row
+                transformer rather than before or after all of it, no final ``self.norm``), or
                 ``"pre_head"`` (every step ``forward`` runs short of ``self.head`` itself).
 
         Returns:
@@ -539,7 +542,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
 
     @torch.no_grad()
     def _representation_chunk(
-        self, X: np.ndarray, stage: Literal["encode_rows", "pre_head"] = "encode_rows"
+        self, X: np.ndarray, stage: Literal["encode_rows", "encoder_mid", "pre_head"] = "encode_rows"
     ) -> np.ndarray:
         """One chunk of query rows, encoded but not classified. See :meth:`transform_representation`."""
         ctx_X, ctx_y = self._ctx_X, self._ctx_y
@@ -554,7 +557,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         yt = torch.from_numpy(yp).to(self.device)
         N = Xt.shape[1]
         h = self.model.encode_rows(Xt, n_ctx, column_id_seed=int(self.random_state), y=yt)
-        if stage == "pre_head":
+        if stage in ("encoder_mid", "pre_head"):
             import torch.nn.functional as Fnn
 
             B = h.shape[0]
@@ -569,8 +572,17 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
                 dim=1,
             )
             h = h + y_emb
-            h = self.model.encoder(h, mask=self.model._row_mask(N, n_ctx, Xt.device))
-            h = self.model.norm(h)
+            mask = self.model._row_mask(N, n_ctx, Xt.device)
+            if stage == "pre_head":
+                h = self.model.encoder(h, mask=mask)
+                h = self.model.norm(h)
+            else:
+                # Half the row-to-row stack, rounded up -- partway through, not before or
+                # after all of it. No final `self.norm`: that normalisation is shaped for
+                # `self.head`'s input, not for a linear probe reading an intermediate layer.
+                n_half = (len(self.model.encoder.layers) + 1) // 2
+                for layer in self.model.encoder.layers[:n_half]:
+                    h = layer(h, src_mask=mask)
         return h[0, n_ctx:].cpu().numpy()
 
     @torch.no_grad()

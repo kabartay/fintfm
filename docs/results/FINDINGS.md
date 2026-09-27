@@ -9102,3 +9102,67 @@ against an unpublished checkpoint dependency, neither of which is a state a subm
 made from. What it justifies is the ranking `docs/roadmap/ROADMAP.md` Phase A' item 5 already
 gave this question: worth having answered before deciding how much further to invest in
 locating where in the stack the advantage lives.
+
+## §133 — Where the margin decays: roughly linear across depth, not concentrated at the end
+
+**How these numbers were produced.** MEASURED. Same checkpoint, protocol and 20,000-row
+stratified training subsample as §130/§131. `FinancialTFMClassifier.transform_representation(...,
+stage="encoder_mid")`, a new stage added for this entry: `y_emb` is added exactly as §131's
+`pre_head` does, then the tensor passes through the first half of `self.encoder`'s layers
+(2 of 4, rounded up) — not the whole stack, and no final `self.norm`, since that normalisation
+is shaped for `self.head`'s input rather than for a linear probe reading an intermediate layer.
+Row-level paired bootstrap, 2,000 resamples per fold, Holm-corrected, matching
+§118/§124/§126/§127/§129/§130/§131.
+
+### The result
+
+| fold | own_head AP | encoder_mid AP | delta | Holm p |
+| --- | --- | --- | --- | --- |
+| 0 | 0.2113 | 0.2396 | +0.0283 | 0.010 * |
+| 1 | 0.2050 | 0.2368 | +0.0317 | 0.009 * |
+| 2 | 0.1786 | 0.2297 | +0.0511 | 0.000 * |
+| 3 | 0.1810 | 0.2396 | +0.0585 | 0.000 * |
+| 4 | 0.2172 | 0.2106 | -0.0066 | 0.614 |
+| **mean** | **0.1986** | **0.2312** | **+0.0326** | |
+
+**Representation wins on 4 of 5 folds, significant after Holm on 4 of 5.** Fold 4 reverses —
+the same fold that reversed in §131, and only in §131 — and the reversal is not itself
+significant (Holm p=0.614).
+
+### The three stages, side by side
+
+| stage | depth run | mean AP | delta vs own_head | folds won | folds significant |
+| --- | --- | --- | --- | --- | --- |
+| `encode_rows` (§130) | none of `self.encoder` | 0.2376 | +0.0390 | 5/5 | 4/5 |
+| `encoder_mid` (this entry) | 2 of 4 layers + `y_emb` | 0.2312 | +0.0326 | 4/5 | 4/5 |
+| `pre_head` (§131) | all 4 layers + `y_emb` + `self.norm` | 0.2201 | +0.0214 | 4/5 | 3/5 |
+
+**The decay is roughly even across depth, not concentrated near the end.** Going from
+`encode_rows` to `encoder_mid` — adding `y_emb` and two transformer layers — costs 0.0064 of
+margin (0.0390 to 0.0326). Going from `encoder_mid` to `pre_head` — the remaining two layers
+plus `self.norm` — costs 0.0112 (0.0326 to 0.0214). The second half of the stack costs
+somewhat more than the first (roughly 64% of the total decay against 36%), but this is a
+gradual erosion across the whole depth, not a sharp drop that would show `encoder_mid` sitting
+close to `encode_rows` and only `pre_head` falling away. Fold 4's reversal also first appears
+between `encoder_mid` and `pre_head`, not before — the one fold where legibility is lost, it is
+lost late.
+
+### What this settles for Phase A' item 2
+
+**A probe at an intermediate depth was the ask, and it does not locate a single point where
+the advantage disappears.** There is no layer boundary in `self.encoder` where a linear probe
+suddenly stops beating the head — the margin shrinks by roughly similar increments at each
+step measured. That rules out the cleanest version of "the last layer is doing something
+specifically wrong" and does not support scoping item 3 (a differently-shaped final layer) as
+narrowly as a concentrated-at-the-end result would have. What it does not rule out: a
+differently-shaped final layer could still recover some or all of the residual `pre_head`
+margin (+0.0214) for reasons unrelated to where the *existing* decay concentrates — that
+question is about what a new layer would do, not about diagnosing the current one, and this
+entry only speaks to the latter.
+
+### What is still open
+
+Whether this pattern holds on a second checkpoint (Phase A' item 4, not yet run) and whether a
+differently-shaped head recovers any of the +0.0214 that survives to `pre_head` (item 3) are
+both unanswered. This entry narrows item 3's framing — a shallow analysis of "which layer is
+broken" is not going to identify a fix — but does not close it.

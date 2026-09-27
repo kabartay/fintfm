@@ -61,19 +61,27 @@ never reached `self.encoder`, the row-to-row transformer the head's real input p
 §131 re-ran the same comparison at the head's exact input (verified to reproduce its logits
 exactly) and found the advantage **survives, roughly halved**: +0.0214 mean AP, 4 of 5 folds,
 significant on 3 of 5. Item 1 below is therefore answered: depth explains part of the gap, not
-all of it. Items 2-3 are what is left, plus the question with an answer outside this repo.
+all of it. §133 further found the decay is spread evenly through the stack rather than
+concentrated at the end, answering item 2. Item 3 is what is left, plus item 4 and the
+question with an answer outside this repo.
 
 1. ~~**Distinguish label-conditioning/pooling from a stage-mismatch artifact.**~~ **Done (§131).**
    The `y_emb` + `self.encoder` + `norm` stages §130 skipped account for roughly 45% of the
    original margin (0.0390 to 0.0214), not all of it or none of it. A linear probe on the
    head's own input still beats the head's own final layer on 4 of 5 folds.
-2. **Locate where inside the remaining stack the advantage survives.** A probe at an
-   intermediate depth -- partway through `self.encoder`'s layers, not before or after all of
-   them -- would say whether the residual advantage is spread through the stack or concentrated
-   near the end, which is what item 3 needs to be scoped rather than guessed at.
+2. ~~**Locate where inside the remaining stack the advantage survives.**~~ **Done (§133):
+   spread through the stack, not concentrated.** A probe at 2 of 4 layers (`encoder_mid`) scores
+   +0.0326 mean AP, sitting between `encode_rows`'s +0.0390 and `pre_head`'s +0.0214 -- roughly
+   even decay per increment of depth (36% of the total loss in the first half, 64% in the
+   second), no single layer boundary where the advantage collapses. This rules out the
+   cleanest version of "the last layer specifically is broken" and narrows, rather than
+   answers, item 3's framing.
 3. **Prototype a differently-shaped final layer** (not necessarily skipping `y_emb`, per the
-   superseded item 2 below -- §131 shows the label conditioning is not the dominant cause) and
-   score it downstream, sized by what item 2 finds.
+   superseded item 2 below -- §131 shows the label conditioning is not the dominant cause).
+   §133 shows this cannot be scoped as "fix the one broken layer" -- there is no such layer --
+   so the prototype has to be justified on its own terms: whether a different final
+   transformation reads the existing representation better, not on recovering a
+   depth-concentrated loss. Score it downstream on V4FinBench.
 4. **Repeat the full protocol on a second checkpoint** (`runs/lrsweep/lrsweep-3e4.pt` or another
    5-fold-validated one) to rule out "specific to this checkpoint" -- not yet run.
 5. ~~**Check whether this transfers to TabArena's Lite protocol.**~~ **Done (§132): it does.**

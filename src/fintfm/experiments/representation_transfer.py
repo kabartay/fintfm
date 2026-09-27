@@ -82,7 +82,7 @@ def run(
     device: str = "cpu",
     train_sample_size: int = TRAIN_SAMPLE_SIZE,
     predictions_dir: Path | None = None,
-    stage: Literal["encode_rows", "pre_head"] = "encode_rows",
+    stage: Literal["encode_rows", "encoder_mid", "pre_head"] = "encode_rows",
 ) -> dict:
     """Score the three arms on V4FinBench's published protocol. See module docstring.
 
@@ -98,7 +98,9 @@ def run(
             :data:`TRAIN_SAMPLE_SIZE`.
         stage: Which representation to extract, passed through to
             :meth:`FinancialTFMClassifier.transform_representation`. ``"encode_rows"`` is
-            §130's stage; ``"pre_head"`` is what the classification head actually reads.
+            §130's stage; ``"encoder_mid"`` is partway through the row-to-row encoder
+            (§131's open question, Phase A' item 2); ``"pre_head"`` is what the
+            classification head actually reads.
         predictions_dir: When given, per-row test predictions for every arm are written here
             as ``predictions_fold{N}.npz``, matching :func:`v4_protocol.run`'s convention --
             two arms scored on the same rows have correlated errors, so a paired bootstrap
@@ -205,7 +207,9 @@ def main() -> None:
     p.add_argument("--device", type=str, default="cpu")
     p.add_argument("--train-sample-size", type=int, default=TRAIN_SAMPLE_SIZE)
     p.add_argument("--predictions-dir", type=Path, default=None)
-    p.add_argument("--stage", choices=("encode_rows", "pre_head"), default="encode_rows")
+    p.add_argument(
+        "--stage", choices=("encode_rows", "encoder_mid", "pre_head"), default="encode_rows"
+    )
     args = p.parse_args()
     run(
         args.model,
