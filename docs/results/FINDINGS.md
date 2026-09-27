@@ -9166,3 +9166,91 @@ Whether this pattern holds on a second checkpoint (Phase A' item 4, not yet run)
 differently-shaped head recovers any of the +0.0214 that survives to `pre_head` (item 3) are
 both unanswered. This entry narrows item 3's framing — a shallow analysis of "which layer is
 broken" is not going to identify a fix — but does not close it.
+
+## §134 — TabBench, a second external population: mean rank 15.1 of 16, consistent with TabArena
+
+**How these numbers were produced.** MEASURED, but exploratory and unpublished — a private,
+local comparison against [Neuralk-AI's TabBench](https://github.com/Neuralk-AI/TabBench),
+run in a sibling checkout (`../tabbench-eval`, not part of this repository, not committed, no
+PR opened against TabBench). Same pattern as §132's TabArena probe: wrap fintfm behind the
+target framework's own model interface and run it locally, then compare against numbers the
+framework's own maintainers have already published, rather than submitting anything.
+
+`neuralk_foundry_ce.models.ClassifierModel` is the interface (`init_model`/`train`/`forward`,
+the `@with_masked_split` decorator masking rows to train or train+val+test as appropriate).
+`FinTFMClassifier` wraps `fintfm.inference.classifier.FinancialTFMClassifier` around it —
+`train` calls `.fit`, `forward` calls `.predict_proba` and returns the argmax, matching the
+project's own published `kabartay/fintfm-binary` checkpoint (`v4-cellattn-labels.pt`) exactly
+as shipped, no fine-tuning. `categorical_encoding='integer'`, `numerical_encoding='none'` —
+the same preprocessing config TabBench's own `run_bench.py` uses for XGBoost/CatBoost/LightGBM,
+chosen because fintfm's `FeatureTransform` expects numeric input, unlike TabPFN/TabICL which
+take `'none'`/`'none'` (raw categorical passthrough, handled internally by those models). Fold
+0 only — a screening pass, not the full 5-fold protocol the baseline files below carry.
+
+**A packaging bug found and worked around, not fixed upstream.** `pip install tabbench`
+(PyPI, `0.0.1`) ships only 96 of TabBench's ~251 dataset configs — `pkgutil.walk_packages`'s
+default `onerror` re-raises anything past an `ImportError`, and the wheel is stale relative to
+GitHub `main`. Installed from source
+(`git+https://github.com/Neuralk-AI/TabBench.git`) instead, which restored the missing 155.
+
+**Coverage.** TabBench's academic set is 189 OpenML dataset IDs (`base_datasets.json`).
+Checked eligibility against fintfm's checkpoint constraints (binary, ≤136 features) via plain
+OpenML REST metadata calls — no training, free — before installing anything: **90 of 189
+eligible.** Of those, 84 ran to completion; 6 failed on encoding gaps this minimal wrapper
+does not handle (a plain `np.float32` cast, no datetime or placeholder-string parsing):
+
+| dataset | error |
+| --- | --- |
+| openml-41721 | `could not convert string to float: '2011-12-31T23:00:00'` |
+| openml-41865, 41875, 41882 | `float() argument must be a string or a real number, not 'Timestamp'` |
+| openml-42178 | `could not convert string to float: ' '` (blank-string missing-value marker) |
+| openml-46940 | `could not convert string to float: '2013-01-11'` |
+
+**The baseline population.** Not the JS-rendered Space (unreadable by a fetch tool — a Gradio
+app, only the loading shell is static). The Space repository ships its own raw data:
+`results_academic/<model>.json`, one file per model, 15 models, full per-fold
+`test_roc_auc` keyed by `openml-<id>`. Fetched directly (`huggingface.co/spaces/Neuralk-AI/
+tabbench/resolve/main/results_academic/...`), fold 0 read out for comparability with fintfm's
+single-fold screen.
+
+### The result
+
+Restricting to the 55 datasets where fintfm and all 15 baselines have fold-0 data:
+
+| | value |
+| --- | --- |
+| fintfm's mean rank (of 16: itself + 15 baselines, 1 = best) | **15.09** |
+| median rank | 16 (dead last) |
+| datasets where fintfm beats at least one baseline | 18 of 55 |
+| datasets where fintfm is dead last | 37 of 55 |
+| datasets in the top half (rank ≤ 8) | 2 of 55 |
+| fintfm mean AUC over the 55-dataset set | 0.8031 |
+| peer mean AUC range | 0.8655 (LightGBM) – 0.9088 (TabFM) |
+
+**The categorical-encoding asymmetry does not explain this.** TabPFN/TabICL get raw
+categorical passthrough (`'none'` encoding) while fintfm and the three GBTs get the same
+`'integer'` encoding — an apples-to-apples subset. Against just those three (XGBoost,
+LightGBM, CatBoost, matched preprocessing, 84 datasets): fintfm beats their mean on **5 of
+84**, mean AUC delta **−0.0815**. The gap is not a preprocessing artefact.
+
+### What this settles, and what it does not
+
+**Settled:** the standing this project has already measured on TabArena (94th of 95,
+`docs/results/FINDINGS.md` §122) is not specific to that benchmark's dataset population or
+protocol. A second, independently-constructed 90-ish-dataset population, scored under a
+different harness (`neuralk_foundry_ce`, not AutoGluon), against a different and more
+selective set of competing methods (all strong — modern TFMs and tuned GBTs, no weak
+baselines like untuned KNN padding the bottom of a leaderboard), reproduces the same
+direction: fintfm is well below the field, not marginally.
+
+**Not settled, and not attempted here:** the full 5-fold protocol (this is fold 0 only, a
+screen); the 6 encoding-gap datasets: fixable with a more careful cast (datetime → ordinal,
+placeholder strings → NaN) but not done, since the direction was already unambiguous at 84 of
+90; and whether TabBench's specific "industrial gap" claim (`docs/paper/RELATED_WORK.md`'s
+Seldon section: tuned GBDTs close the gap to TFMs on private industrial datasets) applies
+here — this run used TabBench's public academic set, not its private industrial one, which
+this project has no access to.
+
+**Not published, not submitted, no PR.** This entry exists so the same check is not run twice;
+it does not change anything on `docs/roadmap/ROADMAP.md`, which the direction here confirms
+rather than revises.
