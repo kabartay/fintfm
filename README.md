@@ -7,6 +7,7 @@
 [![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue.svg)](pyproject.toml)
 [![Checkpoint](https://img.shields.io/badge/%F0%9F%A4%97%20weights-fintfm--binary-yellow)](https://huggingface.co/kabartay/fintfm-binary)
 [![TabArena](https://img.shields.io/badge/TabArena-94th%20of%2095-critical)](docs/results/TABARENA.md)
+[![Leaderboard](https://img.shields.io/badge/leaderboard-live-8957e5)](https://kabartay.github.io/fintfm/leaderboard/)
 
 **A tabular foundation model for corporate credit risk, built from scratch and measured in
 public.**
