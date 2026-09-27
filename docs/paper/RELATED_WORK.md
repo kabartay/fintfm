@@ -666,3 +666,59 @@ typer (>30 uniques routes numeric-looking strings to text rather than categorica
 only if this project ever accepts undeclared schemas; and a fixed small per-column embedding
 budget for free-text fields, relevant only if it ever ingests free text, which it does not
 today.
+
+## Neuralk-AI's blog, read 2026-09-27/28 — three posts, one that bears directly on this project's own results
+
+Read as primary source (the posts themselves, `neuralk.ai/post/...`), alongside the TabBench
+academic results files (`docs/roadmap/` records the TabBench comparison itself; this is what
+came out of reading Neuralk-AI's own writing about the field, not about their benchmark).
+
+**"Why the LLM playbook stops working with TFMs" is the one worth acting on.** Its central
+claim: LLMs learn from one fixed empirical distribution (human text); TFMs add a level -- a
+*designed distribution over synthetic priors* -- that LLM scaling intuition says nothing about.
+Two pieces of their evidence line up with findings already on record here, independently
+arrived at:
+
+- **"Capacity and prior richness have to move together."** They report TabICLv2 paired with an
+  older, presumably less rich prior "failed outright: performance stayed below the baseline and
+  validation loss degraded." This project's own §114 (three independent scaling lines, all
+  null) and the depth-at-constant-width result (§123/§124/§126, +0.0010 AP) are the same
+  pattern from the other direction: capacity added without the prior richness to use it buys
+  nothing. §112 already measured this prior's distinctiveness as weak. Read together, the
+  Neuralk result is a second, independent line of evidence that the roadmap's Phase C framing
+  ("the prior is the project's distinctive claim and §112 measured its distinctiveness as
+  weak") is the right diagnosis, not a guess -- a peer working from a richer prior hit the
+  matching failure mode when they took richness away.
+- **"The effective richness of these priors may be smaller than the generative description
+  implies"** (from an ensemble-redundancy result: six modern TFMs' predictions "are too
+  correlated for any combiner to exploit"). A caution against assuming a prior generator's
+  described diversity (interaction orders, task families, SCM structure) equals the diversity
+  the model actually learns from -- exactly the gap Phase C's items 18-24 are designed to
+  measure rather than assume.
+- **Recommendation to track "the correlation between synthetic-prior loss and real-task
+  performance," calling it "assumed more often than checked."** This project already has the
+  sharper version of this warning on record and paid for it three times: §117, §124 and §126
+  all found held-out synthetic AUC gave the wrong sign relative to V4FinBench AP, correct only
+  in §127 (`docs/roadmap/ROADMAP.md`'s "screen downstream, not on held-out synthetic"). Their
+  general warning and this project's specific, repeated measurement are the same finding at
+  two different levels of confidence.
+
+**"Feature engineering with Seldon"** is operational advice for a mode this project's own
+inference wrapper does not have: querying a hosted model interactively (no training step,
+"forty full feature experiments an hour") to iterate on which features and which context rows
+to show it, rather than retraining. Not applicable to a from-scratch pretrained-only project in
+the same way, but the "curated, relevant context beats pooled context" observation (airport-
+specific flight-delay context beating a pooled cross-airport set on F1) is a variant of this
+project's own retrieval finding -- S70 found retrieval harmful at low prevalence, a different
+answer to a related question about what context to show the model, worth keeping as a contrast
+rather than a confirmation.
+
+**"Foundation models on structured data: tables vs. time series"** is a clean, checkable
+argument for why this project's exchangeable-rows assumption (`docs/paper/CLAIMS.md`'s
+framing) is a real simplification rather than a free one: TFMs assume i.i.d. rows, while time
+series carry marginal and conditional distribution shift that turns forecasting into "a far
+higher-dimensional problem" than i.i.d. regression. Relevant here only as a boundary statement
+-- V4FinBench's credit panel is temporally split (`docs/results/FINDINGS.md`'s out-of-time
+evaluations), which is closer to the harder time-series case this post describes than to the
+i.i.d. case TFMs are designed for, and is worth stating explicitly next time the exchangeability
+assumption is discussed rather than left implicit.

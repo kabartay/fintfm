@@ -67,6 +67,32 @@ assets, predictions registered into the real future. The critique noted there is
 administrative cost and long waiting periods between competitions. See `docs/results/FINDINGS.md` §3
 for why this design matters more to this project than to a forecasting vendor.
 
+## Industry commentary, not literature — read for positioning, not cited as evidence
+
+Blog posts, not peer-reviewed. Kept separate from the sections above on purpose: they carry an
+author's stated claim rather than a reviewed method, and this project's own findings (not the
+posts) are what settles anything for us. See `docs/paper/RELATED_WORK.md` for the full notes.
+
+**Neuralk-AI (2026).** *Why the LLM playbook stops working with TFMs.*
+[neuralk.ai/post/why-the-llm-playbook-stops-working-with-tfms](https://www.neuralk.ai/post/why-the-llm-playbook-stops-working-with-tfms)
+Argues TFM scaling needs matched prior richness, not just capacity, and reports a TFM that
+"failed outright" when paired with an older, less rich prior. Independently consistent with
+this project's own null scaling results (§114, §123/§124/§126) and §112's weak-prior-
+distinctiveness measurement — read together as two independent lines pointing at the same
+diagnosis, not as a source either result depends on.
+
+**Neuralk-AI (2026).** *Feature engineering with Seldon.*
+[neuralk.ai/post/feature-engineering-with-seldon](https://www.neuralk.ai/post/feature-engineering-with-seldon)
+Operational notes on iterating against a hosted TFM with no retraining step. Not directly
+applicable to a from-scratch pretrained-only project; its context-curation observation is a
+useful contrast to this project's own S70 (retrieval harmful at low prevalence).
+
+**Neuralk-AI (2026).** *Foundation models on structured data: tables vs. time series.*
+[neuralk.ai/post/foundation-models-on-structured-data-tables-vs-time-series](https://www.neuralk.ai/post/foundation-models-on-structured-data-tables-vs-time-series)
+Argues TFMs' exchangeable-rows assumption is a real simplification against genuinely temporal
+data. Relevant as a boundary statement for V4FinBench's temporally-split panel, which sits
+closer to the harder case this post describes than to the i.i.d. case TFMs assume.
+
 ## Domain benchmarks and datasets
 
 **Tanna, Solanki, Bouadi, Bouarour, Seth & Sankarapu (2026).** *Data Presentation Over
