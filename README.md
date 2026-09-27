@@ -78,6 +78,11 @@ TabArena, 27 binary datasets, one fold each, against 94 other methods:
 rather than architecture.** The tree prior adds a further +0.0094 here and replicates across two
 seeds — but costs **−0.0221 average precision on credit data** (§116), negative on 5 of 5 folds
 with three surviving multiple-comparison correction at p < 0.001, so it ships off by default.
+
+The full table, including the linear-probe entry §132 measured at 910 Elo, is published at
+**[kabartay.github.io/fintfm/leaderboard](https://kabartay.github.io/fintfm/leaderboard/)** —
+this project's own comparison, not [tabarena.ai](https://tabarena.ai), and its Elo is comparable
+only within the population it was computed over.
 Everything else tried — parameter scale at matched task volume, training volume, a widened
 structural-causal prior — has been null or negative. **The rank has never moved.**
 
