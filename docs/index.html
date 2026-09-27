@@ -66,8 +66,10 @@
   .feature .f-stat .l { font-size:.74rem; color:var(--faint); margin-top:.2rem; letter-spacing:.03em; }
 
   /* link grid */
-  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:1px;
+  .grid { display:grid; grid-template-columns:repeat(4,1fr); gap:1px;
           background:var(--rule); border:1px solid var(--rule); border-radius:6px; overflow:hidden; }
+  @media (max-width:640px) { .grid { grid-template-columns:repeat(2,1fr); } }
+  @media (max-width:400px) { .grid { grid-template-columns:1fr; } }
   a.tile {
     background:var(--panel); padding:1rem 1.15rem; text-decoration:none; color:inherit;
     display:block; transition:background .15s;
