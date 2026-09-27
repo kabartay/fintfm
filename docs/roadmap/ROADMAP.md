@@ -76,10 +76,11 @@ all of it. Items 2-3 are what is left, plus the question with an answer outside 
    score it downstream, sized by what item 2 finds.
 4. **Repeat the full protocol on a second checkpoint** (`runs/lrsweep/lrsweep-3e4.pt` or another
    5-fold-validated one) to rule out "specific to this checkpoint" -- not yet run.
-5. **Check whether this transfers to TabArena's Lite protocol**, where the comparison is
-   against 94 other methods rather than two arms of the same model on one binary task. Time one
-   dataset before committing to all 27, per the cost discipline `docs/results/POSTMORTEM.md`'s
-   second chapter records paying for in the other direction.
+5. ~~**Check whether this transfers to TabArena's Lite protocol.**~~ **Done (§132): it does.**
+   +145 Elo, 93rd of 95 against 94th, 26 of 27 datasets used the linear probe cleanly. Still
+   below every real method -- 910 sits a whisker under `Linear (default)` at 936, the next
+   milestone this file already named. Timed one dataset first (249s), confirming the discipline
+   `docs/results/POSTMORTEM.md`'s second chapter records paying for in the other direction.
 
 ## Phase A — cheap rank probes, in cost order
 

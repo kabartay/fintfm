@@ -9039,3 +9039,66 @@ whether this holds on a second checkpoint (`docs/roadmap/ROADMAP.md` Phase A' it
 run), and — the question with an external answer rather than an internal one — whether the
 representation's advantage on V4FinBench's binary task transfers to TabArena's Lite protocol,
 where the comparison is against 94 other methods rather than two arms of the same model.
+
+## §132 — §131's advantage transfers to TabArena: +145 Elo, one position up, still 93rd of 95
+
+**How these numbers were produced.** MEASURED. A new AutoGluon-registered sibling model,
+`FinTFMLinearProbeModel` (`ag_key="TA-FINTFM-LINPROBE"`, in `tabarena/models/fintfm_linprobe/`,
+not committed to the `fintfm` package itself), reusing `FinTFMModel`'s checkpoint loading,
+capacity checks and categorical preprocessing entirely and changing only the decision step:
+`_fit` extracts the `pre_head` representation on a bounded 20,000-row stratified training
+subsample (mirroring `representation_transfer.py`'s convention) and fits a
+`LogisticRegression`; `_predict_proba` reads that instead of the network's own head. TabArena
+Lite, all 27 eligible datasets, `context.compare()` against the same cached 94-method
+leaderboard §122 used — the same population, so Elo is directly comparable. §131's whole
+point was whether the V4FinBench advantage generalises past one binary credit task; this is
+that check.
+
+Required installing the local `fintfm` checkout editable into the TabArena venv rather than
+the pinned `fintfm==0.5.5` from PyPI, since `transform_representation` postdates that release.
+Not yet published; this entry is exploratory, not a resubmission candidate.
+
+### The result
+
+| | Elo | rank position | mean rank metric |
+| --- | --- | --- | --- |
+| `TA-FINTFM` (own head, §122) | 765 | 94 of 95 | 88.04 |
+| **`TA-FINTFM-LINPROBE`** | **910** | **93 of 95** | **82.76** |
+
+**+145 Elo, one position up, past `KNN (default)` (627).** Still below every other real method;
+this closes none of the gap to `Linear (default)` at 936 (`docs/roadmap/ROADMAP.md`'s
+next milestone) — 910 is a whisker below it. The direction is real and external, not a null.
+
+### One dataset needed the safety net; the other 26 did not
+
+A single-class training subsample (§131's fallback path, `docs/results/FINDINGS.md` need not
+repeat the code, see `fintfm_linprobe/model.py`) fired ten times, and all ten belong to one
+dataset: `363613`, `Amazon_employee_access`, a severely imbalanced access-control task where
+some bagged folds' subsamples degenerate to one class. On that dataset the linear-probe entry
+is byte-identical to the own-head entry. **The other 26 of 27 datasets used the linear probe
+cleanly, with zero fallbacks.** The +145 Elo is not an artefact of a partial or diluted
+comparison; it reflects the probe deciding on nearly the whole eligible set.
+
+### What this settles, and what it does not
+
+**Settled:** §131's advantage is not specific to V4FinBench's binary credit task or its
+protocol. It transfers to TabArena's Lite protocol, a disjoint set of 27 general tabular
+datasets scored under a completely different harness, evaluation metric (ROC-AUC-based Elo
+rather than average precision) and comparison population (94 other methods rather than two
+arms of one model).
+
+**Not settled:** whether this is the largest gain available from touching the decision layer,
+whether a differently-shaped head (rather than a post-hoc linear probe bolted on) would do
+better still, and whether the residual mechanism §131 left unlocated (roughly 45% of the
+original margin explained by depth, the rest not) has an architectural fix. This result raises
+the ceiling on how much those questions are worth answering; it does not answer them.
+
+### What this does not yet justify
+
+**Not a basis for resubmitting to TabArena.** The competitiveness bar the reviewer stated
+(`docs/results/FINDINGS.md` §122) is unmet at Elo 910 the same way it was unmet at 765 — this
+still loses to every real method on the board. The exploratory model is also unpublished code
+against an unpublished checkpoint dependency, neither of which is a state a submission could be
+made from. What it justifies is the ranking `docs/roadmap/ROADMAP.md` Phase A' item 5 already
+gave this question: worth having answered before deciding how much further to invest in
+locating where in the stack the advantage lives.
