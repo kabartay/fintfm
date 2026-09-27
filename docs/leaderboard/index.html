@@ -77,20 +77,17 @@
       <div class="stat"><div class="num" style="color:var(--accent)">910</div><div class="lbl">TA-FINTFM-LINPROBE — rank 93 of 95</div></div>
     </div>
     <p style="font-size:0.88rem;color:var(--muted);margin-bottom:0">
-      The submitted entry (<a href="https://github.com/autogluon/tabarena/pull/616">PR #616</a>, withdrawn on
-      competitiveness) uses the model's own classification head. The second is exploratory: a plain
-      <code>LogisticRegression</code> fit on the model's own pre-head representation instead of its trained head —
-      <a href="https://github.com/kabartay/fintfm/blob/main/docs/results/FINDINGS.md#130">§130</a>,
-      <a href="https://github.com/kabartay/fintfm/blob/main/docs/results/FINDINGS.md#131">§131</a>,
-      <a href="https://github.com/kabartay/fintfm/blob/main/docs/results/FINDINGS.md#132">§132</a> for how and why.
-      Neither result is on the table below twice — the table shown is the linear-probe run; the own-head number is
-      quoted from a separate, earlier run against the same cached population.
+      The first is the entry that was submitted to TabArena and
+      <a href="https://github.com/autogluon/tabarena/pull/616">withdrawn on competitiveness</a>; it uses the model's
+      own classification head. The second replaces that head with a plain logistic regression fit on the model's own
+      internal representation — same weights, different final layer. Why that helps is
+      <a href="https://github.com/kabartay/fintfm/blob/main/docs/results/FINDINGS.md#132">written up in full</a>.
     </p>
   </div>
 
   <div class="card">
     <h2>Full comparison, 96 methods</h2>
-    <p style="font-size:0.85rem;color:var(--muted)">Click a column header to sort. fintfm's entry is highlighted.</p>
+    <p style="font-size:0.85rem;color:var(--muted)">Click a column header to sort. fintfm's entry is highlighted. These are the linear-probe run's standings; the own-head figure above comes from an earlier run against the same cached population.</p>
     <div class="table-scroll">
       <table id="lb">
         <thead>
