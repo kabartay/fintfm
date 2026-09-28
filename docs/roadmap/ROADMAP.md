@@ -73,8 +73,12 @@ never reached `self.encoder`, the row-to-row transformer the head's real input p
 exactly) and found the advantage **survives, roughly halved**: +0.0214 mean AP, 4 of 5 folds,
 significant on 3 of 5. Item 1 below is therefore answered: depth explains part of the gap, not
 all of it. §133 further found the decay is spread evenly through the stack rather than
-concentrated at the end, answering item 2. Item 3 is what is left, plus item 4 and the
-question with an answer outside this repo.
+concentrated at the end, answering item 2. §135 then tried the natural next hypothesis --
+maybe the head just needs more nonlinearity -- and found it does not: an MLP on the same
+frozen representation beats `own_head` but not the plain linear probe. **Phase A' has now
+extracted what it has to give**: a real, external, reproduced gain (§132, +145 Elo), and no
+further search inside the decision layer looks likely to add more. Item 4 (a second
+checkpoint) is what remains open here; the next real lever is Phase C.
 
 1. ~~**Distinguish label-conditioning/pooling from a stage-mismatch artifact.**~~ **Done (§131).**
    The `y_emb` + `self.encoder` + `norm` stages §130 skipped account for roughly 45% of the
@@ -87,12 +91,13 @@ question with an answer outside this repo.
    second), no single layer boundary where the advantage collapses. This rules out the
    cleanest version of "the last layer specifically is broken" and narrows, rather than
    answers, item 3's framing.
-3. **Prototype a differently-shaped final layer** (not necessarily skipping `y_emb`, per the
-   superseded item 2 below -- §131 shows the label conditioning is not the dominant cause).
-   §133 shows this cannot be scoped as "fix the one broken layer" -- there is no such layer --
-   so the prototype has to be justified on its own terms: whether a different final
-   transformation reads the existing representation better, not on recovering a
-   depth-concentrated loss. Score it downstream on V4FinBench.
+3. ~~**Prototype a differently-shaped final layer.**~~ **Done (§135): a nonlinear head beats
+   `own_head` but not the plain linear probe.** An MLP on the same frozen `pre_head`
+   representation scores +0.0185 mean AP over `own_head` (4/5 folds, 3/5 significant) but
+   -0.0042 against the plain linear probe (1/5 folds, 0/5 significant) -- statistically
+   indistinguishable from it. Whatever the head's own final layer does wrong, it is not
+   "insufficient nonlinearity": a genuinely nonlinear alternative, same frozen input, does no
+   better than a linear one at this training-data budget.
 4. **Repeat the full protocol on a second checkpoint** (`runs/lrsweep/lrsweep-3e4.pt` or another
    5-fold-validated one) to rule out "specific to this checkpoint" -- not yet run.
 5. ~~**Check whether this transfers to TabArena's Lite protocol.**~~ **Done (§132): it does.**

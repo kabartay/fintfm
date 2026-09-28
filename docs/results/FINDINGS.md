@@ -9254,3 +9254,60 @@ this project has no access to.
 **Not published, not submitted, no PR.** This entry exists so the same check is not run twice;
 it does not change anything on `docs/roadmap/ROADMAP.md`, which the direction here confirms
 rather than revises.
+
+## §135 — A nonlinear head beats the model's own head, but not the plain linear probe
+
+**How these numbers were produced.** MEASURED. Same checkpoint (`runs/v4-cellattn-labels.pt`),
+same protocol, same 20,000-row stratified training subsample as §130-§133. Added a fourth arm
+to `representation_transfer.py`: an `MLPClassifier` (one hidden layer, 64 units, early
+stopping) fit on the same `pre_head` representation the linear probe already uses. Phase A'
+item 3 (`docs/roadmap/ROADMAP.md`): §133 ruled out "one specific layer is broken", so this is
+scored on its own terms -- does a nonlinear final layer read the frozen representation better
+than a linear one -- not framed as a repair. Row-level paired bootstrap, 2,000 resamples per
+fold, Holm-corrected, matching §130-§134.
+
+### The result
+
+| fold | own_head AP | linear probe AP (§131) | MLP head AP | MLP vs own_head | MLP vs linear |
+| --- | --- | --- | --- | --- | --- |
+| 0 | 0.2113 | 0.2349 | 0.2219 | +0.0106 * | -0.0129 |
+| 1 | 0.2050 | 0.2156 | 0.2008 | -0.0042 | -0.0148 |
+| 2 | 0.1786 | 0.2130 | 0.2073 | +0.0287 * | -0.0057 |
+| 3 | 0.1810 | 0.2392 | 0.2356 | +0.0546 * | -0.0036 |
+| 4 | 0.2172 | 0.2041 | 0.2199 | +0.0028 | +0.0158 |
+| **mean** | **0.1986** | **0.2214** | **0.2171** | **+0.0185** | **-0.0042** |
+
+**MLP head beats own_head on 4 of 5 folds, significant after Holm on 3 of 5.** Notably, fold
+4 -- the one fold where the linear probe itself underperforms `own_head` (§131's only
+reversal) -- is where the MLP head does best relative to the linear probe (+0.0158), though
+this single-fold pattern is not itself significant.
+
+**MLP head does not beat the linear probe: 1 of 5 folds, 0 of 5 significant.** The two are
+statistically indistinguishable given this data budget, with the linear probe nominally ahead
+by a small, non-significant mean margin.
+
+### What this settles for Phase A' item 3
+
+**A differently-shaped final layer recovers real signal over the model's own head, but a
+nonlinear one buys nothing beyond what a linear one already captures at this representation
+and this training-data budget.** Combined with §133 (the linear-probe advantage decays
+gradually through the stack, not at one identifiable layer), the picture is now: whatever the
+head's own final layer is doing wrong, it is not "insufficient nonlinearity" -- a genuinely
+nonlinear alternative, given the same frozen input, does no better than a linear one. The
+representation is linearly separable to about the degree it is separable at all, at the
+20,000-row training budget this experiment uses.
+
+**What this does not rule out:** a larger training budget for the downstream classifier (the
+20,000-row cap exists for cost reasons, `representation_transfer.py`'s module docstring), a
+differently-regularised or differently-sized MLP, or -- the more structural alternative --
+retraining the head end-to-end jointly with the representation rather than probing a frozen
+one. This experiment only speaks to frozen-representation probes, matching every other finding
+in this line (§130-§134).
+
+### Where this leaves Phase A'
+
+Item 3 is answered, not in the direction that would have opened a large new lever: a fancier
+head is not the fix. Item 4 (a second checkpoint) remains open. Given §133 and this entry
+together, the honest read is that Phase A' has extracted what it has to give -- a real,
+external, +145 Elo, reproduced gain (§132) -- and the next open lever is Phase C (prior
+diversity), not a further search inside the decision layer.

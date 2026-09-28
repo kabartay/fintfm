@@ -3,14 +3,21 @@
 Every finding to date scores this project's own classification head. Neuralk-AI's
 ``TabPfnVectorizer`` (``docs/paper/RELATED_WORK.md``, Seldon section) treats a pretrained TFM
 as a fixed feature extractor instead: hand its embeddings to a plain downstream model. That is
-a different question, answerable only by comparing three arms on the same held-out rows:
+a different question, answerable only by comparing four arms on the same held-out rows:
 
   (a) fintfm's own head                             -- the number every other finding reports
-  (b) a plain classifier on fintfm's representation  -- does the embedding carry signal
-  (c) the same plain classifier on raw features      -- the embedding's baseline to beat
+  (b) a linear classifier on fintfm's representation -- does the embedding carry signal
+  (c) the same linear classifier on raw features     -- the embedding's baseline to beat
+  (d) a small MLP on fintfm's representation         -- Phase A' item 3: is a nonlinear final
+                                                         layer worth having, on its own terms
 
 (b) losing to (a) is expected; (b) losing to (c) is the result that would say the
-representation carries nothing (c) did not already have.
+representation carries nothing (c) did not already have. (d) is not framed as "the fix" --
+``docs/results/FINDINGS.md`` §133 found the linear-probe advantage decays gradually through the
+whole stack rather than at one identifiable layer, so there is no single broken component a
+nonlinear head repairs. It is scored as its own hypothesis: whether a nonlinear read of the
+frozen representation does better than a linear one, which is a question about the
+representation's shape, not a diagnosis of the existing head.
 
 **Why the downstream classifiers are fitted on a bounded subsample, not the full training
 split.** A first version of this experiment called
@@ -36,6 +43,7 @@ import numpy as np
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import average_precision_score, roc_auc_score
+from sklearn.neural_network import MLPClassifier
 from sklearn.preprocessing import StandardScaler
 
 from fintfm.evaluation.datasets import CACHE_DIR
@@ -47,7 +55,7 @@ from fintfm.experiments.v4_protocol import (
 )
 from fintfm.inference.classifier import FinancialTFMClassifier
 
-Arm = Literal["own_head", "representation", "raw_features"]
+Arm = Literal["own_head", "representation", "raw_features", "mlp_head"]
 
 #: Rows given to the downstream classifiers' *training* step, per fold. Every minority-class
 #: row from the fold's training split is kept, then padded with a random majority-class sample
@@ -152,10 +160,20 @@ def run(
             lr_raw = LogisticRegression(max_iter=1000).fit(Xtr, ytr)
             p_raw_features = lr_raw.predict_proba(Xte)[:, 1]
 
+            mlp_rep = MLPClassifier(
+                hidden_layer_sizes=(64,),
+                early_stopping=True,
+                n_iter_no_change=15,
+                max_iter=500,
+                random_state=fold,
+            ).fit(rep_tr, ytr)
+            p_mlp_head = mlp_rep.predict_proba(rep_te)[:, 1]
+
         arms: dict[Arm, np.ndarray] = {
             "own_head": p_own_head,
             "representation": p_representation,
             "raw_features": p_raw_features,
+            "mlp_head": p_mlp_head,
         }
         row = {
             "fold": int(fold),
@@ -171,6 +189,7 @@ def run(
             f"  fold {fold}  (train sample {len(sub):,} of {len(tr):,})  "
             f"own_head AP {row['own_head_ap']:.4f}  "
             f"representation AP {row['representation_ap']:.4f}  "
+            f"mlp_head AP {row['mlp_head_ap']:.4f}  "
             f"raw_features AP {row['raw_features_ap']:.4f}",
             flush=True,
         )
