@@ -78,7 +78,7 @@ maybe the head just needs more nonlinearity -- and found it does not: an MLP on 
 frozen representation beats `own_head` but not the plain linear probe. **Phase A' has now
 extracted what it has to give**: a real, external, reproduced gain (§132, +145 Elo), and no
 further search inside the decision layer looks likely to add more. Item 4 (a second
-checkpoint) is what remains open here; the next real lever is Phase C.
+checkpoint) is now closed too (§136); Phase A' is done and the next real lever is Phase C.
 
 1. ~~**Distinguish label-conditioning/pooling from a stage-mismatch artifact.**~~ **Done (§131).**
    The `y_emb` + `self.encoder` + `norm` stages §130 skipped account for roughly 45% of the
@@ -98,8 +98,10 @@ checkpoint) is what remains open here; the next real lever is Phase C.
    indistinguishable from it. Whatever the head's own final layer does wrong, it is not
    "insufficient nonlinearity": a genuinely nonlinear alternative, same frozen input, does no
    better than a linear one at this training-data budget.
-4. **Repeat the full protocol on a second checkpoint** (`runs/lrsweep/lrsweep-3e4.pt` or another
-   5-fold-validated one) to rule out "specific to this checkpoint" -- not yet run.
+4. ~~**Repeat the full protocol on a second checkpoint.**~~ **Done (§136): replicates, slightly
+   stronger.** `runs/lrsweep/lrsweep-3e4.pt`, same protocol: +0.0323 mean AP (against §131's
+   +0.0214), 5/5 folds win (against 4/5), 3/5 significant after Holm. Not a quirk of one
+   training run.
 5. ~~**Check whether this transfers to TabArena's Lite protocol.**~~ **Done (§132): it does.**
    +145 Elo, 93rd of 95 against 94th, 26 of 27 datasets used the linear probe cleanly. Still
    below every real method -- 910 sits a whisker under `Linear (default)` at 936, the next

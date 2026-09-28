@@ -9311,3 +9311,49 @@ head is not the fix. Item 4 (a second checkpoint) remains open. Given §133 and 
 together, the honest read is that Phase A' has extracted what it has to give -- a real,
 external, +145 Elo, reproduced gain (§132) -- and the next open lever is Phase C (prior
 diversity), not a further search inside the decision layer.
+
+## §136 — The linear-probe advantage replicates on a second, independently-trained checkpoint
+
+**How these numbers were produced.** MEASURED. `runs/lrsweep/lrsweep-3e4.pt`, a different
+learning-rate-sweep checkpoint from `runs/v4-cellattn-labels.pt` (§130-§135's checkpoint), same
+architecture (`n_layers=4, cell_labels=True`), same protocol: `representation_transfer.py`,
+`stage="pre_head"`, same 20,000-row stratified training subsample, all five V4FinBench folds.
+Phase A' item 4 (`docs/roadmap/ROADMAP.md`): rule out "this is a quirk of one training run"
+before closing Phase A'. Row-level paired bootstrap, 2,000 resamples per fold, Holm-corrected,
+matching §130-§135.
+
+### The result
+
+| fold | own_head AP | pre_head representation AP | delta | Holm p |
+| --- | --- | --- | --- | --- |
+| 0 | 0.2089 | 0.2248 | +0.0158 | 0.092 |
+| 1 | 0.2025 | 0.2445 | +0.0420 | 0.000 * |
+| 2 | 0.1789 | 0.2181 | +0.0392 | 0.000 * |
+| 3 | 0.1757 | 0.2372 | +0.0614 | 0.000 * |
+| 4 | 0.2124 | 0.2154 | +0.0030 | 0.777 |
+| **mean** | **0.1957** | **0.2280** | **+0.0323** | |
+
+**Representation wins on 5 of 5 folds, significant after Holm on 3 of 5.** Compare to §131's
+original checkpoint: mean own_head 0.1986, mean representation 0.2201, +0.0214, 4/5 folds,
+3/5 significant. The new checkpoint's own_head baseline (0.1957) and representation AP
+(0.2280) both sit close to §131's, and the margin is, if anything, slightly larger (+0.0323
+against +0.0214) and more consistent in sign (5/5 against 4/5 -- this checkpoint has no fold
+where `own_head` comes out ahead, unlike §131's fold 4 reversal).
+
+### What this settles
+
+**The linear-probe advantage is not specific to one training run.** Two checkpoints from the
+same learning-rate sweep, differing only in training hyperparameters, show the same
+qualitative pattern at comparable magnitude: `self.head`'s own final layer underperforms a
+linear probe fit on its own input. Combined with §133 (the gap decays gradually through
+`self.encoder`'s depth) and §135 (a nonlinear head does not close it further), this closes
+Phase A' item 4 and, with it, Phase A' as a whole -- every item the phase opened now has a
+measured answer, and none of them point at the decision layer as the remaining lever.
+
+### Where this leaves the roadmap
+
+Phase A' is done. The next open, untested lever is Phase C (prior diversity), per
+`docs/roadmap/STRATEGY.md`'s synthesis: scale and depth are closed both internally (§93, §108,
+§133, §135) and externally (the Neuralk-AI corroboration in `docs/paper/RELATED_WORK.md`), and
+the decision-layer search (§131-§136) recovers a real but bounded gain rather than closing the
+TabArena/TabBench gap outright.
