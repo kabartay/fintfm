@@ -193,7 +193,11 @@ one.
     confound path is severed (`do(P)`) -- and lands *below* the no-confound-ever-existed
     ceiling, not at or above it, meaning it does not discard the now-uninformative proxy once
     broken. A fourth probe where the §74 capped/uncapped split has no bearing.
-22. **Missingness, shift and support-extrapolation axes, sampled independently** (40.6).
+22. ~~**Missingness, shift and support-extrapolation axes, sampled independently.**~~ **Done
+    (§140, 40.6):** additive shift and positive-scale extrapolation are exact Bayes-AUC no-ops
+    (same rank-invariance argument as `threshold`); missingness leaves family identity and
+    labels untouched while genuinely moving achieved AUC. All three compose freely with any of
+    item 18's nine families, verified by test rather than by convention.
 23. **Widen target mechanisms to a published list** (48.4), so the comparison is against
     someone else's taxonomy rather than our own.
 24. **Scope the combined prior only after 40.2–40.6 each validate individually** (40.7).

@@ -49,9 +49,12 @@
       *below* `cause_only` (0.816, 0.817), not at or above it -- the model does not discard the
       broken proxy once it is uninformative, it keeps weighting it and that residual weight
       actively hurts. No new pretraining scoped.
-- [ ] 40.6 **Missingness/shift/support-extrapolation axes, sampled independently.** Verify: a
-      test asserts these can be varied without changing which task family or difficulty a task
-      belongs to, so the factorisation is genuine rather than bundled.
+- [x] 40.6 **Done (§140).** `fintfm.prior.task_families.apply_nuisance_axes` applies
+      `missing_frac`/`shift`/`extrapolate` as a post-hoc wrapper around any existing task rather
+      than a tenth family. `shift` and positive-scale `extrapolate` are exact Bayes-AUC no-ops
+      (rank invariance, the same argument `threshold` already relies on); `missing_frac` leaves
+      `y`/`n_classes`/`source` untouched. Verify: a test confirms family identity and labels
+      survive every combination of the three axes, alone and together.
 - [ ] 40.7 **Only after 40.2-40.6 are individually validated on existing checkpoints**, scope a
       pretraining run mixing them. Verify: matched-compute discipline per
       `phase1-prior-ablation`'s original design, and the §74 Bayes-ceiling probe run on the

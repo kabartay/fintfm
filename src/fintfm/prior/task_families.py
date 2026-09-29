@@ -595,3 +595,75 @@ def sample_confound_collider_pair(
         y.astype(np.int64),
         np.array([active_p, active_c]),
     )
+
+
+def apply_nuisance_axes(
+    task: Task,
+    rng: np.random.Generator,
+    missing_frac: float = 0.0,
+    shift: float = 0.0,
+    extrapolate: float = 0.0,
+) -> Task:
+    """Apply missingness, distribution shift and support extrapolation, independently of family.
+
+    Task 40.6 (`docs/roadmap/ROADMAP.md` Phase C item 22): three nuisance axes that must be
+    freely combinable with any of task 40.2's nine families (or 40.4/40.5's constructions)
+    **without changing which family a task belongs to or the difficulty it was calibrated to**
+    -- the factorisation task 40.6 asks for, rather than a tenth family that bundles them in.
+
+    `shift` (additive) and `extrapolate` (multiplicative, applied first) are both **exact**
+    no-ops on Bayes AUC: adding a constant to every row's feature values, or scaling every row's
+    feature values by a positive constant, preserves every pairwise ordering of the informative
+    statistic, and AUC depends only on that ordering -- the same invariance the `threshold`
+    family's rank-preserving reshape already relies on (task 40.2). What they change is purely
+    the feature *distribution* a downstream model sees: `shift` moves the whole support away
+    from wherever training data sat, `extrapolate` widens it past whatever range the family's
+    own calibration sample was drawn from. Both are covariate-shift probes with a known,
+    exactly-zero effect on the label-generating process's own difficulty.
+
+    `missing_frac` is not AUC-invariant -- it destroys information and cannot be, by
+    construction -- but it also does not touch `y`, `task.n_classes` or `task.source`, so a
+    task's family identity and its requested difficulty target remain exactly what they were;
+    only the achieved AUC downstream of the missingness is free to move, and by how much is an
+    empirical question for whoever measures it, not a silent change to the task's own labels.
+
+    Args:
+        task: A `Task` from any family in this module (or elsewhere).
+        rng: NumPy random generator, for the missingness mask.
+        missing_frac: Independent per-cell probability of being set to NaN.
+        shift: Additive constant applied to every feature value.
+        extrapolate: Multiplicative widening applied to every feature value before `shift`
+            (`X *= 1 + extrapolate`); must leave `1 + extrapolate > 0` or the scaling would
+            flip sign and reverse every ranking, which is not what "extrapolation" means here.
+
+    Returns:
+        A new `Task` with the same `y`, `n_classes`, `is_categorical` and `source` as `task`,
+        and `X` transformed by the three axes in order (extrapolate, then shift, then
+        missingness).
+
+    Raises:
+        ValueError: If `missing_frac` is outside `[0, 1]` or `1 + extrapolate <= 0`.
+    """
+    if not 0.0 <= missing_frac <= 1.0:
+        raise ValueError(f"missing_frac must be in [0, 1], got {missing_frac}")
+    if 1.0 + extrapolate <= 0.0:
+        raise ValueError(f"1 + extrapolate must be > 0, got {1.0 + extrapolate}")
+
+    X = task.X.astype(np.float64)
+    if extrapolate:
+        X = X * (1.0 + extrapolate)
+    if shift:
+        X = X + shift
+    if missing_frac:
+        X[rng.random(X.shape) < missing_frac] = np.nan
+
+    return Task(
+        X=X.astype(np.float32),
+        y=task.y,
+        n_classes=task.n_classes,
+        is_categorical=task.is_categorical,
+        source=task.source,
+        period=task.period,
+        n_horizons=task.n_horizons,
+        y_continuous=task.y_continuous,
+    )

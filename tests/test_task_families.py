@@ -250,3 +250,66 @@ def test_confound_collider_rejects_bad_input() -> None:
         sample_confound_collider_pair(np.random.default_rng(0), 100, 100, n_features=1)
     with pytest.raises(ValueError, match="cause_weight must be"):
         sample_confound_collider_pair(np.random.default_rng(0), 100, 100, n_features=8, cause_weight=1.5)
+
+
+def test_nuisance_axes_preserve_family_and_labels() -> None:
+    from fintfm.prior.task_families import apply_nuisance_axes
+
+    rng = np.random.default_rng(0)
+    base = sample_family_task(rng, "sparse", 500, n_features=8, target_auc=0.9)
+    for missing_frac, shift, extrapolate in [
+        (0.0, 0.0, 0.0),
+        (0.3, 0.0, 0.0),
+        (0.0, 2.5, 0.0),
+        (0.0, 0.0, 1.5),
+        (0.2, -1.0, 0.5),
+    ]:
+        out = apply_nuisance_axes(
+            base, np.random.default_rng(1), missing_frac=missing_frac, shift=shift,
+            extrapolate=extrapolate,
+        )
+        assert out.source == base.source  # family identity untouched
+        assert np.array_equal(out.y, base.y)  # labels untouched
+        assert out.n_classes == base.n_classes
+        assert out.X.shape == base.X.shape
+
+
+def test_shift_and_extrapolate_are_exact_auc_no_ops() -> None:
+    # Bayes AUC is invariant to an additive shift or a positive multiplicative scale applied to
+    # every row alike -- both preserve every pairwise ordering of the informative statistic.
+    from fintfm.prior.task_families import apply_nuisance_axes
+
+    rng = np.random.default_rng(0)
+    base = sample_family_task(rng, "sparse", 20_000, n_features=8, target_auc=0.85)
+    lr = LogisticRegression(max_iter=1000)
+    cut = 10_000
+    base_auc = roc_auc_score(
+        base.y[cut:], lr.fit(base.X[:cut], base.y[:cut]).predict_proba(base.X[cut:])[:, 1]
+    )
+    for shift, extrapolate in [(3.0, 0.0), (0.0, 2.0), (-2.0, 1.0)]:
+        shifted = apply_nuisance_axes(base, rng, shift=shift, extrapolate=extrapolate)
+        shifted_auc = roc_auc_score(
+            shifted.y[cut:],
+            lr.fit(shifted.X[:cut], shifted.y[:cut]).predict_proba(shifted.X[cut:])[:, 1],
+        )
+        assert abs(shifted_auc - base_auc) < 0.02
+
+
+def test_missingness_does_not_touch_labels_but_can_move_auc() -> None:
+    from fintfm.prior.task_families import apply_nuisance_axes
+
+    rng = np.random.default_rng(0)
+    base = sample_family_task(rng, "sparse", 2000, n_features=8, target_auc=0.9)
+    out = apply_nuisance_axes(base, rng, missing_frac=0.5)
+    assert np.array_equal(out.y, base.y)
+    assert np.isnan(out.X).mean() > 0.3  # roughly half the cells, generously bounded
+
+
+def test_nuisance_axes_reject_bad_input() -> None:
+    from fintfm.prior.task_families import apply_nuisance_axes
+
+    base = sample_family_task(np.random.default_rng(0), "sparse", 100, n_features=8)
+    with pytest.raises(ValueError, match="missing_frac must be"):
+        apply_nuisance_axes(base, np.random.default_rng(0), missing_frac=1.5)
+    with pytest.raises(ValueError, match="1 \\+ extrapolate must be"):
+        apply_nuisance_axes(base, np.random.default_rng(0), extrapolate=-2.0)

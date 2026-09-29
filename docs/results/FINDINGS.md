@@ -9567,3 +9567,45 @@ motivation (§112's weak prior distinctiveness) is exactly the kind of gap a pri
 confound/collider structure (rather than only SCM's undifferentiated random graphs) could
 address directly. Item 22 (task 40.6, missingness/shift/support-extrapolation axes) is next in
 the queue.
+
+## §140 — Missingness, shift and support extrapolation factor cleanly out of family and difficulty
+
+**How these numbers were produced.** MEASURED (a construction-verification result, not a model
+evaluation, unlike §137-§139). Task 40.6 (`mechanism-diverse-prior`), Phase C item 22:
+`fintfm.prior.task_families.apply_nuisance_axes` applies three independently-settable axes to
+any existing task -- `missing_frac` (per-cell NaN probability), `shift` (additive), and
+`extrapolate` (multiplicative, applied first) -- as a post-hoc wrapper rather than a tenth
+family, so they compose freely with any of task 40.2's nine families (or 40.4/40.5's
+constructions) without becoming a family of their own.
+
+### The result
+
+`shift` and `extrapolate` are **exact** no-ops on Bayes AUC, not approximately -- an additive
+constant or a positive multiplicative scale applied to every row alike preserves every pairwise
+ordering of the informative statistic, and AUC depends only on that ordering. This is the same
+invariance task 40.2's `threshold` family already relies on (its rank-preserving reshape), now
+stated as a general post-hoc property rather than baked into one family. Measured directly:
+`sparse` at target 0.85, logistic-regression AUC unchanged to within 0.02 under `shift in
+{3.0, -2.0}` and `extrapolate in {2.0, 1.0}`, alone and combined. `missing_frac` is not
+AUC-invariant -- it destroys information and cannot be, by construction -- but leaves `y`,
+`n_classes` and `source` untouched, so a task's family identity and requested difficulty target
+are unaffected by how much of it is applied; only the achieved AUC downstream is free to move,
+which is the correct behaviour rather than a defect.
+
+### What this settles
+
+**The factorisation task 40.6 asks for is genuine, not bundled.** A test confirms every
+combination of the three axes leaves `task.source` and `task.y` identical to the unmodified
+task across five settings including all three axes simultaneously -- family identity and label
+correctness survive nuisance-axis composition by construction, not by convention. Any future
+prior mix (task 40.7) can vary support and missingness independently of which of the nine
+families a task is drawn from, rather than needing a separate missingness- or shift-aware
+variant of each one.
+
+### Where this leaves Phase C
+
+Item 22 (task 40.6) closes the last of the four remaining diagnostic/construction items before
+40.7's combined-prior scoping. Item 23 (task 48.4, widening target mechanisms to a published
+list) is next in the queue; item 24 (task 40.7, scoping a pretraining run mixing everything
+40.2-40.6 built) is the item all of Phase C's construction work has been building toward, gated
+on 40.2-40.6 each validating individually -- which, as of this entry, they now have.
