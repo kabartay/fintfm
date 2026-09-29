@@ -147,6 +147,53 @@ reach for and it is quantitatively insufficient.
 Nori is also **regression-only** (`_supported_problem_types = ["regression"]`), which is the
 one axis where our declared coverage is broader.
 
+### Task 48.4: what this prior already covers of Nori's published target list, and what it does not
+
+`mechanism-diverse-prior` (task 40.2-40.7) asked, from first principles, which task structures a
+diverse prior needs. Nori's paper is someone else's answer sheet for the same question: **9
+target families** (dense linear, sparse linear, GAM, interactions, random MLP, random tree,
+radial/RBF, Fourier features, chained trigonometric) built over **8 SCM edge-function types**
+(MLP, decision tree, piecewise-linear, polynomial, periodic, RBF, log/exp, conv1d). Listed here
+before anything is added, so any future work on this gap is scoped by what is actually missing
+rather than by the length of their list (task 48.4's own verification clause).
+
+**Covered, by an existing generator:**
+
+| Nori's family / edge type | this project's mechanism |
+| --- | --- |
+| dense linear | `task_families.sample_dense_task` (§74-style mean shift, weight spread over every feature) |
+| sparse linear | `task_families.sample_sparse_task` (same construction, one active feature) |
+| interactions | `task_families.sample_xor_task` / `sample_interaction_task` / `sample_max_min_task` (§137-§138) |
+| random MLP | `scm.sample_scm_task` -- a random layered graph with random edge weights and activations, which *is* a random-MLP prior |
+| random tree | `tree.sample_tree_task` -- an oblivious random forest (task 48.13) |
+| piecewise-linear (edge type) | `task_families.sample_piecewise_task` -- explicit random breakpoints and per-segment slopes |
+
+**Partially covered -- one instance exists, not a dedicated generator:**
+
+| Nori's family / edge type | what exists | what is missing |
+| --- | --- | --- |
+| periodic (edge type) / Fourier features (target family) | `scm.py`'s `_ACTS` includes `np.sin` as one of seven node activations | a dedicated family summing several random-frequency, random-phase sinusoids -- Fourier features properly -- rather than one `sin` node incidentally appearing in a random graph |
+
+**Not covered at all:**
+
+| Nori's family / edge type | why it is missing |
+| --- | --- |
+| GAM (sum of independent univariate nonlinear functions, no interactions) | nothing here constrains a task to be purely additive; `scm.py`'s random graph freely mixes features at every layer |
+| radial/RBF | no Gaussian-kernel or distance-from-a-center label mechanism anywhere in this prior |
+| chained trigonometric | no composition of trig functions (e.g. `sin(cos(x))`); `scm.py` can stack `sin` across layers but never deliberately builds a trig-of-trig chain |
+| polynomial (edge type) | `scm.py`'s `sign(v) * sqrt(|v|)` is the only power-law-shaped activation, and it is a fractional power, not an integer-degree polynomial (`v^2`, `v^3`) |
+| log/exp (edge type) | no logarithmic or exponential nonlinearity anywhere in the current activation or family set |
+| conv1d (edge type) | no local, sliding-window combination of adjacent features; every mechanism here is either fully random-graph (permutation-invariant across feature order) or single/few-feature |
+
+**Reading it.** The covered column is exactly task 40.2's contribution plus the pre-existing SCM
+and tree priors -- three of Nori's nine families and two of eight edge types were already
+addressed by work already in this repository before this list was made, which is a useful sanity
+check that `mechanism-diverse-prior` was not chasing a gap that did not exist. The six genuinely
+missing mechanisms (GAM, radial/RBF, chained trigonometric, polynomial, log/exp, conv1d) are a
+concrete, published-sourced backlog for any future family work -- narrower and better-justified
+than "widen the prior" would have been without this list, and this task adds none of them: task
+48.4's own verify clause asks only that the gap be named, not closed.
+
 ### MITRA is the paper this project should have written, and it names our gap
 
 **Amazon Science (2025).** *MITRA: Mixed Synthetic Priors for Enhancing Tabular Foundation

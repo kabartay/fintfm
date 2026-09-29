@@ -29,14 +29,13 @@
       head is measured against the binned head on `fintfm-capability --regression-sweep`, with
       the `binning_oracle` floor reported for both — the binned arm's floor is a real constraint
       and the quantile arm should not have one, which is the whole claim.
-- [ ] 48.4 **Widen the prior's target mechanisms to a published target list.** `prior/scm.py`
-      has several nonlinearities; Nori documents **9 target families** (dense/sparse linear,
-      GAM, interactions, random MLP, random tree, radial/RBF, Fourier features, chained
-      trigonometric) over **8 SCM edge-function types** (MLP, decision tree, piecewise-linear,
-      polynomial, periodic, RBF, log/exp, conv1d). This is `mechanism-diverse-prior`'s open
-      question with someone else's answer sheet. Verify: the families this prior already covers
-      and those it does not are listed explicitly before anything is added, so the work is
-      scoped by a gap rather than by the length of their list.
+- [x] 48.4 **Done.** `docs/paper/RELATED_WORK.md`'s "Task 48.4" section lists all 9 target
+      families and 8 SCM edge-function types against this project's actual prior mechanisms:
+      6 covered (dense/sparse linear, interactions, random MLP, random tree, piecewise-linear),
+      1 partial (periodic/Fourier -- a bare `sin` activation exists, no dedicated multi-frequency
+      family), 6 genuinely missing (GAM, radial/RBF, chained trigonometric, polynomial, log/exp,
+      conv1d). Verify: the gap is named explicitly; nothing is added by this task, per its own
+      verification clause.
 - [ ] 48.5 **Add a learnability filter to the prior, and measure whether it matters.** Nori
       rejects unlearnable synthetic datasets with an ExtraTrees signal-quality filter. §42
       established that a prior of only-easy or only-noise targets teaches the wrong thing, and

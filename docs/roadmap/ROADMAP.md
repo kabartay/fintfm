@@ -198,8 +198,10 @@ one.
     (same rank-invariance argument as `threshold`); missingness leaves family identity and
     labels untouched while genuinely moving achieved AUC. All three compose freely with any of
     item 18's nine families, verified by test rather than by convention.
-23. **Widen target mechanisms to a published list** (48.4), so the comparison is against
-    someone else's taxonomy rather than our own.
+23. ~~**Widen target mechanisms to a published list.**~~ **Done (48.4):** `docs/paper/
+    RELATED_WORK.md` maps Nori's 9 target families / 8 edge types against this prior --
+    6 covered, 1 partial (periodic/Fourier), 6 missing (GAM, radial/RBF, chained trigonometric,
+    polynomial, log/exp, conv1d). Nothing added; the gap is named, not closed.
 24. **Scope the combined prior only after 40.2–40.6 each validate individually** (40.7).
 
 ## Phase D — coverage, and only once rank has moved
