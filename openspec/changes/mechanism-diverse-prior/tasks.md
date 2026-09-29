@@ -40,10 +40,15 @@
       `component_b` land at ~0.90 (their calibrated target) and `composed` at ~0.86 -- a real
       but modest drop, not the collapse to chance 40.3 found for interaction order. No new
       pretraining scoped.
-- [ ] 40.5 **Correlation/confounding/collider task family**, built on the existing SCM
-      machinery. Verify: a constructed collider-structure task is scored and the model's
-      reliance on the confound vs the true cause is measured via an intervention that breaks
-      only the confound.
+- [x] 40.5 **Done (§139).** `fintfm.prior.task_families.sample_confound_collider_pair` builds a
+      collider label (two independent causes, a hidden confound `Z` observed only through a
+      noisy proxy `P`, and a directly-observed true cause `C`) plus a paired `do(P)`
+      intervention severing only `Z -> P`; `fintfm.experiments.capability.
+      confound_reliance_probe` scores a loaded checkpoint under `observed`/`intervened`/
+      `cause_only`. Verify: on both §74 checkpoints, `intervened` AUC (0.728, 0.740) sits
+      *below* `cause_only` (0.816, 0.817), not at or above it -- the model does not discard the
+      broken proxy once it is uninformative, it keeps weighting it and that residual weight
+      actively hurts. No new pretraining scoped.
 - [ ] 40.6 **Missingness/shift/support-extrapolation axes, sampled independently.** Verify: a
       test asserts these can be varied without changing which task family or difficulty a task
       belongs to, so the factorisation is genuine rather than bundled.

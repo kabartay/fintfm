@@ -188,7 +188,11 @@ one.
     0.9-calibrated rules -- a real but modest drop, nothing like item 19's collapse to chance.
     Conjunction is not interaction for this architecture; the capped/uncapped split from §74
     has no bearing here either.
-21. **Correlation, confounding and collider families** (40.5) on the existing SCM.
+21. ~~**Correlation, confounding and collider families.**~~ **Done (§139, 40.5):** a model
+    weighting a confound's proxy about as heavily as a true cause loses 0.16 AUC when the
+    confound path is severed (`do(P)`) -- and lands *below* the no-confound-ever-existed
+    ceiling, not at or above it, meaning it does not discard the now-uninformative proxy once
+    broken. A fourth probe where the §74 capped/uncapped split has no bearing.
 22. **Missingness, shift and support-extrapolation axes, sampled independently** (40.6).
 23. **Widen target mechanisms to a published list** (48.4), so the comparison is against
     someone else's taxonomy rather than our own.

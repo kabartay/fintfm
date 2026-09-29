@@ -9489,3 +9489,81 @@ teaches genuine multiplicative interaction (task 40.2's `xor`/`interaction`/`max
 has the §137 floor to clear; one that only teaches logical composition of already-legible rules
 would be closing a gap that is already fairly small. Item 21 (task 40.5, correlation/confounding/
 collider families) is next in the queue.
+
+## §139 — The model over-relies on a confound's proxy, and does not fully recover to the true cause once it is broken
+
+**How these numbers were produced.** MEASURED. Task 40.5 (`mechanism-diverse-prior`), Phase C
+item 21: a collider-structure task (the label `y` is a common effect of two independent upstream
+causes) plus an intervention that severs only the confound's path to its proxy, matching §137's/
+§138's "existing checkpoints first, no new training" discipline.
+`fintfm.prior.task_families.sample_confound_collider_pair` builds one context (always from the
+intact confound path -- `Z` genuinely drives `y` and its noisy proxy `P = Z + noise` is
+observed, exactly as legitimate a covariate as the directly-observed true cause `C`, also
+independent and also driving `y`) and two query conditions sharing the same `y` and `C`:
+`observed` (the query proxy still reflects the row's own `Z`) and `intervened` (`do(P)` -- the
+query proxy regenerated from an independent fresh `Z'`, severing only `Z -> P`; `y` cannot
+change, since it was generated from the original `Z`, `C` before the intervention). A third,
+`cause_only`, replaces the proxy with pure noise in **both** context and query -- the confound
+path never existed -- giving the ceiling achievable from `C` alone. `fintfm.experiments.
+capability.confound_reliance_probe` evaluates a loaded checkpoint directly, matching every
+other probe in this line's convention (`n_ensemble=8`, per D12). Ten seeds, 800 context / 800
+query rows, the same two §74 checkpoints §137/§138 used, oracle-space target Bayes AUC 0.9 split
+evenly between `Z` and `C`.
+
+### The result
+
+| condition | `fin10` (capped on linear) | `fin00` (uncapped on linear) |
+| --- | --- | --- |
+| observed (confound intact) | 0.893 | 0.896 |
+| intervened (`do(P)`, confound severed) | 0.728 | 0.740 |
+| cause_only (proxy always noise) | 0.816 | 0.817 |
+
+Both checkpoints land within 0.01-0.02 of each other on every condition -- the fourth probe in
+this line (after the linear/mean-shift task, `xor`-style interaction, and AND-composition) where
+the §74 capped/uncapped split makes no visible difference.
+
+**Both checkpoints lose real accuracy when the confound is broken:** 0.893→0.728 and
+0.896→0.740, drops of 0.165 and 0.156. That alone would be expected even from an ideal
+predictor, since `P` genuinely carried information about `y` (via `Z`) under the intact
+confound and carries none once severed -- some drop is the correct response, not a failure.
+
+**What is a failure: `intervened` (0.728, 0.740) sits *below* `cause_only` (0.816, 0.817), not
+at or above it.** If the model had cleanly separated "`P` was informative because of `Z`, and
+that channel is now gone, but `C` still works exactly as well as it always did," `intervened`
+should land at or above `cause_only` -- the intervention removes information, it adds none, so
+nothing should make `C`'s own contribution *worse* than the no-confound-ever-existed baseline.
+Instead both checkpoints score roughly 0.08-0.09 AUC *below* the cause-only ceiling. The model
+is not discarding the now-uninformative `P`; it is still weighting it as if the confound path
+were intact, and that residual weight actively hurts once the proxy no longer means anything.
+
+### What this settles
+
+**This is a distinct, fourth failure mode from §137's interaction collapse and §138's modest
+compositional loss.** §137 found a total inability to combine features at all; §138 found a
+real but bounded loss combining two individually-legible rules; §139 finds the model *can* use
+a spurious-under-intervention signal about as well as a genuine one when both are present in its
+context distribution, and does not know to stop using it once that signal breaks -- closer to
+the shortcut-learning literature's classic finding (a model exploiting a training-time
+correlation that does not survive distribution shift) than to either of the prior two probes'
+combinatorial questions. Task 40.6 (missingness/shift/support-extrapolation) is the item this
+result connects most directly to, since a support shift is exactly the kind of change this
+probe's intervention constructs a minimal version of.
+
+**The §74 capped/uncapped distinction continues to have no bearing** -- the fourth of four
+probes (linear task, interaction order, composition, confound reliance) where it does not
+separate the two checkpoints, reinforcing §137/§138's reading that whatever separates `fin00`
+from `fin10` on a pure linear decision boundary is a narrow, task-specific difference rather
+than a general competence axis.
+
+### Where this leaves Phase C
+
+Items 19, 20 and 21 (tasks 40.3-40.5) are answered on existing checkpoints; no new pretraining
+is scoped by any of them. Together they give three floors any future prior-diversity training
+run should be measured against, not just one: interaction order collapses past `k=1` (§137),
+AND-composition survives at a real but bounded cost (§138), and confound reliance is not merely
+present but actively overshoots past where discarding the broken signal would land (§139) --
+the last of these is arguably the most actionable, since `mechanism-diverse-prior`'s stated
+motivation (§112's weak prior distinctiveness) is exactly the kind of gap a prior with genuine
+confound/collider structure (rather than only SCM's undifferentiated random graphs) could
+address directly. Item 22 (task 40.6, missingness/shift/support-extrapolation axes) is next in
+the queue.

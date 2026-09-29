@@ -504,3 +504,94 @@ def sample_composition_task(
     else:
         y = (y_a & y_b).astype(np.int64)
     return _finish(X, y, f"composition_{mode}")
+
+
+def sample_confound_collider_pair(
+    rng: np.random.Generator,
+    n_ctx: int,
+    n_query: int,
+    n_features: int = 12,
+    target_auc: float = 0.9,
+    cause_weight: float = 0.70710678,
+    proxy_noise: float = 0.3,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """A confound and a true cause both point into the label; only the confound's proxy is cut.
+
+    Task 40.5 (`docs/roadmap/ROADMAP.md` Phase C item 21). The label `y` is a **collider**: two
+    independent upstream causes point into it. `Z` is a *hidden* confound, observed only through
+    a noisy proxy column `P = Z + noise` -- exactly as legitimate a covariate as any other in the
+    observational distribution this pair's context rows are drawn from, since `Z` really does
+    drive `y`. `C` is a *directly observed* true cause, independent of `Z`, also driving `y`.
+
+    Returns two parallel arrays sharing everything -- the same context rows, the same query
+    `y`, the same query `C` -- except the query rows' proxy column: `X_obs`'s query proxy still
+    reflects the row's own `Z` (the confound path intact, matching the context distribution);
+    `X_intervened`'s query proxy is regenerated from an **independent** fresh `Z'` (`do(P)`,
+    severing only the `Z -> P` edge). `y` is unchanged in both, because `y` was generated from
+    the original `Z` and `C` before the intervention and an intervention on `P` cannot act
+    backwards on its own cause. A model that predicts query rows mainly from `P` will lose
+    accuracy from `X_obs` to `X_intervened`; a model that has learned to weight the directly
+    observed `C` will not, because `C`'s relationship to `y` is untouched.
+
+    `cause_weight` (`alpha`, with `beta = sqrt(1 - alpha^2)`) splits the class-conditional mean
+    shift between `Z` and `C`; the oracle statistic `alpha*Z + beta*C` is itself standard normal
+    (both are independent standard normals), so `target_auc` is exact **only for a predictor
+    with direct access to `Z` and `C`** -- the same §74 closed form as every other family here.
+    The achievable AUC using only the *observed* `(P, C)` is strictly lower, since `P` is a noisy
+    proxy for `Z` rather than `Z` itself (the same proxy-noise gap `latent_factor` measures);
+    this function does not calibrate to that lower, observed-space number, since the point of
+    the construction is the *drop* between `X_obs` and `X_intervened`, not hitting a fixed
+    observed-space target.
+
+    Args:
+        rng: NumPy random generator.
+        n_ctx: Context rows, always drawn from the intact (observational) confound path.
+        n_query: Query rows, returned once under each condition.
+        n_features: Total feature columns; must be at least 2.
+        target_auc: Oracle-space (direct `Z`, `C` access) Bayes-optimal AUC.
+        cause_weight: Share of the mean shift assigned to `Z` (`alpha`); the rest (`beta`) goes
+            to `C`. `0.70710678` (`1/sqrt(2)`) splits it evenly by default.
+        proxy_noise: Standard deviation of the noise added to `Z` to form the proxy `P`.
+
+    Returns:
+        `(X_obs, X_intervened, y, active_idx)`: the first two are `(n_ctx + n_query, n_features)`
+        float32, identical in their first `n_ctx` rows; `y` is `(n_ctx + n_query,)` int64,
+        identical between conditions; `active_idx` is `(2,)`, `[proxy_column, cause_column]`.
+
+    Raises:
+        ValueError: If `n_features < 2` or `cause_weight` is outside `[0, 1]`.
+    """
+    if n_features < 2:
+        raise ValueError("n_features must be >= 2 (one proxy column, one cause column)")
+    if not 0.0 <= cause_weight <= 1.0:
+        raise ValueError(f"cause_weight must be in [0, 1], got {cause_weight}")
+
+    n = n_ctx + n_query
+    alpha = cause_weight
+    beta = float(np.sqrt(max(0.0, 1.0 - alpha**2)))
+    mu = _mu_for_target_auc(target_auc)
+
+    y = rng.integers(0, 2, size=n)
+    z = rng.normal(size=n)
+    c = rng.normal(size=n)
+    rows1 = y == 1
+    z[rows1] += mu * alpha
+    c[rows1] += mu * beta
+
+    active = rng.choice(n_features, size=2, replace=False)
+    active_p, active_c = int(active[0]), int(active[1])
+
+    X_obs = rng.normal(size=(n, n_features))
+    X_obs[:, active_c] = c
+    X_obs[:, active_p] = z + rng.normal(0.0, proxy_noise, size=n)
+
+    X_intervened = X_obs.copy()
+    z_fresh = rng.normal(size=n_query)
+    X_intervened[n_ctx:, active_p] = z_fresh + rng.normal(0.0, proxy_noise, size=n_query)
+
+    return (
+        X_obs.astype(np.float32),
+        X_intervened.astype(np.float32),
+        y.astype(np.int64),
+        np.array([active_p, active_c]),
+    )

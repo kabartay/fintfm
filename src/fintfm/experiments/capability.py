@@ -391,6 +391,93 @@ def composition_probe(
     return out
 
 
+def confound_reliance_probe(
+    model: FinancialTFM,
+    target_auc: float = 0.9,
+    cause_weight: float = 0.70710678,
+    proxy_noise: float = 0.3,
+    seeds: int = 10,
+    n_ctx: int = 800,
+    n_query: int = 800,
+    n_ensemble: int = 8,
+    n_features: int = 12,
+) -> dict[str, float]:
+    """Does the model rely on a confound's proxy, or the true cause, on an existing checkpoint.
+
+    Task 40.5 (`docs/roadmap/ROADMAP.md` Phase C item 21): the label is a collider of a hidden
+    confound `Z` (observed only through a noisy proxy column) and a directly observed true
+    cause `C`. Uses `fintfm.prior.task_families.sample_confound_collider_pair` to build one
+    context (always from the intact, observational confound path) and two query conditions
+    sharing everything except the query proxy column: `observed` (confound path intact, matching
+    context) and `intervened` (`do(P)` -- the proxy regenerated independently, severing only
+    `Z -> P`; `y` and `C` are untouched, since `y` was already generated before the
+    intervention). A model relying on the proxy loses accuracy from `observed` to `intervened`;
+    one that has learned to weight the directly observed cause does not.
+
+    A third arm, `cause_only`, sets the proxy to pure noise in **both** context and query (the
+    confound path never exists), giving the ceiling achievable from the true cause alone -- the
+    number `intervened` should approach if the model fully recovers to using only what remains
+    valid, rather than partially, once the confound is broken.
+
+    Calls the model directly, matching every other probe in this module's convention exactly.
+
+    Args:
+        model: A loaded :class:`~fintfm.modeling.model.FinancialTFM`, trained for classification.
+        target_auc: Oracle-space (direct `Z`, `C` access) Bayes-optimal AUC; see
+            `sample_confound_collider_pair`.
+        cause_weight: Share of the mean shift assigned to the confound `Z`; the rest goes to `C`.
+        proxy_noise: Standard deviation of the proxy's noise around `Z`.
+        seeds: Independent task draws averaged per condition.
+        n_ctx: Context rows per task.
+        n_query: Query rows per task.
+        n_ensemble: Column-identity draws averaged per prediction (D12).
+        n_features: Feature width; must be at least 2.
+
+    Returns:
+        `{"observed": auc, "intervened": auc, "cause_only": auc}`, each averaged over `seeds`.
+    """
+    import torch
+    from sklearn.metrics import roc_auc_score
+
+    from fintfm.prior.task_families import sample_confound_collider_pair
+
+    nc = n_ctx
+    out: dict[str, float] = {}
+    for condition in ("observed", "intervened", "cause_only"):
+        achieved = []
+        for s in range(seeds):
+            rng = np.random.default_rng(s)
+            X_obs, X_intervened, y, active = sample_confound_collider_pair(
+                rng,
+                n_ctx,
+                n_query,
+                n_features=n_features,
+                target_auc=target_auc,
+                cause_weight=cause_weight,
+                proxy_noise=proxy_noise,
+            )
+            if condition == "observed":
+                X = X_obs
+            elif condition == "intervened":
+                X = X_intervened
+            else:
+                X = X_obs.copy()
+                proxy_col = int(active[0])
+                X[:, proxy_col] = np.random.default_rng(s + 10_000).normal(size=X.shape[0])
+            Xt = torch.tensor(X)[None]
+            yt = torch.tensor(y)[None]
+            with torch.no_grad():
+                ps = [
+                    torch.softmax(
+                        model(Xt, yt, nc, torch.tensor([2]), column_id_seed=j).float(), -1
+                    )[0, nc:, 1].numpy()
+                    for j in range(n_ensemble)
+                ]
+            achieved.append(roc_auc_score(y[nc:], np.mean(ps, 0)))
+        out[condition] = float(np.mean(achieved))
+    return out
+
+
 def feature_sweep(
     model_paths: dict[str, str],
     widths: tuple[int, ...] = (5, 10, 20, 40, 80, 130),

@@ -195,3 +195,58 @@ def test_composition_rejects_bad_input() -> None:
         sample_composition_task(np.random.default_rng(0), 100, n_features=1)
     with pytest.raises(ValueError, match="unknown mode"):
         sample_composition_task(np.random.default_rng(0), 100, n_features=8, mode="bogus")
+
+
+def test_confound_collider_pair_shares_context_and_labels() -> None:
+    from fintfm.prior.task_families import sample_confound_collider_pair
+
+    rng = np.random.default_rng(0)
+    X_obs, X_int, _y, active = sample_confound_collider_pair(rng, n_ctx=500, n_query=500, n_features=8)
+    assert X_obs.shape == X_int.shape == (1000, 8)
+    assert np.array_equal(X_obs[:500], X_int[:500])  # context untouched
+    assert not np.array_equal(X_obs[500:], X_int[500:])  # query proxy differs
+    proxy, cause = active
+    assert np.array_equal(X_obs[500:, cause], X_int[500:, cause])  # cause column untouched
+    assert not np.array_equal(X_obs[500:, proxy], X_int[500:, proxy])
+
+
+def test_confound_collider_cause_alone_is_untouched_by_intervention() -> None:
+    # A classifier trained only on the cause column should score identically on both
+    # conditions -- the intervention severs only the proxy's link to the confound.
+    from fintfm.prior.task_families import sample_confound_collider_pair
+
+    rng = np.random.default_rng(1)
+    X_obs, X_int, y, active = sample_confound_collider_pair(
+        rng, n_ctx=8000, n_query=8000, n_features=8, target_auc=0.9
+    )
+    _proxy, cause = active
+    lr = LogisticRegression(max_iter=1000).fit(X_obs[:8000, [cause]], y[:8000])
+    auc_obs = roc_auc_score(y[8000:], lr.predict_proba(X_obs[8000:, [cause]])[:, 1])
+    auc_int = roc_auc_score(y[8000:], lr.predict_proba(X_int[8000:, [cause]])[:, 1])
+    assert abs(auc_obs - auc_int) < 0.02
+
+
+def test_confound_collider_proxy_reliance_costs_accuracy_under_intervention() -> None:
+    # A classifier trained on BOTH observed columns (proxy + cause) -- exploiting the confound
+    # exactly as a naive observational fit would -- must lose accuracy once the proxy is severed
+    # from the confound, even though the cause's own contribution is untouched.
+    from fintfm.prior.task_families import sample_confound_collider_pair
+
+    rng = np.random.default_rng(2)
+    X_obs, X_int, y, active = sample_confound_collider_pair(
+        rng, n_ctx=8000, n_query=8000, n_features=8, target_auc=0.9
+    )
+    cols = list(active)
+    lr = LogisticRegression(max_iter=1000).fit(X_obs[:8000][:, cols], y[:8000])
+    auc_obs = roc_auc_score(y[8000:], lr.predict_proba(X_obs[8000:][:, cols])[:, 1])
+    auc_int = roc_auc_score(y[8000:], lr.predict_proba(X_int[8000:][:, cols])[:, 1])
+    assert auc_obs - auc_int > 0.03
+
+
+def test_confound_collider_rejects_bad_input() -> None:
+    from fintfm.prior.task_families import sample_confound_collider_pair
+
+    with pytest.raises(ValueError, match="n_features must be"):
+        sample_confound_collider_pair(np.random.default_rng(0), 100, 100, n_features=1)
+    with pytest.raises(ValueError, match="cause_weight must be"):
+        sample_confound_collider_pair(np.random.default_rng(0), 100, 100, n_features=8, cause_weight=1.5)
