@@ -173,7 +173,11 @@ The prior is the project's distinctive claim and §112 measured its distinctiven
 This phase is the one that could produce a genuinely different model rather than a better-tuned
 one.
 
-18. **Labelled task-family generators** (40.2): linear, threshold, XOR, and the rest.
+18. ~~**Labelled task-family generators.**~~ **Done (40.2):** `src/fintfm/prior/task_families.py`,
+    nine families, each difficulty-controlled to a requested Bayes AUC (five by exact closed
+    form, four by calibrated bisection) and measured, not assumed, in `tests/
+    test_task_families.py`. Not yet mixed into pretraining -- that is item 24 (40.7), gated on
+    items 19-23 validating individually first.
 19. **Interaction-order curriculum, measured before touched** (40.3).
 20. **Compositional generalisation test on existing checkpoints first** (40.4), matching 40.3's
     protocol so the two are comparable.

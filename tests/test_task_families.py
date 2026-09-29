@@ -1,0 +1,122 @@
+"""The labelled task-family generators (task 40.2, `mechanism-diverse-prior`).
+
+The load-bearing test is `test_realised_difficulty_matches_target`: task 40.2 requires each
+family's *realised* Bayes AUC to be measured against its requested target, not assumed correct
+because the construction looks right on paper -- exactly the discipline `CLAUDE.md`'s "Claims:
+label every number by how it was produced" names.
+
+Two measurement routes, matched to what each group of families actually admits:
+
+- The five closed-form families (`linear`, `sparse`, `dense`, `threshold`, `latent_factor`) are
+  linearly (or, for `threshold`, monotonically-then-linearly) separable by construction, so a
+  plain `LogisticRegression` on the observed features recovers their Bayes AUC almost exactly --
+  a flexible learner is not needed and would only add its own approximation error.
+- The four families with no closed form (`xor`, `interaction`, `max_min`, `piecewise`) are
+  genuinely hard to recover from raw features by design -- that difficulty is the whole point
+  of including them -- so a generic learner cannot be used as the yardstick (a gradient-boosted
+  tree recovers barely half the requested separation on `interaction` at n=15,000, not because
+  the generator is wrong but because that is what "no linear or shallow-tree shortcut" means).
+  These are measured instead against their own true, by-construction decision statistic,
+  exposed via each sampler's `_score_out` hook (mirrors `scm.sample_scm_task`'s `_latent_out`
+  convention) -- computed on a large, freshly-drawn sample, independent of whatever internal
+  calibration sample the generator's own bisection used.
+"""
+
+from __future__ import annotations
+
+import numpy as np
+import pytest
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import roc_auc_score
+
+from fintfm.prior.task_families import (
+    FAMILIES,
+    sample_family_task,
+    sample_interaction_task,
+    sample_max_min_task,
+    sample_piecewise_task,
+    sample_xor_task,
+)
+
+_TARGETS = (0.6, 0.75, 0.9, 0.98)
+_TOL = 0.03
+_N_MEASURE = 20_000
+
+_CLOSED_FORM = ("linear", "sparse", "dense", "threshold", "latent_factor")
+_NO_CLOSED_FORM = {
+    "xor": sample_xor_task,
+    "interaction": sample_interaction_task,
+    "max_min": sample_max_min_task,
+    "piecewise": sample_piecewise_task,
+}
+assert set(_CLOSED_FORM) | set(_NO_CLOSED_FORM) == set(FAMILIES)
+
+
+def _measure_closed_form_auc(family: str, target_auc: float, seed: int) -> float:
+    rng = np.random.default_rng(seed)
+    t = sample_family_task(rng, family, _N_MEASURE, n_features=12, target_auc=target_auc)
+    X, y = np.nan_to_num(t.X), t.y
+    cut = len(y) // 2
+    lr = LogisticRegression(max_iter=2000).fit(X[:cut], y[:cut])
+    return float(roc_auc_score(y[cut:], lr.predict_proba(X[cut:])[:, 1]))
+
+
+@pytest.mark.parametrize("family", _CLOSED_FORM)
+@pytest.mark.parametrize("target_auc", _TARGETS)
+def test_closed_form_families_hit_target(family: str, target_auc: float) -> None:
+    measured = _measure_closed_form_auc(
+        family, target_auc, seed=hash((family, target_auc)) % 2**31
+    )
+    assert abs(measured - target_auc) < _TOL, (
+        f"{family} at target {target_auc}: measured {measured:.3f}, outside tolerance {_TOL}"
+    )
+
+
+@pytest.mark.parametrize("family", sorted(_NO_CLOSED_FORM))
+@pytest.mark.parametrize("target_auc", _TARGETS)
+def test_calibrated_families_hit_target(family: str, target_auc: float) -> None:
+    rng = np.random.default_rng(hash((family, target_auc)) % 2**31)
+    score_out: list[np.ndarray] = []
+    t = _NO_CLOSED_FORM[family](
+        rng, _N_MEASURE, n_features=12, target_auc=target_auc, _score_out=score_out
+    )
+    r = score_out[0]
+    measured = float(roc_auc_score(t.y, r))
+    assert abs(measured - target_auc) < _TOL, (
+        f"{family} at target {target_auc}: measured {measured:.3f}, outside tolerance {_TOL}"
+    )
+
+
+def test_every_family_is_tagged_and_valid() -> None:
+    for family in FAMILIES:
+        rng = np.random.default_rng(0)
+        t = sample_family_task(rng, family, 200, n_features=10)
+        assert t.source == f"family:{family}"
+        assert t.X.dtype == np.float32
+        assert t.X.shape == (200, 10)
+        assert len(np.unique(t.y)) == 2
+        assert t.n_classes == 2
+        assert not t.is_categorical.any()
+
+
+def test_unknown_family_rejected() -> None:
+    with pytest.raises(ValueError, match="unknown task family"):
+        sample_family_task(np.random.default_rng(0), "not-a-family", 100)
+
+
+def test_families_are_not_the_same_generator_in_disguise() -> None:
+    # A cheap distinctness check in the spirit of test_tree_prior.py's justification test: xor
+    # (a genuine interaction) should not be solvable by a linear model at high target AUC, while
+    # linear should be -- otherwise "xor" is not testing what its name claims.
+    rng = np.random.default_rng(0)
+    t_lin = sample_family_task(rng, "linear", 4000, n_features=8, target_auc=0.9)
+    t_xor = sample_family_task(rng, "xor", 4000, n_features=8, target_auc=0.9)
+
+    def _linear_auc(t) -> float:
+        X, y = np.nan_to_num(t.X), t.y
+        cut = len(y) // 2
+        lr = LogisticRegression(max_iter=1000).fit(X[:cut], y[:cut])
+        return float(roc_auc_score(y[cut:], lr.predict_proba(X[cut:])[:, 1]))
+
+    assert _linear_auc(t_lin) > 0.8
+    assert _linear_auc(t_xor) < 0.65

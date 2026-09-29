@@ -1,0 +1,392 @@
+"""Labelled task-family generators, each independently difficulty-controlled.
+
+Phase C item 18 / openspec task 40.2 (`mechanism-diverse-prior`). §112 measured the production
+prior mixture's distinctiveness as weak: the model does not obviously need to read its context
+differently across the financial and SCM priors it already sees. This module is the first step
+toward finding out whether a richer, explicitly-labelled set of causal structures teaches
+something those two do not -- nine families, each tagged with its own family identifier
+(`Task.source`) for `cell-attention-and-task-inference` task 39.7's planned DGP-classification
+probe.
+
+§74 measured an *exact* closed-form Bayes-AUC target for a 1-D Gaussian mean shift:
+`Phi(mu / sqrt(2))`, verified there to 3 decimals against the true formula. Five families here
+reduce to that same construction and reuse it directly:
+
+- a linear projection is exactly Gaussian regardless of how many features carry its weight
+  (rotation invariance of an isotropic Gaussian), which is what separates ``linear`` (a few
+  active features), ``sparse`` (one), and ``dense`` (all) -- same formula, different weight
+  support;
+- AUC is invariant to any strictly monotone transform of the decision statistic, which is what
+  lets ``threshold`` reuse the identical formula on a reshaped, non-Gaussian marginal;
+- ``latent_factor`` admits its own closed form by averaging noisy proxies of a hidden Gaussian
+  driver: the sufficient statistic is again a mean-shifted Gaussian, just with an inflated
+  variance from proxy noise, so the same formula applies to an *effective* mean shift.
+
+The other four families (``xor``, ``interaction``, ``max_min``, ``piecewise``) have no known
+closed form, so their generative sharpness is calibrated by bisection against a large
+Monte-Carlo sample scored with the family's own true decision statistic -- the same "cheap
+bisection before committing GPU spend" discipline task 40.3 names for the interaction-order
+curriculum.
+
+Only binary tasks are generated (`n_classes=2`); the existing SCM and tree priors already cover
+multiclass targets, and task 40.2 does not ask for a multiclass generalisation of this
+construction.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+
+import numpy as np
+from scipy.special import ndtri
+from sklearn.metrics import roc_auc_score
+
+from fintfm.prior.base import Task
+
+#: The nine families task 40.2 names, in the order it names them.
+FAMILIES: tuple[str, ...] = (
+    "linear",
+    "threshold",
+    "xor",
+    "interaction",
+    "max_min",
+    "piecewise",
+    "sparse",
+    "dense",
+    "latent_factor",
+)
+
+_AUC_CLIP = 1e-6
+
+
+def _mu_for_target_auc(target_auc: float) -> float:
+    """Exact mean-shift magnitude for a 1-D equal-variance Gaussian split (§74)."""
+    p = float(np.clip(target_auc, _AUC_CLIP, 1.0 - _AUC_CLIP))
+    return float(np.sqrt(2.0) * ndtri(p))
+
+
+def _gaussian_mean_shift(
+    rng: np.random.Generator,
+    n_rows: int,
+    n_features: int,
+    target_auc: float,
+    k_active: int,
+    monotone_reshape: bool = False,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Draw ``(X, y)`` from the §74 construction, generalised to ``k_active`` weighted features.
+
+    Class 0 is drawn `N(0, I)`; class 1 is shifted by `mu` along a random unit vector supported
+    on `k_active` of the `n_features` columns, the rest pure noise. The Bayes-optimal statistic
+    is the projection onto that vector, and its AUC is exactly `Phi(mu / sqrt(2))` regardless of
+    `k_active` or which columns it touches -- an isotropic Gaussian's projection onto any unit
+    vector is itself standard normal.
+
+    Args:
+        rng: NumPy random generator.
+        n_rows: Rows to generate.
+        n_features: Total feature columns; only `k_active` of them carry signal.
+        target_auc: Requested Bayes-optimal AUC.
+        k_active: Number of features the informative direction is supported on.
+        monotone_reshape: Apply a strictly monotone, order-preserving reshape to the active
+            columns after the mean shift. AUC is invariant to this (it depends only on rank),
+            so it changes the feature's marginal shape without changing its difficulty --
+            used by `threshold` to differentiate from `sparse` in shape, not in Bayes AUC.
+
+    Returns:
+        `(X, y)`: `X` is `(n_rows, n_features)` float64, `y` is `(n_rows,)` int64 in `{0, 1}`.
+    """
+    k_active = max(1, min(k_active, n_features))
+    active = rng.choice(n_features, size=k_active, replace=False)
+    w = rng.normal(size=k_active)
+    w /= np.linalg.norm(w) + 1e-12
+    mu = _mu_for_target_auc(target_auc)
+
+    y = rng.integers(0, 2, size=n_rows)
+    X = rng.normal(size=(n_rows, n_features))
+    rows1 = np.flatnonzero(y == 1)
+    X[np.ix_(rows1, active)] += mu * w
+
+    if monotone_reshape:
+        col = X[:, active]
+        X[:, active] = np.sign(col) * np.abs(col) ** 1.5
+
+    return X, y
+
+
+def _calibrate_sharpness(
+    raw_score_fn: Callable[[np.ndarray], np.ndarray],
+    rng: np.random.Generator,
+    n_features: int,
+    target_auc: float,
+    n_calib: int = 20_000,
+    tol: float = 0.01,
+    max_iter: int = 40,
+) -> tuple[np.ndarray, np.ndarray, float]:
+    """Bisect a logistic sharpness so a family's true Bayes AUC hits `target_auc`.
+
+    Draws one calibration sample and a fixed vector of uniforms, then searches `sharpness` in
+    `p(y=1|x) = sigmoid(sharpness * raw_score_fn(x))`. Holding the calibration sample and the
+    uniforms fixed across the search makes `AUC(sharpness)` monotone (raising `sharpness` only
+    pushes each row's `p` further toward 0 or 1 in the direction its own score already points),
+    so plain bisection converges instead of chasing resampling noise.
+
+    Args:
+        raw_score_fn: Maps `(n, n_features)` features to a `(n,)` continuous score; the
+            family's true (by construction) Bayes-optimal decision statistic.
+        rng: NumPy random generator.
+        n_features: Feature width the calibration sample is drawn at.
+        target_auc: Requested Bayes-optimal AUC.
+        n_calib: Calibration sample size.
+        tol: Stop once the achieved AUC is within this of `target_auc`.
+        max_iter: Bisection step cap.
+
+    Returns:
+        `(X_calib, r_calib, sharpness)`: the calibration draw and standardised score (returned
+        so callers needing a second calibration sample do not have to know the standardisation
+        constants) and the calibrated sharpness.
+    """
+    X = rng.normal(size=(n_calib, n_features))
+    r = raw_score_fn(X)
+    r = (r - r.mean()) / (r.std() + 1e-12)
+    u = rng.random(n_calib)
+
+    lo, hi = 0.0, 50.0
+    for _ in range(max_iter):
+        mid = 0.5 * (lo + hi)
+        p = 1.0 / (1.0 + np.exp(-mid * r))
+        y = (u < p).astype(np.int64)
+        auc = 0.5 if len(np.unique(y)) < 2 else roc_auc_score(y, r)
+        if abs(auc - target_auc) < tol:
+            lo = hi = mid
+            break
+        if auc < target_auc:
+            lo = mid
+        else:
+            hi = mid
+    return X, r, 0.5 * (lo + hi)
+
+
+def _sample_by_sharpness(
+    rng: np.random.Generator,
+    n_rows: int,
+    n_features: int,
+    target_auc: float,
+    raw_score_fn: Callable[[np.ndarray], np.ndarray],
+    _score_out: list[np.ndarray] | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Calibrate `raw_score_fn`'s sharpness, then draw a fresh `(X, y)` at that sharpness.
+
+    Args:
+        _score_out: Internal, mirrors `scm.sample_scm_task`'s `_latent_out` convention. When a
+            list is passed, the standardised score used to generate `y` is appended to it --
+            this is the family's true, by-construction Bayes-optimal statistic, and lets a test
+            measure realised AUC directly against it rather than through a learner that may not
+            recover the structure (the structure being hard to recover from raw features is the
+            entire point of families like `xor`).
+    """
+    _, _, sharpness = _calibrate_sharpness(raw_score_fn, rng, n_features, target_auc)
+    X = rng.normal(size=(n_rows, n_features))
+    r = raw_score_fn(X)
+    r = (r - r.mean()) / (r.std() + 1e-12)
+    if _score_out is not None:
+        _score_out.append(r.copy())
+    p = 1.0 / (1.0 + np.exp(-sharpness * r))
+    y = rng.binomial(1, p).astype(np.int64)
+    return X, y
+
+
+def _finish(X: np.ndarray, y: np.ndarray, family: str) -> Task:
+    """Wrap raw `(X, y)` as a `Task`, tagged with its family identifier.
+
+    Every family here generates purely continuous features -- `is_categorical` is all-False,
+    unlike the SCM and financial priors, which is the point: this module isolates the causal
+    structure axis from the categorical-coding axis the others already cover.
+    """
+    return Task(
+        X=X.astype(np.float32),
+        y=y.astype(np.int64),
+        n_classes=2,
+        is_categorical=np.zeros(X.shape[1], dtype=bool),
+        source=f"family:{family}",
+    )
+
+
+def sample_linear_task(
+    rng: np.random.Generator, n_rows: int, n_features: int = 12, target_auc: float = 0.85
+) -> Task:
+    """A linear decision boundary over a handful of active features (closed-form difficulty)."""
+    k = int(rng.integers(2, min(5, n_features) + 1))
+    X, y = _gaussian_mean_shift(rng, n_rows, n_features, target_auc, k_active=k)
+    return _finish(X, y, "linear")
+
+
+def sample_sparse_task(
+    rng: np.random.Generator, n_rows: int, n_features: int = 12, target_auc: float = 0.85
+) -> Task:
+    """A linear decision boundary supported on exactly one feature (closed-form difficulty)."""
+    X, y = _gaussian_mean_shift(rng, n_rows, n_features, target_auc, k_active=1)
+    return _finish(X, y, "sparse")
+
+
+def sample_dense_task(
+    rng: np.random.Generator, n_rows: int, n_features: int = 12, target_auc: float = 0.85
+) -> Task:
+    """A linear decision boundary spread over every feature (closed-form difficulty)."""
+    X, y = _gaussian_mean_shift(rng, n_rows, n_features, target_auc, k_active=n_features)
+    return _finish(X, y, "dense")
+
+
+def sample_threshold_task(
+    rng: np.random.Generator, n_rows: int, n_features: int = 12, target_auc: float = 0.85
+) -> Task:
+    """A single-feature hard-cutoff rule on a reshaped, non-Gaussian marginal.
+
+    Same closed-form Bayes AUC as `sparse` -- AUC depends only on rank, and the reshape is
+    strictly monotone -- but the observed feature is heavy-tailed rather than Gaussian, so a
+    model relying on a fixed linear scale (rather than rank) sees a differently-shaped problem.
+    """
+    X, y = _gaussian_mean_shift(
+        rng, n_rows, n_features, target_auc, k_active=1, monotone_reshape=True
+    )
+    return _finish(X, y, "threshold")
+
+
+def sample_latent_factor_task(
+    rng: np.random.Generator, n_rows: int, n_features: int = 12, target_auc: float = 0.85
+) -> Task:
+    """A hidden Gaussian factor observed only through several independently-noisy proxies.
+
+    `z` drives the label via the §74 mean shift; each of `k` proxy columns is `z` plus its own
+    noise. The sufficient statistic from `k` iid-noise proxies of `z` is their mean, which is
+    again Gaussian with the same class-conditional mean shift and an inflated variance
+    `1 + tau^2/k` from averaging out the proxy noise -- so the same closed form applies to an
+    *effective* mean shift solved backwards from the inflated variance, rather than to `mu`
+    directly. The rest of the features are pure noise, so the model must find and combine the
+    correlated proxies rather than read one clean column.
+    """
+    k = int(rng.integers(2, min(4, n_features) + 1))
+    active = rng.choice(n_features, size=k, replace=False)
+    tau = float(rng.uniform(0.5, 2.0))
+    var_inflation = 1.0 + tau**2 / k
+    mu = _mu_for_target_auc(target_auc) * np.sqrt(var_inflation)
+
+    y = rng.integers(0, 2, size=n_rows)
+    z = mu * y + rng.normal(size=n_rows)
+    X = rng.normal(size=(n_rows, n_features))
+    X[:, active] = z[:, None] + rng.normal(0.0, tau, size=(n_rows, k))
+    return _finish(X, y, "latent_factor")
+
+
+def sample_xor_task(
+    rng: np.random.Generator,
+    n_rows: int,
+    n_features: int = 12,
+    target_auc: float = 0.85,
+    _score_out: list[np.ndarray] | None = None,
+) -> Task:
+    """Noisy parity of two features' signs -- unsolvable by any single linear feature."""
+
+    def raw(X: np.ndarray) -> np.ndarray:
+        return np.sign(X[:, 0]) * np.sign(X[:, 1])
+
+    X, y = _sample_by_sharpness(rng, n_rows, n_features, target_auc, raw, _score_out)
+    return _finish(X, y, "xor")
+
+
+def sample_interaction_task(
+    rng: np.random.Generator,
+    n_rows: int,
+    n_features: int = 12,
+    target_auc: float = 0.85,
+    _score_out: list[np.ndarray] | None = None,
+) -> Task:
+    """A smooth multiplicative interaction between two features, no additive main effect."""
+
+    def raw(X: np.ndarray) -> np.ndarray:
+        return X[:, 0] * X[:, 1]
+
+    X, y = _sample_by_sharpness(rng, n_rows, n_features, target_auc, raw, _score_out)
+    return _finish(X, y, "interaction")
+
+
+def sample_max_min_task(
+    rng: np.random.Generator,
+    n_rows: int,
+    n_features: int = 12,
+    target_auc: float = 0.85,
+    _score_out: list[np.ndarray] | None = None,
+) -> Task:
+    """The label tracks an order statistic (the max) of several features, not their sum."""
+    k = min(4, n_features)
+
+    def raw(X: np.ndarray) -> np.ndarray:
+        return X[:, :k].max(axis=1)
+
+    X, y = _sample_by_sharpness(rng, n_rows, n_features, target_auc, raw, _score_out)
+    return _finish(X, y, "max_min")
+
+
+def sample_piecewise_task(
+    rng: np.random.Generator,
+    n_rows: int,
+    n_features: int = 12,
+    target_auc: float = 0.85,
+    _score_out: list[np.ndarray] | None = None,
+) -> Task:
+    """A single feature drives the label through a non-monotonic piecewise-linear rule.
+
+    Breakpoints and per-segment slopes (alternating sign) are fixed once per task, so a linear
+    probe on this one feature cannot separate the classes even though the label depends on
+    nothing else.
+    """
+    breakpoints = np.sort(rng.uniform(-1.5, 1.5, size=3))
+    slopes = rng.choice([-1.0, 1.0], size=4) * rng.uniform(0.5, 2.0, size=4)
+    edges = np.concatenate([[-np.inf], breakpoints, [np.inf]])
+
+    def raw(X: np.ndarray) -> np.ndarray:
+        x0 = X[:, 0]
+        r = np.zeros_like(x0)
+        for i in range(4):
+            seg = (x0 >= edges[i]) & (x0 < edges[i + 1])
+            r = np.where(seg, slopes[i] * x0, r)
+        return r
+
+    X, y = _sample_by_sharpness(rng, n_rows, n_features, target_auc, raw, _score_out)
+    return _finish(X, y, "piecewise")
+
+
+_SAMPLERS: dict[str, Callable[..., Task]] = {
+    "linear": sample_linear_task,
+    "threshold": sample_threshold_task,
+    "xor": sample_xor_task,
+    "interaction": sample_interaction_task,
+    "max_min": sample_max_min_task,
+    "piecewise": sample_piecewise_task,
+    "sparse": sample_sparse_task,
+    "dense": sample_dense_task,
+    "latent_factor": sample_latent_factor_task,
+}
+
+
+def sample_family_task(
+    rng: np.random.Generator,
+    family: str,
+    n_rows: int,
+    n_features: int = 12,
+    target_auc: float = 0.85,
+) -> Task:
+    """Dispatch to the named family's generator.
+
+    Args:
+        rng: NumPy random generator.
+        family: One of `FAMILIES`.
+        n_rows: Rows to generate.
+        n_features: Feature columns (only some may carry signal; see each family).
+        target_auc: Requested Bayes-optimal AUC.
+
+    Raises:
+        ValueError: If `family` is not one of `FAMILIES`.
+    """
+    if family not in _SAMPLERS:
+        raise ValueError(f"unknown task family {family!r}; expected one of {FAMILIES}")
+    return _SAMPLERS[family](rng, n_rows, n_features=n_features, target_auc=target_auc)

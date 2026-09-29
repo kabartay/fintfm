@@ -1,15 +1,28 @@
 # Tasks
 
-- [ ] 40.1 **Wait on `cell-attention-and-task-inference` task 39.4/39.6.** Do not scope
-      pretraining runs here until that result is in. Verify: this task is only closed by
-      linking the finding that triggered starting the rest of this proposal.
-- [ ] 40.2 **Implement the labelled task-family generators** (linear, threshold, XOR,
-      interaction, max/min, piecewise, sparse, dense, latent-factor), each independently
-      difficulty-controlled via §74's closed-form construction where the family admits one, and
-      each tagged with its own family identifier for later use by
-      `cell-attention-and-task-inference` task 39.7's DGP-classification probe. Verify: a test
-      asserts each family's realised difficulty (measured, not assumed) matches its requested
-      Bayes-AUC target within a stated tolerance.
+- [x] 40.1 **Done.** `cell-attention-and-task-inference` 39.4 closed the gap it names
+      (`n_cell_blocks=1, cell_labels=True`) and 39.6 confirmed the branch it would have gated
+      does not trigger, so nothing here is blocked. No pretraining run is scoped by this task
+      itself; that stays gated on 40.7.
+- [x] 40.2 **Done.** `src/fintfm/prior/task_families.py` implements all nine families (linear,
+      threshold, XOR, interaction, max/min, piecewise, sparse, dense, latent-factor), each
+      tagged `Task.source = "family:<name>"`. Five reduce exactly to §74's closed-form
+      construction (`linear`/`sparse`/`dense` vary only which features carry a random unit-norm
+      weight; rotation invariance of an isotropic Gaussian keeps `Phi(mu / sqrt(2))` exact
+      regardless; `threshold` reuses it under a rank-preserving reshape, since AUC depends only
+      on rank; `latent_factor` derives its own closed form by averaging noisy proxies of a
+      hidden Gaussian driver, which is itself a mean-shifted Gaussian with an inflated
+      variance). The remaining four (`xor`, `interaction`, `max_min`, `piecewise`) have no known
+      closed form and are calibrated by bisection against a fixed Monte-Carlo sample (`tests/
+      test_task_families.py`'s `_calibrate_sharpness`, monotone in sharpness by construction, so
+      plain bisection converges). Verify: `tests/test_task_families.py` measures realised AUC on
+      a large, freshly-drawn sample per family per target -- via `LogisticRegression` for the
+      five linearly-separable families, and via each family's own true, by-construction
+      statistic (exposed through a `_score_out` hook mirroring `scm.py`'s `_latent_out`
+      convention) for the four that a generic learner cannot recover by design -- all nine
+      within a stated tolerance across four target-AUC points. Not yet wired into
+      `prior/mixture.py`'s `PriorConfig`; that mixing step is 40.7, gated on 40.2-40.6
+      individually validating first.
 - [ ] 40.3 **Interaction-order curriculum, measured before touched.** Sample the same family at
       `k=1..5` and report the achieved-AUC-vs-k curve on an existing checkpoint first (no
       training), matching the discipline of §76's cheap bisection before committing GPU spend.
