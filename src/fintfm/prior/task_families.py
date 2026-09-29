@@ -277,6 +277,30 @@ def sample_latent_factor_task(
     return _finish(X, y, "latent_factor")
 
 
+def _sample_interaction_order(
+    rng: np.random.Generator,
+    n_rows: int,
+    n_features: int,
+    k: int,
+    target_auc: float,
+    _score_out: list[np.ndarray] | None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Shared generator behind `xor` (`k=2`) and `sample_interaction_order_task` (`k` general).
+
+    Raises:
+        ValueError: If `k` exceeds `n_features` or is below 1.
+    """
+    if not 1 <= k <= n_features:
+        raise ValueError(f"k must be in [1, n_features={n_features}], got {k}")
+
+    def raw(X: np.ndarray) -> np.ndarray:
+        signs = np.sign(X[:, :k])
+        signs[signs == 0] = 1.0
+        return np.prod(signs, axis=1)
+
+    return _sample_by_sharpness(rng, n_rows, n_features, target_auc, raw, _score_out)
+
+
 def sample_xor_task(
     rng: np.random.Generator,
     n_rows: int,
@@ -285,12 +309,42 @@ def sample_xor_task(
     _score_out: list[np.ndarray] | None = None,
 ) -> Task:
     """Noisy parity of two features' signs -- unsolvable by any single linear feature."""
-
-    def raw(X: np.ndarray) -> np.ndarray:
-        return np.sign(X[:, 0]) * np.sign(X[:, 1])
-
-    X, y = _sample_by_sharpness(rng, n_rows, n_features, target_auc, raw, _score_out)
+    X, y = _sample_interaction_order(rng, n_rows, n_features, 2, target_auc, _score_out)
     return _finish(X, y, "xor")
+
+
+def sample_interaction_order_task(
+    rng: np.random.Generator,
+    n_rows: int,
+    n_features: int = 12,
+    k: int = 2,
+    target_auc: float = 0.85,
+    _score_out: list[np.ndarray] | None = None,
+) -> Task:
+    """Noisy parity of `k` features' signs -- `xor` generalised to an explicit interaction order.
+
+    Task 40.3 (`docs/roadmap/ROADMAP.md` Phase C item 19): the achieved-AUC-vs-`k` curve is the
+    instrument, not any single task. `k=1` is a plain sign threshold on one feature (recoverable
+    by a linear probe, same as `sparse`/`threshold`); `k=2` is exactly `xor`; each additional `k`
+    requires jointly reading one more feature before the label carries any information at all --
+    no `k-1`-way marginal or lower-order combination of the active features is correlated with
+    the label by construction, since the parity of `k` independent fair-coin-like signs is
+    uniform unless all `k` are read together. Calibrated the same way as every other
+    no-closed-form family: bisected sharpness against a fixed Monte-Carlo sample.
+
+    Args:
+        rng: NumPy random generator.
+        n_rows: Rows to generate.
+        n_features: Total feature columns; only `k` of them carry signal.
+        k: Interaction order -- number of features whose joint sign-parity the label depends on.
+        target_auc: Requested Bayes-optimal AUC.
+        _score_out: See `_sample_by_sharpness`.
+
+    Returns:
+        A `Task` tagged `source="family:interaction_order_k{k}"`.
+    """
+    X, y = _sample_interaction_order(rng, n_rows, n_features, k, target_auc, _score_out)
+    return _finish(X, y, f"interaction_order_k{k}")
 
 
 def sample_interaction_task(

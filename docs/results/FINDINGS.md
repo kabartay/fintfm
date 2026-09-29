@@ -9357,3 +9357,74 @@ Phase A' is done. The next open, untested lever is Phase C (prior diversity), pe
 §133, §135) and externally (the Neuralk-AI corroboration in `docs/paper/RELATED_WORK.md`), and
 the decision-layer search (§131-§136) recovers a real but bounded gain rather than closing the
 TabArena/TabBench gap outright.
+
+## §137 — Neither §74 checkpoint does any interaction at all: chance the instant k>=2, regardless of the linear-task capped/uncapped split
+
+**How these numbers were produced.** MEASURED. Task 40.3 (`mechanism-diverse-prior`), Phase C
+item 19: "measured before touched" -- report the achieved-AUC-vs-interaction-order curve on
+existing checkpoints, no new training, before scoping any pretraining run over interaction
+order. `fintfm.prior.task_families.sample_interaction_order_task` generalises the `xor` family
+(task 40.2) to an explicit order `k`: the label is the parity of `k` feature signs, and no
+`k-1`-way marginal of the active features carries any label information by construction.
+`fintfm.experiments.capability.interaction_order_probe` evaluates a loaded checkpoint directly
+(bypassing `FinancialTFMClassifier`, matching §74's `bayes_ceiling_probe` convention exactly:
+column-identity draws averaged over `n_ensemble=8`, per D12), at one fixed Bayes-AUC target
+(0.9) across every `k` so the curve isolates order rather than mixing it with difficulty. Ten
+seeds per order, 1,600 rows per task (800 context / 800 query), the two checkpoints §74 already
+established as the capped/uncapped pair: `runs/dl/v4-cellattn-fin10.pt` (pure financial,
+capped at ~0.73 on the pure linear task) and `runs/dl/v4-cellattn-fin00.pt` (pure SCM, tracked
+the true Bayes curve almost exactly).
+
+### The result
+
+| k (interaction order) | `fin10` (capped on linear) | `fin00` (uncapped on linear) |
+| --- | --- | --- |
+| 1 | 0.897 | 0.898 |
+| 2 | 0.493 | 0.491 |
+| 3 | 0.507 | 0.500 |
+| 4 | 0.514 | 0.500 |
+| 5 | 0.494 | 0.498 |
+
+Target Bayes AUC was 0.9 at every `k`. `k=1` (a plain sign threshold on one feature, the same
+structure as `sparse`/`threshold` from task 40.2) is recovered almost exactly by both
+checkpoints -- 0.897 and 0.898 against a target of 0.9. **At `k=2` (plain `xor`) both
+checkpoints collapse to chance and stay there through `k=5`.** There is no gradual decay with
+order the way §133 found for probing depth; the drop from `k=1` to `k=2` is immediate and
+total, and `k=3`, `k=4`, `k=5` add nothing further to measure -- the model is already at the
+floor.
+
+### What this settles, and what it overturns
+
+**§74's capped/uncapped distinction does not predict interaction capability.** `fin00` tracked
+the true Bayes curve on the pure linear (1-D Gaussian mean-shift) task almost exactly -- the
+strongest possible showing on that task -- and is exactly as blind to `xor` as `fin10`, the
+checkpoint §74 found capped at 0.73 on the same linear task. Whatever separates the two
+checkpoints on a linear decision boundary, it has no bearing on whether either can combine two
+features non-additively. These are evidently separate capabilities, not two points on the same
+underlying competence axis.
+
+**This is a more basic null than §133-§136 were measuring.** The whole §131-§136 line asked
+whether a linear probe on a frozen representation beats the model's own head -- a question that
+presupposes the representation carries separable signal for the probe to find. §137 asks
+whether the representation carries *any* interaction signal in the first place, and for the
+simplest possible interaction (two-way XOR) the answer is no, on either checkpoint tested. A
+linear probe cannot recover what was never encoded; this is a different failure from anything
+the decision-layer line could have found, because a linear probe by construction cannot detect
+`xor` either way.
+
+**This was visible once before, at a much earlier and weaker checkpoint.** §44's synthetic
+probe suite reported `xor` at 0.530-0.537 (chance) on the §42-era checkpoint, long before the
+two-way cell-attention architecture, the label-conditioning fix, or any of the scale/depth work
+this project has since done. §137 is the first time this specific null has been checked against
+the checkpoints this project's current claims actually rest on, and it has not gone away.
+
+### Where this leaves Phase C
+
+This is exactly the gap task 40.2's nine families -- four of which (`xor`, `interaction`,
+`max_min`, `piecewise`) require reading more than one feature jointly -- were built to give the
+prior a chance to teach. §137 is the baseline this line's later pretraining runs (task 40.7, and
+40.4's compositional-generalisation test) need to clear: any claim that mixing interaction
+families into the prior "improves interaction capability" is only meaningful measured against
+this floor, not against zero. Interaction-order item 19 (task 40.3) is now answered for the two
+existing checkpoints available; item 20 (task 40.4, compositional generalisation) is next in
+the queue and uses the same discipline -- existing checkpoints first, no new training.

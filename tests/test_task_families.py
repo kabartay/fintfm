@@ -32,6 +32,7 @@ from sklearn.metrics import roc_auc_score
 from fintfm.prior.task_families import (
     FAMILIES,
     sample_family_task,
+    sample_interaction_order_task,
     sample_interaction_task,
     sample_max_min_task,
     sample_piecewise_task,
@@ -85,6 +86,45 @@ def test_calibrated_families_hit_target(family: str, target_auc: float) -> None:
     assert abs(measured - target_auc) < _TOL, (
         f"{family} at target {target_auc}: measured {measured:.3f}, outside tolerance {_TOL}"
     )
+
+
+def test_interaction_order_matches_xor_at_k2() -> None:
+    # sample_xor_task is sample_interaction_order_task(k=2) under a different tag -- verify
+    # the two calibrate to the same achieved AUC given the same rng state, not just the same
+    # source code path.
+    target = 0.8
+    r_xor: list[np.ndarray] = []
+    t_xor = sample_xor_task(
+        np.random.default_rng(0), 20_000, n_features=12, target_auc=target, _score_out=r_xor
+    )
+    r_k2: list[np.ndarray] = []
+    t_k2 = sample_interaction_order_task(
+        np.random.default_rng(0), 20_000, n_features=12, k=2, target_auc=target, _score_out=r_k2
+    )
+    assert t_k2.source == "family:interaction_order_k2"
+    auc_xor = roc_auc_score(t_xor.y, r_xor[0])
+    auc_k2 = roc_auc_score(t_k2.y, r_k2[0])
+    assert abs(auc_xor - auc_k2) < 1e-9
+
+
+def test_interaction_order_realised_difficulty_matches_target() -> None:
+    # k=1..5, the sweep task 40.3's curve is built from. Confirms the generalisation calibrates
+    # correctly at every order, not only k=2 (already covered by the xor family's own test).
+    for k in range(1, 6):
+        rng = np.random.default_rng(k)
+        score_out: list[np.ndarray] = []
+        t = sample_interaction_order_task(
+            rng, 20_000, n_features=12, k=k, target_auc=0.85, _score_out=score_out
+        )
+        measured = roc_auc_score(t.y, score_out[0])
+        assert abs(measured - 0.85) < _TOL, f"k={k}: measured {measured:.3f}"
+
+
+def test_interaction_order_rejects_k_out_of_range() -> None:
+    with pytest.raises(ValueError, match="k must be in"):
+        sample_interaction_order_task(np.random.default_rng(0), 100, n_features=5, k=6)
+    with pytest.raises(ValueError, match="k must be in"):
+        sample_interaction_order_task(np.random.default_rng(0), 100, n_features=5, k=0)
 
 
 def test_every_family_is_tagged_and_valid() -> None:

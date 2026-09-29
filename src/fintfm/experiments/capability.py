@@ -257,6 +257,78 @@ def bayes_ceiling_probe(
     return out
 
 
+#: Interaction orders task 40.3 sweeps: k=1 is a plain threshold, k=5 the deepest order tested.
+INTERACTION_ORDERS: tuple[int, ...] = (1, 2, 3, 4, 5)
+
+
+def interaction_order_probe(
+    model: FinancialTFM,
+    orders: tuple[int, ...] = INTERACTION_ORDERS,
+    target_auc: float = 0.9,
+    seeds: int = 10,
+    n: int = 1600,
+    n_ensemble: int = 8,
+    n_features: int = 12,
+) -> dict[int, tuple[float, float]]:
+    """Achieved AUC vs. interaction order `k`, on an **existing checkpoint, no new training**.
+
+    Task 40.3 (`docs/roadmap/ROADMAP.md` Phase C item 19): "measured before touched" -- report
+    this curve on checkpoints that already exist before scoping any pretraining run that varies
+    interaction order. Uses `fintfm.prior.task_families.sample_interaction_order_task`, the
+    generalisation of the `xor` family to an explicit order `k` (parity of `k` feature signs; no
+    `k-1`-way marginal carries any label information by construction), at one fixed Bayes-AUC
+    target across every `k` so the curve reads purely as a function of interaction depth, not of
+    difficulty drifting alongside it.
+
+    Calls the model directly rather than through `FinancialTFMClassifier`, matching
+    :func:`bayes_ceiling_probe`'s convention exactly (column-identity draws averaged over
+    `n_ensemble`, per D12), so numbers from this probe are comparable to every value already
+    recorded against that one.
+
+    Args:
+        model: A loaded :class:`~fintfm.modeling.model.FinancialTFM`, trained for classification.
+        orders: Interaction orders to sweep.
+        target_auc: Bayes-optimal AUC every order is calibrated to, so the curve isolates order
+            rather than mixing it with a difficulty change.
+        seeds: Independent task draws averaged per order.
+        n: Rows per task; half context, half query.
+        n_ensemble: Column-identity draws averaged per prediction (D12).
+        n_features: Feature width; must exceed the largest order swept.
+
+    Returns:
+        `{k: (achieved_auc_mean, regret)}` where `regret = target_auc - achieved_mean`, matching
+        :func:`bayes_ceiling_probe`'s convention.
+    """
+    import torch
+    from sklearn.metrics import roc_auc_score
+
+    from fintfm.prior.task_families import sample_interaction_order_task
+
+    nc = n // 2
+    out: dict[int, tuple[float, float]] = {}
+    for k in orders:
+        achieved = []
+        for s in range(seeds):
+            rng = np.random.default_rng(s)
+            t = sample_interaction_order_task(
+                rng, n, n_features=n_features, k=k, target_auc=target_auc
+            )
+            X, y = t.X, t.y
+            Xt = torch.tensor(X)[None]
+            yt = torch.tensor(y)[None]
+            with torch.no_grad():
+                ps = [
+                    torch.softmax(
+                        model(Xt, yt, nc, torch.tensor([2]), column_id_seed=j).float(), -1
+                    )[0, nc:, 1].numpy()
+                    for j in range(n_ensemble)
+                ]
+            achieved.append(roc_auc_score(y[nc:], np.mean(ps, 0)))
+        mean_achieved = float(np.mean(achieved))
+        out[k] = (mean_achieved, target_auc - mean_achieved)
+    return out
+
+
 def feature_sweep(
     model_paths: dict[str, str],
     widths: tuple[int, ...] = (5, 10, 20, 40, 80, 130),

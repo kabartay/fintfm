@@ -23,11 +23,16 @@
       within a stated tolerance across four target-AUC points. Not yet wired into
       `prior/mixture.py`'s `PriorConfig`; that mixing step is 40.7, gated on 40.2-40.6
       individually validating first.
-- [ ] 40.3 **Interaction-order curriculum, measured before touched.** Sample the same family at
-      `k=1..5` and report the achieved-AUC-vs-k curve on an existing checkpoint first (no
-      training), matching the discipline of §76's cheap bisection before committing GPU spend.
-      Verify: the curve is reported for at least two existing checkpoints (one capped, one not,
-      per §74) before any new pretraining is scoped.
+- [x] 40.3 **Done (§137).** `fintfm.prior.task_families.sample_interaction_order_task`
+      generalises `xor` to an explicit order `k` (parity of `k` feature signs; no `k-1`-way
+      marginal carries label information by construction). `fintfm.experiments.capability.
+      interaction_order_probe` reports achieved-AUC-vs-`k` on an existing checkpoint (no
+      training), matching `bayes_ceiling_probe`'s convention exactly. Verify: the curve is
+      reported for `runs/dl/v4-cellattn-fin10.pt` (capped on the linear task, §74) and
+      `runs/dl/v4-cellattn-fin00.pt` (uncapped, §74) -- both collapse to chance at `k=2` and
+      stay there through `k=5`, so the linear-task capped/uncapped split does not predict
+      interaction capability at all. No new pretraining is scoped by this task; §137 sets the
+      floor tasks 40.4 and 40.7 measure against.
 - [ ] 40.4 **Compositional generalisation test**, on existing checkpoints first, matching 40.3's
       discipline. Verify: AUC on a held-out composition is compared against AUC on each
       component seen individually, on checkpoints that already exist.

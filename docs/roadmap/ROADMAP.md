@@ -178,7 +178,11 @@ one.
     form, four by calibrated bisection) and measured, not assumed, in `tests/
     test_task_families.py`. Not yet mixed into pretraining -- that is item 24 (40.7), gated on
     items 19-23 validating individually first.
-19. **Interaction-order curriculum, measured before touched** (40.3).
+19. ~~**Interaction-order curriculum, measured before touched.**~~ **Done (§137, 40.3):** both
+    §74 checkpoints (capped and uncapped on the pure linear task) collapse to chance the
+    instant any interaction is required (`k=2`, plain `xor`) and stay there through `k=5` --
+    the linear-task capped/uncapped split has no bearing on interaction capability at all.
+    Sets the floor items 20 and 24 must clear.
 20. **Compositional generalisation test on existing checkpoints first** (40.4), matching 40.3's
     protocol so the two are comparable.
 21. **Correlation, confounding and collider families** (40.5) on the existing SCM.
