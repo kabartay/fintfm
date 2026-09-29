@@ -183,8 +183,11 @@ one.
     instant any interaction is required (`k=2`, plain `xor`) and stay there through `k=5` --
     the linear-task capped/uncapped split has no bearing on interaction capability at all.
     Sets the floor items 20 and 24 must clear.
-20. **Compositional generalisation test on existing checkpoints first** (40.4), matching 40.3's
-    protocol so the two are comparable.
+20. ~~**Compositional generalisation test on existing checkpoints first.**~~ **Done (§138,
+    40.4):** both §74 checkpoints score ~0.86 on the AND-composition of two independently
+    0.9-calibrated rules -- a real but modest drop, nothing like item 19's collapse to chance.
+    Conjunction is not interaction for this architecture; the capped/uncapped split from §74
+    has no bearing here either.
 21. **Correlation, confounding and collider families** (40.5) on the existing SCM.
 22. **Missingness, shift and support-extrapolation axes, sampled independently** (40.6).
 23. **Widen target mechanisms to a published list** (48.4), so the comparison is against

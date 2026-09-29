@@ -160,3 +160,38 @@ def test_families_are_not_the_same_generator_in_disguise() -> None:
 
     assert _linear_auc(t_lin) > 0.8
     assert _linear_auc(t_xor) < 0.65
+
+
+def test_composition_components_hit_target_and_share_features() -> None:
+    from fintfm.prior.task_families import sample_composition_task
+
+    rng_a = np.random.default_rng(0)
+    t_a = sample_composition_task(rng_a, 20_000, n_features=8, target_component_auc=0.9, mode="component_a")
+    rng_b = np.random.default_rng(0)
+    t_b = sample_composition_task(rng_b, 20_000, n_features=8, target_component_auc=0.9, mode="component_b")
+    rng_c = np.random.default_rng(0)
+    t_c = sample_composition_task(rng_c, 20_000, n_features=8, target_component_auc=0.9, mode="composed")
+
+    # Same rng seed -> same X draw regardless of mode (only the exposed label differs).
+    assert np.allclose(t_a.X, t_b.X)
+    assert np.allclose(t_a.X, t_c.X)
+
+    lr = LogisticRegression(max_iter=1000)
+    cut = 10_000
+    auc_a = roc_auc_score(t_a.y[cut:], lr.fit(t_a.X[:cut], t_a.y[:cut]).predict_proba(t_a.X[cut:])[:, 1])
+    auc_b = roc_auc_score(t_b.y[cut:], lr.fit(t_b.X[:cut], t_b.y[:cut]).predict_proba(t_b.X[cut:])[:, 1])
+    assert abs(auc_a - 0.9) < 0.03
+    assert abs(auc_b - 0.9) < 0.03
+
+    # composed is y_a AND y_b: strictly rarer than either component alone.
+    assert t_c.y.mean() < t_a.y.mean()
+    assert t_c.source == "family:composition_composed"
+
+
+def test_composition_rejects_bad_input() -> None:
+    from fintfm.prior.task_families import sample_composition_task
+
+    with pytest.raises(ValueError, match="n_features must be"):
+        sample_composition_task(np.random.default_rng(0), 100, n_features=1)
+    with pytest.raises(ValueError, match="unknown mode"):
+        sample_composition_task(np.random.default_rng(0), 100, n_features=8, mode="bogus")

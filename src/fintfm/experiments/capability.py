@@ -329,6 +329,68 @@ def interaction_order_probe(
     return out
 
 
+def composition_probe(
+    model: FinancialTFM,
+    target_component_auc: float = 0.9,
+    seeds: int = 10,
+    n: int = 1600,
+    n_ensemble: int = 8,
+    n_features: int = 12,
+) -> dict[str, float]:
+    """Achieved AUC on two components and their held-out AND-composition, no new training.
+
+    Task 40.4 (`docs/roadmap/ROADMAP.md` Phase C item 20): a *different* axis from task 40.3's
+    interaction order -- here the model has (implicitly, via each component's own AUC) the
+    information needed to solve each rule individually, and the question is whether it can
+    combine two separately-legible rules into their conjunction, not whether it can read a
+    single jointly-encoded interaction. Uses
+    `fintfm.prior.task_families.sample_composition_task`: `component_a`, `component_b` and
+    `composed` share the exact same feature distribution and differ only in which label is
+    exposed, so the three AUCs are comparable without a distribution shift confounding them.
+
+    Calls the model directly, matching :func:`bayes_ceiling_probe` and
+    :func:`interaction_order_probe`'s convention exactly.
+
+    Args:
+        model: A loaded :class:`~fintfm.modeling.model.FinancialTFM`, trained for classification.
+        target_component_auc: Bayes-optimal AUC each individual component is calibrated to.
+        seeds: Independent task draws averaged per mode.
+        n: Rows per task; half context, half query.
+        n_ensemble: Column-identity draws averaged per prediction (D12).
+        n_features: Feature width; must be at least 2.
+
+    Returns:
+        `{"component_a": auc, "component_b": auc, "composed": auc}`, each averaged over `seeds`.
+    """
+    import torch
+    from sklearn.metrics import roc_auc_score
+
+    from fintfm.prior.task_families import sample_composition_task
+
+    nc = n // 2
+    out: dict[str, float] = {}
+    for mode in ("component_a", "component_b", "composed"):
+        achieved = []
+        for s in range(seeds):
+            rng = np.random.default_rng(s)
+            t = sample_composition_task(
+                rng, n, n_features=n_features, target_component_auc=target_component_auc, mode=mode
+            )
+            X, y = t.X, t.y
+            Xt = torch.tensor(X)[None]
+            yt = torch.tensor(y)[None]
+            with torch.no_grad():
+                ps = [
+                    torch.softmax(
+                        model(Xt, yt, nc, torch.tensor([2]), column_id_seed=j).float(), -1
+                    )[0, nc:, 1].numpy()
+                    for j in range(n_ensemble)
+                ]
+            achieved.append(roc_auc_score(y[nc:], np.mean(ps, 0)))
+        out[mode] = float(np.mean(achieved))
+    return out
+
+
 def feature_sweep(
     model_paths: dict[str, str],
     widths: tuple[int, ...] = (5, 10, 20, 40, 80, 130),

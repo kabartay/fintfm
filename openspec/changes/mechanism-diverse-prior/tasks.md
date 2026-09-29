@@ -33,9 +33,13 @@
       stay there through `k=5`, so the linear-task capped/uncapped split does not predict
       interaction capability at all. No new pretraining is scoped by this task; §137 sets the
       floor tasks 40.4 and 40.7 measure against.
-- [ ] 40.4 **Compositional generalisation test**, on existing checkpoints first, matching 40.3's
-      discipline. Verify: AUC on a held-out composition is compared against AUC on each
-      component seen individually, on checkpoints that already exist.
+- [x] 40.4 **Done (§138).** `fintfm.prior.task_families.sample_composition_task` draws two
+      disjoint single-feature rules sharing one `X` draw, exposing either component's own label
+      or their AND; `fintfm.experiments.capability.composition_probe` evaluates all three on a
+      loaded checkpoint, matching 40.3's convention. Verify: on both §74 checkpoints, `component_a`/
+      `component_b` land at ~0.90 (their calibrated target) and `composed` at ~0.86 -- a real
+      but modest drop, not the collapse to chance 40.3 found for interaction order. No new
+      pretraining scoped.
 - [ ] 40.5 **Correlation/confounding/collider task family**, built on the existing SCM
       machinery. Verify: a constructed collider-structure task is scored and the model's
       reliance on the confound vs the true cause is measured via an intervention that breaks

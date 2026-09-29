@@ -444,3 +444,63 @@ def sample_family_task(
     if family not in _SAMPLERS:
         raise ValueError(f"unknown task family {family!r}; expected one of {FAMILIES}")
     return _SAMPLERS[family](rng, n_rows, n_features=n_features, target_auc=target_auc)
+
+
+def sample_composition_task(
+    rng: np.random.Generator,
+    n_rows: int,
+    n_features: int = 12,
+    target_component_auc: float = 0.9,
+    mode: str = "composed",
+) -> Task:
+    """Two independent single-feature rules, and their held-out AND-composition.
+
+    Task 40.4 (`docs/roadmap/ROADMAP.md` Phase C item 20): tests compositional generalisation,
+    not interaction order (task 40.3/§137's `sample_interaction_order_task`). Two disjoint
+    active features each carry an independent §74-style mean-shift rule (`y_a`, `y_b`), sharing
+    one `X` draw regardless of `mode` -- only which label is exposed differs, so `component_a`,
+    `component_b` and `composed` are the same feature distribution under three different label
+    functions, letting the same checkpoint be scored on each without any distribution shift
+    confounding the comparison.
+
+    `component_a` and `component_b` each admit §74's exact closed form (the other component's
+    shift lands on a disjoint column and is independent of this one's label, so it does not
+    change this component's own conditional distribution). `composed` -- `y_a AND y_b` -- has no
+    simple closed form and is not calibrated to a target; it is scored only relative to the two
+    components' achieved AUC, which is what task 40.4 asks for.
+
+    Args:
+        rng: NumPy random generator.
+        n_rows: Rows to generate.
+        n_features: Total feature columns; must be at least 2.
+        target_component_auc: Bayes-optimal AUC each individual component is calibrated to.
+        mode: `"component_a"`, `"component_b"`, or `"composed"`.
+
+    Returns:
+        A `Task` tagged `source="family:composition_{mode}"`.
+
+    Raises:
+        ValueError: If `n_features < 2` or `mode` is not recognised.
+    """
+    if n_features < 2:
+        raise ValueError("n_features must be >= 2 for two disjoint components")
+    if mode not in ("component_a", "component_b", "composed"):
+        raise ValueError(f"unknown mode {mode!r}; expected component_a, component_b, or composed")
+
+    active = rng.choice(n_features, size=2, replace=False)
+    active_a, active_b = int(active[0]), int(active[1])
+    mu = _mu_for_target_auc(target_component_auc)
+
+    y_a = rng.integers(0, 2, size=n_rows)
+    y_b = rng.integers(0, 2, size=n_rows)
+    X = rng.normal(size=(n_rows, n_features))
+    X[y_a == 1, active_a] += mu
+    X[y_b == 1, active_b] += mu
+
+    if mode == "component_a":
+        y = y_a
+    elif mode == "component_b":
+        y = y_b
+    else:
+        y = (y_a & y_b).astype(np.int64)
+    return _finish(X, y, f"composition_{mode}")

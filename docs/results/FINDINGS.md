@@ -9428,3 +9428,64 @@ families into the prior "improves interaction capability" is only meaningful mea
 this floor, not against zero. Interaction-order item 19 (task 40.3) is now answered for the two
 existing checkpoints available; item 20 (task 40.4, compositional generalisation) is next in
 the queue and uses the same discipline -- existing checkpoints first, no new training.
+
+## §138 — Compositional generalisation is a different axis from interaction order, and both checkpoints have some of it
+
+**How these numbers were produced.** MEASURED. Task 40.4 (`mechanism-diverse-prior`), Phase C
+item 20: compositional generalisation, existing checkpoints first, matching §137/task 40.3's
+discipline exactly. `fintfm.prior.task_families.sample_composition_task` draws two disjoint
+single-feature §74-style rules (`y_a`, `y_b`), each independently calibrated to Bayes AUC 0.9,
+sharing one `X` draw regardless of which label is exposed -- `component_a` exposes `y_a`,
+`component_b` exposes `y_b`, `composed` exposes `y_a AND y_b`. All three are therefore the same
+feature distribution under three different label functions, so a difference between them is not
+confounded by a distribution shift. `fintfm.experiments.capability.composition_probe` evaluates
+a loaded checkpoint directly, matching `bayes_ceiling_probe`/`interaction_order_probe`'s
+convention exactly (`n_ensemble=8` column-identity draws, per D12). Ten seeds, 1,600 rows per
+task, the same two §74 checkpoints §137 used.
+
+### The result
+
+| mode | `fin10` (capped on linear) | `fin00` (uncapped on linear) |
+| --- | --- | --- |
+| component_a | 0.900 | 0.902 |
+| component_b | 0.900 | 0.901 |
+| composed (`y_a AND y_b`) | 0.864 | 0.860 |
+
+Both components land almost exactly on their 0.9 target, on both checkpoints -- expected, since
+each is individually the same single-feature closed-form construction already validated
+(`sparse`/`threshold`, task 40.2). **The composed task drops to ~0.86, not to chance**, and the
+drop is essentially identical between the capped and uncapped checkpoint (0.864 vs 0.860, a
+gap smaller than run-to-run noise on ten seeds).
+
+### What this settles
+
+**Compositional generalisation is a real, different axis from interaction order, and unlike
+§137's total collapse, both checkpoints have some of it.** `y_a AND y_b` is exactly as "not
+linearly readable from either feature alone" as `xor`'s two-way parity in the sense that neither
+a linear probe nor either component's own rule determines the composed label by itself -- but
+where §137 found both checkpoints at flat chance (0.49-0.51) the instant `k>=2`, here both land
+at 0.86, a real and only modest loss from the 0.90 components. **Conjunction is not interaction**
+for this architecture: a model that cannot combine two features' *signs* multiplicatively
+(`xor`) can still combine two features' *thresholds* with logical AND reasonably well. This
+matches the much earlier §44 result, where the old (`§42`-era) checkpoint's `conjunction` probe
+scored 0.692-0.695 while its `xor` probe sat at chance (0.530-0.537) -- the same qualitative
+split, now confirmed on the current architecture's best checkpoints at a controlled, matched
+difficulty rather than an incidental one.
+
+**The capped/uncapped split from §74 again has no bearing** -- exactly as in §137, `fin00`'s
+strength on the pure linear task buys it nothing extra on either the composition or (per §137)
+the interaction test, and `fin10`'s cap on the linear task costs it nothing extra here either.
+Three separate probes now (linear/mean-shift, `xor`-style interaction, AND-composition) each
+land the two checkpoints within noise of each other, reinforcing that these are independent
+capability axes rather than three views of one underlying competence.
+
+### Where this leaves Phase C
+
+Items 19 and 20 (tasks 40.3, 40.4) are both answered on existing checkpoints, no new
+pretraining scoped. The floor for any future prior-diversity training run is now two numbers,
+not one: interaction order collapses to chance past `k=1` (§137), while AND-composition of two
+individually-legible rules survives at ~0.86 against a 0.90 ceiling (§138). A prior mix that
+teaches genuine multiplicative interaction (task 40.2's `xor`/`interaction`/`max_min` families)
+has the §137 floor to clear; one that only teaches logical composition of already-legible rules
+would be closing a gap that is already fairly small. Item 21 (task 40.5, correlation/confounding/
+collider families) is next in the queue.
