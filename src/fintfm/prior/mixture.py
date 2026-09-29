@@ -23,8 +23,41 @@ from fintfm.prior.scm import (
     sample_scm_task,
     sample_scm_task_group,
 )
+from fintfm.prior.task_families import FAMILIES, sample_composition_task, sample_family_task
 from fintfm.prior.tree import sample_tree_task
 from fintfm.prior.trivial import sample_trivial_task
+
+#: The constructions `PriorConfig.p_task_family` draws uniformly from: task 40.2's nine named
+#: families plus the AND-composition (`sample_composition_task(mode="composed")`, task 40.4).
+#: Confound-collider (task 40.5) is deliberately excluded -- its paired
+#: observed/intervened output is a diagnostic instrument, not a single training task, and
+#: folding in only its "observed" half would silently drop the property (an intact confound
+#: path) the whole construction exists to test.
+_TASK_FAMILY_CONSTRUCTIONS: tuple[str, ...] = (*FAMILIES, "composition_composed")
+
+#: Bayes-AUC range `PriorConfig.p_task_family` draws from, per task -- spans the same
+#: chance-to-near-certainty range `docs/results/FINDINGS.md` §42 established a prior must span
+#: to teach anything, rather than fixing one difficulty for every draw.
+_TASK_FAMILY_AUC_RANGE: tuple[float, float] = (0.6, 0.97)
+
+
+def _sample_task_family_mixture(rng: np.random.Generator, n_rows: int, max_features: int) -> Task:
+    """Draw one task from `_TASK_FAMILY_CONSTRUCTIONS`, uniformly, at a randomly-spanned AUC.
+
+    Args:
+        rng: NumPy random generator.
+        n_rows: Rows to generate.
+        max_features: Feature width to draw at; every construction here supports it.
+    """
+    construction = _TASK_FAMILY_CONSTRUCTIONS[int(rng.integers(len(_TASK_FAMILY_CONSTRUCTIONS)))]
+    target_auc = float(rng.uniform(*_TASK_FAMILY_AUC_RANGE))
+    if construction == "composition_composed":
+        return sample_composition_task(
+            rng, n_rows, n_features=max_features, target_component_auc=target_auc, mode="composed"
+        )
+    return sample_family_task(
+        rng, construction, n_rows, n_features=max_features, target_auc=target_auc
+    )
 
 
 @dataclass
@@ -83,6 +116,16 @@ class PriorConfig:
             *features* or its *label function*, after seven other candidates were eliminated.
             A prior made only of crossed tasks is not a candidate for production; see
             ``prior/crossed.py``'s module docstring.
+        p_task_family: Probability of drawing one of ``prior/task_families.py``'s task 40.2-40.4
+            constructions instead — uniformly among the nine named families
+            (:data:`~fintfm.prior.task_families.FAMILIES`) plus the AND-composition
+            (task 40.4), at a Bayes-AUC target drawn uniformly from ``(0.6, 0.97)`` per task, so
+            difficulty spans a range rather than fixing one value. Task 40.7
+            (``mechanism-diverse-prior``): the first pretraining use of that module, scoped only
+            after 40.2-40.6 each validated on existing checkpoints (§137-§140). Zero by default,
+            reproducing every checkpoint trained before this existed. Confound-collider
+            (task 40.5) is deliberately excluded — its paired observed/intervened output is a
+            diagnostic instrument, not a single training task.
         n_rows: Rows per task (context + query).
         min_ctx_frac / max_ctx_frac: Range for the context fraction of ``n_rows``.
         n_rows_choices: When set, each *batch* draws its task size from this tuple instead of
@@ -115,6 +158,7 @@ class PriorConfig:
     p_financial: float = 0.7
     p_trivial: float = 0.0
     p_crossed: float = 0.0
+    p_task_family: float = 0.0
     p_regression: float = 0.0
     identity_shuffle: bool = False
     n_rows: int = 256
@@ -189,6 +233,12 @@ def sample_task(rng: np.random.Generator, cfg: PriorConfig, n_rows: int | None =
             sharpness_min=cfg.sharpness_min,
             sharpness_max=cfg.sharpness_max,
         )
+    if cfg.p_task_family and rng.random() < cfg.p_task_family:
+        if cfg.n_horizons is not None:
+            raise ValueError(
+                "n_horizons requires p_financial=1.0; task_families has no time axis"
+            )
+        return _sample_task_family_mixture(rng, n, max_features=cfg.max_features)
     if rng.random() < cfg.p_financial:
         return sample_financial_task(
             rng,

@@ -313,3 +313,31 @@ def test_nuisance_axes_reject_bad_input() -> None:
         apply_nuisance_axes(base, np.random.default_rng(0), missing_frac=1.5)
     with pytest.raises(ValueError, match="1 \\+ extrapolate must be"):
         apply_nuisance_axes(base, np.random.default_rng(0), extrapolate=-2.0)
+
+
+def test_mixture_draws_task_family_when_enabled() -> None:
+    from fintfm.prior.mixture import PriorConfig, sample_task
+
+    cfg = PriorConfig(p_task_family=1.0, p_financial=0.0, max_features=16)
+    rng = np.random.default_rng(0)
+    tasks = [sample_task(rng, cfg, n_rows=100) for _ in range(20)]
+    assert all(t.source.startswith("family:") for t in tasks)
+    # Uniform over ten constructions -- 20 draws should not collapse onto one.
+    assert len({t.source for t in tasks}) > 1
+
+
+def test_mixture_never_draws_task_family_by_default() -> None:
+    from fintfm.prior.mixture import PriorConfig, sample_task
+
+    cfg = PriorConfig(max_features=16)
+    assert cfg.p_task_family == 0.0
+    rng = np.random.default_rng(0)
+    assert all(not sample_task(rng, cfg, n_rows=100).source.startswith("family:") for _ in range(20))
+
+
+def test_task_family_refused_with_survival_horizons() -> None:
+    from fintfm.prior.mixture import PriorConfig, sample_task
+
+    cfg = PriorConfig(p_task_family=1.0, p_financial=1.0, n_horizons=5, max_features=16)
+    with pytest.raises(ValueError, match="no time axis"):
+        sample_task(np.random.default_rng(0), cfg, n_rows=100)

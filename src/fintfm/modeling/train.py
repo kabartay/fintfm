@@ -424,6 +424,15 @@ def main() -> None:
         "financial prior's teaching failure tracks its features or its label function",
     )
     p.add_argument(
+        "--p-task-family",
+        type=float,
+        default=0.0,
+        help="probability of drawing one of prior/task_families.py's task 40.2-40.4 "
+        "constructions instead (uniformly over the nine named families plus the "
+        "AND-composition, Bayes-AUC target drawn per task); task 40.7, scoped only after "
+        "40.2-40.6 validated on existing checkpoints, see docs/results/FINDINGS.md §137-§140",
+    )
+    p.add_argument(
         "--identity-shuffle",
         action="store_true",
         help="expose financial-task columns from independently-per-account-permuted accounts "
@@ -576,6 +585,7 @@ def main() -> None:
         n_horizons=args.n_horizons,
         p_trivial=args.p_trivial,
         p_crossed=args.p_crossed,
+        p_task_family=args.p_task_family,
         p_regression=args.p_regression,
         identity_shuffle=args.identity_shuffle,
         # the default-rate envelope comes from configuration, because a prior that cannot
