@@ -9609,3 +9609,77 @@ Item 22 (task 40.6) closes the last of the four remaining diagnostic/constructio
 list) is next in the queue; item 24 (task 40.7, scoping a pretraining run mixing everything
 40.2-40.6 built) is the item all of Phase C's construction work has been building toward, gated
 on 40.2-40.6 each validating individually -- which, as of this entry, they now have.
+
+## §141 — Mixing in the nine task families at weight 0.3 makes V4FinBench worse, not better
+
+**How these numbers were produced.** MEASURED. Task 40.7 (`mechanism-diverse-prior`), Phase C
+item 24: a checkpoint (`runs/taskfamily/v4-taskfamily-mix.pt`) trained with the exact reference
+recipe that produced the §127/§136 control (`v4-cellattn-labels.pt` -- `--batch-size 8
+--n-rows-choices 256,512,1024 --d-cell 48 --d-model 128 --n-layers 4 --n-col-layers 2
+--n-cell-blocks 1 --cell-labels --column-id-dim 16 --feature-chunk 8 --max-features 136
+--p-financial 1.0`, 6,000 steps, seed 0), with one change: `--p-task-family 0.3`, drawing 30% of
+tasks from task 40.2-40.6's nine labelled families plus the composed-conjunction construction
+(uniform target Bayes-AUC in (0.6, 0.97)) instead of the financial prior alone. Trained via HF
+Jobs on the wheel-mount recipe (task ran to completion after three earlier launch attempts
+failed on environment setup, not on the training itself -- `--break-system-packages` for the
+base image's PEP 668 lock, the base image lacking `git`, and a stale-wheel glob collision in the
+private build repo, none of which touched the model). Scored on V4FinBench's published protocol
+(`fintfm-v4protocol --no-boosting --horizon 0 --folds 0,1,2,3,4`, full 1,000,087-row panel,
+matching §93's exact protocol) against a same-session re-score of the control checkpoint under
+identical folds, so both sets of per-row predictions come from one invocation of the harness
+each rather than being read off an older, possibly stale, recorded number.
+
+### The result
+
+| fold | control AP | task-family-mix AP | diff | Holm-adjusted p |
+| --- | --- | --- | --- | --- |
+| 0 | 0.2113 | 0.1747 | +0.0366 | <0.001 |
+| 1 | 0.2050 | 0.1650 | +0.0400 | <0.001 |
+| 2 | 0.1786 | 0.1780 | +0.0005 | 0.46 |
+| 3 | 0.1810 | 0.1517 | +0.0293 | <0.001 |
+| 4 | 0.2172 | 0.1930 | +0.0242 | <0.001 |
+| **mean** | **0.1986** | **0.1725** | **+0.0261** | -- |
+
+Every fold moves the same direction. A paired bootstrap (2,000 resamples per fold, Holm
+correction across the five) puts four of the five folds at p < 0.001 in favour of the control;
+fold 2 is a tie. Mean average precision drops from 0.1986 to 0.1725, a 13% relative loss --
+the same shape of result CLAUDE.md's TabArena/V4FinBench section already warns about, now
+produced by a training-time change rather than a scoring one.
+
+This is not a broken checkpoint. The task 40.7 verify clause requires the §74 bayes-ceiling
+probe suite run on the result before any other claim is made about it, and it clears the
+untrained-control floor by a wide margin on every one of the eight probes, at levels
+comparable to the control checkpoint (`orientation` 0.987 vs 0.991, `linear` 0.973 vs 0.963,
+`conjunction` 0.971 vs 0.958, `xor` 0.515 vs 0.588 -- both near chance, consistent with §137's
+existing interaction-order collapse rather than a new failure, `symmetric_sum` 0.942 vs 0.935,
+`symmetric_count` 0.867 vs 0.860, `antisymmetric` 0.984 vs 0.994, `noise` both at chance as
+required). The mixture checkpoint does in-context learning; it is specifically worse at this
+one financial benchmark.
+
+### What this settles
+
+**Diluting the financial-only prior with 30% synthetic task-family mass, at matched compute,
+makes the model worse on the benchmark this project's claims rest on.** The nine families and
+their compositions are individually valid constructions (§137-§140 measured each one on its own
+terms), but mixing them into pretraining at this weight competes with the financial prior for
+the same fixed 48,000-task budget rather than adding a complementary signal on top of it --
+matched-compute discipline means the mixture checkpoint saw 30% fewer financially-shaped tasks
+than the control, and paid for it. This does not indict the constructions themselves, only this
+way of spending compute on them.
+
+**Per CLAUDE.md's benchmark-ordering rule, this closes the question before TabArena is even
+run.** A −0.026 mean AP result, significant on four of five folds, is not a case where
+TabArena's opinion could change the recommendation -- there is nothing left to protect. No
+TabArena run was made for this checkpoint.
+
+### Where this leaves Phase C
+
+Task 40.7 is closed with a negative result, honestly reported per this project's own standing
+convention. The nine task families remain in the repository as tested, individually-valid
+diagnostic constructions (§137-§140) and as a mixture option (`PriorConfig.p_task_family`,
+`--p-task-family`) available for a future run at a different weight, a larger total compute
+budget that does not force the trade-off, or a curriculum that introduces them after the
+financial prior rather than alongside it -- none of which this entry tests. Phase C's
+remaining open question is which of those, if any, is worth the next GPU spend; this result is
+a reason to look for one before mixing at fixed compute again, not a reason to abandon the
+families.

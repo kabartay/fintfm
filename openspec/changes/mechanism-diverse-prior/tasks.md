@@ -55,7 +55,17 @@
       (rank invariance, the same argument `threshold` already relies on); `missing_frac` leaves
       `y`/`n_classes`/`source` untouched. Verify: a test confirms family identity and labels
       survive every combination of the three axes, alone and together.
-- [ ] 40.7 **Only after 40.2-40.6 are individually validated on existing checkpoints**, scope a
+- [x] 40.7 **Done (§141): negative result.** A matched-compute run at `p_task_family=0.3`
+      (30% of tasks drawn from the nine families/composition, `--p-task-family 0.3`, otherwise
+      identical to the §127/§136 reference recipe) scored **worse** on V4FinBench than the
+      financial-only control -- mean AP 0.1725 vs 0.1986, four of five folds significant after
+      Holm correction. The §74 Bayes-ceiling probe suite cleared the untrained floor on both
+      checkpoints at comparable levels, so the drop is specific to the financial benchmark, not
+      a broken model. Mixing at this weight and this fixed compute budget is not adopted; the
+      mixture option (`PriorConfig.p_task_family`) stays available for a future run at a
+      different weight, a larger budget, or a curriculum ordering, none of which this entry
+      tests. Original text follows.
+      **Only after 40.2-40.6 are individually validated on existing checkpoints**, scope a
       pretraining run mixing them. Verify: matched-compute discipline per
       `phase1-prior-ablation`'s original design, and the §74 Bayes-ceiling probe run on the
       result before any other claim is made about it.

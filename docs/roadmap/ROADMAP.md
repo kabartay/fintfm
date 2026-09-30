@@ -202,7 +202,13 @@ one.
     RELATED_WORK.md` maps Nori's 9 target families / 8 edge types against this prior --
     6 covered, 1 partial (periodic/Fourier), 6 missing (GAM, radial/RBF, chained trigonometric,
     polynomial, log/exp, conv1d). Nothing added; the gap is named, not closed.
-24. **Scope the combined prior only after 40.2–40.6 each validate individually** (40.7).
+24. ~~**Scope the combined prior only after 40.2–40.6 each validate individually.**~~ **Done
+    (§141, 40.7) -- negative result:** a matched-compute run at `p_task_family=0.3` scored
+    worse on V4FinBench than the financial-only control (mean AP 0.1725 vs 0.1986, 4/5 folds
+    significant), while clearing the §74 Bayes-ceiling floor at levels comparable to the
+    control -- the drop is specific to this benchmark, not a broken model. Not adopted at this
+    weight/budget; the mixture option remains available for a future run at a different
+    weight, budget or curriculum ordering.
 
 ## Phase D — coverage, and only once rank has moved
 
