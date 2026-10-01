@@ -81,6 +81,20 @@
       whose missingness is structural rather than random — and the result is reported as
       settling *our* case only, since two published projects already disagree and a third data
       point does not resolve a disagreement it was not designed to arbitrate.
+
+      **Premise check (2026-10-01), no GPU spent:** `fillna(0)` does not exist anywhere in this
+      codebase (`git log -S"fillna(0)"` on `src/` returns nothing), and the current default is
+      not mean imputation. `normalize_features` (`src/fintfm/modeling/model.py:154`) already
+      z-scores on context statistics, zero-fills the normalised value where missing, and
+      returns an explicit `missing` float mask; `cell_embed` (`model.py:406`) feeds `[Z,
+      missing]` through a shared `nn.Linear(2, d_cell)`, so the network already sees an
+      explicit missingness signal per cell, on every checkpoint this project has trained. This
+      task's comparison is therefore **not** "learned mask embedding vs. naive imputation" —
+      that question is already settled in our favour by the existing architecture. The open
+      question, if this is still worth running, is narrower: does a *dedicated* embedding
+      (e.g. a dim-`d_cell` lookup added to the value embedding, closer to Nori's description)
+      beat the current linear-combination encoding -- which would need a matched-compute
+      pretraining run to measure and has not been scoped.
 - [ ] 48.11 **Record the Bitter-Lesson critique against this project's own effort allocation.**
       TabDPT's appendix concludes that compute and high-quality data matter more than
       architectural manipulation. This project has spent its effort on architecture (§54, §104,
