@@ -141,8 +141,10 @@ remaining move.
    reading and is cheap to measure.
 5. **Schedule-free optimisation** (48.9). Decouples run length from a fixed schedule, which
    makes every later experiment cheaper even if it does not move rank itself.
-6. **Random monotonic marginal augmentation** (40.8), motivated by a measured train/inference
-   mismatch rather than by analogy.
+6. ~~**Random monotonic marginal augmentation** (40.8).~~ **Closed unmeasured:** a re-proposal
+   of `marginal-invariance` 43.3-43.5, already closed on the same grounds (§88) -- on cell
+   attention the rank transform already pins Bayes-ceiling regret flat across warps, and the
+   gap this would recover is ~0.001, not worth a pretraining run.
 7. **Second seed for the §91 ablation** (39.28). One run per arm is not a result, and the
    sub-chance inversion is load-bearing for the architecture argument.
 

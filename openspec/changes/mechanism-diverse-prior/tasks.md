@@ -69,7 +69,16 @@
       pretraining run mixing them. Verify: matched-compute discipline per
       `phase1-prior-ablation`'s original design, and the §74 Bayes-ceiling probe run on the
       result before any other claim is made about it.
-- [ ] 40.8 **Random monotonic marginal augmentation, motivated by a measured train/inference
+- [x] 40.8 **CLOSED UNMEASURED (§88, outcome (c)) — this is a re-proposal of
+      `marginal-invariance` tasks 43.3-43.5, already closed on the same grounds.** §88 measured
+      that on cell attention -- the architecture this project carries forward -- the rank
+      transform already pins Bayes-ceiling regret flat across every tested warp (~0.0049,
+      identity to cube), and the residual gap this augmentation would recover (ranked vs.
+      best-raw) is **~0.001**. A pretraining run cannot be justified to close a gap that size;
+      §88's own text says so explicitly for 43.3-43.5, and this task asks for the identical
+      augmentation under a different change file. No new measurement performed; original text
+      follows.
+      **Random monotonic marginal augmentation, motivated by a measured train/inference
       shift (§87).** `train.py` applies no feature transform, while `FinancialTFMClassifier`
       defaults to `feature_transform="rank"` and every real-data number in this project was
       produced with it on. Measured consequence: the model is fitted on marginals of kurtosis
