@@ -106,6 +106,24 @@
       numbers get quoted as if replicated. Verify: a second `--cell-labels`/no-labels pair at a
       different seed reports the same sign and order of magnitude.
 
+      **Blocked by HF Jobs infra, not this project (2026-10-01/02), ~$15 spent with no
+      completed run.** Six launch attempts of the same `--seed 1` pair across four flavors all
+      failed before reaching step 6000: `t4-small` x2 OOMKilled immediately after model init
+      (15 GB host-RAM tier); `t4-medium` x2 ran but at ~13s/step, ~6-7x the ~2s/step this exact
+      recipe achieved on 2026-09-17 and again on 2026-09-30, killed near the 4h mark still
+      under step 1200; `a10g-small` x2 OOMKilled identically to `t4-small` (same 15 GB host-RAM
+      tier, confirming it's host RAM, not GPU memory); `a10g-large` x2 got past the RAM limit
+      but at the same ~13-16s/step slow pace, one cancelled at step ~1150, a second left
+      unmonitored and found at step 1800/6000 after 6h24m (a monitoring lapse on the agent's
+      part, not a new failure mode) before being cancelled. Package versions were checked and
+      matched the fast 2026-09-30 run exactly (pandas 3.0.6, scipy 1.18.1, scikit-learn 1.9.1),
+      ruling out a dependency regression -- the slowdown is specific to today's HF Jobs
+      capacity, not this project's code or config. Next attempt should re-check the OOM point
+      is still host-RAM-tier-specific (use `t4-medium`/`a10g-large` or larger, never a
+      `-small` flavor) and should **always launch with an active monitor checking step
+      throughput within 15 minutes**, since the single worst cost this round came from an
+      unmonitored retry running 6+ hours past its intended timeout.
+
 - [x] 39.29 **DONE (§97): the width carries all of it.** §93 found the jump from
       §84's 0.1941 to 0.2072 came from configuration rather than training volume, but two
       things changed together: `column_id_dim` 12 to 16, and §86's closure of §78's protocol
