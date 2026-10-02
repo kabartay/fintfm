@@ -410,7 +410,7 @@ most, rare-event classes least) — V4FinBench itself is a rare-event panel (0.3
 rates depending on horizon), which is closer to the regime where §102's data says this
 architecture does comparatively better, not worse. TabArena's small datasets skew more
 balanced than V4FinBench's credit panels. So the contradiction may be between "small" as
-TabPFN v2 and `STRATEGY.md` use it (row count) and "small" as the actual lever (something
+TabPFN v2 and `docs/roadmap/STRATEGY.md` use it (row count) and "small" as the actual lever (something
 correlated with, but not identical to, row count) -- which §102 could not fully separate from
 size given only 27 datasets and one confound already found (§100's categorical-preprocessing
 effect).
@@ -421,7 +421,7 @@ the actual product claim lives) have not been sliced by size or minority fractio
 sliced TabArena, so whether the same shape holds on V4FinBench is untested rather than refuted.
 
 **Reversed if:** a size-and-minority-fraction slice of V4FinBench's own five folds either
-confirms §102's pattern transfers (minority fraction is the real lever, STRATEGY.md's exit
+confirms §102's pattern transfers (minority fraction is the real lever, `docs/roadmap/STRATEGY.md`'s exit
 condition B should be restated in those terms) or shows V4FinBench's gap also widens on its
 smallest folds (the small-data thesis loses its strongest piece of indirect support and
-`STRATEGY.md` should say so rather than continue to assume it).
+`docs/roadmap/STRATEGY.md` should say so rather than continue to assume it).
