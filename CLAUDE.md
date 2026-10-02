@@ -41,6 +41,28 @@ pretraining run (anything past a smoke test — thousands of steps, GPU-scale ba
 without checking `uptime` first and getting an explicit go-ahead; that combination has frozen
 this Mac before. Ports `8080` (mlflow), `8001` (an unrelated API) and `3000` (Docker) are taken.
 
+## Every HF Jobs training launch carries `--checkpoint-every`, no exceptions
+
+Cost about $15 and six wasted launches on 2026-10-01/02, replicating §91's ablation at a
+second seed. HF Jobs capacity was degraded that day: two `t4-small` runs OOMKilled right after
+model init, two `t4-medium` runs crawled at ~6-7x the normal step rate, two `a10g-large` runs
+did the same -- one of them left unmonitored and only discovered at step 1800/6000 after
+6h24m, by which point it alone had burned about $10. None of the six used
+`--checkpoint-every`, so every cancellation lost the entire run: no partial checkpoint, nothing
+resumable, nothing to show for the spend.
+
+`train.py` has carried `--checkpoint-every N` (writes `<out>.step<N>` plus `<out>.state`,
+sibling paths so a crash mid-save cannot corrupt the one that matters) since the resumable-
+training work landed. **Every `fintfm-train` invocation inside an `hf jobs run` command passes
+it** -- a few hundred steps is cheap insurance against exactly this failure, and it is also
+what makes a stalled run recoverable with `--resume` instead of cancel-and-restart-from-zero.
+
+**And a launch is not "fire and forget."** Arm a monitor (or an equivalent throughput check)
+within the first 15 minutes of any paid run, checking actual step rate against a known-good
+baseline from this project's own FINDINGS.md entries. The single costliest mistake that day was
+not the infra trouble -- that was outside anyone's control -- it was leaving a stalled run
+unwatched for six hours instead of catching the slow rate at minute fifteen.
+
 ## A backgrounded shell command does not inherit your `cd`
 
 **Symptom: a background job you just launched fails instantly with `ModuleNotFoundError` or
