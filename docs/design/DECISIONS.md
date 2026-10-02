@@ -351,3 +351,77 @@ being sold. The criticism was right and we were committing a version of it simul
 
 **Reversed if:** never for low base rates. On balanced data ROC-AUC and AP largely agree and
 the ordering is a matter of taste.
+
+## D14 — Synthetic-only training, against the field's counter-thesis (task 48.7)
+
+**Date:** 2026-10-02. **Status:** active; restates D2 against a counter-argument that has
+since published.
+
+ConTextTab (arXiv:2506.10707) argues explicitly that "exclusive training on synthetic data
+limits their ability to fully leverage the rich semantics and world knowledge contained in
+real-world tabular data", and trains on large-scale real tables instead; iLTM and TabSTAR make
+the same choice. This is not a different tactic aimed at the same goal D2 already weighed — it
+is a different goal. Those projects want semantic transfer from real column names, real units,
+real world-knowledge priors a table's text carries. Synthetic-only training cannot supply that
+by construction, and no amount of prior engineering closes the gap, because the information
+genuinely is not there.
+
+**Cost, stated plainly.** This project is giving up whatever real column semantics would buy
+it — plausibly real, unmeasured here — in exchange for D2's auditability claim: a model that
+never saw real data cannot have memorised a benchmark, and the leakage literature quantifies
+that risk at up to 32 points of MAPE (`FINDINGS` §1). The three peers made the opposite trade.
+Neither side is wrong; they are optimising different things, and this project's target buyer
+(a bank or insurer whose compliance review is the actual gate, per `docs/roadmap/STRATEGY.md`) is
+one for whom the auditability side of that trade is likely to matter more than for an open
+leaderboard entrant.
+
+**Not reversible for a licence reason, unlike most trade-offs in this file.** D2 already
+states firm-level data sits behind Bloomberg/S&P/Moody's, so "train on real tables" is not a
+budget question here — there is no large, licence-clean panel of the kind ConTextTab-style
+training needs in this domain. The three counter-thesis projects evidently found one in their
+domain; this project has not and the search already informed D2.
+
+**Reversed if:** a genuinely open, commercially licensed firm-level panel at the scale these
+peers use appears (restates D2's own reversal condition — this is the same fork, now with
+named opposition), **or** if this project's own measured deficit (§101-§102's uniform ~0.035
+ROC-AUC gap, worse on small tables per D15) turns out to be semantic-knowledge-shaped rather
+than architecture- or scale-shaped, which would mean the synthetic prior is the actual
+bottleneck and no further architecture or prior-diversity work (Phase C) can close it.
+
+## D15 — The small-data thesis and §102's measured direction (task 48.8)
+
+**Date:** 2026-10-02. **Status:** active; names a tension rather than resolving it.
+
+TabPFN v2 (*Nature*, 2025) claims dominance "for datasets with up to 10,000 samples and 500
+features". `docs/roadmap/STRATEGY.md`'s Phase 1 exit condition B bet on the same segment: "the model
+beats gradient boosting **somewhere on the size sweep** — most plausibly below 1,000 rows."
+Both treat small-data as this architecture family's natural strength.
+
+**§102 measured the opposite shape on real data.** Re-reading §101's TabArena results against
+dataset size: the ROC-AUC deficit against tuned baselines is **−0.0465 on the ten datasets
+under 5,000 rows, and −0.0276 on the seventeen above** — almost double the gap on the smaller
+half. The single clearest contrast: −0.0074 on 150,000-row `GiveMeSomeCredit`, −0.0863 on
+1,000-row `credit-g`. Where TabPFN v2 and this project's own stated bet both expect the
+largest edge, this architecture currently shows its largest deficit.
+
+**Why this is not simply "the small-data thesis is dead."** §102 also found minority-class
+fraction, not size, is the variable that actually tracks the residual (balanced classes lose
+most, rare-event classes least) — V4FinBench itself is a rare-event panel (0.3-4% positive
+rates depending on horizon), which is closer to the regime where §102's data says this
+architecture does comparatively better, not worse. TabArena's small datasets skew more
+balanced than V4FinBench's credit panels. So the contradiction may be between "small" as
+TabPFN v2 and `STRATEGY.md` use it (row count) and "small" as the actual lever (something
+correlated with, but not identical to, row count) -- which §102 could not fully separate from
+size given only 27 datasets and one confound already found (§100's categorical-preprocessing
+effect).
+
+**The honest state: a contradiction recorded, not reconciled.** This project's stated small-
+row-count bet is not supported by its own TabArena measurement; its credit-panel results (where
+the actual product claim lives) have not been sliced by size or minority fraction the way §102
+sliced TabArena, so whether the same shape holds on V4FinBench is untested rather than refuted.
+
+**Reversed if:** a size-and-minority-fraction slice of V4FinBench's own five folds either
+confirms §102's pattern transfers (minority fraction is the real lever, STRATEGY.md's exit
+condition B should be restated in those terms) or shows V4FinBench's gap also widens on its
+smallest folds (the small-data thesis loses its strongest piece of indirect support and
+`STRATEGY.md` should say so rather than continue to assume it).

@@ -49,7 +49,14 @@
       already has missingness; the rest are cheap. Verify: each augmentation is added behind its
       own flag and the capability suite is run with each off, so a gain is attributable to one
       augmentation rather than to the bundle.
-- [ ] 48.7 **Record the counter-thesis, because it is aimed at this project's foundation.**
+- [x] 48.7 **Done: recorded as `docs/design/DECISIONS.md` D14.** The three peers optimise a
+      different goal (semantic transfer from real column/world knowledge) than this project's
+      auditability bet, not a different tactic toward the same one -- synthetic-only training
+      cannot supply what they're after, by construction. Cost stated against D2's own terms;
+      reversal condition named (a licence-clean real panel at scale, or a future finding that
+      this project's measured deficit is semantic- rather than architecture-shaped). Original
+      text follows.
+      **Record the counter-thesis, because it is aimed at this project's foundation.**
       ConTextTab (arXiv:2506.10707) argues explicitly that "exclusive training on synthetic
       data limits their ability to fully leverage the rich semantics and world knowledge
       contained in real-world tabular data", and trains on large-scale real tables instead;
@@ -58,7 +65,14 @@
       which real-table pretraining destroys. Verify: `docs/design/DECISIONS.md` carries this as a
       decision with its cost stated and **what would reverse it** named, rather than as an
       assumption nobody has revisited since the field moved.
-- [ ] 48.8 **Re-examine the small-data premise against §102.** TabPFN v2 (Nature 2025) claims
+- [x] 48.8 **Done: recorded as `docs/design/DECISIONS.md` D15 -- a contradiction, not a
+      reconciliation.** §102 does show the opposite shape from the small-data thesis by row
+      count (gap −0.0465 under 5,000 rows vs −0.0276 above), but also found minority-class
+      fraction, not size, is what actually tracks the residual -- and V4FinBench's rare-event
+      panels sit closer to the regime where §102's own data favours this architecture. Recorded
+      honestly as unresolved rather than forced either way; reversal condition is a size/
+      minority-fraction slice of V4FinBench itself, not yet run. Original text follows.
+      **Re-examine the small-data premise against §102.** TabPFN v2 (Nature 2025) claims
       dominance "for datasets with up to 10,000 samples and 500 features", and this project's
       stated bet is the small-data regime. §102 measured the opposite shape: the TabArena gap
       *narrows* with dataset size. Verify: the two are reconciled or the contradiction is
