@@ -769,3 +769,51 @@ higher-dimensional problem" than i.i.d. regression. Relevant here only as a boun
 evaluations), which is closer to the harder time-series case this post describes than to the
 i.i.d. case TFMs are designed for, and is worth stating explicitly next time the exchangeability
 assumption is discussed rather than left implicit.
+
+## NVIDIA Kumo Tabular, read 2026-10-03 — a new #1, and two architectural ideas worth tracking
+
+**NVIDIA (2026), via the Kumo ML team's acquisition.** Blog:
+[huggingface.co/blog/nvidia/kumo-tabular](https://huggingface.co/blog/nvidia/kumo-tabular).
+Code: `github.com/NVIDIA/structured-data-models` (Apache-2.0, verified from the repo's licence
+summary). Weights: `huggingface.co/nvidia/Kumo-Tabular`, under **OpenMDW-1.1** — checked
+separately from the code licence per this file's own standing rule, and confirmed
+unrestricted for commercial use, no field-of-use limitation, no separate commercial licence
+required. A third project, after Nori and Mitra-v2, matching this project's own
+synthetic-only-plus-permissive positioning, now from a considerably better-resourced lab.
+
+**The number that matters for this project's own claims.** TabArena Elo **1950, rank 1** --
+ahead of the LimiX-2 entry two days ago sold as "117 points above the runner-up" (Elo 1935).
+The field's own #1 changed within 48 hours of the last peer sweep. This does not move this
+project's own 94th-of-95 rank, but it is a fourth confirming data point for §110's
+"every top-14 TabArena rank is synthetic-pretrained" finding, now from the single most
+well-resourced entrant yet to publish — if a wide moat from compute and engineering talent
+existed for real-table pretraining at this frontier, Kumo Tabular would have been the project
+positioned to spend it, and chose synthetic SCM generation instead.
+
+**Architecture, verified from the blog post.** Three sizes (Small/Medium/Large, 28M-215M
+params) trained on 35M/71M/137M synthetic SCM-generated tables respectively, in three stages
+of increasing context length (1,024 rows -> up to 60,000). Objective is **conditional**
+`p(y|x,D)`, the same amortisation this project already uses and `README.md`/
+`docs/design/ARCHITECTURE.md` already name -- unlike LimiX-2's joint `p(x,y|D)` (task 48.15),
+Kumo Tabular's own architects did not move to the joint objective, which is worth weighing the
+next time 48.15 is prioritised: the field's best-resourced entrant tried the conditional
+objective and won with it, not evidence against the joint objective but a data point that the
+conditional one is not obviously inferior at the frontier.
+
+**Two concrete ideas, neither yet measured here.**
+- **"Length-aware Attention Temperature"**, scaling query-vector temperature logarithmically
+  with context size. This project trains at `n-rows-choices` up to 1,024 and has never
+  measured whether attention behaves differently at the high end of that range versus the
+  low end -- a cheap thing to check with an existing checkpoint (does attention entropy shift
+  systematically with context size?) before considering whether a temperature fix is needed at
+  all.
+- **Missing values get "special treatment... without imputation"** rather than a zero-fill.
+  Relevant to task 48.10's now-narrower open question (`learn-from-peers` tasks.md): this
+  project's `normalize_features`/`cell_embed` already encodes missingness through a learned
+  linear combination rather than naive imputation (§48.10's premise correction, 2026-10-01),
+  but Kumo Tabular's specific mechanism is undescribed in the blog excerpt read here and worth
+  opening the paper for, not assumed to be the same thing.
+
+**Not yet opened**: the full paper/technical report (only the blog post and model/code cards
+were read), so architectural claims above are blog-level, not paper-level — re-verify before
+citing a specific number in `docs/paper/CLAIMS.md` or quoting an architecture detail as settled.

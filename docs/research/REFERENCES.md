@@ -340,6 +340,18 @@ No architectural detail obtained. See `docs/paper/RELATED_WORK.md` for the full 
 including why a surface resemblance to Neuralk's Seldon is noted as unverified speculation
 and does not change `CLAUDE.md`'s Neuralk boundary either way.
 
+**NVIDIA, via the acquired Kumo ML team (2026).** *Kumo Tabular*.
+[huggingface.co/blog/nvidia/kumo-tabular](https://huggingface.co/blog/nvidia/kumo-tabular);
+code `github.com/NVIDIA/structured-data-models`; weights `huggingface.co/nvidia/Kumo-Tabular`.
+**New #1 on TabArena, Elo 1950** — ahead of LimiX-2's 1935 from two days earlier. **Licence
+checked separately, both permissive**: code Apache-2.0 (verified from the repo), weights
+OpenMDW-1.1 (verified via its own licence text — unrestricted commercial use, no field-of-use
+limit). Three sizes (28M-215M params), synthetic SCM-only (35M-137M tables seen per size),
+conditional `p(y|x,D)` objective (not LimiX-2's joint `p(x,y|D)`). Blog-level detail only — the
+full technical report has not been opened. See `docs/paper/RELATED_WORK.md` for the full note,
+including two architectural ideas (length-aware attention temperature; a non-imputation
+missing-value mechanism) flagged as worth tracking but not yet measured against this project.
+
 **What none of these licenses.** Reading a paper licenses an *idea*. Nothing in this section
 authorises copying an implementation, a weight file, or a pretraining corpus, and a repository
 under a permissive code licence proves nothing about the weights inside it.
