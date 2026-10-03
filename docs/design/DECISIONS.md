@@ -158,6 +158,18 @@ touch. That converts "wait for the pipeline" into "run now".
 **Reversed if:** an MPS numerical discrepancy appears at scale, or Phase 2's multiplied run
 count makes rented NVIDIA the cheaper path in wall-clock terms.
 
+**Partially reversed, 2026-10-03: not safe at the current reference recipe without
+investigation first.** Launching the exact §91 reference recipe (`--n-rows-choices
+256,512,1024 --batch-size 8 --max-features 136 --cell-labels --device mps`) grew to **78 GB
+resident memory on a 64 GB machine** within 17 minutes, never reaching step 50, forcing heavy
+memory compression and the exact bwa-plus-real-training freeze risk this file already warns
+about. Killed before any damage; no checkpoint had been written yet. The same recipe needs
+15-30 GB on HF Jobs' CUDA path, so this is specific to MPS at this row/feature count, not a
+property of the model or recipe in general — the original 3.5x-faster measurement predates the
+current cell-attention architecture's scale and never tested this many rows/features. Do not
+launch this recipe on `--device mps` again until the memory growth is root-caused; a smaller
+smoke config (fewer `--n-rows-choices`, smaller `--feature-chunk`) is untested but may be safe.
+
 ---
 
 ## D8 — The base-rate correction belongs on the object, not in one method

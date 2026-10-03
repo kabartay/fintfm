@@ -41,6 +41,14 @@ pretraining run (anything past a smoke test — thousands of steps, GPU-scale ba
 without checking `uptime` first and getting an explicit go-ahead; that combination has frozen
 this Mac before. Ports `8080` (mlflow), `8001` (an unrelated API) and `3000` (Docker) are taken.
 
+**`--device mps` at the current reference recipe is not safe, as of 2026-10-03 (`DECISIONS`
+D7).** The exact §91 recipe (`--n-rows-choices 256,512,1024 --batch-size 8 --max-features 136
+--cell-labels`) grew to 78 GB resident on this 64 GB machine within 17 minutes on MPS, never
+reaching step 50 -- the same recipe needs 15-30 GB on CUDA. Caught via `top -o mem` before any
+freeze, but check memory growth (`top -l 1 -n 3`, watch `PhysMem` free) within the first few
+minutes of *any* local MPS training launch at this scale, not just CPU load, until this is
+root-caused.
+
 ## Every HF Jobs training launch carries `--checkpoint-every`, no exceptions
 
 Cost about $15 and six wasted launches on 2026-10-01/02, replicating §91's ablation at a
