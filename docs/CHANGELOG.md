@@ -6,6 +6,55 @@ not paste one into the other. See `CLAUDE.md`.
 
 ## [Unreleased]
 
+## [0.5.6] — 2026-10-03
+
+Phase A' closes, Phase C's construction work lands and is scored, and one combined-prior
+pretraining bet comes back negative — reported as such rather than quietly dropped.
+
+### Added
+
+- **Phase A' closure: the linear-probe advantage is real, replicates, and transfers
+  externally.** A plain logistic-regression probe on the model's own frozen representation
+  beats the model's own trained head on a second, independently-trained checkpoint (+0.0323
+  mean AP, 5/5 folds), and the advantage carries through to TabArena (+145 Elo). A nonlinear
+  head tried on the same frozen input does not close the gap either — whatever the model's own
+  head is doing wrong, it is not "not enough nonlinearity".
+- **Nine labelled synthetic task-family generators** (`prior/task_families.py`): five
+  closed-form families with an exact Bayes-AUC construction, and four calibrated by bisection
+  to a target difficulty, plus composition and confound/collider constructions for probing
+  specific failure modes rather than aggregate accuracy. Four new measurements followed
+  directly: every existing checkpoint does no interaction at all the instant task order
+  exceeds 2 (chance, regardless of architecture), compositional generalisation survives where
+  interaction order collapses, the model over-relies on a confound's proxy and overshoots past
+  the confound-free ceiling once it is broken, and missingness/shift/support-extrapolation
+  factor cleanly out of both family identity and requested difficulty.
+- **A gap analysis against a published competitor's target-mechanism list** (Nori): six
+  mechanisms covered, one partially (periodic/Fourier), six not covered at all (GAM,
+  radial/RBF, chained trigonometric, polynomial, log/exp, conv1d). Nothing added; the gap is
+  named, not closed.
+- **`PriorConfig.p_task_family`**, wiring the nine families into pretraining's task mixture
+  behind a flag, and `--checkpoint-every` enforced as standing practice for every future
+  training launch after a stalled HF Jobs run lost an entire run to cancellation with nothing
+  resumable.
+- Two decisions recorded against the field's own counter-arguments rather than left as
+  unexamined assumptions: synthetic-only training is weighed explicitly against peers who
+  train on real tables for a different goal (semantic transfer) this project cannot pursue by
+  construction (`DECISIONS` D14), and this project's own small-data bet is checked against its
+  own TabArena measurement and found to point the opposite way by row count alone, though not
+  once minority-class fraction is accounted for — recorded as an open contradiction, not forced
+  into a false resolution (`DECISIONS` D15).
+
+### Changed
+
+- **A combined-prior pretraining run came back negative, and is reported as such.** Mixing the
+  nine task families into pretraining at 30% weight, matched compute against the existing
+  reference recipe, scored *worse* on V4FinBench than the financial-only control (mean AP
+  0.1725 vs 0.1986, four of five folds significant). The §74 Bayes-ceiling probe suite confirms
+  the resulting checkpoint is not broken — it clears the untrained floor at levels comparable to
+  the control — so the loss is specific to this benchmark and this compute trade-off, not a
+  broken model. Not adopted at this weight or budget; the mixture option stays available for a
+  different weight, a larger budget, or a curriculum ordering, none of which this release tests.
+
 ### Fixed
 
 - **The Zenodo deposits were never broken, only queued.** All five releases minted DOIs
@@ -30,10 +79,8 @@ not paste one into the other. See `CLAUDE.md`.
   recorded its version as `vv0.5.1` from the tag; every later release carries the correct
   version, title, keywords, licence and ORCID.
 
-### Added
-
-- The concept DOI in `CITATION.cff`, a DOI badge in `README.md`, and a note in the citing
-  section on when to cite a version DOI rather than the concept one.
+  The concept DOI is now in `CITATION.cff`, a DOI badge is in `README.md`, and a note in the
+  citing section says when to cite a version DOI rather than the concept one.
 
 ## [0.5.5] — 2026-09-25
 
