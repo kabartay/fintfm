@@ -1,0 +1,16 @@
+{
+  "id": "muhakabartay/fintfm-task-39-28-s91-replicate",
+  "title": "fintfm task 39.28 - s91 seed-1 replication",
+  "code_file": "task_39_28_replicate_s91.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": "true",
+  "enable_gpu": "true",
+  "enable_tpu": "false",
+  "enable_internet": "true",
+  "machine_shape": "",
+  "dataset_sources": [],
+  "competition_sources": [],
+  "kernel_sources": [],
+  "model_sources": []
+}
