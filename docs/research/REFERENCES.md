@@ -348,6 +348,14 @@ under a permissive code licence proves nothing about the weights inside it.
 
 - Credit-risk TFM evaluations reporting that TFMs are strongest in small-data PD/LGD
   settings. Referred to in conversation; not opened.
+- **"QBrain" (Qombra), claimed 2026-10-03 to be "the best performing Tabular Foundation
+  Model."** Source was a vendor's own promotional post for their paid API, with no paper, no
+  repository, and no benchmark cited for the claim. A web search for the model name alongside
+  TabArena and arXiv returned **zero independent results** — every other peer this project has
+  recorded (LimiX-2, Mitra-v2, TabPFN-3.5, Causilo) has a traceable paper or repo; this one has
+  none. Not written up as a competitor and not counted against this project's own rank until it
+  appears on TabArena or another independently-verifiable benchmark this project does not
+  control. Recorded here only so the claim isn't rediscovered and re-evaluated from scratch.
 
 Confirm title, authors, venue, licence and commercial-use terms before citing or ingesting.
 **Check the data licence separately from the code licence** — Google's TabFM ships
