@@ -24,7 +24,13 @@ def run(cmd: list[str]) -> None:
 
 
 def main() -> None:
-    run([sys.executable, "-m", "pip", "install", "--quiet", "fintfm==0.5.6"])
+    # Pinned to the commit that added the --discretize-frac/--n-noise-features/
+    # --n-correlated-block-features/--label-noise-rate flags, which postdate the 0.5.6
+    # PyPI release used by every other kernel in this directory.
+    run([
+        sys.executable, "-m", "pip", "install", "--quiet",
+        "git+https://github.com/kabartay/fintfm.git@5c7b359",
+    ])
 
     import torch
 
