@@ -258,6 +258,65 @@ def _eval_quality(
     return out
 
 
+def _eval_quality_quantile(
+    model: FinancialTFM,
+    prior_cfg: PriorConfig,
+    rng: np.random.Generator,
+    n_batches: int = 5,
+    batch_size: int = 8,
+) -> dict[str, float]:
+    """Held-out quality for a ``--head-type quantile`` checkpoint (task 48.3).
+
+    :func:`_eval_quality`'s AUC/Brier-skill metrics have no analogue for a continuous,
+    pinball-trained head, so this reports the regression equivalents instead:
+
+    - **pinball loss**, the same quantity training minimises, on freshly sampled held-out
+      tasks -- the direct read of whether the head is still learning;
+    - **nRMSE**, root-mean-squared error of the median-quantile point estimate divided by the
+      held-out targets' own standard deviation, so 1.0 is exactly the predict-the-mean
+      baseline -- the same convention ``fintfm-capability --regression-sweep`` reports.
+
+    Both are computed in the context-normalised space :func:`fintfm.prior.base.collate`
+    already put the targets in, since recovering each task's own mean/std here would need
+    them threaded back out of ``collate`` for no benefit to a monitoring signal read for
+    trend, not trusted as a benchmark result.
+
+    Args:
+        model: The model being trained. Must have ``cfg.head_type == "quantile"``.
+        prior_cfg: Prior configuration, so held-out tasks match training tasks.
+        rng: Random generator.
+        n_batches: Held-out batches to average over.
+        batch_size: Rows per held-out batch; must not exceed the training batch size (see
+            :func:`_eval_quality`'s docstring for why).
+
+    Returns:
+        ``{"pinball": ..., "nrmse": ...}``.
+    """
+    device = next(model.parameters()).device
+    model.eval()
+    pinballs: list[float] = []
+    sq_errs: list[np.ndarray] = []
+    targets: list[np.ndarray] = []
+    taus = model.quantile_taus
+    median_idx = int(torch.argmin(torch.abs(taus - 0.5)).item())
+    with torch.no_grad():
+        for _ in range(n_batches):
+            batch = sample_batch(rng, prior_cfg, batch_size=batch_size).to(device)
+            out = model(batch.X, batch.y, batch.n_ctx)[:, batch.n_ctx :]
+            target = batch.y[:, batch.n_ctx :].to(out.dtype)
+            diff = target.unsqueeze(-1) - out
+            pinball = torch.maximum(taus * diff, (taus - 1.0) * diff).mean()
+            pinballs.append(float(pinball.item()))
+            point = out[..., median_idx]
+            sq_errs.append(((point - target) ** 2).reshape(-1).cpu().numpy())
+            targets.append(target.reshape(-1).cpu().numpy())
+    model.train()
+    y = np.concatenate(targets)
+    sd = float(np.std(y)) + 1e-12
+    rmse = float(np.sqrt(np.mean(np.concatenate(sq_errs))))
+    return {"pinball": float(np.mean(pinballs)), "nrmse": rmse / sd}
+
+
 def _save_training_state(
     path: str,
     model: FinancialTFM,
@@ -379,7 +438,7 @@ def train(
             objectives.add("survival")
         else:
             loss = model.loss(batch.X, batch.y, batch.n_ctx, batch.n_classes)
-            objectives.add("classification")
+            objectives.add("quantile" if model.cfg.head_type == "quantile" else "classification")
         opt.zero_grad(set_to_none=True)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
@@ -414,13 +473,17 @@ def train(
             print(f"  checkpoint at step {step + 1}: {partial}", flush=True)
         if (step + 1) % train_cfg.eval_every == 0:
             _set_optimizer_mode(opt, train_cfg.optimizer, "eval")
-            q = _eval_quality(model, prior_cfg, rng, batch_size=train_cfg.batch_size)
+            if model.cfg.head_type == "quantile":
+                qq = _eval_quality_quantile(model, prior_cfg, rng, batch_size=train_cfg.batch_size)
+                print(f"  held-out: pinball {qq['pinball']:.4f}  nRMSE {qq['nrmse']:.4f}")
+            else:
+                q = _eval_quality(model, prior_cfg, rng, batch_size=train_cfg.batch_size)
+                print(
+                    f"  held-out: AUC/task {q['auc_per_task']:.3f}  AUC pooled {q['auc']:.3f}"
+                    f"  Brier skill vs base rate {q['brier_skill']:+.3f}"
+                    f"  (base rate {q['base_rate']:.3f})"
+                )
             _set_optimizer_mode(opt, train_cfg.optimizer, "train")
-            print(
-                f"  held-out: AUC/task {q['auc_per_task']:.3f}  AUC pooled {q['auc']:.3f}"
-                f"  Brier skill vs base rate {q['brier_skill']:+.3f}"
-                f"  (base rate {q['base_rate']:.3f})"
-            )
     _set_optimizer_mode(opt, train_cfg.optimizer, "eval")
     model.save(out_path, trained_objectives=tuple(sorted(objectives)))
     _save_training_state(
@@ -640,6 +703,22 @@ def main() -> None:
         "(task 48.10)",
     )
     p.add_argument(
+        "--head-type",
+        type=str,
+        default="binned",
+        choices=["binned", "quantile"],
+        help="'binned' (default): classify a target binned into --max-classes quantile "
+        "bins. 'quantile' (task 48.3): a genuine pinball-loss head over --n-quantiles "
+        "levels, no binning -- requires --p-regression 1.0, since this head has no "
+        "class-index path for a classification task",
+    )
+    p.add_argument(
+        "--n-quantiles",
+        type=int,
+        default=99,
+        help="output width of a --head-type quantile head; ignored for 'binned'",
+    )
+    p.add_argument(
         "--d-ff",
         type=int,
         default=None,
@@ -686,6 +765,8 @@ def main() -> None:
         n_cell_blocks=args.n_cell_blocks,
         cell_labels=args.cell_labels,
         mask_embedding=args.mask_embedding,
+        head_type=args.head_type,
+        n_quantiles=args.n_quantiles,
         d_ff=args.d_ff if args.d_ff is not None else 4 * args.d_model,
         max_features=args.max_features,
         max_classes=args.max_classes,
@@ -728,6 +809,7 @@ def main() -> None:
         n_noise_features=args.n_noise_features,
         n_correlated_block_features=args.n_correlated_block_features,
         label_noise_rate=args.label_noise_rate,
+        head_type=args.head_type,
         # the default-rate envelope comes from configuration, because a prior that cannot
         # generate the regime being evaluated is the defect behind docs/results/FINDINGS.md §26
         sharpness_min=cfg.prior.sharpness_min,

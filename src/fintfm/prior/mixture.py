@@ -153,6 +153,12 @@ class PriorConfig:
             The generic SCM prior has no notion of time, so **``p_financial`` must be 1.0**
             when this is set — a batch mixing survival and binary-only tasks is refused by
             :func:`fintfm.prior.base.collate` rather than silently padded.
+        head_type: Forwarded to :func:`fintfm.prior.base.collate` — ``"binned"`` (default)
+            bins a continuous target, ``"quantile"`` (task 48.3) z-scores it instead. Must
+            match the checkpoint's own ``ModelConfig.head_type``, and ``"quantile"`` requires
+            every sampled task to be a regression task (``p_regression=1.0``), since that
+            head has no class-index path — :func:`fintfm.prior.base.collate` raises rather
+            than silently coercing a classification task.
     """
 
     max_features: int = 24
@@ -202,6 +208,7 @@ class PriorConfig:
     """Give up and keep the task rather than resample forever. A batch member must never be
     silently dropped -- :func:`sample_batch` always returns exactly ``batch_size`` tasks -- and
     a task family with a rejection rate above this bound would otherwise spin without limit."""
+    head_type: str = "binned"
 
 
 def sample_task(rng: np.random.Generator, cfg: PriorConfig, n_rows: int | None = None) -> Task:
@@ -354,4 +361,4 @@ def sample_batch(rng: np.random.Generator, cfg: PriorConfig, batch_size: int) ->
         ]
     n_ctx = int(rng.integers(int(cfg.min_ctx_frac * n_rows), int(cfg.max_ctx_frac * n_rows) + 1))
     n_ctx = min(max(n_ctx, 2), n_rows - 1)
-    return collate(tasks, n_ctx=n_ctx, max_features=cfg.max_features)
+    return collate(tasks, n_ctx=n_ctx, max_features=cfg.max_features, head_type=cfg.head_type)

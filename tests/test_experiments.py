@@ -322,3 +322,38 @@ def test_multiclass_sweep_skips_checkpoints_that_cannot_represent_the_task(tmp_p
     assert np.isfinite(sweep["arms"]["wide"]["accuracy"][0])
     # The floor is measured, not assumed: unequal argmax regions put it above 1/K.
     assert sweep["majority_rate"][0] > 1 / 3
+
+
+def test_regression_sweep_scores_a_quantile_head_checkpoint(tmp_path):
+    """Task 48.3's comparison point: regression_sweep must route a head_type='quantile'
+    checkpoint through FinancialTFMQuantileRegressor rather than the binned-head path, and
+    every per-arm metric must come back finite and in its documented range.
+    """
+    import numpy as np
+
+    from fintfm.experiments.capability import regression_sweep
+    from fintfm.modeling.model import FinancialTFM, ModelConfig
+
+    ckpt = tmp_path / "quantile.pt"
+    FinancialTFM(
+        ModelConfig(
+            max_features=20, max_classes=3, d_cell=16, d_model=32, n_heads=2, n_col_layers=1,
+            n_layers=1, d_ff=32, head_type="quantile", n_quantiles=9,
+        )
+    ).save(str(ckpt), trained_objectives=("quantile",))
+
+    sweep = regression_sweep(
+        {"quantile_head": str(ckpt)}, shapes=("linear",), seeds=(0,), max_context=200
+    )
+
+    assert sweep["skipped"] == []
+    for metric in ("nrmse", "spearman", "coverage", "outer_mass"):
+        for arm in ("quantile_head", "untrained_control", "ridge_gaussian", "binning_oracle"):
+            value = sweep["arms"][arm][metric][0]
+            if arm == "binning_oracle" and metric == "coverage":
+                assert np.isnan(value)  # the oracle is a point, not a distribution
+                continue
+            assert np.isfinite(value), f"{arm}/{metric} is not finite: {value}"
+    for arm in ("quantile_head", "untrained_control"):
+        assert 0.0 <= sweep["arms"][arm]["coverage"][0] <= 1.0
+        assert 0.0 <= sweep["arms"][arm]["outer_mass"][0] <= 1.0

@@ -951,14 +951,22 @@ def regression_sweep(
     from sklearn.linear_model import Ridge
 
     from fintfm.inference.binning import QuantileBinner, interval_coverage
+    from fintfm.inference.quantile_regressor import FinancialTFMQuantileRegressor
     from fintfm.inference.regressor import FinancialTFMRegressor
     from fintfm.modeling.model import FinancialTFM
 
     models = {n: FinancialTFM.load(p) for n, p in model_paths.items()}
-    if models:
-        first = next(iter(models.values()))
+    # One untrained control per head_type actually present (task 48.3): a quantile-head
+    # checkpoint's control must also be a quantile head, or the control would not isolate
+    # "trained vs untrained" -- it would also change the head architecture. Named
+    # "untrained_control" unchanged when every model shares one head_type, matching every
+    # call site before this task; disambiguated by head_type only when they differ.
+    head_types_present = sorted({m.cfg.head_type for m in models.values()})
+    for ht in head_types_present:
+        first = next(m for m in models.values() if m.cfg.head_type == ht)
         torch.manual_seed(UNTRAINED_SEED)
-        models["untrained_control"] = FinancialTFM(first.cfg)
+        name = "untrained_control" if len(head_types_present) == 1 else f"untrained_control_{ht}"
+        models[name] = FinancialTFM(first.cfg)
 
     metrics = ("nrmse", "spearman", "coverage", "outer_mass")
     # `binning_oracle` predicts each query's *true* bin representative. It cheats, deliberately:
@@ -984,6 +992,39 @@ def regression_sweep(
             sd = float(np.std(yte))
             per_seed_truth.append(_outer_mass(yte, lo, hi))
             for name, m in models.items():
+                if m.cfg.head_type == "quantile":
+                    qreg = FinancialTFMQuantileRegressor(
+                        m, max_context=max_context, feature_transform="rank",
+                        random_state=seed,
+                    ).fit(Xtr, ytr)
+                    pred = qreg.predict(Xte)
+                    ilo, ihi = qreg.predict_interval(Xte, level=interval_level)
+                    cell[name]["nrmse"].append(
+                        float(np.sqrt(np.mean((pred - yte) ** 2)) / sd)
+                    )
+                    cell[name]["spearman"].append(float(spearmanr(pred, yte).statistic))
+                    cell[name]["coverage"].append(interval_coverage(yte, ilo, ihi))
+                    # Outer-third mass read off the predicted quantile grid directly: the
+                    # fraction of the approximated CDF below lo+span/3 plus above
+                    # hi-span/3, found by inverse-interpolating value -> tau (task 48.3's
+                    # analogue of the binned arm's representative-based mass below).
+                    grid = qreg.predict_quantile_grid(Xte)
+                    span = hi - lo
+                    a, b = lo + span / 3.0, hi - span / 3.0
+                    outer_fracs = []
+                    for row in grid:
+                        order = np.argsort(row)
+                        sv, st = row[order], qreg.taus_[order]
+                        tau_a = float(np.interp(a, sv, st))
+                        tau_b = float(np.interp(b, sv, st))
+                        # Each half is a valid probability on its own, but the two can only
+                        # be summed as long as a < b holds in tau-space too -- a wildly
+                        # non-monotonic grid (an untrained control, say) can violate that, so
+                        # the sum is clipped to stay a valid fraction rather than read as
+                        # "more than all of it".
+                        outer_fracs.append(float(np.clip(tau_a + (1.0 - tau_b), 0.0, 1.0)))
+                    cell[name]["outer_mass"].append(float(np.mean(outer_fracs)))
+                    continue
                 bins = min(n_bins, m.cfg.max_classes)
                 if bins < 2:
                     skipped.append(f"{name}: max_classes={m.cfg.max_classes} < 2 bins")

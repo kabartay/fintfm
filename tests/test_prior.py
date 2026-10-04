@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+import torch
 
 from fintfm.prior import PriorConfig, sample_financial_task, sample_scm_task, sample_task
 from fintfm.prior.mixture import sample_batch
@@ -32,6 +33,28 @@ def test_mixture_batch_collates():
     assert batch.X.shape == (8, 64, 20)
     assert batch.y.shape == (8, 64)
     assert 1 < batch.n_ctx < 64
+
+
+def test_mixture_batch_collates_with_quantile_head_via_p_regression():
+    """head_type='quantile' only works when PriorConfig also forces every task to be a
+    regression task, since collate() refuses a classification task under that head_type. This
+    wires the two together end-to-end, as a real --p-regression 1.0 --head-type quantile
+    training run must."""
+    rng = np.random.default_rng(3)
+    cfg = PriorConfig(max_features=20, max_classes=8, n_rows=64, p_regression=1.0, head_type="quantile")
+    batch = sample_batch(rng, cfg, batch_size=8)
+    assert batch.X.shape == (8, 64, 20)
+    assert batch.y.shape == (8, 64)
+    assert batch.y.dtype == torch.float32
+
+
+def test_mixture_batch_with_quantile_head_and_p_regression_below_one_is_refused():
+    """A classification task reaching collate() under head_type='quantile' must raise, not be
+    silently coerced -- this is the contract the training CLI's own help text states."""
+    rng = np.random.default_rng(3)
+    cfg = PriorConfig(max_features=20, max_classes=8, n_rows=64, p_regression=0.0, head_type="quantile")
+    with pytest.raises(ValueError, match="quantile"):
+        sample_batch(rng, cfg, batch_size=8)
 
 
 def test_sample_task_reproducible_with_seed():

@@ -672,6 +672,147 @@ def test_pre_48_10_shaped_checkpoint_loads(tmp_path):
         model(X, y, 6, torch.tensor([3]), column_id_seed=0)  # must not raise
 
 
+def test_head_type_rejects_an_unknown_value():
+    """A typo in head_type must fail loudly, not fall through to the binned default."""
+    from fintfm.modeling.model import ModelConfig
+
+    with pytest.raises(ValueError, match="head_type"):
+        ModelConfig(head_type="bin")
+
+
+def test_head_type_quantile_rejects_n_horizons():
+    """No survival-plus-quantile design exists; combining the two must not silently build a
+    hazard head whose interaction with a continuous label was never designed for."""
+    from fintfm.modeling.model import ModelConfig
+
+    with pytest.raises(ValueError, match="n_horizons"):
+        ModelConfig(head_type="quantile", n_horizons=6)
+
+
+def test_head_type_binned_default_is_byte_identical_to_pre_48_3_architecture():
+    """Every checkpoint trained before task 48.3 must keep producing the same output -- the
+    default head_type is a string that did not exist in their saved config, so this also
+    exercises the same path a pre-48.3 checkpoint takes through ModelConfig(**cfg)."""
+    from fintfm.modeling.model import FinancialTFM, ModelConfig
+
+    base = {
+        "max_features": 8, "max_classes": 3, "d_cell": 16, "d_model": 32, "n_heads": 2,
+        "n_col_layers": 1, "n_layers": 2, "d_ff": 64,
+    }
+    X = torch.randn(2, 10, 8)
+    y = torch.randint(0, 3, (2, 10))
+    nc = torch.tensor([3, 3])
+
+    torch.manual_seed(4)
+    m_old = FinancialTFM(ModelConfig(**base)).eval()
+    torch.manual_seed(4)
+    m_new = FinancialTFM(ModelConfig(**base, head_type="binned")).eval()
+
+    with torch.no_grad():
+        a = m_old(X, y, 6, nc, column_id_seed=0)
+        b = m_new(X, y, 6, nc, column_id_seed=0)
+    torch.testing.assert_close(a, b, rtol=0, atol=0)
+    assert not hasattr(m_old, "quantile_taus")
+
+
+def test_quantile_head_shapes_and_gradients(n_cell_blocks=0):
+    """Shapes, gradients and parameter coverage for task 48.3, before any GPU spend."""
+    from fintfm.modeling.model import FinancialTFM, ModelConfig
+
+    base = {
+        "max_features": 8, "max_classes": 3, "d_cell": 16, "d_model": 32, "n_heads": 2,
+        "n_col_layers": 1, "n_layers": 2, "d_ff": 64,
+    }
+    n_q = 7
+    X = torch.randn(2, 10, 8)
+    y_cont = torch.randn(2, 10)  # continuous, context-normalised target (collate's contract)
+    nc = torch.tensor([3, 3])  # ignored for a quantile head, passed to exercise that path
+
+    torch.manual_seed(5)
+    model = FinancialTFM(ModelConfig(**base, head_type="quantile", n_quantiles=n_q))
+    out = model(X, y_cont, 6)
+    assert out.shape == (2, 10, n_q)
+
+    loss = model.loss(X, y_cont, 6, nc)
+    assert loss.item() >= 0.0  # pinball loss is non-negative by construction
+    loss.backward()
+    for name, p in model.named_parameters():
+        assert p.grad is not None, f"{name} received no gradient"
+        assert torch.isfinite(p.grad).all(), f"{name} has a non-finite gradient"
+
+
+def test_quantile_head_taus_are_evenly_spaced_and_interior():
+    """quantile_taus must avoid the two undefined endpoints 0 and 1 and cover the rest evenly,
+    since the pinball loss is built directly from this tensor."""
+    from fintfm.modeling.model import FinancialTFM, ModelConfig
+
+    model = FinancialTFM(
+        ModelConfig(max_features=4, d_model=8, n_heads=1, n_layers=1, d_ff=8,
+                    head_type="quantile", n_quantiles=9)
+    )
+    taus = model.quantile_taus
+    assert taus.shape == (9,)
+    assert taus.min() > 0.0 and taus.max() < 1.0
+    diffs = taus[1:] - taus[:-1]
+    torch.testing.assert_close(diffs, diffs[0].expand_as(diffs), rtol=1e-5, atol=1e-6)
+
+
+def test_quantile_head_learns_a_known_linear_target():
+    """Not a contract test: trains past the point of chance, as direct evidence the pinball
+    loss actually teaches the head something, before any GPU time is spent on it."""
+    import numpy as np
+
+    from fintfm.modeling.model import FinancialTFM, ModelConfig
+    from fintfm.prior.base import Task, collate
+
+    torch.manual_seed(6)
+    cfg = ModelConfig(
+        max_features=6, max_classes=3, d_cell=16, d_model=32, n_heads=2, n_col_layers=1,
+        n_layers=1, d_ff=32, head_type="quantile", n_quantiles=9,
+    )
+    model = FinancialTFM(cfg)
+    opt = torch.optim.AdamW(model.parameters(), lr=3e-3)
+    rng = np.random.default_rng(0)
+
+    def make_batch(bs=8, n_rows=60):
+        tasks = []
+        for _ in range(bs):
+            X = rng.normal(size=(n_rows, 5)).astype(np.float32)
+            y_cont = (X[:, 0] * 2.0 + rng.normal(scale=0.2, size=n_rows)).astype(np.float64)
+            tasks.append(
+                Task(
+                    X=X, y=np.zeros(n_rows, dtype=np.int64), n_classes=0,
+                    is_categorical=np.zeros(5, dtype=bool), source="test", y_continuous=y_cont,
+                )
+            )
+        return collate(tasks, n_ctx=30, max_features=6, head_type="quantile")
+
+    losses = []
+    for _ in range(80):
+        batch = make_batch()
+        loss = model.loss(batch.X, batch.y, batch.n_ctx, batch.n_classes)
+        opt.zero_grad()
+        loss.backward()
+        opt.step()
+        losses.append(loss.item())
+    assert np.mean(losses[-10:]) < np.mean(losses[:10])
+
+
+def test_quantile_head_requires_continuous_y_in_collate():
+    """head_type='quantile' has no class-index path; a classification task must be refused
+    rather than silently z-scored as if its 0/1 label were a continuous measurement."""
+    import numpy as np
+
+    from fintfm.prior.base import Task, collate
+
+    task = Task(
+        X=np.zeros((10, 3), dtype=np.float32), y=np.zeros(10, dtype=np.int64), n_classes=2,
+        is_categorical=np.zeros(3, dtype=bool), source="financial",
+    )
+    with pytest.raises(ValueError, match="quantile"):
+        collate([task], n_ctx=5, max_features=3, head_type="quantile")
+
+
 def test_feature_chunking_is_an_identity():
     """Chunking row-within-feature attention over ``F`` must change no number.
 

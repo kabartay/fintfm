@@ -143,6 +143,24 @@ class ModelConfig:
             value/missingness interaction through two linear layers and a GELU -- so this flag
             tests the narrower remaining question of whether a *dedicated* embedding table
             does better than that joint MLP, not whether missingness is encoded at all.
+        head_type: ``"binned"`` (default) reproduces every checkpoint trained before this
+            field existed, byte for byte: the classification head doubles as a regression
+            head by having the caller bin a continuous target into ``max_classes`` quantile
+            bins first (``fintfm.inference.binning``), so resolution is bounded by the bin
+            count and an interval can never be narrower than one bin (``docs/results/FINDINGS.md``
+            §106). ``"quantile"`` (task 48.3) replaces this with a genuine pinball-loss head:
+            ``n_quantiles`` logit-free outputs, each trained to approximate one quantile
+            level of the (context-normalised) continuous target directly, with no binning
+            and no bound on resolution other than ``n_quantiles`` itself. Label injection
+            (``cell_y_proj``, ``y_proj``) switches from a one-hot class vector to a single
+            continuous scalar to match -- a model with ``head_type="quantile"`` only accepts
+            continuous ``y`` and is not a classifier. Incompatible with ``n_horizons`` (the
+            hazard head assumes a discrete class head beneath it; no survival-plus-quantile
+            checkpoint has been designed).
+        n_quantiles: Output width of a ``"quantile"`` head -- the number of quantile levels
+            predicted per row, evenly spaced in ``(0, 1)``. Nori's published head uses 999;
+            this project starts an order of magnitude smaller; it is not tuned. Ignored when
+            ``head_type == "binned"``.
     """
 
     max_features: int = 24
@@ -160,6 +178,27 @@ class ModelConfig:
     n_cell_blocks: int = 0
     cell_labels: bool = False
     mask_embedding: bool = False
+    head_type: str = "binned"
+    n_quantiles: int = 99
+
+    def __post_init__(self) -> None:
+        """Validate ``head_type`` and its interaction with ``n_horizons``.
+
+        Raises:
+            ValueError: If ``head_type`` is not one of the two supported values, or if a
+                quantile head is combined with a hazard head -- a combination nothing in this
+                codebase builds, scores, or has a designed loss for.
+        """
+        if self.head_type not in ("binned", "quantile"):
+            raise ValueError(
+                f"head_type must be 'binned' or 'quantile', got {self.head_type!r}"
+            )
+        if self.head_type == "quantile" and self.n_horizons is not None:
+            raise ValueError(
+                "head_type='quantile' is incompatible with n_horizons: the hazard head "
+                "assumes a discrete class head beneath it, and no survival-plus-quantile "
+                "design exists"
+            )
 
 
 def normalize_features(
@@ -272,8 +311,11 @@ class FinancialTFM(nn.Module):
             if cfg.cell_labels:
                 # Broadcast across every feature of a context row (task 39.2); query rows get
                 # a learned mask token instead of a real label, matching the row-level
-                # query_token pattern below.
-                self.cell_y_proj = nn.Linear(cfg.max_classes, cfg.d_cell, bias=False)
+                # query_token pattern below. A quantile head's label is a single continuous
+                # scalar rather than a one-hot class vector (task 48.3), so its projection
+                # has in_features=1 instead of max_classes.
+                label_width = 1 if cfg.head_type == "quantile" else cfg.max_classes
+                self.cell_y_proj = nn.Linear(label_width, cfg.d_cell, bias=False)
                 self.cell_mask_token = nn.Parameter(torch.zeros(cfg.d_cell))
         # Pooling over columns is a masked mean (order-invariant) plus a masked max, which
         # keeps a signal a mean washes out: one extreme ratio in an otherwise ordinary firm.
@@ -294,7 +336,10 @@ class FinancialTFM(nn.Module):
             self.row_proj = nn.Linear(3 * cfg.d_cell, cfg.d_model)
         else:
             self.row_proj = nn.Linear(2 * cfg.d_cell, cfg.d_model)
-        self.y_proj = nn.Linear(cfg.max_classes, cfg.d_model, bias=False)
+        # Same scalar-vs-one-hot split as cell_y_proj above, at the row level.
+        self.y_proj = nn.Linear(
+            1 if cfg.head_type == "quantile" else cfg.max_classes, cfg.d_model, bias=False
+        )
         self.query_token = nn.Parameter(torch.zeros(cfg.d_model))
         row_layer = nn.TransformerEncoderLayer(
             d_model=cfg.d_model,
@@ -309,7 +354,17 @@ class FinancialTFM(nn.Module):
             row_layer, num_layers=cfg.n_layers, enable_nested_tensor=False
         )
         self.norm = nn.LayerNorm(cfg.d_model)
-        self.head = nn.Linear(cfg.d_model, cfg.max_classes)
+        if cfg.head_type == "quantile":
+            self.head = nn.Linear(cfg.d_model, cfg.n_quantiles)
+            # Evenly spaced, strictly inside (0, 1): the two endpoints are undefined
+            # quantiles (an infinite tail), so they are excluded rather than clamped.
+            # Registered as a buffer so it moves with .to(device) and round-trips through
+            # save/load without appearing in the optimiser's parameter list.
+            self.register_buffer(
+                "quantile_taus", torch.linspace(0.0, 1.0, cfg.n_quantiles + 2)[1:-1]
+            )
+        else:
+            self.head = nn.Linear(cfg.d_model, cfg.max_classes)
         self.hazard = (
             HazardHead(cfg.d_model, cfg.n_horizons) if cfg.n_horizons is not None else None
         )
@@ -444,13 +499,17 @@ class FinancialTFM(nn.Module):
                 # §74/§76/task 39.2: labels reach column-level computation before pooling,
                 # not only after it. Context cells get their true label broadcast across
                 # every feature of that row; query cells get a learned mask token, exactly
-                # mirroring query_token's role at the row level below.
-                y_onehot = F.one_hot(
-                    y[:, :n_ctx].clamp(0, self.cfg.max_classes - 1), self.cfg.max_classes
-                ).to(cells.dtype)
+                # mirroring query_token's role at the row level below. A quantile head's
+                # label is the continuous target itself (task 48.3), not a class one-hot.
+                if self.cfg.head_type == "quantile":
+                    y_label = y[:, :n_ctx].to(cells.dtype).unsqueeze(-1)
+                else:
+                    y_label = F.one_hot(
+                        y[:, :n_ctx].clamp(0, self.cfg.max_classes - 1), self.cfg.max_classes
+                    ).to(cells.dtype)
                 cell_y = torch.cat(
                     [
-                        self.cell_y_proj(y_onehot),
+                        self.cell_y_proj(y_label),
                         self.cell_mask_token.expand(B, N - n_ctx, -1),
                     ],
                     dim=1,
@@ -501,49 +560,70 @@ class FinancialTFM(nn.Module):
         n_classes: torch.Tensor | None = None,
         column_id_seed: int | None = None,
     ) -> torch.Tensor:
-        """Compute class logits for every row.
+        """Compute class logits, or quantile predictions, for every row.
 
         Args:
             X: ``(B, N, F)`` raw features, NaN for missing cells and padded columns.
-            y: ``(B, N)`` labels; only the first ``n_ctx`` are read.
+            y: ``(B, N)`` labels; only the first ``n_ctx`` are read. Integer class indices
+                for ``head_type="binned"``, a continuous (context-normalised) target for
+                ``head_type="quantile"``.
             n_ctx: Context/query split.
             n_classes: Optional ``(B,)`` valid class counts; logits for classes a task does
-                not have become ``-inf``.
+                not have become ``-inf``. Ignored for ``head_type="quantile"``, which has no
+                class-count concept.
 
         Returns:
-            ``(B, N, max_classes)`` logits. Only rows at or past ``n_ctx`` are predictions.
+            ``(B, N, max_classes)`` logits for ``"binned"``, or ``(B, N, n_quantiles)``
+            continuous quantile predictions for ``"quantile"``. Only rows at or past
+            ``n_ctx`` are predictions either way.
         """
         B, N, _ = X.shape
         h = self.encode_rows(X, n_ctx, column_id_seed=column_id_seed, y=y)
-        y_onehot = F.one_hot(
-            y[:, :n_ctx].clamp(0, self.cfg.max_classes - 1), self.cfg.max_classes
-        ).to(h.dtype)
+        if self.cfg.head_type == "quantile":
+            y_label = y[:, :n_ctx].to(h.dtype).unsqueeze(-1)
+        else:
+            y_label = F.one_hot(
+                y[:, :n_ctx].clamp(0, self.cfg.max_classes - 1), self.cfg.max_classes
+            ).to(h.dtype)
         y_emb = torch.cat(
-            [self.y_proj(y_onehot), self.query_token.expand(B, N - n_ctx, -1)], dim=1
+            [self.y_proj(y_label), self.query_token.expand(B, N - n_ctx, -1)], dim=1
         )
         h = h + y_emb
         h = self.encoder(h, mask=self._row_mask(N, n_ctx, X.device))
-        logits = self.head(self.norm(h))
+        out = self.head(self.norm(h))
+        if self.cfg.head_type == "quantile":
+            return out
         if n_classes is not None:
             valid = (
                 torch.arange(self.cfg.max_classes, device=X.device)[None, None, :]
                 < n_classes[:, None, None]
             )
-            logits = logits.masked_fill(~valid, float("-inf"))
-        return logits
+            out = out.masked_fill(~valid, float("-inf"))
+        return out
 
     def loss(
         self, X: torch.Tensor, y: torch.Tensor, n_ctx: int, n_classes: torch.Tensor
     ) -> torch.Tensor:
-        """Mean cross-entropy over query rows.
+        """Mean cross-entropy, or mean pinball loss, over query rows.
 
         Cross-entropy is a *proper scoring rule*, so minimising it rewards calibrated
         probabilities rather than merely correct rankings. That matters here: a credit model
         is judged on whether a stated 2% probability of default happens about 2% of the time,
         which AUC cannot see at all. See ``metrics.py``.
+
+        The pinball (quantile) loss is the continuous analogue: each output column is
+        trained against its own quantile level ``tau`` so that minimising it is, for that
+        column alone, minimised exactly at the ``tau``-quantile of the target's conditional
+        distribution -- the single-column generalisation of what cross-entropy does for a
+        full categorical distribution.
         """
-        logits = self.forward(X, y, n_ctx, n_classes)[:, n_ctx:]
-        return F.cross_entropy(logits.reshape(-1, self.cfg.max_classes), y[:, n_ctx:].reshape(-1))
+        out = self.forward(X, y, n_ctx, n_classes)[:, n_ctx:]
+        if self.cfg.head_type == "quantile":
+            target = y[:, n_ctx:].to(out.dtype).unsqueeze(-1)  # (B, Nq, 1)
+            diff = target - out  # (B, Nq, n_quantiles)
+            taus = self.quantile_taus.to(out.dtype)
+            return torch.maximum(taus * diff, (taus - 1.0) * diff).mean()
+        return F.cross_entropy(out.reshape(-1, self.cfg.max_classes), y[:, n_ctx:].reshape(-1))
 
     def num_parameters(self) -> int:
         """Total trainable parameters.
@@ -564,7 +644,8 @@ class FinancialTFM(nn.Module):
         Args:
             path: Destination file.
             trained_objectives: Names of the objectives this checkpoint was trained on, from
-                ``{"classification", "survival"}``. **Recording this is not bookkeeping.**
+                ``{"classification", "quantile", "survival"}``. **Recording this is not
+                bookkeeping.**
                 The training loop optimises the survival loss *or* the classification loss,
                 never both, so a hazard checkpoint's classification head is still at random
                 initialisation — and ``predict_proba`` on it returned confident nonsense with
@@ -609,7 +690,7 @@ class FinancialTFM(nn.Module):
         """Refuse to serve predictions from a head that was never trained.
 
         Args:
-            objective: ``"classification"`` or ``"survival"``.
+            objective: ``"classification"``, ``"quantile"`` or ``"survival"``.
 
         Raises:
             RuntimeError: If the checkpoint records objectives and this is not among them.

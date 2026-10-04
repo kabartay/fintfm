@@ -59,7 +59,8 @@ class TaskBatch:
 
     Attributes:
         X: ``(B, N, F_max)`` float32 with NaN for missing *and* padded columns.
-        y: ``(B, N)`` int64 labels.
+        y: ``(B, N)`` int64 class labels (``head_type="binned"``), or float32 continuous,
+            context-normalised targets (``head_type="quantile"``) -- see :func:`collate`.
         n_ctx: Number of leading rows in each task that act as labelled context.
             All tasks in a batch share the same split point.
         n_classes: ``(B,)`` int64 number of valid classes per task.
@@ -93,17 +94,33 @@ class TaskBatch:
         )
 
 
-def collate(tasks: list[Task], n_ctx: int, max_features: int) -> TaskBatch:
+def collate(
+    tasks: list[Task], n_ctx: int, max_features: int, head_type: str = "binned"
+) -> TaskBatch:
     """Pad a list of equal-length tasks into a :class:`TaskBatch`.
 
     Args:
-        tasks: Tasks with identical ``n_rows`` and ``n_features <= max_features``.
+        tasks: Tasks with identical ``n_rows`` and ``n_features <= max_features``. Every
+            task must carry ``y_continuous`` when ``head_type="quantile"`` -- that head has
+            no class-index path, so a classification task has nowhere to go.
         n_ctx: Context/query split point.
         max_features: Width to pad feature matrices to.
+        head_type: ``"binned"`` (default) bins a regression task's continuous target into
+            ``t.n_classes`` quantile bins, exactly as before this argument existed.
+            ``"quantile"`` (task 48.3) instead z-scores it using context-row statistics, so
+            ``TaskBatch.y`` carries the normalised continuous target directly rather than a
+            bin index -- the model's pinball-loss head is trained and evaluated in that
+            normalised space, and a caller inverts with the same mean/std at inference.
+
+    Raises:
+        ValueError: If ``head_type`` is unknown, or if ``head_type="quantile"`` meets a task
+            with no continuous target.
     """
+    if head_type not in ("binned", "quantile"):
+        raise ValueError(f"head_type must be 'binned' or 'quantile', got {head_type!r}")
     n_rows = tasks[0].n_rows
     X = np.full((len(tasks), n_rows, max_features), np.nan, dtype=np.float32)
-    y = np.zeros((len(tasks), n_rows), dtype=np.int64)
+    y = np.zeros((len(tasks), n_rows), dtype=np.float32 if head_type == "quantile" else np.int64)
     n_classes = np.zeros(len(tasks), dtype=np.int64)
     with_period = [t.period is not None for t in tasks]
     if any(with_period) and not all(with_period):
@@ -116,6 +133,20 @@ def collate(tasks: list[Task], n_ctx: int, max_features: int) -> TaskBatch:
         if t.n_rows != n_rows:
             raise ValueError("all tasks in a batch must share n_rows")
         X[i, :, : t.n_features] = t.X
+        if t.y_continuous is None and head_type == "quantile":
+            raise ValueError(
+                f"head_type='quantile' only supports regression tasks (Task.y_continuous), "
+                f"got a {t.source!r} task with none -- train with --p-regression 1.0"
+            )
+        if t.y_continuous is not None and head_type == "quantile":
+            # Context-only z-score, the quantile head's analogue of the binned head's
+            # context-only bin edges below: scale invariance without query leakage, since
+            # inference sees context statistics only and never the query targets.
+            ctx_y = t.y_continuous[:n_ctx]
+            mean = float(np.mean(ctx_y))
+            std = float(np.std(ctx_y)) + 1e-6
+            y[i] = (t.y_continuous - mean) / std
+            continue
         if t.y_continuous is not None:
             # **Binning belongs here, not in the prior.** Edges come from the context rows'
             # quantiles, which only this function knows the boundary of (`n_ctx`). Binning in
