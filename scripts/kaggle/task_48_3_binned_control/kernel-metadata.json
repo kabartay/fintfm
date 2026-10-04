@@ -1,0 +1,16 @@
+{
+  "id": "muhakabartay/fintfm-task-48-3-binned-control",
+  "title": "fintfm task 48.3 - matched binned-head control",
+  "code_file": "task_48_3_binned_control.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": "true",
+  "enable_gpu": "true",
+  "enable_tpu": "false",
+  "enable_internet": "true",
+  "machine_shape": "",
+  "dataset_sources": [],
+  "competition_sources": [],
+  "kernel_sources": [],
+  "model_sources": []
+}
