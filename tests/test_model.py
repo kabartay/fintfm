@@ -573,6 +573,100 @@ def test_pre_39_1_shaped_checkpoint_loads(tmp_path):
     model = FinancialTFM.load(str(path))
     assert model.cfg.n_cell_blocks == 0
     assert model.cfg.cell_labels is False
+
+
+def test_mask_embedding_false_is_byte_identical_to_the_pre_48_10_architecture():
+    """Every checkpoint trained before task 48.10 must keep producing the same output."""
+    from fintfm.modeling.model import FinancialTFM, ModelConfig
+
+    base = {
+        "max_features": 8, "max_classes": 3, "d_cell": 16, "d_model": 32, "n_heads": 2,
+        "n_col_layers": 1, "n_layers": 2, "d_ff": 64,
+    }
+    X = torch.randn(2, 10, 8)
+    y = torch.randint(0, 3, (2, 10))
+    nc = torch.tensor([3, 3])
+
+    torch.manual_seed(1)
+    m_old = FinancialTFM(ModelConfig(**base)).eval()
+    torch.manual_seed(1)
+    m_new = FinancialTFM(ModelConfig(**base, mask_embedding=False)).eval()
+
+    with torch.no_grad():
+        a = m_old(X, y, 6, nc, column_id_seed=0)
+        b = m_new(X, y, 6, nc, column_id_seed=0)
+    torch.testing.assert_close(a, b, rtol=0, atol=0)
+    assert not hasattr(m_old, "mask_embed")
+    assert not hasattr(m_old, "value_embed")
+
+
+def test_mask_embedding_true_trains(n_cell_blocks=0):
+    """Shapes, gradients and parameter coverage for task 48.10, before any GPU spend."""
+    from fintfm.modeling.model import FinancialTFM, ModelConfig
+
+    base = {
+        "max_features": 8, "max_classes": 3, "d_cell": 16, "d_model": 32, "n_heads": 2,
+        "n_col_layers": 1, "n_layers": 2, "d_ff": 64,
+    }
+    X = torch.randn(2, 10, 8)
+    y = torch.randint(0, 3, (2, 10))
+    nc = torch.tensor([3, 3])
+
+    torch.manual_seed(2)
+    model = FinancialTFM(ModelConfig(**base, mask_embedding=True))
+    assert not hasattr(model, "cell_embed")
+    out = model(X, y, 6, nc)
+    assert out.shape == (2, 10, 3)
+
+    loss = model.loss(X, y, 6, nc)
+    loss.backward()
+    for name, p in model.named_parameters():
+        assert p.grad is not None, f"{name} received no gradient"
+        assert torch.isfinite(p.grad).all(), f"{name} has a non-finite gradient"
+
+
+def test_mask_embedding_true_differs_from_the_joint_embedding():
+    """The dedicated-embedding path must actually be a different computation, not a no-op
+    that happens to share the same parameter count."""
+    from fintfm.modeling.model import FinancialTFM, ModelConfig
+
+    base = {
+        "max_features": 8, "max_classes": 3, "d_cell": 16, "d_model": 32, "n_heads": 2,
+        "n_col_layers": 1, "n_layers": 2, "d_ff": 64,
+    }
+    X = torch.randn(2, 10, 8)
+    y = torch.randint(0, 3, (2, 10))
+    nc = torch.tensor([3, 3])
+
+    torch.manual_seed(3)
+    m_joint = FinancialTFM(ModelConfig(**base, mask_embedding=False)).eval()
+    torch.manual_seed(3)
+    m_dedicated = FinancialTFM(ModelConfig(**base, mask_embedding=True)).eval()
+
+    with torch.no_grad():
+        a = m_joint(X, y, 6, nc, column_id_seed=0)
+        b = m_dedicated(X, y, 6, nc, column_id_seed=0)
+    assert not torch.allclose(a, b)
+
+
+def test_pre_48_10_shaped_checkpoint_loads(tmp_path):
+    """A checkpoint saved before mask_embedding existed must keep loading, defaulting to the
+    joint-embedding architecture every such checkpoint actually trained with."""
+    from fintfm.modeling.model import FinancialTFM, ModelConfig
+
+    base = {
+        "max_features": 8, "max_classes": 3, "d_cell": 16, "d_model": 32, "n_heads": 2,
+        "n_col_layers": 1, "n_layers": 2, "d_ff": 64,
+    }
+    path = tmp_path / "ckpt.pt"
+    FinancialTFM(ModelConfig(**base)).save(str(path), trained_objectives=("classification",))
+    ckpt = torch.load(str(path), weights_only=True)
+    del ckpt["config"]["mask_embedding"]
+    torch.save(ckpt, str(path))
+
+    model = FinancialTFM.load(str(path))
+    assert model.cfg.mask_embedding is False
+    assert hasattr(model, "cell_embed")
     X, y = torch.randn(1, 10, 8), torch.randint(0, 3, (1, 10))
     with torch.no_grad():
         model(X, y, 6, torch.tensor([3]), column_id_seed=0)  # must not raise

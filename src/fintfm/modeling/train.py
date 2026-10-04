@@ -633,6 +633,13 @@ def main() -> None:
         "pooling; ignored unless --n-cell-blocks > 0 (task 39.2)",
     )
     p.add_argument(
+        "--mask-embedding",
+        action="store_true",
+        help="dedicated missingness embedding (nn.Embedding(2, d_cell), added to a "
+        "value-only embedding) instead of the default joint [value, missing] cell MLP "
+        "(task 48.10)",
+    )
+    p.add_argument(
         "--d-ff",
         type=int,
         default=None,
@@ -678,6 +685,7 @@ def main() -> None:
         column_id_dim=args.column_id_dim,
         n_cell_blocks=args.n_cell_blocks,
         cell_labels=args.cell_labels,
+        mask_embedding=args.mask_embedding,
         d_ff=args.d_ff if args.d_ff is not None else 4 * args.d_model,
         max_features=args.max_features,
         max_classes=args.max_classes,

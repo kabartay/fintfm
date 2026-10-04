@@ -133,6 +133,16 @@ class ModelConfig:
             -- this is additive, so a checkpoint trained with ``cell_labels=False`` differs
             from one trained without any label-throughout mechanism only in this one addition.
             Ignored when ``n_cell_blocks == 0``.
+        mask_embedding: When ``True``, replace the default joint ``[value, missing]`` cell
+            embedding with a dedicated missingness embedding (task 48.10) added to a
+            value-only embedding: ``value_embed(Z) + mask_embed(missing)``, where
+            ``mask_embed`` is an ``nn.Embedding(2, d_cell)`` rather than a second input
+            channel to the same small MLP. ``False`` (default) reproduces every checkpoint
+            trained before this field existed, byte for byte. Task 48.10's premise correction
+            found the existing joint embedding is not naive imputation -- it already learns a
+            value/missingness interaction through two linear layers and a GELU -- so this flag
+            tests the narrower remaining question of whether a *dedicated* embedding table
+            does better than that joint MLP, not whether missingness is encoded at all.
     """
 
     max_features: int = 24
@@ -149,6 +159,7 @@ class ModelConfig:
     n_horizons: int | None = None
     n_cell_blocks: int = 0
     cell_labels: bool = False
+    mask_embedding: bool = False
 
 
 def normalize_features(
@@ -205,11 +216,21 @@ class FinancialTFM(nn.Module):
         # output, so it must not enter a checkpoint or require a load-time backfill. See
         # :attr:`feature_chunk`.
         self.feature_chunk: int | None = None
-        self.cell_embed = nn.Sequential(
-            nn.Linear(2, cfg.d_cell),
-            nn.GELU(),
-            nn.Linear(cfg.d_cell, cfg.d_cell),
-        )
+        if cfg.mask_embedding:
+            # Dedicated missingness embedding (task 48.10), added to a value-only embedding
+            # of matching depth rather than concatenated as a second input channel.
+            self.value_embed = nn.Sequential(
+                nn.Linear(1, cfg.d_cell),
+                nn.GELU(),
+                nn.Linear(cfg.d_cell, cfg.d_cell),
+            )
+            self.mask_embed = nn.Embedding(2, cfg.d_cell)
+        else:
+            self.cell_embed = nn.Sequential(
+                nn.Linear(2, cfg.d_cell),
+                nn.GELU(),
+                nn.Linear(cfg.d_cell, cfg.d_cell),
+            )
         # Random per-task column identities (§54). Resolved here so ``None`` can mean
         # "the sensible default" without the training entry point having to know d_cell.
         self.col_id_dim = (
@@ -403,7 +424,10 @@ class FinancialTFM(nn.Module):
         """
         B, N, Fdim = X.shape
         Z, missing, pad = normalize_features(X, n_ctx)
-        cells = self.cell_embed(torch.stack([Z, missing], dim=-1))  # (B, N, F, d_cell)
+        if self.cfg.mask_embedding:
+            cells = self.value_embed(Z.unsqueeze(-1)) + self.mask_embed(missing.long())
+        else:
+            cells = self.cell_embed(torch.stack([Z, missing], dim=-1))  # (B, N, F, d_cell)
 
         if self.col_id_proj is not None:
             cells = cells + self.col_id_proj(
