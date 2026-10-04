@@ -101,7 +101,13 @@
       is also unexplained — worth checking whether one explanation covers both. Verify: a
       mechanism is proposed AND a measurement distinguishes it from at least one alternative,
       rather than a plausible story being adopted because it fits.
-- [ ] 39.28 **Replicate the ablation at a second seed.** §91 is one run per arm. The effect is
+- [x] 39.28 **Done (§142): replicates almost exactly.** A second `--cell-labels`/no-labels
+      pair at `--seed 1` (trained on Kaggle's free GPU quota after HF Jobs infra trouble lost
+      ~$15 to incomplete runs) lands within 0.002 of every one of §91's six seed-0 numbers,
+      same sign, same order of magnitude: the labelled arm tracks the Bayes ceiling closely at
+      all three targets, the unlabelled arm is inverted below chance at all three. Not a
+      one-run artifact. Original text follows.
+      **Replicate the ablation at a second seed.** §91 is one run per arm. The effect is
       far too large for seed noise, but the project's own record (§60, §82) is that unreplicated
       numbers get quoted as if replicated. Verify: a second `--cell-labels`/no-labels pair at a
       different seed reports the same sign and order of magnitude.

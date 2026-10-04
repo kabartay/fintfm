@@ -145,8 +145,8 @@ remaining move.
    of `marginal-invariance` 43.3-43.5, already closed on the same grounds (§88) -- on cell
    attention the rank transform already pins Bayes-ceiling regret flat across warps, and the
    gap this would recover is ~0.001, not worth a pretraining run.
-7. **Second seed for the §91 ablation** (39.28). One run per arm is not a result, and the
-   sub-chance inversion is load-bearing for the architecture argument.
+7. ~~**Second seed for the §91 ablation.**~~ **Done (§142, 39.28):** a seed-1 pair lands
+   within 0.002 of every one of §91's six seed-0 numbers -- not a one-run artifact.
 
 ## Phase B — the architecture and objective axes
 

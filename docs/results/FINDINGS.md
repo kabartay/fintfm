@@ -9683,3 +9683,51 @@ financial prior rather than alongside it -- none of which this entry tests. Phas
 remaining open question is which of those, if any, is worth the next GPU spend; this result is
 a reason to look for one before mixing at fixed compute again, not a reason to abandon the
 families.
+
+## §142 — §91's below-chance inversion replicates almost exactly at a second seed
+
+**How these numbers were produced.** MEASURED. Task 39.28 (`cell-attention-and-task-inference`),
+closing the last open item in that proposal. §91's exact reference recipe (`--batch-size 8
+--n-rows-choices 256,512,1024 --d-cell 48 --d-model 128 --n-layers 4 --n-col-layers 2
+--n-cell-blocks 1 --column-id-dim 16 --feature-chunk 8 --max-features 136 --p-financial 1.0`,
+6,000 steps), identical pair but for `--cell-labels`, rerun at `--seed 1` instead of §91's
+seed 0. Scored on the same §74 Bayes-ceiling probe (10 draws, `n_ensemble=8`, targets
+0.900/0.990/0.999) used throughout this project for exactly this question.
+
+Trained on Kaggle's free GPU quota (T4x2, `scripts/kaggle/task_39_28_replicate_s91.py`) rather
+than paid HF Jobs compute, after three consecutive HF Jobs launch days lost about $15 to
+infra trouble with no completed run (recorded in `cell-attention-and-task-inference` 39.28's
+prior text and in `CLAUDE.md`). Total wall-clock 7h31m for both arms sequentially, zero cost.
+
+### The result
+
+| `column_id_dim=16` (matched pair) | Bayes 0.900 | 0.990 | 0.999 |
+| --- | --- | --- | --- |
+| **cells + per-cell labels, seed 0 (§91)** | 0.8984 (reg +0.0016) | 0.9882 (reg +0.0018) | 0.9985 (reg +0.0005) |
+| **cells + per-cell labels, seed 1** | 0.8986 (reg +0.0014) | 0.9883 (reg +0.0017) | 0.9985 (reg +0.0005) |
+| **cells only, no labels, seed 0 (§91)** | 0.4575 (reg +0.4425) | 0.4448 (reg +0.5452) | 0.4407 (reg +0.5583) |
+| **cells only, no labels, seed 1** | 0.4561 (reg +0.4439) | 0.4436 (reg +0.5464) | 0.4399 (reg +0.5591) |
+
+Every one of the six numbers lands within 0.002 of its §91 counterpart. The labelled arm's
+near-perfect tracking of the Bayes ceiling and the unlabelled arm's below-chance inversion
+both reproduce at a seed with no relationship to the first.
+
+As in §91, the unlabelled run's own training-distribution held-out metric gave no warning:
+AUC/task climbed to 0.662 by step 6000 with a positive Brier skill, the identical
+dissociation §91 first documented and `CLAUDE.md`'s own "held-out metric computed on the
+training prior is not a check" rule exists to prevent being fooled by again.
+
+### What this settles
+
+**§91's finding is not a one-run artifact.** Two-way cell attention without per-cell labels
+produces a systematically inverted predictor, not a noisy or occasionally-bad one, and this
+holds at a seed sharing nothing with the one that discovered it. The two architectural changes
+bundled in §80's original +0.049 AP result remain jointly necessary, not separable, now on
+stronger evidence than the single-run measurement this project's own record (§60, §82) warns
+against trusting.
+
+### Where this leaves the roadmap
+
+Closes task 39.28 and the last open item of `cell-attention-and-task-inference`. No new
+direction follows from replicating an already-acted-on finding; this closes the proposal
+rather than opening one.
