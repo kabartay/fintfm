@@ -59,6 +59,61 @@ class TrainConfig:
     #: before §81 trained with; it is also what made §78's run OOM on a T4 and forced that
     #: finding's documented protocol deviation (§79).
     feature_chunk: int | None = None
+    #: ``"adamw"`` (default, cosine-annealed) or ``"schedulefree"`` (task 48.9, Defazio et al.,
+    #: NeurIPS 2024). The cosine schedule is a function of the full step budget
+    #: (:func:`_lr_schedule`), which is what makes AdamW's run length a real operational
+    #: constraint rather than a hyperparameter -- §108's matched-task rerun had to start fresh
+    #: rather than resume, because a 6,000-step schedule cannot be extended to 12,000 without
+    #: annealing the second half toward a rate that has already reached zero. Schedule-free
+    #: carries its own internal warmup/averaging and needs no external curve, so a run under
+    #: it can be resumed against a *larger* total step count -- the ``requires schedulefree``
+    #: extra must be installed.
+    optimizer: str = "adamw"
+
+
+class _NullSchedule:
+    """No-op stand-in for ``torch.optim.lr_scheduler`` when the optimiser needs no schedule.
+
+    Schedule-free optimisers carry their own internal warmup and need no external LR curve.
+    Standing in for one keeps every scheduler call site in the training loop uniform across
+    both optimiser choices, rather than branching on the choice at every call.
+    """
+
+    def __init__(self, lr: float) -> None:
+        self._lr = lr
+
+    def step(self) -> None:
+        """No-op: schedule-free optimisers need no external step."""
+
+    def get_last_lr(self) -> list[float]:
+        """Return the constant base rate, for the training loop's progress log."""
+        return [self._lr]
+
+    def state_dict(self) -> dict:
+        """Return an empty state; there is no schedule position to carry across a resume."""
+        return {}
+
+    def load_state_dict(self, state: dict) -> None:
+        """No-op: nothing to restore."""
+
+
+def _set_optimizer_mode(opt: torch.optim.Optimizer, optimizer_name: str, mode: str) -> None:
+    """Switch a schedule-free optimiser between its fast and averaged weights.
+
+    Schedule-free optimisers maintain two weight sequences: a fast-moving one used while
+    training (``opt.train()``) and a Polyak-averaged one that should be active whenever the
+    model is evaluated or saved (``opt.eval()``) -- saving or scoring the fast sequence would
+    silently report a noisier model than the one actually being trained toward. A no-op for
+    plain AdamW, which has no such distinction, so call sites need not branch on the optimiser
+    choice themselves.
+
+    Args:
+        opt: The optimiser in use.
+        optimizer_name: :attr:`TrainConfig.optimizer`.
+        mode: ``"train"`` or ``"eval"``.
+    """
+    if optimizer_name == "schedulefree":
+        getattr(opt, mode)()
 
 
 def _lr_schedule(step: int, cfg: TrainConfig) -> float:
@@ -212,6 +267,7 @@ def _save_training_state(
     step: int,
     objectives: set[str],
     total_steps: int,
+    optimizer_name: str = "adamw",
 ) -> None:
     """Write everything needed to continue a run, not just the weights.
 
@@ -232,8 +288,11 @@ def _save_training_state(
             resumed run must not claim an objective it never trained (see
             :meth:`FinancialTFM.save`).
         total_steps: The schedule length this run was planned against. Resuming with a
-            different value would silently change the learning-rate curve, so it is recorded
-            and checked.
+            different value would silently change the learning-rate curve under AdamW, so it
+            is recorded and checked; schedule-free has no such curve and the check is skipped.
+        optimizer_name: :attr:`TrainConfig.optimizer`. Recorded so a resume cannot silently
+            load one optimiser's state into the other, which would corrupt training without
+            raising -- AdamW's and schedule-free's state dicts carry different keys.
     """
     torch.save(
         {
@@ -246,6 +305,7 @@ def _save_training_state(
             "step": step,
             "objectives": sorted(objectives),
             "total_steps": total_steps,
+            "optimizer_name": optimizer_name,
         },
         path,
     )
@@ -260,8 +320,14 @@ def train(
     model = FinancialTFM(model_cfg).to(train_cfg.device)
     model.feature_chunk = train_cfg.feature_chunk
     print(f"model parameters: {model.num_parameters():,}")
-    opt = torch.optim.AdamW(model.parameters(), lr=train_cfg.lr)
-    sched = torch.optim.lr_scheduler.LambdaLR(opt, lambda s: _lr_schedule(s, train_cfg))
+    if train_cfg.optimizer == "schedulefree":
+        import schedulefree
+
+        opt = schedulefree.AdamWScheduleFree(model.parameters(), lr=train_cfg.lr)
+        sched: torch.optim.lr_scheduler.LRScheduler = _NullSchedule(train_cfg.lr)  # type: ignore[assignment]
+    else:
+        opt = torch.optim.AdamW(model.parameters(), lr=train_cfg.lr)
+        sched = torch.optim.lr_scheduler.LambdaLR(opt, lambda s: _lr_schedule(s, train_cfg))
     t0 = time.time()
     running = 0.0
     # recorded into the checkpoint: the two objectives are exclusive per step, so a hazard
@@ -271,10 +337,20 @@ def train(
     start_step = 0
     if train_cfg.resume is not None:
         state = torch.load(train_cfg.resume, map_location=train_cfg.device, weights_only=False)
-        if state["total_steps"] != train_cfg.steps:
+        saved_optimizer = state.get("optimizer_name", "adamw")
+        if saved_optimizer != train_cfg.optimizer:
+            # The two optimisers' state dicts carry different keys; loading one into the
+            # other would corrupt training silently rather than raise on its own.
+            raise ValueError(
+                f"{train_cfg.resume} was trained with optimizer={saved_optimizer!r}, but "
+                f"--optimizer is {train_cfg.optimizer!r}."
+            )
+        if train_cfg.optimizer == "adamw" and state["total_steps"] != train_cfg.steps:
             # The cosine schedule is a function of total steps, so resuming against a
             # different total silently trains under a different curve than the one the
             # earlier steps used. Refuse rather than produce a run nobody can interpret.
+            # Schedule-free carries no such curve, so this is the one check task 48.9 lifts --
+            # extending past the original total steps is the property it exists to test.
             raise ValueError(
                 f"{train_cfg.resume} was written for a {state['total_steps']}-step schedule, "
                 f"but --steps is {train_cfg.steps}. Pass --steps {state['total_steps']} to "
@@ -294,6 +370,7 @@ def train(
     stop_step = train_cfg.steps
     if train_cfg.run_steps is not None:
         stop_step = min(train_cfg.steps, start_step + train_cfg.run_steps)
+    _set_optimizer_mode(opt, train_cfg.optimizer, "train")
     for step in range(start_step, stop_step):
         batch = sample_batch(rng, prior_cfg, train_cfg.batch_size).to(train_cfg.device)
         # survival objective when the model has a hazard head and the prior emits periods
@@ -319,6 +396,7 @@ def train(
         if train_cfg.checkpoint_every and (step + 1) % train_cfg.checkpoint_every == 0:
             # written to a sibling path, not out_path: a run killed *during* a save would
             # otherwise leave a truncated file where the final checkpoint belongs
+            _set_optimizer_mode(opt, train_cfg.optimizer, "eval")
             partial = f"{out_path}.step{step + 1}"
             model.save(partial, trained_objectives=tuple(sorted(objectives)))
             _save_training_state(
@@ -330,18 +408,31 @@ def train(
                 step + 1,
                 objectives,
                 train_cfg.steps,
+                optimizer_name=train_cfg.optimizer,
             )
+            _set_optimizer_mode(opt, train_cfg.optimizer, "train")
             print(f"  checkpoint at step {step + 1}: {partial}", flush=True)
         if (step + 1) % train_cfg.eval_every == 0:
+            _set_optimizer_mode(opt, train_cfg.optimizer, "eval")
             q = _eval_quality(model, prior_cfg, rng, batch_size=train_cfg.batch_size)
+            _set_optimizer_mode(opt, train_cfg.optimizer, "train")
             print(
                 f"  held-out: AUC/task {q['auc_per_task']:.3f}  AUC pooled {q['auc']:.3f}"
                 f"  Brier skill vs base rate {q['brier_skill']:+.3f}"
                 f"  (base rate {q['base_rate']:.3f})"
             )
+    _set_optimizer_mode(opt, train_cfg.optimizer, "eval")
     model.save(out_path, trained_objectives=tuple(sorted(objectives)))
     _save_training_state(
-        f"{out_path}.state", model, opt, sched, rng, stop_step, objectives, train_cfg.steps
+        f"{out_path}.state",
+        model,
+        opt,
+        sched,
+        rng,
+        stop_step,
+        objectives,
+        train_cfg.steps,
+        optimizer_name=train_cfg.optimizer,
     )
     print(f"saved checkpoint to {out_path}")
     if stop_step < train_cfg.steps:
@@ -565,6 +656,15 @@ def main() -> None:
         help="save every N steps as well as at the end; 0 disables. Essential for any run "
         "long enough that losing it would hurt",
     )
+    p.add_argument(
+        "--optimizer",
+        type=str,
+        default="adamw",
+        choices=["adamw", "schedulefree"],
+        help="'adamw' (default, cosine-annealed) or 'schedulefree' (task 48.9, needs the "
+        "schedulefree extra: uv sync --extra schedulefree); the latter carries no external "
+        "LR curve, so a run under it can be resumed past its original --steps",
+    )
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--out", type=str, default="runs/v0.pt")
     p.add_argument("--config", type=str, default=None, help="YAML overriding the defaults")
@@ -639,6 +739,7 @@ def main() -> None:
         feature_chunk=args.feature_chunk,
         run_steps=args.run_steps,
         resume=args.resume,
+        optimizer=args.optimizer,
     )
     print(f"config: {cfg.provenance()}")
     train(model_cfg, prior_cfg, train_cfg, args.out)

@@ -58,6 +58,13 @@ kaggle = [
     "pyarrow>=17",
 ]
 
+# Schedule-free optimisation (task 48.9, Defazio et al., NeurIPS 2024), behind --optimizer
+# schedulefree. Apache-2.0. Not a core dependency since the cosine-schedule AdamW default
+# needs none of it.
+schedulefree = [
+    "schedulefree>=1.4",
+]
+
 [project.urls]
 Homepage = "https://github.com/kabartay/fintfm"
 Repository = "https://github.com/kabartay/fintfm"
