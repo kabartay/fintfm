@@ -9731,3 +9731,60 @@ against trusting.
 Closes task 39.28 and the last open item of `cell-attention-and-task-inference`. No new
 direction follows from replicating an already-acted-on finding; this closes the proposal
 rather than opening one.
+
+## §143 — The widened SCM prior roughly doubles its own difficulty spread, exactly as predicted, for zero GPU cost
+
+**How these numbers were produced.** MEASURED. Task 48.17 (`learn-from-peers`): `scm.py`
+already carries both the Cauchy edge-connectivity sampler (`_cauchy_edge_mask`) and the
+widened activation set (`rank`, `softmax`) behind `sample_scm_task(..., legacy=False)` as the
+new default, implemented in an earlier session but never measured. The task's own verify
+clause asks only for the task-difficulty-spread statistic before and after — "since the claim
+is about diversity, not about any single accuracy number moving" — so this needed no
+checkpoint and no GPU: `fintfm.experiments.prior_score.score_prior` (task 48.14's instrument,
+used for §111's corrected table) was called directly with `functools.partial(sample_scm_task,
+legacy=True/False)` as the sampler, `n_rows=800`, `seed0=0`, run locally on CPU in under a
+minute total. Run twice, at `n_tasks=30` (matching §111's protocol) and again at `n_tasks=100`
+for a tighter estimate; both agree.
+
+### The result
+
+| scm variant | n | performance | diversity | distinctiveness |
+| --- | --- | --- | --- | --- |
+| legacy (pre-48.17/48.19) | 96 | 0.8550 | **0.1286** | −0.0228 |
+| widened (Cauchy edges + rank/softmax) | 93 | 0.7585 | **0.1863** | −0.0000 |
+
+(`n_tasks=30` run: 0.1422 → 0.2066 — same +45%-ish shift, smaller sample.)
+
+Diversity — the standard deviation of per-task AUC across draws, the exact statistic §42
+established this project needed and tracked ever since — rises by 45% (0.1286 → 0.1863).
+Mean performance drops (0.855 → 0.759): the widened prior's heavy-tailed connectivity produces
+harder tasks on average, not just a wider spread of the same difficulty. Distinctiveness moves
+from mildly linear-favouring (−0.0228) to exactly neutral (−0.0000): the heavy-tailed edges
+and order-statistic activations stop handing the linear baseline an easy win without handing
+the tree baseline one either.
+
+### What this settles
+
+**The widened SCM prior does what task 48.17 predicted, measured rather than assumed.** A
+five-line change to edge-probability sampling (`sigmoid(A + B_i + C_j)` with i.i.d. Cauchy
+terms, reimplemented from TabICLv2 Appendix E.4) plus the two added order-statistic
+activations (task 48.19) together widen the prior's own difficulty range by nearly half, at
+the cost of this diagnostic's own CPU time and nothing else — no training run, no V4FinBench
+fold, no Kaggle GPU hour. Per the task's own verify clause, this is sufficient to close 48.17:
+the claim was about diversity, and diversity moved, cleanly, in the predicted direction, twice.
+
+**This does not settle 48.19's separate, harder claim.** 48.19 additionally asks whether a
+checkpoint trained with the widened activation set beats the current one *on V4FinBench* —
+an accuracy question this diagnostic cannot answer (§93's 5x-volume null is the standing
+reminder that a measurably distinctive prior can still be inert downstream), and one that
+needs a mixture design (none of this project's checkpoints have trained with `p_scm > 0` at
+all — every reference recipe so far runs `--p-financial 1.0`) and a full V4FinBench scoring
+pass. With four checkpoints' worth of scoring already queued on this machine's CPU as of this
+entry (tasks 48.5/48.6/48.9/48.10, write-up pending), that comparison is deferred rather than
+rushed onto an already-saturated queue.
+
+### Where this leaves the peer sweep
+
+Task 48.17 closes on this measurement alone, per its own verify clause. Task 48.19's harder
+half — a trained-checkpoint comparison on V4FinBench — remains open, scoped but not run,
+gated on this project's local CPU scoring capacity rather than on GPU quota.

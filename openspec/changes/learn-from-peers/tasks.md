@@ -218,7 +218,15 @@
       runs already in `runs/`, predict the untried points on the `column_id_dim` curve absent
       from §104's five, and check the surrogate's prediction against a real run before trusting
       it on anything expensive.
-- [ ] 48.17 **Randomise the SCM prior's graph connectivity, not just its weights.**
+- [x] 48.17 **Done: measured via `prior_score.score_prior`, zero GPU cost (§143).** Diversity
+      (the per-task AUC spread §42 tracks) rises from 0.1286 (legacy) to 0.1863 (widened), a
+      45% increase, reproduced at two sample sizes. Mean performance drops (harder tasks on
+      average, not just a wider spread of the same difficulty) and distinctiveness moves from
+      mildly linear-favouring to exactly neutral. Per this task's own verify clause — the claim
+      is about diversity, not any accuracy number — this closes the task without a training run.
+      48.19's separate accuracy claim (a trained checkpoint vs V4FinBench) remains open and is
+      not settled by this measurement. Original text follows.
+      **Randomise the SCM prior's graph connectivity, not just its weights.**
       `sample_scm_task` draws a fixed-depth layered graph with independent sparse edges;
       TabICLv2 (arXiv:2602.11139, Appendix E.4) samples edge probability as
       `sigmoid(A + B_i + C_j)` with `A, B_i, C_j` drawn i.i.d. standard Cauchy — heavy tails
