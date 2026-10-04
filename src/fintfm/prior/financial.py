@@ -325,6 +325,10 @@ def sample_financial_task(
     sharpness_min: float = _SHARPNESS_MIN,
     sharpness_max: float = _SHARPNESS_MAX,
     identity_shuffle: bool = False,
+    discretize_frac: float = 0.0,
+    n_noise_features: int = 0,
+    n_correlated_block_features: int = 0,
+    label_noise_rate: float = 0.0,
 ) -> Task:
     """Sample one synthetic corporate-default classification task.
 
@@ -368,6 +372,22 @@ def sample_financial_task(
         run can vary the envelope from configuration (``prior`` in
         ``fintfm/configs/default.yaml``) without editing code, and so a test can drive an
         extreme envelope without monkey-patching a module global.
+
+        discretize_frac / n_noise_features / n_correlated_block_features / label_noise_rate:
+            Four cheap realism augmentations Nori lists (task 48.6), each independently
+            flagged and zero by default so a gain is attributable to one augmentation rather
+            than to the bundle. ``discretize_frac`` replaces that fraction of exposed columns
+            (chosen at random) with their own 5-quantile-bin means, mimicking the coarse
+            buckets a real filing sometimes reports instead of a continuous figure.
+            ``n_noise_features`` appends that many additional pure-Gaussian columns with no
+            relation to any driver or the label, beyond the 0-4 the prior already adds
+            unconditionally. ``n_correlated_block_features`` appends that many near-duplicates
+            of one shared source column (small multiplicative/additive noise around a common
+            root), a tighter block than the existing redundant-column logic's independent
+            per-column source draw. ``label_noise_rate`` flips that fraction of labels after
+            they are otherwise finalised -- including, when survival labels are in use,
+            keeping ``period`` consistent with the flipped label by the same rule the
+            single-class guarantee above already applies.
 
     Returns:
         A binary :class:`Task` whose columns are a random subset of financial quantities with
@@ -522,6 +542,15 @@ def sample_financial_task(
             period[flip] = np.where(
                 y[flip] == 1, rng.integers(0, n_horizons, size=len(flip)), -1
             )
+    if label_noise_rate > 0.0:
+        noisy = rng.random(n_rows) < label_noise_rate
+        y = np.where(noisy, 1 - y, y).astype(np.int64)
+        if period is not None:
+            period = np.where(
+                noisy,
+                np.where(y == 1, rng.integers(0, n_horizons, size=n_rows), -1),
+                period,
+            )
     # --- observation model ---------------------------------------------------
     # identity_shuffle (§67-§71, task 38.11): the exposed candidates and ratio family are
     # built from `acc_x`, an independently-per-account-permuted copy of the true `acc`, when
@@ -615,6 +644,41 @@ def sample_financial_task(
     # normalisation. Replace non-finite with a large finite sentinel of the right sign.
     X = np.nan_to_num(X, nan=np.nan, posinf=1e12, neginf=-1e12)
     X = np.clip(X, -1e12, 1e12)
+    # --- cheap realism augmentations (task 48.6), each independently flagged ---------------
+    if discretize_frac > 0.0:
+        n_disc = min(X.shape[1], round(discretize_frac * X.shape[1]))
+        for j in rng.choice(X.shape[1], size=n_disc, replace=False):
+            col = X[:, j]
+            finite = col[np.isfinite(col)]
+            if finite.size < 10 or np.ptp(finite) < 1e-12:
+                continue
+            edges = np.quantile(finite, np.linspace(0.0, 1.0, 6))
+            bin_idx = np.clip(np.searchsorted(edges[1:-1], col), 0, 4)
+            bin_means = np.array(
+                [col[bin_idx == b].mean() if np.any(bin_idx == b) else 0.0 for b in range(5)]
+            )
+            X[:, j] = bin_means[bin_idx]
+    # `collate` requires n_features <= max_features with no truncation (`prior/base.py`), so
+    # added width is capped by remaining room exactly like the redundant-column block above.
+    room = max(0, max_features - X.shape[1])
+    n_noise_add = min(n_noise_features, room)
+    if n_noise_add > 0:
+        X = np.concatenate([X, rng.normal(0, 1, size=(n_rows, n_noise_add))], axis=1)
+        cats.extend([False] * n_noise_add)
+        room -= n_noise_add
+    n_block_add = min(n_correlated_block_features, room)
+    if n_block_add > 0:
+        src = X[:, int(rng.integers(X.shape[1]))]
+        src_std = np.nanstd(src) + 1e-9
+        block = np.stack(
+            [
+                src * rng.normal(1, 0.1) + rng.normal(0, 0.1 * src_std, n_rows)
+                for _ in range(n_block_add)
+            ],
+            axis=1,
+        )
+        X = np.concatenate([X, block], axis=1)
+        cats.extend([False] * n_block_add)
     # missingness: MCAR everywhere plus MNAR concentrated on distressed firms
     mcar = rng.uniform(0.0, 0.15)
     mask = rng.random(X.shape) < mcar

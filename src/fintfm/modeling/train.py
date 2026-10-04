@@ -440,6 +440,34 @@ def main() -> None:
         "leaving the label and each column's marginal untouched",
     )
     p.add_argument(
+        "--discretize-frac",
+        type=float,
+        default=0.0,
+        help="fraction of a financial task's exposed columns to replace with their own "
+        "5-quantile-bin means (task 48.6, Nori's 'discretized features')",
+    )
+    p.add_argument(
+        "--n-noise-features",
+        type=int,
+        default=0,
+        help="pure-Gaussian columns appended to every financial task, beyond the prior's "
+        "existing unconditional 0-4 (task 48.6, Nori's 'noise features')",
+    )
+    p.add_argument(
+        "--n-correlated-block-features",
+        type=int,
+        default=0,
+        help="near-duplicate columns of one shared source appended to every financial task "
+        "(task 48.6, Nori's 'correlated blocks')",
+    )
+    p.add_argument(
+        "--label-noise-rate",
+        type=float,
+        default=0.0,
+        help="fraction of labels flipped after being finalised, on every financial task "
+        "(task 48.6, Nori's 'label noise')",
+    )
+    p.add_argument(
         "--p-financial",
         type=float,
         default=None,
@@ -588,6 +616,10 @@ def main() -> None:
         p_task_family=args.p_task_family,
         p_regression=args.p_regression,
         identity_shuffle=args.identity_shuffle,
+        discretize_frac=args.discretize_frac,
+        n_noise_features=args.n_noise_features,
+        n_correlated_block_features=args.n_correlated_block_features,
+        label_noise_rate=args.label_noise_rate,
         # the default-rate envelope comes from configuration, because a prior that cannot
         # generate the regime being evaluated is the defect behind docs/results/FINDINGS.md §26
         sharpness_min=cfg.prior.sharpness_min,

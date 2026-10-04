@@ -102,6 +102,11 @@ class PriorConfig:
             identities (``equity = assets - liabilities``) while leaving the label and each
             column's own marginal distribution untouched. Diagnostic for ``docs/results/FINDINGS.md``
             §67-§71 (task 38.11); default False reproduces every prior checkpoint's behaviour.
+        discretize_frac / n_noise_features / n_correlated_block_features / label_noise_rate:
+            Four cheap realism augmentations Nori lists (task 48.6), passed straight through
+            to every financial task drawn; see :func:`fintfm.prior.financial.sample_financial_task`
+            for what each does. All zero/off by default, reproducing every prior checkpoint's
+            behaviour.
         p_regression: Probability of drawing a **regression** task instead — the SCM prior's
             continuous latent kept rather than thresholded, binned on context quantiles by
             :func:`fintfm.prior.base.collate`. Mixing freely with classification tasks in one
@@ -161,6 +166,10 @@ class PriorConfig:
     p_task_family: float = 0.0
     p_regression: float = 0.0
     identity_shuffle: bool = False
+    discretize_frac: float = 0.0
+    n_noise_features: int = 0
+    n_correlated_block_features: int = 0
+    label_noise_rate: float = 0.0
     n_rows: int = 256
     min_ctx_frac: float = 0.3
     max_ctx_frac: float = 0.9
@@ -246,6 +255,10 @@ def sample_task(rng: np.random.Generator, cfg: PriorConfig, n_rows: int | None =
             max_features=cfg.max_features,
             n_horizons=cfg.n_horizons,
             identity_shuffle=cfg.identity_shuffle,
+            discretize_frac=cfg.discretize_frac,
+            n_noise_features=cfg.n_noise_features,
+            n_correlated_block_features=cfg.n_correlated_block_features,
+            label_noise_rate=cfg.label_noise_rate,
             min_expected_positives=cfg.min_expected_positives,
             absolute_rate_floor=cfg.absolute_rate_floor,
             rate_ceiling=cfg.rate_ceiling,

@@ -266,3 +266,72 @@ def test_reuse_graph_defaults_to_one():
     from fintfm.prior.mixture import PriorConfig
 
     assert PriorConfig.scm_reuse_graph == 1
+
+
+def test_realism_augmentations_are_off_by_default():
+    # Every prior checkpoint trained before task 48.6 must see unchanged behaviour.
+    cfg = PriorConfig()
+    assert cfg.discretize_frac == 0.0
+    assert cfg.n_noise_features == 0
+    assert cfg.n_correlated_block_features == 0
+    assert cfg.label_noise_rate == 0.0
+
+
+def test_discretize_frac_collapses_values_into_few_distinct_levels():
+    rng_on = np.random.default_rng(0)
+    task = sample_financial_task(rng_on, n_rows=500, max_features=24, discretize_frac=1.0)
+    # Every exposed column was requested for discretisation; each should see far fewer than
+    # 500 distinct finite values, the signature of quantile-bin collapse.
+    for j in range(task.n_features):
+        col = task.X[:, j]
+        finite = col[np.isfinite(col)]
+        if finite.size < 10:
+            continue
+        assert len(np.unique(finite)) <= 6
+
+
+def test_n_noise_features_adds_width_capped_by_room():
+    rng = np.random.default_rng(0)
+    task = sample_financial_task(rng, n_rows=200, max_features=24, n_noise_features=0)
+    base_width = task.n_features
+
+    rng = np.random.default_rng(0)
+    task_more = sample_financial_task(
+        rng, n_rows=200, max_features=24, n_noise_features=100
+    )
+    # Capped by the room under max_features, never exceeding it (collate requires this).
+    assert task_more.n_features <= 24
+    assert task_more.n_features >= base_width
+
+
+def test_n_correlated_block_features_adds_width_capped_by_room():
+    rng = np.random.default_rng(0)
+    task = sample_financial_task(
+        rng, n_rows=200, max_features=24, n_correlated_block_features=100
+    )
+    assert task.n_features <= 24
+
+
+def test_label_noise_rate_flips_a_measurable_fraction_of_labels():
+    rng_clean = np.random.default_rng(0)
+    clean = sample_financial_task(rng_clean, n_rows=4000, max_features=16)
+
+    rng_noisy = np.random.default_rng(0)
+    noisy = sample_financial_task(
+        rng_noisy, n_rows=4000, max_features=16, label_noise_rate=0.3
+    )
+    # Same seed, same features/drivers up to the label-noise draw -- the flip fraction should
+    # land near the requested rate, not exactly (the single-class guarantee can also flip a
+    # few), and must be far from zero.
+    frac_different = float(np.mean(clean.y != noisy.y))
+    assert frac_different > 0.1
+
+
+def test_label_noise_rate_zero_reproduces_unflipped_labels():
+    rng = np.random.default_rng(0)
+    base = sample_financial_task(rng, n_rows=500, max_features=16)
+    rng = np.random.default_rng(0)
+    explicit_zero = sample_financial_task(
+        rng, n_rows=500, max_features=16, label_noise_rate=0.0
+    )
+    assert np.array_equal(base.y, explicit_zero.y)
