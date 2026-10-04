@@ -17,7 +17,15 @@
       against a field norm near 0.1. **A configuration that cannot finish the benchmark is not a
       candidate regardless of its accuracy**, so the feasibility answer arrived before the
       accuracy question could be asked.
-- [ ] 48.2 **Recalibrate the scaling expectation in writing, before spending more GPU on it.**
+- [x] 48.2 **Done: already satisfied by `docs/roadmap/STRATEGY.md`'s "What this revision
+      overturns" table.** That table restates the old 10-50M-parameter Phase 1 target, cites
+      Nori's published scaling curve beside it (6M→100M for +0.0049 R², a 16.7x increase
+      against this project's own 0.035 deficit — §114), and revises rather than defends:
+      marked "**Withdrawn 2026-09-22**", with §93's 5x-volume null and §114's matched-task 5.7x
+      parameter null as the other two legs. This task's verify clause asks for exactly that
+      restate-beside-the-curve-and-revise-or-defend move, which the existing document already
+      performs; nothing new needed writing. Original text follows.
+      **Recalibrate the scaling expectation in writing, before spending more GPU on it.**
       Verify: `docs/roadmap/STRATEGY.md`'s Phase 1 target of 10–50M parameters is restated with Nori's
       published curve beside it, and either defended with a reason the return should be larger
       here or revised. A target inherited from a plan written before any scaling evidence
