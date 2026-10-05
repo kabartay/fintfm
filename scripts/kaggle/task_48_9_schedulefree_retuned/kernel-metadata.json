@@ -1,0 +1,16 @@
+{
+  "id": "muhakabartay/fintfm-task-48-9-schedulefree-retuned",
+  "title": "fintfm task 48.9 - schedule-free retuned at package defaults",
+  "code_file": "task_48_9_schedulefree_retuned.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": "true",
+  "enable_gpu": "true",
+  "enable_tpu": "false",
+  "enable_internet": "true",
+  "machine_shape": "",
+  "dataset_sources": [],
+  "competition_sources": [],
+  "kernel_sources": [],
+  "model_sources": []
+}
