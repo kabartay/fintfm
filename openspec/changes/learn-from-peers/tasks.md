@@ -159,7 +159,14 @@
       (e.g. a dim-`d_cell` lookup added to the value embedding, closer to Nori's description)
       beat the current linear-combination encoding -- which would need a matched-compute
       pretraining run to measure and has not been scoped.
-- [ ] 48.11 **Record the Bitter-Lesson critique against this project's own effort allocation.**
+- [x] 48.11 **Done: recorded as `docs/design/DECISIONS.md` D16.** The record is now seven
+      measured architecture/prior-mechanism levers, seven nulls or losses (§93, §108, §144,
+      §145, §146, §147, §148), zero wins — not a curated selection, the complete set this
+      project has pretrained a checkpoint to test. What this project believes it gets in
+      exchange (auditability, D2/D14) is stated plainly, and three falsifying observations are
+      named, one of them (an eighth pre-registered lever also nulling) directly actionable.
+      Original text follows.
+      **Record the Bitter-Lesson critique against this project's own effort allocation.**
       TabDPT's appendix concludes that compute and high-quality data matter more than
       architectural manipulation. This project has spent its effort on architecture (§54, §104,
       §44) while §93 (5× data) and §108 (5.7× parameters) both returned nulls or losses, and it

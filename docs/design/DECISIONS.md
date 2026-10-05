@@ -437,3 +437,70 @@ confirms §102's pattern transfers (minority fraction is the real lever, `docs/r
 condition B should be restated in those terms) or shows V4FinBench's gap also widens on its
 smallest folds (the small-data thesis loses its strongest piece of indirect support and
 `docs/roadmap/STRATEGY.md` should say so rather than continue to assume it).
+
+## D16 — The Bitter-Lesson critique against this project's own effort allocation (task 48.11)
+
+**Date:** 2026-10-05. **Status:** active; names the trade rather than resolving it.
+
+TabDPT's appendix states the field's version of Sutton's Bitter Lesson plainly: compute and
+high-quality data matter more than architectural manipulation, and a lot of published
+tabular-foundation-model work amounts to the latter. This project's own record now makes the
+critique concrete rather than abstract, and the concrete version is harder to wave away.
+
+**The score, stated once, in one place.** Every lever this project has pulled on the
+architecture/prior-mechanism side, with its measured return:
+
+| lever | result |
+| --- | --- |
+| 5x training-task volume (§93) | −0.0012 AP, null |
+| 5.7x parameters at matched tasks (§108) | −0.0077 AP, a loss |
+| learnability filter on the prior, full strength (§145) | −0.0106 AP, a loss |
+| cheap realism augmentations, bundled (§144) | −0.0035 AP, noise with a negative lean |
+| schedule-free optimisation, untuned (§146) | −0.0180 AP, a loss (confound found, §146's addendum) |
+| dedicated mask embedding (§147) | −0.0312 AP, a clean loss |
+| pinball quantile head vs. binned head (§148) | small negative lean, premise not confirmed |
+
+Seven measured changes, seven nulls or losses, zero wins. This is not a curated selection —
+it is the complete record of every architecture/prior lever this project has pretrained a
+checkpoint to test. **What this project has spent its effort on is exactly the category
+TabDPT's appendix names as the lower-return one**, and the data confirms the appendix's claim
+about this architecture specifically, not just in general.
+
+**What this project believes it gets in exchange, stated so it can be checked against
+evidence rather than assumed.** Not raw accuracy — nothing above claims that. The bet (D2,
+D14) is that synthetic-only, architecturally-legible pretraining buys **auditability**: a
+model that provably never saw real data cannot have memorised a benchmark, which is the
+property this project's target buyer (a bank's compliance review, per `docs/roadmap/STRATEGY.md`)
+is claimed to value enough to accept whatever the architecture-tinkering nulls above cost in
+raw rank. That is the actual trade this project is making, and it is not the same trade as
+"architecture work will eventually find a win" — this file's own position is closer to "we
+accept architecture work is low-expected-value and are paying for something else."
+
+**What would show the trade is not worth it — the falsification this critique needs to not be
+a slogan.** Three observations, any one sufficient:
+
+1. **A real customer engagement is lost or blocked specifically on an accuracy gap this
+   architecture family's own compute/data levers (more real data, bigger pretraining budget)
+   would close, and auditability is not raised as a mitigating factor by the buyer.** This
+   would mean the auditability premium this project is pricing in does not exist at the price
+   this project is paying for it.
+2. **A size/minority-fraction slice of V4FinBench (D15's own open reversal condition) shows
+   this architecture's gap against gradient boosting is driven by something data volume would
+   fix** — not architecture, not prior mechanism — which would mean the lever this project is
+   locked out of (real data, D2/D14) is the one that actually matters, and no amount of
+   further architecture tinkering of the kind §93-§148 tried can substitute for it.
+3. **An eighth architecture or prior-mechanism lever, chosen in advance rather than
+   post-selected, also returns a null or loss.** Seven failures could still be seven unlucky
+   draws from a distribution with real wins in it; an eighth failure, pre-registered rather
+   than cherry-picked, is the point at which "we haven't found the right lever yet" stops
+   being an available excuse and "this category of lever has a low ceiling here" becomes the
+   better-supported reading.
+
+**What this does not settle.** D2's reversal condition (a licence-clean real panel at scale)
+remains the only route to the lever this project is locked out of, and nothing here changes
+that it has not appeared. This decision does not recommend abandoning architecture work
+either — Phase A'/Phase C's remaining items (§110, §114's own open half, task 48.19) are
+still worth their now-small marginal cost, since the infrastructure to test them already
+exists and the tests themselves are cheap. It only names, plainly, that the project's actual
+track record on this axis is seven losses and no wins, so the next one should be evaluated
+against that base rate rather than against hope.
