@@ -30,7 +30,17 @@
       published curve beside it, and either defended with a reason the return should be larger
       here or revised. A target inherited from a plan written before any scaling evidence
       existed should not survive contact with evidence merely because it is in the document.
-- [ ] 48.3 **Replace the binned head's fixed resolution with a quantile head.** §106 states the
+- [x] 48.3 **Done: measured a small, consistent negative lean, not the clean win the premise
+      hoped for (§148).** A matched pinball-head checkpoint and binned-head control, both at
+      `--p-regression 1.0`, scored on `fintfm-capability --regression-sweep`: the quantile
+      head is marginally worse on nRMSE and Spearman across all three synthetic shapes
+      (linear, nonlinear, bounded_bimodal), calibration roughly tied. The binned control sits
+      far above its own `binning_oracle` floor on every shape, so resolution was never the
+      binding constraint this task's premise assumed — a head built to remove a non-binding
+      constraint cannot win by removing it. The infrastructure (`ModelConfig.head_type`,
+      `FinancialTFMQuantileRegressor`) is not wasted; the premise is not confirmed. Original
+      text follows.
+      **Replace the binned head's fixed resolution with a quantile head.** §106 states the
       limitation plainly: resolution is bounded by `K`, an interval can never be narrower than
       one bin, and `n_bins` is coupled to `max_classes`. Nori emits a **999-quantile pinball**
       distribution, which has none of those properties and needs no bins. Verify: a pinball-loss

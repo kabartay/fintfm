@@ -10025,3 +10025,79 @@ Task 48.10 closes with a decisive negative: the existing joint cell embedding is
 not merely assumed, to be the better of the two designs measured on this benchmark. No
 follow-up is implied — this is as clean a result as this project's negative-result log
 contains.
+
+## §148 — The pinball quantile head does not beat the binned head on the synthetic regression probes
+
+**How these numbers were produced.** MEASURED. Task 48.3 (`learn-from-peers`): two matched
+checkpoints, both trained at the §127 reference recipe's architecture (`--d-cell 48 --d-model
+128 --n-layers 4 --n-col-layers 2 --n-cell-blocks 1 --cell-labels --column-id-dim 16
+--feature-chunk 8 --max-features 136`, 6,000 steps, seed 0), both with `--p-regression 1.0`
+(pure regression tasks, required for the quantile head since it has no class-index path) —
+one with `--head-type quantile --n-quantiles 99`
+(`runs/task48-3-kaggle/v4-quantile48_3.pt`), one with the default binned head and
+`--max-classes 10` (`runs/task48-3-kaggle/v4-binned48_3-control.pt`), differing only in the
+head. The existing `v4-regression.pt` (§106) could not serve as this control — it trained on
+a mixed `--p-financial 0.35 --p-regression 0.35` prior, which would confound the head
+comparison with a prior-composition difference, the mistake §141 warns against for a
+different pair. Both trained on Kaggle's free GPU quota, zero cost. Scored with
+`fintfm-capability --regression-sweep` on the same three synthetic probes §106 used (`linear`,
+`nonlinear`, `bounded_bimodal`), 3 seeds, both checkpoints and both arms' own untrained
+controls in one invocation so every number comes from the identical probe draws.
+
+### The result
+
+| nRMSE (1.0 = predict-the-mean) | linear | nonlinear | bounded_bimodal |
+| --- | --- | --- | --- |
+| quantile_head | 0.5371 | 0.5250 | 0.7270 |
+| binned_control | 0.5252 | 0.5011 | 0.7227 |
+| *binning_oracle (floor)* | *0.2017* | *0.1743* | *0.0979* |
+
+| Spearman | linear | nonlinear | bounded_bimodal |
+| --- | --- | --- | --- |
+| quantile_head | 0.8473 | 0.8765 | 0.6587 |
+| binned_control | 0.8519 | 0.8778 | 0.6661 |
+
+| 80% interval coverage | linear | nonlinear | bounded_bimodal |
+| --- | --- | --- | --- |
+| quantile_head | 0.8955 | 0.8263 | 0.7925 |
+| binned_control | 0.8363 | 0.8283 | 0.8177 |
+
+| outer-third mass (truth: 0.2335 / 0.2585 / 0.8362) | linear | nonlinear | bounded_bimodal |
+| --- | --- | --- | --- |
+| quantile_head | 0.2611 | 0.3167 | 0.8019 |
+| binned_control | 0.2696 | 0.2643 | 0.8136 |
+
+Both checkpoints clear the predict-the-mean baseline (1.0) and their own untrained controls
+(0.0287-1.0759 nRMSE/coverage range, chance-level Spearman) by a wide margin on every shape —
+neither is broken, both genuinely regress in-context. The quantile head is **marginally worse
+on both scalar accuracy metrics, on all three shapes**: nRMSE higher by 0.0043-0.0239, Spearman
+lower by 0.0013-0.0074. Calibration is a mixed bag — quantile_head's coverage is closer to
+nominal on `bounded_bimodal`, binned_control's is closer on `linear`, roughly tied on
+`nonlinear`; outer-third mass favours binned_control on two of three shapes. Three seeds per
+shape is not enough to put confidence intervals on these small gaps, so read them as a
+consistent small lean, not a significant result the way §144-§147's Holm-corrected V4FinBench
+numbers are.
+
+### What this settles, and what it does not
+
+**The premise behind 48.3 — that the binned head's fixed resolution is costing it accuracy —
+does not hold at this compute budget.** `binned_control`'s nRMSE (0.50-0.72) sits far above its
+own `binning_oracle` floor (0.10-0.20): the model is nowhere near the point where ten bins'
+worth of resolution would be the binding constraint. Whatever caps both heads at this training
+volume, it is not quantisation — and a head built specifically to remove quantisation as a
+constraint cannot outperform the simpler head by removing a constraint that was not binding.
+
+**This does not mean quantile heads are a bad idea in general, or that 999 quantiles (Nori's
+figure, against this run's 99) would do no better** — both are untested variables this entry
+does not vary. It does mean the specific, falsifiable claim 48.3 set out to test — that
+*this* quantile head beats *this* binned head *at this compute budget* — came back negative,
+by a small but consistent margin across every synthetic shape measured.
+
+### Where this leaves the peer sweep
+
+Task 48.3 closes with a small, consistent negative lean rather than the clean win its premise
+hoped for. The binned head's fixed resolution is not, in practice, limiting it here; building
+infrastructure to remove that limit (this task's actual deliverable — `ModelConfig.head_type`,
+`FinancialTFMQuantileRegressor`, the pinball loss) was not wasted, since nothing about the
+comparison depended on the premise being right, but the premise itself does not survive
+contact with this measurement.
