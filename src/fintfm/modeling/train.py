@@ -74,9 +74,14 @@ class TrainConfig:
 class _NullSchedule:
     """No-op stand-in for ``torch.optim.lr_scheduler`` when the optimiser needs no schedule.
 
-    Schedule-free optimisers carry their own internal warmup and need no external LR curve.
-    Standing in for one keeps every scheduler call site in the training loop uniform across
-    both optimiser choices, rather than branching on the choice at every call.
+    Schedule-free optimisers need no *external* LR curve. They are not warmup-free, though:
+    ``schedulefree.AdamWScheduleFree`` takes its own ``warmup_steps`` argument (default 0,
+    recommended by the package in place of a schedule), which the construction site below
+    does not pass -- so a run under ``--optimizer schedulefree`` as currently wired gets zero
+    warmup, not an automatic one. §146's addendum (2026-10-05) found this after the fact,
+    once a negative result made the configuration worth re-reading rather than assuming.
+    Standing a no-op in for the scheduler keeps every call site in the training loop uniform
+    across both optimiser choices, rather than branching on the choice at every call.
     """
 
     def __init__(self, lr: float) -> None:
@@ -382,7 +387,14 @@ def train(
     if train_cfg.optimizer == "schedulefree":
         import schedulefree
 
-        opt = schedulefree.AdamWScheduleFree(model.parameters(), lr=train_cfg.lr)
+        # warmup_steps was missing here until §146's addendum (2026-10-05) found it: the
+        # package recommends warmup in place of a schedule, and the measured negative result
+        # used none. Reusing train_cfg.warmup_steps rather than inventing a second knob --
+        # the two optimisers' warmup serves the same purpose even though the rest of their
+        # schedules differ completely.
+        opt = schedulefree.AdamWScheduleFree(
+            model.parameters(), lr=train_cfg.lr, warmup_steps=train_cfg.warmup_steps
+        )
         sched: torch.optim.lr_scheduler.LRScheduler = _NullSchedule(train_cfg.lr)  # type: ignore[assignment]
     else:
         opt = torch.optim.AdamW(model.parameters(), lr=train_cfg.lr)
@@ -749,7 +761,11 @@ def main() -> None:
         choices=["adamw", "schedulefree"],
         help="'adamw' (default, cosine-annealed) or 'schedulefree' (task 48.9, needs the "
         "schedulefree extra: uv sync --extra schedulefree); the latter carries no external "
-        "LR curve, so a run under it can be resumed past its original --steps",
+        "LR curve, so a run under it can be resumed past its original --steps. --lr's "
+        "default (3e-4) is AdamW's tuned value (section 127), not schedulefree's own -- "
+        "AdamWScheduleFree's package default is 0.0025, substantially higher; pass --lr "
+        "explicitly for a schedulefree run rather than inheriting AdamW's tuning "
+        "(section 146's addendum measured a negative result at the untuned default)",
     )
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--out", type=str, default="runs/v0.pt")

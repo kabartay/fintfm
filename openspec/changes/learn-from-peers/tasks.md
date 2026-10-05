@@ -100,13 +100,17 @@
       *narrows* with dataset size. Verify: the two are reconciled or the contradiction is
       recorded — if our deficit is worst on small tables, the segment this project targets is
       the one where it is currently weakest, and that is a strategy finding, not a modelling one.
-- [x] 48.9 **Done: resumability demonstrated locally, accuracy measured negative at the
-      AdamW-tuned learning rate (§146).** Mean V4FinBench AP drops 0.1986 → 0.1806 against the
-      matched control, every fold negative, four of five significant after Holm correction —
-      but the learning rate was not retuned for schedule-free's different dynamics, and
-      §124/§127 already showed this architecture's optimal rate is batch-size-sensitive for
-      plain AdamW. The checkpoint is healthy (§74 probe). Whether a schedule-free-tuned rate
-      closes the gap is a cheap, un-run follow-up. Original text follows.
+- [x] 48.9 **Done: resumability demonstrated locally, accuracy measured negative at a
+      configuration since found to be mistuned (§146 + addendum).** Mean V4FinBench AP drops
+      0.1986 → 0.1806 against the matched control, every fold negative, four of five
+      significant after Holm correction — but the run used AdamW's tuned `--lr 3e-4` (the
+      package's own `AdamWScheduleFree` default is `0.0025`, ~8x higher) with **zero
+      warmup** (`warmup_steps` was never wired to the construction site despite the package
+      recommending it in place of a schedule, a defect in `train.py` fixed in the same commit
+      as this closure). The checkpoint is healthy (§74 probe). This result is evidence about
+      one mistuned configuration, not about schedule-free optimisation on this architecture; a
+      rerun at the package's own defaults, with warmup wired up, is the real follow-up and
+      remains un-run. Original text follows.
       **Try schedule-free optimisation, which would decouple the run length from the
       schedule.** Defazio, Mehta, Mishchenko, Khaled & Cutkosky, *The Road Less Scheduled*
       (NeurIPS 2024), cited by TabDPT. This project's cosine schedule is a real operational

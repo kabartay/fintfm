@@ -9960,6 +9960,21 @@ one learning rate tested. Whether a schedule-free-tuned learning rate closes the
 real, cheap, un-run follow-up — a learning-rate sweep costs far less than a fresh 6,000-step
 checkpoint — and is not implied either way by this result.
 
+**Addendum (2026-10-05), found reading the code, no GPU spent.** The "mismatched learning
+rate" hedge above understated the gap: `train.py`'s `_NullSchedule` docstring claims
+schedule-free "carries its own internal warmup", but `train.py:385` constructs
+`schedulefree.AdamWScheduleFree(model.parameters(), lr=train_cfg.lr)` with no
+`warmup_steps` argument — the package's own default is `0`, so this run had **no warmup at
+all**, and the `schedulefree` package's README documents warmup as the specific
+substitute for a schedule it recommends in place of one. Worse, the measured run's
+`--lr` was never changed from AdamW's tuned `3e-4` default; `AdamWScheduleFree.__init__`'s
+own default is `lr=0.0025`, roughly 8x higher — so this comparison used an optimiser at
+both an unrecommended learning rate and with the one feature (warmup) its own authors
+built to replace a schedule turned off. §146's measured −0.0180 AP is not yet evidence
+about schedule-free optimisation on this architecture at all; it is evidence about this one
+specific (likely badly mistuned) configuration of it. The comment's claim should be read as
+describing what the package is *capable of*, not what this run used.
+
 ## §147 — A dedicated mask embedding is a clean, uniform loss on V4FinBench
 
 **How these numbers were produced.** MEASURED. Task 48.10 (`learn-from-peers`): a checkpoint
