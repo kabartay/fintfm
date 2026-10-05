@@ -9899,3 +9899,114 @@ Task 48.5 closes with a small negative result. Combined with §125's own finding
 the filter throws away, the filter is not recommended at any strength measured so far; a
 weaker filter strength (between 0.0 and 1.0) is a different, un-run experiment and not implied
 to behave better by this result alone.
+
+## §146 — Schedule-free optimisation, at the AdamW-tuned learning rate, is a clear net negative
+
+**How these numbers were produced.** MEASURED. Task 48.9 (`learn-from-peers`): a checkpoint
+(`runs/task48-9-kaggle/v4-cellattn-schedulefree48_9.pt`) trained at the identical §127
+reference recipe and control, with `--optimizer schedulefree` (`AdamWScheduleFree`,
+Defazio et al. 2024) instead of the default cosine-annealed AdamW. **The learning rate was
+not retuned** — both arms ran at `--lr`'s default of `3e-4`, the value §127 confirmed optimal
+for AdamW-plus-cosine at batch 8 specifically, not independently validated for schedule-free's
+different internal dynamics (it tracks a Polyak average rather than annealing toward zero).
+Same Kaggle GPU quota, zero cost. Scored identically to §144/§145: V4FinBench's published
+protocol against the control re-score, paired bootstrap, Holm-corrected; the §74 probe
+confirms the checkpoint is healthy (every regret within ±0.021 of target, the same shape as
+every other checkpoint this session).
+
+The task's other property — that a schedule-free run can be *extended* past its original step
+budget without restarting, which a cosine schedule structurally cannot do — was already
+demonstrated by a fast local CPU test
+(`test_schedulefree_run_extends_past_its_original_steps_without_restarting`, an earlier
+session) and is not re-demonstrated at GPU scale here; this entry covers only the accuracy
+comparison.
+
+### The result
+
+| fold | control AP | schedule-free AP | diff | Holm-adjusted p |
+| --- | --- | --- | --- | --- |
+| 0 | 0.2113 | 0.1934 | −0.0179 | 0.027 |
+| 1 | 0.2050 | 0.1794 | −0.0256 | <0.001 |
+| 2 | 0.1786 | 0.1562 | −0.0224 | 0.008 |
+| 3 | 0.1810 | 0.1783 | −0.0028 | 0.719 |
+| 4 | 0.2172 | 0.1957 | −0.0214 | 0.027 |
+| **mean** | **0.1986** | **0.1806** | **−0.0180** | — |
+
+Every fold moves negative; four of five clear Holm correction. This is a cleaner, more
+uniform negative than either §144 or §145 — not noise with a lean, a consistent shortfall.
+
+### What this settles, and what it does not
+
+**At the AdamW-tuned learning rate, schedule-free optimisation measures a clear net loss on
+V4FinBench.** The checkpoint is healthy (the probe rules out a broken run), so this is a real
+effect of the optimiser change, not an artifact.
+
+**This does not settle whether schedule-free optimisation is bad here, only whether it is
+good *at an LR chosen for a different optimiser*.** §124/§127 already measured, on this exact
+architecture, that the optimal learning rate is sensitive to batch size for plain AdamW — the
+kind of sensitivity that argues against assuming one method's tuned value transfers to
+another's substantially different update rule. Schedule-free's own paper reports it is
+competitive with tuned schedules across a range of problems when *its own* learning rate is
+swept; nothing here sweeps it. A result this uniform across every fold is more consistent with
+a systematically mismatched learning rate than with the optimiser being unable to learn at
+all — the §74 probe shows it reaches the same near-ceiling ranges as every cosine-trained
+checkpoint, just evidently less efficiently at this specific step budget and LR.
+
+### Where this leaves the peer sweep
+
+Task 48.9 closes on the property it most needed to demonstrate (resumability without
+restarting, already shown) plus this accuracy measurement, honestly reported negative at the
+one learning rate tested. Whether a schedule-free-tuned learning rate closes the gap is a
+real, cheap, un-run follow-up — a learning-rate sweep costs far less than a fresh 6,000-step
+checkpoint — and is not implied either way by this result.
+
+## §147 — A dedicated mask embedding is a clean, uniform loss on V4FinBench
+
+**How these numbers were produced.** MEASURED. Task 48.10 (`learn-from-peers`): a checkpoint
+(`runs/task48-10-kaggle/v4-cellattn-maskembed48_10.pt`) trained at the identical §127
+reference recipe and control, with `--mask-embedding` — a dedicated `nn.Embedding(2, d_cell)`
+missingness table added to a value-only embedding, instead of the default joint `[value,
+missing]` two-layer MLP (`cell_embed`) task 48.10's premise correction (recorded in this same
+task's body, 2026-10-01) found already learns a value/missingness interaction. Same Kaggle
+GPU quota, zero cost. Scored identically to §144-§146; the §74 probe confirms the checkpoint
+is healthy (every regret within ±0.021 of target).
+
+### The result
+
+| fold | control AP | mask-embedding AP | diff | Holm-adjusted p |
+| --- | --- | --- | --- | --- |
+| 0 | 0.2113 | 0.1701 | −0.0412 | <0.001 |
+| 1 | 0.2050 | 0.1749 | −0.0302 | <0.001 |
+| 2 | 0.1786 | 0.1473 | −0.0313 | <0.001 |
+| 3 | 0.1810 | 0.1661 | −0.0150 | <0.001 |
+| 4 | 0.2172 | 0.1787 | −0.0384 | <0.001 |
+| **mean** | **0.1986** | **0.1674** | **−0.0312** | — |
+
+Every one of five folds is negative, and every one clears Holm correction — the strongest,
+cleanest negative result of the four peer-sweep checkpoints scored this session (§144-§147).
+Mean AP drops 16% relative, from 0.1986 to 0.1674.
+
+### What this settles
+
+**The narrower question task 48.10's premise correction left open is now answered, cleanly
+and in the direction that correction anticipated.** The existing joint `[value, missing]`
+embedding through a shared 2-layer MLP is not naive imputation — it already learns a
+genuine value/missingness interaction — and splitting that interaction apart into a separate
+value-only embedding plus an independent per-column missingness lookup *loses* something the
+joint computation was doing: the MLP can condition how it represents a present value on
+whether *other* cells of the same type tend to be missing, in a way two embeddings summed
+together cannot express by construction (addition is a weaker operation than a shared
+nonlinear function of both inputs together). This is the opposite of Nori's own reported
+preference for a dedicated mask embedding, which is itself informative: Nori's base
+architecture does not have this project's joint-MLP cell embedding to begin with, so their
+comparison was dedicated-embedding versus no explicit missingness signal at all, not
+dedicated-embedding versus an already-expressive joint one. The two results do not disagree
+about the same comparison; they answer different questions, each correctly for its own
+architecture.
+
+### Where this leaves the peer sweep
+
+Task 48.10 closes with a decisive negative: the existing joint cell embedding is confirmed,
+not merely assumed, to be the better of the two designs measured on this benchmark. No
+follow-up is implied — this is as clean a result as this project's negative-result log
+contains.

@@ -100,7 +100,14 @@
       *narrows* with dataset size. Verify: the two are reconciled or the contradiction is
       recorded — if our deficit is worst on small tables, the segment this project targets is
       the one where it is currently weakest, and that is a strategy finding, not a modelling one.
-- [ ] 48.9 **Try schedule-free optimisation, which would decouple the run length from the
+- [x] 48.9 **Done: resumability demonstrated locally, accuracy measured negative at the
+      AdamW-tuned learning rate (§146).** Mean V4FinBench AP drops 0.1986 → 0.1806 against the
+      matched control, every fold negative, four of five significant after Holm correction —
+      but the learning rate was not retuned for schedule-free's different dynamics, and
+      §124/§127 already showed this architecture's optimal rate is batch-size-sensitive for
+      plain AdamW. The checkpoint is healthy (§74 probe). Whether a schedule-free-tuned rate
+      closes the gap is a cheap, un-run follow-up. Original text follows.
+      **Try schedule-free optimisation, which would decouple the run length from the
       schedule.** Defazio, Mehta, Mishchenko, Khaled & Cutkosky, *The Road Less Scheduled*
       (NeurIPS 2024), cited by TabDPT. This project's cosine schedule is a real operational
       constraint, not just a hyperparameter: §108's matched-task rerun had to start **fresh**
@@ -110,7 +117,14 @@
       cosine baseline at matched tasks on the same five V4FinBench folds, **and** the claim that
       a run can be extended without restarting is demonstrated rather than assumed — the second
       property is worth more here than any accuracy delta.
-- [ ] 48.10 **Test the is-missing encoding, where two peers disagree.** TabDPT reports NaN
+- [x] 48.10 **Done: dedicated mask embedding measured clearly negative (§147).** Mean
+      V4FinBench AP drops 0.1986 → 0.1674 against the matched control (16% relative), every
+      one of five folds significant after Holm correction at p < 0.001 — the cleanest
+      negative result among the four peer-sweep checkpoints scored this session. Confirms
+      this task's own premise correction below: the existing joint `[value, missing]` MLP
+      embedding already does real, useful work that splitting it into two separate embeddings
+      loses. Original text follows.
+      **Test the is-missing encoding, where two peers disagree.** TabDPT reports NaN
       tokens and binary is-missing features as no better than mean imputation; Nori uses learned
       mask embeddings. Our adapter does `fillna(0)`, which is the mean after normalisation.
       Verify: a learned mask embedding is measured against the current default on V4FinBench,

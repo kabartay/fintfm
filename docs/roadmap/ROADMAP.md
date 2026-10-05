@@ -139,10 +139,12 @@ remaining move.
 3. ~~**Cheap realism augmentations** (48.6).~~ **Done, bundle measured net negative, not a gain
    (§144).** Mean V4FinBench AP drops 0.1986 → 0.1952 against the matched control — closer to
    noise with a slight negative lean than the "a point or two" gain this item hoped for.
-4. **Is-missing encoding** (48.10). Two peers disagree, so the answer is not knowable from
-   reading and is cheap to measure.
-5. **Schedule-free optimisation** (48.9). Decouples run length from a fixed schedule, which
-   makes every later experiment cheaper even if it does not move rank itself.
+4. ~~**Is-missing encoding** (48.10).~~ **Done, clean negative (§147).** Mean V4FinBench AP
+   drops 0.1986 → 0.1674 (16% relative), every one of five folds significant at p < 0.001 —
+   the existing joint `[value, missing]` embedding is confirmed better than a dedicated one.
+5. ~~**Schedule-free optimisation** (48.9).~~ **Done, resumability demonstrated, accuracy
+   negative at the untuned learning rate (§146).** Mean V4FinBench AP drops 0.1986 → 0.1806;
+   whether a schedule-free-tuned rate closes the gap is an open, cheap follow-up.
 6. ~~**Random monotonic marginal augmentation** (40.8).~~ **Closed unmeasured:** a re-proposal
    of `marginal-invariance` 43.3-43.5, already closed on the same grounds (§88) -- on cell
    attention the rank transform already pins Bayes-ceiling regret flat across warps, and the
