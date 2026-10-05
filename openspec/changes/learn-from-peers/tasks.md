@@ -275,6 +275,17 @@
       runs already in `runs/`, predict the untried points on the `column_id_dim` curve absent
       from §104's five, and check the surrogate's prediction against a real run before trusting
       it on anything expensive.
+
+      **Partial progress (2026-10-05), no GPU spent — not a closure.** A cheaper, zero-GPU
+      proxy for this task's validation step: leave-one-out on §104's already-measured five
+      points, rather than a heterogeneous surrogate predicting a genuinely untried value
+      (§149). Both a GBM and a plain linear surrogate track four of five points within 0.0114
+      AP, but both miss the fifth — the curve's peak at 16 — by the largest margin in the
+      table, since leave-one-out removes the only point that breaks monotonicity. Real,
+      decision-relevant (surrogates screen; they do not reliably pick the winner), but not
+      this task's literal ask: that still needs the heterogeneous-feature surrogate and one
+      freshly trained checkpoint to validate against, which needs GPU quota this entry did not
+      have.
 - [x] 48.17 **Done: measured via `prior_score.score_prior`, zero GPU cost (§143).** Diversity
       (the per-task AUC spread §42 tracks) rises from 0.1286 (legacy) to 0.1863 (widened), a
       45% increase, reproduced at two sample sizes. Mean performance drops (harder tasks on

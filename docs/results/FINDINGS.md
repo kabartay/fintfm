@@ -10101,3 +10101,60 @@ infrastructure to remove that limit (this task's actual deliverable — `ModelCo
 `FinancialTFMQuantileRegressor`, the pinball loss) was not wasted, since nothing about the
 comparison depended on the premise being right, but the premise itself does not survive
 contact with this measurement.
+
+## §149 — A cheap surrogate tracks most of the `column_id_dim` curve, and misses its peak
+
+**How these numbers were produced.** MEASURED, but a narrower instrument than task 48.16
+asks for — see "what this is not" below. §104's five real checkpoints at `column_id_dim` ∈
+{12, 16, 20, 24, 32} already have measured mean AP (0.1946, 0.2072, 0.2005, 0.1923, 0.1885).
+Leave-one-out: fit a surrogate on four of the five, predict the held-out fifth, repeat for
+each. Two surrogates, both the kind task 48.16 names as a starting point before anything
+TFM-shaped: a plain `GradientBoostingRegressor` (20 trees, depth 2) and an ordinary linear fit,
+both from one `column_id_dim` input. No new checkpoint, no GPU — every "real run" compared
+against is one §104 already paid for.
+
+### The result
+
+| held-out `column_id_dim` | true AP | GBM prediction | GBM error | linear prediction | linear error |
+| --- | --- | --- | --- | --- | --- |
+| 12 | 0.1946 | 0.2060 | +0.0114 | 0.2099 | +0.0153 |
+| **16** | **0.2072** | **0.1945** | **−0.0127** | **0.1962** | **−0.0110** |
+| 20 | 0.2005 | 0.2058 | +0.0053 | 0.1962 | −0.0043 |
+| 24 | 0.1923 | 0.2007 | +0.0084 | 0.1955 | +0.0032 |
+| 32 | 0.1885 | 0.1931 | +0.0046 | 0.1939 | +0.0054 |
+
+Mean absolute error across all five: 0.0085 (GBM), 0.0078 (linear) — a plain linear fit is not
+worse here, which is itself informative about how little curvature §104's own five points
+carry outside the peak. **Both surrogates miss by the largest margin exactly at the peak**
+(16): the curve is non-monotone there and leave-one-out removes the only point that breaks
+monotonicity, so neither method — least of all the linear one, which has no way to represent
+a peak at all — can recover it from its four neighbours.
+
+### What this settles, and what it does not
+
+**A cheap surrogate is informative about the general shape of a sweep and specifically
+unreliable at exactly the point the sweep exists to find.** §104's own text already noted 16
+"was chosen by accident" and that the curve declines on both sides — a surrogate fit on the
+other four points would have smoothed straight through the peak and recommended something
+close to the flat region instead, understating the best configuration by the single largest
+margin in the table. This is not a reason to distrust surrogates for screening — four of five
+points landed within 0.0114 AP, which is plausibly cheap enough to rule out clearly bad
+regions before spending real compute on them — but it is a direct demonstration of the
+specific failure mode task 48.16 asks to guard against: **trusting a surrogate's ranking
+exactly where ranking matters most.**
+
+**What this is not.** Task 48.16's verify clause asks for a surrogate trained on "the ~15
+architecture/prior runs already in `runs/`" (a heterogeneous set spanning many axes, not one
+curve) to predict a genuinely untried `column_id_dim` value, validated against one freshly
+trained real checkpoint. This entry substitutes leave-one-out on §104's already-dense,
+single-axis curve — a cheaper, fully zero-GPU proxy that answers the same underlying question
+(does a surrogate's prediction survive contact with a real run?) using data already paid for,
+but is not the heterogeneous-feature, truly-untried-point version the task specifies. That
+fuller version remains open and needs one GPU-trained checkpoint to close properly.
+
+### Where this leaves the peer sweep
+
+Task 48.16 is not closed by this entry. It records a real, decision-relevant partial result
+(a surrogate is trustworthy for screening, not for picking the winner) obtained at zero cost
+while GPU quota was unavailable, and leaves the task's literal ask — the heterogeneous
+surrogate validated against a genuinely new run — for whenever that quota returns.
