@@ -9788,3 +9788,114 @@ rushed onto an already-saturated queue.
 Task 48.17 closes on this measurement alone, per its own verify clause. Task 48.19's harder
 half — a trained-checkpoint comparison on V4FinBench — remains open, scoped but not run,
 gated on this project's local CPU scoring capacity rather than on GPU quota.
+
+## §144 — The bundled realism augmentations are a small net negative on V4FinBench, not a gain
+
+**How these numbers were produced.** MEASURED. Task 48.6 (`learn-from-peers`): a checkpoint
+(`runs/task48-6-kaggle/v4-cellattn-realism48_6.pt`) trained at the exact §127 reference recipe
+that produced the control (`v4-cellattn-labels.pt` — `--batch-size 8 --n-rows-choices
+256,512,1024 --d-cell 48 --d-model 128 --n-layers 4 --n-col-layers 2 --n-cell-blocks 1
+--cell-labels --column-id-dim 16 --feature-chunk 8 --max-features 136 --p-financial 1.0`,
+6,000 steps, seed 0), with Nori's four cheap realism augmentations bundled on: `--discretize-
+frac 0.2 --n-noise-features 5 --n-correlated-block-features 3 --label-noise-rate 0.02`.
+Trained on Kaggle's free GPU quota (T4x2), zero cost. Scored on V4FinBench's published
+protocol (`fintfm-v4protocol --no-boosting --horizon 0 --folds 0,1,2,3,4`, full 1,000,087-row
+panel) against a same-session re-score of the control under identical folds, paired per-row
+(2,000-resample bootstrap per fold, Holm-corrected across the five). The §74 Bayes-ceiling
+probe (10 draws, `n_ensemble=8`) confirms the checkpoint is not broken before anything else is
+claimed about it — every regret sits within ±0.013 of the target, the same shape the control
+and every other healthy checkpoint this project has produced shows.
+
+### The result
+
+| fold | control AP | realism-bundle AP | diff | Holm-adjusted p |
+| --- | --- | --- | --- | --- |
+| 0 | 0.2113 | 0.1963 | −0.0150 | 0.005 |
+| 1 | 0.2050 | 0.1985 | −0.0066 | 0.279 |
+| 2 | 0.1786 | 0.1753 | −0.0033 | 0.506 |
+| 3 | 0.1810 | 0.1778 | −0.0033 | 0.506 |
+| 4 | 0.2172 | 0.2279 | +0.0108 | 0.028 |
+| **mean** | **0.1986** | **0.1952** | **−0.0035** | — |
+
+Four of five folds move negative, one positive; only two of the five clear Holm correction
+(fold 0 negative, fold 4 positive), and they point opposite directions. Mean AP moves from
+0.1986 to 0.1952, a small net loss. This is not the shape of a clean regression (compare
+§141's four-of-five-significant, one-direction result) — it is closer to noise with a slight
+negative lean than to an effect.
+
+### What this settles, and what it does not
+
+**The bundle does not help, and may be a small net negative; it is not the "a point or two"
+gain the literature-reading motivation (ROADMAP item 3) hoped for.** The checkpoint itself is
+healthy — the Bayes-ceiling probe rules out a broken run as the explanation — so this is a
+genuine measurement of the bundle's effect on this project's benchmark, not an artifact.
+
+**This does not attribute the (non-)effect to any one augmentation.** Task 48.6's own verify
+clause asks for each augmentation to be measured with the others off, specifically so a gain
+would not be mis-credited to the wrong flag. That attribution work was not done — all four
+ran together in this one checkpoint. But the reason the clause exists does not apply
+symmetrically: there is no gain here to mis-attribute. A small, mostly-non-significant net
+negative does not need decomposing to act on — nothing in this bundle is worth adopting as
+configured, whichever single flag turns out to be driving the two significant folds. Per-flag
+attribution would still be needed before concluding anything about an *individual*
+augmentation (discretization, noise features, the correlated block, or label noise on their
+own might each do something different, including positive), but that is a separate, smaller
+question than the one ROADMAP item 3 asked, and not one this entry answers.
+
+### Where this leaves the peer sweep
+
+Task 48.6 closes on the bundle-level result: adopting Nori's four augmentations together, at
+the rates used here, is not worth their GPU cost. The narrower per-augmentation question is
+recorded as open but deprioritized — nothing in this result suggests a gain is waiting to be
+isolated.
+
+## §145 — The learnability filter at full strength is a small net negative on V4FinBench
+
+**How these numbers were produced.** MEASURED. Task 48.5 (`learn-from-peers`): a checkpoint
+(`runs/task48-5-kaggle/v4-cellattn-learnfilter48_5.pt`) trained at the identical §127
+reference recipe and control, with `--p-learnability-filter 1.0` — every sampled task judged
+by the ExtraTrees signal-quality filter (§125), rejected-and-resampled up to
+`learnability_max_resamples` times when the judge cannot clear `learnability_auc_floor`
+(0.51). Same Kaggle GPU quota, zero cost. Scored identically to §144: V4FinBench's published
+protocol against the same control re-score, paired bootstrap, Holm-corrected; the §74 probe
+confirms the checkpoint is healthy (every regret within ±0.013 of target, matching §144's
+checkpoint and the control).
+
+### The result
+
+| fold | control AP | learnability-filter AP | diff | Holm-adjusted p |
+| --- | --- | --- | --- | --- |
+| 0 | 0.2113 | 0.1965 | −0.0147 | 0.136 |
+| 1 | 0.2050 | 0.1792 | −0.0259 | <0.001 |
+| 2 | 0.1786 | 0.1686 | −0.0099 | 0.136 |
+| 3 | 0.1810 | 0.1926 | +0.0115 | 0.136 |
+| 4 | 0.2172 | 0.2030 | −0.0141 | 0.136 |
+| **mean** | **0.1986** | **0.1880** | **−0.0106** | — |
+
+Four of five folds move negative; only fold 1 clears Holm correction. Mean AP drops from
+0.1986 to 0.1880, a larger shortfall than §144's bundle but still driven by one significant
+fold rather than a uniform effect.
+
+### What this settles
+
+**Filtering out unlearnable tasks at full strength does not help this project's prior, and
+trends mildly negative.** §125 already found the naive filter would reject 35% of the
+production mixture's tasks, including a fifth that are single-class or otherwise unscorable,
+and that the model itself scores *better* than the filter's own judge on the rejected
+subset (0.520 against 0.392) — this measurement is consistent with that: the filter is
+discarding tasks that carry usable signal for this architecture even though a cheap judge
+calls them noise, so filtering them out costs more than it protects. Task 48.5's verify
+clause asked whether the filter matters; at `p_learnability_filter=1.0` it does, in the wrong
+direction, though not dramatically — one fold driving most of the measured loss is a weaker
+claim than four-of-five-significant would be.
+
+**The filter is not inert, which is itself the answer the verify clause asked for** — the
+near-zero-rejection-rate null that would have made this uninteresting does not apply here,
+since `p_learnability_filter=1.0` judges every task.
+
+### Where this leaves the peer sweep
+
+Task 48.5 closes with a small negative result. Combined with §125's own finding about what
+the filter throws away, the filter is not recommended at any strength measured so far; a
+weaker filter strength (between 0.0 and 1.0) is a different, un-run experiment and not implied
+to behave better by this result alone.

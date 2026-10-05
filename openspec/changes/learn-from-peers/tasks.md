@@ -44,7 +44,14 @@
       family), 6 genuinely missing (GAM, radial/RBF, chained trigonometric, polynomial, log/exp,
       conv1d). Verify: the gap is named explicitly; nothing is added by this task, per its own
       verification clause.
-- [ ] 48.5 **Add a learnability filter to the prior, and measure whether it matters.** Nori
+- [x] 48.5 **Done: measured negative (§145).** At `p_learnability_filter=1.0`, mean V4FinBench
+      AP drops 0.1986 → 0.1880 against the matched control, four of five folds negative, one
+      (fold 1) significant after Holm correction at p < 0.001. Consistent with §125's own
+      finding that the filter discards tasks this model scores better on than the filter's
+      own judge does. The filter is not inert — the rejection rate at full strength is 100%
+      by construction — and it is not recommended at the strength measured. Original text
+      follows.
+      **Add a learnability filter to the prior, and measure whether it matters.** Nori
       rejects unlearnable synthetic datasets with an ExtraTrees signal-quality filter. §42
       established that a prior of only-easy or only-noise targets teaches the wrong thing, and
       this project's answer was to *span* difficulty; filtering is the complementary move and
@@ -52,7 +59,14 @@
       reported per prior, and a checkpoint trained with filtering is compared against one
       without on the same seeds — if the rejection rate is near zero the filter is inert here
       and that is the finding.
-- [ ] 48.6 **Adopt the cheap realism augmentations.** Nori lists discretized features, noise
+- [x] 48.6 **Done: bundle measured net negative, not a gain (§144).** Mean V4FinBench AP drops
+      0.1986 → 0.1952 against the matched control; four of five folds negative, two (one each
+      direction) significant after Holm correction — closer to noise with a slight negative
+      lean than a clean effect. Closes on the bundle-level result per this verify clause's own
+      purpose (preventing a gain from being mis-attributed to the wrong flag): there is no
+      gain here to mis-attribute, so per-augmentation isolation is recorded as open but
+      deprioritized rather than run. Original text follows.
+      **Adopt the cheap realism augmentations.** Nori lists discretized features, noise
       features, correlated blocks, structural missingness and label noise. `prior/financial.py`
       already has missingness; the rest are cheap. Verify: each augmentation is added behind its
       own flag and the capability suite is run with each off, so a gain is attributable to one

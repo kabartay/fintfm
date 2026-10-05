@@ -133,10 +133,12 @@ remaining move.
    ran both arms at batch 8 for about $2.80: `3e-4` wins on 5 of 5 folds, so §126's result is a
    batch-size artifact. §114's scale arms were not measured on mis-tuned models and the
    published checkpoints are not under-optimised. Nothing changes.
-2. **Learnability filter on the prior** (48.5). Nori filters tasks a simple learner cannot fit.
-   §112 measured this prior's distinctiveness as weak, so the filter is aimed at a known gap.
-3. **Cheap realism augmentations** (48.6): discretized features, noise, missingness. Published
-   as worth a point or two, and no retrain of the architecture.
+2. ~~**Learnability filter on the prior** (48.5).~~ **Done, measured negative (§145).** At full
+   strength, mean V4FinBench AP drops 0.1986 → 0.1880 against the matched control. Not
+   recommended at the strength measured.
+3. ~~**Cheap realism augmentations** (48.6).~~ **Done, bundle measured net negative, not a gain
+   (§144).** Mean V4FinBench AP drops 0.1986 → 0.1952 against the matched control — closer to
+   noise with a slight negative lean than the "a point or two" gain this item hoped for.
 4. **Is-missing encoding** (48.10). Two peers disagree, so the answer is not knowable from
    reading and is cheap to measure.
 5. **Schedule-free optimisation** (48.9). Decouples run length from a fixed schedule, which
