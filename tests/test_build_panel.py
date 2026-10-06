@@ -13,6 +13,14 @@ import sys
 from datetime import date
 from pathlib import Path
 
+import pytest
+
+# build_panel.py imports `requests` at module level (the `real` extra, uv sync --extra real).
+# CI only syncs `bench` (matching every other optional extra's test here, e.g.
+# test_train.py's `pytest.importorskip("schedulefree")`) -- skip rather than fail collection
+# when it is not installed, instead of making CI install every extra just for this file.
+pytest.importorskip("requests")
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts" / "edgar"))
 
 from build_panel import _add_quarters, _month_windows, _quarters
