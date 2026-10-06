@@ -460,6 +460,12 @@ architecture/prior-mechanism side, with its measured return:
 | dedicated mask embedding (§147) | −0.0312 AP, a clean loss |
 | pinball quantile head vs. binned head (§148) | small negative lean, premise not confirmed |
 
+**Caveat added 2026-10-06 (§158):** the §144, §145, §146 and §147 rows were each scored against a
+control trained at `max_classes 2` while the ablation trained at the CLI default of 10 -- a
+different head and, through initialisation, a different effective seed. Read those four as
+*confounded*, not clean, until re-scored against a matched control; §147's consistent five-fold
+deficit is the likeliest to survive. The §93, §108 and §148 rows are unaffected.
+
 Seven measured changes, seven nulls or losses, zero wins. This is not a curated selection —
 it is the complete record of every architecture/prior lever this project has pretrained a
 checkpoint to test. **What this project has spent its effort on is exactly the category

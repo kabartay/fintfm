@@ -58,6 +58,10 @@ def main() -> None:
         "--column-id-dim", "16",
         "--feature-chunk", "8",
         "--max-features", "136",
+        # The control (v4-cellattn-labels.pt) has max_classes=2; the CLI default is 10, and
+        # every earlier Kaggle ablation inherited that default unnoticed (Section 158), which
+        # changes the head and the init RNG stream. Pinned explicitly so this run is matched.
+        "--max-classes", "2",
         "--p-financial", "1.0",
         "--seed", "0",
         "--device", device,

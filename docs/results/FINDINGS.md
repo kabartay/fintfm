@@ -10559,3 +10559,51 @@ Recorded as open, not resolved. **Freddie Mac's 24 positives are too few to lear
 sample scale (GBM AP 0.002), confirming §154; it is left out of §157's pilot.
 
 Nothing here says any source *helps* FinTFM-R. §157 is the first attempt at that.
+
+## §158 — Four Kaggle ablations (§144-§147) were scored against a control with a different head size
+
+**How this was produced.** MEASURED from the stored checkpoint files (their saved `config`
+and parameter counts), not from any new training or scoring run. Every checkpoint's `config` was diffed field by field against the A6/D16 control,
+`runs/v4-cellattn-labels.pt`. (Numbered §158 because §157 is reserved for the continued-
+pretraining pilot still running when this was found.)
+
+### The finding
+
+`fintfm-train`'s `--max-classes` defaults to **10**. The control was trained with **2**. No Kaggle
+kernel from task 39.28 onward passed the flag, so every one of them trained at 10:
+
+| checkpoint | `max_classes` | parameters | other config differences |
+| --- | --- | --- | --- |
+| control `v4-cellattn-labels.pt` | 2 | 885,650 | — |
+| §144 realism, §145 learnability, §146 schedule-free | 10 | 888,090 | none |
+| §147 mask embedding | 10 | 888,138 | none (the +48 is the change under test) |
+| §148's own binned control, seed-1 replicate | 10 | 888,090 | none |
+
+A different head shape changes how many values each initialisation draws from the random
+stream, so every later layer starts from different weights: these runs differ from the control
+in the change they test **and** in effective seed, and in the classification head's size.
+§144-§147 compared against this control, so each reported difference contains both. §148
+compared against its own `max_classes 10` binned control and is **not** affected. Nor are
+D16's other two rows, checked the same way rather than assumed: §93's pair (`v4-480k.pt`,
+`v4-1m-step10k.pt`) and §108's medium model (`v4-medium-cellattn.pt`) are all `max_classes 2`.
+
+### What this does and does not change
+
+It does not show any of the four results is wrong. §147's deficit is −0.015 to −0.041 AP on
+every fold at p < 0.001, larger than the others and consistent, and plausibly survives. §144's
+and §145's are mixed-sign across folds and were already called small. What it does show is that
+the noise floor those four were judged against was never measured: a no-change `max_classes 10`
+model has never been scored on V4FinBench. D16's table ("seven levers, seven nulls or losses")
+cites these four; until re-adjudicated, read them as **confounded**, not as clean negatives.
+
+### Re-adjudication, in order of cost
+
+1. **CPU, no quota:** score the existing no-change seed-1 replicate
+   (`runs/cellattn-s1-kaggle/v4-cellattn-labels-s1.pt` -- `max_classes 10`, seed 1, otherwise the
+   control's recipe) on the same 5-fold protocol. Its gap to the control is the size of "seed plus
+   head size" with no intended change -- the yardstick §144-§147's gaps needed.
+2. **One Kaggle run (~3.75 h):** retrain the control at `max_classes 10`, seed 0 -- exactly the
+   setting the four ablations actually used -- and re-score all four against it.
+
+The not-yet-run schedule-free retune kernel now passes `--max-classes 2` explicitly; the
+FinTFM-R kernel generator (`scripts/kaggle/make_real_arm_kernel.py`) and §157's pilot already did.
