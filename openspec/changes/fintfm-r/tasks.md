@@ -133,3 +133,29 @@
       EDGAR-only checkpoint from A6, on V4FinBench, paired bootstrap, Holm-corrected.
 - [ ] B6 Write up the result honestly, same discipline as A7. Verify: a new `docs/results/FINDINGS.md`
       entry and the corresponding `docs/paper/CLAIMS.md`/`docs/design/DECISIONS.md` updates, stated either direction.
+
+## Phase C — Further real sources, audited one at a time (§155-§157)
+
+- [x] C1 **Done (§155).** LendingClub (Zenodo 11295916, CC-BY-4.0) built, loaded, smoke-trained;
+      its BeyondArena overlap (`lending_club_1m`) found late and recorded as a bounded forfeit.
+      Verify: panel builds, loss decreases on a fixture, a CPU smoke run on the real panel saves a
+      checkpoint that reloads and runs a finite forward pass.
+- [x] C2 **Done (§156).** Candidate registry (`docs/research/data_candidates.csv`) against a
+      TabArena + BeyondArena snapshot, with a mechanical overlap check run in CI. Verify:
+      `tests/test_data_candidates.py` passes, including the regression test for the
+      one-word/two-word name mismatch that missed LendingClub.
+- [x] C3 **Done (§156).** Generic panel sampler (`prior/real_panel.py`, `--real-panels`) with a
+      real-positive floor; PPDai, Bondora, ULB card fraud and SBA 7(a) panels built; feasibility
+      benchmark run on all seven real panels. Verify: `tests/test_real_panel.py` passes, including
+      that floor-enforced positives are genuine positive rows; feasibility table recorded.
+- [ ] C4 **Continued-pretraining pilot**, one arm per source, all from the A6 control checkpoint
+      (`scripts/candidates/pilot.sh`), scored on V4FinBench fold 0. Verify: every arm scored on
+      identical rows, paired-bootstrap AP difference against the control with Holm correction
+      (`scripts/candidates/pilot_compare.py`), written up as §157 either direction.
+- [ ] C5 **The decisive run for whatever C4 ranks first**, on GPU once quota allows: from scratch
+      at the A6 recipe and matched compute, V4FinBench five folds before TabArena. Verify: the
+      same protocol as A6, and a pilot-scale result is not quoted as if it were this one.
+- [ ] C6 **Freddie Mac at a usable scale** -- the full 2018 vintage file or several combined
+      vintages, since the 50k sample's 24 positives cannot be learned from (§154, §156). Verify:
+      the feasibility benchmark shows a learnable label (GBM AP clearly above base rate) before it
+      enters any pilot arm.

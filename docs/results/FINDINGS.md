@@ -10449,3 +10449,113 @@ run (B5) without a change in scale.** Before B4/B5, this should be revisited wit
 full `historical_data_2018.zip` vintage file (same rate, far more absolute positives) or
 several vintage years combined — both options stay inside the free-tier terms §153
 established, since neither changes how the data is used, only how much of it is read.
+
+## §155 — LendingClub joins FinTFM-R as a third real source, and a second benchmark forfeit is found late
+
+**How this was produced.** MEASURED (build and smoke run). Source: "Lending Club loan dataset for
+granting models" (Ariza-Garzón, Sanz-Guerrero, Arroyo Gallardo), Zenodo 11295916, CC-BY-4.0,
+downloaded 2026-10-06 (167.5 MB, 1,347,681 loans, 2007-2018, matching the record's own count).
+
+### What was built
+
+`scripts/lendingclub/build_panel.py` → 22 features (revenue, DTI, loan amount, FICO,
+employment length parsed to years with the source's `NI` marker as NaN, one-hot purpose and
+home ownership); `addr_state`/`zip_code`/free text dropped. The source's constant
+`experience_c` column (always 1) is dropped too. `prior/real_lendingclub.py`,
+`tests/test_real_lendingclub.py` (12 tests), `PriorConfig.p_real_lendingclub`, `--p-real-lendingclub`.
+**19.98% positive** (269,249 of 1,347,681) -- far more common than V4FinBench's 0.19-4% band;
+zero missingness in the four core numeric fields. A 300-step CPU smoke run on the real panel:
+loss 0.76 → 0.50, checkpoint reload, finite forward pass.
+
+### The late finding
+
+The source was checked against TabArena-v0.1 (absent) and called clean. It is **present in
+BeyondArena** -- the TabArena maintainers' own named next benchmark -- as `lending_club_1m`.
+Found hours later, during §156's mechanical audit. The forfeit is bounded (one BeyondArena task
+of 142, excludable from any FinTFM-R BeyondArena number, the same shape as D17's EDGAR forfeit),
+but the check that missed it was answering the wrong question: *is it in the benchmark we use
+today* rather than *is it in any benchmark we might be scored on*. §156 makes the right question
+mechanical.
+
+## §156 — A real-data candidate audit: 93 proposals, 5 shortlisted, 6 caught errors in the proposals themselves
+
+**How this was produced.** Verification, not measurement: every claim below was checked against a
+primary source (the dataset's own files, its hosting platform's licence metadata, or the
+benchmark repositories' metadata), not taken from the relayed proposal lists that named them.
+Benchmark snapshot: TabArena-v0.1 (51 datasets) and BeyondArena (142) from the local TabArena
+fork at commit `76560a0` (2026-10-05), written to `docs/research/benchmark_datasets.csv`.
+
+### What exists now
+
+- **`docs/research/data_candidates.csv`** -- every proposed source with a verdict
+  (`IN_USE`/`SHORTLIST`/`HOLD_*`/`EXCLUDED_*`), the exact benchmark dataset it overlaps where it
+  does, and the reason. Exclusions are kept, not deleted, so none is re-proposed.
+- **`scripts/candidates/check_overlap.py`**, run in CI by `tests/test_data_candidates.py`: every
+  claimed overlap must name a dataset in the snapshot, and every non-excluded candidate is
+  fuzzy-matched against all 193 benchmark names; a human judgement that a collision is unrelated
+  is recorded per-name in `reviewed_not_overlapping`, not by loosening the check. Its own
+  regression test caught a real bug in the first version -- "LendingClub" tokenised as one word
+  never matched `lending_club_1m` -- the exact case the script was written for.
+- **`scripts/candidates/feasibility.py`**: per-panel shape, missingness, positive-rate regime and
+  5-fold logistic regression / LightGBM AUC and AP, CPU only.
+- **`scripts/candidates/build_panels.py`** and a generic sampler **`prior/real_panel.py`**
+  (`PriorConfig.real_panels = "path=prob,..."`, `--real-panels`), replacing a module-per-source
+  pattern that had reached three near-identical copies. Its `min_positives` floor mirrors the
+  synthetic prior's `min_expected_positives = 2.0` with *real* positives swapped in -- without it,
+  a 0.17%-rate source at 256-row contexts falls to the label-flip repair on most draws.
+
+### Six errors in the proposals, each caught by opening the source
+
+| proposal | what it actually is |
+| --- | --- |
+| Bank Marketing as new training data | TabArena-v0.1 `bank-marketing` -- listed as a TabArena task in the same message |
+| "P2P Macro, 2.7M, most interesting find" | LendingClub 2008-2019 joined to state macro data (the paper's own abstract) |
+| PPDai figshare record | also bundles `DefaultData.csv` = TabArena `credit_card_clients_default`; only `ppdaiData.csv` is safe |
+| SACCO Kenya, "anonymized loan records" | the workbook's only sheet is named `Synthetic_SACCO_Data`; label-leaking columns too |
+| Home Credit, IEEE-CIS fraud, LendingClub as "not in TabArena" | all three are in BeyondArena |
+| Obesity levels (UCI 544) | 77% SMOTE-generated per UCI's own description |
+
+Of the ~100-dataset general-tabular list: 25 overlap TabArena or BeyondArena, 5 are Monte Carlo
+simulations (HIGGS, SUSY, MAGIC, MiniBooNE) or simulation output, 3 have deterministic rule-generated
+labels (Car Evaluation, Nursery, Chess KRK -- a fixed rule teaches no in-context inference, §47),
+9 have under 500 rows, 2 were listed twice. The remainder is kept as `HOLD_BREADTH`, not used.
+
+### Why the breadth pool is held, not trained on
+
+D17's addendum: this project's own §115/§116 is a measured case of a TabArena gain that was a
+V4FinBench loss, and `CLAUDE.md`'s rule since is that a general-tabular gain is not a result until
+it has a credit number beside it. A general-tabular corpus is a change of mission (README: "a
+tabular foundation model for financial risk"), not a data addition, and would need its own
+decision. If structural breadth is wanted, the synthetic priors' own ranges (class counts, row
+and feature counts, missingness, categorical share) are the zero-licence-risk way to buy it.
+
+### Feasibility, MEASURED on each built panel (5-fold, ≤200k-row stratified subsample)
+
+| source | rows | feat | pos % | vs V4 band | LR AUC | LR AP | GBM AUC | GBM AP |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| EDGAR (in use) | 24,677 | 15 | 1.39 | inside | 0.694 | 0.040 | 0.946 | 0.472 |
+| Freddie Mac 2018 sample (in use) | 50,000 | 38 | 0.048 | rarer | 0.835 | 0.057 | 0.578 | 0.002 |
+| LendingClub (in use) | 1,347,681 | 22 | 19.98 | more common | 0.654 | 0.310 | 0.662 | 0.318 |
+| PPDai | 55,596 | 29 | 12.92 | more common | 0.641 | 0.227 | 0.713 | 0.291 |
+| Bondora (12-month default) | 148,783 | 101 | 28.98 | more common | 0.744 | 0.552 | 0.779 | 0.593 |
+| ULB card fraud | 284,807 | 30 | 0.17 | rarer | 0.980 | 0.769 | 0.843 | 0.401 |
+| SBA 7(a) (60-month charge-off) | 478,953 | 48 | 3.93 | inside | 0.848 | 0.166 | 0.968 | 0.599 |
+
+Label design, each chosen after opening the data: Bondora's book is mostly 2019-2020 with a
+2021-07-20 snapshot, so an "ever defaulted" label is censored -- 12-month default, kept only for
+loans with the full window observed. SBA FY2010-2019 has at least five years observed for every
+loan by 2026-06-30, so 60-month charge-off is uncensored; never-disbursed loans and 10 charge-offs
+with no date are dropped, borrower and lender identity dropped, post-outcome fields excluded
+(paid-in-full is spelled `"P I F"`). Bondora's own risk outputs are excluded, as LendingClub's
+grade is.
+
+**Leakage checks on the two high GBM scores.** No single feature drives either: SBA's best
+univariate AUC is loan term (0.757, a documented genuine effect -- real-estate-backed loans run
+20+ years and default far less), EDGAR's is net income (0.753); the GBM scores come from
+interactions. SBA's term field is not rewritten after charge-off (correlation with
+months-to-charge-off −0.04). **One asymmetry is not explained**: very few short-term SBA loans
+appear as paid in full (10th-percentile term 60 months for paid-in-full, 11 for charged-off).
+Recorded as open, not resolved. **Freddie Mac's 24 positives are too few to learn from** at this
+sample scale (GBM AP 0.002), confirming §154; it is left out of §157's pilot.
+
+Nothing here says any source *helps* FinTFM-R. §157 is the first attempt at that.

@@ -53,6 +53,13 @@ class TrainConfig:
     #: restart AdamW cold and replay the same synthetic tasks, neither of which is visible in
     #: a loss curve.
     resume: str | None = None
+    #: A *model* checkpoint whose weights initialise this run, with a fresh optimiser and
+    #: schedule -- continued pretraining, not a resume. Exists for matched-pair ablations that
+    #: start every arm from the same trained weights and vary only the prior mixture, which is
+    #: what lets a short CPU run test a data change at the real architecture's scale. The
+    #: checkpoint's architecture must equal this run's exactly; mutually exclusive with
+    #: :attr:`resume`.
+    init_from: str | None = None
     #: Features per row-within-feature attention call, for ``n_cell_blocks > 0`` models.
     #: Identity-preserving (``docs/results/FINDINGS.md`` §81), so it changes no number and only
     #: bounds memory. ``None`` keeps the unchunked path, which is what every checkpoint
@@ -406,6 +413,25 @@ def train(
     objectives: set[str] = set()
 
     start_step = 0
+    if train_cfg.init_from is not None:
+        if train_cfg.resume is not None:
+            raise ValueError("init_from and resume are mutually exclusive")
+        init = torch.load(train_cfg.init_from, map_location=train_cfg.device, weights_only=False)
+        mismatched = {
+            k: (init["config"].get(k), v)
+            for k, v in asdict(model_cfg).items()
+            if init["config"].get(k, v) != v
+        }
+        if mismatched:
+            # A silent partial load (strict=False) would train a different architecture than
+            # the one named on the command line; refuse and name every differing field.
+            raise ValueError(
+                f"{train_cfg.init_from} has a different architecture "
+                f"(checkpoint, this run): {mismatched}"
+            )
+        model.load_state_dict(init["state_dict"])
+        objectives = set(init.get("trained_objectives", []))
+        print(f"initialised weights from {train_cfg.init_from} (fresh optimiser and schedule)")
     if train_cfg.resume is not None:
         state = torch.load(train_cfg.resume, map_location=train_cfg.device, weights_only=False)
         saved_optimizer = state.get("optimizer_name", "adamw")
@@ -629,6 +655,29 @@ def main() -> None:
         "--p-real-mortgage > 0",
     )
     p.add_argument(
+        "--p-real-lendingclub",
+        type=float,
+        default=0.0,
+        help="probability of drawing a task from a real LendingClub panel instead of a "
+        "synthetic one (D17's third real source); requires --real-lendingclub-panel-path and "
+        "the 'real' extra (uv sync --extra real). 0.0 (default) never opens the panel file",
+    )
+    p.add_argument(
+        "--real-lendingclub-panel-path",
+        type=str,
+        default=None,
+        help="parquet file built by scripts/lendingclub/build_panel.py; ignored unless "
+        "--p-real-lendingclub > 0",
+    )
+    p.add_argument(
+        "--real-panels",
+        type=str,
+        default="",
+        help="further real sources as 'path=prob,path=prob' (panels from "
+        "scripts/candidates/build_panels.py); each an independent draw. Empty (default) "
+        "opens no file",
+    )
+    p.add_argument(
         "--identity-shuffle",
         action="store_true",
         help="expose financial-task columns from independently-per-account-permuted accounts "
@@ -711,6 +760,14 @@ def main() -> None:
         help="steps to run in THIS invocation; the LR schedule still spans --steps. Use when "
         "a run is longer than one job's wall-clock: each job saves <out>.state and "
         "prints the --resume line to continue with",
+    )
+    p.add_argument(
+        "--init-from",
+        type=str,
+        default=None,
+        help="initialise weights from a model checkpoint with a fresh optimiser and schedule "
+        "(continued pretraining for matched-pair ablations). The checkpoint's architecture "
+        "must match this run's exactly; mutually exclusive with --resume",
     )
     p.add_argument(
         "--resume",
@@ -858,6 +915,8 @@ def main() -> None:
         head_type=args.head_type,
         p_real_edgar=args.p_real_edgar,
         p_real_mortgage=args.p_real_mortgage,
+        p_real_lendingclub=args.p_real_lendingclub,
+        real_panels=args.real_panels,
         real_edgar_panel_path=(
             PriorConfig.real_edgar_panel_path
             if args.real_edgar_panel_path is None
@@ -867,6 +926,11 @@ def main() -> None:
             PriorConfig.real_mortgage_panel_path
             if args.real_mortgage_panel_path is None
             else args.real_mortgage_panel_path
+        ),
+        real_lendingclub_panel_path=(
+            PriorConfig.real_lendingclub_panel_path
+            if args.real_lendingclub_panel_path is None
+            else args.real_lendingclub_panel_path
         ),
         # the default-rate envelope comes from configuration, because a prior that cannot
         # generate the regime being evaluated is the defect behind docs/results/FINDINGS.md §26
@@ -887,6 +951,7 @@ def main() -> None:
         feature_chunk=args.feature_chunk,
         run_steps=args.run_steps,
         resume=args.resume,
+        init_from=args.init_from,
         optimizer=args.optimizer,
     )
     print(f"config: {cfg.provenance()}")

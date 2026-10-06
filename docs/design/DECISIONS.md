@@ -564,13 +564,28 @@ SEC-mandated bankruptcy-or-receivership disclosure, roughly 400 filings a quarte
 the financials by CIK. Features and labels from one public-domain source, in this project's own
 domain.
 
-**Two real sources are intended, and they start at different times for a non-technical
-reason.** Freddie Mac's Single-Family Loan-Level Dataset (≈56M mortgages, 1999-2026, with
-observed defaults and losses) is the second source, adopted deliberately rather than as an
-afterthought: one EDGAR panel is a *single* task family, and what real-table pretraining buys
-the peers is diversity across heterogeneous real tables, which a second genuinely different
-credit domain (consumer mortgage against corporate) supplies. It is also the only one of the
-two with observed, loan-level default outcomes rather than disclosure-derived events.
+**Three real sources are intended now, not two** (updated 2026-10-06), **and they start at
+different times for a non-technical reason.** Freddie Mac's Single-Family Loan-Level Dataset
+(≈56M mortgages, 1999-2026, with observed defaults and losses) is the second source, adopted
+deliberately rather than as an afterthought: one EDGAR panel is a *single* task family, and
+what real-table pretraining buys the peers is diversity across heterogeneous real tables,
+which a second genuinely different credit domain (consumer mortgage against corporate)
+supplies. It is also the only one of the two with observed, loan-level default outcomes rather
+than disclosure-derived events. LendingClub (1.35M consumer loans, 2007-2018, CC-BY-4.0) is
+the third, added once a redistribution-friendly, application-time-filtered release was found
+(`docs/results/FINDINGS.md` §155). It is absent from TabArena-v0.1 **but present in
+BeyondArena** (`lending_club_1m`) -- a second bounded benchmark forfeit, of the same kind as
+EDGAR's: that one BeyondArena task is excluded from any FinTFM-R BeyondArena number. The rule
+this taught, now enforced by `scripts/candidates/check_overlap.py` in CI: **check every
+benchmark suite the project might be scored on, not only the one currently in use.** Further
+candidates are tracked in `docs/research/data_candidates.csv`, read through one generic sampler
+(`prior/real_panel.py`) rather than a module per source.
+
+**What this is not: a general-tabular breadth strategy.** A peer-sourced proposal to add up to
+100 non-financial datasets (cybersecurity, chemistry, physics, healthcare) to chase TabArena
+Elo was considered and declined -- see §156 for the full reasoning. Each additional real
+source is still evaluated one at a time, against the same financial-domain bar A1/B1 used,
+not folded into a bulk import.
 
 **Corrected 2026-10-06 (§153): the gating condition above was stated too broadly, on an
 unchecked premise.** Freddie Mac's free tier, read in full rather than assumed, grants two

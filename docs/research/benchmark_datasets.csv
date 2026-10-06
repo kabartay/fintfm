@@ -1,0 +1,194 @@
+benchmark,dataset_name,domain,problem_type,num_instances,source,url
+TabArena-v0.1,airfoil_self_noise,physics & astronomy,regression,1503,UCI,https://doi.org/10.24432/C5VW2C
+TabArena-v0.1,Amazon_employee_access,business & marketing,binary,32769,Kaggle,https://www.kaggle.com/c/amazon-employee-access-challenge
+TabArena-v0.1,anneal,chemistry & material science,multiclass,898,UCI,https://doi.org/10.24432/C5RW2F
+TabArena-v0.1,Another-Dataset-on-used-Fiat-500,technology & internet,regression,1538,Kaggle,https://www.kaggle.com/datasets/paolocons/another-fiat-500-dataset-1538-rows
+TabArena-v0.1,APSFailure,industry & manufacturing,binary,76000,UCI,https://doi.org/10.24432/C5V60Q
+TabArena-v0.1,bank-marketing,finance,binary,45211,UCI,https://doi.org/10.24432/C5K306
+TabArena-v0.1,Bank_Customer_Churn,finance,binary,10000,Kaggle,https://www.kaggle.com/datasets/gauravtopre/bank-customer-churn-dataset
+TabArena-v0.1,Bioresponse,biology & life sciences,binary,3751,Kaggle,https://www.kaggle.com/c/bioresponse
+TabArena-v0.1,blood-transfusion-service-center,medical & healthcare,binary,748,UCI,https://doi.org/10.24432/C5GS39
+TabArena-v0.1,churn,business & marketing,binary,5000,OpenML,https://github.com/EpistasisLab/pmlb/tree/master/datasets/churn
+TabArena-v0.1,coil2000_insurance_policies,business & marketing,binary,9822,UCI,https://doi.org/10.24432/C5630S
+TabArena-v0.1,concrete_compressive_strength,chemistry & material science,regression,1030,UCI,https://doi.org/10.24432/C5PK67
+TabArena-v0.1,credit-g,finance,binary,1000,UCI,https://doi.org/10.24432/C5NC77
+TabArena-v0.1,credit_card_clients_default,finance,binary,30000,UCI,https://doi.org/10.24432/C55S3H
+TabArena-v0.1,customer_satisfaction_in_airline,business & marketing,binary,129880,Kaggle,https://www.kaggle.com/datasets/yakhyojon/customer-satisfaction-in-airline
+TabArena-v0.1,diabetes,medical & healthcare,binary,768,OpenML,https://www.kaggle.com/datasets/uciml/pima-indians-diabetes-database
+TabArena-v0.1,Diabetes130US,medical & healthcare,binary,71518,UCI,https://doi.org/10.24432/C5230J
+TabArena-v0.1,diamonds,business & marketing,regression,53940,Other,https://github.com/tidyverse/ggplot2/blob/main/data-raw/diamonds.csv
+TabArena-v0.1,E-CommereShippingData,business & marketing,binary,10999,Kaggle,https://www.kaggle.com/datasets/prachi13/customer-analytics
+TabArena-v0.1,Fitness_Club,business & marketing,binary,1500,Kaggle,https://www.kaggle.com/datasets/ddosad/datacamps-data-science-associate-certification
+TabArena-v0.1,Food_Delivery_Time,business & marketing,regression,45451,Kaggle,https://www.kaggle.com/datasets/rajatkumar30/food-delivery-time
+TabArena-v0.1,GiveMeSomeCredit,finance,binary,150000,Kaggle,https://www.kaggle.com/competitions/GiveMeSomeCredit
+TabArena-v0.1,hazelnut-spread-contaminant-detection,biology & life sciences,binary,2400,OpenML,https://www.openml.org/d/45538
+TabArena-v0.1,healthcare_insurance_expenses,medical & healthcare,regression,1338,Kaggle,https://www.kaggle.com/datasets/arunjangir245/healthcare-insurance-expenses/
+TabArena-v0.1,heloc,finance,binary,10459,Kaggle,https://www.kaggle.com/datasets/averkiyoliabev/home-equity-line-of-creditheloc
+TabArena-v0.1,hiva_agnostic,chemistry & material science,multiclass,3845,Other,http://www.agnostic.inf.ethz.ch
+TabArena-v0.1,houses,business & marketing,regression,20640,Other,https://lib.stat.cmu.edu/datasets/
+TabArena-v0.1,HR_Analytics_Job_Change_of_Data_Scientists,business & marketing,binary,19158,Kaggle,https://www.kaggle.com/datasets/arashnic/hr-analytics-job-change-of-data-scientists
+TabArena-v0.1,in_vehicle_coupon_recommendation,business & marketing,binary,12684,UCI,https://doi.org/10.24432/C5GS4P
+TabArena-v0.1,Is-this-a-good-customer,business & marketing,binary,1723,Kaggle,https://www.kaggle.com/datasets/podsyp/is-this-a-good-customer
+TabArena-v0.1,kddcup09_appetency,business & marketing,binary,50000,Other,https://kdd.org/kdd-cup/view/kdd-cup-2009/Intro
+TabArena-v0.1,Marketing_Campaign,business & marketing,binary,2240,Kaggle,https://www.kaggle.com/datasets/rodsaldanha/arketing-campaign
+TabArena-v0.1,maternal_health_risk,medical & healthcare,multiclass,1014,UCI,https://doi.org/10.24432/C5DP5D
+TabArena-v0.1,miami_housing,business & marketing,regression,13776,OpenML,https://www.openml.org/d/43093
+TabArena-v0.1,MIC,medical & healthcare,multiclass,1699,UCI,https://doi.org/10.24432/C53P5M
+TabArena-v0.1,NATICUSdroid,technology & internet,binary,7491,UCI,https://doi.org/10.24432/C5FS64
+TabArena-v0.1,online_shoppers_intention,business & marketing,binary,12330,UCI,https://doi.org/10.24432/C5F88Q
+TabArena-v0.1,physiochemical_protein,chemistry & material science,regression,45730,UCI,https://doi.org/10.24432/C5QW3H
+TabArena-v0.1,polish_companies_bankruptcy,finance,binary,5910,UCI,https://doi.org/10.24432/C5F600
+TabArena-v0.1,qsar-biodeg,biology & life sciences,binary,1054,UCI,https://doi.org/10.24432/C5H60M
+TabArena-v0.1,QSAR-TID-11,chemistry & material science,regression,5742,OpenML,https://www.openml.org/d/3050
+TabArena-v0.1,QSAR_fish_toxicity,biology & life sciences,regression,907,UCI,https://doi.org/10.24432/C5JG7B
+TabArena-v0.1,SDSS17,physics & astronomy,multiclass,78053,Kaggle,https://www.kaggle.com/datasets/fedesoriano/stellar-classification-dataset-sdss17
+TabArena-v0.1,seismic-bumps,environmental science & climate,binary,2584,UCI,https://doi.org/10.24432/C5W902
+TabArena-v0.1,splice,biology & life sciences,multiclass,3190,UCI,https://doi.org/10.24432/C5M888
+TabArena-v0.1,students_dropout_and_academic_success,education,multiclass,4424,UCI,https://doi.org/10.24432/C5MC89
+TabArena-v0.1,superconductivity,physics & astronomy,regression,21263,UCI,https://doi.org/10.24432/C53P47
+TabArena-v0.1,taiwanese_bankruptcy_prediction,finance,binary,6819,UCI,https://doi.org/10.24432/C5004D
+TabArena-v0.1,website_phishing,technology & internet,multiclass,1353,UCI,https://doi.org/10.24432/C5B301
+TabArena-v0.1,wine_quality,chemistry & material science,regression,6497,UCI,https://doi.org/10.24432/C56S3T
+TabArena-v0.1,jm1,technology & internet,binary,10885,OpenML,https://www.openml.org/d/1053
+BeyondArena,airfoil_self_noise,physics & astronomy,regression,1503,UCI,
+BeyondArena,amazon_employee_access,business & marketing,binary,32769,Kaggle,
+BeyondArena,aps_failure,industry & manufacturing,binary,76000,UCI,
+BeyondArena,bad_customer_detection,business & marketing,binary,1723,Kaggle,
+BeyondArena,bank_customer_churn,business & marketing,binary,10000,Kaggle,
+BeyondArena,bank_marketing,finance,binary,45211,UCI,
+BeyondArena,bioresponse,biology & life sciences,binary,3751,Kaggle,
+BeyondArena,blood_transfusion,medical & healthcare,binary,748,UCI,
+BeyondArena,churn,technology & internet,binary,5000,OpenML,
+BeyondArena,coil_2000,business & marketing,binary,9822,UCI,
+BeyondArena,concrete_compressive_strength,chemistry & material science,regression,1030,UCI,
+BeyondArena,credit_card_clients_default,finance,binary,30000,UCI,
+BeyondArena,credit_g,finance,binary,1000,UCI,
+BeyondArena,customer_satisfaction_in_airline,biology & life sciences,binary,129880,Kaggle,
+BeyondArena,diabetes_130_us,medical & healthcare,binary,71518,UCI,
+BeyondArena,diamonds,business & marketing,regression,53940,Other,
+BeyondArena,ecommerce_shipping,business & marketing,binary,10999,Kaggle,
+BeyondArena,fiat_500,technology & internet,regression,1538,Kaggle,
+BeyondArena,fitness_club,business & marketing,binary,1500,Kaggle,
+BeyondArena,food_delivery_time,business & marketing,regression,45451,Kaggle,
+BeyondArena,give_me_some_credit,finance,binary,150000,Kaggle,
+BeyondArena,hazelnut_spread_contaminant_detection,biology & life sciences,binary,2400,OpenML,
+BeyondArena,healthcare_insurance_expenses,medical & healthcare,regression,1338,Kaggle,
+BeyondArena,heloc,finance,binary,10459,Kaggle,
+BeyondArena,hiva_agnostic,chemistry & material science,binary,3845,Other,
+BeyondArena,houses,business & marketing,regression,19675,Other,
+BeyondArena,hr_analytics,business & marketing,binary,19158,Kaggle,
+BeyondArena,in_vehicle_coupon_recommendation,business & marketing,binary,12684,UCI,
+BeyondArena,jm1,technology & internet,binary,10885,OpenML,
+BeyondArena,kdd_cup_09_appetency,business & marketing,binary,50000,Other,
+BeyondArena,marketing_campaign,business & marketing,binary,2240,Kaggle,
+BeyondArena,maternal_health_risk,medical & healthcare,multiclass,1014,UCI,
+BeyondArena,miami_housing,finance,regression,13776,Kaggle,
+BeyondArena,mic,medical & healthcare,multiclass,1699,UCI,
+BeyondArena,naticusdroid_android_permissions_dataset,technology & internet,binary,7491,UCI,
+BeyondArena,online_shoppers_purchasing_intention_dataset,business & marketing,binary,12330,UCI,
+BeyondArena,physiochemical_protein,chemistry & material science,regression,45730,UCI,
+BeyondArena,polish_companies_bankruptcy,finance,binary,5790,UCI,
+BeyondArena,predict_students_dropout_and_academic_success,education,multiclass,4424,UCI,
+BeyondArena,qsar_biodeg,biology & life sciences,binary,1054,UCI,
+BeyondArena,qsar_fish_toxicity,biology & life sciences,regression,908,UCI,
+BeyondArena,qsar_tid_11,chemistry & material science,regression,5741,OpenML,
+BeyondArena,sdss_17,physics & astronomy,multiclass,78053,Kaggle,
+BeyondArena,seismic_bumps,environmental science & climate,binary,2584,UCI,
+BeyondArena,splice,biology & life sciences,multiclass,3190,UCI,
+BeyondArena,superconductivity,physics & astronomy,regression,21263,UCI,
+BeyondArena,taiwanese_bankruptcy_prediction,finance,binary,6819,UCI,
+BeyondArena,website_phishing,technology & internet,multiclass,1353,UCI,
+BeyondArena,wine_quality,chemistry & material science,regression,6497,UCI,
+BeyondArena,allstate_claims_severity,insurance,regression,188317,Kaggle,
+BeyondArena,audiology_diagnosis,medical & healthcare,multiclass,199,UCI,
+BeyondArena,biomechanical_orthopaedic_prediction,medical & healthcare,multiclass,310,UCI,
+BeyondArena,blood_tests_drink_prediction,medical & healthcare,regression,345,UCI,
+BeyondArena,body_density_prediction,medical & healthcare,regression,252,Kaggle,
+BeyondArena,cirrhosis_patient_survival_prediction,medical & healthcare,regression,161,UCI,
+BeyondArena,credit_approval,finance,binary,690,UCI,
+BeyondArena,drug_induced_autoimmunity_prediction,medical & healthcare,binary,597,UCI,
+BeyondArena,early_stage_diabetes_risk_prediction,medical & healthcare,binary,251,UCI,
+BeyondArena,ecoli_proteins,biology & life sciences,multiclass,327,UCI,
+BeyondArena,emscad,business & marketing,binary,17460,Other,
+BeyondArena,eryhemato_squamous_disease,medical & healthcare,multiclass,366,UCI,
+BeyondArena,forensic_glass_identification,chemistry & material science,multiclass,214,UCI,
+BeyondArena,forest_fires,environmental science & climate,regression,517,UCI,
+BeyondArena,gallstone_disease,medical & healthcare,binary,319,UCI,
+BeyondArena,heart_disease_cleveland,medical & healthcare,binary,303,UCI,
+BeyondArena,heart_disease_hungary,medical & healthcare,binary,294,UCI,
+BeyondArena,heart_disease_va_long_beach,medical & healthcare,binary,200,UCI,
+BeyondArena,heart_failure_followup_survival,medical & healthcare,binary,299,UCI,
+BeyondArena,hepatitis_c_prediction,medical & healthcare,multiclass,608,UCI,
+BeyondArena,hepatitis_survival_prediction,medical & healthcare,binary,155,UCI,
+BeyondArena,home_credit_default_risk,finance,binary,307507,Kaggle,
+BeyondArena,homesite_quote_conversion,insurance,binary,260753,Kaggle,
+BeyondArena,horse_colic_survival,biology & life sciences,multiclass,344,UCI,
+BeyondArena,indian_liver_patient_dataset,medical & healthcare,binary,583,UCI,
+BeyondArena,labour_inspection_compliance,industry & manufacturing,binary,63634,Other,
+BeyondArena,ljubljana_breast_cancer,medical & healthcare,binary,286,UCI,
+BeyondArena,ljubljana_primary_tumor,medical & healthcare,multiclass,302,UCI,
+BeyondArena,mercari_price_suggestion_1m,business & marketing,regression,1250000,Kaggle,
+BeyondArena,mutual_funds_india,finance,regression,793,Kaggle,
+BeyondArena,otto_group_product_classification_challenge,business & marketing,multiclass,61878,Kaggle,
+BeyondArena,porto_seguro,insurance,binary,595206,Kaggle,
+BeyondArena,pva_revenue_prediction_kddcup98,business & marketing,binary,144095,Other,
+BeyondArena,qsar_aquatic_toxicity,biology & life sciences,regression,546,UCI,
+BeyondArena,regensburg_pediatric_appendicitis,medical & healthcare,binary,763,Other,
+BeyondArena,santander_customer_satisfaction,business & marketing,binary,71080,Kaggle,
+BeyondArena,santander_customer_transaction_prediction,finance,binary,200000,Kaggle,
+BeyondArena,santander_transaction_value,finance,regression,4447,Kaggle,
+BeyondArena,sepsis_survival_minimal_clinical_records,medical & healthcare,binary,110204,UCI,
+BeyondArena,south_africa_coronary_heart_disease,medical & healthcare,binary,462,Kaggle,
+BeyondArena,student_portuguese_performance,education,regression,649,UCI,
+BeyondArena,thyroid_discordant,medical & healthcare,binary,3711,UCI,
+BeyondArena,tour_travels_churn,business & marketing,binary,954,Kaggle,
+BeyondArena,wids_diabetes_mellitus,medical & healthcare,binary,127358,Kaggle,
+BeyondArena,wine_world_cost,business & marketing,regression,1279,Kaggle,
+BeyondArena,iranian_churn,business & marketing,binary,2850,UCI,
+BeyondArena,obesity_estimation,medical & healthcare,regression,498,UCI,
+BeyondArena,immoscout_german_house_prices,business & marketing,regression,10317,Kaggle,
+BeyondArena,biogeographical_ancestry_prediction,biology & life sciences,multiclass,635,GitHub,
+BeyondArena,homeq_default_prediction,business & marketing,binary,5708,Other,
+BeyondArena,lung_cancer,medical & healthcare,multiclass,197,Other,
+BeyondArena,clock_protein_toxicity,biology & life sciences,binary,171,UCI,
+BeyondArena,prostate_cancer_detection,medical & healthcare,binary,322,Other,
+BeyondArena,lung_cancer_epithelial_genexp,medical & healthcare,binary,187,GOV Website,
+BeyondArena,acquire_valued_shoppers_challenge,business & marketing,binary,160057,Kaggle,
+BeyondArena,climate_model_weather_forecasting_1m,environmental science & climate,regression,1250000,Kaggle,
+BeyondArena,cooking_time_1m,industry & manufacturing,regression,1250000,Kaggle,
+BeyondArena,delivery_eta_1m,industry & manufacturing,regression,1250000,Kaggle,
+BeyondArena,home_credit_default_stability_1m,finance,binary,1224927,Kaggle,
+BeyondArena,kick,business & marketing,binary,72983,Kaggle,
+BeyondArena,mercedes_benz_greener_manufacturing,industry & manufacturing,regression,4204,Kaggle,
+BeyondArena,sberbank_housing_market_forecasting,business & marketing,regression,27195,Kaggle,
+BeyondArena,maps_router_eta_1m,industry & manufacturing,regression,1250000,Kaggle,
+BeyondArena,hotel_booking_demand,business & marketing,binary,81418,Other,
+BeyondArena,ghanas_indigenous_intel,environmental science & climate,multiclass,10928,Zindi,
+BeyondArena,ieee_fraud_detection,finance,binary,590540,Kaggle,
+BeyondArena,anes_voting_2026,social science,binary,48587,Other,
+BeyondArena,rossmann_store_sales,business & marketing,regression,844392,Kaggle,
+BeyondArena,garments_worker_productivity,industry & manufacturing,regression,1197,UCI,
+BeyondArena,california_house_prices_2020,business & marketing,regression,41528,Kaggle,
+BeyondArena,coffee_rating_prediction,business & marketing,regression,2369,Kaggle,
+BeyondArena,consumer_complaints_1m,finance,multiclass,1226140,GOV Website,
+BeyondArena,lending_club_1m,finance,binary,1064751,Kaggle,
+BeyondArena,kickstarter,business & marketing,binary,187118,Other,
+BeyondArena,sf_permit_time,business & marketing,regression,116954,GOV Website,
+BeyondArena,mice_protein_trisomy_discriminant,biology & life sciences,multiclass,1080,UCI,
+BeyondArena,musk,chemistry & material science,binary,6598,UCI,
+BeyondArena,micro_mass,biology & life sciences,multiclass,571,UCI,
+BeyondArena,parkinsons_biomedical_voice_measurements,medical & healthcare,binary,195,UCI,
+BeyondArena,amex_non_iid_1m,finance,binary,1249605,Kaggle,
+BeyondArena,pancreatic_cancer_mouse_detection,medical & healthcare,binary,181,Other,
+BeyondArena,early_learning_predictors,education,regression,18874,Other,
+BeyondArena,5g_energy_consumption,technology & internet,regression,92629,HuggingFace,
+BeyondArena,telemonitoring_parkinsons_biomedical_voice_measurements,medical & healthcare,regression,502,UCI,
+BeyondArena,dementia_prediction,medical & healthcare,multiclass,370,Other,
+BeyondArena,covertype,environmental science & climate,multiclass,512625,UCI,
+BeyondArena,sepsis_prediction_1m,medical & healthcare,binary,1228686,Other,
+BeyondArena,cardiotocography,medical & healthcare,multiclass,2126,UCI,
+BeyondArena,sat11_hand_algo_runtime,technology & internet,regression,2960,ASlib,
+BeyondArena,asp_potassco_classification,technology & internet,multiclass,1212,ASlib,
+BeyondArena,video_transcoding_time_prediction,technology & internet,regression,68784,UCI,
+BeyondArena,video_game_fps_prediction,technology & internet,regression,12288,OpenML,
+BeyondArena,electric_motor_temperature_prediction,industry & manufacturing,regression,1296316,Kaggle,

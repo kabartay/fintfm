@@ -8,6 +8,10 @@ data/cache/
 # Real training data (FinTFM-R, D17): never enters git, same convention as trained weights.
 data/edgar/
 data/mortgage/
+data/lendingclub/
+# Every further real source lands under data/real/<source>/, so one rule covers sources that
+# do not exist yet -- data/lendingclub/ was missing from this list for most of a session.
+data/real/
 *.pt
 !tests/fixtures/*.pt
 

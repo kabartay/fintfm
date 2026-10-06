@@ -38,6 +38,10 @@ PROVENANCE_EXEMPT = {
     "PriorConfig.p_real_edgar, default 0.0",
     "prior/real_mortgage.py": "FinTFM-R (D17, task B3): reads a real Freddie Mac loan-level "
     "panel, gated behind PriorConfig.p_real_mortgage, default 0.0",
+    "prior/real_lendingclub.py": "FinTFM-R (D17, third real source): reads a real LendingClub "
+    "panel, gated behind PriorConfig.p_real_lendingclub, default 0.0",
+    "prior/real_panel.py": "FinTFM-R (D17): generic reader for the shortlisted real panels, "
+    "gated behind PriorConfig.real_panels, default empty",
 }
 
 #: Signatures of loading real data from disk or network.
@@ -110,6 +114,17 @@ def _check_provenance_exemptions_still_hold() -> list[str]:
                 f"PriorConfig.p_real_mortgage defaults to {cfg.p_real_mortgage!r}, not 0.0 -- "
                 "prior/real_mortgage.py's provenance exemption assumes it is off by default "
                 "for every checkpoint that does not explicitly opt in"
+            )
+        if cfg.real_panels != "":
+            problems.append(
+                f"PriorConfig.real_panels defaults to {cfg.real_panels!r}, not empty -- "
+                "prior/real_panel.py's provenance exemption assumes it is off by default"
+            )
+        if cfg.p_real_lendingclub != 0.0:
+            problems.append(
+                f"PriorConfig.p_real_lendingclub defaults to {cfg.p_real_lendingclub!r}, not "
+                "0.0 -- prior/real_lendingclub.py's provenance exemption assumes it is off by "
+                "default for every checkpoint that does not explicitly opt in"
             )
     finally:
         sys.path.pop(0)

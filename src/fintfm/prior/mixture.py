@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 import numpy as np
@@ -19,8 +20,11 @@ from fintfm.prior.financial import (
 )
 from fintfm.prior.learnability import is_learnable
 from fintfm.prior.real_edgar import DEFAULT_PANEL_PATH, sample_real_edgar_task
+from fintfm.prior.real_lendingclub import DEFAULT_PANEL_PATH as DEFAULT_LENDINGCLUB_PANEL_PATH
+from fintfm.prior.real_lendingclub import sample_real_lendingclub_task
 from fintfm.prior.real_mortgage import DEFAULT_PANEL_PATH as DEFAULT_MORTGAGE_PANEL_PATH
 from fintfm.prior.real_mortgage import sample_real_mortgage_task
+from fintfm.prior.real_panel import parse_real_panels, sample_real_panel_task
 from fintfm.prior.scm import (
     sample_scm_regression_task,
     sample_scm_task,
@@ -238,6 +242,21 @@ class PriorConfig:
     """Where :func:`sample_task` reads the real mortgage panel from when
     :attr:`p_real_mortgage` is non-zero. Ignored otherwise -- a misconfigured path with
     ``p_real_mortgage=0.0`` causes no error, since the file is never opened."""
+    p_real_lendingclub: float = 0.0
+    """Probability of drawing a task from real LendingClub loans instead of a synthetic one
+    (D17's third real source). Present alongside :attr:`p_real_edgar`/:attr:`p_real_mortgage`
+    rather than a rework. ``0.0`` (default) reproduces every checkpoint trained before this
+    field existed, byte for byte. Checked alongside the other two real sources, before
+    :attr:`p_financial`, in :func:`sample_task`'s chain."""
+    real_lendingclub_panel_path: str = DEFAULT_LENDINGCLUB_PANEL_PATH
+    """Where :func:`sample_task` reads the real LendingClub panel from when
+    :attr:`p_real_lendingclub` is non-zero. Ignored otherwise."""
+    real_panels: str = ""
+    """Further real sources as ``"path=prob,path=prob"``, read by the generic
+    :func:`fintfm.prior.real_panel.sample_real_panel_task`. Each entry is an independent
+    draw with its stated probability, checked after the dedicated ``p_real_*`` sources and before
+    :attr:`p_financial`. ``""`` (default) parses nothing and opens nothing, so every checkpoint
+    trained before this field existed is reproduced exactly."""
 
 
 def sample_task(rng: np.random.Generator, cfg: PriorConfig, n_rows: int | None = None) -> Task:
@@ -300,6 +319,22 @@ def sample_task(rng: np.random.Generator, cfg: PriorConfig, n_rows: int | None =
         return sample_real_mortgage_task(
             rng, n, max_features=cfg.max_features, panel_path=cfg.real_mortgage_panel_path
         )
+    if cfg.p_real_lendingclub and rng.random() < cfg.p_real_lendingclub:
+        if cfg.n_horizons is not None:
+            raise ValueError(
+                "n_horizons requires p_financial=1.0; real_lendingclub carries no horizon grid"
+            )
+        return sample_real_lendingclub_task(
+            rng, n, max_features=cfg.max_features, panel_path=cfg.real_lendingclub_panel_path
+        )
+    for path, p in parse_real_panels(cfg.real_panels):
+        if rng.random() < p:
+            if cfg.n_horizons is not None:
+                raise ValueError("n_horizons requires p_financial=1.0; real panels carry no horizon grid")
+            return sample_real_panel_task(
+                rng, n, panel_path=path, max_features=cfg.max_features,
+                min_positives=math.ceil(cfg.min_expected_positives),
+            )
     if rng.random() < cfg.p_financial:
         return sample_financial_task(
             rng,
@@ -354,6 +389,8 @@ def _sample_tasks_reusing_graphs(
             or (cfg.p_regression and rng.random() < cfg.p_regression)
             or (cfg.p_real_edgar and rng.random() < cfg.p_real_edgar)
             or (cfg.p_real_mortgage and rng.random() < cfg.p_real_mortgage)
+            or (cfg.p_real_lendingclub and rng.random() < cfg.p_real_lendingclub)
+            or any(rng.random() < p for _, p in parse_real_panels(cfg.real_panels))
             or rng.random() < cfg.p_financial
         ):
             tasks.append(sample_task(rng, cfg, n_rows=n_rows))
