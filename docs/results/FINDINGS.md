@@ -10626,3 +10626,29 @@ and how the network starts, not in every line of `train()`.
 
 The not-yet-run schedule-free retune kernel now passes `--max-classes 2` explicitly; the
 FinTFM-R kernel generator (`scripts/kaggle/make_real_arm_kernel.py`) and §157's pilot already did.
+
+## §157 — Continued-pretraining pilot, one arm per real source (task C4)
+
+**Status: HYPOTHESIS, pre-registered 2026-10-06 ~23:35, before the last three arms were scored.**
+The full result replaces this paragraph's role once every arm lands; the prediction below stays,
+unedited, so it can be scored as a prediction rather than fitted afterwards.
+
+**Design.** `scripts/candidates/pilot.sh`: every arm starts from `v4-cellattn-labels.pt`, runs
+1,500 steps (lr 1e-4, batch 8, 256-row contexts, seed 0, CPU) at the control's exact
+architecture, and differs only in `--real-panels` (one source at 30% of tasks; the control none).
+Scored on V4FinBench fold 0, 200k-row development cap (34,906 test rows, 130 positives), paired
+bootstrap against the control, Holm across arms (`scripts/candidates/pilot_compare.py`). A pilot:
+one fold, a quarter of the original training volume, CPU -- it ranks sources for the GPU run.
+
+**First three arms (MEASURED, fold 0):** SBA +0.0175 AP [−0.0065, +0.0364]; EDGAR −0.0043
+[−0.0136, +0.0017]; Bondora −0.0078 [−0.0185, −0.0016], Holm p = 0.033.
+
+**The hypothesis those three suggest:** a real source helps or is neutral when its positive rate
+is near V4FinBench's (0.19-4%), and hurts when its positive rate is far higher -- the model
+learns a base-rate regime, not only a feature-label structure. SBA 3.9% (helps), EDGAR 1.4%
+(neutral), Bondora 29% (hurts).
+
+**Its prediction for the three arms not yet scored:** LendingClub (20.0%) and PPDai (12.9%) score
+**at or below the control** (point estimate ≤ 0). ULB card fraud (0.17%, just under the band,
+but fraud rather than credit) is **not predicted** -- the hypothesis is silent on a domain shift
+of that kind, and saying so now is better than claiming it either way afterwards.
