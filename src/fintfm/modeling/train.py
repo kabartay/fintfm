@@ -599,6 +599,21 @@ def main() -> None:
         "40.2-40.6 validated on existing checkpoints, see docs/results/FINDINGS.md §137-§140",
     )
     p.add_argument(
+        "--p-real-edgar",
+        type=float,
+        default=0.0,
+        help="probability of drawing a task from a real SEC EDGAR firm-quarter panel instead "
+        "of a synthetic one (FinTFM-R, task A2/A3); requires --real-edgar-panel-path and the "
+        "'real' extra (uv sync --extra real). 0.0 (default) never opens the panel file",
+    )
+    p.add_argument(
+        "--real-edgar-panel-path",
+        type=str,
+        default=None,
+        help="parquet file built by scripts/edgar/build_panel.py; ignored unless "
+        "--p-real-edgar > 0",
+    )
+    p.add_argument(
         "--identity-shuffle",
         action="store_true",
         help="expose financial-task columns from independently-per-account-permuted accounts "
@@ -826,6 +841,12 @@ def main() -> None:
         n_correlated_block_features=args.n_correlated_block_features,
         label_noise_rate=args.label_noise_rate,
         head_type=args.head_type,
+        p_real_edgar=args.p_real_edgar,
+        real_edgar_panel_path=(
+            PriorConfig.real_edgar_panel_path
+            if args.real_edgar_panel_path is None
+            else args.real_edgar_panel_path
+        ),
         # the default-rate envelope comes from configuration, because a prior that cannot
         # generate the regime being evaluated is the defect behind docs/results/FINDINGS.md §26
         sharpness_min=cfg.prior.sharpness_min,

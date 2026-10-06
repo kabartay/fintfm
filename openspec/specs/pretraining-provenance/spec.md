@@ -11,11 +11,22 @@ This is the project's cheapest durable advantage and the easiest to destroy by a
 
 ## Requirements
 
-**P1 — No real data may reach the pretraining path.** The only source of pretraining data is
-`fintfm.prior`. Real datasets are loaded exclusively in `fintfm.evaluation`.
+**P1 — No real data may reach the pretraining path for FinTFM.** The only source of
+pretraining data for the synthetic-only family is `fintfm.prior`'s generators. Real datasets
+are otherwise loaded exclusively in `fintfm.evaluation`.
 
-- *Enforced by:* `openspec/tools/validate.py --provenance`, and
-  `tests/test_provenance.py::test_no_real_data_in_pretraining_path`.
+- *Enforced by:* `openspec/tools/validate.py --provenance`.
+
+**Exception, named by D17 (2026-10-06), not a relaxation of the rule above.**
+`prior/real_edgar.py` reads a real SEC EDGAR panel — it is FinTFM-**R**'s data source, a
+second, explicitly real-data family opened as an addition to this project, not a change to
+FinTFM. It is listed in `validate.py`'s `PROVENANCE_EXEMPT`, which (a) makes the file
+inspectable rather than silently excluded, and (b) is itself checked: the exemption is only
+sound while `PriorConfig.p_real_edgar` defaults to `0.0`, so a FinTFM checkpoint (anything
+that does not explicitly set it) never reaches this file, and the validator fails if that
+default ever changes. P1 therefore holds exactly as stated for FinTFM; it does not, and was
+never claimed to, hold for FinTFM-R. See `CLAUDE.md`'s "Two families" section for the
+claim-labelling discipline this makes necessary.
 
 **P2 — The financial prior stays parametric.** It samples a macro regime rather than learning
 real crisis history. Realism may be increased by enriching generative structure (more

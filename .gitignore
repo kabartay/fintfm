@@ -5,6 +5,9 @@ __pycache__/
 .ruff_cache/
 runs/
 data/cache/
+# Real training data (FinTFM-R, D17): never enters git, same convention as trained weights.
+data/edgar/
+data/mortgage/
 *.pt
 !tests/fixtures/*.pt
 

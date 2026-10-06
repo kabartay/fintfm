@@ -95,6 +95,17 @@ closer to the harder case this post describes than to the i.i.d. case TFMs assum
 
 ## Domain benchmarks and datasets
 
+**U.S. Securities and Exchange Commission.** *Financial Statement Data Sets.*
+[sec.gov/dera/data/financial-statement-data-sets](https://www.sec.gov/dera/data/financial-statement-data-sets)
+XBRL numeric facts from the face financials of every SEC filer, January 2009 to June 2026,
+quarterly, with SIC industry codes. A US federal government work: public domain, no stated
+copyright restriction, commercially usable, no registration required — verified 2026-10-06 by
+direct access, not assumed from the page's prose (a 403 without a descriptive `User-Agent` is
+Akamai's bot filter, not a licensing gate). FinTFM-R's feature source (`docs/design/DECISIONS.md`
+D17); labels come from the same archive's 8-K full-text search for Item 1.03
+bankruptcy/receivership disclosures (`efts.sec.gov/LATEST/search-index`). See
+`docs/results/FINDINGS.md` §151 for the feasibility measurement.
+
 **Tanna, Solanki, Bouadi, Bouarour, Seth & Sankarapu (2026).** *Data Presentation Over
 Architecture: Resampling Strategies for Credit Risk Prediction with Tabular Foundation
 Models.* [arXiv:2605.18635](https://arxiv.org/abs/2605.18635)

@@ -295,6 +295,15 @@ scikit-learn BSD-3, scipy BSD-3, torch BSD-3, PyYAML MIT, and the optional bench
 lightgbm MIT, xgboost Apache-2.0, catboost Apache-2.0, pyarrow Apache-2.0 — and
 `scripts/check_licences.py` enforces that in CI rather than leaving it to this paragraph.
 
+**FinTFM-R's real-data sources, checked and dated.** SEC EDGAR's Financial Statement Data
+Sets and 8-K full-text search (`efts.sec.gov`) — a US federal government work, public domain,
+no stated copyright restriction, commercially usable, verified 2026-10-06 by direct access
+(`curl` returns 200 with a descriptive `User-Agent`; without one, SEC's Akamai front end
+returns 403 — a bot filter, not a licensing gate). Freddie Mac's Single-Family Loan-Level
+Dataset is adopted but **gated**: its free tier is academic/non-commercial, and no data, code
+path, or derived artefact from it may exist in this repository before a commercial licensing
+agreement is signed (`docs/design/DECISIONS.md` D17, task B1).
+
 **One honest exception, which CI found and this paragraph previously did not mention.** On
 **Linux**, `torch` pulls in around fifteen NVIDIA CUDA runtime packages that are **NVIDIA
 Proprietary**, not permissive. They are a transitive runtime dependency rather than a choice

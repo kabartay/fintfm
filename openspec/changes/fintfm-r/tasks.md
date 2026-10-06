@@ -22,18 +22,46 @@
       rare-event panel in V4FinBench's regime, 0.19-4%, or something else), the censoring rate
       (firms that stop filing without ever filing an Item 1.03 — silently missing, not
       labelled), and row/feature coverage.
-- [ ] A2 **Build the EDGAR loader**, gated on A1 passing. A `Task`-compatible generator
+- [x] A2 **Done.** `prior/real_edgar.py`: `sample_real_edgar_task` samples real firm-quarter
+      rows from a panel (fixture-injectable for tests, path-loaded and cached otherwise),
+      returns a standard `Task` (`source="real_edgar"`), raises rather than truncates if the
+      panel's feature count falls outside `[min_features, max_features]` (mirroring
+      `collate()`'s own invariant), and repairs a degenerate single-class draw the same way
+      the synthetic priors do. `tests/test_real_edgar.py`: 11 tests, shapes, without
+      -replacement sampling, degenerate-label repair, refusal paths, and a mixed real+synthetic
+      batch collating with no `collate()` changes. One real bug caught by running the tests
+      rather than reasoning about them: `DataFrame.to_numpy()` can return a read-only array,
+      which `y[flip] = ...` then fails on -- fixed with `copy=True`.
+      Original text follows.
+      **Build the EDGAR loader**, gated on A1 passing. A `Task`-compatible generator
       (`prior/real_edgar.py` or similar) that samples real firm-quarter rows rather than
       generating synthetic ones, matching the existing `sample_financial_task` signature
       closely enough that `mixture.py` can call it the same way. Verify: unit tests mirroring
       `tests/test_prior.py`'s conventions — shapes, label correctness, no leakage of query rows
       into any fitted statistic.
-- [ ] A3 **Wire `p_real_edgar` into `PriorConfig`/`mixture.py`**, D17's "no parallel codebase"
+- [x] A3 **Done.** `PriorConfig.p_real_edgar` (default `0.0`) and `.real_edgar_panel_path`;
+      `sample_task` checks it before `p_financial`, and `_sample_tasks_reusing_graphs`'s
+      replicated decision chain was updated to match so `scm_reuse_graph > 1` cannot misroute
+      a real-edgar draw. `--p-real-edgar`/`--real-edgar-panel-path` added to `fintfm-train`.
+      `collate()` needed no changes at all -- the whole point of D17's "no parallel codebase"
+      constraint. A real test trains 60 steps at `p_real_edgar=1.0` on a fixture panel with a
+      genuine (not noise) feature-label relationship and confirms the loss actually decreases,
+      not merely that nothing crashes. **Also found and fixed a real provenance-check gap**:
+      `openspec/tools/validate.py --provenance` (spec P1) scans `prior/` for real-data-reading
+      patterns and correctly flagged `real_edgar.py`'s `read_parquet` call. Added a narrow,
+      named exemption (`PROVENANCE_EXEMPT`) rather than weakening the check, with its own
+      self-verifying test that fails if `PriorConfig.p_real_edgar`'s default ever stops being
+      `0.0` -- `openspec/specs/pretraining-provenance/spec.md`'s P1 updated to document the
+      exception and point to D17. Original text follows.
+      **Wire `p_real_edgar` into `PriorConfig`/`mixture.py`**, D17's "no parallel codebase"
       constraint made concrete. Verify: `collate()` and the training loop accept a batch drawn
       partly or wholly from the real source with no code path divergent from the synthetic
       case; a test trains a few steps at `p_real_edgar=1.0` and confirms loss is finite and
       decreasing, mirroring the smoke tests already in `tests/test_train.py`.
-- [ ] A4 **Document the new source** in `README.md`'s licensing section and
+- [x] A4 **Done.** `README.md`'s licensing section names both real sources (EDGAR verified
+      and in use; Freddie Mac adopted but gated on B1) with the verification date;
+      `docs/research/REFERENCES.md` gained an entry pointing to §151. Original text follows.
+      **Document the new source** in `README.md`'s licensing section and
       `docs/research/REFERENCES.md`. Verify: the standing instruction already in
       `README.md`'s licensing section ("add a line there when a new source is added") is
       followed, naming the source, its licence and the date verified.

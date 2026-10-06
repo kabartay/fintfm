@@ -454,6 +454,9 @@ kaggle = [
     { name = "kagglehub" },
     { name = "pyarrow" },
 ]
+real = [
+    { name = "pyarrow" },
+]
 schedulefree = [
     { name = "schedulefree" },
 ]
@@ -476,6 +479,7 @@ requires-dist = [
     { name = "pandas", specifier = ">=2.2" },
     { name = "pyarrow", marker = "extra == 'bench'", specifier = ">=17" },
     { name = "pyarrow", marker = "extra == 'kaggle'", specifier = ">=17" },
+    { name = "pyarrow", marker = "extra == 'real'", specifier = ">=17" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "schedulefree", marker = "extra == 'schedulefree'", specifier = ">=1.4" },
     { name = "scikit-learn", specifier = ">=1.5" },
@@ -483,7 +487,7 @@ requires-dist = [
     { name = "torch", specifier = ">=2.4" },
     { name = "xgboost", marker = "extra == 'bench'", specifier = ">=2.0" },
 ]
-provides-extras = ["bench", "hf", "kaggle", "schedulefree"]
+provides-extras = ["bench", "hf", "real", "kaggle", "schedulefree"]
 
 [package.metadata.requires-dev]
 dev = [

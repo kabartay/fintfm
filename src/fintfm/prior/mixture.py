@@ -18,6 +18,7 @@ from fintfm.prior.financial import (
     sample_financial_task,
 )
 from fintfm.prior.learnability import is_learnable
+from fintfm.prior.real_edgar import DEFAULT_PANEL_PATH, sample_real_edgar_task
 from fintfm.prior.scm import (
     sample_scm_regression_task,
     sample_scm_task,
@@ -209,6 +210,21 @@ class PriorConfig:
     silently dropped -- :func:`sample_batch` always returns exactly ``batch_size`` tasks -- and
     a task family with a rejection rate above this bound would otherwise spin without limit."""
     head_type: str = "binned"
+    p_real_edgar: float = 0.0
+    """Probability of drawing a task sampled from real SEC EDGAR firm-quarters instead of a
+    synthetic one (FinTFM-R, task A2/A3). Unlike every other ``p_*`` field, the task this
+    source produces is not generated per draw -- it is a random subset of a fixed, finite real
+    panel built by ``scripts/edgar/build_panel.py``; see
+    :func:`fintfm.prior.real_edgar.sample_real_edgar_task` for why that is a sound design
+    rather than a limitation. ``0.0`` (default) reproduces every checkpoint trained before
+    this field existed, byte for byte: the branch is never taken, and no panel file is ever
+    read. Checked before :attr:`p_financial` in :func:`sample_task`'s chain, so a non-zero
+    value draws from the real panel at exactly the stated rate regardless of the other
+    weights' sum."""
+    real_edgar_panel_path: str = DEFAULT_PANEL_PATH
+    """Where :func:`sample_task` reads the real EDGAR panel from when :attr:`p_real_edgar` is
+    non-zero. Ignored otherwise -- a misconfigured path with ``p_real_edgar=0.0`` causes no
+    error, since the file is never opened."""
 
 
 def sample_task(rng: np.random.Generator, cfg: PriorConfig, n_rows: int | None = None) -> Task:
@@ -255,6 +271,14 @@ def sample_task(rng: np.random.Generator, cfg: PriorConfig, n_rows: int | None =
                 "n_horizons requires p_financial=1.0; task_families has no time axis"
             )
         return _sample_task_family_mixture(rng, n, max_features=cfg.max_features)
+    if cfg.p_real_edgar and rng.random() < cfg.p_real_edgar:
+        if cfg.n_horizons is not None:
+            raise ValueError(
+                "n_horizons requires p_financial=1.0; real_edgar carries no horizon grid"
+            )
+        return sample_real_edgar_task(
+            rng, n, max_features=cfg.max_features, panel_path=cfg.real_edgar_panel_path
+        )
     if rng.random() < cfg.p_financial:
         return sample_financial_task(
             rng,
@@ -307,6 +331,7 @@ def _sample_tasks_reusing_graphs(
         if (
             (cfg.p_tree and rng.random() < cfg.p_tree)
             or (cfg.p_regression and rng.random() < cfg.p_regression)
+            or (cfg.p_real_edgar and rng.random() < cfg.p_real_edgar)
             or rng.random() < cfg.p_financial
         ):
             tasks.append(sample_task(rng, cfg, n_rows=n_rows))

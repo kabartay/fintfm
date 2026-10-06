@@ -27,6 +27,17 @@ CHANGES = ROOT / "openspec" / "changes"
 #: Modules that may never touch real data. The auditability claim rests on this boundary.
 PRETRAINING_PACKAGES = ("prior", "modeling")
 
+#: Files deliberately exempted from the scan below, each with the decision that sanctions it.
+#: FinTFM (the default, synthetic-only family) is unaffected: `p_real_edgar` defaults to 0.0,
+#: so none of these files' real-data-reading code ever executes for a FinTFM checkpoint --
+#: this exemption makes that file *inspectable*, it does not relax the default. See
+#: `docs/design/DECISIONS.md` D17, which is the only thing that may add an entry here --
+#: this file is enforcement, not the place that argument gets made.
+PROVENANCE_EXEMPT = {
+    "prior/real_edgar.py": "FinTFM-R (D17): reads a real SEC EDGAR panel, gated behind "
+    "PriorConfig.p_real_edgar, default 0.0",
+}
+
 #: Signatures of loading real data from disk or network.
 REAL_DATA_PATTERNS = (
     r"\bfetch_openml\b",
@@ -52,6 +63,9 @@ def check_provenance() -> list[str]:
     problems: list[str] = []
     for package in PRETRAINING_PACKAGES:
         for path in (SRC / package).rglob("*.py"):
+            rel = str(path.relative_to(SRC))
+            if rel in PROVENANCE_EXEMPT:
+                continue
             text = path.read_text()
             for pattern in REAL_DATA_PATTERNS:
                 for m in re.finditer(pattern, text):
@@ -61,6 +75,36 @@ def check_provenance() -> list[str]:
                         f"must not reach the pretraining path (openspec/specs/"
                         f"pretraining-provenance)"
                     )
+    problems.extend(_check_provenance_exemptions_still_hold())
+    return problems
+
+
+def _check_provenance_exemptions_still_hold() -> list[str]:
+    """Every entry in `PROVENANCE_EXEMPT` must still be a real, gated-off file.
+
+    An exemption with no corresponding safeguard is a loophole, not a documented exception.
+    This checks the one thing that makes `real_edgar.py`'s exemption sound: that FinTFM's
+    default configuration genuinely never reaches it. If `PriorConfig.p_real_edgar`'s default
+    ever stops being `0.0`, this fails loudly rather than letting the exemption quietly cover
+    a path that is no longer off by default.
+    """
+    problems: list[str] = []
+    for rel in PROVENANCE_EXEMPT:
+        if not (SRC / rel).exists():
+            problems.append(f"PROVENANCE_EXEMPT names {rel!r}, which no longer exists")
+    sys.path.insert(0, str(SRC.parent))
+    try:
+        from fintfm.prior.mixture import PriorConfig
+
+        default = PriorConfig().p_real_edgar
+        if default != 0.0:
+            problems.append(
+                f"PriorConfig.p_real_edgar defaults to {default!r}, not 0.0 -- "
+                "prior/real_edgar.py's provenance exemption assumes it is off by default "
+                "for every checkpoint that does not explicitly opt in"
+            )
+    finally:
+        sys.path.pop(0)
     return problems
 
 

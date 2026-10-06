@@ -50,6 +50,15 @@ hf = [
     "huggingface_hub>=0.34",
 ]
 
+# FinTFM-R (task A2/A3): the real EDGAR panel `scripts/edgar/build_panel.py` writes and
+# `prior/real_edgar.py` reads is parquet. Declared in its own extra rather than assumed from
+# `bench`/`kaggle` already having it -- CLAUDE.md's own lesson is that a dependency declared
+# in only one extra breaks the moment a different sync is used, and `--p-real-edgar` is reached
+# from `fintfm-train`, not from the benchmark harness that happens to need parquet too.
+real = [
+    "pyarrow>=17",
+]
+
 # V4FinBench data lives on Kaggle and needs an account. Data is CC BY 4.0; the
 # kagglehub client is Apache-2.0. See docs/results/FINDINGS.md §8.
 kaggle = [
