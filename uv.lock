@@ -456,6 +456,7 @@ kaggle = [
 ]
 real = [
     { name = "pyarrow" },
+    { name = "requests" },
 ]
 schedulefree = [
     { name = "schedulefree" },
@@ -481,6 +482,7 @@ requires-dist = [
     { name = "pyarrow", marker = "extra == 'kaggle'", specifier = ">=17" },
     { name = "pyarrow", marker = "extra == 'real'", specifier = ">=17" },
     { name = "pyyaml", specifier = ">=6.0" },
+    { name = "requests", marker = "extra == 'real'", specifier = ">=2.31" },
     { name = "schedulefree", marker = "extra == 'schedulefree'", specifier = ">=1.4" },
     { name = "scikit-learn", specifier = ">=1.5" },
     { name = "scipy", specifier = ">=1.18.1" },

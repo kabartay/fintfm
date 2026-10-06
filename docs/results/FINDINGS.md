@@ -10249,3 +10249,64 @@ has, rather than requiring a new design.
 ### Where this leaves Phase A
 
 Task A1 passes. Task A2 (the `Task`-compatible EDGAR loader) is unblocked.
+
+## §152 — The first real EDGAR panel builds end to end, and FinTFM-R trains on it (task A5)
+
+**How these numbers were produced.** SMOKE-TEST. `scripts/edgar/build_panel.py` run against
+real SEC endpoints for `--start 2023q1 --end 2023q4 --label-horizon-quarters 4`: four quarters
+of Financial Statement Data Sets (`CORE_TAGS`, 15 broadly-populated GAAP concepts), joined by
+CIK to 8-K Item 1.03 disclosures found via full-text search over the label-horizon-extended
+window (2023q1 through 2024q4). `fintfm-train --p-real-edgar 1.0` then ran 300 steps of a
+small (109,242-parameter) checkpoint directly against the resulting panel, with
+`--checkpoint-every 100`.
+
+### Two real bugs, caught by running the pipeline rather than trusting the arithmetic
+
+- **Quarter-end dates were a month early.** `date(end_year, end_month, 1) - 1 day` used
+  `end_month = 3 * eq`, which is the *first* month of the quarter after `eq`'s last month, not
+  the one after it -- Q4 computed as ending November 30. Caught by checking all four quarters'
+  computed end-dates against known calendar values before trusting the script on real data.
+- **The bankruptcy-event search window was not extended past the panel's last quarter.** A
+  forward-looking label needs events up to `label_horizon_quarters` past `period_end`, but the
+  first run queried the same `[start, end]` as the fundamentals — silently truncating the
+  label window for the newest rows in the panel and undercounting positives. Fixed by
+  extending the event search to `end + label_horizon_quarters`; the event count for the same
+  four quarters went from 314 to 613 once the window was corrected.
+- **A third, infrastructure-level finding along the way**: SEC's full-text search API 500s on
+  any request with `from >= 100` — a hard pagination ceiling on the endpoint behind its public
+  search box, undocumented and found only by deliberately probing the boundary (`from=90`
+  succeeds, `from=100` fails, confirmed by hand before changing the script). Fixed by querying
+  month-by-month rather than over the full range, which keeps every single query's result
+  count safely under the ceiling; a retry-with-backoff wrapper was added separately after an
+  unrelated transient 500 on an otherwise-valid, immediately-retried-successfully request.
+
+### The result
+
+- **24,677 real firm-quarter rows**, four quarters, 2023. **1.39% positive** (343 of 24,677) —
+  inside V4FinBench's 0.19-4% regime, as §151 predicted from a cruder estimate.
+- **Feature missingness is real and expected**, not a defect: coverage ranges from 99.05%
+  (`Assets`, near-universal) down to 31.59% (`RevenueFromContractWithCustomerExcludingAssessedTax`
+  , a newer ASC 606 tag not every filer has adopted) — true missingness, zero-filled nowhere,
+  exactly the shape this architecture's cell embedding already handles.
+- **The full pipeline runs end to end on real data**: sampling, collation, training (loss
+  0.56 at step 50 down to ~0.14 by step 100, stable through step 300), mid-run checkpointing,
+  reload, and a forward pass producing finite logits of the right shape.
+
+### What this settles, and what it does not
+
+**The plumbing is correct, on real data, not just on fixture panels.** Every piece task A2/A3
+tested against a synthetic fixture now has one confirmation against the genuine, messy,
+missingness-laden real thing, and two real bugs were found in the one part of this pipeline
+that had not yet touched real data (the panel builder) — consistent with this project's own
+repeated lesson that running code surfaces defects reasoning about it does not.
+
+**This says nothing about whether real data helps.** 300 steps at 109K parameters on four
+quarters is a correctness check, not a measurement — the training-distribution loss curve is
+exactly the instrument `CLAUDE.md` already warns is not a check. Task A6 (the decisive,
+matched-compute run scored against V4FinBench) is what will answer that, and remains unrun.
+
+### Where this leaves Phase A
+
+Task A5 passes. Task A6, the decisive run, is unblocked -- and needs real compute, which (per
+`CLAUDE.md`'s shared-machine rule) this entry explicitly does not claim to have used: 300
+steps on a 109K-parameter model took 7 seconds on this Mac's CPU.

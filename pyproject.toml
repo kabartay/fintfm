@@ -57,6 +57,10 @@ hf = [
 # from `fintfm-train`, not from the benchmark harness that happens to need parquet too.
 real = [
     "pyarrow>=17",
+    # scripts/edgar/build_panel.py's own direct dependency (SEC's two public endpoints),
+    # declared here rather than relied on transitively from another extra -- the exact trap
+    # this file's pyarrow comment already documents once.
+    "requests>=2.31",
 ]
 
 # V4FinBench data lives on Kaggle and needs an account. Data is CC BY 4.0; the

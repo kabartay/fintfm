@@ -65,7 +65,17 @@
       `docs/research/REFERENCES.md`. Verify: the standing instruction already in
       `README.md`'s licensing section ("add a line there when a new source is added") is
       followed, naming the source, its licence and the date verified.
-- [ ] A5 **Local smoke run**: a short training run (hundreds of steps, not thousands) at
+- [x] A5 **Done (§152).** `scripts/edgar/build_panel.py` built a real panel (2023, four
+      quarters, 24,677 rows, 1.39% positive -- in V4FinBench's regime) and a 300-step,
+      109K-parameter checkpoint trained against it end to end: sampling, collation, training,
+      mid-run checkpointing, reload, a finite forward pass. Two real bugs in the panel
+      builder caught by running it against known values rather than trusting the arithmetic
+      (quarter-end dates a month early; the bankruptcy-label search window not extended past
+      the panel's own last quarter, undercounting events 314 -> 613 once fixed), plus an
+      undocumented SEC API pagination ceiling (`from >= 100` 500s) found by deliberately
+      probing the boundary. `uptime` checked first (load ~10, moderate); this is a correctness
+      check, not a measurement -- task A6 remains the decisive one. Original text follows.
+      **Local smoke run**: a short training run (hundreds of steps, not thousands) at
       `p_real_edgar > 0`, checked the same way every GPU launch this session was. Verify:
       `uptime` checked first if local, `--checkpoint-every` set if remote, and a throughput
       check taken within the first 15 minutes against a known-good baseline, before any real
