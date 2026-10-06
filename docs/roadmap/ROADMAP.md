@@ -251,3 +251,20 @@ calibration result on real credit panels all stand on their own, and a maintaine
 confirmed the integration and the numbers are correct (§122). But it would mean the leaderboard
 is the wrong goal, and continuing to chase it would be the kind of thing §119, §120 and the two
 retracted diagnoses are records of: committing to a direction the evidence had already closed.
+
+**Phase A is complete and its own exit condition did not fire.** Every arm in it is done; none
+moved rank by three or more positions. D16 (`docs/design/DECISIONS.md`) read that plainly: seven
+measured architecture/prior-mechanism levers project-wide, seven nulls or losses, zero wins —
+the stop rule's premise is close to being met on this axis alone.
+
+## FinTFM-R — the lever this project was locked out of, now scoped
+
+D17 and `openspec/changes/fintfm-r/` open a **second model family** rather than continuing to
+re-run Phase A/B/C's kind of lever: real training data (SEC EDGAR, public domain; Freddie Mac's
+loan-level data once licensed), which D14 named as the reversal condition for staying
+synthetic-only and which every peer near or above 1200 TabArena Elo actually uses. Task A1
+(§151) already passed its own feasibility check — the EDGAR + 8-K Item 1.03 panel is real
+-world-scale, rare-event, and stable across 15 years. This does not change FinTFM, which keeps
+its name and its auditability claim; it is additive, and its own cost (a benchmark forfeited
+permanently, a claim that must now carry a family name forever) is named in full in
+`CLAUDE.md`'s "Two families" and D17.

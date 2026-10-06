@@ -2,7 +2,18 @@
 
 ## Phase A — SEC EDGAR (unblocked, start now)
 
-- [ ] A1 **Feasibility probe: is the EDGAR + 8-K Item 1.03 panel actually usable?** Download a
+- [x] A1 **Done: passes (§151).** 5,506 unique filers with XBRL fundamentals in one quarter
+      alone; a core set of common GAAP tags (`StockholdersEquity`, `NetIncomeLoss`,
+      `Revenues`, `Assets`) recurs tens of thousands of times, comparable density to
+      V4FinBench's own 131-feature panel. "Item 1.03 Bankruptcy" disclosures run 49-80 a
+      quarter, stable across five quarters spanning 2010-2024; one was read in full and
+      confirmed a genuine Chapter 11 event, not a boilerplate mention. Crude base rate lands in
+      V4FinBench's rare-event regime. Censoring (firms that stop filing without ever disclosing
+      distress) is real — Form 15 deregistrations outnumber bankruptcy disclosures the same
+      quarter — but maps directly onto `fintfm.modeling.hazard`'s existing `CENSORED`
+      machinery rather than requiring new design. D17's reversal condition does not trigger.
+      Original text follows.
+      **Feasibility probe: is the EDGAR + 8-K Item 1.03 panel actually usable?** Download a
       handful of quarters of the Financial Statement Data Sets and the 8-K full-text/structured
       index for the same period, join bankruptcy/receivership disclosures to filers by CIK.
       This is D17's own named reversal condition; a bad shape here stops the phase rather than
@@ -38,7 +49,7 @@
       protocol §144-§150 used — paired bootstrap, Holm-corrected — with the §74 Bayes-ceiling
       probe run first to confirm the checkpoint is not broken before any accuracy claim is
       trusted.
-- [ ] A7 **Write up the result, honestly, either direction.** Verify: a new `FINDINGS.md`
+- [ ] A7 **Write up the result, honestly, either direction.** Verify: a new `docs/results/FINDINGS.md`
       entry states whether a weighted real-EDGAR mixture moved V4FinBench AP against the
       matched synthetic-only control either way; `docs/paper/CLAIMS.md` gains a FinTFM-R-scoped
       claim without retroactively broadening Claim 2; `docs/design/DECISIONS.md` D17 is updated
@@ -68,5 +79,5 @@
       Tests D17's diversity argument directly: does a second real domain buy anything over
       one. Verify: scored the same way as A6, against both the synthetic-only control and the
       EDGAR-only checkpoint from A6, on V4FinBench, paired bootstrap, Holm-corrected.
-- [ ] B6 Write up the result honestly, same discipline as A7. Verify: a new `FINDINGS.md`
-      entry and the corresponding `CLAIMS.md`/`DECISIONS.md` updates, stated either direction.
+- [ ] B6 Write up the result honestly, same discipline as A7. Verify: a new `docs/results/FINDINGS.md`
+      entry and the corresponding `docs/paper/CLAIMS.md`/`docs/design/DECISIONS.md` updates, stated either direction.

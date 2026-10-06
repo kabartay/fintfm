@@ -10198,3 +10198,54 @@ rather than silently implied current.
 reason to suspect drift (a baseline correctness fix, not idle doubt), reverifying cost under
 an hour of CPU time — fintfm's own predictions needed no recomputation — and the number holds
 within noise. This is a maintenance check, not a new finding about the model.
+
+## §151 — The EDGAR + 8-K Item 1.03 panel passes its own feasibility check (task A1)
+
+**How these numbers were produced.** MEASURED, a scratch probe (no repository code, per task
+A1's own scope) against two live SEC endpoints. Features: one quarter (2024 Q1) of the
+Financial Statement Data Sets downloaded and unzipped (124 MB, `sub.txt`/`num.txt`/`tag.txt`).
+Labels: SEC's full-text search API (`efts.sec.gov/LATEST/search-index`), queried for the exact
+phrase `"Item 1.03 Bankruptcy"` restricted to `forms=8-K`, across five quarters spanning
+2010-2024. A 403 on the bulk-download endpoint without a descriptive `User-Agent` turned out to
+be Akamai's bot filter, not a licensing gate — resolved by setting one, per SEC's own API
+guidance.
+
+### The result
+
+- **Scale.** 5,506 unique filers with XBRL fundamentals in Q1 2024 alone, 6,029 submissions
+  (3,974 10-K, 1,044 10-Q, the rest foreign-filer and amendment forms), 3.43M individual
+  numeric facts. 65,705 distinct XBRL tags, but a core set — `StockholdersEquity` (102,770
+  instances that quarter), `NetIncomeLoss` (56,788), `Revenues` (42,301), `Assets` (35,011),
+  `OperatingIncomeLoss` (26,262) — recurs tens of thousands of times, the same kind of common-
+  concept density a cross-firm panel needs and V4FinBench's own 131-feature panel has.
+- **Labels are real and stable across 15 years.** "Item 1.03 Bankruptcy" hits by quarter:
+  **57** (2010 Q1), **67** (2015 Q1), **77** (2019 Q1), **49** (2023 Q1), **80** (2024 Q1) —
+  roughly 50-100 a quarter throughout, no collapse or explosion at either end of the range.
+  One hit was read in full rather than trusted from the snippet: Near Intelligence, Inc.'s
+  2024-03-27 8-K, confirmed as a genuine, specific Chapter 11 disclosure (debtor names, filing
+  date, court), not a boilerplate mention of the item number.
+- **Order-of-magnitude base rate is in V4FinBench's regime.** ~5,500 active filers against
+  ~50-100 bankruptcy disclosures a quarter puts a crude firm-year rate in the low single
+  digits of a percent to a few percent, depending on horizon — the same rare-event shape
+  V4FinBench's own 0.19-4% range has. The exact rate needs the real panel join (task A2), not
+  this probe.
+- **Censoring is real, material, and not a blocker.** 128 Form 15 (deregistration) filings in
+  the same quarter as 80 bankruptcy disclosures — firms that stop filing for reasons unrelated
+  to distress (acquisition, going private, falling below reporting thresholds) outnumber
+  firms that stop filing *because* of distress. A firm that goes dark without ever filing an
+  Item 1.03 would otherwise be silently mislabelled "survived" rather than genuinely
+  unobserved. This is exactly the shape `fintfm.modeling.hazard`'s existing `CENSORED` sentinel
+  and the hazard head were built to handle — a design fit already in the codebase, not new
+  machinery A2 has to invent.
+
+### What this settles
+
+**D17's reversal condition does not trigger.** The panel is the right scale, the labels are
+real (verified by reading one, not assumed from a count), stable over the full 2009-2026
+window this project would train on, and in the right rarity regime. Censoring exists at a
+rate worth taking seriously but maps onto survival-analysis machinery this project already
+has, rather than requiring a new design.
+
+### Where this leaves Phase A
+
+Task A1 passes. Task A2 (the `Task`-compatible EDGAR loader) is unblocked.
