@@ -10596,6 +10596,25 @@ the noise floor those four were judged against was never measured: a no-change `
 model has never been scored on V4FinBench. D16's table ("seven levers, seven nulls or losses")
 cites these four; until re-adjudicated, read them as **confounded**, not as clean negatives.
 
+### Is anything *besides* `max_classes` different? Tested, not assumed: no
+
+The ablations were pinned to four different code versions (`fintfm==0.5.6`, `5c7b359`,
+`d356358`, `e1b2c45`) and the control predates all of them (~`ffd3ff0`, 2026-09-20), with ~2,000
+changed lines in the prior, training loop and model between. Rather than audit those lines, each
+commit was checked out and the same seeded draw taken: 20 batches of 8 tasks from
+`PriorConfig(p_financial=1.0, max_features=136, n_rows=256)`, and a `torch.manual_seed(0)`
+initialisation of the recipe's architecture at both head sizes, all SHA-256 hashed. MEASURED:
+
+| commit | task stream | init, `max_classes 2` | init, `max_classes 10` |
+| --- | --- | --- | --- |
+| ffd3ff0, v0.5.6, 5c7b359, d356358, e1b2c45, HEAD (all six) | `460e610e…` | `56c54c75…` | `1c364551…` |
+
+Identical everywhere. Code drift is ruled out; the only difference between control and
+ablations is head size and what it does to initialisation -- exactly one confound, now
+isolated. **Caveat:** this exercised the sampler and model constructor directly, not the full
+training loop (per-step row-count draws, optimiser), so it rules out drift in what is generated
+and how the network starts, not in every line of `train()`.
+
 ### Re-adjudication, in order of cost
 
 1. **CPU, no quota:** score the existing no-change seed-1 replicate
