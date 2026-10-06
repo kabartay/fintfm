@@ -10158,3 +10158,43 @@ Task 48.16 is not closed by this entry. It records a real, decision-relevant par
 (a surrogate is trustworthy for screening, not for picking the winner) obtained at zero cost
 while GPU quota was unavailable, and leaves the task's literal ask — the heterogeneous
 surrogate validated against a genuinely new run — for whenever that quota returns.
+
+## §150 — The TabArena placement is reverified against a refreshed baseline cache; barely moves
+
+**How these numbers were produced.** MEASURED. Upstream TabArena (`autogluon/tabarena`) gained
+17 commits since this project's local clone was last synced, including a correctness fix to
+the Linear/LR baseline (`9d0c4fd`, "L1 honored for classification") and an explicit note that
+hosted cached result tables are re-downloaded when they change — a real reason to suspect §98's
+comparison population had shifted, not routine staleness. The local fork was merged clean
+(`git merge origin/main`, no conflicts) and `run_fintfm_lite.py --full` rerun unchanged: same
+pinned checkpoint (`kabartay/fintfm-binary` at `f116bfd`), same 27 eligible datasets, same
+`FinTFM_c1_default_BAG_L1` config. fintfm's own per-dataset predictions are cached by
+`(config, dataset, fold)` and did not need refitting — only `context.compare()`'s read of
+TabArena's own cached leaderboard was genuinely new.
+
+A stale local OpenML dataset cache (pickled under an older pandas, incompatible with the
+venv's current one) crashed the first two datasets on load before any model code ran; cleared
+(first one dataset, then the whole `datasets/` cache once a second failure showed it was
+systemic) and the full 27-dataset run completed with 0 failures.
+
+### The result
+
+| | before (2026-09-27, §98/§132) | after (2026-10-06) |
+| --- | --- | --- |
+| Elo (own classification head, `TA-FINTFM`) | 765 | **763** |
+| rank | 94 of 95 | 94 of 95 (unchanged) |
+
+A 2-point Elo move, same rank. The refreshed baseline fixes did not meaningfully reshuffle the
+population fintfm sits in. **Only the classification-head variant was rerun** — the linear-
+probe sibling (`TA-FINTFM-LINPROBE`, §132's +145 Elo result) needs an editable local `fintfm`
+checkout rather than the pinned PyPI release its config currently uses, and was not
+reproduced in this pass; its 910 Elo figure and the full 95-method sortable table on
+`docs/leaderboard/` remain the original 2026-09-27 snapshot, now explicitly dated as such
+rather than silently implied current.
+
+### What this settles
+
+**The placement is not an artefact of a stale comparison cache.** Given a real, concrete
+reason to suspect drift (a baseline correctness fix, not idle doubt), reverifying cost under
+an hour of CPU time — fintfm's own predictions needed no recomputation — and the number holds
+within noise. This is a maintenance check, not a new finding about the model.
