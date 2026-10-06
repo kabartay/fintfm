@@ -817,3 +817,52 @@ conditional one is not obviously inferior at the frontier.
 **Not yet opened**: the full paper/technical report (only the blog post and model/code cards
 were read), so architectural claims above are blog-level, not paper-level — re-verify before
 citing a specific number in `docs/paper/CLAIMS.md` or quoting an architecture detail as settled.
+
+## PaMIR, read 2026-10-06 — a credit-default benchmark with a synthetic-data harness, and a discovery index worth auditing rather than trusting
+
+**Liashkov, Varshavskiy, Khalilbekov, Azimi, Boboeva (2026).** *PaMIR: Open Benchmark of
+Public Credit-Default Datasets*, arXiv:2610.03259. Verified directly from the primary source
+(abstract only, read 2026-10-06) after a peer suggestion named it — this project's own
+POSTMORTEM.md records a prior incident of a summariser fabricating a results table, so an
+unfamiliar paper is opened, not taken on a relayed description.
+
+**What it is.** A "living benchmark" (release 0.4.0) consolidating 19 public datasets with
+binary default labels — 1.24M loans, firms and card accounts across nine countries, scored
+under a repeated i.i.d. split *and* a label-delayed stream (credit-default labels arrive
+months to years after the features that would predict them, which an ordinary i.i.d. split
+hides). Datasets are referenced from pinned source snapshots rather than redistributed, so
+using PaMIR as a discovery index for new real-data sources carries no licence entanglement of
+its own — each underlying source still needs its own TabArena-overlap and licence audit before
+anything is touched, the same discipline Freddie Mac (§153) and the UCI credit sets (D17,
+`CLAUDE.md`) already got.
+
+**The part that bears directly on this project's own thesis**: a "synthetic-data harness"
+that scores generated training data while preventing the generator from accessing held-out
+validation rows. That is the same question D14's synthetic-only decision rests on — can a
+prior that never saw real data still transfer — posed as a benchmark mechanic rather than a
+one-off ablation. Worth re-reading in full once the paper (not just the abstract) is open, to
+see whether its harness's definition of "access" is stricter or looser than this project's own
+provenance guarantee (`openspec/specs/pretraining-provenance/spec.md`).
+
+**The 19 datasets, read from the paper's own table (not the abstract) 2026-10-06**, checked
+against TabArena's metadata directly: **six overlap exactly** with datasets already off-limits
+for training — `south_german` (German Credit/`credit-g`), `taiwan`
+(`credit_card_clients_default`), `gmsc` (`GiveMeSomeCredit`), `poland_1yr`/`poland_3yr`
+(`polish_companies_bankruptcy`, at two of PaMIR's three Polish horizons), `bankruptcy`
+(`taiwanese_bankruptcy_prediction`). `poland_5yr` and `heloc` are not among PaMIR's 19 at all.
+Confirms rather than changes anything already known.
+
+The remaining 13 are unaudited real-data candidates, several offering genuine diversity beyond
+US consumer credit: `bondora` (266K, Estonia/Finland/Spain), `lt_vehicle` (233K, India —
+the "L&T Vehicle Loan Default" dataset a peer suggestion named separately), `prosper` (55K,
+USA, a different P2P platform from LendingClub), `pakdd` (50K, Brazil, PAKDD Cup 2010),
+`sba` (2K, USA, Small Business Administration loans — small-business rather than consumer or
+mortgage), `lc_small`/`lc_my`/`lc_clean` (9.6K/100K/150K, further LendingClub variants,
+redundant with the Zenodo CC-BY-4.0 one already found), and `gastonstat`/`dish`
+(4.5K/122K, not yet identified beyond PaMIR's own table). **Project repository**:
+`github.com/zypl-ai/pamir`.
+
+**Nothing from PaMIR has been used for anything here yet.** This entry is the "found it,
+verified it's real, checked it against what's already off-limits" step — not a decision to
+source training data from any of the 13 remaining candidates, which still each need their own
+licence read and TabArena/V4FinBench overlap check before anything is downloaded.

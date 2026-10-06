@@ -117,6 +117,16 @@ the *General User Guide* (Release 47, July 2026) and verified field-by-field aga
 downloaded row before being trusted. See §154 for the loader build and its one open problem
 (the realised-loss label is rarer than this project's own working regime).
 
+**Liashkov, Varshavskiy, Khalilbekov, Azimi & Boboeva (2026).** *PaMIR: Open Benchmark of
+Public Credit-Default Datasets.* [arXiv:2610.03259](https://arxiv.org/abs/2610.03259)
+A "living benchmark" (release 0.4.0) consolidating 19 public credit-default datasets — 1.24M
+loans/firms/card accounts, nine countries — scored under a repeated i.i.d. split and a
+label-delayed stream, plus a synthetic-data harness bearing directly on this project's own
+D14 thesis. Verified directly from the primary source, not taken on a peer's relayed
+description (`docs/results/POSTMORTEM.md` records why that check is not optional). See
+`docs/paper/RELATED_WORK.md`'s PaMIR entry — read 2026-10-06, abstract only; not yet a data
+source for anything here.
+
 **Tanna, Solanki, Bouadi, Bouarour, Seth & Sankarapu (2026).** *Data Presentation Over
 Architecture: Resampling Strategies for Credit Risk Prediction with Tabular Foundation
 Models.* [arXiv:2605.18635](https://arxiv.org/abs/2605.18635)
