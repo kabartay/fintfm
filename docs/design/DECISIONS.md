@@ -504,3 +504,100 @@ still worth their now-small marginal cost, since the infrastructure to test them
 exists and the tests themselves are cheap. It only names, plainly, that the project's actual
 track record on this axis is seven losses and no wins, so the next one should be evaluated
 against that base rate rather than against hope.
+
+## D17 — Two model families: FinTFM stays synthetic-only, FinTFM-R trains on real data
+
+**Date:** 2026-10-06. **Status:** active; direction agreed, nothing implemented yet.
+
+D14 recorded synthetic-only training as a deliberate trade and named its reversal condition:
+"a genuinely open, commercially licensed firm-level panel at the scale these peers use". D16
+then scored the alternative honestly — seven architecture/prior levers, seven nulls or losses
+— which makes the lever this project is locked out of the only untested one with a credible
+ceiling. This decision opens that lever **without spending the thing D14 bought.**
+
+**Two families, two names, one repository.**
+
+| family | training data | name |
+| --- | --- | --- |
+| the existing model, unchanged | synthetic prior only | **FinTFM** |
+| the new line | real data (plus, optionally, the synthetic prior) | **FinTFM-R** |
+
+**The existing model is not renamed.** `FinTFM` keeps its name, its PyPI package, its Zenodo
+DOI, its TabArena entry (`TA-FINTFM`) and every citation already made. Appending "-synthetic"
+retroactively would rewrite something already shipped, the same category of mistake
+`CLAUDE.md`'s release section forbids for tags. Where the contrast needs naming in prose,
+write "FinTFM (synthetic-only)" as a parenthetical, never as a renamed identifier. "-R" is
+documented as *real-data*, and that expansion belongs in `README.md` wherever the family is
+first mentioned.
+
+**What this costs, stated before any code is written.** The claim "fintfm has never seen real
+data" stops being a property of the repository and becomes a property of a *checkpoint*. Every
+future mention — release note, paper draft, leaderboard row, model card — must say which
+family, permanently. A careless future sentence that says "fintfm never sees real data" without
+the qualifier becomes false the moment FinTFM-R's first checkpoint exists. This is a
+documentation tax with no end date, accepted knowingly; `docs/paper/CLAIMS.md` carries the
+per-family form of the claim and is the ledger that has to hold the line.
+
+**The benchmark cost, which is permanent and worth more attention than the naming.** Pretraining
+FinTFM-R on real US SEC filer data **permanently forfeits the ability to evaluate any FinTFM-R
+checkpoint cleanly on a US-filer benchmark.** The two benchmarks this project actually uses stay
+safe, and that is not luck — it was checked before the source was chosen:
+
+- **V4FinBench** is Visegrád-group firms (CZ/HU/PL/SK, 2006-2021). Different jurisdiction,
+  different firm population, different source. Disjoint from SEC EDGAR.
+- **TabArena**'s two corporate-bankruptcy datasets are `polish_companies_bankruptcy` and
+  `taiwanese_bankruptcy_prediction`; its credit datasets (`GiveMeSomeCredit`, `credit-g`,
+  `credit_card_clients_default`, `heloc`) are all consumer credit. None are SEC filers.
+
+So the forfeit is of a benchmark this project does not currently use and has never published
+against. It is still a one-way door: a future US corporate-distress benchmark could not be used
+to evaluate FinTFM-R, only FinTFM. **Any new benchmark adopted from here must be checked for
+SEC-filer overlap before a FinTFM-R number is computed on it**, the same way licences are
+checked separately from code (`CLAUDE.md`).
+
+**The source, and why it was chosen (verified, not assumed).** SEC EDGAR's **Financial
+Statement Data Sets** — XBRL numeric facts from the face financials of every SEC filer, January
+2009 to June 2026, quarterly, with SIC industry codes. A US federal government work: public
+domain, no stated copyright restriction, commercially usable, with no registration, agreement
+or vendor relationship required. Labels come from the same archive: **8-K Item 1.03**, the
+SEC-mandated bankruptcy-or-receivership disclosure, roughly 400 filings a quarter, joinable to
+the financials by CIK. Features and labels from one public-domain source, in this project's own
+domain.
+
+**Two real sources are intended, and they start at different times for a non-technical
+reason.** Freddie Mac's Single-Family Loan-Level Dataset (≈56M mortgages, 1999-2026, with
+observed defaults and losses) is the second source, adopted deliberately rather than as an
+afterthought: one EDGAR panel is a *single* task family, and what real-table pretraining buys
+the peers is diversity across heterogeneous real tables, which a second genuinely different
+credit domain (consumer mortgage against corporate) supplies. It is also the only one of the
+two with observed, loan-level default outcomes rather than disclosure-derived events.
+
+**But it cannot be touched until a commercial licensing agreement is executed.** Freddie Mac
+requires registration on its Clarity Data Intelligence platform and a licensing agreement for
+commercial use; free access is academic/non-commercial, which this project is not. That is a
+human and legal action, not an engineering one, and **no Freddie Mac data may enter this
+repository, any training run, or any derived artefact before it is signed** — the same rule
+`CLAUDE.md`'s licensing boundary applies to every other third-party source. EDGAR therefore
+starts immediately because it is public domain and needs no permission; Freddie Mac starts
+when the agreement does.
+
+The prior mixture carries **separate weights per real source** (`p_real_edgar`,
+`p_real_mortgage`) from the first commit, so the second source drops in without rework and so
+any published checkpoint can state exactly which real corpora it saw — which the per-family
+claim above makes mandatory rather than merely tidy.
+
+**Implementation shape, so the scope is not mistaken for larger than it is.** FinTFM-R is
+expected to need **no parallel codebase**. `PriorConfig` already mixes task generators by
+weight (`p_financial`, `p_scm`, `p_tree`, `p_task_family`, `p_regression`), and a real panel
+enters as one more weighted source that *samples* in-context tasks rather than generating them.
+`collate()`, the training loop, the checkpointing and the whole evaluation harness are reused
+unchanged. That also means the synthetic-versus-real question is measurable by the same paired
+-bootstrap V4FinBench comparison every other lever in §144-§148 was judged by — a fair fight on
+instruments this project already trusts.
+
+**Reversed if:** the EDGAR panel proves unusable in a way that is about the data rather than the
+modelling — label censoring too severe to work around (a firm that stops filing entirely never
+files an Item 1.03, so it is silently absent rather than labelled distressed), or a coverage
+check showing the eligible firm-quarters are too few or too clean to constitute a rare-event
+panel comparable to the regime this project targets. Either would send the search back to a
+licensed vendor panel, which is D14's original reversal condition and its original blocker.

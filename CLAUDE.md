@@ -347,6 +347,35 @@ discussion, never a source to copy from. Before adding any third-party dataset o
 check its license against commercial use — see `README.md`'s licensing section for the current
 policy and add a line there when a new source is added.
 
+## Two families: never write "fintfm never sees real data" unqualified again
+
+Decision **D17** (2026-10-06) opened a second model family. The two are not interchangeable and
+the difference is the thing this project sells:
+
+| family | training data | auditability claim |
+| --- | --- | --- |
+| **FinTFM** | synthetic prior only | never saw real data — the D2/D14 claim, intact |
+| **FinTFM-R** | real data (SEC EDGAR; Freddie Mac once licensed) | **does not hold** |
+
+Three rules follow, and all three are easy to break by accident:
+
+- **Say which family, every time.** "fintfm has never seen real data" was true of the
+  repository and is now true only of a *family*. Release notes, the README, paper drafts,
+  model cards, leaderboard rows and `docs/paper/CLAIMS.md` all have to carry the qualifier.
+  The existing model is **not renamed** — `FinTFM` keeps its name, package, DOI and TabArena
+  entry; write "FinTFM (synthetic-only)" as prose when the contrast needs stating.
+- **Check any new benchmark for SEC-filer overlap before computing a FinTFM-R number on it.**
+  Pretraining on EDGAR permanently forfeits clean evaluation on US-filer data. The current
+  benchmarks are safe and this was verified, not assumed: V4FinBench is Visegrád-group firms
+  (CZ/HU/PL/SK), and TabArena's corporate-bankruptcy sets are Polish and Taiwanese while its
+  credit sets are all consumer. A future US corporate-distress benchmark would be usable for
+  FinTFM only.
+- **No Freddie Mac data until the commercial licence is signed.** Their free tier is
+  academic/non-commercial; this project is commercial. Registration plus a licensing agreement
+  is a human action, and until it exists that data enters nothing — not the repo, not a run,
+  not a derived artefact. EDGAR needs no such permission: it is a US federal government work,
+  public domain, and is the source FinTFM-R starts on.
+
 ## Secrets: `.env`, and never anywhere else
 
 `.env` holds credentials and is gitignored; `.env.example` documents every key it may contain

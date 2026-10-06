@@ -263,6 +263,25 @@ belongs in configuration and what deliberately stays in code; several files unde
 [`configs/`](configs/) are **deliberately diagnostic, not production** (their own headers say
 so), used to isolate a single variable while chasing a specific finding.
 
+## Two model families
+
+**FinTFM** is the synthetic-only model this repository has shipped from the start, and is
+what every result, release and benchmark number here refers to unless a page says otherwise.
+Its provenance argument — the model cannot have memorised a benchmark, because it never saw
+real data — depends on that and is the project's differentiator (decisions D2, D14).
+
+**FinTFM-R** (**R** for *real data*) is a second family, opened by decision **D17** on
+2026-10-06 and **not yet implemented**. It trains on real tabular data — SEC EDGAR's public
+-domain Financial Statement Data Sets, with 8-K Item 1.03 bankruptcy disclosures as labels, and
+a second licensed corpus later. It exists to test the one lever D16 showed this project had
+never pulled, after seven architecture and prior changes returned seven nulls or losses.
+
+The two are not interchangeable, and the difference is the part this project sells: **the
+provenance claim holds for FinTFM and does not hold for FinTFM-R.** Any statement about one
+names which one. FinTFM is not renamed by this — it keeps its name, package, DOI and TabArena
+entry; "FinTFM (synthetic-only)" is prose for when the contrast needs stating, not a new
+identifier.
+
 ## Licensing / provenance
 
 Everything here — the prior, the architecture, the training loop — is original code written

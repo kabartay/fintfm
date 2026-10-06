@@ -11,6 +11,15 @@ Status vocabulary:
 
 Statuses last reviewed 2026-09-20.
 
+> **Every claim in this ledger is a claim about FinTFM, the synthetic-only family.** Decision
+> **D17** (2026-10-06) opened a second family, **FinTFM-R**, trained on real data (SEC EDGAR;
+> Freddie Mac once licensed). No FinTFM-R checkpoint exists yet, so nothing below has been
+> measured on one. When the first does: **the provenance half of Claim 2 does not transfer to
+> it, by construction** — "the model cannot have memorised a benchmark because it never saw
+> real data" is false of FinTFM-R and must never be restated for it. Any FinTFM-R evidence
+> added here carries the family name in the evidence line, and any benchmark it is scored on
+> must first be checked for SEC-filer overlap (`CLAUDE.md`, "Two families").
+
 **What changed since 2026-09-14, in one paragraph.** The architecture fix was validated on
 real data (§80/§84, Claim 10), five candidate explanations for the residual accuracy deficit
 were measured and eliminated (training volume, context size, marginal augmentation, z-clip,
@@ -59,6 +68,11 @@ measurement of a live defect, never as a new method.
 ## Claim 2 — A synthetic-only prior transfers to real corporate default data
 
 **Status: SINGLE DRAW, narrower than originally hoped, and NARROWED AGAIN 2026-09-21.**
+
+**Scope, after D17:** this claim is about **FinTFM** only. It is not a claim about FinTFM-R,
+which trains on real data and for which the provenance argument does not exist. Quoting this
+claim without the family name is the specific error `CLAUDE.md`'s "Two families" section
+exists to prevent.
 
 **The "synthetic-only" half is no longer ours to claim.** Synthefy's Nori is synthetic-only,
 in-context, single-forward-pass, **Apache-2.0 in both code and weights** (checked separately),
