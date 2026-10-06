@@ -36,6 +36,8 @@ PRETRAINING_PACKAGES = ("prior", "modeling")
 PROVENANCE_EXEMPT = {
     "prior/real_edgar.py": "FinTFM-R (D17): reads a real SEC EDGAR panel, gated behind "
     "PriorConfig.p_real_edgar, default 0.0",
+    "prior/real_mortgage.py": "FinTFM-R (D17, task B3): reads a real Freddie Mac loan-level "
+    "panel, gated behind PriorConfig.p_real_mortgage, default 0.0",
 }
 
 #: Signatures of loading real data from disk or network.
@@ -96,11 +98,17 @@ def _check_provenance_exemptions_still_hold() -> list[str]:
     try:
         from fintfm.prior.mixture import PriorConfig
 
-        default = PriorConfig().p_real_edgar
-        if default != 0.0:
+        cfg = PriorConfig()
+        if cfg.p_real_edgar != 0.0:
             problems.append(
-                f"PriorConfig.p_real_edgar defaults to {default!r}, not 0.0 -- "
+                f"PriorConfig.p_real_edgar defaults to {cfg.p_real_edgar!r}, not 0.0 -- "
                 "prior/real_edgar.py's provenance exemption assumes it is off by default "
+                "for every checkpoint that does not explicitly opt in"
+            )
+        if cfg.p_real_mortgage != 0.0:
+            problems.append(
+                f"PriorConfig.p_real_mortgage defaults to {cfg.p_real_mortgage!r}, not 0.0 -- "
+                "prior/real_mortgage.py's provenance exemption assumes it is off by default "
                 "for every checkpoint that does not explicitly opt in"
             )
     finally:

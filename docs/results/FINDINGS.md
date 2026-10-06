@@ -10310,3 +10310,142 @@ matched-compute run scored against V4FinBench) is what will answer that, and rem
 Task A5 passes. Task A6, the decisive run, is unblocked -- and needs real compute, which (per
 `CLAUDE.md`'s shared-machine rule) this entry explicitly does not claim to have used: 300
 steps on a 109K-parameter model took 7 seconds on this Mac's CPU.
+
+## §153 — Freddie Mac's SFLLD licence terms, read in full, correct D17's premise (tasks B1/B2)
+
+**How this was produced.** Not a code measurement -- a legal-terms read, the same discipline
+`CLAUDE.md`'s licensing-boundary rule requires before any third-party source is used, done here
+for Phase B before B3 wrote a line of loader code. Registration on Clarity Data Intelligence was
+completed and a Standard Dataset 50,000-loan sample (`sample_2018.zip`, vintage 2018, seasoned
+through March 2026) was downloaded under Clarity's default click-through terms -- the free tier.
+Two separate documents were then read directly, not inferred from the download page: the
+registration/login terms (`freddiemac.embs.com/FLoan/HistoricalDataTerms.html`, via search
+snippet after a direct fetch was blocked) and the full 12-page fee-based agreement template
+(`freddiemac.com/fmac-resources/research/pdf/dataset_licensing_agreement.pdf`, read page by page).
+
+### The result
+
+**D17 stated the gating condition too broadly.** Its exact words: "no Freddie Mac data may
+enter this repository, any training run, or any derived artefact" before a commercial licensing
+agreement is signed. The actual terms grant two free, royalty-free uses without any paid
+agreement:
+
+- **Internal purposes** -- "personal, or your company's or your organization's internal,
+  purposes related to analyzing or researching credit performance" -- not restricted to
+  non-commercial entities. Training a model and evaluating it, including scoring the resulting
+  checkpoint against public benchmarks (V4FinBench, TabArena), is squarely this: no Freddie Mac
+  data or derived artefact leaves this project's own use.
+- **Academic or research use, including public distribution of results** -- the free terms
+  separately permit using the dataset "for academic or research purposes, and mak[ing]
+  academic or research results and any related Derived Products available to the public,
+  provided that any such distribution is solely for noncommercial purposes."
+
+The fee-based agreement ($27,562.50 licence fee on its own published cover page, pro-rated
+quarterly, recurring annually) governs one specific thing: a **Licensee** who "repackages,
+sells, and otherwise re-distributes the Data and/or Derived Products for commercial purposes"
+(§4.1, "No External Redistribution of the Data or Creation of Derived Products for External
+Commercial Purposes"). It is a reseller agreement, not a general commercial-use licence.
+
+**Whether that applies to this project turns on one fact D17 asserted without checking: is
+fintfm commercial?** Confirmed directly: no. fintfm is Apache-2.0, ships free checkpoints, and
+the README's own words are "a research codebase with a public claims ledger, not a product."
+Under Freddie Mac's own terms, that is exactly the academic/research/noncommercial-distribution
+case -- the same free tier that already covers a published FinTFM-R-mortgage checkpoint, the
+same way FinTFM's own checkpoint is published today, **for as long as fintfm stays free and
+noncommercial**. The fee-based agreement becomes relevant only if that ever changes (a paid
+product, a monetised API) -- not for the research release this project actually does.
+
+### What this settles, and what it does not
+
+**Phase B is not blocked on a $27,562.50 agreement.** B1 (registration) and B2 (reading the
+actual terms, this entry) are both satisfied under the free tier; B3 onward may proceed.
+**This does not retroactively license anything already done** -- `data/mortgage/` entered this
+machine only after this entry's registration step, consistent with the terms read here, and the
+file stays gitignored (`data/mortgage/`, matching `data/edgar/`'s convention) regardless of
+licence tier, because the terms govern *use*, not git hygiene.
+
+**One live obligation, unconditional on tier: §3.2(c)'s absolute prohibition on correlating the
+Data to individuals.** Unlike EDGAR's corporate filings, this is consumer-level loan data, and
+this clause binds regardless of fee tier -- no code in B3 onward may attempt to re-identify a
+borrower, and `prior/real_mortgage.py`'s design should treat this the same way `prior/real_edgar.py`
+treats D17's SEC-filer-overlap rule: a standing constraint checked once per use, not a one-time
+read. `docs/design/DECISIONS.md` D17 and `README.md`'s licensing section are both corrected to
+match this entry rather than left stating the broader, incorrect gate.
+
+## §154 — The Freddie Mac mortgage loader builds and trains, and the real label is very rare (task B3)
+
+**How these numbers were produced.** MEASURED. Data: Freddie Mac's Single-Family Loan-Level
+Dataset, Standard Dataset, **2018-vintage 50,000-loan sample** (`sample_2018.zip` ->
+`sample_orig_2018.txt`, `sample_perf_2018.txt`), downloaded 2026-10-06 via Clarity Data
+Intelligence under the free tier §153 established is sufficient for this project. Column
+layout for both files (31 origination fields, 35 performance fields) was read directly from
+Freddie Mac's *Single-Family Loan-Level Dataset General User Guide* (Release 47, July 2026),
+which states its glossary lists attributes "in the order in which they appear in the files,"
+and then cross-checked field-by-field against a real downloaded row's exact pipe-count (31 and
+35 respectively) before being trusted — not assumed from an older, possibly-stale public
+layout, consistent with this project's running rule to run and verify rather than reason from
+memory.
+
+### What was built
+
+- **`scripts/freddie_mac/build_panel.py`**: parses both files, turns the origination file's
+  lettered/coded fields into one-hot float indicator columns (33 feature columns total,
+  `ORIGINATION_FEATURE_COLUMNS`) rather than adding a categorical-feature code path the model
+  has never exercised — mirrors `real_edgar.py`'s all-float, `is_categorical=False` precedent
+  exactly rather than extending it. Geography (`Property State`, `Postal Code`) and entity
+  names (`Seller Name`, `Servicer Name`) are dropped: high-cardinality, no clear modelling
+  value, and closer than necessary to §153's standing obligation never to correlate this data
+  to individuals.
+- **Label**: a binary distress flag, 1 if any monthly performance record for a loan carries a
+  Zero Balance Code of **03** (Short Sale or Charge Off) or **09** (REO Disposition) — the two
+  codes representing a realised credit loss, as distinct from a voluntary payoff (01), a
+  performing-loan or whole-loan sale (02, 15, 16), or a pre-credit-event defect repurchase
+  (96). One decisive real-world event, the same design EDGAR's Item 1.03 bankruptcy label
+  used (§151).
+- **`prior/real_mortgage.py`** and **`tests/test_real_mortgage.py`**: mirror
+  `real_edgar.py`/`test_real_edgar.py` field for field — same sampling contract, same
+  degenerate-single-class repair, same refusal paths, 15 tests including a mixed-batch
+  collation test and one confirming `p_real_edgar` and `p_real_mortgage` coexist correctly in
+  `sample_task`'s decision chain without stepping on each other.
+- **`PriorConfig.p_real_mortgage`/`.real_mortgage_panel_path`**, wired into `mixture.py`
+  alongside `p_real_edgar` and into `fintfm-train` as `--p-real-mortgage`/
+  `--real-mortgage-panel-path` — present from this commit per D17's "both real sources from
+  the first commit" design, so this is additive to A2/A3's wiring, not a rework.
+  `openspec/tools/validate.py`'s `PROVENANCE_EXEMPT` gained a matching, equally narrow entry.
+- A real test (`test_training_at_p_real_mortgage_one_decreases_loss`) trains 60 steps on a
+  fixture panel with a genuine feature-label relationship and confirms the loss actually
+  decreases, the same bar A3 set and B3's own task text asks for.
+
+### The result, and the one honest problem in it
+
+**The pipeline is correct — parsing, labelling, sampling, training all run against the real
+downloaded files.** `build_panel.py` against the real sample produced **50,000 rows, 24
+positive (0.0480%)**.
+
+**That rate is a real problem, not a curiosity.** It is roughly 4-30x rarer than V4FinBench's
+own 0.19-4% regime and about 29x rarer than EDGAR's measured 1.39% (§152). The concern is not
+the rate alone — a genuinely safe loan population is allowed to be rare — it is the **absolute
+count**: 24 positives spread across 50,000 rows means most tasks sampled at a reasonable
+`n_rows` will draw zero positives by chance, landing on `sample_real_mortgage_task`'s
+degenerate-label repair path (a forced label flip) rather than a real distress example. At the
+limit, a `p_real_mortgage` source drawing mostly repaired tasks is training on injected labels
+dressed as real ones, which this project's own §47 lesson ("check the prior admits no global
+rule," and more generally "run it, don't assume it teaches") says to take seriously rather than
+wave past.
+
+Two candidate causes, not yet distinguished: (1) 2018-vintage agency-conforming loans
+genuinely have very low lifetime realised-loss rates — post-crisis underwriting, a long
+house-price-appreciation run, and COVID-era forbearance programs plausibly kept many
+2018-vintage delinquencies from ever reaching a terminal 03/09 code; (2) the 50,000-loan
+**sample** file, not the full vintage (which this project has not downloaded), undersamples
+the tail by construction if distress is spatially or seller-clustered, the same concern
+`CLAUDE.md` raises about context-pool size generally.
+
+### Where this leaves Phase B
+
+Task B3 passes on its own stated terms: the loader exists, mirrors A2's shape, and its test
+"trains and loss decreases" bar is met. **It does not yet produce a panel usable for a decisive
+run (B5) without a change in scale.** Before B4/B5, this should be revisited with either the
+full `historical_data_2018.zip` vintage file (same rate, far more absolute positives) or
+several vintage years combined — both options stay inside the free-tier terms §153
+established, since neither changes how the data is used, only how much of it is read.

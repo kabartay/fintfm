@@ -300,9 +300,16 @@ Sets and 8-K full-text search (`efts.sec.gov`) — a US federal government work,
 no stated copyright restriction, commercially usable, verified 2026-10-06 by direct access
 (`curl` returns 200 with a descriptive `User-Agent`; without one, SEC's Akamai front end
 returns 403 — a bot filter, not a licensing gate). Freddie Mac's Single-Family Loan-Level
-Dataset is adopted but **gated**: its free tier is academic/non-commercial, and no data, code
-path, or derived artefact from it may exist in this repository before a commercial licensing
-agreement is signed (`docs/design/DECISIONS.md` D17, task B1).
+Dataset is registered and in use under its **free tier**, read in full rather than assumed
+(`docs/results/FINDINGS.md` §153): royalty-free for internal use (training, evaluating,
+including against public benchmarks) and for academic/research use, which explicitly covers
+publishing research results and derived products **provided distribution is itself
+noncommercial** — which fintfm is (Apache-2.0, free checkpoints, no paid product). A separate
+fee-based agreement ($27,562.50) exists for a licensee who resells or commercially
+redistributes the Data or Derived Products; that applies only if fintfm's status changes, not
+to the research release this project does today. One obligation binds regardless of tier:
+**no correlating the data to individuals** — this is consumer loan-level data, unlike EDGAR's
+corporate filings.
 
 **One honest exception, which CI found and this paragraph previously did not mention.** On
 **Linux**, `torch` pulls in around fifteen NVIDIA CUDA runtime packages that are **NVIDIA

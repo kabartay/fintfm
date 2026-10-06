@@ -106,6 +106,17 @@ D17); labels come from the same archive's 8-K full-text search for Item 1.03
 bankruptcy/receivership disclosures (`efts.sec.gov/LATEST/search-index`). See
 `docs/results/FINDINGS.md` §151 for the feasibility measurement.
 
+**Federal Home Loan Mortgage Corporation (Freddie Mac).** *Single-Family Loan-Level Dataset.*
+[freddiemac.com/research/datasets/sf-loanlevel-dataset](https://freddiemac.com/research/datasets/sf-loanlevel-dataset),
+accessed via Clarity Data Intelligence. Loan-level origination and monthly performance data on
+~56M mortgages, 1999-2026. FinTFM-R's second real source (`docs/design/DECISIONS.md` D17);
+registered and in use under the free tier, terms read in full and recorded in
+`docs/results/FINDINGS.md` §153 — royalty-free for internal use and for academic/research use
+including public distribution of results, which covers this project. Column layout read from
+the *General User Guide* (Release 47, July 2026) and verified field-by-field against a real
+downloaded row before being trusted. See §154 for the loader build and its one open problem
+(the realised-loss label is rarer than this project's own working regime).
+
 **Tanna, Solanki, Bouadi, Bouarour, Seth & Sankarapu (2026).** *Data Presentation Over
 Architecture: Resampling Strategies for Credit Risk Prediction with Tabular Foundation
 Models.* [arXiv:2605.18635](https://arxiv.org/abs/2605.18635)

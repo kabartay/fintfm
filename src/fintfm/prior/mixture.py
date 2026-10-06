@@ -19,6 +19,8 @@ from fintfm.prior.financial import (
 )
 from fintfm.prior.learnability import is_learnable
 from fintfm.prior.real_edgar import DEFAULT_PANEL_PATH, sample_real_edgar_task
+from fintfm.prior.real_mortgage import DEFAULT_PANEL_PATH as DEFAULT_MORTGAGE_PANEL_PATH
+from fintfm.prior.real_mortgage import sample_real_mortgage_task
 from fintfm.prior.scm import (
     sample_scm_regression_task,
     sample_scm_task,
@@ -225,6 +227,17 @@ class PriorConfig:
     """Where :func:`sample_task` reads the real EDGAR panel from when :attr:`p_real_edgar` is
     non-zero. Ignored otherwise -- a misconfigured path with ``p_real_edgar=0.0`` causes no
     error, since the file is never opened."""
+    p_real_mortgage: float = 0.0
+    """Probability of drawing a task from Freddie Mac's real loan-level mortgage panel instead
+    of a synthetic one (FinTFM-R, task B3/B4). Present from the same commit as
+    :attr:`p_real_edgar` per D17's "both real sources from the first commit" design, so adding
+    a second real domain is additive rather than a rework. ``0.0`` (default) reproduces every
+    checkpoint trained before this field existed, byte for byte. Checked alongside
+    :attr:`p_real_edgar`, before :attr:`p_financial`, in :func:`sample_task`'s chain."""
+    real_mortgage_panel_path: str = DEFAULT_MORTGAGE_PANEL_PATH
+    """Where :func:`sample_task` reads the real mortgage panel from when
+    :attr:`p_real_mortgage` is non-zero. Ignored otherwise -- a misconfigured path with
+    ``p_real_mortgage=0.0`` causes no error, since the file is never opened."""
 
 
 def sample_task(rng: np.random.Generator, cfg: PriorConfig, n_rows: int | None = None) -> Task:
@@ -279,6 +292,14 @@ def sample_task(rng: np.random.Generator, cfg: PriorConfig, n_rows: int | None =
         return sample_real_edgar_task(
             rng, n, max_features=cfg.max_features, panel_path=cfg.real_edgar_panel_path
         )
+    if cfg.p_real_mortgage and rng.random() < cfg.p_real_mortgage:
+        if cfg.n_horizons is not None:
+            raise ValueError(
+                "n_horizons requires p_financial=1.0; real_mortgage carries no horizon grid"
+            )
+        return sample_real_mortgage_task(
+            rng, n, max_features=cfg.max_features, panel_path=cfg.real_mortgage_panel_path
+        )
     if rng.random() < cfg.p_financial:
         return sample_financial_task(
             rng,
@@ -332,6 +353,7 @@ def _sample_tasks_reusing_graphs(
             (cfg.p_tree and rng.random() < cfg.p_tree)
             or (cfg.p_regression and rng.random() < cfg.p_regression)
             or (cfg.p_real_edgar and rng.random() < cfg.p_real_edgar)
+            or (cfg.p_real_mortgage and rng.random() < cfg.p_real_mortgage)
             or rng.random() < cfg.p_financial
         ):
             tasks.append(sample_task(rng, cfg, n_rows=n_rows))

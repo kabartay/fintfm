@@ -572,14 +572,19 @@ the peers is diversity across heterogeneous real tables, which a second genuinel
 credit domain (consumer mortgage against corporate) supplies. It is also the only one of the
 two with observed, loan-level default outcomes rather than disclosure-derived events.
 
-**But it cannot be touched until a commercial licensing agreement is executed.** Freddie Mac
-requires registration on its Clarity Data Intelligence platform and a licensing agreement for
-commercial use; free access is academic/non-commercial, which this project is not. That is a
-human and legal action, not an engineering one, and **no Freddie Mac data may enter this
-repository, any training run, or any derived artefact before it is signed** — the same rule
-`CLAUDE.md`'s licensing boundary applies to every other third-party source. EDGAR therefore
-starts immediately because it is public domain and needs no permission; Freddie Mac starts
-when the agreement does.
+**Corrected 2026-10-06 (§153): the gating condition above was stated too broadly, on an
+unchecked premise.** Freddie Mac's free tier, read in full rather than assumed, grants two
+royalty-free uses without any paid agreement: internal use (training and evaluating, including
+scoring a checkpoint against public benchmarks — not restricted to non-commercial entities), and
+academic/research use including **public distribution of results and derived products**,
+provided that distribution is itself noncommercial. The $27,562.50 fee-based agreement governs
+one specific thing: a licensee who repackages, sells or redistributes the Data or Derived
+Products *for commercial purposes* — a reseller agreement, not a general commercial-use licence.
+This project is not commercial — Apache-2.0, free checkpoints, no paid product — so it fits the
+free tier's own research-publication case, the same way FinTFM's checkpoint is published today.
+Registration on Clarity was completed under this tier 2026-10-06; Phase B proceeds on it. The
+fee-based agreement becomes relevant only if fintfm's status changes (a paid product, a
+monetised API), not for the release this project actually does. See §153 for the full read.
 
 The prior mixture carries **separate weights per real source** (`p_real_edgar`,
 `p_real_mortgage`) from the first commit, so the second source drops in without rework and so

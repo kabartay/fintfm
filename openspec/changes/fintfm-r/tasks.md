@@ -106,11 +106,25 @@
       restriction beyond "commercial use requires a licence" — redistribution limits, retention
       limits, required attribution. Verify: those terms are recorded in `README.md`'s licensing
       section before any code in B3 onward touches the data.
-- [ ] B3 Build the mortgage-loan loader (`prior/real_mortgage.py` or similar), mirroring A2's
+- [x] B3 **Done (§154).** `scripts/freddie_mac/build_panel.py` parses the 2018-vintage sample
+      (31 origination + 35 performance pipe-delimited fields, layout verified against the
+      current user guide and a real row's exact field count) into a 33-feature panel and a
+      binary distress label (Zero Balance Code 03/09). `prior/real_mortgage.py` and
+      `tests/test_real_mortgage.py` mirror `real_edgar.py`/`test_real_edgar.py` field for
+      field, 15 tests. **One open problem, not yet resolved**: the measured positive rate is
+      0.048% (24 of 50,000), rarer than this project's own working regime — see §154 for why
+      and what B4/B5 need before a decisive run is trustworthy. Original text follows.
+      Build the mortgage-loan loader (`prior/real_mortgage.py` or similar), mirroring A2's
       shape, adapted for loan-level rather than firm-level rows. Verify: the same test
       conventions A2 used, adapted for loan-level fields — shapes, label correctness, no query
       -row leakage into any fitted statistic.
-- [ ] B4 Wire `p_real_mortgage` into `PriorConfig`/`mixture.py`, alongside `p_real_edgar` from
+- [x] B4 **Done (§154).** `PriorConfig.p_real_mortgage`/`.real_mortgage_panel_path` wired into
+      `mixture.py` alongside `p_real_edgar`, and into `fintfm-train` as
+      `--p-real-mortgage`/`--real-mortgage-panel-path`; `openspec/tools/validate.py`'s
+      `PROVENANCE_EXEMPT` gained a matching entry. `test_training_at_p_real_mortgage_one_decreases_loss`
+      trains 60 steps on a fixture panel with a genuine feature-label relationship and confirms
+      the loss decreases, matching A3's bar. Original text follows.
+      Wire `p_real_mortgage` into `PriorConfig`/`mixture.py`, alongside `p_real_edgar` from
       Phase A — both present from Phase A's first commit (per D17) so this is additive, not a
       rework. Verify: the same smoke-run convention A3/A5 used, at `p_real_mortgage=1.0`.
 - [ ] B5 A decisive run comparing EDGAR-only against EDGAR-plus-mortgage at matched compute.

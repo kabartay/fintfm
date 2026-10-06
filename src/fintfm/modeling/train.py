@@ -614,6 +614,21 @@ def main() -> None:
         "--p-real-edgar > 0",
     )
     p.add_argument(
+        "--p-real-mortgage",
+        type=float,
+        default=0.0,
+        help="probability of drawing a task from a real Freddie Mac loan-level panel instead "
+        "of a synthetic one (FinTFM-R, task B3/B4); requires --real-mortgage-panel-path and "
+        "the 'real' extra (uv sync --extra real). 0.0 (default) never opens the panel file",
+    )
+    p.add_argument(
+        "--real-mortgage-panel-path",
+        type=str,
+        default=None,
+        help="parquet file built by scripts/freddie_mac/build_panel.py; ignored unless "
+        "--p-real-mortgage > 0",
+    )
+    p.add_argument(
         "--identity-shuffle",
         action="store_true",
         help="expose financial-task columns from independently-per-account-permuted accounts "
@@ -842,10 +857,16 @@ def main() -> None:
         label_noise_rate=args.label_noise_rate,
         head_type=args.head_type,
         p_real_edgar=args.p_real_edgar,
+        p_real_mortgage=args.p_real_mortgage,
         real_edgar_panel_path=(
             PriorConfig.real_edgar_panel_path
             if args.real_edgar_panel_path is None
             else args.real_edgar_panel_path
+        ),
+        real_mortgage_panel_path=(
+            PriorConfig.real_mortgage_panel_path
+            if args.real_mortgage_panel_path is None
+            else args.real_mortgage_panel_path
         ),
         # the default-rate envelope comes from configuration, because a prior that cannot
         # generate the regime being evaluated is the defect behind docs/results/FINDINGS.md §26
