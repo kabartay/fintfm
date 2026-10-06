@@ -10652,3 +10652,27 @@ learns a base-rate regime, not only a feature-label structure. SBA 3.9% (helps),
 **at or below the control** (point estimate ≤ 0). ULB card fraud (0.17%, just under the band,
 but fraud rather than credit) is **not predicted** -- the hypothesis is silent on a domain shift
 of that kind, and saying so now is better than claiming it either way afterwards.
+
+**Scored 2026-10-07 01:00 (MEASURED, fold 0; LendingClub still training).** The prediction is
+recorded above unedited; this is how it fared.
+
+| arm | positive rate | AP | dAP vs control | 95% CI | p_holm (5 arms) |
+| --- | --- | --- | --- | --- | --- |
+| SBA | 3.9% | 0.1617 | +0.0175 | [−0.0065, +0.0364] | 0.632 |
+| PPDai | 12.9% | 0.1521 | +0.0078 | [−0.0081, +0.0218] | 0.632 |
+| control | — | 0.1442 | — | — | — |
+| EDGAR | 1.4% | 0.1399 | −0.0043 | [−0.0136, +0.0017] | 0.632 |
+| ULB fraud | 0.17% | 0.1370 | −0.0072 | [−0.0251, +0.0044] | 0.632 |
+| Bondora | 29% | 0.1364 | −0.0078 | [−0.0185, −0.0016] | 0.055 |
+
+- **PPDai: the prediction failed.** It said point estimate ≤ 0; it came out +0.0078, second
+  best of five. The interval spans zero, so this is not evidence PPDai *helps* -- but the
+  pre-registered, falsifiable part was the sign, and the sign is wrong. The base-rate regime
+  hypothesis does not survive in the form it was stated: a 12.9% source did not hurt.
+- **Bondora's earlier significance does not survive the larger family.** p_holm 0.033 with
+  three arms becomes 0.055 with five. It stays the only arm whose interval excludes zero
+  unadjusted, so "Bondora hurts" is now a lead, not a result.
+- **ULB fraud (not predicted):** −0.0072, interval spanning zero.
+- **No arm is distinguishable from the control after correction.** At one fold and 130
+  positives, the pilot ranks sources; it does not establish an effect. The SBA lead is being
+  checked on folds 1-4 now.
