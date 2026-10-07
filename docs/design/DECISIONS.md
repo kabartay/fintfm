@@ -466,6 +466,11 @@ different head and, through initialisation, a different effective seed. Read tho
 *confounded*, not clean, until re-scored against a matched control; §147's consistent five-fold
 deficit is the likeliest to survive. The §93, §108 and §148 rows are unaffected.
 
+**Update 2026-10-07 (§158, step 1):** a no-change `max_classes 10` replicate scores −0.0073 below
+the control, one fold at p < 0.001. Against that yardstick §144 and §145 are nulls, §146 a
+probable loss pending the matched Kaggle control, and §147 a loss that survives (5 of 5 folds
+negative against both references).
+
 Seven measured changes, seven nulls or losses, zero wins. This is not a curated selection —
 it is the complete record of every architecture/prior lever this project has pretrained a
 checkpoint to test. **What this project has spent its effort on is exactly the category

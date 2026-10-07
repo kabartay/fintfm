@@ -10627,6 +10627,44 @@ and how the network starts, not in every line of `train()`.
 The not-yet-run schedule-free retune kernel now passes `--max-classes 2` explicitly; the
 FinTFM-R kernel generator (`scripts/kaggle/make_real_arm_kernel.py`) and §157's pilot already did.
 
+### Step 1 done: the no-change yardstick (MEASURED, 2026-10-07)
+
+`runs/cellattn-s1-kaggle/s1_rescore.json`, full five folds, same protocol as
+`control_rescore.json` (control APs reproduce §144's column exactly), compared with
+`scripts/compare_v4_scores.py`:
+
+| fold | control (mc 2, seed 0) | s1 (mc 10, seed 1, no change) | diff | 95% CI | Holm p |
+| --- | --- | --- | --- | --- | --- |
+| 0 | 0.2113 | 0.2090 | −0.0023 | [−0.0115, +0.0070] | 1.000 |
+| 1 | 0.2050 | 0.1786 | −0.0264 | [−0.0371, −0.0170] | <0.001 |
+| 2 | 0.1786 | 0.1777 | −0.0008 | [−0.0086, +0.0064] | 1.000 |
+| 3 | 0.1810 | 0.1741 | −0.0069 | [−0.0154, +0.0019] | 0.536 |
+| 4 | 0.2172 | 0.2170 | −0.0002 | [−0.0079, +0.0080] | 1.000 |
+
+**A model with no intended change sits −0.0073 mean below the control, and one fold is −0.026
+at p < 0.001.** So a single fold significant after Holm is *not* evidence of an effect at this
+protocol: seed plus head size alone produce one. The paired bootstrap resamples rows, not
+training runs, and its intervals are blind to seed variance.
+
+Each ablation was then also scored against s1, the reference that at least shares its head
+size (it still differs in seed):
+
+| ablation | mean diff vs control (as published) | mean diff vs s1 | folds negative vs s1 | verdict |
+| --- | --- | --- | --- | --- |
+| §144 realism | −0.0035 | **+0.0039** | 2 of 5 | **null** -- sign flips with the reference |
+| §145 learnability | −0.0106 | −0.0033 | 3 of 5 | **null** -- within the yardstick |
+| §146 schedule-free | −0.0180 | −0.0107 | 3 of 5 | **probable loss**, not established |
+| §147 mask embedding | −0.0312 | −0.0239 | **5 of 5** | **loss, survives** (3 folds p < 0.001 vs s1) |
+
+§145's strongest piece of evidence, fold 1 at −0.0259, is the same size as the no-change
+replicate's −0.0264 on the same fold: fold 1 is where the control is unusually high, and every
+`max_classes 10` model falls on it. §146 is negative against both references but mixed-sign
+against s1. §147 stays below both on every fold and by three times the yardstick's mean.
+
+**Not yet settled:** two references at two seeds bracket the noise; they do not replace step 2,
+the seed-0 `max_classes 10` control (`task_158_matched_control`, queued for Kaggle), which
+matches the ablations exactly. §146's verdict waits on it.
+
 ## §157 — Continued-pretraining pilot, one arm per real source (task C4)
 
 **Status: HYPOTHESIS, pre-registered 2026-10-06 ~23:35, before the last three arms were scored.**
