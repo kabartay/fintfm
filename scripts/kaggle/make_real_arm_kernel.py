@@ -13,7 +13,7 @@ come back with `kaggle kernels output`; scoring on V4FinBench happens locally, a
 earlier Kaggle run.
 
 Panels reach the kernel as a **private** Kaggle dataset (`--dataset`, staged by
-`stage_real_panels.sh`), mounted at `/kaggle/input/<slug>/<source>/panel.parquet`. Freddie Mac is
+`stage_real_panels.sh`), found under `/kaggle/input` by search at run time. Freddie Mac is
 never staged there: its free-tier terms cover internal use (§153), and copying it to a third-party
 host is not something to decide in a script.
 
@@ -49,6 +49,7 @@ Pinned to commit {commit}.
 
 import subprocess
 import sys
+from pathlib import Path
 
 
 def run(cmd):
@@ -56,7 +57,19 @@ def run(cmd):
     subprocess.run(cmd, check=True)
 
 
+def find_panel():
+    # Kaggle has mounted datasets at more than one depth under /kaggle/input; search rather than
+    # trust one layout, and require exactly one match so the wrong source cannot be picked up.
+    hits = sorted(p for p in Path("/kaggle/input").rglob("{arm}/panel.parquet")
+                  if "{dataset}" in str(p))
+    if len(hits) != 1:
+        sys.exit(f"expected one {dataset}/{arm}/panel.parquet under /kaggle/input, found {{hits}}")
+    print(f"panel: {{hits[0]}}", flush=True)
+    return hits[0]
+
+
 def main():
+    panel = find_panel()
     run([sys.executable, "-m", "pip", "install", "--quiet",
          "fintfm[real] @ git+https://github.com/kabartay/fintfm.git@{commit}"])
     import torch
@@ -73,7 +86,7 @@ def main():
          "--feature-chunk", "8", "--max-features", "136", "--max-classes", "10",
          "--p-financial", "1.0", "--seed", "{seed}", "--device", device,
          "--checkpoint-every", "500",
-         "--real-panels", "/kaggle/input/{dataset}/{arm}/panel.parquet={share}",
+         "--real-panels", f"{{panel}}={share}",
          "--out", "/kaggle/working/fintfm-r-{arm}-s{seed}.pt"])
     print("done")
 

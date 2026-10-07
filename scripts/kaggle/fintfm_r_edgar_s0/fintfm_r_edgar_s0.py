@@ -8,6 +8,7 @@ Pinned to commit d03af3d.
 
 import subprocess
 import sys
+from pathlib import Path
 
 
 def run(cmd):
@@ -15,7 +16,19 @@ def run(cmd):
     subprocess.run(cmd, check=True)
 
 
+def find_panel():
+    # Kaggle has mounted datasets at more than one depth under /kaggle/input; search rather than
+    # trust one layout, and require exactly one match so the wrong source cannot be picked up.
+    hits = sorted(p for p in Path("/kaggle/input").rglob("edgar/panel.parquet")
+                  if "fintfm-r-panels" in str(p))
+    if len(hits) != 1:
+        sys.exit(f"expected one fintfm-r-panels/edgar/panel.parquet under /kaggle/input, found {hits}")
+    print(f"panel: {hits[0]}", flush=True)
+    return hits[0]
+
+
 def main():
+    panel = find_panel()
     run([sys.executable, "-m", "pip", "install", "--quiet",
          "fintfm[real] @ git+https://github.com/kabartay/fintfm.git@d03af3d"])
     import torch
@@ -32,7 +45,7 @@ def main():
          "--feature-chunk", "8", "--max-features", "136", "--max-classes", "10",
          "--p-financial", "1.0", "--seed", "0", "--device", device,
          "--checkpoint-every", "500",
-         "--real-panels", "/kaggle/input/fintfm-r-panels/edgar/panel.parquet=0.3",
+         "--real-panels", f"{panel}=0.3",
          "--out", "/kaggle/working/fintfm-r-edgar-s0.pt"])
     print("done")
 
