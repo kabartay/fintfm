@@ -1,7 +1,7 @@
 {
-  "id": "muhakabartay/fintfm-r-edgar",
-  "title": "fintfm-r-edgar",
-  "code_file": "fintfm_r_edgar.py",
+  "id": "muhakabartay/fintfm-r-sba-s0",
+  "title": "fintfm-r-sba-s0",
+  "code_file": "fintfm_r_sba_s0.py",
   "language": "python",
   "kernel_type": "script",
   "is_private": "true",

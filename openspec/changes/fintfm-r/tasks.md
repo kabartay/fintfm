@@ -155,7 +155,15 @@
       (`scripts/candidates/pilot.sh`), scored on V4FinBench fold 0. Verify: every arm scored on
       identical rows, paired-bootstrap AP difference against the control with Holm correction
       (`scripts/candidates/pilot_compare.py`), written up as §157 either direction.
-- [ ] C5 **The decisive run for whatever C4 ranks first**, on GPU once quota allows: from scratch
+- [ ] C5 **Prepared 2026-10-07, not launched:** SBA at seeds 0 and 1, `max_classes 10`, kernels
+      `scripts/kaggle/fintfm_r_sba_s{0,1}` (pinned d03af3d, smoke-tested 5 steps locally, 888,090
+      parameters). §158 measured seed noise at −0.0073 mean AP, the size of the pilot's SBA
+      effect, so one seed cannot decide this; at head size 10 the two controls are
+      `task_158_matched_control` (seed 0, queued anyway) and the scored s1 replicate (seed 1).
+      Order: matched control, SBA s0, SBA s1; PPDai (`fintfm_r_ppdai_s{0,1}`) only if SBA's
+      difference has the same sign at both seeds. Panels staged in `runs/kaggle_staging/`; the
+      private dataset is not yet created.
+      **The decisive run for whatever C4 ranks first**, on GPU once quota allows: from scratch
       at the A6 recipe and matched compute, V4FinBench five folds before TabArena. Verify: the
       same protocol as A6, and a pilot-scale result is not quoted as if it were this one.
 - [ ] C6 **Freddie Mac at a usable scale** -- the full 2018 vintage file or several combined

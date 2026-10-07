@@ -1,0 +1,17 @@
+{
+  "id": "muhakabartay/fintfm-r-edgar-s0",
+  "title": "fintfm-r-edgar-s0",
+  "code_file": "fintfm_r_edgar_s0.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": "true",
+  "enable_gpu": "true",
+  "enable_tpu": "false",
+  "enable_internet": "true",
+  "dataset_sources": [
+    "muhakabartay/fintfm-r-panels"
+  ],
+  "competition_sources": [],
+  "kernel_sources": [],
+  "model_sources": []
+}

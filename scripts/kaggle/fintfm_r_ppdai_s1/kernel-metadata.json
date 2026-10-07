@@ -1,0 +1,17 @@
+{
+  "id": "muhakabartay/fintfm-r-ppdai-s1",
+  "title": "fintfm-r-ppdai-s1",
+  "code_file": "fintfm_r_ppdai_s1.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": "true",
+  "enable_gpu": "true",
+  "enable_tpu": "false",
+  "enable_internet": "true",
+  "dataset_sources": [
+    "muhakabartay/fintfm-r-panels"
+  ],
+  "competition_sources": [],
+  "kernel_sources": [],
+  "model_sources": []
+}
