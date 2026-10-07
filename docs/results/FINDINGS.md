@@ -10741,3 +10741,38 @@ measurably changes V4FinBench AP; the largest five-fold effect is +0.007 and not
 SBA ranks first and PPDai second on point estimates, so they are C5's candidates. That is a
 ranking under low power, not evidence that real data helps. C5 has to establish the effect at
 GPU scale from scratch; it must not be described as confirming this pilot.
+
+## §159 — Decision rules for the queued GPU runs, fixed before any of them trains (C5, §158 step 2)
+
+**Status: PRE-REGISTERED 2026-10-07 ~15:00. No result exists; the Kaggle quota is exhausted and the
+runs are queued (`scripts/kaggle/launch_queue.sh`, two lanes, retrying until the quota resets).**
+These rules are what the results will be scored against, and they stay unedited when they land.
+
+**Runs.** Lane 1: `task_158_matched_control` (`max_classes 10`, seed 0, no change), then SBA seed
+1, then EDGAR seed 0. Lane 2: SBA seed 0, then the schedule-free retune (48.9, `max_classes 2`),
+then EDGAR seed 1. Every checkpoint is scored automatically at the exact protocol of
+`runs/task48-6-kaggle/control_rescore.json` (horizon 0, five folds, no row cap) into
+`runs/kaggle-<slug>/score.json`, and compared with `scripts/compare_v4_scores.py`.
+
+**Pairs.** Seed 0: arm vs `runs/kaggle-fintfm-task-158-matched-control/score.json`. Seed 1: arm
+vs `runs/cellattn-s1-kaggle/s1_rescore.json`. Each pair differs in the real source only.
+
+**Rule 1 -- does a real source help (SBA, then EDGAR)?** Yardstick: §158's no-change gap, 0.0073
+mean AP. A source **helps** only if its five-fold mean difference is positive at **both** seeds
+**and** the average of the two means exceeds +0.0073. It **hurts** under the mirror condition.
+Anything else is **null**. One seed passing is null, however large -- §158 showed one seed can
+move a fold by 0.026.
+
+**Rule 2 -- PPDai is launched only if SBA's two seed means have the same sign.** If they
+disagree, the real-data question is noise-limited at this volume and a further source arm spends
+quota without being able to answer it.
+
+**Rule 3 -- §146 (schedule-free, original kernel at `max_classes 10`, seed 0) against the
+matched control.** A **loss** if its five-fold mean is below −0.0073 with at least 4 of 5 folds
+negative; otherwise a **null**, and D16's row changes accordingly. The same test re-scores §144,
+§145 and §147 against the matched control; §158's verdicts change if and only if this rule
+disagrees with them.
+
+**Prediction (for scoring, not for steering).** From §157's pilot: SBA is **null** under Rule 1
+(the pilot's +0.0073 equals the yardstick); §146 is a **loss** under Rule 3 (−0.0107 against s1,
+−0.0180 against the mismatched control).

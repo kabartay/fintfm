@@ -161,8 +161,10 @@
       effect, so one seed cannot decide this; at head size 10 the two controls are
       `task_158_matched_control` (seed 0, queued anyway) and the scored s1 replicate (seed 1).
       Order: matched control, SBA s0, SBA s1; PPDai (`fintfm_r_ppdai_s{0,1}`) only if SBA's
-      difference has the same sign at both seeds. Panels staged in `runs/kaggle_staging/`; the
-      private dataset is not yet created.
+      difference has the same sign at both seeds (§159 Rule 2). Panels uploaded to the private
+      Kaggle dataset `muhakabartay/fintfm-r-panels` (SBA, PPDai, EDGAR). **Queued 2026-10-07**
+      by `scripts/kaggle/launch_queue.sh` (lanes in `runs/kaggle_queue/`), retrying until the
+      weekly GPU quota resets; decision rules pre-registered in §159.
       **The decisive run for whatever C4 ranks first**, on GPU once quota allows: from scratch
       at the A6 recipe and matched compute, V4FinBench five folds before TabArena. Verify: the
       same protocol as A6, and a pilot-scale result is not quoted as if it were this one.
