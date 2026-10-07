@@ -10676,3 +10676,30 @@ recorded above unedited; this is how it fared.
 - **No arm is distinguishable from the control after correction.** At one fold and 130
   positives, the pilot ranks sources; it does not establish an effect. The SBA lead is being
   checked on folds 1-4 now.
+
+**Final (MEASURED, 2026-10-07 02:25).** All six arms scored; the table above is unchanged except
+that Holm now runs over six arms (Bondora p_holm 0.066, every other arm ≥ 0.79).
+
+- **LendingClub (20.0%): −0.0005 [−0.0127, +0.0091], p_holm 0.903.** The point estimate is ≤ 0,
+  so the prediction holds for this arm -- but only nominally: it is indistinguishable from the
+  control, and it gives no support to a base-rate mechanism. **Scorecard: 1 of 2 predictions
+  held, and the one that held is a null.** The hypothesis is rejected as stated.
+- **SBA on five folds** (`scripts/compare_v4_scores.py`, control and SBA rescored on folds 1-4
+  at the same 200k cap):
+
+  | fold | control AP | SBA AP | diff | 95% CI | Holm p (folds 1-4) |
+  | --- | --- | --- | --- | --- | --- |
+  | 0 | 0.1442 | 0.1617 | +0.0175 | [−0.0065, +0.0364] | (pilot table) |
+  | 1 | 0.1830 | 0.2004 | +0.0174 | [−0.0007, +0.0357] | 0.248 |
+  | 2 | 0.2261 | 0.2255 | −0.0007 | [−0.0191, +0.0169] | 1.000 |
+  | 3 | 0.2205 | 0.2239 | +0.0034 | [−0.0093, +0.0171] | 1.000 |
+  | 4 | 0.2392 | 0.2379 | −0.0013 | [−0.0177, +0.0148] | 1.000 |
+
+  Mean +0.0073 over five folds, 3 positive and 2 negative, no fold significant. Fold 0's lead
+  was partly luck of the fold: it is a weak positive tendency, not a replicated effect.
+
+**What the pilot decides.** At 1,500 CPU steps from a converged checkpoint, no real source
+measurably changes V4FinBench AP; the largest five-fold effect is +0.007 and not significant.
+SBA ranks first and PPDai second on point estimates, so they are C5's candidates. That is a
+ranking under low power, not evidence that real data helps. C5 has to establish the effect at
+GPU scale from scratch; it must not be described as confirming this pilot.

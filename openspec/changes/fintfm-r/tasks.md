@@ -148,7 +148,10 @@
       real-positive floor; PPDai, Bondora, ULB card fraud and SBA 7(a) panels built; feasibility
       benchmark run on all seven real panels. Verify: `tests/test_real_panel.py` passes, including
       that floor-enforced positives are genuine positive rows; feasibility table recorded.
-- [ ] C4 **Continued-pretraining pilot**, one arm per source, all from the A6 control checkpoint
+- [x] C4 **Done (§157): six arms scored on identical fold-0 rows; none separates from the control
+      after Holm, SBA's lead shrinks to +0.0073 mean over five folds (3 of 5 positive), PPDai
+      second; the pre-registered base-rate hypothesis is rejected.**
+      **Continued-pretraining pilot**, one arm per source, all from the A6 control checkpoint
       (`scripts/candidates/pilot.sh`), scored on V4FinBench fold 0. Verify: every arm scored on
       identical rows, paired-bootstrap AP difference against the control with Holm correction
       (`scripts/candidates/pilot_compare.py`), written up as §157 either direction.
