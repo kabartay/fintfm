@@ -19,8 +19,12 @@ def main():
     run([sys.executable, "-m", "pip", "install", "--quiet",
          "fintfm[real] @ git+https://github.com/kabartay/fintfm.git@d03af3d"])
     import torch
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"torch {torch.__version__}, device {device}", flush=True)
+    print(f"torch {torch.__version__}, CUDA available: {torch.cuda.is_available()}", flush=True)
+    if not torch.cuda.is_available():
+        # An exhausted GPU quota runs the kernel on CPU, where 6,000 steps cannot finish in a
+        # session; stopping here costs nothing.
+        sys.exit("no GPU in this session (quota exhausted?) -- refusing a CPU run")
+    device = "cuda"
     run([sys.executable, "-u", "-m", "fintfm.modeling.train",
          "--steps", "6000", "--batch-size", "8", "--n-rows-choices", "256,512,1024",
          "--d-cell", "48", "--d-model", "128", "--n-layers", "4", "--n-col-layers", "2",

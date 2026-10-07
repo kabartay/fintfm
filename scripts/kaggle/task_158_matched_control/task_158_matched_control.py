@@ -32,7 +32,11 @@ def main() -> None:
     import torch
 
     print(f"torch {torch.__version__}, CUDA available: {torch.cuda.is_available()}")
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    if not torch.cuda.is_available():
+        # An exhausted GPU quota runs the kernel on CPU, where 6,000 steps cannot finish in a
+        # session; stopping here costs nothing.
+        sys.exit("no GPU in this session (quota exhausted?) -- refusing a CPU run")
+    device = "cuda"
     run([
         sys.executable, "-u", "-m", "fintfm.modeling.train",
         "--steps", "6000", "--batch-size", "8", "--n-rows-choices", "256,512,1024",
