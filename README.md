@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/kabartay/fintfm/main/images/logo.png" width="112" alt="FinTFM logo: labelled table rows read in one forward pass into a new row's predicted cell">
+</p>
+
 # FinTFM
 
 [![PyPI](https://img.shields.io/pypi/v/fintfm?color=blue)](https://pypi.org/project/fintfm/)
