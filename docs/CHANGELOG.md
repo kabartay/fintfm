@@ -6,6 +6,77 @@ not paste one into the other. See `CLAUDE.md`.
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-10-09
+
+A second model family opens on real data, seven architecture and prior levers come back
+without a win, and a confound in this project's own ablations is found, isolated and
+re-scored. Every new option is off by default: the default model is byte-identical to 0.5.6
+(Section 158's hashing), so the published checkpoint and every earlier result are
+unchanged.
+
+### Added
+
+- **FinTFM-R, a second model family trained on real data** (`DECISIONS` D17). FinTFM keeps
+  its name, DOI and TabArena entry; FinTFM-R is the separate family that tests the one
+  lever D16 left untested. Loaders sample real rows into pretraining the way the
+  classifier already uses them at inference: `prior/real_edgar.py` over a panel that
+  `scripts/edgar/build_panel.py` builds from SEC's Financial Statement Data Sets and 8-K
+  Item 1.03 bankruptcy disclosures (2023: 24,677 firm-quarters, 1.39% positive),
+  `prior/real_mortgage.py` over Freddie Mac's loan-level sample (33 features),
+  `prior/real_lendingclub.py`, and one generic `--real-panels` sampler
+  (`prior/real_panel.py`) with a real-positive floor. Wired in as `--p-real-edgar`,
+  `--p-real-mortgage` and `--real-panels`, with `--init-from` for continued pretraining
+  and a new `real` extra (pyarrow, requests).
+- **A real-data audit with a CI-run overlap check.** 93 proposed sources checked against
+  primary sources, five shortlisted (Sections 155-156), and every candidate checked
+  against a TabArena and BeyondArena snapshot by CI rather than by memory. PaMIR's 19
+  credit datasets were verified as real, six of them already off-limits as TabArena
+  overlap.
+- **`FinancialTFMQuantileRegressor`** and `ModelConfig.head_type="quantile"`: a genuine
+  pinball-loss head with 99 quantile outputs, in place of the binned head's classification
+  trick.
+- **`--optimizer schedulefree`** (new `schedulefree` extra), **`--mask-embedding`**, and
+  four realism augmentations (discretised features, noise features, a correlated block,
+  label noise). A resume now records and checks which optimiser trained the saved state,
+  since the two carry incompatible state dicts.
+
+### Changed
+
+- **Seven architecture and prior levers measured, none of them a win** (`DECISIONS` D16).
+  The quantile head is marginally worse than the binned head (Section 148); the realism
+  augmentations and the learnability filter are nulls; schedule-free optimisation is a
+  probable loss pending a matched control; the dedicated mask embedding loses on all five
+  folds (Section 147, mean AP 0.1986 to 0.1674).
+- **A confound in this project's own ablations, found and removed** (Section 158).
+  Sections 144-147 trained at `--max-classes 10` against a control trained at 2, so each
+  differed from its control in head size as well as the change it tested. Hashing isolated
+  it as the only difference; a no-change replicate measured the protocol's noise at
+  -0.0073 mean AP; the four were re-scored against it before the results above were
+  stated.
+- **The real-source pilot separates no arm from the control** (C4). A base-rate hypothesis
+  was pre-registered before the last arms scored (Section 157) and PPDai falsified it. SBA
+  ranks first only as a low-power ranking. The decisive two-seed runs (C5) and their
+  decision rules are pre-registered (Section 159) and queued, not run.
+- Section 91's inversion replicates at a second seed (Section 142), and the TabArena
+  placement was re-verified against a refreshed baseline cache: Elo 765 to 763, rank 94 of
+  95 unchanged (Section 150).
+- Freddie Mac's free tier was found to cover research publication; D17's gate was broader
+  than the licence (Section 153).
+- The release workflow's artifact actions move to `upload-artifact` v7 and
+  `download-artifact` v8.
+
+### Fixed
+
+- Schedule-free's `warmup_steps` was never passed through, so Section 146 ran with no
+  warmup at AdamW's learning rate; it is now wired, and Section 146 is recorded as one
+  mistuned configuration rather than a verdict on the method.
+- The EDGAR panel builder put quarter-end dates a month early, undercounted the newest
+  rows' positives (314 to 613 once the label window extends past the panel), and hit SEC
+  full-text search's undocumented pagination cap; it now queries month by month with
+  retry.
+- A read-only array from `DataFrame.to_numpy()`, a CI collection failure when the `real`
+  extra is absent, and two data directories missing from `.gitignore`.
+
 ## [0.5.6] — 2026-10-03
 
 Phase A' closes, Phase C's construction work lands and is scored, and one combined-prior
