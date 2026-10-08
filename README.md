@@ -2,19 +2,22 @@
   <img src="https://raw.githubusercontent.com/kabartay/fintfm/main/images/logo.png" width="112" alt="FinTFM logo: labelled table rows read in one forward pass into a new row's predicted cell">
 </p>
 
-# FinTFM
+<h1 align="center">FinTFM</h1>
 
-[![PyPI](https://img.shields.io/pypi/v/fintfm?color=blue)](https://pypi.org/project/fintfm/)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22949759.svg)](https://doi.org/10.5281/zenodo.22949759)
-[![CI](https://github.com/kabartay/fintfm/actions/workflows/ci.yml/badge.svg)](https://github.com/kabartay/fintfm/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue.svg)](pyproject.toml)
-[![Checkpoint](https://img.shields.io/badge/%F0%9F%A4%97%20weights-fintfm--binary-yellow)](https://huggingface.co/kabartay/fintfm-binary)
-[![TabArena](https://img.shields.io/badge/TabArena-94th%20of%2095-critical)](docs/results/TABARENA.md)
-[![Leaderboard](https://img.shields.io/badge/leaderboard-live-8957e5)](https://kabartay.github.io/fintfm/leaderboard/)
+<p align="center">
+  <strong>A tabular foundation model for corporate credit risk, built from scratch and measured in public.</strong>
+</p>
 
-**A tabular foundation model for corporate credit risk, built from scratch and measured in
-public.**
+<p align="center">
+  <a href="https://pypi.org/project/fintfm/"><img src="https://img.shields.io/pypi/v/fintfm?color=blue" alt="PyPI"></a>
+  <a href="https://doi.org/10.5281/zenodo.22949759"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.22949759.svg" alt="DOI"></a>
+  <a href="https://github.com/kabartay/fintfm/actions/workflows/ci.yml"><img src="https://github.com/kabartay/fintfm/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-green.svg" alt="License"></a>
+  <a href="pyproject.toml"><img src="https://img.shields.io/badge/python-3.12%20%7C%203.13-blue.svg" alt="Python"></a>
+  <a href="https://huggingface.co/kabartay/fintfm-binary"><img src="https://img.shields.io/badge/%F0%9F%A4%97%20weights-fintfm--binary-yellow" alt="Checkpoint"></a>
+  <a href="docs/results/TABARENA.md"><img src="https://img.shields.io/badge/TabArena-94th%20of%2095-critical" alt="TabArena"></a>
+  <a href="https://kabartay.github.io/fintfm/leaderboard/"><img src="https://img.shields.io/badge/leaderboard-live-8957e5" alt="Leaderboard"></a>
+</p>
 
 Given a table of labelled rows, FinTFM predicts new rows in a **single forward pass**, with your
 data supplied as context rather than trained on. There are no gradient steps at fit time and no
