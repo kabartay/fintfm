@@ -11,7 +11,8 @@ not by being imaginable in advance.
 | --- | --- |
 | Commit author, human contact | `mukharbek.organokov@gmail.com` |
 
-**Never use `temelion.ai`, anything named Temelion, or `finkele.com`.** The shell environment on
+**Never use `temelion.ai` or anything named Temelion, and never a `finkele.com` address in
+commits or account identities** (`finkele.com` is the Finkele company website). The shell environment on
 this machine carries a `temelion.ai` address by default for anything that reads "the user's
 email" — it has reached a monitoring channel on an unrelated project before. Check before
 creating anything (a commit, a cloud resource, a registration) that carries an address.
