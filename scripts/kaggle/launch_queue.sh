@@ -22,6 +22,10 @@ mkdir -p "$LOGDIR"
 LOG=$LOGDIR/$LANE.log
 RETRY_S=${RETRY_S:-1800}   # between pushes refused for quota
 POLL_S=${POLL_S:-600}      # between status checks of a running kernel
+# Full-panel scorings each hold ~10 GB. Four at once (two lanes, each finishing a kernel while
+# the previous score still ran) took this 64 GB machine to 63 GB used and 45/47 GB swap on
+# 2026-10-10, one step from the freeze CLAUDE.md records. The cap is across lanes.
+MAX_SCORING=${MAX_SCORING:-2}
 
 log() { echo "[$(date '+%m-%d %H:%M:%S')] $*" >> "$LOG"; }
 
@@ -60,7 +64,10 @@ for item in "$@"; do
   log "fetched $out/$ckpt; scoring in background"
   # The exact protocol of runs/task48-6-kaggle/control_rescore.json, so every result compares
   # with scripts/compare_v4_scores.py against that control, the s1 replicate, or each other.
-  ( PYTHONUNBUFFERED=1 nice -n 5 uv run fintfm-v4protocol --model "$out/$ckpt" --horizon 0 \
+  ( while [ "$(pgrep -f '.venv/bin/fintfm-v4protocol' | wc -l)" -ge "$MAX_SCORING" ]; do
+      sleep 60
+    done
+    PYTHONUNBUFFERED=1 nice -n 5 uv run fintfm-v4protocol --model "$out/$ckpt" --horizon 0 \
       --folds 0,1,2,3,4 --no-boosting --classical logistic_regression --device cpu \
       --out "$out/score.json" > "$out/score.log" 2>&1
     log "scored $id EXIT=$?" ) &
