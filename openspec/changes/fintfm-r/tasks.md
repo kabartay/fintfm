@@ -164,7 +164,9 @@
       difference has the same sign at both seeds (§159 Rule 2). Panels uploaded to the private
       Kaggle dataset `muhakabartay/fintfm-r-panels` (SBA, PPDai, EDGAR). **Queued 2026-10-07**
       by `scripts/kaggle/launch_queue.sh` (lanes in `runs/kaggle_queue/`), retrying until the
-      weekly GPU quota resets; decision rules pre-registered in §159.
+      weekly GPU quota resets; decision rules pre-registered in §159 and applied by
+      `scripts/c5_verdict.py` (boundaries pinned in `tests/test_c5_verdict.py`). Launched
+      2026-10-10 02:25 (matched control, SBA s0).
       **The decisive run for whatever C4 ranks first**, on GPU once quota allows: from scratch
       at the A6 recipe and matched compute, V4FinBench five folds before TabArena. Verify: the
       same protocol as A6, and a pilot-scale result is not quoted as if it were this one.
