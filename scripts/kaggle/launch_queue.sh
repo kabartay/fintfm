@@ -22,10 +22,11 @@ mkdir -p "$LOGDIR"
 LOG=$LOGDIR/$LANE.log
 RETRY_S=${RETRY_S:-1800}   # between pushes refused for quota
 POLL_S=${POLL_S:-600}      # between status checks of a running kernel
-# Full-panel scorings each hold ~10 GB. Four at once (two lanes, each finishing a kernel while
+# Full-panel scorings each hold 12-14 GB. Four at once (two lanes, each finishing a kernel while
 # the previous score still ran) took this 64 GB machine to 63 GB used and 45/47 GB swap on
-# 2026-10-10, one step from the freeze CLAUDE.md records. The cap is across lanes.
-MAX_SCORING=${MAX_SCORING:-2}
+# 2026-10-10, one step from the freeze CLAUDE.md records. Two at once refilled swap the same
+# day (each actually holds 12-14 GB beside bwa and Docker), so the default is one, across lanes.
+MAX_SCORING=${MAX_SCORING:-1}
 
 log() { echo "[$(date '+%m-%d %H:%M:%S')] $*" >> "$LOG"; }
 
