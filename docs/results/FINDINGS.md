@@ -10776,3 +10776,55 @@ disagrees with them.
 **Prediction (for scoring, not for steering).** From §157's pilot: SBA is **null** under Rule 1
 (the pilot's +0.0073 equals the yardstick); §146 is a **loss** under Rule 3 (−0.0107 against s1,
 −0.0180 against the mismatched control).
+
+## §160 — §158 re-adjudicated against the matched control; SBA at GPU scale is a loss at seed 0
+
+**How this was produced.** MEASURED. `task_158_matched_control` (`max_classes 10`, seed 0, no
+change) and `fintfm-r-sba-s0` trained on Kaggle 2026-10-10 (6,000 steps each), scored locally at
+the exact protocol of `control_rescore.json`, and judged by `scripts/c5_verdict.py` -- the §159
+rules as code, committed before any of these runs trained.
+
+**Code drift ruled out, this time through the training loop.** §158's hash test stopped at the
+sampler and the constructor. The control kernel pins e1b2c45 and the SBA kernel d03af3d, with
+~400 changed lines in `model.py`, `train.py` and `mixture.py` between them. Both commits were
+checked out and trained 8 identical steps on CPU at the recipe: **the resulting weights are
+bit-identical** (max abs difference 0.0). The configs differ only in two metadata fields the later
+code records (`head_type`, `n_quantiles`), which change no weight.
+
+**§158 step 2 -- the four ablations against the matched control (Rule 3):**
+
+| ablation | per-fold diff | mean | folds negative | Rule 3 | §158 step-1 verdict |
+| --- | --- | --- | --- | --- | --- |
+| §144 realism | +0.0018 +0.0086 +0.0050 −0.0029 +0.0112 | +0.0047 | 1/5 | null | null |
+| §145 learnability | +0.0020 −0.0108 −0.0016 +0.0119 −0.0137 | −0.0024 | 3/5 | null | null |
+| §146 schedule-free | −0.0011 −0.0105 −0.0141 −0.0024 −0.0210 | −0.0098 | 5/5 | **loss** | probable loss |
+| §147 mask embedding | −0.0245 −0.0151 −0.0230 −0.0147 −0.0380 | −0.0230 | 5/5 | **loss** | loss |
+| no-change s1 replicate | +0.0145 −0.0113 +0.0075 −0.0066 +0.0003 | +0.0009 | 2/5 | null | -- |
+
+§159's prediction for §146 (loss) holds. The §158 confound is now removed and D16's four rows
+stand as: two nulls (§144, §145), two losses (§146, §147).
+
+**What §158's yardstick actually was.** The matched control against the original
+`max_classes 2` control: −0.0082 mean AP, 5 of 5 folds negative. The two `max_classes 10`
+controls at seeds 0 and 1 differ by +0.0009. So the 0.0073 gap §158 measured was mostly **head
+size**, not seed: a 10-way head costs ~0.008 AP on this binary benchmark, and seed-to-seed
+variation at matched head size is an order of magnitude smaller on the five-fold mean.
+
+**SBA, seed 0 (C5, first half):**
+
+| fold | 0 | 1 | 2 | 3 | 4 | mean |
+| --- | --- | --- | --- | --- | --- | --- |
+| SBA s0 − control s0 | −0.0279 | −0.0400 | −0.0195 | −0.0408 | −0.0494 | **−0.0355** |
+
+Five of five folds negative, five times the yardstick. The CPU pilot (§157) had SBA at +0.0073
+over five folds; at full scale from scratch the sign reverses. Rule 1 needs seed 1 (scoring now)
+before a verdict is written, and §159's prediction for SBA was null -- seed 0 alone already points
+at "hurts".
+
+**Training loss moves the other way.** Final loss: control 0.1929, SBA s0 0.1708, SBA s1 0.1569.
+The SBA arms fit their training mixture better and transfer worse. One explanation, **not
+tested**: SBA tasks are easier than synthetic financial ones, and at a fixed 6,000-step budget they
+take 30% of the tasks the financial prior would otherwise have supplied. The pilot (continued
+pretraining from a converged checkpoint) would not see that cost, which fits the sign change.
+That makes "real data hurts" and "this share of real data displaces the prior" different claims;
+this run cannot separate them.
