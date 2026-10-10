@@ -313,7 +313,16 @@
       column spread, thresholds drawn from the arriving data, ensemble size log-uniform to
       `MAX_TREES`. Their stated reason for ensembles over single trees was read first, as this
       task required. Outcome is §116's — it works on general tabular data and harms credit.
-- [ ] 48.19 **Widen the SCM prior's activation set with order-statistic functions.** Ours is
+- [x] 48.19 **Closed 2026-10-10 without the V4FinBench run (§143, §116).** The code half is Done:
+      `_rank_act` and `_softmax_act` are in `prior/scm.py`'s `_ACTS`, and §143 measured the
+      widened prior's diversity at zero GPU cost. The verify clause's trained-checkpoint
+      comparison is not run because it cannot answer the question asked: the credit recipe
+      trains at `p_financial=1.0`, where no SCM task is ever drawn (`PriorConfig.scm_legacy`'s
+      docstring), so these activations never reach the model V4FinBench scores. Testing them
+      needs an SCM-mixed arm, and §116 already measured that mixing a general prior into
+      training costs credit AP (−0.0221, 5 of 5 folds negative), which would swamp any
+      activation effect. Not worth 4 GPU hours. Original text follows.
+      **Widen the SCM prior's activation set with order-statistic functions.** Ours is
       5 fixed activations (`tanh`, `sin`, ReLU, identity, signed-sqrt); TabICLv2 lists 21 fixed
       plus 4 parametric, including `rank`, `softmax`, `one-hot argmax`, `argsort`. §35 measures
       that this project's *inference-time* rank conditioning is worth +0.086 AUC on real
