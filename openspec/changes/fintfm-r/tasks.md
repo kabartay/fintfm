@@ -155,7 +155,9 @@
       (`scripts/candidates/pilot.sh`), scored on V4FinBench fold 0. Verify: every arm scored on
       identical rows, paired-bootstrap AP difference against the control with Holm correction
       (`scripts/candidates/pilot_compare.py`), written up as §157 either direction.
-- [ ] C5 **Prepared 2026-10-07, not launched:** SBA at seeds 0 and 1, `max_classes 10`, kernels
+- [x] C5 **Done (§160, §161): SBA null under §159 Rule 1 -- seed 0 −0.0355, seed 1 +0.0024, a
+      0.039 seed-to-seed gap against 0.0009 for the no-change controls; PPDai not eligible (Rule
+      2). EDGAR scoring.** **Prepared 2026-10-07, not launched:** SBA at seeds 0 and 1, `max_classes 10`, kernels
       `scripts/kaggle/fintfm_r_sba_s{0,1}` (pinned d03af3d, smoke-tested 5 steps locally, 888,090
       parameters). §158 measured seed noise at −0.0073 mean AP, the size of the pilot's SBA
       effect, so one seed cannot decide this; at head size 10 the two controls are

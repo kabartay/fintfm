@@ -10828,3 +10828,41 @@ take 30% of the tasks the financial prior would otherwise have supplied. The pil
 pretraining from a converged checkpoint) would not see that cost, which fits the sign change.
 That makes "real data hurts" and "this share of real data displaces the prior" different claims;
 this run cannot separate them.
+
+## §161 — C5 decided: SBA is a null at GPU scale, and an unstable one
+
+**How this was produced.** MEASURED. `fintfm-r-sba-s1` (Kaggle, 2026-10-10, 6,000 steps, seed 1)
+scored at the same protocol as §160, then `scripts/c5_verdict.py pair` -- §159's rules, committed
+before any of these runs trained.
+
+| | fold 0 | fold 1 | fold 2 | fold 3 | fold 4 | mean |
+| --- | --- | --- | --- | --- | --- | --- |
+| SBA s0 − control s0 | −0.0279 | −0.0400 | −0.0195 | −0.0408 | −0.0494 | −0.0355 |
+| SBA s1 − control s1 | −0.0125 | +0.0121 | +0.0209 | +0.0037 | −0.0120 | +0.0024 |
+
+**Rule 1: null** (seed means disagree in sign; their average, −0.0166, is not a verdict under the
+rule). **Rule 2: PPDai not eligible** -- the seeds disagree, so it is not launched. **§159's
+prediction for SBA (null) holds**, though not for the reason it gave: the pilot's small positive
+did not reappear as a small null, it reappeared as one large loss and one zero.
+
+**The two SBA seeds are further apart than anything else measured here.** SBA s1 against SBA s0:
++0.0388, five of five folds. Against that, the two no-change controls at the same seeds differ by
++0.0009 (§160). The seed-1 result is not an artefact of its control either: SBA s1 against the
+*seed-0* matched control is +0.0033 (2 of 5 folds negative). So adding the real panel turned a
+training run whose outcome barely depended on the seed into one where the seed moves V4FinBench AP
+by 0.04. Two seeds cannot say which is typical.
+
+**Training loss does not track it -- a correction to §160.** §160 quoted final-step losses
+(0.1929 / 0.1708 / 0.1569) and read "fits its mixture better, transfers worse". Those are single
+batches of 8 tasks. Averaged over the second half of training (60 logged steps each): control
+0.1814, SBA s0 0.1707, SBA s1 0.1712. Both SBA seeds fit their mixture equally well and lower than
+the control, while transferring 0.039 apart -- so training loss carries no information about the
+outcome here. §160's untested displacement explanation predicted a loss at **both** seeds (the
+share of displaced synthetic tasks is identical); seed 1 shows none, so displacement is not, on
+its own, what happened at seed 0.
+
+**What this decides for FinTFM-R (D17).** Neither the CPU pilot (§157, no arm separable from the
+control) nor the GPU run finds a real source that helps on V4FinBench. SBA at a 30% share is at
+best neutral and at worst a large loss, depending on the seed. EDGAR's two seeds are scoring and
+will be appended here. The matched-volume run proposed for the displacement question is not
+launched: seed 1 removes its motivation.
