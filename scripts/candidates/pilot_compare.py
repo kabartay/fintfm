@@ -1,6 +1,8 @@
-"""Compare every pilot arm against the control on identical V4FinBench rows.
+"""Compare every arm against a control arm on identical V4FinBench fold-0 rows.
 
-Reads `runs/pilot/<arm>.score/predictions_fold0.npz` for each arm, checks the rows are the
+Reads `<root>/<arm><suffix>/predictions_fold0.npz` for each arm (by default the §157 pilot's
+`runs/pilot/<arm>.score/`; §162's context diagnostic uses `--root runs/ctxdiag --suffix ""
+--control ctx2000`), checks the rows are the
 same rows (an arm scored on a different subsample would make every difference meaningless),
 then reports each arm's AP and ROC-AUC, and its paired-bootstrap AP difference against the
 control with Holm-corrected p-values across all arms -- AP first, per D13, and never a win
@@ -8,6 +10,7 @@ count (`fintfm.evaluation.metrics.paired_auc_difference`'s own docstring explain
 
 Usage:
     uv run python scripts/candidates/pilot_compare.py [--n-boot 2000]
+    uv run python scripts/candidates/pilot_compare.py --root runs/ctxdiag --suffix '' --control ctx2000
 """
 
 from __future__ import annotations
@@ -22,33 +25,37 @@ from sklearn.metrics import average_precision_score, roc_auc_score
 from fintfm.evaluation.metrics import holm_adjusted_p, paired_auc_difference
 
 ROOT = Path(__file__).resolve().parents[2]
-PILOT = ROOT / "runs" / "pilot"
 
 
 def main() -> None:
     """Entry point: print the comparison table and write it as JSON beside the runs."""
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--n-boot", type=int, default=2000)
+    p.add_argument("--root", type=Path, default=ROOT / "runs" / "pilot")
+    p.add_argument("--suffix", default=".score", help="arm directory suffix")
+    p.add_argument("--control", default="control", help="arm every other is compared against")
     args = p.parse_args()
+    ctl = args.control
 
     preds = {
-        d.name.removesuffix(".score"): np.load(d / "predictions_fold0.npz")
-        for d in sorted(PILOT.glob("*.score")) if (d / "predictions_fold0.npz").exists()
+        d.name.removesuffix(args.suffix) if args.suffix else d.name: np.load(d / "predictions_fold0.npz")
+        for d in sorted(args.root.glob(f"*{args.suffix}"))
+        if d.is_dir() and (d / "predictions_fold0.npz").exists()
     }
-    if "control" not in preds:
-        raise SystemExit("control arm has not been scored yet")
-    y = preds["control"]["y_true"]
+    if ctl not in preds:
+        raise SystemExit(f"control arm {ctl!r} has not been scored yet")
+    y = preds[ctl]["y_true"]
     for arm, d in preds.items():
         if not np.array_equal(d["y_true"], y):
-            raise SystemExit(f"{arm} was scored on different rows than control -- not comparable")
+            raise SystemExit(f"{arm} was scored on different rows than {ctl} -- not comparable")
 
-    ctrl = preds["control"]["pred_fintfm"]
-    lr = preds["control"]["pred_logistic_regression"]
+    ctrl = preds[ctl]["pred_fintfm"]
+    lr = preds[ctl]["pred_logistic_regression"]
     rows = []
     for arm, d in preds.items():
         s = d["pred_fintfm"]
         row = {"arm": arm, "ap": average_precision_score(y, s), "auc": roc_auc_score(y, s)}
-        if arm != "control":
+        if arm != ctl:
             delta, (lo, hi), pval = paired_auc_difference(
                 y, s, ctrl, n_boot=args.n_boot, metric=average_precision_score
             )
@@ -65,7 +72,7 @@ def main() -> None:
         tail = (f"{r['d_ap']:+12.4f} [{r['lo']:+.4f}, {r['hi']:+.4f}] {r['p_holm']:7.3f}"
                 if "d_ap" in r else f"{'(control)':>12s}")
         print(f"{r['arm']:12s} {r['ap']:7.4f} {r['auc']:8.4f} {tail}")
-    (PILOT / "comparison.json").write_text(json.dumps(rows, indent=2, default=float))
+    (args.root / "comparison.json").write_text(json.dumps(rows, indent=2, default=float))
 
 
 if __name__ == "__main__":
