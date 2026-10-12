@@ -10884,3 +10884,34 @@ the control's 0.1814 and SBA's ~0.171 -- and, again, unrelated to transfer.
 seeds each, no help on V4FinBench. EDGAR is a stable null; SBA a null whose seeds span −0.036 to
 +0.002. D17's premise -- that real financial data improves the credit benchmark -- has no support
 at this scale.
+
+## §162 — Is the V4FinBench gap on the inference side? A context diagnostic, pre-registered
+
+**Status: PRE-REGISTERED 2026-10-12 ~23:25, the first arm just started; no result exists.**
+
+**Why.** §157-§161: no training-side change (prior levers, real data, schedule-free, 5× volume)
+has moved V4FinBench AP. At scoring time the model sees `max_context 2000` rows drawn uniformly,
+one ensemble member. At the 200k development cap a fold's training pool is ~160k rows at ~0.37%
+positives, so the context carries **about 7 positives** (ESTIMATED from the base rate), while
+untuned logistic regression fits on all of them (fold 0 of §157: LR 0.1658 AP against FinTFM's
+0.1442). If the model is starved of positives at inference, no change to its weights can show.
+
+**Design.** `runs/v4-cellattn-labels.pt` (the A6/D16 reference), fold 0, `--max-rows 200000`, CPU,
+arms differing only in the `inference` config (`runs/ctxdiag/*.yaml`):
+`ctx500`, `ctx1000`, `ctx2000` (the scoring default, the comparison base), `ens4` and `ens8`
+(`n_ensemble` at 2000), `balanced` and `prototype` (context strategy at 2000; `correct_prior`
+on, as by default). All arms score identical rows; paired bootstrap on AP, Holm over the six
+comparisons against `ctx2000`.
+
+**Rules.**
+- **Inference-bound** if any arm beats `ctx2000` with Holm p < 0.05, **or** the context curve
+  rises (`ctx2000 − ctx500` interval excludes zero, `ctx1000` between them).
+- **Weights-bound** if no arm separates from `ctx2000` and the `ctx500 → ctx2000` difference's
+  interval includes zero.
+- Anything else: inconclusive, and stated as such.
+
+**Prediction:** inference-bound -- AP rises with context, and `ens8` beats `ctx2000`.
+
+**Consequence fixed in advance.** Inference-bound points the next work at context construction
+and at an architecture that can hold far more rows (TabICL-style column compression, §119's
+liability); weights-bound points at fine-tuning, which this project has never tried.
