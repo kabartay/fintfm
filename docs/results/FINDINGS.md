@@ -10866,3 +10866,21 @@ control) nor the GPU run finds a real source that helps on V4FinBench. SBA at a 
 best neutral and at worst a large loss, depending on the seed. EDGAR's two seeds are scoring and
 will be appended here. The matched-volume run proposed for the displacement question is not
 launched: seed 1 removes its motivation.
+
+**EDGAR, both seeds (MEASURED, appended 2026-10-12; scored 2026-10-10/11).**
+
+| | fold 0 | fold 1 | fold 2 | fold 3 | fold 4 | mean |
+| --- | --- | --- | --- | --- | --- | --- |
+| EDGAR s0 − control s0 | −0.0009 | −0.0138 | +0.0015 | +0.0144 | −0.0108 | −0.0019 |
+| EDGAR s1 − control s1 | −0.0146 | −0.0010 | −0.0000 | +0.0054 | −0.0045 | −0.0029 |
+
+**Rule 1: null.** The seeds agree (Rule 2's sign test passes, but Rule 2 gates PPDai on SBA, not
+on EDGAR, so nothing launches). Unlike SBA, EDGAR is **stable**: its two seeds differ by −0.0002
+on the mean, as close as the no-change controls. So the 0.039 seed gap in §161 is SBA-specific, not
+a property of mixing in any real panel. Second-half training loss 0.1496 and 0.1497, lower than
+the control's 0.1814 and SBA's ~0.171 -- and, again, unrelated to transfer.
+
+**Net for FinTFM-R at this recipe (30% share, 6,000 steps, from scratch):** two real sources, two
+seeds each, no help on V4FinBench. EDGAR is a stable null; SBA a null whose seeds span −0.036 to
++0.002. D17's premise -- that real financial data improves the credit benchmark -- has no support
+at this scale.

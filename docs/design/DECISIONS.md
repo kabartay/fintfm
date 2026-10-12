@@ -635,3 +635,9 @@ files an Item 1.03, so it is silently absent rather than labelled distressed), o
 check showing the eligible firm-quarters are too few or too clean to constitute a rare-event
 panel comparable to the regime this project targets. Either would send the search back to a
 licensed vendor panel, which is D14's original reversal condition and its original blocker.
+
+**Status 2026-10-12 (§157, §161):** the family exists and trains cleanly, but its premise has no
+support yet. At a 30% real share, 6,000 steps from scratch, neither EDGAR (a stable null at two
+seeds) nor SBA (a null whose seeds span −0.036 to +0.002) improves V4FinBench AP, and the CPU
+pilot over six sources found nothing separable from the control. Not a reversal -- other shares,
+volumes and sources are untested -- but no FinTFM-R result may be described as an improvement.
