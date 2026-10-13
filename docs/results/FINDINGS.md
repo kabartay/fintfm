@@ -10947,3 +10947,18 @@ explanation AP peaks inside 76-921 and drops beyond it.
 
 **Not yet a result:** one fold, a 200k development cap, one checkpoint. A five-fold, full-panel
 score at the best in-range setting is what would make it one.
+
+**Follow-up arms (MEASURED, exploratory, 2026-10-13 03:28; same rows):** `ctx250` 0.1977, `ctx750`
+0.2045, `ctx900` 0.1739, `ctx500_ens8` 0.2037. The context curve -- 250: 0.1977, **500: 0.2215**,
+750: 0.2045, 900: 0.1739, 1,000: 0.1795, 2,000: 0.1392 -- peaks inside the trained 76-921 range and
+falls past its edge, which fits the out-of-distribution explanation; 900 below 1,000 shows the
+single-draw noise. **`ctx500_ens8` (0.2037) is below single-draw `ctx500` (0.2215)**, so part of
+`ctx500`'s figure is a favourable context draw; the eight-member figure is the better estimate of
+the in-range gain: **+0.065 AP over the default, and +0.038 over untuned logistic regression.**
+
+**Confirmation step, pre-registered before it runs.** `runs/v4-cellattn-labels.pt`, five folds,
+full panel (no row cap), `max_context 500`, at `n_ensemble` 1 and then 8, each compared per fold
+against `runs/task48-6-kaggle/control_rescore.json` (the same checkpoint at the 2,000-row default,
+same protocol). **The in-range finding replicates** if the five-fold mean ΔAP is above zero with at
+least 4 of 5 folds positive, for the `n_ensemble 8` arm. Otherwise it is a fold-0 artefact and the
+scoring default stays.
