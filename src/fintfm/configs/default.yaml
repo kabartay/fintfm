@@ -39,6 +39,13 @@ inference:
   prototype_minority_ratio: 0.3   # Kostrzewa et al.'s value; docs/results/FINDINGS.md §38
   winsor_quantile: 0.01
   transform_subsample: 20000
+  # §163: dataset-specific fine-tuning in fit(); 0 steps = the zero-shot model, unchanged
+  finetune_steps: 0
+  finetune_lr: 1.0e-5
+  finetune_batch: 2
+  finetune_query: 512
+  finetune_context: null
+  finetune_query_group_frac: 0.3
 
 # Thresholds used when scoring. Changing these changes what counts as a result, so they are
 # recorded in every run's output alongside the numbers they produced.

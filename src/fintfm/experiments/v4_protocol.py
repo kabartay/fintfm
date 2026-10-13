@@ -392,9 +392,20 @@ def run(
                 n_ensemble=cfg.inference.n_ensemble,
                 query_chunk=cfg.inference.query_chunk,
                 feature_chunk=cfg.inference.feature_chunk,
+                finetune_steps=cfg.inference.finetune_steps,
+                finetune_lr=cfg.inference.finetune_lr,
+                finetune_batch=cfg.inference.finetune_batch,
+                finetune_query=cfg.inference.finetune_query,
+                finetune_context=cfg.inference.finetune_context,
+                finetune_query_group_frac=cfg.inference.finetune_query_group_frac,
                 device=device,
                 random_state=fold,
-            ).fit(Xtr.astype(np.float32), y[tr])
+            ).fit(Xtr.astype(np.float32), y[tr], groups=company[tr])
+            if cfg.inference.finetune_steps:
+                fl = clf.finetune_losses_
+                k = max(1, len(fl) // 10)
+                print(f"  fine-tuned {len(fl)} steps: loss first-10% {np.mean(fl[:k]):.4f}, "
+                      f"last-10% {np.mean(fl[-k:]):.4f}")
             arms["fintfm"] = (
                 clf.predict_proba(Xva.astype(np.float32))[:, 1],
                 clf.predict_proba(Xte.astype(np.float32))[:, 1],
@@ -494,6 +505,12 @@ def run(
             "feature_transform": cfg.inference.feature_transform,
             "max_context": cfg.inference.max_context,
             "n_ensemble": cfg.inference.n_ensemble,
+            "finetune_steps": cfg.inference.finetune_steps,
+            "finetune_lr": cfg.inference.finetune_lr,
+            "finetune_batch": cfg.inference.finetune_batch,
+            "finetune_query": cfg.inference.finetune_query,
+            "finetune_context": cfg.inference.finetune_context,
+            "finetune_query_group_frac": cfg.inference.finetune_query_group_frac,
             "config_sources": list(cfg.sources),
         },
         "arms": [asdict(s) for s in summaries],

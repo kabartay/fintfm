@@ -10962,3 +10962,37 @@ against `runs/task48-6-kaggle/control_rescore.json` (the same checkpoint at the 
 same protocol). **The in-range finding replicates** if the five-fold mean ΔAP is above zero with at
 least 4 of 5 folds positive, for the `n_ensemble 8` arm. Otherwise it is a fold-0 artefact and the
 scoring default stays.
+
+## §163 — Dataset-specific fine-tuning, pre-registered
+
+**Status: PRE-REGISTERED 2026-10-13, before any fine-tuned model is scored.**
+
+**Why.** §162 ruled out the inference side as the reason V4FinBench does not move (pending its
+fold 4, whose result cannot change the replication verdict), and fixed fine-tuning as the next
+lever if so. This project has never tried it; TabDPT and Real-TabPFN both report gains from it.
+
+**What it is.** `FinancialTFMClassifier(finetune_steps=N, ...)`: before storing its context,
+`fit` takes N AdamW steps on a **copy** of the checkpoint, each on tasks built from the fold's
+training rows exactly as pretraining builds them, scored by `FinancialTFM.loss`. Within a task,
+query companies are disjoint from context companies (30% of companies held out per task), the
+same separation the company-grouped test split imposes. Validation and test rows never enter.
+Off by default; `tests/test_finetune.py` pins byte-identity at 0 steps, that the caller's model is
+never modified, and the company separation. **A fine-tuned model is not the zero-shot FinTFM** --
+it has seen the target's training rows through gradients, as logistic regression and the boosters
+do -- and every result is labelled as such.
+
+**Measured cost (CPU, `runs/v4-cellattn-labels.pt`, 130 features):** batch 2, context 2,000,
+512 queries: 27 s/step, 9.2 GB peak. ~3.8 positive query labels per step at 0.37%.
+
+**Stage A -- selection, fold 0, full panel, validation split only.** 200 steps, batch 2,
+context 2,000, 512 queries, at learning rates 1e-5 and 3e-5. The rate with the higher
+**validation** AP is chosen. Fold 0's test AP is recorded by the protocol but not used to choose.
+
+**Stage B -- confirmation, five folds, full panel, the chosen rate.** Per fold against
+`runs/task48-6-kaggle/control_rescore.json` (same checkpoint, zero-shot, same protocol).
+**Fine-tuning helps** if the five-fold mean test ΔAP exceeds +0.0073 with at least 4 of 5 folds
+positive; **hurts** under the mirror condition; otherwise null.
+
+**Prediction:** helps. The zero-shot model already leads untuned logistic regression on the full
+panel (§162's addendum) but trails the boosters, which fit every training row; fine-tuning is the
+first lever that lets the network use those rows.

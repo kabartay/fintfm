@@ -53,6 +53,35 @@ from fintfm.modeling.model import FinancialTFM
 ContextStrategy = Literal["balanced", "hybrid", "uniform", "retrieval", "prototype"]
 
 
+def _finetune_rows(
+    rng: np.random.Generator,
+    groups: np.ndarray,
+    uniq: np.ndarray,
+    n_q_groups: int,
+    n_ctx: int,
+    n_q: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Draw one fine-tuning task's context and query rows, with no group on both sides.
+
+    Args:
+        rng: Random generator.
+        groups: ``(n,)`` group label per row.
+        uniq: The distinct groups.
+        n_q_groups: Groups held out to supply queries.
+        n_ctx: Context rows to draw.
+        n_q: Query rows to draw.
+
+    Returns:
+        ``(context_rows, query_rows)`` indices. Drawn with replacement only when a side has
+        fewer rows than requested.
+    """
+    is_q = np.isin(groups, rng.choice(uniq, size=n_q_groups, replace=False))
+    ctx_pool, q_pool = np.flatnonzero(~is_q), np.flatnonzero(is_q)
+    ci = rng.choice(ctx_pool, size=n_ctx, replace=len(ctx_pool) < n_ctx)
+    qi = rng.choice(q_pool, size=n_q, replace=len(q_pool) < n_q)
+    return ci, qi
+
+
 def _select_context(
     y: np.ndarray, max_context: int, strategy: ContextStrategy, rng: np.random.Generator
 ) -> np.ndarray:
@@ -190,6 +219,21 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             nearest-neighbour draw at a 0.19% default rate can return **zero** defaults, and
             a context with no positives says nothing about default. Deliberately a floor and
             not class balancing, which §29 measured as costing 10-12 AUC points.
+        finetune_steps: Gradient steps of dataset-specific fine-tuning taken in :meth:`fit`
+            before the context is stored. **0 (the default) takes none**, and the classifier is
+            then byte-identical to one without these arguments: the in-context model as
+            pretrained. Above 0, a *copy* of the model is updated -- the instance passed in is
+            never modified, because callers (the V4FinBench protocol among them) reuse one
+            loaded model across folds. A fine-tuned classifier has seen the target's training
+            rows through gradients, so it is no longer the zero-shot FinTFM; label results.
+        finetune_lr: AdamW learning rate for fine-tuning.
+        finetune_batch: Tasks per fine-tuning step.
+        finetune_query: Query rows per fine-tuning task, whose labels the loss is taken on.
+        finetune_context: Context rows per fine-tuning task; ``None`` uses ``max_context``.
+        finetune_query_group_frac: Fraction of groups (companies, when ``fit`` receives
+            ``groups``) held out per task to supply its queries; the context comes from the
+            rest. Mirrors a company-grouped test split, so the model is never trained to
+            recognise a firm it can also see in its context.
     """
 
     def __init__(
@@ -209,6 +253,12 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         ensemble_label_swap: bool = False,
         ensemble_feature_frac: float = 1.0,
         feature_chunk: int | None = 16,
+        finetune_steps: int = 0,
+        finetune_lr: float = 1e-5,
+        finetune_batch: int = 2,
+        finetune_query: int = 512,
+        finetune_context: int | None = None,
+        finetune_query_group_frac: float = 0.3,
     ) -> None:
         """Configure the classifier. See the class docstring — every argument is documented
         there with the measurement that set its default."""
@@ -229,14 +279,23 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         self.ensemble_label_swap = ensemble_label_swap
         self.ensemble_feature_frac = ensemble_feature_frac
         self.feature_chunk = feature_chunk
+        self.finetune_steps = finetune_steps
+        self.finetune_lr = finetune_lr
+        self.finetune_batch = finetune_batch
+        self.finetune_query = finetune_query
+        self.finetune_context = finetune_context
+        self.finetune_query_group_frac = finetune_query_group_frac
         # Identity-preserving, so it is safe to default on: asserted byte-for-byte by
         # tests/test_model.py::test_feature_chunking_is_an_identity. No effect on a
         # checkpoint with n_cell_blocks=0, which has no row-within-feature stage at all.
         self.model.feature_chunk = feature_chunk
         self.model.to(device).eval()
 
-    def fit(self, X: np.ndarray, y: np.ndarray) -> FinancialTFMClassifier:
-        """Store the table as in-context evidence. **No gradient steps are taken.**
+    def fit(
+        self, X: np.ndarray, y: np.ndarray, groups: np.ndarray | None = None
+    ) -> FinancialTFMClassifier:
+        """Store the table as in-context evidence. **No gradient steps are taken** unless
+        ``finetune_steps > 0`` (see :meth:`_finetune`).
 
         The name is sklearn's, and it is misleading here by convention rather than by choice:
         nothing is learned. The table is conditioned, subsampled to at most ``max_context``
@@ -248,6 +307,8 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
                 ``max_features``.
             y: ``(n,)`` labels. The number of distinct values must not exceed the
                 checkpoint's ``max_classes``.
+            groups: Optional ``(n,)`` group labels (e.g. company), used only by fine-tuning
+                to keep a task's query groups out of its context.
 
         Returns:
             self.
@@ -305,6 +366,9 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
                 np.random.default_rng(self.random_state),
             )
         n_classes = len(self.classes_)
+        if self.finetune_steps > 0:
+            # on the full conditioned pool, before the stored context is cut from it
+            self._finetune(X, y_coded, groups, n_classes)
         full_prior = np.bincount(y_coded, minlength=n_classes) / len(y_coded)
         X, y_coded = X[idx], y_coded[idx]
         ctx_prior = np.bincount(y_coded, minlength=n_classes) / len(y_coded)
@@ -325,6 +389,57 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
                 0.0,
             )
         return self
+
+    def _finetune(
+        self, X: np.ndarray, y: np.ndarray, groups: np.ndarray | None, n_classes: int
+    ) -> None:
+        """Take ``finetune_steps`` gradient steps on tasks drawn from the training rows.
+
+        Each task is built the way pretraining builds one -- a labelled context and query rows
+        whose labels the loss is taken on, NaN-padded to ``max_features`` -- and scored with
+        the model's own :meth:`FinancialTFM.loss`, so fine-tuning optimises exactly what
+        pretraining did, on the target's rows. Query groups are disjoint from context groups
+        within a task (``finetune_query_group_frac``). The context draw is uniform, matching
+        the inference default; the stored context is drawn afterwards, independently.
+
+        Args:
+            X: ``(n, n_features)`` conditioned training rows (the whole pool).
+            y: ``(n,)`` coded labels.
+            groups: Optional ``(n,)`` group labels; each row is its own group when omitted.
+            n_classes: Classes in this task.
+        """
+        import copy
+
+        self.model = copy.deepcopy(self.model)
+        self.model.feature_chunk = self.feature_chunk
+        model = self.model.to(self.device).train()
+        opt = torch.optim.AdamW(model.parameters(), lr=self.finetune_lr)
+        rng = np.random.default_rng(self.random_state)
+        g = np.asarray(groups) if groups is not None else np.arange(len(y))
+        uniq = np.unique(g)
+        n_q_groups = max(1, round(len(uniq) * self.finetune_query_group_frac))
+        n_ctx, n_q, B = (
+            self.finetune_context or self.max_context, self.finetune_query, self.finetune_batch,
+        )
+        F = model.cfg.max_features
+        nc = torch.full((B,), n_classes, dtype=torch.long, device=self.device)
+        self.finetune_losses_: list[float] = []
+        for _ in range(self.finetune_steps):
+            Xb = np.full((B, n_ctx + n_q, F), np.nan, dtype=np.float32)
+            yb = np.zeros((B, n_ctx + n_q), dtype=np.int64)
+            for b in range(B):
+                rows = np.concatenate(_finetune_rows(rng, g, uniq, n_q_groups, n_ctx, n_q))
+                Xb[b, :, : X.shape[1]] = X[rows]
+                yb[b] = y[rows]
+            loss = model.loss(
+                torch.from_numpy(Xb).to(self.device), torch.from_numpy(yb).to(self.device),
+                n_ctx, nc,
+            )
+            opt.zero_grad()
+            loss.backward()
+            opt.step()
+            self.finetune_losses_.append(float(loss.detach()))
+        model.eval()
 
     def _pooled_prior_shift(self, pooled_rate: float) -> np.ndarray:
         """Class-prior correction from a pooled context rate, for the retrieval path.

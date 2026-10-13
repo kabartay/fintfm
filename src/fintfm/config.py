@@ -67,6 +67,12 @@ class InferenceConfig:
     prototype_minority_ratio: float = 0.3
     winsor_quantile: float = 0.01
     transform_subsample: int = 20_000
+    finetune_steps: int = 0
+    finetune_lr: float = 1e-5
+    finetune_batch: int = 2
+    finetune_query: int = 512
+    finetune_context: int | None = None
+    finetune_query_group_frac: float = 0.3
 
 
 @dataclass(frozen=True)
