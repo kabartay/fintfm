@@ -10915,3 +10915,35 @@ comparisons against `ctx2000`.
 **Consequence fixed in advance.** Inference-bound points the next work at context construction
 and at an architecture that can hold far more rows (TabICL-style column compression, §119's
 liability); weights-bound points at fine-tuning, which this project has never tried.
+
+**Result (MEASURED, 2026-10-13 02:30; fold 0, 200k cap, 34,906 test rows, 130 positives; untuned
+logistic regression on the same rows 0.1658 AP):**
+
+| arm | AP | ROC-AUC | ΔAP vs `ctx2000` | 95% CI | p_holm |
+| --- | --- | --- | --- | --- | --- |
+| `ctx500` | **0.2215** | 0.9884 | **+0.0822** | [+0.0400, +0.1244] | <0.001 |
+| `ens8` | 0.1960 | 0.9879 | +0.0568 | [+0.0351, +0.0842] | <0.001 |
+| `balanced` | 0.1891 | 0.9892 | +0.0499 | [+0.0051, +0.0867] | 0.054 |
+| `prototype` | 0.1875 | 0.9892 | +0.0483 | [+0.0036, +0.0849] | 0.054 |
+| `ens4` | 0.1847 | 0.9871 | +0.0454 | [+0.0254, +0.0694] | <0.001 |
+| `ctx1000` | 0.1795 | 0.9868 | +0.0403 | [+0.0148, +0.0683] | 0.030 |
+| `ctx2000` | 0.1392 | 0.9817 | (base) | | |
+
+**Scored against the rules: inference-bound**, on the first clause (four arms beat `ctx2000`
+after Holm). **The prediction is half wrong.** `ens8` beating `ctx2000` held; "AP rises with
+context" is the reverse of what happened -- AP *falls* with context, 0.2215 → 0.1795 → 0.1392 from
+500 to 2,000 rows. The pre-registered mechanism (starved of positives) is refuted: the arm with a
+quarter of the positives is the best one.
+
+**The likely cause, found after the result and labelled as such.** Training draws tasks of
+256/512/1,024 rows (`--n-rows-choices`) with a context fraction of 0.3-0.9
+(`PriorConfig.min_ctx_frac`/`max_ctx_frac`), so **every context the model was trained on held
+76-921 rows**. The scoring default, `inference.max_context: 2000`, is more than twice the longest
+context it has ever seen. `ctx500` sits inside the trained range, `ctx1000` just past its edge,
+`ctx2000` far outside. If this holds, **every V4FinBench number scored at the default has been
+measured out of the model's training distribution**, D16's table included. Exploratory follow-up
+arms (`ctx250`, `ctx750`, `ctx900`, `ctx500_ens8`) are running to test the shape: under this
+explanation AP peaks inside 76-921 and drops beyond it.
+
+**Not yet a result:** one fold, a 200k development cap, one checkpoint. A five-fold, full-panel
+score at the best in-range setting is what would make it one.
