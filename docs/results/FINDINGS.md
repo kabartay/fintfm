@@ -10996,3 +10996,34 @@ positive; **hurts** under the mirror condition; otherwise null.
 **Prediction:** helps. The zero-shot model already leads untuned logistic regression on the full
 panel (§162's addendum) but trails the boosters, which fit every training row; fine-tuning is the
 first lever that lets the network use those rows.
+
+**Confirmation: FAILED (MEASURED, 2026-10-13 18:51; five folds, full panel, against
+`control_rescore.json`, the same checkpoint at the 2,000-row default).**
+
+| arm | fold 0 | fold 1 | fold 2 | fold 3 | fold 4 | mean | folds positive |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `ctx500`, 1 member | −0.0096 | −0.1366 | +0.0093 | −0.0071 | −0.0582 | −0.0404 | 1/5 |
+| `ctx500`, 8 members | −0.0109 | −0.0149 | +0.0085 | +0.0171 | −0.0144 | −0.0029 | 2/5 |
+
+The pre-registered rule needed the eight-member arm above zero with 4 of 5 folds positive; it has
+2 of 5 and a mean of −0.0029. **The fold-0 result does not replicate**, and the out-of-
+distribution explanation does not survive the full panel: there, the 2,000-row default is as good
+as or better than an in-range 500-row context. A single 500-row draw can collapse a fold (fold 1:
+0.0684 AP).
+
+**Why fold 0 misled: the development cap.** At `--max-rows 200000` the 2,000-row default scores
+0.1392 on fold 0; on the full panel the same checkpoint and fold score 0.2113. The cap shrinks the
+training pool to ~141k rows and the test fold to 34,906 rows (130 positives), and it changed the
+shape of the context curve, not just its level. This is CLAUDE.md's rule that a context
+conclusion drawn on one pool does not transfer to another, broken in exactly the way it describes.
+Two consequences:
+
+- **Untuned logistic regression does not beat FinTFM on V4FinBench.** That was true only at the
+  cap (0.1658 vs 0.1442). Full panel, fold 0: FinTFM 0.2113, LR 0.1671. The benchmark gap is to
+  the gradient-boosted trees, not to logistic regression.
+- **§157's pilot ranking was scored at the same cap** and may not transfer either. §160-§161 were
+  full-panel and stand.
+
+**Verdict on §162's question:** context size and ensembling are not why V4FinBench does not move.
+The scoring default stays. Per the consequence fixed in advance, the next lever is fine-tuning
+(§163, running).
