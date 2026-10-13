@@ -249,6 +249,9 @@ class FoldResult:
     #: threshold chosen on validation, this separates a ranking that is weak near the decision
     #: boundary from a threshold that simply failed to transfer.
     f1_oracle: float = float("nan")
+    #: Average precision on the *validation* split, so a setting can be chosen without
+    #: looking at test (§163). Our addition, like ``avg_precision``.
+    val_avg_precision: float = float("nan")
 
 
 @dataclass
@@ -447,6 +450,10 @@ def run(
             out_dir / f"predictions_fold{fold}.npz",
             y_true=y[te],
             **{f"pred_{a}": v[1] for a, v in arms.items()},
+            # validation predictions too, so a setting can be chosen on validation (§163)
+            # without anyone having to look at test to choose it
+            y_val=y[va],
+            **{f"val_{a}": v[0] for a, v in arms.items()},
         )
 
         for arm, (p_val, p_test) in arms.items():
@@ -455,12 +462,15 @@ def run(
             auc = roc_auc_score(y[te], p_test) if both else float("nan")
             f1 = f1_score(y[te], (p_test >= thr).astype(int), zero_division=0)
             ap = average_precision_score(y[te], p_test) if both else float("nan")
+            ap_val = (
+                average_precision_score(y[va], p_val) if len(np.unique(y[va])) > 1 else float("nan")
+            )
             # the same threshold search, but fitted on test: an upper bound no honest
             # procedure reaches, and useful only as the gap against `f1`
             _, f1_orc = best_f1_threshold(y[te], p_test) if both else (0.0, float("nan"))
             results.append(
                 FoldResult(arm, fold, len(tr), len(te), int(y[te].sum()), float(auc),
-                           float(f1), thr, float(ap), float(f1_orc))
+                           float(f1), thr, float(ap), float(f1_orc), float(ap_val))
             )
             print(
                 f"  fold {fold} {arm:>20}: ROC-AUC {auc:.4f}  AP {ap:.4f}  F1 {f1:.4f}  "
@@ -559,9 +569,18 @@ def summarise(record: dict) -> str:
                  "and understate the field -- re-run with --tune before quoting. ***"
         ),
         "",
-        "Their published reference at this horizon is in docs/results/FINDINGS.md §36. Their TabPFN is",
-        "fine-tuned on this data and ours never sees real data, so the like-for-like comparison",
-        "is against their classical baselines, not their fine-tuned TabPFN.",
+        "Their published reference at this horizon is in docs/results/FINDINGS.md §36.",
+        (
+            f"*** FINTFM WAS FINE-TUNED ON THIS FOLD'S TRAINING ROWS "
+            f"({record['config']['finetune_steps']} steps, §163): it is not the zero-shot "
+            f"model, and compares with their fine-tuned TabPFN as well as the baselines. ***"
+        )
+        if record["config"].get("finetune_steps")
+        else (
+            "Their TabPFN is fine-tuned on this data and ours is zero-shot here, so the "
+            "like-for-like comparison is against their classical baselines, not their "
+            "fine-tuned TabPFN."
+        ),
     ]
     return "\n".join(lines)
 
