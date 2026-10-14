@@ -11027,3 +11027,12 @@ Two consequences:
 **Verdict on §162's question:** context size and ensembling are not why V4FinBench does not move.
 The scoring default stays. Per the consequence fixed in advance, the next lever is fine-tuning
 (§163, running).
+
+**Stall and fix (2026-10-14 03:30).** Stage A's first run sat 8h15m on one core without
+completing a fine-tuning step. Cause, from a stack sample: V4FinBench's company ids are strings,
+and `np.isin` over a string object array -- used to choose each task's query companies -- fell
+back to an O(n × k) Python-level comparison (~600k rows × ~30% of companies per task). The unit
+tests used integer groups and could not see it. Fixed by coding groups to integers once and
+selecting by table lookup (O(n)); `tests/test_finetune.py` now covers string ids at 600k rows
+with a 2-second bound. Re-measured at full scale with string ids: 18.6 s/step, 9.0 GB. Stage A
+restarted from scratch; no result existed, so the pre-registration is unaffected.

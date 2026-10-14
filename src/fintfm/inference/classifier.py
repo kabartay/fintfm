@@ -65,7 +65,7 @@ def _finetune_rows(
 
     Args:
         rng: Random generator.
-        groups: ``(n,)`` group label per row.
+        groups: ``(n,)`` integer code per row, indexing ``uniq``.
         uniq: The distinct groups.
         n_q_groups: Groups held out to supply queries.
         n_ctx: Context rows to draw.
@@ -75,7 +75,12 @@ def _finetune_rows(
         ``(context_rows, query_rows)`` indices. Drawn with replacement only when a side has
         fewer rows than requested.
     """
-    is_q = np.isin(groups, rng.choice(uniq, size=n_q_groups, replace=False))
+    # groups arrive as integer codes into ``uniq``: membership by table lookup is O(n), where
+    # np.isin over string company ids degraded to an O(n x k) object comparison that took a
+    # 600k-row fold eight hours without completing one step (§163)
+    held_out = np.zeros(len(uniq), dtype=bool)
+    held_out[rng.choice(len(uniq), size=n_q_groups, replace=False)] = True
+    is_q = held_out[groups]
     ctx_pool, q_pool = np.flatnonzero(~is_q), np.flatnonzero(is_q)
     ci = rng.choice(ctx_pool, size=n_ctx, replace=len(ctx_pool) < n_ctx)
     qi = rng.choice(q_pool, size=n_q, replace=len(q_pool) < n_q)
@@ -415,8 +420,8 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         model = self.model.to(self.device).train()
         opt = torch.optim.AdamW(model.parameters(), lr=self.finetune_lr)
         rng = np.random.default_rng(self.random_state)
-        g = np.asarray(groups) if groups is not None else np.arange(len(y))
-        uniq = np.unique(g)
+        raw = np.asarray(groups) if groups is not None else np.arange(len(y))
+        uniq, g = np.unique(raw, return_inverse=True)  # integer codes; see _finetune_rows
         n_q_groups = max(1, round(len(uniq) * self.finetune_query_group_frac))
         n_ctx, n_q, B = (
             self.finetune_context or self.max_context, self.finetune_query, self.finetune_batch,

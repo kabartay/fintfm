@@ -79,3 +79,26 @@ def test_finetuning_reduces_the_loss_on_a_learnable_task():
     ).fit(X, y, groups=g)
     losses = clf.finetune_losses_
     assert np.mean(losses[-10:]) < np.mean(losses[:10])
+
+
+def test_string_company_ids_work_and_stay_linear():
+    """V4FinBench's company ids are strings; np.isin over them was O(n x k) and stalled §163."""
+    import time
+
+    n, n_groups = 600_000, 150_000
+    raw = np.array([f"company-{i:06d}" for i in range(n_groups)])[
+        np.random.default_rng(0).integers(0, n_groups, size=n)
+    ]
+    uniq, codes = np.unique(raw, return_inverse=True)
+    rng = np.random.default_rng(1)
+    t = time.perf_counter()
+    ci, qi = _finetune_rows(rng, codes, uniq, n_q_groups=45_000, n_ctx=2000, n_q=512)
+    assert time.perf_counter() - t < 2.0
+    assert not set(raw[ci]) & set(raw[qi])
+
+    X, y, _ = _data()
+    names = np.array([f"firm-{i // 3}" for i in range(len(y))])
+    clf = FinancialTFMClassifier(
+        _model(), max_context=100, finetune_steps=2, finetune_batch=2, finetune_query=32,
+    ).fit(X, y, groups=names)
+    assert len(clf.finetune_losses_) == 2
