@@ -41,7 +41,9 @@
       holds about max(have, short) positives, not `min_positive`, and the context can shrink.
       Fix: exclude `picked` before choosing `extra`. Verify: a test with 2 positives in the kNN
       set and floor 8 ends with ≥8 positives and exactly `k` rows.
-- [ ] AU1.3 **Rank transform crashes on ±inf.** `inference/preprocess.py:152-159,185`: the
+- [x] AU1.3 **Done (2026-10-16).** `rank` and `power` share one fitted ±inf clamp;
+      `tests/test_preprocess.py::test_infinities_are_clamped_to_the_finite_extremes`.
+      **Rank transform crashes on ±inf.** `inference/preprocess.py:152-159,185`: the
       default `feature_transform="rank"` passes infinities to `QuantileTransformer`, which
       raises; the `power` branch already clamps. Fix: reuse that clamp. Verify: fit and
       transform on a column with ±inf.
