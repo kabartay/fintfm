@@ -47,7 +47,9 @@
       default `feature_transform="rank"` passes infinities to `QuantileTransformer`, which
       raises; the `power` branch already clamps. Fix: reuse that clamp. Verify: fit and
       transform on a column with ±inf.
-- [ ] AU1.4 **Label-swap ensembling scrambles multiclass.** `classifier.py:633` reverses the
+- [x] AU1.4 **Done (2026-10-16).** `_member_proba` swaps only when the task is binary;
+      `tests/test_classifier.py::test_label_swap_leaves_a_multiclass_task_unchanged`.
+      **Label-swap ensembling scrambles multiclass.** `classifier.py:633` reverses the
       probability columns even when `_flip` returned `y` unchanged (≠2 classes), so each class
       is averaged with another; through the regressor it reverses bin order. Fix: swap only
       when binary. Verify: a 3-class test where label swap on equals label swap off.
@@ -56,24 +58,37 @@
       (`np.digitize`) puts NaN and +inf in the top bin and -inf in bin 0; `regressor.py:112`
       then trains on them. Fix: raise on non-finite `y` in `FinancialTFMRegressor.fit`.
       Verify: a test that NaN or ±inf targets raise.
-- [ ] AU1.6 **`fit` replaces `self.model` with the fine-tuned copy** (`classifier.py:450`). A
+- [x] AU1.6 **Done (2026-10-16).** `model` stays as passed, the tuned copy is `model_` and
+      prediction runs through it;
+      `tests/test_finetune.py::test_refitting_fine_tunes_from_the_model_passed_in_not_the_tuned_copy`.
+      **`fit` replaces `self.model` with the fine-tuned copy** (`classifier.py:450`). A
       second `fit`, or `sklearn.clone` of a fitted estimator, fine-tunes the already tuned
       weights again and can carry one fold's rows into another. No current caller does this.
       Fix: keep `self.model` as passed; store the tuned copy as `model_`. Verify: fitting twice
       gives the same weights as fitting once.
-- [ ] AU1.7 **Fine-tuning edge cases.** (a) `n_ctx` ignores the pool size (`classifier.py:461`),
+- [x] AU1.7 **Done (2026-10-16).** Context clamped to the smallest pool, query groups to
+      `[1, len(uniq) - 1]` with an error under two groups, `pos_frac` and `finetune_context`
+      validated, `groups` length checked; one test per case in `tests/test_finetune.py`
+      (`test_finetune_context_never_exceeds_the_context_pool` and the four after it).
+      **Fine-tuning edge cases.** (a) `n_ctx` ignores the pool size (`classifier.py:461`),
       so small datasets train on duplicated rows at a context size inference never uses: clamp
       to the pool. (b) One group, or two groups with query fraction ≥0.75, empties the context
       pool and raises: clamp `n_q_groups` to `[1, len(uniq) - 1]`, clear error under 2 groups.
       (c) `pos_frac` at or near 1 divides by zero, above 1 gives a negative size: validate
       `0 < pos_frac < 1`. (d) `groups` length is not checked against `y`. (e) `finetune_context=0`
       silently means `max_context`. Verify: one test per case.
-- [ ] AU1.8 **Fine-tuning resets the caller's GPU RNG.** `classifier.py:467-468`:
+- [x] AU1.8 **Done (2026-10-16).** `_forked_rng` restores the CUDA and MPS generators as well
+      as the CPU one; `tests/test_finetune.py::test_finetuning_leaves_the_callers_device_rng_alone`
+      (run on MPS, skips without an accelerator).
+      **Fine-tuning resets the caller's GPU RNG.** `classifier.py:467-468`:
       `fork_rng(devices=[])` restores CPU state only, while `manual_seed` reseeds CUDA/MPS.
       Scores are unaffected (column identities are drawn on CPU, dropout 0). Fix: fork the
       active device too, or use a local `torch.Generator`.
       Verify: a test on CUDA or MPS that the caller's device RNG state is unchanged by `fit`.
-- [ ] AU1.9 **Fine-tuning context ignores the inference strategy.** `classifier.py:438-440`
+- [x] AU1.9 **Done (2026-10-16).** `_finetune` warns (`UserWarning`) unless the strategy is
+      uniform and label swap is off;
+      `tests/test_finetune.py::test_finetuning_warns_when_inference_reads_another_context_distribution`.
+      **Fine-tuning context ignores the inference strategy.** `classifier.py:438-440`
       always draws a uniform context; with `balanced`/`hybrid`/`retrieval`/`prototype` or
       `ensemble_label_swap`, inference sees a distribution the tuned weights never saw. Fix:
       warn or raise unless uniform and no swap, or draw with the same strategy.

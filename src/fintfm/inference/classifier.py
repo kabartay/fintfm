@@ -32,12 +32,14 @@ property it deliberately trades away.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+import contextlib
+from collections.abc import Callable, Iterator
 from typing import Literal
 
 import numpy as np
 import torch
 from sklearn.base import BaseEstimator, ClassifierMixin
+from sklearn.utils.validation import check_is_fitted
 
 from fintfm.inference.preprocess import FeatureConditioner, FeatureTransform
 from fintfm.inference.retrieval import (
@@ -94,7 +96,9 @@ def _finetune_rows(
         pos_label = y.max()
         q_pos, q_neg = q_pool[y[q_pool] == pos_label], q_pool[y[q_pool] != pos_label]
         if len(q_pos) and len(q_neg):
-            n_pos = max(1, round(n_q * pos_frac))
+            # at least one query on each side: near pos_frac=1, rounding alone gave every
+            # query to the positives and the negative weight divided by zero
+            n_pos = min(max(1, round(n_q * pos_frac)), n_q - 1)
             qi = np.concatenate([
                 rng.choice(q_pos, size=n_pos, replace=len(q_pos) < n_pos),
                 rng.choice(q_neg, size=n_q - n_pos, replace=len(q_neg) < n_q - n_pos),
@@ -106,6 +110,28 @@ def _finetune_rows(
             return ci, qi, w.astype(np.float32)
     qi = rng.choice(q_pool, size=n_q, replace=len(q_pool) < n_q)
     return ci, qi, None
+
+
+@contextlib.contextmanager
+def _forked_rng() -> Iterator[None]:
+    """Restore every generator ``torch.manual_seed`` reseeds, CPU and accelerator alike.
+
+    ``torch.random.fork_rng(devices=[])`` restores the CPU generator only, while
+    ``torch.manual_seed`` also reseeds CUDA and MPS, so fine-tuning used to leave the caller's
+    accelerator generator at the fine-tuning seed. Reading the CUDA states initialises CUDA
+    where it is available, as ``fork_rng`` does by default.
+    """
+    restore: list[tuple[Callable[[object], None], object]] = []
+    if torch.cuda.is_available():
+        restore.append((torch.cuda.set_rng_state_all, torch.cuda.get_rng_state_all()))
+    if torch.backends.mps.is_available():
+        restore.append((torch.mps.set_rng_state, torch.mps.get_rng_state()))
+    with torch.random.fork_rng(devices=[]):
+        try:
+            yield
+        finally:
+            for set_state, state in restore:
+                set_state(state)
 
 
 def _select_context(
@@ -231,7 +257,8 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             the same probabilities; on a real checkpoint it returns predictions correlated
             **−0.62** with the original (``docs/results/FINDINGS.md`` §45), so the model's output
             depends on which class occupies the "1" slot. Averaging removes that component.
-            It is a workaround, not a cure, and should be reported as one.
+            It is a workaround, not a cure, and should be reported as one. Binary tasks only:
+            with more classes there is no swap, and the member is returned as it is.
         ensemble_feature_frac: Fraction of features each member sees, sampled without
             replacement. Below 1.0 this is a real diversity axis — a 70% subset moves
             predictions to correlation 0.496 with the full-feature prediction (§45).
@@ -248,14 +275,18 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         finetune_steps: Gradient steps of dataset-specific fine-tuning taken in :meth:`fit`
             before the context is stored. **0 (the default) takes none**, and the classifier is
             then byte-identical to one without these arguments: the in-context model as
-            pretrained. Above 0, a *copy* of the model is updated -- the instance passed in is
-            never modified, because callers (the V4FinBench protocol among them) reuse one
-            loaded model across folds. A fine-tuned classifier has seen the target's training
-            rows through gradients, so it is no longer the zero-shot FinTFM; label results.
+            pretrained. Above 0, a *copy* of the model is updated and kept as ``model_`` -- the
+            instance passed in is never modified, because callers (the V4FinBench protocol
+            among them) reuse one loaded model across folds, and ``model`` stays that instance,
+            so refitting or cloning starts again from the pretrained weights. A fine-tuned
+            classifier has seen the target's training rows through gradients, so it is no
+            longer the zero-shot FinTFM; label results.
         finetune_lr: AdamW learning rate for fine-tuning.
         finetune_batch: Tasks per fine-tuning step.
         finetune_query: Query rows per fine-tuning task, whose labels the loss is taken on.
         finetune_context: Context rows per fine-tuning task; ``None`` uses ``max_context``.
+            Capped at the rows left outside the largest held-out query groups, so a small
+            table is never padded with duplicates.
         finetune_query_group_frac: Fraction of groups (companies, when ``fit`` receives
             ``groups``) held out per task to supply its queries; the context comes from the
             rest. Mirrors a company-grouped test split, so the model is never trained to
@@ -266,7 +297,16 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         finetune_seed: Second axis of fine-tuning randomness beside ``random_state``, so the
             same fold can be fine-tuned at several seeds. Seeds torch as well as numpy --
             column identities are drawn from torch's generator in training mode -- inside a
-            forked RNG, so the caller's random state is untouched.
+            forked RNG, so the caller's random state, CPU and CUDA/MPS, is untouched.
+        finetune_clip: Gradient-norm clip per fine-tuning step, as pretraining applies at 1.0.
+            **``None`` (the default) does not clip**, because §163 and §164 were measured
+            without clipping and clipping changes the tuned weights; pass 1.0 to match
+            pretraining in a new experiment.
+
+    Attributes:
+        model_: The network predictions run through: ``model`` itself, placed on ``device``
+            and in eval mode at :meth:`fit`, or its fine-tuned copy when ``finetune_steps > 0``.
+        n_features_in_: Feature count seen by :meth:`fit`.
     """
 
     def __init__(
@@ -294,6 +334,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         finetune_query_group_frac: float = 0.3,
         finetune_query_pos_frac: float | None = None,
         finetune_seed: int = 0,
+        finetune_clip: float | None = None,
     ) -> None:
         """Configure the classifier. See the class docstring — every argument is documented
         there with the measurement that set its default."""
@@ -322,11 +363,11 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         self.finetune_query_group_frac = finetune_query_group_frac
         self.finetune_query_pos_frac = finetune_query_pos_frac
         self.finetune_seed = finetune_seed
-        # Identity-preserving, so it is safe to default on: asserted byte-for-byte by
-        # tests/test_model.py::test_feature_chunking_is_an_identity. No effect on a
-        # checkpoint with n_cell_blocks=0, which has no row-within-feature stage at all.
-        self.model.feature_chunk = feature_chunk
-        self.model.to(device).eval()
+        self.finetune_clip = finetune_clip
+        # Placement, eval mode and feature_chunk are applied in fit, not here: applied at
+        # construction, a later set_params(device=...) moved nothing and the first forward
+        # pass mixed devices. A checkpoint path is still loaded here, so model.cfg is readable
+        # before fit (FinancialTFMRegressor reads max_classes from it).
 
     def fit(
         self, X: np.ndarray, y: np.ndarray, groups: np.ndarray | None = None
@@ -353,10 +394,13 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         Raises:
             ValueError: If the task exceeds the checkpoint's class or feature capacity. It
                 raises rather than truncating, so a caller records a skip instead of a
-                meaningless score.
+                meaningless score. Also if ``groups`` does not have one entry per row, and
+                for the fine-tuning settings :meth:`_finetune` rejects.
         """
         X = np.asarray(X, dtype=np.float32)
         y = np.asarray(y)
+        if groups is not None and len(groups) != len(y):
+            raise ValueError(f"groups has {len(groups)} entries for {len(y)} rows")
         # kept unconditioned so an ensemble member can redraw its own context and refit the
         # conditioner from scratch, rather than inheriting this instance's draw
         self._raw_X, self._raw_y = X, y
@@ -366,6 +410,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         ).fit(X)
         X = self._conditioner.transform(X)
         self.classes_ = np.unique(y)
+        self.n_features_in_ = X.shape[1]
         if len(self.classes_) > self.model.cfg.max_classes:
             raise ValueError(
                 f"model supports at most {self.model.cfg.max_classes} classes, got {len(self.classes_)}"
@@ -403,6 +448,11 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
                 np.random.default_rng(self.random_state),
             )
         n_classes = len(self.classes_)
+        # Identity-preserving, so it is safe to default on: asserted byte-for-byte by
+        # tests/test_model.py::test_feature_chunking_is_an_identity. No effect on a
+        # checkpoint with n_cell_blocks=0, which has no row-within-feature stage at all.
+        self.model.feature_chunk = self.feature_chunk
+        self.model_ = self.model.to(self.device).eval()
         if self.finetune_steps > 0:
             # on the full conditioned pool, before the stored context is cut from it
             self._finetune(X, y_coded, groups, n_classes)
@@ -437,66 +487,117 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         the model's own :meth:`FinancialTFM.loss`, so fine-tuning optimises exactly what
         pretraining did, on the target's rows. Query groups are disjoint from context groups
         within a task (``finetune_query_group_frac``). The context draw is uniform, matching
-        the inference default; the stored context is drawn afterwards, independently.
+        the inference default; the stored context is drawn afterwards, independently. With any
+        other ``context_strategy``, or with ``ensemble_label_swap``, inference reads a context
+        distribution the tuned weights never saw, and a ``UserWarning`` says so.
 
         Args:
             X: ``(n, n_features)`` conditioned training rows (the whole pool).
             y: ``(n,)`` coded labels.
             groups: Optional ``(n,)`` group labels; each row is its own group when omitted.
             n_classes: Classes in this task.
+
+        Raises:
+            ValueError: If ``finetune_context`` is below 1, ``finetune_query_pos_frac`` is not
+                strictly between 0 and 1, or there are fewer than two groups to split into a
+                context side and a query side.
         """
         import copy
+        import warnings
 
-        self.model = copy.deepcopy(self.model)
-        self.model.feature_chunk = self.feature_chunk
-        model = self.model.to(self.device).train()
+        if self.context_strategy != "uniform" or self.ensemble_label_swap:
+            # a warning rather than an error: the combination may be what an experiment wants
+            # to measure, but it is not what §163 measured, and the result should say so
+            warnings.warn(
+                f"fine-tuning draws a uniform context, but inference will read one chosen by "
+                f"context_strategy={self.context_strategy!r}"
+                + (" and label-swapped ensemble members" if self.ensemble_label_swap else "")
+                + "; the tuned weights never saw that distribution",
+                UserWarning,
+                stacklevel=3,
+            )
+        if self.finetune_context is not None and self.finetune_context < 1:
+            raise ValueError(
+                f"finetune_context must be None (use max_context) or >= 1, "
+                f"got {self.finetune_context}"
+            )
+        pos_frac = self.finetune_query_pos_frac
+        if pos_frac is not None and not (0.0 < pos_frac < 1.0 and self.finetune_query >= 2):
+            raise ValueError(
+                f"finetune_query_pos_frac must lie strictly between 0 and 1, with "
+                f"finetune_query >= 2, got {pos_frac} and {self.finetune_query}"
+            )
+        raw = np.asarray(groups) if groups is not None else np.arange(len(y))
+        uniq, g = np.unique(raw, return_inverse=True)  # integer codes; see _finetune_rows
+        if len(uniq) < 2:
+            raise ValueError(
+                "fine-tuning needs at least two groups, one to hold out for queries and one "
+                f"for the context; got {len(uniq)}"
+            )
+        # at least one group on each side: one group, or two at a query fraction of 0.75 or
+        # more, used to hold out every group and leave an empty context pool
+        n_q_groups = min(max(1, round(len(uniq) * self.finetune_query_group_frac)), len(uniq) - 1)
+        # no larger than the context pool left after holding out the largest query groups, so
+        # a small table is not padded with duplicate rows to a size inference never uses
+        held_out_max = int(np.sort(np.bincount(g))[::-1][:n_q_groups].sum())
+        n_ctx = self.max_context if self.finetune_context is None else self.finetune_context
+        n_ctx = min(n_ctx, len(y) - held_out_max)
+        n_q, B = self.finetune_query, self.finetune_batch
+
+        # a copy of self.model, never self.model itself: a second fit, or a clone of a fitted
+        # estimator, must start again from the weights it was given, not from these
+        self.model_ = copy.deepcopy(self.model)
+        self.model_.feature_chunk = self.feature_chunk
+        model = self.model_.to(self.device).train()
         opt = torch.optim.AdamW(model.parameters(), lr=self.finetune_lr)
         # seed 0 keeps §163's numpy stream; other seeds mix in finetune_seed
         rng = np.random.default_rng(
             self.random_state if self.finetune_seed == 0 else [self.random_state, self.finetune_seed]
         )
-        raw = np.asarray(groups) if groups is not None else np.arange(len(y))
-        uniq, g = np.unique(raw, return_inverse=True)  # integer codes; see _finetune_rows
-        n_q_groups = max(1, round(len(uniq) * self.finetune_query_group_frac))
-        n_ctx, n_q, B = (
-            self.finetune_context or self.max_context, self.finetune_query, self.finetune_batch,
-        )
         F = model.cfg.max_features
         nc = torch.full((B,), n_classes, dtype=torch.long, device=self.device)
         self.finetune_losses_: list[float] = []
-        with torch.random.fork_rng(devices=[]):
-            torch.manual_seed(1_000_003 * int(self.random_state) + int(self.finetune_seed))
-            for _ in range(self.finetune_steps):
-                Xb = np.full((B, n_ctx + n_q, F), np.nan, dtype=np.float32)
-                yb = np.zeros((B, n_ctx + n_q), dtype=np.int64)
-                wb = np.ones((B, n_q), dtype=np.float32)
-                weighted = False
-                for b in range(B):
-                    ci, qi, w = _finetune_rows(
-                        rng, g, uniq, n_q_groups, n_ctx, n_q, y, self.finetune_query_pos_frac
+        try:
+            with _forked_rng():
+                torch.manual_seed(1_000_003 * int(self.random_state) + int(self.finetune_seed))
+                for _ in range(self.finetune_steps):
+                    Xb = np.full((B, n_ctx + n_q, F), np.nan, dtype=np.float32)
+                    yb = np.zeros((B, n_ctx + n_q), dtype=np.int64)
+                    wb = np.ones((B, n_q), dtype=np.float32)
+                    weighted = False
+                    for b in range(B):
+                        ci, qi, w = _finetune_rows(
+                            rng, g, uniq, n_q_groups, n_ctx, n_q, y, pos_frac
+                        )
+                        rows = np.concatenate([ci, qi])
+                        Xb[b, :, : X.shape[1]] = X[rows]
+                        yb[b] = y[rows]
+                        if w is not None:
+                            wb[b], weighted = w, True
+                    loss = model.loss(
+                        torch.from_numpy(Xb).to(self.device),
+                        torch.from_numpy(yb).to(self.device),
+                        n_ctx, nc,
+                        weights=torch.from_numpy(wb).to(self.device) if weighted else None,
                     )
-                    rows = np.concatenate([ci, qi])
-                    Xb[b, :, : X.shape[1]] = X[rows]
-                    yb[b] = y[rows]
-                    if w is not None:
-                        wb[b], weighted = w, True
-                loss = model.loss(
-                    torch.from_numpy(Xb).to(self.device), torch.from_numpy(yb).to(self.device),
-                    n_ctx, nc,
-                    weights=torch.from_numpy(wb).to(self.device) if weighted else None,
-                )
-                opt.zero_grad()
-                loss.backward()
-                opt.step()
-                self.finetune_losses_.append(float(loss.detach()))
-        # free what training held -- gradients, optimiser state, the allocator's cache --
-        # before prediction needs the memory: on a 14.5 GB T4 it was the difference between
-        # scoring and an out-of-memory error at the first query chunk (§164)
-        opt.zero_grad(set_to_none=True)
-        del opt
-        if str(self.device).startswith("cuda"):
-            torch.cuda.empty_cache()
-        model.eval()
+                    opt.zero_grad()
+                    loss.backward()
+                    if self.finetune_clip is not None:
+                        torch.nn.utils.clip_grad_norm_(model.parameters(), self.finetune_clip)
+                    opt.step()
+                    self.finetune_losses_.append(float(loss.detach()))
+        finally:
+            # free what training held -- gradients, optimiser state, the allocator's cache --
+            # before prediction needs the memory: on a 14.5 GB T4 it was the difference between
+            # scoring and an out-of-memory error at the first query chunk (§164). In a finally
+            # so a failed step does not leave the model in training mode either.
+            opt.zero_grad(set_to_none=True)
+            del opt
+            if str(self.device).startswith("cuda"):
+                torch.cuda.empty_cache()
+            elif str(self.device).startswith("mps"):
+                torch.mps.empty_cache()
+            model.eval()
 
     def _pooled_prior_shift(self, pooled_rate: float) -> np.ndarray:
         """Class-prior correction from a pooled context rate, for the retrieval path.
@@ -509,10 +610,17 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
 
         Returns:
             ``(n_classes,)`` log-odds shift, zero for any class absent from either side.
+            With more than two classes the pooled share of every class is used, as cached by
+            :meth:`_pooled_context_rate`; one rate alone cannot say how the rest divide.
         """
         n_classes = len(self.classes_)
-        ctx_prior = np.full(n_classes, (1.0 - pooled_rate) / max(n_classes - 1, 1))
-        ctx_prior[n_classes - 1] = pooled_rate
+        if n_classes > 2:
+            # an equal split of 1 - rate over the other classes was wrong whenever the
+            # retrieved classes were unequal, which on an ordinal bin grid is always
+            ctx_prior = self._pooled_class_shares
+        else:
+            ctx_prior = np.full(n_classes, (1.0 - pooled_rate) / max(n_classes - 1, 1))
+            ctx_prior[n_classes - 1] = pooled_rate
         with np.errstate(divide="ignore"):
             return np.where(
                 (self._full_prior > 0) & (ctx_prior > 0),
@@ -541,12 +649,19 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
 
         Returns:
             The positive-class rate over all retrieved contexts, weighted by how many queries
-            each context serves. Also stored as ``pooled_context_rate_``.
+            each context serves. Also stored as ``pooled_context_rate_``, and the same
+            weighting of every class's share as ``_pooled_class_shares`` for the multiclass
+            correction in :meth:`_pooled_prior_shift`.
         """
-        pos_class = len(self.classes_) - 1
+        n_classes = len(self.classes_)
+        pos_class = n_classes - 1
         weight = sum(q.size for q, _ in plan)
         if weight == 0:
+            self._pooled_class_shares = self._full_prior
             return self._full_rate
+        self._pooled_class_shares = sum(
+            q.size * np.bincount(self._pool_y[c], minlength=n_classes) / c.size for q, c in plan
+        ) / weight
         total = sum(q.size * float((self._pool_y[c] == pos_class).mean()) for q, c in plan)
         # cached so a caller reporting what was actually retrieved does not have to rebuild
         # the plan; recomputing it means a second k-means and a second pass over the pool,
@@ -624,7 +739,9 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             Xa, Xb = Xa[:, cols], Xb[:, cols]
         twin = self._clone_with_seed(seed, Xa, self._raw_y)
         p = twin.predict_proba(Xb)
-        if not self.ensemble_label_swap:
+        # the swap is defined for two classes only: on more, reversing the columns would pair
+        # each class with another, and through the regressor would reverse the bin order
+        if not self.ensemble_label_swap or len(np.unique(self._raw_y)) != 2:
             return p
         # the label-swapped twin: relabel the context, predict, and reverse the columns back.
         # Averaging the two removes the part of the prediction that depends on which class is
@@ -644,7 +761,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
     ) -> FinancialTFMClassifier:
         """A sibling estimator differing in its context draw, features or label orientation."""
         twin = FinancialTFMClassifier(
-            self.model,
+            self.model_,
             device=self.device,
             max_context=self.max_context,
             context_strategy=self.context_strategy,
@@ -656,6 +773,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             feature_transform=self.feature_transform,
             prototype_minority_ratio=self.prototype_minority_ratio,
             n_ensemble=1,
+            feature_chunk=self.feature_chunk,
         )
         return twin.fit(self._raw_X if X is None else X, self._raw_y if y is None else y)
 
@@ -698,7 +816,8 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         Returns:
             ``(n, d_model)`` row representations, one per query row.
         """
-        self.model.assert_trained_for("classification")
+        check_is_fitted(self, "_ctx_X")
+        self.model_.assert_trained_for("classification")
         X = np.asarray(X, dtype=np.float32)
         if X.shape[1] != self._ctx_X.shape[1]:
             raise ValueError("feature width at predict time must match fit time")
@@ -719,7 +838,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         """One chunk of query rows, encoded but not classified. See :meth:`transform_representation`."""
         ctx_X, ctx_y = self._ctx_X, self._ctx_y
         n_ctx = ctx_X.shape[0]
-        cfg = self.model.cfg
+        cfg = self.model_.cfg
         Xp = np.full((1, n_ctx + X.shape[0], cfg.max_features), np.nan, dtype=np.float32)
         Xp[0, :n_ctx, : ctx_X.shape[1]] = ctx_X
         Xp[0, n_ctx:, : X.shape[1]] = X
@@ -728,7 +847,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         Xt = torch.from_numpy(Xp).to(self.device)
         yt = torch.from_numpy(yp).to(self.device)
         N = Xt.shape[1]
-        h = self.model.encode_rows(Xt, n_ctx, column_id_seed=int(self.random_state), y=yt)
+        h = self.model_.encode_rows(Xt, n_ctx, column_id_seed=int(self.random_state), y=yt)
         if stage in ("encoder_mid", "pre_head"):
             import torch.nn.functional as Fnn
 
@@ -738,22 +857,22 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             )
             y_emb = torch.cat(
                 [
-                    self.model.y_proj(y_onehot),
-                    self.model.query_token.expand(B, N - n_ctx, -1),
+                    self.model_.y_proj(y_onehot),
+                    self.model_.query_token.expand(B, N - n_ctx, -1),
                 ],
                 dim=1,
             )
             h = h + y_emb
-            mask = self.model._row_mask(N, n_ctx, Xt.device)
+            mask = self.model_._row_mask(N, n_ctx, Xt.device)
             if stage == "pre_head":
-                h = self.model.encoder(h, mask=mask)
-                h = self.model.norm(h)
+                h = self.model_.encoder(h, mask=mask)
+                h = self.model_.norm(h)
             else:
                 # Half the row-to-row stack, rounded up -- partway through, not before or
                 # after all of it. No final `self.norm`: that normalisation is shaped for
                 # `self.head`'s input, not for a linear probe reading an intermediate layer.
-                n_half = (len(self.model.encoder.layers) + 1) // 2
-                for layer in self.model.encoder.layers[:n_half]:
+                n_half = (len(self.model_.encoder.layers) + 1) // 2
+                for layer in self.model_.encoder.layers[:n_half]:
                     h = layer(h, src_mask=mask)
         return h[0, n_ctx:].cpu().numpy()
 
@@ -767,7 +886,8 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         Returns:
             ``(n, n_classes)`` probabilities.
         """
-        self.model.assert_trained_for("classification")
+        check_is_fitted(self, "_ctx_X")
+        self.model_.assert_trained_for("classification")
         if self.n_ensemble > 1 or self.ensemble_label_swap or self.ensemble_feature_frac < 1.0:
             # average probabilities, not logits: the members disagree about the base rate
             # their context implies, and averaging in logit space would let one confident
@@ -815,7 +935,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         """
         ctx_X, ctx_y = ctx if ctx is not None else (self._ctx_X, self._ctx_y)
         n_ctx = ctx_X.shape[0]
-        cfg = self.model.cfg
+        cfg = self.model_.cfg
         Xp = np.full((1, n_ctx + X.shape[0], cfg.max_features), np.nan, dtype=np.float32)
         Xp[0, :n_ctx, : ctx_X.shape[1]] = ctx_X
         Xp[0, n_ctx:, : X.shape[1]] = X
@@ -827,7 +947,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         # Each ensemble member draws its own column identities, keyed off its own seed, so
         # n_ensemble > 1 averages over them and recovers the column-order invariance that
         # decision D12 traded for expressiveness. A single member is still deterministic.
-        logits = self.model(Xt, yt, n_ctx, nc, column_id_seed=int(self.random_state))[
+        logits = self.model_(Xt, yt, n_ctx, nc, column_id_seed=int(self.random_state))[
             0, n_ctx:, : len(self.classes_)
         ]
         if self.correct_prior:
@@ -864,16 +984,17 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             RuntimeError: If the model has no hazard head.
             ValueError: If the feature width does not match :meth:`fit`.
         """
-        if self.model.hazard is None:
+        check_is_fitted(self, "_ctx_X")
+        if self.model_.hazard is None:
             raise RuntimeError("this checkpoint has no hazard head; pretrain with --n-horizons K")
-        self.model.assert_trained_for("survival")
+        self.model_.assert_trained_for("survival")
         X = np.asarray(X, dtype=np.float32)
         if X.shape[1] != self._ctx_X.shape[1]:
             raise ValueError("feature width at predict time must match fit time")
         X = self._conditioner.transform(X)
         if self.context_strategy == "retrieval":
             plan = self._retrieval_plan(X)
-            out = np.empty((X.shape[0], self.model.hazard.n_horizons), dtype=np.float32)
+            out = np.empty((X.shape[0], self.model_.hazard.n_horizons), dtype=np.float32)
             for q_idx, c_idx in plan:
                 ctx = (self._pool_X[c_idx], self._pool_y[c_idx])
                 for start in range(0, q_idx.size, self.query_chunk):
@@ -901,13 +1022,13 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         """Uncorrected cumulative PD for one chunk of queries."""
         ctx_X, ctx_y = ctx if ctx is not None else (self._ctx_X, self._ctx_y)
         n_ctx = ctx_X.shape[0]
-        cfg = self.model.cfg
+        cfg = self.model_.cfg
         Xp = np.full((1, n_ctx + X.shape[0], cfg.max_features), np.nan, dtype=np.float32)
         Xp[0, :n_ctx, : ctx_X.shape[1]] = ctx_X
         Xp[0, n_ctx:, : X.shape[1]] = X
         yp = np.zeros((1, n_ctx + X.shape[0]), dtype=np.int64)
         yp[0, :n_ctx] = ctx_y
-        out = self.model.term_structure(
+        out = self.model_.term_structure(
             torch.from_numpy(Xp).to(self.device), torch.from_numpy(yp).to(self.device), n_ctx
         )
         return out[0].cpu().numpy()
