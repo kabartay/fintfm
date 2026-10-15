@@ -854,3 +854,43 @@ def test_feature_chunk_rejects_a_nonsense_size():
     model.feature_chunk = 0
     with pytest.raises(ValueError, match="feature_chunk"):
         model(torch.randn(1, 8, 6), torch.randint(0, 2, (1, 8)), n_ctx=5)
+
+
+def test_normalize_features_pads_from_context_rows_only():
+    """A column absent from the whole context is padding, whatever a query row holds.
+
+    Audit AU1.1: ``pad`` used to be computed over context *and* query rows, so a single query
+    with a value in a context-empty column un-padded that column for the whole task.
+    """
+    X = torch.full((1, 5, 2), float("nan"))
+    X[0, :, 0] = torch.arange(5.0)
+    X[0, 4, 1] = 3.0  # query row 4 has a value in a column the context never saw
+    _Z, _missing, pad = normalize_features(X, n_ctx=3)
+    assert pad.tolist() == [[False, True]]
+
+
+@pytest.mark.parametrize("n_cell_blocks", [0, 1])
+def test_query_chunking_is_exact_with_a_context_empty_column(n_cell_blocks):
+    """A query's output must not depend on which other queries share its forward pass.
+
+    The classifier and quantile regressor split queries into chunks and document that as
+    exact (audit AU1.1). Here query ``a`` is scored alone and beside a mate ``b`` that holds a
+    value in a column the context leaves entirely NaN; ``a``'s output must not move.
+    """
+    torch.manual_seed(0)
+    cfg = ModelConfig(max_features=6, max_classes=2, d_cell=16, d_model=32, n_heads=2,
+                      n_col_layers=1, n_layers=2, d_ff=64, n_cell_blocks=n_cell_blocks,
+                      cell_labels=n_cell_blocks > 0)
+    model = FinancialTFM(cfg).eval()
+    n_ctx = 8
+    ctx = torch.randn(n_ctx, 6)
+    ctx[:, 5] = float("nan")  # column 5 is absent from every context row
+    a = torch.randn(1, 6)
+    a[0, 5] = float("nan")
+    b = torch.randn(1, 6)  # the mate has a value in column 5
+    y = torch.randint(0, 2, (1, n_ctx + 2))
+    ncl = torch.tensor([2])
+    with torch.no_grad():
+        alone = model(torch.cat([ctx, a])[None], y[:, : n_ctx + 1], n_ctx=n_ctx, n_classes=ncl)
+        paired = model(torch.cat([ctx, a, b])[None], y, n_ctx=n_ctx, n_classes=ncl)
+    torch.testing.assert_close(alone[:, n_ctx], paired[:, n_ctx], rtol=1e-5, atol=1e-6)

@@ -23,7 +23,10 @@
 
 ## Phase 1 — correctness (code)
 
-- [ ] AU1.1 **Padding mask reads query rows.** `modeling/model.py:233` computes
+- [x] AU1.1 **Done (2026-10-16).** `pad` now reads context rows only;
+      `test_query_chunking_is_exact_with_a_context_empty_column`. Near-zero-std Z left as is
+      (changes ordinary outputs; follow-up). **Padding mask reads query rows.**
+      `modeling/model.py:233` computes
       `pad = isnan(X).all(dim=1)` over context and query rows, so one query with a value in a
       column that is all-NaN in the context un-pads that column for every row in the chunk, and
       chunked prediction stops being exact (breaks the docstrings at `classifier.py:197`,
