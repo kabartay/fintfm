@@ -295,6 +295,29 @@ def _load_horizon(
     return features.to_numpy(dtype=np.float32), y, country, company, list(features.columns)
 
 
+def selection_scores(
+    y_val: np.ndarray, p_val: np.ndarray, metric: str
+) -> tuple[float, float, float]:
+    """Score one tuning candidate on the validation fold.
+
+    Args:
+        y_val: Validation labels.
+        p_val: Candidate's validation scores.
+        metric: ``"ap"`` or ``"auc"``, the one the first element reports.
+
+    Returns:
+        ``(selection score, average precision, ROC-AUC)``. All three are 0.0 for a single-class
+        validation fold, where neither metric is defined, so such a fold selects nothing.
+    """
+    from sklearn.metrics import average_precision_score, roc_auc_score
+
+    if len(np.unique(y_val)) < 2:
+        return 0.0, 0.0, 0.0
+    ap = float(average_precision_score(y_val, p_val))
+    auc = float(roc_auc_score(y_val, p_val))
+    return (ap if metric == "ap" else auc), ap, auc
+
+
 def run(
     model_path: str | None,
     out_dir: Path,
@@ -307,6 +330,7 @@ def run(
     classical: tuple[str, ...] = ("logistic_regression",),
     cfg: Config | None = None,
     device: str = "cpu",
+    select_metric: str = "ap",
 ) -> dict:
     """Score arms under V4FinBench's published protocol.
 
@@ -332,6 +356,10 @@ def run(
         classical: Which non-boosting baselines to run, from :data:`CLASSICAL_GRIDS`.
         cfg: Configuration; loaded from the packaged default when omitted.
         device: Torch device for the fintfm arm.
+        select_metric: What ``tune`` selects each baseline's configuration on, on the
+            validation fold: ``"ap"`` (average precision, this project's headline metric) or
+            ``"auc"`` (ROC-AUC, what runs before 2026-10-16 used; their protocol does not say).
+            At a 0.36% base rate the two disagree, so the choice is recorded with the run.
 
     Returns:
         The recorded result dictionary.
@@ -340,6 +368,8 @@ def run(
     from sklearn.metrics import average_precision_score, f1_score, roc_auc_score
     from sklearn.preprocessing import StandardScaler
 
+    if select_metric not in ("ap", "auc"):
+        raise ValueError(f"select_metric must be 'ap' or 'auc', got {select_metric!r}")
     out_dir.mkdir(parents=True, exist_ok=True)
 
     from fintfm.evaluation.boosting import available_boosting, fit_predict_boosting
@@ -375,18 +405,19 @@ def run(
         arms: dict[str, tuple[np.ndarray, np.ndarray]] = {}
         for name in classical:
             configs = _grid(CLASSICAL_GRIDS[name]) if tune else [{}]
-            best, best_auc = None, -np.inf
+            best, best_score, best_val = None, -np.inf, (0.0, 0.0)
             for params in configs:
                 est = _classical_estimator(name, params).fit(Xtr, y[tr])
                 p_val = est.predict_proba(Xva)[:, 1]
                 # selected on the validation fold, as their protocol specifies
-                auc = roc_auc_score(y[va], p_val) if len(np.unique(y[va])) > 1 else 0.0
-                if auc > best_auc:
-                    best, best_auc = (est, params), auc
+                score, ap, auc = selection_scores(y[va], p_val, select_metric)
+                if score > best_score:
+                    best, best_score, best_val = (est, params), score, (ap, auc)
             est, params = best
             arms[name] = (est.predict_proba(Xva)[:, 1], est.predict_proba(Xte)[:, 1])
             if tune:
-                print(f"    {name} best params: {params} (val AUC {best_auc:.4f})")
+                print(f"    {name} best params: {params} (selected on val {select_metric}; "
+                      f"val AP {best_val[0]:.4f}, val AUC {best_val[1]:.4f})")
 
         if model is None:
             pass  # baselines only
@@ -431,21 +462,21 @@ def run(
             both = np.vstack([Xva, Xte])
             for name in boosters:
                 configs = _grid(BOOSTING_GRIDS[name]) if tune else [None]
-                best_pred, best_auc, best_params = None, -np.inf, None
+                best_pred, best_score, best_params, best_val = None, -np.inf, None, (0.0, 0.0)
                 for params in configs:
                     p_both = fit_predict_boosting(name, Xtr, y[tr], both, params=params)
                     if p_both is None:
                         continue
-                    p_val = p_both[: len(va)]
-                    auc = roc_auc_score(y[va], p_val) if len(np.unique(y[va])) > 1 else 0.0
-                    if auc > best_auc:
-                        best_pred, best_auc, best_params = p_both, auc, params
+                    score, ap, auc = selection_scores(y[va], p_both[: len(va)], select_metric)
+                    if score > best_score:
+                        best_pred, best_score, best_params, best_val = p_both, score, params, (ap, auc)
                 if best_pred is None:
                     print(f"  {name} failed on fold {fold}; excluded from this fold")
                     continue
                 arms[name] = (best_pred[: len(va)], best_pred[len(va) :])
                 if tune:
-                    print(f"    {name} best params: {best_params} (val AUC {best_auc:.4f})")
+                    print(f"    {name} best params: {best_params} (selected on val "
+                          f"{select_metric}; val AP {best_val[0]:.4f}, val AUC {best_val[1]:.4f})")
 
         # Per-row test predictions, kept so arms can be compared with a **paired** bootstrap.
         # Two models scored on the same rows have correlated errors, so an unpaired interval
@@ -517,6 +548,7 @@ def run(
             "boosting": boosters,
             "classical": list(classical),
             "tuned": tune,
+            "select_metric": select_metric if tune else None,
             "context_strategy": cfg.inference.context_strategy,
             "feature_transform": cfg.inference.feature_transform,
             "max_context": cfg.inference.max_context,
@@ -572,9 +604,11 @@ def summarise(record: dict) -> str:
         (
             "Baselines were grid-searched on the validation fold, per their Table 5."
             if tuned
-            else "*** BASELINES ARE UNTUNED (library defaults). Their protocol grid-searches "
-                 "every baseline on the validation fold, so these are NOT their baselines "
-                 "and understate the field -- re-run with --tune before quoting. ***"
+            else "*** BASELINES ARE UNTUNED (library defaults: CatBoost 1,000 iterations, "
+                 "LightGBM and XGBoost 100 trees). Their protocol grid-searches every baseline "
+                 "on the validation fold, so these are NOT their baselines. Untuned is not "
+                 "necessarily weaker: the --tune grid caps CatBoost at 200 iterations. Quote "
+                 "a booster with its iteration count. ***"
         ),
         "",
         "Their published reference at this horizon is in docs/results/FINDINGS.md §36.",
@@ -630,6 +664,11 @@ def main() -> None:
         help="skip LightGBM/CatBoost/XGBoost; they are the baselines that compete, so this "
              "is for quick development runs only",
     )
+    p.add_argument(
+        "--select-metric", choices=("ap", "auc"), default="ap",
+        help="what --tune selects each baseline on, on the validation fold (runs before "
+             "2026-10-16 used auc)",
+    )
     args = p.parse_args()
     if not args.no_fintfm and args.model is None:
         p.error("--model is required unless --no-fintfm")
@@ -638,6 +677,7 @@ def main() -> None:
         None if args.no_fintfm else args.model, Path(args.out), horizon=args.horizon,
         folds=tuple(int(v) for v in args.folds.split(",")),
         max_rows=args.max_rows, with_boosting=not args.no_boosting, tune=args.tune,
+        select_metric=args.select_metric,
         classical=tuple(v.strip() for v in args.classical.split(",") if v.strip()),
         cfg=cfg, device=args.device,
     )

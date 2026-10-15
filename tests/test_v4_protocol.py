@@ -181,3 +181,28 @@ def test_unknown_classical_baseline_is_refused():
 
     with pytest.raises(ValueError, match="unknown classical baseline"):
         _classical_estimator("svm", {})
+
+
+def test_tuning_selects_on_the_requested_metric():
+    """At a low base rate AP and ROC-AUC can rank two candidates oppositely (audit AU2.2)."""
+    from fintfm.experiments.v4_protocol import selection_scores
+
+    y = np.array([0] * 96 + [1] * 4)
+    # a: one positive ranked first, the rest buried -> high AP at the top, lower AUC
+    a = np.r_[np.linspace(0, 0.5, 96), [0.99, 0.01, 0.02, 0.03]]
+    # b: every positive moderately high, none at the very top -> higher AUC, lower AP
+    b = np.r_[np.linspace(0, 1.0, 96), [0.7, 0.7, 0.7, 0.7]]
+    sa, sb = selection_scores(y, a, "ap"), selection_scores(y, b, "ap")
+    assert (sa[1] > sb[1]) != (sa[2] > sb[2]), "fixture must make the two metrics disagree"
+    pick_ap = "a" if sa[0] > sb[0] else "b"
+    ta, tb = selection_scores(y, a, "auc"), selection_scores(y, b, "auc")
+    pick_auc = "a" if ta[0] > tb[0] else "b"
+    assert pick_ap != pick_auc
+    assert selection_scores(np.zeros(10), np.arange(10.0), "ap") == (0.0, 0.0, 0.0)
+
+
+def test_an_unknown_selection_metric_is_refused(tmp_path):
+    from fintfm.experiments.v4_protocol import run
+
+    with pytest.raises(ValueError, match="select_metric"):
+        run(None, tmp_path, select_metric="f1")
