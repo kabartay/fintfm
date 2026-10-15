@@ -32,9 +32,8 @@ contribution is the protocol, the pre-registration, the certificate and the pack
 
 - Not a UI. The deliverable is files.
 - Not LGD or EAD; PD only, initially.
-- Not importing `finkele-axiom` as a dependency — it is AGPLv3 and this repo is Apache-2.0.
-  **An import would propagate AGPL.** Reimplement, or exchange files, exactly as that repo's
-  own licence boundary requires.
+- Not importing `finkele-axiom` as a dependency. It is a separate private codebase and this
+  repo is Apache-2.0. Reimplement, or exchange files.
 
 ## Falsified by
 

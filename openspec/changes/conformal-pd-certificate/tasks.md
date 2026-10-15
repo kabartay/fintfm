@@ -1,7 +1,7 @@
 # Tasks
 
 - [ ] 5.1 Confirm the licence boundary in writing before any code moves: `finkele-axiom` is
-      AGPLv3, this repo Apache-2.0, and neither may import the other. Verify: `grep -rn
+      a separate private codebase, this repo Apache-2.0, and neither may import the other. Verify: `grep -rn
       "^\s*\(import\|from\)\s\+axiom" src/` prints nothing, asserted in a test.
 - [ ] 5.2 Split-conformal PD intervals on a pre-registered calibration slice. Verify: a test
       that empirical coverage on synthetic data matches the nominal level within its

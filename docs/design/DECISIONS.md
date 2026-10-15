@@ -133,7 +133,7 @@ hypothetical.
 
 **Date:** 2026-09-08. **Status:** active.
 
-Considered AGPLv3 with a commercial dual licence, mirroring `finkele-axiom`.
+Considered AGPLv3 with a commercial dual licence.
 
 **Chose Apache-2.0.** Dual licensing has no revenue model here: customers would consume
 predictions through an API or licensed weights and never deploy the training code, so there
