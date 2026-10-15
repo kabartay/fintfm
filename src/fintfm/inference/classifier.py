@@ -94,7 +94,9 @@ def _finetune_rows(
         pos_label = y.max()
         q_pos, q_neg = q_pool[y[q_pool] == pos_label], q_pool[y[q_pool] != pos_label]
         if len(q_pos) and len(q_neg):
-            n_pos = max(1, round(n_q * pos_frac))
+            # at least one query on each side: near pos_frac=1, rounding alone gave every
+            # query to the positives and the negative weight divided by zero
+            n_pos = min(max(1, round(n_q * pos_frac)), n_q - 1)
             qi = np.concatenate([
                 rng.choice(q_pos, size=n_pos, replace=len(q_pos) < n_pos),
                 rng.choice(q_neg, size=n_q - n_pos, replace=len(q_neg) < n_q - n_pos),
@@ -259,6 +261,8 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         finetune_batch: Tasks per fine-tuning step.
         finetune_query: Query rows per fine-tuning task, whose labels the loss is taken on.
         finetune_context: Context rows per fine-tuning task; ``None`` uses ``max_context``.
+            Capped at the rows left outside the largest held-out query groups, so a small
+            table is never padded with duplicates.
         finetune_query_group_frac: Fraction of groups (companies, when ``fit`` receives
             ``groups``) held out per task to supply its queries; the context comes from the
             rest. Mirrors a company-grouped test split, so the model is never trained to
@@ -359,10 +363,13 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         Raises:
             ValueError: If the task exceeds the checkpoint's class or feature capacity. It
                 raises rather than truncating, so a caller records a skip instead of a
-                meaningless score.
+                meaningless score. Also if ``groups`` does not have one entry per row, and
+                for the fine-tuning settings :meth:`_finetune` rejects.
         """
         X = np.asarray(X, dtype=np.float32)
         y = np.asarray(y)
+        if groups is not None and len(groups) != len(y):
+            raise ValueError(f"groups has {len(groups)} entries for {len(y)} rows")
         # kept unconditioned so an ensemble member can redraw its own context and refit the
         # conditioner from scratch, rather than inheriting this instance's draw
         self._raw_X, self._raw_y = X, y
@@ -455,8 +462,41 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             y: ``(n,)`` coded labels.
             groups: Optional ``(n,)`` group labels; each row is its own group when omitted.
             n_classes: Classes in this task.
+
+        Raises:
+            ValueError: If ``finetune_context`` is below 1, ``finetune_query_pos_frac`` is not
+                strictly between 0 and 1, or there are fewer than two groups to split into a
+                context side and a query side.
         """
         import copy
+
+        if self.finetune_context is not None and self.finetune_context < 1:
+            raise ValueError(
+                f"finetune_context must be None (use max_context) or >= 1, "
+                f"got {self.finetune_context}"
+            )
+        pos_frac = self.finetune_query_pos_frac
+        if pos_frac is not None and not (0.0 < pos_frac < 1.0 and self.finetune_query >= 2):
+            raise ValueError(
+                f"finetune_query_pos_frac must lie strictly between 0 and 1, with "
+                f"finetune_query >= 2, got {pos_frac} and {self.finetune_query}"
+            )
+        raw = np.asarray(groups) if groups is not None else np.arange(len(y))
+        uniq, g = np.unique(raw, return_inverse=True)  # integer codes; see _finetune_rows
+        if len(uniq) < 2:
+            raise ValueError(
+                "fine-tuning needs at least two groups, one to hold out for queries and one "
+                f"for the context; got {len(uniq)}"
+            )
+        # at least one group on each side: one group, or two at a query fraction of 0.75 or
+        # more, used to hold out every group and leave an empty context pool
+        n_q_groups = min(max(1, round(len(uniq) * self.finetune_query_group_frac)), len(uniq) - 1)
+        # no larger than the context pool left after holding out the largest query groups, so
+        # a small table is not padded with duplicate rows to a size inference never uses
+        held_out_max = int(np.sort(np.bincount(g))[::-1][:n_q_groups].sum())
+        n_ctx = self.max_context if self.finetune_context is None else self.finetune_context
+        n_ctx = min(n_ctx, len(y) - held_out_max)
+        n_q, B = self.finetune_query, self.finetune_batch
 
         # a copy of self.model, never self.model itself: a second fit, or a clone of a fitted
         # estimator, must start again from the weights it was given, not from these
@@ -467,12 +507,6 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         # seed 0 keeps §163's numpy stream; other seeds mix in finetune_seed
         rng = np.random.default_rng(
             self.random_state if self.finetune_seed == 0 else [self.random_state, self.finetune_seed]
-        )
-        raw = np.asarray(groups) if groups is not None else np.arange(len(y))
-        uniq, g = np.unique(raw, return_inverse=True)  # integer codes; see _finetune_rows
-        n_q_groups = max(1, round(len(uniq) * self.finetune_query_group_frac))
-        n_ctx, n_q, B = (
-            self.finetune_context or self.max_context, self.finetune_query, self.finetune_batch,
         )
         F = model.cfg.max_features
         nc = torch.full((B,), n_classes, dtype=torch.long, device=self.device)
@@ -485,9 +519,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
                 wb = np.ones((B, n_q), dtype=np.float32)
                 weighted = False
                 for b in range(B):
-                    ci, qi, w = _finetune_rows(
-                        rng, g, uniq, n_q_groups, n_ctx, n_q, y, self.finetune_query_pos_frac
-                    )
+                    ci, qi, w = _finetune_rows(rng, g, uniq, n_q_groups, n_ctx, n_q, y, pos_frac)
                     rows = np.concatenate([ci, qi])
                     Xb[b, :, : X.shape[1]] = X[rows]
                     yb[b] = y[rows]

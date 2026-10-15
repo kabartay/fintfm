@@ -58,7 +58,11 @@
       weights again and can carry one fold's rows into another. No current caller does this.
       Fix: keep `self.model` as passed; store the tuned copy as `model_`. Verify: fitting twice
       gives the same weights as fitting once.
-- [ ] AU1.7 **Fine-tuning edge cases.** (a) `n_ctx` ignores the pool size (`classifier.py:461`),
+- [x] AU1.7 **Done (2026-10-16).** Context clamped to the smallest pool, query groups to
+      `[1, len(uniq) - 1]` with an error under two groups, `pos_frac` and `finetune_context`
+      validated, `groups` length checked; one test per case in `tests/test_finetune.py`
+      (`test_finetune_context_never_exceeds_the_context_pool` and the four after it).
+      **Fine-tuning edge cases.** (a) `n_ctx` ignores the pool size (`classifier.py:461`),
       so small datasets train on duplicated rows at a context size inference never uses: clamp
       to the pool. (b) One group, or two groups with query fraction ≥0.75, empties the context
       pool and raises: clamp `n_q_groups` to `[1, len(uniq) - 1]`, clear error under 2 groups.

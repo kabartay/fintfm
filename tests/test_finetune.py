@@ -182,6 +182,85 @@ def test_refitting_fine_tunes_from_the_model_passed_in_not_the_tuned_copy():
     assert torch.equal(_weights(cloned.fit(X, y, groups=g).model_), once)
 
 
+def test_finetune_context_never_exceeds_the_context_pool(monkeypatch):
+    """AU1.7(a): a context larger than the rows outside the held-out groups was filled with
+    duplicates, at a context size inference never uses on so small a table."""
+    import fintfm.inference.classifier as mod
+
+    drawn = []
+    real = mod._finetune_rows
+
+    def spy(*args, **kwargs):
+        ci, qi, w = real(*args, **kwargs)
+        drawn.append(ci)
+        return ci, qi, w
+
+    monkeypatch.setattr(mod, "_finetune_rows", spy)
+    X, y, g = _data(n=60)  # 20 companies of three rows
+    FinancialTFMClassifier(
+        _model(), max_context=2000, finetune_steps=2, finetune_query=8,
+    ).fit(X, y, groups=g)
+    assert drawn
+    for ci in drawn:
+        assert len(np.unique(ci)) == len(ci), "context rows were duplicated"
+
+
+def test_finetuning_needs_two_groups_and_always_leaves_a_context():
+    """AU1.7(b): one group, or two with a large query fraction, emptied the context pool."""
+    import pytest
+
+    X, y, _ = _data(n=60)
+    kw = {"max_context": 30, "finetune_steps": 1, "finetune_query": 8}
+    with pytest.raises(ValueError, match="at least two groups"):
+        FinancialTFMClassifier(_model(), **kw).fit(X, y, groups=np.zeros(60, dtype=int))
+    two = np.repeat([0, 1], 30)
+    clf = FinancialTFMClassifier(_model(), finetune_query_group_frac=0.8, **kw)
+    assert len(clf.fit(X, y, groups=two).finetune_losses_) == 1
+
+
+def test_query_positive_fraction_must_lie_strictly_between_zero_and_one():
+    """AU1.7(c): at 1 the negative share divided by zero, above 1 its size went negative."""
+    import pytest
+
+    X, y, g = _data(n=60)
+    for frac in (0.0, 1.0, 1.5):
+        clf = FinancialTFMClassifier(
+            _model(), max_context=30, finetune_steps=1, finetune_query=8,
+            finetune_query_pos_frac=frac,
+        )
+        with pytest.raises(ValueError, match="finetune_query_pos_frac"):
+            clf.fit(X, y, groups=g)
+    # near 1, rounding gave every query to the positives and the same division by zero
+    _, y_big, g_big = _data(n=600)
+    _, qi, w = _finetune_rows(
+        np.random.default_rng(0), g_big, np.unique(g_big), n_q_groups=60, n_ctx=50, n_q=32,
+        y=y_big, pos_frac=0.99,
+    )
+    assert np.isfinite(w).all() and set(y_big[qi]) == {0, 1}
+
+
+def test_groups_must_match_the_rows():
+    """AU1.7(d): a groups array of the wrong length was used without a check."""
+    import pytest
+
+    X, y, g = _data(n=60)
+    clf = FinancialTFMClassifier(_model(), max_context=30, finetune_steps=1, finetune_query=8)
+    with pytest.raises(ValueError, match="groups"):
+        clf.fit(X, y, groups=g[:-3])
+
+
+def test_a_zero_finetune_context_is_an_error_not_max_context():
+    """AU1.7(e): finetune_context=0 silently meant max_context."""
+    import pytest
+
+    X, y, g = _data(n=60)
+    clf = FinancialTFMClassifier(
+        _model(), max_context=30, finetune_steps=1, finetune_query=8, finetune_context=0,
+    )
+    with pytest.raises(ValueError, match="finetune_context"):
+        clf.fit(X, y, groups=g)
+
+
 def test_finetuning_leaves_no_gradients_behind():
     X, y, g = _data()
     clf = FinancialTFMClassifier(
