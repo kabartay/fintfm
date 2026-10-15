@@ -296,7 +296,7 @@ def _load_horizon(
 
 
 def run(
-    model_path: str,
+    model_path: str | None,
     out_dir: Path,
     horizon: int = 0,
     folds: tuple[int, ...] = (0, 1, 2, 3, 4),
@@ -311,7 +311,9 @@ def run(
     """Score arms under V4FinBench's published protocol.
 
     Args:
-        model_path: Checkpoint. Its classification head is used, so it must have been trained
+        model_path: Checkpoint, or ``None`` to score the baselines alone (no fintfm arm) --
+            for measuring them on folds whose fintfm scores already exist. Its
+            classification head is used, so it must have been trained
             for classification (``docs/results/FINDINGS.md`` §34 — a hazard-only checkpoint is
             refused rather than silently served).
         out_dir: Directory for ``v4_protocol.json``.
@@ -355,7 +357,7 @@ def run(
     assignments = build_fold_assignments(country, company)
     print(f"folds: {np.bincount(assignments).tolist()} rows per fold\n")
 
-    model = FinancialTFM.load(model_path)
+    model = FinancialTFM.load(model_path) if model_path is not None else None
     # §25: every gradient-boosting comparison in this project once used sklearn's weakest
     # implementation because the strong ones were silently absent. available_boosting()
     # announces what is missing rather than skipping it quietly.
@@ -386,7 +388,9 @@ def run(
             if tune:
                 print(f"    {name} best params: {params} (val AUC {best_auc:.4f})")
 
-        if model.cfg.max_features >= Xtr.shape[1]:
+        if model is None:
+            pass  # baselines only
+        elif model.cfg.max_features >= Xtr.shape[1]:
             clf = FinancialTFMClassifier(
                 model,
                 max_context=cfg.inference.max_context,
@@ -592,7 +596,11 @@ def main() -> None:
     ``--help`` for the flags. Writes its record as JSON under ``--out``.
     """
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--model", required=True)
+    p.add_argument("--model", default=None)
+    p.add_argument(
+        "--no-fintfm", action="store_true",
+        help="score the baselines only; for folds whose fintfm scores already exist",
+    )
     p.add_argument("--out", type=str, default="runs/v4-protocol")
     p.add_argument("--config", type=str, default=None)
     p.add_argument("--horizon", type=int, default=0, choices=sorted(HORIZON_FILES))
@@ -619,9 +627,11 @@ def main() -> None:
              "is for quick development runs only",
     )
     args = p.parse_args()
+    if not args.no_fintfm and args.model is None:
+        p.error("--model is required unless --no-fintfm")
     cfg = load_config(args.config)
     record = run(
-        args.model, Path(args.out), horizon=args.horizon,
+        None if args.no_fintfm else args.model, Path(args.out), horizon=args.horizon,
         folds=tuple(int(v) for v in args.folds.split(",")),
         max_rows=args.max_rows, with_boosting=not args.no_boosting, tune=args.tune,
         classical=tuple(v.strip() for v in args.classical.split(",") if v.strip()),
