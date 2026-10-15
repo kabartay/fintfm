@@ -231,23 +231,10 @@ def condition_task_features(task: Task, n_ctx: int, kind: str) -> Task:
     """
     if kind == "none":
         return task
-    ctx = task.X[:n_ctx]
-    # A column with no finite context value has nothing to fit on, and ``"power"`` raises on
-    # one (sklearn's Yeo-Johnson unpacks an empty optimisation). Small contexts over sparse
-    # columns produce these, so they are left untransformed -- what ``"none"`` would do -- and
-    # the rest are fitted exactly as inference fits them.
-    fittable = np.isfinite(ctx).any(axis=0)
-    if fittable.all():
-        X = FeatureConditioner(kind).fit(ctx).transform(task.X)  # type: ignore[arg-type]
-    else:
-        X = task.X.copy()
-        cols = np.flatnonzero(fittable)
-        if len(cols):
-            X[:, cols] = (
-                FeatureConditioner(kind)  # type: ignore[arg-type]
-                .fit(ctx[:, cols])
-                .transform(task.X[:, cols])
-            )
+    # Exactly the inference call, including what it does with a column that has no value in
+    # the context (``"rank"`` and ``"power"`` return it as NaN, ``"winsor"`` leaves it), so
+    # pretraining sees what inference will feed the model.
+    X = FeatureConditioner(kind).fit(task.X[:n_ctx]).transform(task.X)  # type: ignore[arg-type]
     return Task(
         X=X,
         y=task.y,

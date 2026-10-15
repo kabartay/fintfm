@@ -174,18 +174,17 @@ def test_feature_transform_is_fitted_on_context_rows_only(kind):
 
 
 @pytest.mark.parametrize("kind", ["rank", "power", "winsor"])
-def test_a_column_with_no_finite_context_value_is_left_untransformed(kind):
-    # FeatureConditioner("power") raises on such a column; a small context over a sparse
-    # column produces one, and a pretraining step must not die on it.
+def test_a_column_empty_in_the_context_is_conditioned_as_inference_conditions_it(kind):
+    # FeatureConditioner("power") used to raise on such a column; a small context over a
+    # sparse column produces one, so a pretraining step must survive it and see what
+    # inference would feed the model.
     rng = np.random.default_rng(1)
     X = rng.normal(size=(20, 3)).astype(np.float32)
     X[:8, 1] = np.nan
     task = Task(X=X, y=np.zeros(20, np.int64), n_classes=2, is_categorical=np.zeros(3, bool))
     out = condition_task_features(task, 8, kind)
-    np.testing.assert_array_equal(out.X[:, 1], X[:, 1])
-    keep = [0, 2]
-    expected = FeatureConditioner(kind).fit(X[:8, keep]).transform(X[:, keep])  # type: ignore[arg-type]
-    np.testing.assert_array_equal(out.X[:, keep], expected)
+    expected = FeatureConditioner(kind).fit(X[:8]).transform(X)  # type: ignore[arg-type]
+    np.testing.assert_array_equal(out.X, expected)
 
 
 def test_feature_transform_none_is_the_identity():
