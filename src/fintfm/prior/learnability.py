@@ -40,9 +40,18 @@ def is_learnable(task: Task, *, auc_floor: float = 0.51) -> bool:
     Binary and multiclass tasks are both supported: multiclass uses macro one-vs-rest AUC, so
     every task family is judged on one scale. A task with fewer than two rows on either side of
     the split is also rejected, since no learner can be fit or scored on it.
+
+    A **regression** task is judged on its continuous target, split at the median into a binary
+    one, so it is held to the same AUC floor as everything else. Its ``y`` is only a placeholder
+    of zeros until :func:`fintfm.prior.base.collate` bins the target on the context, and judging
+    that placeholder rejected every regression task as single-class (audit AU1.17).
     """
     X = np.nan_to_num(np.asarray(task.X, dtype=float))
-    y = np.asarray(task.y).ravel()
+    if task.y_continuous is not None:
+        target = np.asarray(task.y_continuous, dtype=float).ravel()
+        y = (target > np.median(target)).astype(np.int64)
+    else:
+        y = np.asarray(task.y).ravel()
     if len(np.unique(y)) < 2:
         return False
 

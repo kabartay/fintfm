@@ -124,7 +124,10 @@
       `prior/tree.py:143-145`) leave a class with ≤2 rows in ~31% of 256-row tasks; the loss is
       then taken on labels absent from the context. Fix: a minimum count per class in context.
       Verify: sample 1,000 256-row tasks; every class present in the query is present in the context.
-- [ ] AU1.17 **Learnability filter rejects every regression task.** `is_learnable` reads the
+- [x] AU1.17 **Done (2026-10-16).** `is_learnable` judges a regression task on `y_continuous`
+      split at its median, at the same AUC floor; regression prior tasks now pass at a
+      non-zero rate (`tests/test_prior_learnability.py`).
+      **Learnability filter rejects every regression task.** `is_learnable` reads the
       placeholder `y=zeros` (`prior/scm.py:340`, `prior/learnability.py:47-49`). Fix: skip
       regression or judge on `y_continuous`.
       Verify: with `p_learnability_filter > 0`, regression tasks pass at their true rate in a test.
