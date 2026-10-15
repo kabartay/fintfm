@@ -183,15 +183,17 @@
 
 <div class="hero">
   <div class="headline-num">
-    <span class="big" id="hero-elo">—</span>
-    <span class="unit">Elo · <b id="hero-rank">—</b> of <b id="hero-total">—</b> methods compared</span>
+    <span class="big">763</span>
+    <span class="unit">Elo · <b>94th</b> of <b>95</b> · the published model, own classification head (re-checked 2026-10-06)</span>
   </div>
 
   <figure class="strip">
     <div class="strip-scale" id="strip"></div>
     <figcaption>
-      Every method's Elo on one axis. FinTFM's best variant is the marked rule; it clears a tuned
-      k-nearest-neighbours and sits just under an untuned logistic regression. The leaders are a long way right.
+      Every method's Elo on one axis, from the 2026-09-27 snapshot. The marked rule is the unpublished,
+      exploratory linear-probe variant (910 Elo); it clears a tuned k-nearest-neighbours and sits just under
+      an untuned logistic regression. The published model's own head is not in this snapshot. The leaders
+      are a long way right.
     </figcaption>
   </figure>
 </div>
@@ -211,7 +213,7 @@
     <a href="https://github.com/autogluon/tabarena/pull/616">withdrawn on competitiveness</a>; it uses the model's own
     classification head. The second swaps that head for a plain logistic regression fit on the model's internal
     representation — identical weights, different final layer. Why that helps is
-    <a href="https://github.com/kabartay/fintfm/blob/main/docs/results/FINDINGS.md#132">written up in full</a>.
+    <a href="https://github.com/kabartay/fintfm/blob/main/docs/results/FINDINGS.md#132--131s-advantage-transfers-to-tabarena-145-elo-one-position-up-still-93rd-of-95">written up in full</a>.
   </p>
   <div class="variants">
     <div class="variant">
@@ -222,7 +224,7 @@
     <div class="variant is-self">
       <div class="v-elo">910</div>
       <div class="v-name">Linear probe on the representation</div>
-      <div class="v-sub">rank 93 of 95 · exploratory, +145 Elo</div>
+      <div class="v-sub">rank 93 of 95 · unpublished, exploratory, +145 Elo</div>
     </div>
   </div>
 </section>
@@ -273,11 +275,6 @@ const hi = Math.max(...data.map(r => r.elo));
 const span = hi - lo;
 const pct = v => ((v - lo) / span) * 100;
 
-/* ---------- hero ---------- */
-document.getElementById('hero-elo').textContent = self.elo.toFixed(0);
-document.getElementById('hero-rank').textContent = self.rank + 'th';
-document.getElementById('hero-total').textContent = data.length;
-
 /* ---------- distribution strip ---------- */
 const strip = document.getElementById('strip');
 const parts = [];
@@ -294,7 +291,7 @@ for (const a of anchors) {
   const row = data.find(r => r.method === a.match);
   if (row) parts.push(`<span class="anchor" style="left:${pct(row.elo)}%">${a.label}</span>`);
 }
-parts.push(`<span class="self-flag" style="left:${pct(self.elo)}%">FinTFM ${self.elo.toFixed(0)}</span>`);
+parts.push(`<span class="self-flag" style="left:${pct(self.elo)}%">Linear probe, unpublished: ${self.elo.toFixed(0)}</span>`);
 parts.push('<span class="strip-axis"></span>');
 strip.innerHTML = parts.join('');
 

@@ -6,6 +6,32 @@ not paste one into the other. See `CLAUDE.md`.
 
 ## [Unreleased]
 
+### Added
+
+- **Fine-tuning seed and default-enriched queries** (Section 164, pre-registered, no result
+  yet). `finetune_seed` seeds numpy and torch inside a forked RNG, since column identities come
+  from torch in training mode and Section 163's run was one unseeded draw.
+  `finetune_query_pos_frac` draws that share of each task's queries from defaults and weights
+  each class back to its true rate; `FinancialTFM.loss(weights=)` takes the per-query weights
+  (cross-entropy only, `None` is the unchanged mean). All off by default.
+- Kaggle kernels for Section 164's enriched-query and 600-step arms.
+
+### Fixed
+
+- Fine-tuning now frees its gradients and optimiser state before predicting. A 200-step run on a
+  14.5 GB T4 ran out of memory at its first prediction chunk; a test checks no gradients remain.
+
+### Documentation
+
+- The 2026-10-15 audit filed as an openspec change (`audit-2026-10-15`), the 2026-10-15 peer
+  sweep recorded in `docs/paper/RELATED_WORK.md`, and the AXIOM harness licence no longer stated
+  in public documents.
+- README, `docs/README.md`, this file and the GitHub Pages: TabArena rank stated as 94 of 95
+  (Sections 122, 150), the 910 Elo linear probe labelled as an unpublished exploratory variant
+  (Section 132), FinTFM-R and fine-tuning results added (Sections 160-161, 163), "no gradient
+  steps at fit time" qualified as the default, the citation version brought to 0.7.1, and
+  superseded statements below marked.
+
 ## [0.7.1] — 2026-10-15
 
 Supersedes 0.7.0, which was published with `.zenodo.json` still stating 0.6.0. The release
@@ -116,11 +142,13 @@ unchanged.
   differed from its control in head size as well as the change it tested. Hashing isolated
   it as the only difference; a no-change replicate measured the protocol's noise at
   -0.0073 mean AP; the four were re-scored against it before the results above were
-  stated.
+  stated. *(Superseded by Section 160: that gap was mostly head size, not noise; a 10-way
+  head alone costs 0.0082 mean AP. See 0.7.0.)*
 - **The real-source pilot separates no arm from the control** (C4). A base-rate hypothesis
   was pre-registered before the last arms scored (Section 157) and PPDai falsified it. SBA
   ranks first only as a low-power ranking. The decisive two-seed runs (C5) and their
-  decision rules are pre-registered (Section 159) and queued, not run.
+  decision rules are pre-registered (Section 159) and queued, not run. *(Run since: SBA and
+  EDGAR are both nulls at GPU scale, Sections 160-161.)*
 - Section 91's inversion replicates at a second seed (Section 142), and the TabArena
   placement was re-verified against a refreshed baseline cache: Elo 765 to 763, rank 94 of
   95 unchanged (Section 150).
@@ -286,7 +314,8 @@ corrects a claim the previous one made.
   the service is healthy and the failure is specific to this account. The remaining suspect is
   that the webhook's access token identifies one Zenodo account while the repository
   enablement and the ORCID live on another. That is a question for Zenodo support, and not
-  something a further tag resolves.
+  something a further tag resolves. *(Superseded: the deposits were queued, not broken, and all
+  minted overnight. See 0.5.6.)*
 
 ## [0.5.3] — 2026-09-25
 
@@ -378,6 +407,10 @@ repository to be read by people other than its author.
   convention had quietly stopped being true.
 - **`FinancialTFMRegressor` is exported at the top level**, which it was not — an asymmetric
   public API nobody had noticed because nothing imported it that way.
+- **TabArena declares `binary` only.** Multiclass and regression remain implemented, tested and
+  documented but undeclared, on §121's measurement. Coverage is reported as **27 of 51 (53%)**,
+  derived from the model's own declaration rather than a duplicated list that had already
+  drifted.
 
 ### Measured
 
@@ -400,13 +433,6 @@ repository to be read by people other than its author.
 - **KV caching would save 17%, not the order of magnitude claimed** (§119), and **larger query
   chunks are 10.7× slower, not faster** (§120) — a cost model fitted over 256–2,048 queries and
   extrapolated to 8,192, in a system whose dominant cost is quadratic.
-
-### Changed
-
-- **TabArena declares `binary` only.** Multiclass and regression remain implemented, tested and
-  documented but undeclared, on §121's measurement. Coverage is reported as **27 of 51 (53%)**,
-  derived from the model's own declaration rather than a duplicated list that had already
-  drifted.
 
 ### Fixed
 
@@ -464,7 +490,8 @@ to the model and a part that does not.
 
 - **TabArena: rank 93 of 95**, mean ROC-AUC 0.7642 over 26 datasets, 51% coverage (§98). The
   first accuracy measurement in this project whose baselines and protocol belong to someone
-  else.
+  else. *(Against the later snapshot the TabArena review used, the same model ranks 94 of 95,
+  §122.)*
 - **`column_id_dim` peaks at 16** (§104), the value that was chosen by accident. Five arms
   (12/16/20/24/32) at matched everything else, scored on the same five V4FinBench folds: all
   four non-peak arms are below 16 on all five folds, 20 of 20, with parameter count spanning
@@ -493,7 +520,8 @@ to the model and a part that does not.
   8 of 27 datasets. Depth costs inference time and this project is already at 8.6 s/1K against
   a field norm near 0.1, so a configuration that cannot finish the benchmark is not a candidate
   regardless of its accuracy. The question was posed as accuracy; the feasibility answer
-  arrived first.
+  arrived first. *(Superseded in scope by Sections 124 and 126, after this release: on
+  V4FinBench, 16 layers against 4 at width 128 was scored and is null, +0.0010 mean AP.)*
 - **Every top-14 TabArena rank is synthetic-pretrained** (§110). The three groups arguing that
   real-table pretraining is the axis that pays do not place above the synthetic frontier, so
   decision D2's synthetic-only constraint costs nothing measurable in rank.
@@ -698,7 +726,8 @@ Kept in the record rather than quietly edited, because each was propagated befor
 - **Uniform context sampling beats balanced by 10-12 mean AUC points** on the V4FinBench
   out-of-time survival split, at every context size tested, reversing the ordering this
   project adopted from the literature. Twelve in-context defaults outrank 1,122. The class
-  default is unchanged pending re-measurement on the binary path (decision D9).
+  default is unchanged pending re-measurement on the binary path (decision D9). *(Superseded
+  the same day by decision D10, listed above: the class default is now `uniform`.)*
 - The base-rate correction is **not applied per query group** under retrieval. It is exact
   under label shift, which holds by construction only when context selection looks at `y`
   alone; retrieval selects on features. Applied per group it pushed the riskiest clusters

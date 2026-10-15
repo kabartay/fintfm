@@ -3,7 +3,9 @@
 The model is pretrained once on synthetic tasks drawn from a *financial prior* (a generative
 story for company tables and their default labels) mixed with a generic structural-causal
 prior. At inference the labelled table is passed as context and unlabelled rows as queries;
-no gradient steps happen on customer data.
+by default no gradient steps happen on customer data. Dataset-specific fine-tuning is opt-in
+(``FinancialTFMClassifier(finetune_steps=N)``), and a fine-tuned model has seen the caller's
+training rows.
 
 Package layout follows the pipeline:
 

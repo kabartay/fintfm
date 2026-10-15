@@ -20,11 +20,12 @@
 </p>
 
 Given a table of labelled rows, FinTFM predicts new rows in a **single forward pass**, with your
-data supplied as context rather than trained on. There are no gradient steps at fit time and no
-per-dataset tuning — the model is pretrained once, on **synthetic data only**, and never sees a
-real table during training.
+data supplied as context rather than trained on. By default there are no gradient steps at fit
+time and no per-dataset tuning; dataset-specific fine-tuning is opt-in (`finetune_steps`). The
+model is pretrained once, on **synthetic data only**, and never sees a real table during
+pretraining.
 
-That last property is the point. A model that provably never saw your benchmark cannot have
+That last property is the point. A model that never saw your benchmark in pretraining cannot have
 memorised it, and in a regulated domain the ability to *demonstrate* that is worth more than a
 few points of accuracy.
 
@@ -57,8 +58,8 @@ financial tables, and to say honestly where it currently is not.
 | **Fine-tuning** | opt-in per-dataset fine-tuning (`finetune_steps`, 0.7.0) lifts V4FinBench AP on 5 of 5 folds, 0.1986 → 0.2062 — the first lever to move it, closing 3.8% of the gap to CatBoost (§163) |
 | **Licence** | Apache-2.0, **code and weights** — chosen separately, not inherited (see [Licensing](#licensing--provenance)) |
 | **Checkpoint** | [kabartay/fintfm-binary](https://huggingface.co/kabartay/fintfm-binary) — 885K, binary, ≤136 features |
-| **Tests** | 407, plus `ruff`, the openspec validator, a dependency-licence check and a documentation-link check — all in CI |
-| **Measurement log** | 163 numbered findings, each declaring how its numbers were produced |
+| **Tests** | 413 collected, plus `ruff`, the openspec validator, a dependency-licence check and a documentation-link check — all in CI |
+| **Measurement log** | 164 numbered entries (§164 is pre-registered, with no result yet), each declaring how its numbers were produced |
 | **Problem types** | binary declared; multiclass and regression implemented but **not** declared (§121) |
 
 **Read [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md) before anything else.** Every claim this
@@ -73,29 +74,36 @@ true as prominently as what holds.
 
 ## Results, as measured
 
-TabArena, 27 binary datasets, one fold each, against 94 other methods:
+TabArena, 27 binary datasets (26 for the §98 row), one fold each. The rank column is as
+measured at the time, against an earlier cached snapshot of the board:
 
-| change | mean ROC-AUC | Elo | rank |
+| change | mean ROC-AUC | Elo | rank (earlier snapshot) |
 | --- | --- | --- | --- |
-| label encoding (§98) | 0.7642 | 662 | 93 / 95 |
+| label encoding (§98), 26 of 27 datasets | 0.7642 | 662 | 93 / 95 |
 | **+ out-of-fold target statistics** (§101) | **0.7823** | 765 | 93 / 95 |
 | + multiclass-capable prior (§105) | 0.7817 | **813** | 93 / 95 |
 | + 5.0M parameters, matched task count (§114) | 0.7774 | 751 | 93 / 95 |
 | + tree-structured prior (§115), two seeds | 0.7926 / 0.7913 | 842 / 826 | 93 / 95 |
 
-**One change has moved the number on the benchmark that matters, and it was preprocessing
-rather than architecture.** The tree prior adds a further +0.0094 here and replicates across two
+The §101 model, unchanged at 0.7823 mean ROC-AUC, ranks **94 of 95** against the snapshot the
+TabArena review used (§122, Elo 765), and still 94 of 95 at Elo 763 after a refreshed baseline
+cache (§150). The move from 93 to 94 is the board changing, not the model.
+
+**One change has moved the TabArena number, and it was preprocessing rather than
+architecture.** The tree prior adds a further +0.0094 here and replicates across two
 seeds — but costs **−0.0221 average precision on credit data** (§116), negative on 5 of 5 folds
 with three surviving multiple-comparison correction at p < 0.001, so it ships off by default.
 
-The full table, including the linear-probe entry §132 measured at 910 Elo, is published at
+The full table, including an unpublished exploratory variant (a linear probe on the model's
+representation, §132) measured at 910 Elo, is published at
 **[kabartay.github.io/fintfm/leaderboard](https://kabartay.github.io/fintfm/leaderboard/)** —
 this project's own comparison, not [tabarena.ai](https://tabarena.ai), and its Elo is comparable
 only within the population it was computed over.
 Everything else tried — parameter scale at matched task volume, training volume, a widened
-structural-causal prior — has been null or negative. **The rank has never moved.**
+structural-causal prior — has been null or negative. **None of them moved the published
+model's rank**; only the unpublished linear-probe variant moved one position (§132).
 
-## What this project does that others do not
+## What this project does
 
 Three things, stated at their true weight:
 
@@ -111,9 +119,10 @@ eliminating seven other candidates one at a time, then closed by a two-way cell-
 worth +0.042 average precision on real data.
 
 **The record corrects itself in public.** This README has been wrong about its own results at
-least twice (§107, §112). Both are retracted in place, with the reasoning kept. No peer project
-publishes a document that tags its own claims RETRACTED as prominently as its wins, and in a
-domain where a model must arrive with its own validation evidence, that is the differentiator.
+least twice (§107, §112). Both are retracted in place, with the reasoning kept, and
+`docs/paper/CLAIMS.md` tags retracted claims as prominently as the ones that hold. In a domain
+where a model must arrive with its own validation evidence, that record is part of what is
+offered.
 
 ## How it works
 
@@ -137,9 +146,9 @@ domain where a model must arrive with its own validation evidence, that is the d
 2. **Model** (`src/fintfm/modeling/model.py`) — a from-scratch Transformer. Cells are embedded
    individually and carry a random per-task column identity (so the model can tell columns
    apart without a positional embedding, which would break invariance to column order).
-   Columns attend to each other within a row; optionally — `ModelConfig.n_cell_blocks`,
-   currently experimental — cells also attend across rows *within one feature* before that,
-   giving each column a distribution-derived identity rather than only a random tag. Rows are
+   Columns attend to each other within a row; optionally (`ModelConfig.n_cell_blocks`, 0 by
+   default but used by the published checkpoint) cells also attend across rows *within one
+   feature* before that, giving each column a distribution-derived identity rather than only a random tag. Rows are
    then pooled and attend to context rows to perform in-context learning. An optional hazard
    head (`modeling/hazard.py`) produces a cumulative PD term structure that is monotone by
    construction. Independent implementation of ideas described in the public TabPFN / TabICL
@@ -202,13 +211,15 @@ To work on the model rather than use it, clone the repository instead:
 
 ```bash
 uv sync --extra bench --extra hf   # naming one extra uninstalls the others
-uv run pytest                      # 246 tests; 1 skip is expected, more means look
+uv run pytest                      # 413 tests collected
 ```
 
 ### Using a checkpoint
 
-The estimators are scikit-learn compatible. `fit()` **stores** the table as context — it takes
-no gradient steps — and `predict_proba()` runs the frozen network once.
+The estimators are scikit-learn compatible. By default `fit()` **stores** the table as context
+and takes no gradient steps, and `predict_proba()` runs the frozen network once. Dataset-specific
+fine-tuning is opt-in (`finetune_steps`); a fine-tuned model has seen your training rows and is
+not the zero-shot model (§163).
 
 ```python
 from fintfm.inference import FinancialTFMClassifier, FinancialTFMRegressor
@@ -217,6 +228,8 @@ clf = FinancialTFMClassifier(ckpt, device="mps")   # ckpt from hf_hub_download, 
 clf.fit(X_train, y_train)          # stores context; no training happens
 proba = clf.predict_proba(X_test)[:, 1]
 
+# Regression needs a checkpoint trained for it (--max-classes >= n_bins). None is published:
+# the only public checkpoint is binary, so this line needs one you trained yourself.
 reg = FinancialTFMRegressor("runs/v4-regression.pt", n_bins=10)
 reg.fit(X_train, y_cont)
 point = reg.predict(X_test)                     # distribution mean
@@ -279,10 +292,17 @@ Its provenance argument — the model cannot have memorised a benchmark, because
 real data — depends on that and is the project's differentiator (decisions D2, D14).
 
 **FinTFM-R** (**R** for *real data*) is a second family, opened by decision **D17** on
-2026-10-06 and **not yet implemented**. It trains on real tabular data — SEC EDGAR's public
--domain Financial Statement Data Sets, with 8-K Item 1.03 bankruptcy disclosures as labels, and
-a second licensed corpus later. It exists to test the one lever D16 showed this project had
-never pulled, after seven architecture and prior changes returned seven nulls or losses.
+2026-10-06. It mixes real tabular data into pretraining: SEC EDGAR's public-domain Financial
+Statement Data Sets with 8-K Item 1.03 bankruptcy disclosures as labels (§151-§152), plus
+loaders for Freddie Mac's loan-level sample (§154) and LendingClub (§155), and a generic
+real-panel sampler that SBA loans are fed through (§157). It exists to
+test the one lever D16 showed this project had never pulled, after seven architecture and prior
+changes returned seven nulls or losses.
+
+**So far it has not helped.** At a 30% real share, 6,000 steps from scratch, two seeds each,
+neither real source improved V4FinBench mean average precision over five folds: EDGAR is a
+stable null (−0.0019 and −0.0029 mean AP at seeds 0 and 1), and SBA a null whose seeds disagree
+(−0.0355 and +0.0024 mean AP) (§160-§161). No FinTFM-R checkpoint is published.
 
 The two are not interchangeable, and the difference is the part this project sells: **the
 provenance claim holds for FinTFM and does not hold for FinTFM-R.** Any statement about one
@@ -330,8 +350,15 @@ something this repository can assert on their behalf.
 
 ## What would change the picture
 
-Stated so the project is falsifiable rather than open-ended. The ~0.035 deficit to the field
-has no measured axis of variation, and these are the remaining candidates:
+Stated so the project is falsifiable rather than open-ended. Two deficits are measured
+separately. On TabArena, FinTFM trails tuned logistic regression by ~0.035 mean ROC-AUC over 27
+datasets (§101). On V4FinBench's full panel, untuned CatBoost leads it by about 0.19 mean
+average precision over five folds (0.4005 against 0.2062 fine-tuned, §163).
+
+One lever has moved V4FinBench: opt-in fine-tuning on each fold's training rows, +0.0076 mean AP,
+positive on 5 of 5 folds (0.1986 to 0.2062, §163). That closes 3.8% of the gap to CatBoost, and
+a fine-tuned model is no longer the zero-shot model. Real-data pretraining (FinTFM-R) was null at
+GPU scale (§160-§161). These are the remaining candidates:
 
 | still open | why it is a candidate | status |
 | --- | --- | --- |
@@ -348,7 +375,7 @@ reason the list above is short:
 | --- | --- |
 | parameter scale | **−0.0049** at 5.7× the parameters on *matched* task volume (§114). A peer's published curve returns +0.0049 R² for 16.7×, against a 0.035 deficit. |
 | training volume | null at 5× (§93); **+0.0028** at 2× (§114). |
-| depth over width | **could not be scored at all** — the harness's per-dataset time limit, after 8 of 27 datasets (§114). Depth costs inference time and this model is already slow. |
+| depth over width | on TabArena it could not be scored: the harness's per-dataset time limit stopped it after 8 of 27 datasets (§114). On V4FinBench, 16 layers against 4 at width 128 is null: +0.0010 mean AP over five folds at a matched learning rate (§124, §126). |
 | `column_id_dim` | peaks at the value chosen by accident; all four non-peak arms below it on all five folds (§104). |
 | a widened structural-causal prior | **p = 1.000** against its own matched control. |
 | a tree-structured prior | +0.0094 on general tabular data, replicated across two seeds (§115) — and **−0.0221 average precision on credit** (§116). Ships off by default. |
@@ -371,7 +398,7 @@ The entry points:
 | `fintfm-v4oot` | out-of-time split, which the published protocol is not |
 | `fintfm-capability` | synthetic probes with a **known** ceiling, some with a closed-form Bayes-optimal AUC |
 | `fintfm-priorscore` | scores a *prior*, not a model, on performance / diversity / distinctiveness |
-| `fintfm-ctxsweep` | context construction, which explains more variance than model family (§5) |
+| `fintfm-ctxsweep` | context strategy against context size, out of time. Strategy mattered at smoke-test scale (§5); on V4FinBench's full panel, context size is not what limits average precision (§162) |
 
 Two conventions worth knowing before reading any of it. **Every number declares how it was
 produced** — SMOKE-TEST, MEASURED, SIMULATED or ESTIMATED — because in an ML repository a wrong
@@ -385,7 +412,7 @@ because they are what stops the same wrong conclusion being reached twice.
 - [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md) — **start here.** Every claim this project
   could make, tagged by status, newest evidence wins.
 - [`docs/results/FINDINGS.md`](docs/results/FINDINGS.md) — the full measurement log, numbered sequentially
-  (121 entries and counting), each declaring how its numbers were produced.
+  (164 entries at the time of writing), each declaring how its numbers were produced.
 - [`docs/design/DECISIONS.md`](docs/design/DECISIONS.md) — why the project is built the way it is, and what
   would reverse each choice.
 - [`docs/roadmap/STRATEGY.md`](docs/roadmap/STRATEGY.md) — the plan of record.
@@ -414,7 +441,8 @@ bought — plus a public, self-correcting record of what has and has not been sh
 ```
 src/fintfm/
   prior/         the synthetic data-generating processes: a structural model of company
-                 financials, a random-graph SCM, and the mixture that samples them
+                 financials, a random-graph SCM, a tree prior, and the mixture that samples
+                 them; plus FinTFM-R's real-panel samplers (real_*.py)
   modeling/      the network and the pretraining loop
   inference/     scikit-learn compatible estimators, plus the categorical target encoder
   evaluation/    benchmark harnesses and baselines
@@ -432,7 +460,9 @@ docs/
   research/      REFERENCES.md, RESEARCH_NOTES.md
 
 openspec/changes/   one proposal per change, with its task list; the queue lives here
-scripts/            the repository's own gates: licence, documentation links, Zenodo metadata
+scripts/            the repository's own gates (licence, documentation links, Zenodo metadata)
+                    plus run tooling: real-data panel builders, Kaggle
+                    kernels, score comparison and pre-registered verdicts
 ```
 
 **Read `docs/results/FINDINGS.md` first.** Every number quoted anywhere in this repository
@@ -459,7 +489,7 @@ retracted stay in place rather than being edited away.
   | idea | from | what happened |
   | --- | --- | --- |
   | three criteria for scoring a prior: performance, diversity, distinctiveness | MITRA | built into `fintfm-priorscore`; §112 then measured this prior's distinctiveness as weak |
-  | a tree-structured prior | TabICLv2, reimplemented from its appendix | **+0.0094** on general tabular data, **−0.0221 AP** on credit; ships off (§118) |
+  | a tree-structured prior | TabICLv2, reimplemented from its appendix | **+0.0094** on general tabular data, **−0.0221 AP** on credit; ships off (§116) |
   | published scaling curve | Nori | capped a scale hypothesis GPU budget was being spent on, before more was spent (§114) |
   | rejecting unlearnable synthetic tasks | Nori | measured: would reject 35% of this prior, and discards signal the model uses (§125) |
   | narrow-and-deep shape, 16 layers at width 128 | Nori | measured: null here, +0.0010 AP (§124, §126) |
@@ -481,7 +511,7 @@ renders BibTeX and APA directly. The same entry, to copy:
   title     = {{FinTFM: a tabular foundation model for corporate credit risk,
                pretrained only on synthetic data}},
   year      = {2026},
-  version   = {0.5.5},
+  version   = {0.7.1},
   doi       = {10.5281/zenodo.22949759},
   url       = {https://github.com/kabartay/fintfm},
   publisher = {Zenodo},

@@ -34,7 +34,7 @@ records supersessions and retractions as prominently as wins.
 | file | what it is for |
 | --- | --- |
 | [LANDSCAPE.md](competition/LANDSCAPE.md) | Competitors and what each claims about itself — positioning intelligence, not verified fact — plus how the open projects present themselves and what is worth copying. |
-| [SUBMISSION.md](competition/SUBMISSION.md) | The TabArena submission procedure: what was submitted, what the review found, and how to handle the maintainer sign-off when it arrives. |
+| [SUBMISSION.md](competition/SUBMISSION.md) | The TabArena submission procedure and its stages. The review's outcome is not recorded there: the entry was confirmed correct, declined on competitiveness and withdrawn ([`FINDINGS`](results/FINDINGS.md) §122). |
 
 ## leaderboard/ — public standing, own comparison
 
