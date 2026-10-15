@@ -1034,8 +1034,10 @@ def regression_sweep(
                         f"{name}@{shape}: n_bins {n_bins} -> {bins} (max_classes)"
                     )
                 reg = FinancialTFMRegressor(
-                    m, n_bins=bins, max_context=max_context, context_strategy="uniform",
-                    feature_transform="rank", random_state=seed,
+                    m, n_bins=bins, classifier_params={
+                        "max_context": max_context, "context_strategy": "uniform",
+                        "feature_transform": "rank", "random_state": seed,
+                    },
                 ).fit(Xtr, ytr)
                 pred = reg.predict(Xte)
                 ilo, ihi = reg.predict_interval(Xte, level=interval_level)

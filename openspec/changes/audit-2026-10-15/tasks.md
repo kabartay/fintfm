@@ -51,7 +51,8 @@
       probability columns even when `_flip` returned `y` unchanged (≠2 classes), so each class
       is averaged with another; through the regressor it reverses bin order. Fix: swap only
       when binary. Verify: a 3-class test where label swap on equals label swap off.
-- [ ] AU1.5 **Non-finite regression targets go to edge bins.** `inference/binning.py:141`
+- [x] AU1.5 **Done (2026-10-16).** `FinancialTFMRegressor.fit` raises on NaN/±inf `y`;
+      `test_non_finite_targets_are_refused`. **Non-finite regression targets go to edge bins.** `inference/binning.py:141`
       (`np.digitize`) puts NaN and +inf in the top bin and -inf in bin 0; `regressor.py:112`
       then trains on them. Fix: raise on non-finite `y` in `FinancialTFMRegressor.fit`.
       Verify: a test that NaN or ±inf targets raise.
@@ -77,7 +78,9 @@
       `ensemble_label_swap`, inference sees a distribution the tuned weights never saw. Fix:
       warn or raise unless uniform and no swap, or draw with the same strategy.
       Verify: a test that a non-uniform strategy with fine-tuning on warns or raises.
-- [ ] AU1.10 **Regressor `clone` drops every classifier setting.** `regressor.py:74-83` takes
+- [x] AU1.10 **Done (2026-10-16).** Explicit `classifier_params`; bare keywords still work
+      with a `DeprecationWarning`; `test_clone_keeps_the_classifier_settings`.
+      **Regressor `clone` drops every classifier setting.** `regressor.py:74-83` takes
       `**classifier_kwargs`, which `get_params` ignores, so `clone`/`GridSearchCV` silently
       revert to defaults. Fix: one explicit `classifier_params: dict`. Verify: `clone(r)`
       round-trips the settings.

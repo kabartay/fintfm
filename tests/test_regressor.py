@@ -9,6 +9,7 @@ to representatives, predictions inside the training range, edges fitted without 
 import numpy as np
 import pytest
 import torch
+from sklearn.base import clone
 
 from fintfm.inference.binning import interval_coverage
 from fintfm.inference.regressor import FinancialTFMRegressor
@@ -107,3 +108,45 @@ def test_predicting_before_fit_raises():
     reg = FinancialTFMRegressor(_tiny_model(), n_bins=5)
     with pytest.raises(RuntimeError, match="fit must be called"):
         reg.predict(np.zeros((2, 4)))
+
+
+@pytest.mark.parametrize("bad", [np.nan, np.inf, -np.inf])
+def test_non_finite_targets_are_refused(bad):
+    """A NaN or +-inf target must raise, not land in an edge bin (audit AU1.5).
+
+    ``np.digitize`` puts NaN and +inf in the top bin and -inf in bin 0, so the model would
+    otherwise train on them as ordinary extreme values.
+    """
+    X, y = _data()
+    y = y[:40].copy()
+    y[3] = bad
+    reg = FinancialTFMRegressor(_tiny_model(), n_bins=5)
+    with pytest.raises(ValueError, match="finite"):
+        reg.fit(X[:40], y)
+
+
+def test_clone_keeps_the_classifier_settings():
+    """``sklearn.clone`` (and so ``GridSearchCV``) must not revert them (audit AU1.10).
+
+    ``**classifier_kwargs`` was invisible to ``get_params``, so a clone silently fell back to
+    the classifier's defaults.
+    """
+    params = {"max_context": 30, "feature_transform": "none", "random_state": 3}
+    reg = FinancialTFMRegressor(_tiny_model(), n_bins=5, classifier_params=params)
+    twin = clone(reg)
+    assert twin.get_params()["classifier_params"] == params
+    X, y = _data()
+    twin.fit(X[:40], y[:40])
+    assert twin.classifier_.max_context == 30
+    assert twin.classifier_.feature_transform == "none"
+    assert twin.classifier_.random_state == 3
+
+
+def test_the_old_keyword_form_still_works_and_warns():
+    """Bare classifier keywords are still forwarded, and now survive a clone too."""
+    with pytest.warns(DeprecationWarning, match="classifier_params"):
+        reg = FinancialTFMRegressor(_tiny_model(), n_bins=5, max_context=30)
+    assert reg.get_params()["classifier_params"] == {"max_context": 30}
+    X, y = _data()
+    twin = clone(reg).fit(X[:40], y[:40])
+    assert twin.classifier_.max_context == 30
