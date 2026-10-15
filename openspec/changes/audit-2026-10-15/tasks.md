@@ -286,7 +286,15 @@
       **Documentation review findings** from the seven doc agents (appended below as they
       report).
       Verify: each doc agent's list applied or explicitly left alone, and `check_doc_links.py` passes.
-- [ ] AU3.9 **Check the 2026-10-15 peer sweep against primary sources** (RELATED_WORK.md, last
+- [x] AU3.9 **Done (2026-10-16).** Every figure re-read from the raw TabArena CSV (Space commit
+      `0bc60d4`, v0.1.9.7) and the arXiv/Hub PDFs via `pdftotext`, each now cited by
+      table/page; six errors corrected (O'Prior 40k tasks not 400k, TabICLv2 ≈100 Elo each,
+      LightPFN rule-prior +0.78 and short-budget claim, the 1780/1703 attribution, imputation
+      date); earlier entries carry dated updates; ten entries added to REFERENCES.md.
+      Unverifiable: Kumo-Medium's 62M (derived from checkpoint size, marked ESTIMATED) and
+      O'Prior's code licence (repo not found). §114's scope note in FINDINGS.md is left to its
+      separate change.
+      **Check the 2026-10-15 peer sweep against primary sources** (RELATED_WORK.md, last
       section) before any figure in it is quoted, then update the earlier entries it
       contradicts (TabPFN-3.5 rank and Elo, Mitra, Kumo, LimiX-2, best real-data model, the
       TabSwift "data points against 2D") and §114's scope (48k tasks, not scale in general).

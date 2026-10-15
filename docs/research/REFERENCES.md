@@ -303,6 +303,8 @@ off-limits here — not for licence reasons but for the contamination-auditabili
 
 **Amazon Science (2025).** *MITRA: Mixed Synthetic Priors for Enhancing Tabular Foundation
 Models.* [arXiv:2510.21204](https://arxiv.org/abs/2510.21204). **Rank 8 on TabArena, Elo 1729.**
+(Updated 2026-10-16: Mitra-v2 is 9th at Elo 1754 on TabArena v0.1.9.7's default models-only
+board; its own report is entered below.)
 **The most directly relevant paper in this list.** Synthetic-only and state of the art, beating
 TabPFNv2 and TabICL on classification and regression with better sample efficiency — the
 counterweight to TabDPT/ConTextTab/iLTM, and evidence that the field's real division is prior
@@ -391,6 +393,94 @@ conditional `p(y|x,D)` objective (not LimiX-2's joint `p(x,y|D)`). Blog-level de
 full technical report has not been opened. See `docs/paper/RELATED_WORK.md` for the full note,
 including two architectural ideas (length-aware attention temperature; a non-imputation
 missing-value mechanism) flagged as worth tracking but not yet measured against this project.
+(Updated 2026-10-16: 1950 is NVIDIA's own run. TabArena's own run gives 1947, 95% CI +161/−98,
+still 1st on the v0.1.9.7 default models-only board, with LimiX-2 2nd at 1940; Kumo-Tabular-
+Medium and -Small are 3rd at 1889 and 5th at 1792.)
+
+**Entries added 2026-10-16 (task AU3.9).** Each was read from its arXiv PDF or, for LightPFN,
+the report PDF on the Hugging Face Hub, converted to text and located by page; no summariser
+was used. Licences were checked separately for code and weights where the source allows it.
+Ideas only, as for every entry above. Figures and their page locations are in
+`docs/paper/RELATED_WORK.md`, "Peer sweep of 2026-10-15, checked against primary sources".
+
+**Ottoboni (2026).** *A Sling Against Giants: LightPFN, a 4.6M-parameter tabular in-context
+classifier designed to stay small.* Technical report v1.1, 12 October 2026,
+[huggingface.co/ueuegio/LightPFN](https://huggingface.co/ueuegio/LightPFN) (`LightPFN_report.pdf`);
+code `github.com/GioOtto/LightPFN`. **Code and weights Apache-2.0**, checked separately (model
+card, the Hub repository's `LICENSE`, the GitHub licence API). Synthetic-only, 4.60M parameters,
+7.68 million task draws on two RTX 5090 GPUs. The most useful paper in this list for this
+project's budget: it measures training volume directly (256,000 to 7.68 million draws, +1.66 AUC
+points on 55 non-TabArena datasets) and selects on synthetic and non-TabArena data, scoring
+TabArena last.
+
+**Zhang, Ren, Yuan, Zou, Tan, Wang et al., and Cui (2026).** *LimiX-2: A Contextual Mechanism
+Network Towards General Structured-Data Intelligence.*
+[arXiv:2609.17488](https://arxiv.org/abs/2609.17488). Synthetic-only (SCM engine), cell-level
+representations, joint modelling. Table 8 is the parameter-scaling fit this project's §114 lacks:
+34.68 Elo per parameter doubling on TabArena, from 12.5M to 406.2M parameters. Code repository
+`github.com/limix-ldm-ai/LimiX` under a custom Stable AI Technology licence (Apache-2.0 text plus
+attribution and naming conditions); weights declared non-commercial on TabArena ("StableAI LimiX
+Non-Commercial License v1.0"), weights licence text not read here.
+
+**Wang, Zhang, Yu, Hao, Ren, Yuan, Mao, Zhang, Yuan & Cui (2026).** *LimiX-2M: Mitigating
+Low-Rank Collapse and Attention Bottlenecks in Tabular Foundation Models.* ICML 2026 (per the
+arXiv comments field). [arXiv:2606.04485](https://arxiv.org/abs/2606.04485). A 1.92M-parameter
+model; RaBEL, a radial-basis value embedding, against linear and MLP cell embeddings (BCCO-CLS
+AUC 83.52 with an MLP embedding, 85.04 with RaBEL, Table 3). Relevant to this project's linear
+cell embedding. The paper states no licence; code as for LimiX-2.
+
+**Grinsztajn, Flöge, Key et al., Hollmann & Hutter (2026).** *TabPFN-3: Technical Report.*
+[arXiv:2605.13986](https://arxiv.org/abs/2605.13986). Synthetic-only, scales to one million
+rows. **Weights non-commercial** (TABPFN-3.0 License v1.0: no commercial or production use of
+the model, derivatives or outputs, §5); the report states no code licence, and the
+`PriorLabs/TabPFN` repository is Apache-2.0.
+
+**Jäger, Erickson, Grinsztajn et al., Hollmann & Hutter (2026).** *TabPFN-3.5: Technical
+Report.* [arXiv:2609.17895](https://arxiv.org/abs/2609.17895). **Code Apache-2.0, weights
+non-commercial** (TABPFN-3.5 License v1.0, outputs included), both stated in §4. Fourier value
+encoding and in-context ECDF (rank) features per cell; Table 2 gives the vendor's own TabArena
+run, including TabPFN-3.5-Fast at four estimators against one.
+
+**Kong, Ilan, Nie, Narayan, Sen, Zhou, Fu, Oymak & Das (2026).** *TabFM: A Zero-Shot Foundation
+Model for Tabular Data.* Google. [arXiv:2609.37959](https://arxiv.org/abs/2609.37959). 400M
+parameters, SCM-only synthetic pretraining with a context curriculum from 2,048 to 16,384 rows.
+**Code Apache-2.0** (`google-research/tabfm`), **weights non-commercial**
+(`tabfm-non-commercial-v1.0`, Hub card of `google/tabfm-1.1.0-pytorch`), the split this file
+already warns about. TabFM+ adds ensembling over 32 transformed views and Platt scaling to frozen
+weights.
+
+**Tao, Zhang, Liu, Han, Maddix et al. (2026).** *Mitra-v2 Technical Report.* Amazon.
+[arXiv:2609.04540](https://arxiv.org/abs/2609.04540). **Weights, fine-tuning code and evaluation
+results all Apache-2.0** (abstract and release appendix). Synthetic-only; 75.7M parameters;
+about 28.7 million nominal pretraining tasks; tree generators at 0.30 of the classification mix
+alongside a Hybrid SCM taken from O'Prior. Appendix C is a list of negative results worth
+reading before trying any of them here: longer training, prior reweighting and length-scaled
+logit temperature gave nothing.
+
+**Bouadi, Bouarour, Kulkarni, Dubey, Tanna & Sankarapu (2026).** *Shaping the Prior: How
+Synthetic Task Distributions Determine Tabular Foundation Model Quality* (O'Prior). Lexsi Labs.
+[arXiv:2605.18971](https://arxiv.org/abs/2605.18971). Fixed nanoTabPFN, prior varied alone, at
+40,000 tasks per prior, close to this project's 48,000. A Hybrid SCM mixing mechanism families
+inside one graph is the largest single gain (Table 2). No seeds or intervals reported. Code
+licence unverifiable: the linked repository returned not found on 2026-10-16.
+
+**Türkmen, Kaya, Pfefferle & Hutter (2026).** *Towards Evaluating Data Priors for Tabular
+Foundation Models.* [arXiv:2606.29241](https://arxiv.org/abs/2606.29241). Code in
+`github.com/automl/TFM-Playground` (Apache-2.0, `prior-dev` branch). Eleven priors under a fixed
+nanoTabPFN on 16 TabArena tasks; differences small, by the authors' own reading, and no prior
+best on every criterion.
+
+**Zhao, Zhuang, Duan, Wang, Tan & Zhang (2026).** *Architecture Alignment With Sparse Priors in
+Tabular Foundation Models.* [arXiv:2609.36883](https://arxiv.org/abs/2609.36883). The one
+controlled comparison of row-token against alternating-axis (cell) attention under a matched
+prior: the cell architecture is closer to Bayes-optimal on sparse linear tasks and equal on dense
+ones. Bears directly on this project's 2D attention; no licence checked, nothing ingested.
+
+**Jeon, Cho & Suh (2026).** *A JEPA Recipe for Tabular Foundation Models.* Modulabs.
+[arXiv:2609.25541](https://arxiv.org/abs/2609.25541). A latent auxiliary loss beside the value
+objective, run to convergence: it trails the value-only arm 32:70 on classification across 147
+real datasets, one run per arm. A negative result for latent self-supervision on a synthetic
+prior.
 
 **What none of these licenses.** Reading a paper licenses an *idea*. Nothing in this section
 authorises copying an implementation, a weight file, or a pretraining corpus, and a repository
