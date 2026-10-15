@@ -96,15 +96,23 @@ future draft or conversation:
    2026-10-15: this item also cited "TabPFN-2.5's own numbers (see below)"; the TabPFN-2.5
    section below contains no scaling numbers, and no source was found.) §108's own scaling
    attempt (−0.0077 mean ROC-AUC, confounded) is consistent with this, not contradicted by it,
-   and §114's matched-task rerun (−0.0049) confirmed it.
+   and §114's matched-task rerun (−0.0049) confirmed it. (Updated 2026-10-16: §114 measured
+   parameter scale at 48,000 tasks only, while LimiX-2 reports 34.68 Elo per parameter doubling
+   at its own training volume; this item caps scale at this project's task budget, not scale in
+   general. See the checked 2026-10-15 sweep at the end of this file.)
 2. **Every top-14 TabArena rank is synthetic-pretrained (§110).** TabPFN-2.5 and its lineage,
    LimiX-2, Mitra-v2, TabICLv2 — all synthetic. The best real-data model (TabDPT-Turbo) is
    21st. Decision D2's synthetic-only constraint costs nothing measurable in rank; the frontier
-   is *there*, not despite it.
+   is *there*, not despite it. (Updated 2026-10-16: on TabArena v0.1.9.7's default models-only
+   board the highest-placed model with a real-data training stage is RealTabPFN-2.5 (tuned +
+   ensembled), 15th at Elo 1560; TabDPT-Turbo is 20th at 1430. No model in the top 14 has a
+   documented real-data stage, but synthetic-only pretraining was re-checked from a primary
+   source for only some of them; see the checked sweep at the end of this file.)
 3. **The lever nobody here has pulled is the prior, not the architecture.** §104 closed
    `column_id_dim`, the only recent architectural knob to move real-data accuracy (§97). The
    larger earlier gain, cell attention's +0.0486 AP on V4FinBench (§80), is possibly confounded
-   with the prior mix (audit task AU2.8). MITRA's entire contribution — rank 8,
+   with the prior mix (audit task AU2.8). MITRA's entire contribution — rank 8 (updated
+   2026-10-16: Mitra-v2 is 9th at Elo 1754 on TabArena v0.1.9.7's default board),
    synthetic-only — is prior design (performance/diversity/distinctiveness) plus a tree-based
    prior this project's mixture lacks. `learn-from-peers` (48.x) is the resulting task list,
    led by 48.13 (tree prior) and 48.14 (score our own mixture against MITRA's criteria).
@@ -208,7 +216,10 @@ than "widen the prior" would have been without this list, and this task adds non
 ### MITRA is the paper this project should have written, and it names our gap
 
 **Amazon Science (2025).** *MITRA: Mixed Synthetic Priors for Enhancing Tabular Foundation
-Models*, arXiv:2510.21204. **Rank 8 on TabArena, Elo 1729** (Mitra-v2 default).
+Models*, arXiv:2510.21204. **Rank 8 on TabArena, Elo 1729** (Mitra-v2 default). (Updated
+2026-10-16: 9th at Elo 1754, 95% CI +97/−70, on TabArena v0.1.9.7's default models-only board;
+Mitra-v2 now has its own report, arXiv 2609.04540, read in the checked sweep at the end of this
+file. Its weights are Apache-2.0 per that report.)
 
 **Synthetic-only, and state of the art.** It beats TabPFNv2 and TabICL on classification and
 regression with better sample efficiency. That single fact is the counterweight to TabDPT,
@@ -331,7 +342,13 @@ form. TabPFN and this project use element-level 2D attention; MITRA reports its 
 improve both 1D row attention and 2D element attention, so it is not counted in either camp
 (corrected 2026-10-15). The split is not random:
 TabDPT's own hypothesis is that synthetic-versus-real changes which architecture wins, and the
-2D camp is the synthetic camp.
+2D camp is the synthetic camp. (Updated 2026-10-16: the three are design choices, TabDPT's
+made on memory cost rather than accuracy, and the one controlled accuracy comparison now
+published points the other way. Zhao et al., arXiv 2609.36883, train row-token and
+alternating-axis transformers under identical sparse-to-dense linear priors and find the
+alternating-axis model "substantially closer to the Bayesian optimal predictor on sparse
+tasks", with the gap "negligible on dense tasks". Read the three as choices against 2D
+attention and one measurement for it, on linear priors only.)
 
 **Two mechanisms this project does not have:**
 
@@ -570,7 +587,11 @@ arrived at, which is at minimum a sign the ceiling is not an obviously wrong des
 
 **Prior Labs (2025).** *TabPFN-2.5: Advancing the State of the Art in Tabular Foundation
 Models.* [arXiv:2511.08667](https://arxiv.org/abs/2511.08667). TabPFN-3.5 (the checkpoint on
-today's leaderboard, rank 1, Elo 1812) is the next generation past this report; the report
+today's leaderboard, rank 1, Elo 1812; updated 2026-10-16: 4th at Elo 1853, 95% CI +98/−66,
+on TabArena v0.1.9.7's default models-only board, behind Kumo-Tabular, LimiX-2 and
+Kumo-Tabular-Medium; it is not the next generation but a later one, with TabPFN-3, arXiv
+2605.13986, between them, and has its own report, arXiv 2609.17895) is the next generation past
+this report; the report
 itself documents TabPFNv2 → 2.5, which is instructive regardless of which exact checkpoint
 currently sits on top. **Purely synthetic** — "Like the original TabPFNv2, TabPFN-2.5 is
 trained purely on synthetically generated data" — with a *separately released* real-data
@@ -814,6 +835,12 @@ weights-licence check in `docs/research/REFERENCES.md`.)
 
 **The number that matters for this project's own claims.** TabArena Elo **1950, rank 1** --
 ahead of the LimiX-2 entry two days ago sold as "117 points above the runner-up" (Elo 1935).
+(Updated 2026-10-16: 1950 is NVIDIA's own run, quoted from the blog. TabArena's own run, added
+in v0.1.9.5, gives Kumo-Tabular **1947** (95% CI +161/−98) and LimiX-2 **1940** (+127/−84) on
+the v0.1.9.7 default models-only board, still 1st and 2nd but not separable. LimiX-2's 1935 and
+its 117.4-point margin are its own report's figures, against TabFM+, a system (arXiv
+2609.17488, p11 to 12). Mitra-v2's weights licence is now checked: Apache-2.0 per its report,
+arXiv 2609.04540.)
 The field's own #1 changed within 48 hours of the last peer sweep. This does not move this
 project's own 94th-of-95 rank, but it is a fourth confirming data point for §110's
 "every top-14 TabArena rank is synthetic-pretrained" finding, now from the single most
@@ -837,7 +864,9 @@ conditional one is not obviously inferior at the frontier.
   measured whether attention behaves differently at the high end of that range versus the
   low end -- a cheap thing to check with an existing checkpoint (does attention entropy shift
   systematically with context size?) before considering whether a temperature fix is needed at
-  all.
+  all. (Updated 2026-10-16: TabICLv2's QASSMax already scales queries by a learned function of
+  log n, arXiv 2602.11139 §3, and Mitra-v2 reports that "scaling the logit temperature with
+  support length gave no reliable gain", arXiv 2609.04540 Appendix C, p33.)
 - **Missing values get "special treatment... without imputation"** rather than a zero-fill.
   Relevant to task 48.10's now-narrower open question (`learn-from-peers` tasks.md): this
   project's `normalize_features`/`cell_embed` already encodes missingness through a learned
@@ -898,66 +927,200 @@ verified it's real, checked it against what's already off-limits" step — not a
 source training data from any of the 13 remaining candidates, which still each need their own
 licence read and TabArena/V4FinBench overlap check before anything is downloaded.
 
-## Peer sweep of 2026-10-15 — the board moved, and volume is the lever the evidence names
+## Peer sweep of 2026-10-15, checked against primary sources on 2026-10-16
 
-**Status of every figure below: read by a research agent on 2026-10-15 from the sources named,
-not yet checked against the PDFs by hand.** Task AU3.9 in
-`openspec/changes/audit-2026-10-15/` is that check; nothing here may be quoted until it is done.
+**Status.** The 2026-10-15 draft of this section was written from a research agent's reading and
+marked unchecked. Task AU3.9 (`openspec/changes/audit-2026-10-15/`) re-read every figure on
+2026-10-16 from the source named beside it: the leaderboard as the raw CSV in the TabArena Space
+repository, fetched with `curl`, and each paper as its arXiv PDF converted with `pdftotext`, with
+the table cell or sentence located by page. No WebFetch summary was used for any figure
+(`docs/results/POSTMORTEM.md` records why). Page numbers are PDF pages.
 
-**The board.** TabArena v0.1.9.7 (2026-10-13; all 51 datasets, all splits, imputation on; the
-leaderboard Space's `website_leaderboard.csv`): Kumo-Tabular 1947, LimiX-2 1940, Kumo-Medium
-1889, TabPFN-3.5 1853, Kumo-Small 1792, Causilo 1777, TabFM 1774, Mitra-v2 1754, TabICLv2 1560,
-TabDPT-1.3 1516, LightPFN 1322 (25.49% imputed), RF default 1000, Linear default 861.
-Methodology changes since the last sweep: unrunnable datasets are imputed with default RF
-results (v0.1.8); "systems" such as TabFM+ and AutoGluon are a separate entrant class (v0.1.8);
-balanced, imbalanced and extreme subsets arrived in v0.1.9 (2026-09-17) — **the imbalanced
-subset is the credit-relevant one and this project has not used it**; BeyondArena now has 142
-datasets.
+The draft had six errors, all corrected below: O'Prior's training budget (40,000 tasks, not
+400k); TabICLv2's ablation (each of three components is worth about 100 Elo, not the three
+together); LightPFN's rule-prior gain (the +0.78 quoted was an architecture contrast, and the
+prior's own gain on real data has an interval spanning zero); LightPFN's short-budget result (an
+early lead that shrank, not a mis-ranking); the 1780 against 1703 estimator comparison (it is
+TabPFN-3.5-Fast, in the TabPFN-3.5 report); and the date of TabArena's imputation rule (it
+predates v0.1.8). One figure has no published source and is marked as derived (Kumo-Medium's
+parameter count), and one licence could not be checked (O'Prior's code).
 
-**What this changes in the entries above.** The TabPFN-3.5 entry (rank 1, Elo 1812) is now 4th
-at 1853; Mitra is 9th at 1754, not 8th at 1729; Kumo's 1950 was NVIDIA's own figure, the
-board's run gives 1947; LimiX-2 is 1940. RealTabPFN-2.5 (tuned and ensembled) is 15th, so the
-best real-data model is no longer TabDPT-Turbo at 21st, though synthetic-only models still hold
-the top 14.
+**The board.** Source: `data/entrants_models/imputation_yes/splits_all/tasks_all/datasets_all/website_leaderboard.csv`
+in `huggingface.co/spaces/TabArena/leaderboard`, at Space commit `0bc60d4` ("TabArena-v0.1.9.7",
+2026-10-13), fetched 2026-10-16. That path is the page's default view: models only, imputed
+models included, all 51 datasets, all splits. Elo is relative to the pool of entrants, so each
+*Who's competing?* setting is a separate evaluation; with systems and the closed-source API
+system included (`entrants_open_llm_api`) the same models read differently, Kumo-Tabular 1972
+and LimiX-2 1953.
 
-**The finding that bears on §114 ("scale is capped").** LimiX-2 (arXiv 2609.17488, Table 8)
-fits **34.68 Elo per parameter doubling** on TabArena, from 1766 at 12.5M to 1935 at 406.2M;
-Kumo's three sizes run 1792 / 1889 / 1947 at 28M / 62M / 215M. §114 measured scale at 48,000
-pretraining tasks. These peers train on 10^7 or more. **§114 is therefore a statement about
-this project's task budget, not about scale**, and should say so.
+| rank | model (default config) | Elo | 95% CI | note |
+| --- | --- | --- | --- | --- |
+| 1 | Kumo-Tabular | 1947 | +161/−98 | |
+| 2 | LimiX-2 | 1940 | +127/−84 | |
+| 3 | Kumo-Tabular-Medium | 1889 | +113/−79 | |
+| 4 | TabPFN-3.5 | 1853 | +98/−66 | |
+| 5 | Kumo-Tabular-Small | 1792 | +82/−60 | |
+| 6 | Causilo | 1777 | +88/−50 | |
+| 7 | TabFM | 1774 | +107/−98 | |
+| 8 | TabPFN-3.5-Fast | 1768 | +80/−59 | omitted from the draft |
+| 9 | Mitra-v2 | 1754 | +97/−70 | |
+| 10 | EXAONE-Tabular | 1738 | +66/−50 | omitted from the draft |
+| 14 | TabICLv2 | 1560 | +59/−54 | |
+| 15 | RealTabPFN-2.5 (tuned + ensembled) | 1560 | +59/−47 | first row with a real-data training stage |
+| 17 | TabDPT-1.3 | 1516 | +57/−41 | |
+| 20 | TabDPT-Turbo | 1430 | +49/−45 | |
+| 42 | LightPFN | 1322 | +66/−67 | 25.49% imputed |
+| 91 | RandomForest | 1000 | +42/−45 | |
+| 98 | Linear | 861 | +66/−120 | |
 
-**Training volume, measured by a one-author project.** LightPFN (report v1.1, 2026-10-12;
-`huggingface.co/ueuegio/LightPFN`, code and weights Apache-2.0; 4.6M parameters, two RTX 5090s,
-~18 h): 256k → 7.68M task draws gave +1.66 AUC points [1.03, 2.46] on 55 non-TabArena
-datasets, and 60k → 120k steps still added +0.18. A 10% rule prior (XOR, parity, trees) gave
-+0.78, but only with its row-refinement stage. Short-budget ablations mis-ranked
-architectures: one design's 8.3-point lead at 2k steps shrank to ~0.5 by 8k. **This project's
-every closed architecture verdict was measured at 48,000 tasks.**
+The top two are not separable: Kumo-Tabular's lower bound (1849) sits below LimiX-2's point
+estimate. Ranks 11 to 13 are TabPFN-3 (1625), Xiaomi-TabLDM (1583) and TabPFN-2.6 (1577).
+
+Methodology, from the Space's version history (`website_texts.py`, same commit): v0.1.8
+(2026-08-06) made systems such as AutoGluon and TabFM+ their own class of entrant and the
+models-only pool the default; v0.1.9 (2026-09-17) added the *balanced*, *imbalanced* and
+*extreme* subsets (classification datasets split on the ratio of largest to smallest class,
+imbalanced from 10:1, extreme from 50:1) and a declared licence and commercial-use flag per
+method; v0.1.9.5 (2026-10-06) added the three Kumo sizes; v0.1.9.6 (2026-10-11) added LightPFN.
+**Corrected:** the draft dated the default-RandomForest imputation of unrunnable datasets to
+v0.1.8; the history lists imputation subsets from v0.1.2 (2025-11-22), so it is not new. BeyondArena
+holds 142 datasets (confirmed, same file). The imbalanced subset is the credit-relevant one, its
+CSV sits at `.../datasets_imbalanced/` in the same tree, and this project has not used it.
+
+**What this changes in the entries above** (each carries a dated note where it appears):
+TabPFN-3.5 is 4th at 1853, not 1st at 1812; Mitra-v2 is 9th at 1754, not 8th at 1729; Kumo's
+1950 is NVIDIA's own figure (blog: "ranks first overall with an ELO of 1950"), the board's
+models-only run gives 1947; LimiX-2 is 1940 on the board, while 1935 is its own report's figure
+(arXiv 2609.17488, p23). The highest-placed model with a real-data training stage is now
+RealTabPFN-2.5 (tuned + ensembled), 15th at 1560 (synthetic pretraining, real-data fine-tuning),
+not TabDPT-Turbo, which is 20th at 1430.
+
+No model in the top 14 has a documented real-data training stage. Synthetic-only pretraining is
+stated in a primary source for Kumo (blog: "pretrained only on artificial data"), LimiX-2
+(arXiv 2609.17488, p3), TabFM (2609.37959, §3.2, p6), Mitra-v2 (2609.04540, abstract) and TabPFN-3
+(2605.13986, abstract); for EXAONE-Tabular and TabICLv2 it is stated by the Mitra-v2 report
+(p22), a secondary source. It was not re-checked here for TabPFN-3.5 and 3.5-Fast (whose report
+describes a synthetic prior that "closely follows TabPFN-3", §3.3, p11, without saying "only"),
+Causilo, Xiaomi-TabLDM or TabPFN-2.6.
+
+**The finding that bears on §114 ("scale is capped").** LimiX-2 (arXiv 2609.17488) fits a
+log-linear law over six sizes on its own TabArena evaluation: **β = 34.68 Elo per parameter
+doubling**, α = 1863.88 at 100M, R² 0.9808 (Table 8, p23), with Elo rising from **1766 at 12.5M
+to 1935 at 406.2M** (§6.2, p23). Kumo's three sizes on the board are 1792 / 1889 / 1947. The blog
+gives the size range only, "28M to 215M parameters"; the medium model's **~62M is derived here,
+not published** (its classifier checkpoint is 246,117,940 bytes, about 61.5M parameters at four
+bytes each, an ESTIMATED figure). Training volume: Kumo-Small/Medium/Large "saw about 35/71/137
+million artificial tables" (blog); Mitra-v2's classifier about 28.7 million nominal tasks (§2,
+p7); the LimiX-2 report states no task count. §114 measured scale at 48,000 tasks, and the largest
+volumes this project has trained are 192,000 (§53) and 240,000 (§93). **§114 is therefore a
+statement about this project's task budget, not about scale in general**, and its scope note in
+`docs/results/FINDINGS.md` is being amended separately.
+
+**Training volume, measured by a one-author project.** LightPFN (G. Ottoboni, technical report
+v1.1, 12 October 2026, `huggingface.co/ueuegio/LightPFN`, file `LightPFN_report.pdf`). Code and
+weights Apache-2.0, checked separately: the model card ("License: Apache 2.0, code and weights"),
+the Hub repository's `LICENSE` file, and the GitHub licence API for `GioOtto/LightPFN`. 4.60M
+parameters (abstract; Hub safetensors metadata 4,603,088), synthetic-only without distillation
+(abstract). The final run is 120,000 steps of 64 tasks, 7.68 million task draws, on two RTX 5090
+GPUs in about 18 hours (§5.4, p11; §8, p16).
+
+- **Volume.** Against C2, the same recipe at 8,000 steps of 32 tasks (256,000 draws), the final
+  checkpoint gains **+1.66 AUC points [1.03, 2.46]** on D3, 55 OpenML-CC18 tasks absent from
+  TabArena, higher on 95% of them (Table 5, p17). The report says this "measures the progress of
+  the run rather than a design choice": batch size doubles and the data stream changes with it.
+  The last half of the run, 60k to 120k steps, still adds **+0.18 [0.05, 0.32]** (Table 5).
+- **Rule prior, corrected.** A 10% rule prior (XOR 25%, parity 20%, shallow trees 20%, lookup
+  tables, products, AND, OR; §4.3, p9) gains **+9.34 [7.78, 10.94]** on held-out synthetic rule
+  tasks with the row-refinement stage and +4.35 [3.35, 5.38] without it (Table 3, p13, C2 − B4
+  and C1 − B3). On the real tasks D3 it gives **+0.17 [−0.15, 0.44]** with row refinement and
+  −0.38 [−0.78, −0.05] without. The draft's "+0.78" is C2 − C1, the row-refinement contrast under
+  the rule mixture, not the prior's effect.
+- **Short budgets, corrected.** One configuration's lead over the baseline was 8.3 points on the
+  held-out synthetic set at 2,000 steps and "about half a point by 8,000 steps" (§7.5, p14). The
+  lead shrank; the ranking did not reverse. The report's conclusion is that "8,000 steps rank
+  only the clear effects".
+- **Single-seed noise.** The same recipe re-run on another GPU moved the 55-task real-data mean by
+  +0.31 [0.06, 0.54] (Table 3, A0r − A0), a noise floor worth remembering for any single-seed
+  comparison here.
+- On the board LightPFN is 42nd at 1322 with 25.49% imputed, since it is classification-only; its
+  report quotes 21st of 92 at 1441 (+69/−79) on the 38 classification datasets (abstract).
+
+This project's scale and architecture verdicts were measured at 48,000 tasks (§43, §114), and at
+most 240,000 (§93).
 
 **Other items.**
-- **LimiX-2M** (arXiv 2606.04485, ICML 2026; 1.92M parameters): an RBF value embedding (RaBEL)
-  beat an MLP embedding, BCCO-CLS AUC 83.52 → 85.04. Code licence not stated.
-- **TabPFN-3** (arXiv 2605.13986) and **TabPFN-3.5** (arXiv 2609.17895): weights
-  non-commercial, code Apache-2.0. 4 estimators against 1: 1780 against 1703 (Table 2). Adds
-  Fourier and ECDF features.
-- **TabFM** (Google, arXiv 2609.37959): 400M parameters, SCM-only prior, context curriculum
-  2,048 → 16,384 rows; TabFM+ (frozen weights plus feature expansion, ensembling, Platt
-  scaling) +69.4 Elo on classification.
-- **Mitra-v2** (arXiv 2609.04540, Apache-2.0): 75.7M parameters, 28.7M tasks, tree priors 0.30
-  of the mix; feature selection +42 Elo on classification (single split). Longer training,
-  prior reweighting and temperature scaling did not help.
-- **TabICLv2**: early target inclusion, Muon and QASSMax together ~+100 Elo; 24.5 H100-days.
-  Kumo's length-aware temperature has prior art in QASSMax.
-- **O'Prior** (arXiv 2605.18971): fixed nanoTabPFN, 400k tasks, only the prior varied; a hybrid
-  SCM mixing mechanism families inside one graph raised TabArena classification AUC 0.7881 →
-  0.8335, single seed, selected on TabArena tasks.
-- **Türkmen et al.** (arXiv 2606.29241; TFM-Playground, Apache-2.0): a mixed MLP+tree SCM was
-  best; the authors call the differences small. Also selected on TabArena tasks.
-- **Zhao et al.** (arXiv 2609.36883): in a controlled comparison, alternating-axis (cell)
-  attention beats row-token attention on sparse tasks and ties on dense ones. This weakens the
-  TabSwift entry's three "data points against our 2D architecture".
-- **JEPA recipe** (arXiv 2609.25541): a latent auxiliary loss lost 32:70 on classification.
+- **LimiX-2M** (Wang et al., arXiv 2606.04485v2, "Accepted to ICML 2026" per the arXiv comments
+  field; 1.92M parameters, Table 6, p7). The RaBEL radial-basis value embedding against an MLP
+  embedding on BCCO-CLS: **AUC 83.52 → 85.04** (Table 3, p6); PLE 84.66, Periodic 83.88. Licence:
+  the paper names `github.com/limix-ldm-ai/LimiX` for checkpoints and inference code (p1) but
+  states no licence. The repository carries a "Stable AI Technology Co., Ltd. License, Version
+  1.0", Apache-2.0 text plus a Section 10 of attribution and naming conditions (read 2026-10-16).
+  The LimiX-2M weights licence was not checked; TabArena declares LimiX-2 under "StableAI LimiX
+  Non-Commercial License v1.0".
+- **TabPFN-3** (Grinsztajn et al., arXiv 2605.13986): weights under the TABPFN-3.0 License v1.0,
+  which forbids commercial or production use of the model, its derivatives and its outputs (§5,
+  p23 to 24). The report states no code licence; the `PriorLabs/TabPFN` repository is Apache-2.0
+  (GitHub licence API, 2026-10-16).
+- **TabPFN-3.5** (Jäger et al., arXiv 2609.17895): "Code: Apache 2.0; weights: TABPFN-3.5 License
+  v1.0" (title page; §4, p11 to 12), the weights again barred from commercial use including
+  outputs. New inputs: Fourier value encoding with 32 learned frequencies, credited to TabFM, and
+  in-context ECDF features with 4 harmonics (§3.1 and Figure 8, p9 to 10). **Corrected:** the
+  draft's "4 estimators against 1: 1780 against 1703 (Table 2)" is TabPFN-3.5-Fast at its default
+  four estimators against one, in Table 2 of this report (p19), on Prior Labs' own TabArena run
+  (51 datasets, 816 tasks); in the same table TabPFN-3.5 reads 1866 and TabPFN-3.5-Thinking 1910.
+- **TabFM** (Kong et al., Google, arXiv 2609.37959): 400M parameters (abstract; its 24-layer
+  in-context predictor alone is given as 402.7M, p5), "pretrained entirely on synthetic tables
+  drawn from structural causal models", with a four-stage context curriculum from 2,048 to
+  16,384 rows (§3.2, p6). TabFM+ (frozen weights,
+  32 transformed views, non-negative least-squares ensembling, Platt scaling) "adds +69.4 Elo on
+  classification and +134.0 Elo on regression" on its own TabArena run (§4, p9). Code Apache-2.0
+  (GitHub licence API for `google-research/tabfm`); weights `tabfm-non-commercial-v1.0` (Hub card
+  of `google/tabfm-1.1.0-pytorch`).
+- **Mitra-v2** (Tao et al., Amazon, arXiv 2609.04540): weights, fine-tuning code and evaluation
+  results all Apache-2.0 (abstract; release appendix, p27 to 28). 75.7M parameters for
+  classification, 76.7M for regression (§2, p5); about 28.7 million nominal tasks for the
+  classifier, 14,000 updates of 2,048 tasks (§2, p7). The five tree generators carry 0.06 each,
+  0.30 of the classification mix in total (Table 2, p6; the sum is ours). Train-only feature
+  selection adds **+42 Elo (1,678 → 1,720)** on a 38-dataset single-split classification
+  diagnostic (Table 6, p15). Negative results (Appendix C, p32 to 33): longer or continued training
+  "left the board flat", reweighting the outer prior mixture left accuracy "essentially
+  unchanged", and "scaling the logit temperature with support length gave no reliable gain". The
+  draft's "temperature scaling" is that length-scaled logit temperature, the same idea as Kumo's
+  length-aware attention temperature, not calibration.
+- **TabICLv2** (Qu et al., arXiv 2602.11139). **Corrected:** "Three components provide
+  comparable, significant gains (≈100 Elo, 64% win rate): early target inclusion, Muon instead of
+  AdamW, and QASSMax" (§7, p8 to 9), each about 100 Elo in a leave-one-out ablation, not 100
+  together. Pretraining takes 24.5 H100 GPU-days per model (20 + 2.5 + 2 across three stages,
+  §4.1, p5). QASSMax multiplies each query by a learned function of log n (§3, p4), so Kumo's
+  length-aware attention temperature (blog-level description) has prior art in QASSMax and the
+  scalable softmax it extends.
+- **O'Prior** (Bouadi et al., Lexsi Labs, arXiv 2605.18971): nanoTabPFN held fixed with only the
+  prior varied. **Corrected:** the budget is 40,000 synthetic datasets per prior (batch 4, 1,000
+  steps per epoch, 10 epochs; §3.1, p7), not 400k, which is within a factor of 1.2 of this
+  project's 48,000. Hybrid SCM alone against the basic SCM: ROC-AUC **0.7881 → 0.8335** on 21
+  TabArena-v0.1 classification datasets and 0.7411 → 0.8228 on 31 filtered OpenML-CC18 datasets
+  (Table 2, p8). No seeds, repeats or intervals are reported, and no selection set separate from
+  the two evaluation suites. The paper links `github.com/o-prior/O-prior`, which the GitHub API
+  returned as not found on 2026-10-16: **code licence unverifiable**.
+- **Türkmen et al.** (Freiburg, Prior Labs and ELLIS Tübingen, arXiv 2606.29241): nanoTabPFN held
+  fixed, eleven priors, 16 TabArena-v0.1 classification tasks over three folds (§3.4, p3). The
+  TabICL mixed MLP-and-tree SCM is best by average rank (2.69) and normalised mean (0.937), while
+  TICL has the highest raw mean ROC-AUC (0.866 against 0.865) and the most wins (5) (Table 1, p3).
+  The authors: "the observed differences should be interpreted cautiously given their small
+  magnitude" (p3). Code in TFM-Playground (`prior-dev` branch); the repository is Apache-2.0
+  (GitHub licence API).
+- **Zhao et al.** (arXiv 2609.36883): row-token and alternating-axis transformers trained under
+  identical sparse-to-dense *linear* priors; "the alternating-axis model is substantially closer
+  to the Bayesian optimal predictor on sparse tasks, while the architecture gap becomes negligible
+  on dense tasks" (abstract, p1). Released TabDPT degrades more than TabPFN v2 as null features
+  are added (same page). This weakens the TabSwift entry's "third data point against our 2D
+  architecture", which is updated above.
+- **JEPA recipe** (Jeon, Cho and Suh, Modulabs, arXiv 2609.25541): with one run per arm, the JEPA
+  latent auxiliary loss trails the value-only arm on 147 real datasets, **32:70 wins to losses on
+  classification** (29:63 with one entry per dataset name) and 8:24 on regression (abstract, p1).
 
-**Selection discipline.** O'Prior and Türkmen et al. chose priors by scoring on TabArena tasks.
-This project selects on synthetic, V4FinBench and non-TabArena data and scores TabArena last,
-as LightPFN does.
+**Selection discipline.** O'Prior and Türkmen et al. report their prior comparisons on TabArena
+tasks with no separate selection set (O'Prior also on OpenML-CC18, where the Hybrid SCM gain
+holds). LightPFN selected on held-out synthetic tasks, mechanism probes and real datasets outside
+TabArena, and "ha[s] not used TabArena for any decision since" (abstract; §7.6, p16). This
+project's rule since §115/§116 (`CLAUDE.md`) is to score a change on V4FinBench before TabArena.
