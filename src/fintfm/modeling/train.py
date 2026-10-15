@@ -92,8 +92,10 @@ class TrainConfig:
     #: plain float32, what every checkpoint trained with. ``"bf16"`` wraps the forward and the
     #: loss in ``torch.autocast(dtype=torch.bfloat16)`` on CUDA (Ampere or newer) or CPU;
     #: weights, gradients, the loss reduction and the optimiser stay float32, and held-out
-    #: evaluation stays float32. Refused on MPS, on GPUs without native bf16, and for the
-    #: quantile and survival objectives, whose losses would reduce in bf16 (:func:`_autocast`).
+    #: evaluation stays float32. ``"fp16"`` does the same in float16 with a loss scaler, on
+    #: CUDA only, for GPUs without native bf16 (T4, P100). Both are refused on MPS, bf16 on
+    #: GPUs without native bf16, and both for the quantile and survival objectives, whose
+    #: losses would reduce in half precision (:func:`_autocast`).
     amp: str = "none"
     #: ``True`` (default) applies AdamW's weight decay to every parameter, which is what every
     #: checkpoint trained with. ``False`` (audit AU5.10) exempts LayerNorm gains, every bias,
@@ -111,7 +113,16 @@ class TrainConfig:
 _ADAMW_WEIGHT_DECAY = 0.01
 
 #: Accepted values of :attr:`TrainConfig.amp`.
-AMP_MODES = ("none", "bf16")
+AMP_MODES = ("none", "bf16", "fp16")
+
+#: ``ModelConfig`` fields ``fintfm-train`` takes from the config's ``model`` section unless a
+#: flag of the same name is given. Each is also a field of
+#: :class:`fintfm.config.ModelConfigDefaults` (``tests/test_config.py`` checks both ways).
+_MODEL_CONFIG_KNOBS = (
+    "n_heads", "n_cell_heads", "n_summary_tokens", "value_embedding", "value_basis_size",
+    "value_basis_learnable", "value_ecdf", "attn_length_scale", "attn_length_ref",
+    "hazard_period_context",
+)
 
 #: Accepted values of :attr:`TrainConfig.optimizer`.
 OPTIMIZERS = ("adamw", "schedulefree", "muon")
@@ -243,7 +254,9 @@ def _autocast(model: torch.nn.Module, amp: str) -> contextlib.AbstractContextMan
     """The precision context for one training forward pass.
 
     ``"none"`` returns a null context, so the default path runs exactly as before this
-    option existed. ``"bf16"`` returns ``torch.autocast`` for the model's device.
+    option existed. ``"bf16"`` returns ``torch.autocast`` for the model's device (CUDA with
+    native bf16, or CPU); ``"fp16"`` returns CUDA float16 autocast, for GPUs without native
+    bf16 such as the T4 and P100, and is paired with the loss scaler of :func:`_grad_scaler`.
 
     Args:
         model: The model being trained; its device decides the autocast backend.
@@ -253,8 +266,9 @@ def _autocast(model: torch.nn.Module, amp: str) -> contextlib.AbstractContextMan
         A context manager to wrap the forward pass and loss in.
 
     Raises:
-        ValueError: For an unknown mode, MPS, or a CUDA device without native bf16. An
-            emulated bf16 would run and report a throughput the lever does not deliver.
+        ValueError: For an unknown mode; a quantile or survival model; MPS; ``"bf16"`` on a
+            CUDA device without native bf16 (an emulated bf16 would run and report a
+            throughput the lever does not deliver); ``"fp16"`` anywhere but CUDA.
     """
     if amp not in AMP_MODES:
         raise ValueError(f"amp must be one of {AMP_MODES}, got {amp!r}")
@@ -262,28 +276,53 @@ def _autocast(model: torch.nn.Module, amp: str) -> contextlib.AbstractContextMan
         return contextlib.nullcontext()
     if getattr(model, "hazard", None) is not None or model.cfg.head_type != "binned":
         # Only the binned head's cross-entropy is on autocast's float32 list. The pinball
-        # loss would be reduced in bf16 against a bf16-rounded target, and the hazard NLL
-        # takes log1p(-h) of hazards clamped just below one, which bf16 rounds to one.
+        # loss would be reduced in half precision against a rounded target, and the hazard
+        # NLL takes log1p(-h) of hazards clamped just below one, which bf16 rounds to one.
         # Both live in model.py/hazard.py; until they cast to float32 themselves, refuse.
         raise ValueError(
-            "--amp bf16 supports the binned classification objective only; this model has "
+            f"--amp {amp} supports the binned classification objective only; this model has "
             f"head_type={model.cfg.head_type!r} and "
             f"{'a' if getattr(model, 'hazard', None) is not None else 'no'} hazard head"
         )
     device_type = next(model.parameters()).device.type
     if device_type == "mps":
         raise ValueError(
-            "--amp bf16 is not supported on MPS here: train in float32 (--amp none) or use "
+            f"--amp {amp} is not supported on MPS here: train in float32 (--amp none) or use "
             "a CUDA device (CLAUDE.md records MPS memory trouble at the reference recipe)"
         )
+    if amp == "fp16":
+        if device_type != "cuda":
+            raise ValueError(
+                f"--amp fp16 is for CUDA GPUs without native bf16 (T4, P100), not "
+                f"{device_type}; use --amp none, or --amp bf16 on CPU"
+            )
+        return torch.autocast(device_type="cuda", dtype=torch.float16)
     if device_type == "cuda" and not torch.cuda.is_bf16_supported(including_emulation=False):
         raise ValueError(
             f"--amp bf16 needs native bf16 (compute capability 8.0+, e.g. A10G, L4, A100); "
-            f"{torch.cuda.get_device_name()} would emulate it. Use --amp none on this GPU"
+            f"{torch.cuda.get_device_name()} would emulate it. Use --amp fp16 on this GPU"
         )
     if device_type not in ("cuda", "cpu"):
         raise ValueError(f"--amp bf16 supports cuda and cpu, not {device_type}")
     return torch.autocast(device_type=device_type, dtype=torch.bfloat16)
+
+
+def _grad_scaler(amp: str) -> torch.amp.GradScaler | None:
+    """The loss scaler a precision mode needs: one for ``"fp16"``, none otherwise.
+
+    float16 has five exponent bits, so small gradients underflow to zero in the backward
+    pass. The scaler multiplies the loss by a large power of two before ``backward`` and
+    divides the gradients by it before clipping and the optimiser step, skipping any step
+    whose gradients overflowed and lowering the scale. bf16 keeps float32's exponent range
+    and needs none, and ``"none"`` returns ``None`` so the default step is unchanged.
+
+    Args:
+        amp: :attr:`TrainConfig.amp`.
+
+    Returns:
+        A CUDA ``GradScaler``, or ``None``.
+    """
+    return torch.amp.GradScaler("cuda") if amp == "fp16" else None
 
 
 def _training_step(
@@ -293,11 +332,14 @@ def _training_step(
     sched: torch.optim.lr_scheduler.LRScheduler,
     amp: str,
     objectives: set[str],
+    scaler: torch.amp.GradScaler | None = None,
 ) -> torch.Tensor:
     """One optimiser step on one batch: the loop body :func:`train` and :func:`benchmark` share.
 
-    Under ``amp="bf16"`` only the forward pass and loss run inside autocast; the backward
-    pass, clipping and the optimiser step run on the float32 weights outside it.
+    Under ``amp`` other than ``"none"`` only the forward pass and loss run inside autocast;
+    the backward pass, clipping and the optimiser step run on the float32 weights outside it.
+    With a ``scaler`` the gradients are unscaled *before* clipping, so the clip threshold of
+    1.0 means what it does in float32, and a step whose gradients overflowed is skipped.
 
     Args:
         model: The model being trained.
@@ -306,9 +348,10 @@ def _training_step(
         sched: The learning-rate schedule.
         amp: :attr:`TrainConfig.amp`.
         objectives: Updated in place with the objective this step trained.
+        scaler: Loss scaler from :func:`_grad_scaler`; ``None`` is the plain step.
 
     Returns:
-        The step's loss tensor; the caller reads ``.item()``.
+        The step's (unscaled) loss tensor; the caller reads ``.item()``.
     """
     with _autocast(model, amp):
         # survival objective when the model has a hazard head and the prior emits periods
@@ -319,9 +362,16 @@ def _training_step(
             loss = model.loss(batch.X, batch.y, batch.n_ctx, batch.n_classes)
             objectives.add("quantile" if model.cfg.head_type == "quantile" else "classification")
     opt.zero_grad(set_to_none=True)
-    loss.backward()
-    torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-    opt.step()
+    if scaler is None:
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+        opt.step()
+    else:
+        scaler.scale(loss).backward()
+        scaler.unscale_(opt)
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+        scaler.step(opt)  # skipped when the unscaled gradients hold an inf or NaN
+        scaler.update()
     sched.step()
     return loss
 
@@ -588,6 +638,7 @@ def _save_training_state(
     total_steps: int,
     optimizer_name: str = "adamw",
     eval_rng: np.random.Generator | None = None,
+    scaler: torch.amp.GradScaler | None = None,
 ) -> None:
     """Write everything needed to continue a run, not just the weights.
 
@@ -616,6 +667,9 @@ def _save_training_state(
         eval_rng: The separate generator held-out evaluation draws from (audit AU1.18), saved
             so a resumed run continues the evaluation stream rather than replaying it. Omitted
             from the file when ``None``.
+        scaler: The ``--amp fp16`` loss scaler, whose current scale is saved so a resumed run
+            does not restart at the initial scale and skip steps re-finding it. Omitted from
+            the file when ``None``.
     """
     state = {
         "model_state": model.state_dict(),
@@ -631,6 +685,8 @@ def _save_training_state(
     }
     if eval_rng is not None:
         state["eval_numpy_rng"] = eval_rng.bit_generator.state
+    if scaler is not None:
+        state["grad_scaler"] = scaler.state_dict()
     torch.save(state, path)
 
 
@@ -651,8 +707,12 @@ def train(
     print(f"model parameters: {model.num_parameters():,}")
     opt, sched = _build_optimizer(model, train_cfg)
     _autocast(model, train_cfg.amp)  # refuse an unsupported precision before any step
+    scaler = _grad_scaler(train_cfg.amp)
     if train_cfg.amp != "none":
-        print(f"mixed precision: {train_cfg.amp} autocast (weights and optimiser float32)")
+        print(
+            f"mixed precision: {train_cfg.amp} autocast (weights and optimiser float32"
+            f"{', loss scaling' if scaler is not None else ''})"
+        )
     t0 = time.time()
     running = 0.0
     # recorded into the checkpoint: the two objectives are exclusive per step, so a hazard
@@ -706,6 +766,8 @@ def train(
         rng.bit_generator.state = state["numpy_rng"]
         if "eval_numpy_rng" in state:  # absent from states written before AU1.18
             eval_rng.bit_generator.state = state["eval_numpy_rng"]
+        if scaler is not None and "grad_scaler" in state:
+            scaler.load_state_dict(state["grad_scaler"])
         torch.set_rng_state(
             state["torch_rng"].cpu() if hasattr(state["torch_rng"], "cpu") else state["torch_rng"]
         )
@@ -719,7 +781,7 @@ def train(
     _set_optimizer_mode(opt, train_cfg.optimizer, "train")
     for step in range(start_step, stop_step):
         batch = sample_batch(rng, prior_cfg, train_cfg.batch_size).to(train_cfg.device)
-        loss = _training_step(model, batch, opt, sched, train_cfg.amp, objectives)
+        loss = _training_step(model, batch, opt, sched, train_cfg.amp, objectives, scaler)
         running += loss.item()
         if (step + 1) % train_cfg.log_every == 0:
             elapsed = time.time() - t0
@@ -745,6 +807,7 @@ def train(
                 train_cfg.steps,
                 optimizer_name=train_cfg.optimizer,
                 eval_rng=eval_rng,
+                scaler=scaler,
             )
             _set_optimizer_mode(opt, train_cfg.optimizer, "train")
             print(f"  checkpoint at step {step + 1}: {partial}", flush=True)
@@ -776,6 +839,7 @@ def train(
         train_cfg.steps,
         optimizer_name=train_cfg.optimizer,
         eval_rng=eval_rng,
+        scaler=scaler,
     )
     print(f"saved checkpoint to {out_path}")
     if stop_step < train_cfg.steps:
@@ -841,13 +905,14 @@ def benchmark(
     model.feature_chunk = train_cfg.feature_chunk
     opt, sched = _build_optimizer(model, train_cfg)
     _autocast(model, train_cfg.amp)
+    scaler = _grad_scaler(train_cfg.amp)
     device = next(model.parameters()).device
     objectives: set[str] = set()
     _set_optimizer_mode(opt, train_cfg.optimizer, "train")
     model.train()
     for _ in range(warmup):
         batch = sample_batch(rng, prior_cfg, train_cfg.batch_size).to(device)
-        _training_step(model, batch, opt, sched, train_cfg.amp, objectives).item()
+        _training_step(model, batch, opt, sched, train_cfg.amp, objectives, scaler).item()
     _synchronize(device)
     if device.type == "cuda":
         torch.cuda.reset_peak_memory_stats(device)
@@ -857,7 +922,7 @@ def benchmark(
         batch = sample_batch(rng, prior_cfg, train_cfg.batch_size).to(device)
         _synchronize(device)
         t1 = time.perf_counter()
-        _training_step(model, batch, opt, sched, train_cfg.amp, objectives).item()
+        _training_step(model, batch, opt, sched, train_cfg.amp, objectives, scaler).item()
         _synchronize(device)
         sample_s += t1 - t0
         step_s += time.perf_counter() - t1
@@ -930,9 +995,10 @@ def main(argv: list[str] | None = None) -> None:
         default=None,
         choices=AMP_MODES,
         help="mixed precision for the training forward pass (audit AU5.2): 'none' (float32, "
-        "the config default and every checkpoint's) or 'bf16' autocast on CUDA (compute "
-        "capability 8.0+) or CPU, binned classification objective only. Weights, loss "
-        "reduction and optimiser stay float32; refused on MPS",
+        "the config default and every checkpoint's), 'bf16' autocast on CUDA (compute "
+        "capability 8.0+) or CPU, or 'fp16' autocast with loss scaling on CUDA only, for "
+        "GPUs without native bf16 (T4, P100). Binned classification objective only. "
+        "Weights, loss reduction and optimiser stay float32; refused on MPS",
     )
     p.add_argument(
         "--muon-lr",
@@ -1205,6 +1271,80 @@ def main(argv: list[str] | None = None) -> None:
         "(task 48.10)",
     )
     p.add_argument(
+        "--n-heads",
+        type=int,
+        default=None,
+        help="attention heads in every stage; must divide --d-cell and --d-model. Defaults "
+        "to the config's model.n_heads, 4, every checkpoint's value",
+    )
+    p.add_argument(
+        "--n-cell-heads",
+        type=int,
+        default=None,
+        help="attention heads in the cell-width stages (column, row-within-feature, "
+        "pooling); defaults to the config's model.n_cell_heads, null, which shares "
+        "--n-heads (audit AU5.3)",
+    )
+    p.add_argument(
+        "--n-summary-tokens",
+        type=int,
+        default=None,
+        help="K learned summary tokens per row replacing mean+max pooling (audit AU5.3); "
+        "the config default 1 keeps today's pooling; incompatible with --pooling attention",
+    )
+    p.add_argument(
+        "--value-embedding",
+        type=str,
+        default=None,
+        choices=("mlp", "rbf", "fourier"),
+        help="basis expansion of the normalised cell value before the cell MLP (audit "
+        "AU5.16); the config default 'mlp' is today's embedding",
+    )
+    p.add_argument(
+        "--value-basis-size",
+        type=int,
+        default=None,
+        help="RBF centres or Fourier frequencies (config default 16); ignored for "
+        "--value-embedding mlp",
+    )
+    p.add_argument(
+        "--value-basis-learnable",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="train the RBF centres and widths or the Fourier frequencies (audit AU5.16); "
+        "config default false",
+    )
+    p.add_argument(
+        "--value-ecdf",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="add a context-only ECDF-rank channel to every cell embedding (audit AU5.16); "
+        "config default false",
+    )
+    p.add_argument(
+        "--attn-length-scale",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="multiply row-attention logits by log(n_ctx)/log(--attn-length-ref) (audit "
+        "AU5.17); config default false",
+    )
+    p.add_argument(
+        "--attn-length-ref",
+        type=int,
+        default=None,
+        help="context length at which --attn-length-scale is the identity (config default "
+        "512)",
+    )
+    p.add_argument(
+        "--hazard-period-context",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="context rows of a hazard model embed their default period, or a censored "
+        "token, beside the label (audit AU5.9); requires --n-horizons; config default "
+        "false. Such a checkpoint cannot yet be served: the classifier's term-structure "
+        "path passes no context periods",
+    )
+    p.add_argument(
         "--head-type",
         type=str,
         default="binned",
@@ -1283,6 +1423,12 @@ def main(argv: list[str] | None = None) -> None:
         n_col_layers=args.n_col_layers,
         n_layers=args.n_layers,
         n_horizons=args.n_horizons,
+        # the Phase 5 architecture levers and n_heads: an explicit flag wins over the
+        # config's model section, whose defaults build today's architecture
+        **{
+            name: getattr(cfg.model, name) if getattr(args, name) is None else getattr(args, name)
+            for name in _MODEL_CONFIG_KNOBS
+        },
     )
     prior_cfg = PriorConfig(
         max_features=args.max_features,

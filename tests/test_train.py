@@ -255,13 +255,40 @@ def test_default_training_matches_the_pre_lever_loop(tmp_path):
         opt.step()
         sched.step()
 
+    # The run under test passes every model lever explicitly at the packaged config's value
+    # (n_heads aside, which this tiny model sets itself), so the levers' defaults are held to
+    # the same byte-for-byte standard as the training ones.
+    from fintfm.config import load_config
+    from fintfm.modeling.train import _MODEL_CONFIG_KNOBS
+
+    model_section = load_config().model
+    levers_at_default = ModelConfig(**_TINY_RICH, **{
+        k: getattr(model_section, k) for k in _MODEL_CONFIG_KNOBS if k != "n_heads"
+    })
     got = train(
-        model_cfg, prior_cfg,
+        levers_at_default, prior_cfg,
         TrainConfig(steps=steps, batch_size=2, eval_every=1000, log_every=1000, seed=seed),
         str(tmp_path / "m.pt"),
     )
+    assert list(ref.state_dict()) == list(got.state_dict())
     for (name, a), (_, b) in zip(ref.state_dict().items(), got.state_dict().items()):
         assert torch.equal(a, b), name
+
+
+def test_cli_without_model_lever_flags_builds_the_pre_lever_architecture(tmp_path, monkeypatch):
+    """``fintfm-train`` with no lever flag must build exactly the ``ModelConfig`` it built
+    before the levers existed: every new field at its old default and ``n_heads`` at 4."""
+    from dataclasses import asdict
+
+    model_cfg, _ = _captured_configs(monkeypatch, ["--out", str(tmp_path / "x.pt")])
+    before = ModelConfig(
+        pooling="meanmax", column_id_dim=None, n_cell_blocks=0, cell_labels=False,
+        mask_embedding=False, head_type="binned", n_quantiles=99, d_ff=4 * 192,
+        max_features=24, max_classes=10, d_cell=64, d_model=192, n_col_layers=2, n_layers=6,
+        n_horizons=None,
+    )
+    assert asdict(model_cfg) == asdict(before)
+    assert model_cfg.n_heads == 4
 
 
 def test_bf16_autocast_runs_the_forward_in_bf16_and_keeps_loss_and_weights_float32(tmp_path):
@@ -294,34 +321,116 @@ def test_bf16_autocast_runs_the_forward_in_bf16_and_keeps_loss_and_weights_float
     assert any(not torch.equal(a, b) for a, b in zip(fp32.parameters(), bf16.parameters()))
 
 
+@pytest.mark.parametrize("amp", ["bf16", "fp16"])
 @pytest.mark.parametrize(
     "extra",
     [{"head_type": "quantile"}, {"n_horizons": 3}],
     ids=["quantile", "survival"],
 )
-def test_bf16_refuses_objectives_whose_loss_would_reduce_in_bf16(extra):
-    """The pinball and survival losses are not on autocast's float32 list; under bf16 they
-    would be reduced in bf16 (the survival NLL takes ``log1p(-h)`` of hazards bf16 rounds to
-    one), so the flag must refuse them rather than train on a degraded loss."""
+def test_half_precision_refuses_objectives_whose_loss_would_reduce_in_it(extra, amp):
+    """The pinball and survival losses are not on autocast's float32 list; under bf16 or
+    fp16 they would be reduced in half precision (the survival NLL takes ``log1p(-h)`` of
+    hazards bf16 rounds to one), so the flag must refuse them rather than train on a degraded
+    loss. Checked before the device, so this runs on CPU for fp16 too."""
     from fintfm.modeling.model import FinancialTFM
     from fintfm.modeling.train import _autocast
 
     cfg = {**_TINY_RICH, "cell_labels": False, **extra}
     with pytest.raises(ValueError, match="binned classification"):
-        _autocast(FinancialTFM(ModelConfig(**cfg)), "bf16")
+        _autocast(FinancialTFM(ModelConfig(**cfg)), amp)
 
 
-def test_amp_refuses_an_unknown_mode_and_mps():
+def test_amp_refuses_an_unknown_mode_fp16_off_cuda_and_mps():
     from fintfm.modeling.model import FinancialTFM
     from fintfm.modeling.train import _autocast
 
     model = FinancialTFM(ModelConfig(**_TINY_RICH))
     with pytest.raises(ValueError, match="amp must be"):
-        _autocast(model, "fp16")
+        _autocast(model, "fp8")
+    with pytest.raises(ValueError, match="fp16 is for CUDA"):
+        _autocast(model, "fp16")  # the model is on CPU
     if not torch.backends.mps.is_available():
         pytest.skip("MPS refusal needs an MPS device to place the model on")
-    with pytest.raises(ValueError, match="MPS"):
-        _autocast(model.to("mps"), "bf16")
+    for amp in ("bf16", "fp16"):
+        with pytest.raises(ValueError, match="MPS"):
+            _autocast(model.to("mps"), amp)
+
+
+def _one_step(model, batch, scaler, loss_override=None):
+    """One ``_training_step`` of a fresh AdamW on ``model`` with a fixed column-id draw."""
+    from fintfm.modeling.train import TrainConfig, _build_optimizer, _training_step
+
+    opt, sched = _build_optimizer(model, TrainConfig())
+    if loss_override is not None:
+        model.loss = loss_override
+    torch.manual_seed(11)  # the column identities are drawn from the global stream
+    _training_step(model, batch, opt, sched, "none", set(), scaler)
+    return opt
+
+
+def test_grad_scaler_wiring_matches_the_unscaled_step_on_cpu():
+    """The fp16 path's scaler wiring, runnable without CUDA: a CPU ``GradScaler`` on a
+    float32 model. Scaling by a power of two and unscaling before clipping is exact, so the
+    weights after one scaled step must equal the plain step's. Unscaling *after* the clip
+    would clip the scaled gradients and fail this."""
+    import copy
+
+    import numpy as np
+
+    from fintfm.modeling.model import FinancialTFM
+    from fintfm.prior.mixture import sample_batch
+
+    torch.manual_seed(0)
+    plain = FinancialTFM(ModelConfig(**_TINY_RICH))
+    scaled = copy.deepcopy(plain)
+    batch = sample_batch(np.random.default_rng(0), PriorConfig(max_features=8, max_classes=2,
+                                                                n_rows=32), 2)
+    _one_step(plain, batch, None)
+    _one_step(scaled, batch, torch.amp.GradScaler("cpu", init_scale=2.0**12))
+    for (name, a), (_, b) in zip(plain.state_dict().items(), scaled.state_dict().items()):
+        assert torch.equal(a, b), name
+
+
+def test_grad_scaler_skips_a_step_whose_gradients_overflow():
+    """The point of the scaler: an inf gradient skips the optimiser step and halves the
+    scale, where the plain step would write inf/NaN into the weights."""
+    import copy
+
+    import numpy as np
+
+    from fintfm.modeling.model import FinancialTFM
+    from fintfm.prior.mixture import sample_batch
+
+    torch.manual_seed(0)
+    model = FinancialTFM(ModelConfig(**_TINY_RICH))
+    before = copy.deepcopy(model.state_dict())
+    batch = sample_batch(np.random.default_rng(0), PriorConfig(max_features=8, max_classes=2,
+                                                                n_rows=32), 2)
+    scaler = torch.amp.GradScaler("cpu", init_scale=2.0**12)
+    _one_step(model, batch, scaler,
+              loss_override=lambda *a, **k: (model.head.weight * float("inf")).sum())
+    assert scaler.get_scale() == 2.0**11
+    for name, value in model.state_dict().items():
+        assert torch.equal(value, before[name]), name
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="--amp fp16 runs on CUDA only")
+def test_fp16_trains_on_cuda_and_its_scaler_survives_a_resume(tmp_path):
+    """AU5.2's T4/P100 path end to end: float32 weights after fp16 steps, the scaler's state
+    in the ``.state`` file, and a resumed chunk that picks it up."""
+    from fintfm.modeling.train import TrainConfig, train
+
+    model_cfg = ModelConfig(**_TINY_RICH)
+    prior_cfg = PriorConfig(max_features=8, max_classes=2, n_rows=32)
+    common = {"steps": 4, "batch_size": 2, "eval_every": 2, "log_every": 1000, "seed": 0,
+              "device": "cuda", "amp": "fp16"}
+    part = tmp_path / "part.pt"
+    train(model_cfg, prior_cfg, TrainConfig(**common, run_steps=2), str(part))
+    state = torch.load(f"{part}.state", weights_only=False)
+    assert "grad_scaler" in state and state["grad_scaler"]["scale"] > 0
+    model = train(model_cfg, prior_cfg, TrainConfig(**common, resume=f"{part}.state"),
+                  str(tmp_path / "whole.pt"))
+    assert all(p.dtype == torch.float32 and torch.isfinite(p).all() for p in model.parameters())
 
 
 def _decay_by_name(opt, model) -> dict[str, float]:
@@ -389,16 +498,65 @@ def test_warmup_steps_sets_the_schedule():
     assert _lr_schedule(9, cfg) < 0.1
 
 
-def _captured_train_cfg(monkeypatch, argv):
-    """Run ``fintfm-train``'s ``main`` with ``train`` stubbed out; return the TrainConfig."""
+def _captured_configs(monkeypatch, argv):
+    """Run ``fintfm-train``'s ``main`` with ``train`` stubbed out; return (ModelConfig,
+    TrainConfig) as the CLI built them."""
     import importlib
 
     train_mod = importlib.import_module("fintfm.modeling.train")
     seen = {}
-    monkeypatch.setattr(train_mod, "train", lambda m, p, t, out: seen.setdefault("cfg", t))
+    monkeypatch.setattr(train_mod, "train", lambda m, p, t, out: seen.update(m=m, t=t))
     monkeypatch.delenv("FINTFM_CONFIG", raising=False)
     train_mod.main(argv)
-    return seen["cfg"]
+    return seen["m"], seen["t"]
+
+
+def _captured_train_cfg(monkeypatch, argv):
+    """The TrainConfig half of :func:`_captured_configs`."""
+    return _captured_configs(monkeypatch, argv)[1]
+
+
+_TINY_CLI = [
+    "--steps", "2", "--batch-size", "2", "--max-features", "8", "--max-classes", "2",
+    "--d-model", "16", "--d-cell", "8", "--n-layers", "1", "--n-col-layers", "1",
+    "--n-rows", "32",
+]
+
+
+@pytest.mark.parametrize(
+    "flags, expected",
+    [
+        (["--n-heads", "2"], {"n_heads": 2}),
+        (["--n-cell-heads", "2"], {"n_cell_heads": 2}),
+        (["--n-summary-tokens", "3"], {"n_summary_tokens": 3}),
+        (["--value-embedding", "rbf", "--value-basis-size", "6", "--value-basis-learnable"],
+         {"value_embedding": "rbf", "value_basis_size": 6, "value_basis_learnable": True}),
+        (["--value-embedding", "fourier", "--value-basis-size", "4"],
+         {"value_embedding": "fourier", "value_basis_size": 4}),
+        (["--value-ecdf"], {"value_ecdf": True}),
+        (["--attn-length-scale", "--attn-length-ref", "64"],
+         {"attn_length_scale": True, "attn_length_ref": 64}),
+        (["--hazard-period-context", "--n-horizons", "3"],
+         {"hazard_period_context": True, "n_horizons": 3}),
+    ],
+    ids=["n-heads", "n-cell-heads", "summary-tokens", "rbf", "fourier", "ecdf",
+         "length-scale", "hazard-period"],
+)
+def test_each_model_lever_trains_from_the_cli(tmp_path, monkeypatch, flags, expected):
+    """Smoke test per Phase 5 model lever: the flag reaches the model, two steps train, and
+    the checkpoint reloads with the lever recorded. Pipeline only; says nothing of quality."""
+    import importlib
+
+    from fintfm.modeling.model import FinancialTFM
+
+    train_mod = importlib.import_module("fintfm.modeling.train")
+    monkeypatch.delenv("FINTFM_CONFIG", raising=False)
+    out = tmp_path / "m.pt"
+    train_mod.main([*_TINY_CLI, *flags, "--out", str(out)])
+    model = FinancialTFM.load(str(out))
+    for name, value in expected.items():
+        assert getattr(model.cfg, name) == value, name
+    assert all(torch.isfinite(p).all() for p in model.parameters())
 
 
 def test_cli_takes_the_new_knobs_from_config_and_flags(tmp_path, monkeypatch):
