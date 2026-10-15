@@ -15,9 +15,39 @@ not paste one into the other. See `CLAUDE.md`.
   each class back to its true rate; `FinancialTFM.loss(weights=)` takes the per-query weights
   (cross-entropy only, `None` is the unchanged mean). All off by default.
 - Kaggle kernels for Section 164's enriched-query and 600-step arms.
+- **Evaluation tooling** (audit AU2.1-AU2.6, AU2.9). A company-level bootstrap beside the row
+  bootstrap (`paired_auc_difference(groups=)`, `compare_v4_scores.py --cluster`); every
+  `predictions_fold*.npz` now saves `company_test` and `company_val`, and
+  `scripts/v4_fold_companies.py` rebuilds them for older runs. `check_protocol` refuses to pair
+  runs with a different horizon, row cap, feature count, fold seed or split count.
+  `c5_verdict.py helps` applies Section 163's rule. `--drop-columns` and `--booster-params` on
+  `fintfm-v4protocol` for ablations and fixed-setting booster arms. `pilot_compare.py` ranks
+  arms on fold 0's validation rows by default (`--split test` for older runs).
+- **Experiment levers behind flags, all off by default and tested byte-identical when off**
+  (audit Phase 5; none measured yet). Training: `--amp bf16|fp16`, `--benchmark-steps`,
+  `--optimizer muon`, `--no-decay-norm-bias`, `--warmup-steps`, `--task-dump` with
+  `scripts/dump_prior_tasks.py`. Model: `--value-embedding rbf|fourier`, `--value-ecdf`,
+  `--attn-length-scale`, `--n-summary-tokens`, `--n-heads`, `--n-cell-heads`,
+  `--hazard-period-context`. Prior: `--permute-classes`, `--feature-transforms`,
+  `--max-query-rows`, `--min-ctx-per-class`. Inference: `ensemble_transforms` (with a new
+  `squash` transform), `ensemble_svd_components`, `ensemble_class_shift`,
+  `max_features_strategy="subsample"` for tables wider than the model, `finetune_clip`.
+- `scripts/label_symmetry_probe.py` and Section 165; `scripts/prior_stats.py`;
+  `fintfm.__version__`.
 
 ### Changed
 
+- **`fintfm-v4protocol --tune` selects each baseline on validation average precision**, not
+  ROC-AUC (audit AU2.2); `--select-metric auc` reproduces earlier runs, and the choice is
+  recorded. The untuned banner names the booster defaults (CatBoost 1,000 iterations, LightGBM
+  and XGBoost 100 trees).
+- **`FinancialTFMClassifier.fit` no longer replaces `model`** (audit AU1.6). The fine-tuned copy
+  is `model_`; code that read `clf.model` for tuned weights must read `clf.model_`. Refitting
+  or cloning now starts from the model passed in. Device placement moved from `__init__` to
+  `fit`, so `set_params(device=...)` works.
+- `FinancialTFMRegressor` takes `classifier_params: dict` (audit AU1.10); bare keyword
+  arguments still work with a `DeprecationWarning`.
+- Bootstrap p-values are floored at 1/(resamples + 1), so a Holm-adjusted 0 no longer appears.
 - **Training streams differ from 0.7.1 when evaluation is on** (audit AU1.18). Held-out
   evaluation inside `fintfm-train` now draws from its own generator, seeded `[seed, 1]`, instead
   of the training generator. Before, every training batch after the first `eval_every` step
@@ -28,6 +58,28 @@ not paste one into the other. See `CLAUDE.md`.
 
 ### Fixed
 
+Audit Phase 1 (`openspec/changes/audit-2026-10-15`), each with a regression test. The first
+three can change predictions, but only on the inputs named:
+
+- **Padding mask computed from context rows only** (AU1.1). A column empty in the whole context
+  but filled in some query row used to be un-padded for every row in that chunk, so chunked
+  prediction was not exact. Affects only such columns, in pretraining and inference.
+- **Retrieval positive floor reaches `min_positive`** and keeps the context size (AU1.2);
+  `context_strategy="retrieval"` only.
+- **Label-swap ensembling no longer scrambles multiclass output** (AU1.4); multiclass with
+  `ensemble_label_swap=True` only.
+- `feature_transform="rank"` no longer crashes on ±inf (AU1.3), and `"power"` no longer crashes
+  on a column with no finite training value. Non-finite regression targets are refused
+  (AU1.5); quantile predictions are sorted so they cannot cross, and a feature-width mismatch
+  raises (AU1.11).
+- Fine-tuning: small-table edge cases clamp or raise clearly (AU1.7), the caller's GPU random
+  state is restored (AU1.8), a warning fires when inference uses a context distribution
+  fine-tuning never saw (AU1.9), and a failed step leaves the model in eval mode.
+- Prior: graph reuse draws each task's source once, so source shares hold at
+  `scm_reuse_graph > 1` (AU1.13); real-data tasks resample instead of flipping labels, and
+  EDGAR tasks keep each firm on one side of the context/query split (AU1.14, AU1.15); the
+  learnability filter judges regression tasks on their target (AU1.17).
+- Four test assertions that could not fail now can (AU1.12).
 - Fine-tuning now frees its gradients and optimiser state before predicting. A 200-step run on a
   14.5 GB T4 ran out of memory at its first prediction chunk; a test checks no gradients remain.
 
