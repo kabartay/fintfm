@@ -336,7 +336,7 @@
       and an attention path that allows flash attention (the bool row mask blocks it). Measure
       tasks per GPU-hour before and after; no accuracy claim.
       Verify: tasks per GPU-hour measured before and after on the same kernel; outputs equal within fp tolerance on a fixed batch.
-- [ ] AU5.3 **Capacity where the bottleneck is.** The shipped model has ~886k parameters (agent
+- [ ] AU5.3 **Hooks implemented behind `n_cell_heads` and `n_summary_tokens` (2026-10-16, 0a3b8c8); measurement open; fintfm-train flags and `--n-heads` not yet wired; more cell blocks is the existing `n_cell_blocks`.** **Capacity where the bottleneck is.** The shipped model has ~886k parameters (agent
       measurement; verify) and pools up to 136 cell tokens into one 128-d row vector after one
       cell block (`model.py:537-553`). Peers keep per-cell tokens (TabPFN v2) or several summary
       tokens per row (TabICL); verify their sizes from primary sources first. Arms: more cell
@@ -362,7 +362,7 @@
       reimplement); a tree partition or forest of PFNs (tabpfn-extensions `rf_pfn`,
       Apache-2.0); BoostPFN (arXiv 2503.01256, MIT).
       Verify: each arm's five-fold AP against §163's arm under §159's rule.
-- [ ] AU5.9 **Hazard context carries only the binary label** (`model.py:751-759,787-797`): embed
+- [ ] AU5.9 **Implemented behind `hazard_period_context` (2026-10-16, 0a3b8c8); measurement open; the classifier cannot yet pass context periods at inference.** **Hazard context carries only the binary label** (`model.py:751-759,787-797`): embed
       the default period and a censored token for context rows.
       Verify: a hazard test where the term structure is learnable only from context periods.
 - [ ] AU5.10 **Optimiser nits.** Weight decay also hits LayerNorm, biases and embeddings
@@ -399,10 +399,10 @@
       `--checkpoint-every`. Cost to be measured on one Kaggle session before committing. After
       it, re-test the closed architecture verdicts, all measured at 48k tasks.
       Verify: tasks per GPU-hour and cost measured on one Kaggle session before the full run; then §159's rule on V4FinBench and TabArena-Lite.
-- [ ] AU5.16 **Value embedding**: Fourier or RBF plus ECDF-rank features in place of the MLP on
+- [ ] AU5.16 **Implemented behind `value_embedding` and `value_ecdf` (2026-10-16, 0a3b8c8); measurement open.** **Value embedding**: Fourier or RBF plus ECDF-rank features in place of the MLP on
       (z, missing) (LimiX-2M RaBEL, TabPFN-3.5). One module, behind a flag.
       Verify: a flag, a test that it is off by default, and five-fold AP at matched tasks.
-- [ ] AU5.17 **Optimiser and attention scaling from TabICLv2**: Muon, QASSMax (length-aware
+- [ ] AU5.17 **Attention half implemented behind `attn_length_scale` (2026-10-16, 0a3b8c8; fixed log-length scale, no learned per-query factor); measurement open; Muon and early target inclusion not done.** **Optimiser and attention scaling from TabICLv2**: Muon, QASSMax (length-aware
       softmax scaling), early target inclusion; also the fix for AU4.3 if context length is the
       problem.
       Verify: each change behind a flag, scored at matched tasks.
