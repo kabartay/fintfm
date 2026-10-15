@@ -11289,7 +11289,10 @@ and a mean of +0.0076 against the +0.0073 bar. **The prediction held.** It clear
 
 **Against the gradient-boosted trees (MEASURED, 2026-10-15; same five full-panel folds,
 `runs/boost/full`, baselines-only mode). Boosters are UNTUNED (library defaults); the published
-protocol tunes them, which can only widen the gap.**
+protocol tunes them, which can only widen the gap.** (Corrected 2026-10-16, audit AU2.3: the
+library defaults are CatBoost 1,000 iterations and LightGBM and XGBoost 100 trees, and the
+`--tune` grid caps CatBoost at 200 iterations, so tuning under this grid could lower CatBoost,
+not only widen the gap.)
 
 | fold | FinTFM zero-shot | FinTFM fine-tuned | LightGBM | **CatBoost** | XGBoost |
 | --- | --- | --- | --- | --- | --- |
@@ -11300,8 +11303,9 @@ protocol tunes them, which can only widen the gap.**
 | 4 | 0.2172 | 0.2205 | 0.2769 | 0.3992 | 0.2107 |
 | **mean** | 0.1986 | 0.2062 | 0.2666 | **0.4005** | 0.2229 |
 
-**Fine-tuning closes 3.8% of the gap to the best booster.** Untuned CatBoost doubles FinTFM's AP
-(0.4005 vs 0.2062, gap +0.194 after fine-tuning), and it wins every fold. Fine-tuned FinTFM is
+**Fine-tuning closes 3.8% of the gap to the best booster.** Untuned CatBoost (1,000 iterations) nearly doubles FinTFM's AP
+(corrected 2026-10-16: 1.94×; 0.4005 vs 0.2062, gap +0.194 after fine-tuning), and it wins
+every fold. Fine-tuned FinTFM is
 within 0.017 of untuned XGBoost and 0.060 of untuned LightGBM. So §163's result is real and
 small: the right direction, at roughly a twenty-fifth of the distance that matters. This is the
 benchmark-level answer to "why can we not move" -- the distance to the strongest classical model

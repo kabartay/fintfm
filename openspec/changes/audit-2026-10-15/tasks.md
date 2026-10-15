@@ -130,16 +130,19 @@
       folds hold ~5.3 rows per company, so CIs and p-values are somewhat narrow. Fix: save
       `company` in `predictions_fold*.npz`, add a cluster bootstrap, report both for §159-§164.
       Verify: the cluster and row bootstraps reported side by side for §163; a test on synthetic clustered data shows the cluster CI is wider.
-- [ ] AU2.2 **Tuned baselines are selected on validation ROC-AUC** (`v4_protocol.py:383,440`)
+- [x] AU2.2 **Done (2026-10-16).** `run(select_metric="ap")` and `--select-metric` (default `ap`, recorded in the run config; `auc` reproduces earlier runs); `selection_scores` logs val AP and ROC-AUC for every pick. Tests: `test_tuning_selects_on_the_requested_metric`, `test_an_unknown_selection_metric_is_refused`.
+      **Tuned baselines are selected on validation ROC-AUC** (`v4_protocol.py:383,440`)
       while AP is the headline. Fix: select on validation AP, record both.
       Verify: the run JSON records the selection metric, and a test selects on AP.
-- [ ] AU2.3 **Relabel the booster numbers.** CatBoost's 0.4005 is its library default of 1,000
+- [x] AU2.3 **Done (2026-10-16).** The untuned banner names the iteration counts and the 200-iteration grid cap; README, CHANGELOG and §163 quote 0.4005 with "1,000 iterations", and §163's "tuning can only widen the gap" is corrected in place.
+      **Relabel the booster numbers.** CatBoost's 0.4005 is its library default of 1,000
       iterations; the `--tune` grid caps at 200 (`v4_protocol.py:101`), so the "untuned
       boosters understate the field" banner (`v4_protocol.py:575`) is likely wrong for
       CatBoost. LightGBM and XGBoost ran 100 trees. Fix the banner and every place quoting
       0.4005 as "untuned CatBoost" without the iteration count.
       Verify: `grep -rn 0.4005 docs README.md` shows the iteration count beside every hit.
-- [ ] AU2.4 **Pilot arms are ranked on fold-0 test** (`scripts/candidates/pilot_compare.py:52-63`).
+- [x] AU2.4 **Done (2026-10-16).** `pilot_compare.py --split val` is the default and refuses older runs that saved no validation predictions; `--split test` keeps the old behaviour. Smoke-tested on synthetic npz files; the script has no test module.
+      **Pilot arms are ranked on fold-0 test** (`scripts/candidates/pilot_compare.py:52-63`).
       Validation predictions (`y_val`, `val_<arm>`) are already saved: switch the pilot to them,
       and note in §157/§162 that fold 0 selected the arm.
       Verify: `pilot_compare.py --split val` exists and is the default.
@@ -149,7 +152,8 @@
       drop list, then run every arm without it as an ablation. Also note that `Insolvency_flag`
       covers 3,586 of 3,587 positives.
       Verify: the ablation is written up in FINDINGS with per-fold AP for every arm.
-- [ ] AU2.6 **Pairing checks compare labels only.** `scripts/compare_v4_scores.py:58`,
+- [x] AU2.6 **Done (2026-10-16).** `check_protocol` in `compare_v4_scores.py` (used by `c5_verdict.py`) refuses runs whose horizon, row cap, feature count, fold seed or split count differ; bootstrap p is floored at 1/(drawn+1) and the comment says skip. Tests: `test_fold_diffs_refuses_a_different_protocol`, `test_bootstrap_p_is_never_exactly_zero`.
+      **Pairing checks compare labels only.** `scripts/compare_v4_scores.py:58`,
       `scripts/c5_verdict.py:56` check `y_true` equality; also compare the `v4_protocol.json`
       configs minus `model`. Floor bootstrap p-values at 1/(drawn+1) (`metrics.py:249`) and fix
       the "redraw" comment at `:239`.
@@ -204,7 +208,8 @@
 - [ ] AU3.5 **openspec lag.** `adopt-published-methods/tasks.md:28` (36.5) needs a DECISIONS
       entry for fine-tuning; `fintfm-r/tasks.md:160` still says "EDGAR scoring"; §164 has no task.
       Verify: the three items closed or updated with their evidence.
-- [ ] AU3.6 **Kaggle checkpoint URL is not pinned.** `scripts/kaggle/task_164_*.py:15` use
+- [x] AU3.6 **Done (2026-10-16).** Both §164 kernels fetch revision f116bfd43a2b15c65ed3551ea8c38e3364629ddc (HF's linked etag equals the pinned SHA-256). EN was already running from the old URL; its SHA-256 check covers it.
+      **Kaggle checkpoint URL is not pinned.** `scripts/kaggle/task_164_*.py:15` use
       `resolve/main`; pin the revision as the README does (the SHA-256 check already guards it).
       Verify: `grep -n resolve/main scripts/kaggle` prints nothing.
 - [ ] AU3.7 **Licence checker fails locally** on `text-unidecode` (Artistic/GPL, via `kaggle` →

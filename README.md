@@ -353,8 +353,9 @@ something this repository can assert on their behalf.
 
 Stated so the project is falsifiable rather than open-ended. Two deficits are measured
 separately. On TabArena, FinTFM trails tuned logistic regression by ~0.035 mean ROC-AUC over 27
-datasets (§101). On V4FinBench's full panel, untuned CatBoost leads it by about 0.19 mean
-average precision over five folds (0.4005 against 0.2062 fine-tuned, §163).
+datasets (§101). On V4FinBench's full panel, untuned CatBoost (library defaults, 1,000
+iterations) leads it by about 0.19 mean average precision over five folds (0.4005 against 0.2062
+fine-tuned, §163).
 
 One lever has moved V4FinBench: opt-in fine-tuning on each fold's training rows, +0.0076 mean AP,
 positive on 5 of 5 folds (0.1986 to 0.2062, §163). That closes 3.8% of the gap to CatBoost, and

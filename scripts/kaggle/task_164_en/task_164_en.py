@@ -12,7 +12,7 @@ import sys
 import urllib.request
 from pathlib import Path
 
-CKPT_URL = "https://huggingface.co/kabartay/fintfm-binary/resolve/main/v4-cellattn-labels.pt"
+CKPT_URL = "https://huggingface.co/kabartay/fintfm-binary/resolve/f116bfd43a2b15c65ed3551ea8c38e3364629ddc/v4-cellattn-labels.pt"
 CKPT_SHA256 = "d231b062483c9261aae4c503ad5359db295fc7206fa0183f51763e4953c518d2"
 CONFIG = """inference:
   finetune_steps: 200

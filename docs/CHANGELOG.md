@@ -75,8 +75,9 @@ help. Fine-tuning is off by default: the default model is byte-identical to 0.6.
 ### Changed
 
 - **The gap to gradient boosting, measured on the full panel** (Section 163). Untuned CatBoost
-  scores 0.4005 mean AP over the five folds, against 0.2062 for fine-tuned FinTFM, winning every
-  fold; LightGBM 0.2666, XGBoost 0.2229. Fine-tuning closes 3.8% of the gap to CatBoost.
+  (library defaults, 1,000 iterations) scores 0.4005 mean AP over the five folds, against
+  0.2062 for fine-tuned FinTFM, winning every fold; LightGBM 0.2666, XGBoost 0.2229 (100
+  trees each). Fine-tuning closes 3.8% of the gap to CatBoost.
 - **FinTFM-R has no win yet** (Sections 160-161, `DECISIONS` D17). At a 30% real share from
   scratch, SBA is a null whose two seeds span -0.036 to +0.002 AP, and EDGAR a stable null. D17
   is not reversed, but no FinTFM-R result may be called an improvement.
