@@ -489,6 +489,13 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
                 loss.backward()
                 opt.step()
                 self.finetune_losses_.append(float(loss.detach()))
+        # free what training held -- gradients, optimiser state, the allocator's cache --
+        # before prediction needs the memory: on a 14.5 GB T4 it was the difference between
+        # scoring and an out-of-memory error at the first query chunk (§164)
+        opt.zero_grad(set_to_none=True)
+        del opt
+        if str(self.device).startswith("cuda"):
+            torch.cuda.empty_cache()
         model.eval()
 
     def _pooled_prior_shift(self, pooled_rate: float) -> np.ndarray:

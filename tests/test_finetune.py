@@ -158,3 +158,11 @@ def test_finetuning_leaves_the_callers_torch_rng_alone():
     torch.manual_seed(123)
     clf.fit(X, y, groups=g)
     assert torch.equal(torch.rand(3), expected)
+
+
+def test_finetuning_leaves_no_gradients_behind():
+    X, y, g = _data()
+    clf = FinancialTFMClassifier(
+        _model(), max_context=100, finetune_steps=2, finetune_query=32,
+    ).fit(X, y, groups=g)
+    assert all(p.grad is None for p in clf.model.parameters())
