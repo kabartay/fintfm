@@ -175,7 +175,8 @@
 
 ## Phase 2 — evaluation rigour
 
-- [ ] AU2.1 **Bootstrap resamples rows, not companies.** `evaluation/metrics.py:238`; test
+- [x] AU2.1 **Done (2026-10-16).** `paired_auc_difference(groups=)` resamples whole companies (`groups=None` byte-identical, pinned); new runs save `company_test`/`company_val` codes; `compare_v4_scores.py --cluster [--companies]` prints both bootstraps; `scripts/v4_fold_companies.py` rebuilt the old runs' companies (verified against every saved `y_true`/`y_val`, 5.3 rows per company) into `runs/audit-cluster/`. §163 side by side, n_boot 2000: row CIs reproduce §163's table, company CIs are at most 0.0006 wider per end, Holm p unchanged except fold 4 (0.138 → 0.232); no fold changes significance. Tests: `test_cluster_bootstrap_is_wider_on_clustered_data`, `test_singleton_groups_reproduce_the_row_bootstrap`, `test_row_bootstrap_is_unchanged_by_cluster_support`, `test_predictions_carry_the_company_of_every_row`, `tests/test_cluster_comparison.py`. §159-§162 and §164 not yet re-reported with the company bootstrap.
+      **Bootstrap resamples rows, not companies.** `evaluation/metrics.py:238`; test
       folds hold ~5.3 rows per company, so CIs and p-values are somewhat narrow. Fix: save
       `company` in `predictions_fold*.npz`, add a cluster bootstrap, report both for §159-§164.
       Verify: the cluster and row bootstraps reported side by side for §163; a test on synthetic clustered data shows the cluster CI is wider.
@@ -231,7 +232,14 @@
       "+0.042 AP from cell attention" in README.md needs the qualifier. Fix: confirm from the
       checkpoints, then score a matched pair (same prior, same budget) or restate the claim.
       Verify: the two checkpoints' recorded prior configs quoted in FINDINGS, then a matched pair or a restated claim.
-- [ ] AU2.9 **§159's 0.0073 bar is not seed noise.** §160 showed it is mostly the max_classes
+- [ ] AU2.9 **Partly done (2026-10-16), still open.** `c5_verdict.py helps` applies §163's rule
+      (two-sided, `rule_helps`) and reproduces §163's verdict on `runs/ft` against
+      `control_rescore.json` (+0.0076, 5/5 positive: helps); tests
+      `test_helps_rule_needs_the_mean_and_four_folds_of_its_sign`,
+      `test_helps_rule_reproduces_section_163s_verdict`. Open: the re-derived yardstick (waits for
+      §164's `S1`; `YARDSTICK` is unchanged) and the family of comparisons in §164's write-up.
+      Original text follows.
+      **§159's 0.0073 bar is not seed noise.** §160 showed it is mostly the max_classes
       10-against-2 head effect; seed noise at matched head size is 0.0009 mean AP. §163 kept the
       bar and cleared it by 0.0003, with a fold-to-fold SD of Δ of 0.0054. The bar errs
       conservative, so no verdict flips, but its size is not a noise estimate. Also: fine-tuning's
