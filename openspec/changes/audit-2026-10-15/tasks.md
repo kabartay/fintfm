@@ -77,7 +77,10 @@
       Scores are unaffected (column identities are drawn on CPU, dropout 0). Fix: fork the
       active device too, or use a local `torch.Generator`.
       Verify: a test on CUDA or MPS that the caller's device RNG state is unchanged by `fit`.
-- [ ] AU1.9 **Fine-tuning context ignores the inference strategy.** `classifier.py:438-440`
+- [x] AU1.9 **Done (2026-10-16).** `_finetune` warns (`UserWarning`) unless the strategy is
+      uniform and label swap is off;
+      `tests/test_finetune.py::test_finetuning_warns_when_inference_reads_another_context_distribution`.
+      **Fine-tuning context ignores the inference strategy.** `classifier.py:438-440`
       always draws a uniform context; with `balanced`/`hybrid`/`retrieval`/`prototype` or
       `ensemble_label_swap`, inference sees a distribution the tuned weights never saw. Fix:
       warn or raise unless uniform and no swap, or draw with the same strategy.

@@ -478,7 +478,9 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         the model's own :meth:`FinancialTFM.loss`, so fine-tuning optimises exactly what
         pretraining did, on the target's rows. Query groups are disjoint from context groups
         within a task (``finetune_query_group_frac``). The context draw is uniform, matching
-        the inference default; the stored context is drawn afterwards, independently.
+        the inference default; the stored context is drawn afterwards, independently. With any
+        other ``context_strategy``, or with ``ensemble_label_swap``, inference reads a context
+        distribution the tuned weights never saw, and a ``UserWarning`` says so.
 
         Args:
             X: ``(n, n_features)`` conditioned training rows (the whole pool).
@@ -492,7 +494,19 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
                 context side and a query side.
         """
         import copy
+        import warnings
 
+        if self.context_strategy != "uniform" or self.ensemble_label_swap:
+            # a warning rather than an error: the combination may be what an experiment wants
+            # to measure, but it is not what §163 measured, and the result should say so
+            warnings.warn(
+                f"fine-tuning draws a uniform context, but inference will read one chosen by "
+                f"context_strategy={self.context_strategy!r}"
+                + (" and label-swapped ensemble members" if self.ensemble_label_swap else "")
+                + "; the tuned weights never saw that distribution",
+                UserWarning,
+                stacklevel=3,
+            )
         if self.finetune_context is not None and self.finetune_context < 1:
             raise ValueError(
                 f"finetune_context must be None (use max_context) or >= 1, "

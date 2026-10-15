@@ -287,6 +287,22 @@ def test_a_zero_finetune_context_is_an_error_not_max_context():
         clf.fit(X, y, groups=g)
 
 
+def test_finetuning_warns_when_inference_reads_another_context_distribution():
+    """AU1.9: fine-tuning always draws a uniform context, so a non-uniform strategy or the
+    label-swapped ensemble shows the tuned weights a distribution they were never tuned on."""
+    import warnings
+
+    X, y, g = _data(n=60)
+    kw = {"max_context": 30, "finetune_steps": 1, "finetune_query": 8}
+    for extra in ({"context_strategy": "balanced"}, {"ensemble_label_swap": True}):
+        with pytest.warns(UserWarning, match="uniform"):
+            FinancialTFMClassifier(_model(), **kw, **extra).fit(X, y, groups=g)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        FinancialTFMClassifier(_model(), **kw).fit(X, y, groups=g)
+        FinancialTFMClassifier(_model(), max_context=30, context_strategy="balanced").fit(X, y)
+
+
 def test_finetuning_leaves_no_gradients_behind():
     X, y, g = _data()
     clf = FinancialTFMClassifier(
