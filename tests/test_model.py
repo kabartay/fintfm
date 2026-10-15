@@ -896,3 +896,237 @@ def test_query_chunking_is_exact_with_a_context_empty_column(n_cell_blocks):
         alone = model(torch.cat([ctx, a])[None], y[:, : n_ctx + 1], n_ctx=n_ctx, n_classes=ncl)
         paired = model(torch.cat([ctx, a, b])[None], y, n_ctx=n_ctx, n_classes=ncl)
     torch.testing.assert_close(alone[:, n_ctx], paired[:, n_ctx], rtol=1e-5, atol=1e-6)
+
+
+# --- Audit Phase 5 levers (openspec/changes/audit-2026-10-15 AU5.3, AU5.16, AU5.17) ---
+#
+# Every lever is a ModelConfig field whose default must reproduce the pre-lever model byte
+# for byte. The fingerprint below was recorded by running this exact construction on the
+# code before the levers existed (8b30a75): the sum over every output and its first three
+# values. A drift here means the default path changed, which would invalidate every existing
+# checkpoint's comparisons. AU5.9's hazard tests live in tests/test_hazard.py.
+
+_P5_BASE = {"max_features": 6, "max_classes": 3, "d_cell": 16, "d_model": 32, "n_heads": 2,
+            "n_col_layers": 1, "n_layers": 2, "d_ff": 64}
+_P5_FINGERPRINT = {
+    "meanmax": ({}, -33.0643186122179,
+                [0.09483376145362854, -0.8273341655731201, -0.38515689969062805]),
+    "attention": ({"pooling": "attention"}, 11.312919471412897,
+                  [0.5645540952682495, 0.12391750514507294, -0.2492905855178833]),
+    "cellblocks": ({"n_cell_blocks": 1, "cell_labels": True}, 42.728899128735065,
+                   [0.2567908763885498, 0.4492500424385071, 0.5122548937797546]),
+    "maskemb": ({"mask_embedding": True}, -15.284929860383272,
+                [-0.3825910985469818, 0.10315485298633575, 0.26675528287887573]),
+    "hazard": ({"max_classes": 2, "n_horizons": 4}, 29.38597935438156,
+               [0.37285876274108887, 0.7123607397079468, 0.8926969170570374]),
+}
+_P5_KEYS = ("n_cell_heads", "n_summary_tokens", "value_embedding", "value_basis_size",
+            "value_basis_learnable", "value_ecdf", "attn_length_scale", "attn_length_ref",
+            "hazard_period_context")
+
+
+def _p5_inputs(max_classes):
+    """Fixed two-task batch with a missing cell and a padded column; 9 context rows of 14."""
+    g = torch.Generator().manual_seed(1)
+    X = torch.randn(2, 14, 6, generator=g)
+    X[0, 2, 1] = float("nan")
+    X[:, :, 5] = float("nan")
+    y = torch.randint(0, max_classes, (2, 14), generator=g)
+    return X, y
+
+
+def _p5_run(model, X, y, n_ctx=9):
+    """Logits, or the term structure for a hazard model, without gradients."""
+    with torch.no_grad():
+        if model.cfg.n_horizons:
+            return model.term_structure(X, y, n_ctx)
+        return model(X, y, n_ctx)
+
+
+@pytest.mark.parametrize("case", sorted(_P5_FINGERPRINT))
+def test_phase5_defaults_reproduce_the_pre_phase5_fingerprint(case):
+    extra, total, head = _P5_FINGERPRINT[case]
+    torch.manual_seed(0)
+    cfg = ModelConfig(**{**_P5_BASE, **extra})
+    out = _p5_run(FinancialTFM(cfg).eval(), *_p5_inputs(cfg.max_classes))
+    assert float(out.double().sum()) == pytest.approx(total, abs=1e-4)
+    torch.testing.assert_close(out.flatten()[:3], torch.tensor(head), rtol=0, atol=1e-6)
+
+
+@pytest.mark.parametrize("case", ["meanmax", "hazard"])
+def test_checkpoint_without_phase5_keys_loads_with_identical_outputs(case, tmp_path):
+    """A checkpoint saved before the levers existed has none of their keys in its config."""
+    torch.manual_seed(0)
+    model = FinancialTFM(ModelConfig(**{**_P5_BASE, **_P5_FINGERPRINT[case][0]})).eval()
+    path = tmp_path / "old.pt"
+    model.save(str(path))
+    ckpt = torch.load(str(path), weights_only=True)
+    for key in _P5_KEYS:
+        del ckpt["config"][key]
+    torch.save(ckpt, str(path))
+    loaded = FinancialTFM.load(str(path))
+    X, y = _p5_inputs(model.cfg.max_classes)
+    torch.testing.assert_close(_p5_run(loaded, X, y), _p5_run(model, X, y), rtol=0, atol=0)
+
+
+@pytest.mark.parametrize(
+    "bad, match",
+    [
+        ({"value_embedding": "spline"}, "value_embedding"),
+        ({"value_basis_size": 0}, "value_basis_size"),
+        ({"n_summary_tokens": 0}, "n_summary_tokens"),
+        ({"n_summary_tokens": 4, "pooling": "attention"}, "pooling='attention'"),
+        ({"n_cell_heads": 0}, "n_cell_heads"),
+        ({"attn_length_ref": 1}, "attn_length_ref"),
+        ({"hazard_period_context": True}, "requires n_horizons"),
+    ],
+)
+def test_phase5_config_refuses_nonsense(bad, match):
+    with pytest.raises(ValueError, match=match):
+        ModelConfig(**{**_P5_BASE, **bad})
+
+
+def test_value_basis_rbf_peaks_at_its_centres_and_fourier_is_bounded():
+    from fintfm.modeling.model import ValueBasis
+
+    rbf = ValueBasis("rbf", 7, learnable=False)
+    feats = rbf(torch.tensor([-3.0, 0.0, 3.0]))
+    assert feats.shape == (3, 7)
+    assert feats.argmax(dim=-1).tolist() == [0, 3, 6]  # each probe sits on one centre
+    torch.testing.assert_close(feats.max(dim=-1).values, torch.ones(3))
+    assert "centres" in dict(rbf.named_buffers())  # fixed, yet saved with the checkpoint
+    fourier = ValueBasis("fourier", 5, learnable=True)
+    out = fourier(torch.linspace(-10, 10, 50))
+    assert out.shape == (50, 10) and out.abs().max() <= 1.0
+    assert "freqs" in dict(fourier.named_parameters())
+    # the frequency draw is private and fixed: the same every build, global RNG untouched
+    state = torch.random.get_rng_state()
+    again = ValueBasis("fourier", 5, learnable=True)
+    assert torch.equal(torch.random.get_rng_state(), state)
+    torch.testing.assert_close(again.freqs, fourier.freqs, rtol=0, atol=0)
+
+
+@pytest.mark.parametrize(
+    "kind, learnable, ecdf, mask_embedding",
+    [("rbf", False, False, False), ("rbf", True, True, False),
+     ("fourier", False, True, True), ("fourier", True, False, False),
+     ("mlp", False, True, False)],
+)
+def test_value_embedding_variants_run_and_train(kind, learnable, ecdf, mask_embedding):
+    torch.manual_seed(0)
+    cfg = ModelConfig(**_P5_BASE, value_embedding=kind, value_basis_size=4,
+                      value_basis_learnable=learnable, value_ecdf=ecdf,
+                      mask_embedding=mask_embedding)
+    model = FinancialTFM(cfg)
+    X, y = _p5_inputs(3)
+    loss = model.loss(X, y, 9, torch.tensor([3, 3]))
+    loss.backward()
+    assert torch.isfinite(loss)
+    if learnable:
+        name = "centres" if kind == "rbf" else "freqs"
+        assert getattr(model.value_basis, name).grad.abs().sum() > 0
+
+
+def test_ecdf_rank_uses_context_rows_only():
+    from fintfm.modeling.model import ecdf_rank
+
+    ctx = torch.tensor([1.0, 2.0, 2.0, float("nan"), 4.0])  # four present context values
+    query = torch.tensor([2.0, 0.0, 9.0, float("nan")])
+    X = torch.cat([ctx, query]).reshape(1, 9, 1)
+    r = ecdf_rank(X, n_ctx=5)[0, :, 0]
+    # mid-rank u = (#below + #at-or-below) / (2 * 4), reported as 2u - 1; missing -> 0
+    u = torch.tensor([1 / 8, 4 / 8, 4 / 8, 0.5, 7 / 8, 4 / 8, 0.0, 1.0, 0.5])
+    torch.testing.assert_close(r, 2 * u - 1)
+    # moving the query rows changes no other row: they are not in the reference set
+    X2 = X.clone()
+    X2[0, 5:, 0] = torch.tensor([100.0, -100.0, 3.0, 2.5])
+    r2 = ecdf_rank(X2, n_ctx=5)[0, :, 0]
+    torch.testing.assert_close(r2[:5], r[:5], rtol=0, atol=0)
+    assert r2[7].item() == pytest.approx(2 * (6 / 8) - 1)  # 3.0: above 1, 2, 2; below 4
+    # a column with no context values carries no rank at all
+    X3 = torch.full((1, 4, 1), float("nan"))
+    X3[0, 3, 0] = 1.0
+    assert ecdf_rank(X3, n_ctx=2).abs().sum() == 0
+
+
+def test_value_ecdf_and_basis_keep_query_rows_independent():
+    """A query's output must not move when another query's values do (no ECDF leakage)."""
+    torch.manual_seed(0)
+    model = FinancialTFM(ModelConfig(**_P5_BASE, value_embedding="rbf", value_ecdf=True))
+    model.eval()
+    X, y = _p5_inputs(3)
+    X2 = X.clone()
+    X2[:, 13, :5] = torch.randn(2, 5) * 50  # an extreme last query row
+    with torch.no_grad():
+        a, b = model(X, y, 9), model(X2, y, 9)
+    torch.testing.assert_close(a[:, :13], b[:, :13], rtol=1e-5, atol=1e-6)
+    assert not torch.allclose(a[:, 13], b[:, 13])
+
+
+def test_length_scale_formula():
+    from fintfm.modeling.model import length_scale
+
+    assert length_scale(512, 512) == 1.0
+    assert length_scale(4096, 512) == pytest.approx(12 / 9)
+    assert length_scale(64, 512) == pytest.approx(6 / 9)
+    assert length_scale(1, 512) == length_scale(2, 512) > 0
+
+
+def test_scaled_self_attention_multiplies_the_logits():
+    """Factor 1 is the stock module; factor f is the stock module with queries times f."""
+    torch.manual_seed(0)
+    model = FinancialTFM(ModelConfig(**_P5_BASE)).eval()
+    mha = model.encoder.layers[0].self_attn
+    x = torch.randn(2, 7, 32)
+    mask = FinancialTFM._row_mask(7, 4, x.device)
+    with torch.no_grad():
+        stock = mha(x, x, x, attn_mask=mask, need_weights=False)[0]
+        torch.testing.assert_close(
+            model._scaled_self_attention(mha, x, ~mask, 1.0), stock, rtol=1e-5, atol=1e-6
+        )
+        scaled = model._scaled_self_attention(mha, x, ~mask, 2.5)
+        sharper = torch.nn.MultiheadAttention(32, 2, batch_first=True).eval()
+        sharper.load_state_dict(mha.state_dict())
+        sharper.in_proj_weight[:32] *= 2.5  # the query block of the packed projection
+        sharper.in_proj_bias[:32] *= 2.5
+        ref = sharper(x, x, x, attn_mask=mask, need_weights=False)[0]
+    torch.testing.assert_close(scaled, ref, rtol=1e-5, atol=1e-6)
+
+
+def test_attn_length_scale_is_the_stock_model_at_the_reference_length():
+    torch.manual_seed(0)
+    off = FinancialTFM(ModelConfig(**_P5_BASE)).eval()
+    on = FinancialTFM(ModelConfig(**_P5_BASE, attn_length_scale=True, attn_length_ref=9))
+    on.load_state_dict(off.state_dict())  # the flag adds no parameter
+    on.eval()
+    X, y = _p5_inputs(3)
+    with torch.no_grad():
+        torch.testing.assert_close(on(X, y, 9), off(X, y, 9), rtol=1e-5, atol=1e-5)
+        assert not torch.allclose(on(X, y, 4), off(X, y, 4), atol=1e-4)
+    on.train()
+    on.loss(X, y, 4, torch.tensor([3, 3])).backward()  # the training path runs too
+
+
+def test_n_cell_heads_sets_the_cell_stage_only():
+    cfg = ModelConfig(**_P5_BASE, n_cell_heads=4, n_cell_blocks=1, pooling="attention")
+    model = FinancialTFM(cfg)
+    assert model.column_encoder.layers[0].self_attn.num_heads == 4
+    assert model.row_within_feature_encoder.layers[0].self_attn.num_heads == 4
+    assert model.pool_attn.num_heads == 4
+    assert model.encoder.layers[0].self_attn.num_heads == 2
+
+
+def test_summary_tokens_replace_pooling_and_keep_column_order_invariance():
+    torch.manual_seed(0)
+    cfg = ModelConfig(**_P5_BASE, n_summary_tokens=4, column_id_dim=0, value_ecdf=True)
+    model = FinancialTFM(cfg).eval()
+    assert model.row_proj.in_features == 4 * cfg.d_cell
+    X, y = _p5_inputs(3)
+    perm = torch.tensor([3, 0, 5, 1, 4, 2])
+    with torch.no_grad():
+        a = model(X, y, 9)
+        b = model(X[:, :, perm], y, 9)
+    torch.testing.assert_close(a, b, rtol=1e-5, atol=1e-5)
+    model.train()
+    model.loss(X, y, 9, torch.tensor([3, 3])).backward()
+    assert model.summary_queries.grad.abs().sum() > 0

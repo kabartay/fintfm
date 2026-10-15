@@ -362,3 +362,52 @@ def test_classifier_term_structure_refuses_a_model_without_a_hazard_head():
     clf = FinancialTFMClassifier(model, max_context=40).fit(X, y)
     with pytest.raises(RuntimeError, match="no hazard head"):
         clf.predict_term_structure(X)
+
+
+# --- AU5.9: hazard context carries the default period (hazard_period_context) ---
+
+
+def _period_models():
+    """A hazard model with and without the flag, sharing every weight the two have."""
+    cfg = {"max_features": 6, "max_classes": 2, "d_cell": 16, "d_model": 32, "n_heads": 2,
+           "n_col_layers": 1, "n_layers": 2, "d_ff": 64, "n_horizons": 4}
+    torch.manual_seed(0)
+    off = FinancialTFM(ModelConfig(**cfg)).eval()
+    on = FinancialTFM(ModelConfig(**cfg, hazard_period_context=True)).eval()
+    missing, unexpected = on.load_state_dict(off.state_dict(), strict=False)
+    assert missing == ["period_embed.weight"] and not unexpected
+    g = torch.Generator().manual_seed(1)
+    X = torch.randn(2, 14, 6, generator=g)
+    y = torch.randint(0, 2, (2, 14), generator=g)
+    period = torch.where(y == 1, torch.randint(0, 4, (2, 14), generator=g), CENSORED)
+    return off, on, X, y, period
+
+
+def test_hazard_period_context_is_zero_at_init_and_requires_periods():
+    off, on, X, y, period = _period_models()
+    with torch.no_grad():
+        torch.testing.assert_close(
+            on.term_structure(X, y, 9, period=period), off.term_structure(X, y, 9),
+            rtol=0, atol=0,
+        )
+        on(X, y, 9)  # the classification path neither needs nor reads periods
+    with pytest.raises(ValueError, match="hazard_period_context"):
+        on.term_structure(X, y, 9)
+
+
+def test_hazard_period_context_reads_context_periods_and_never_query_periods():
+    _off, on, X, y, period = _period_models()
+    with torch.no_grad():
+        on.period_embed.weight.normal_()  # as if trained: the periods now carry signal
+        base = on.term_structure(X, y, 9, period=period)
+        q = period.clone()
+        q[:, 9:] = (q[:, 9:] + 1) % 4  # query periods are targets, never inputs
+        torch.testing.assert_close(on.term_structure(X, y, 9, period=q), base, rtol=0, atol=0)
+        c = period.clone()
+        c[:, :9] = torch.where(c[:, :9] == CENSORED, 2, CENSORED)
+        assert not torch.allclose(on.term_structure(X, y, 9, period=c), base)
+    on.train()
+    loss = on.survival_loss(X, y, period, 9)
+    loss.backward()
+    assert torch.isfinite(loss)
+    assert on.period_embed.weight.grad.abs().sum() > 0

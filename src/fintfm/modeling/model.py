@@ -32,13 +32,14 @@ smoke tests only and none were kept.
 
 from __future__ import annotations
 
+import math
 from dataclasses import asdict, dataclass
 
 import torch
 import torch.nn.functional as F
 from torch import nn
 
-from fintfm.modeling.hazard import HazardHead
+from fintfm.modeling.hazard import CENSORED, HazardHead
 
 # Seed used for column identities whenever a caller does not supply one and the model is in
 # eval mode. Its value is arbitrary; that it is *fixed* is the point (see _column_ids).
@@ -161,6 +162,56 @@ class ModelConfig:
             predicted per row, evenly spaced in ``(0, 1)``. Nori's published head uses 999;
             this project starts an order of magnitude smaller; it is not tuned. Ignored when
             ``head_type == "binned"``.
+
+        **Audit Phase 5 experiment levers** (``openspec/changes/audit-2026-10-15``). Every
+        field below defaults to the architecture that existed before it, byte for byte, and a
+        checkpoint whose saved config lacks these keys loads with exactly those defaults. None
+        has a measured effect yet; each is an arm to score, not an improvement.
+
+        n_cell_heads: Attention heads in the cell-width stages (column attention, row-within-
+            feature attention, attention pooling and summary tokens). ``None`` (default)
+            shares ``n_heads``, as every checkpoint before this field did. Separate because
+            ``d_cell`` is usually much narrower than ``d_model``, so one head count rarely
+            suits both widths (AU5.3).
+        n_summary_tokens: Learned summary tokens per row (AU5.3). ``1`` (default) keeps the
+            single pooled row vector of ``pooling``. ``K > 1`` replaces that pooling with
+            ``K`` learned queries that cross-attend over the row's feature tokens; their
+            outputs are concatenated (``K * d_cell``) and projected to ``d_model``, so the
+            row stage is unchanged. Cross-attention over a key set is order-invariant, so
+            column-order invariance (D4) holds. Unlike TabICL's CLS tokens these do not take
+            part in column attention, which keeps the change inside the pooling step.
+            Incompatible with ``pooling="attention"``, which is the ``K = 1`` case of the
+            same idea plus mean and max.
+        value_embedding: How a normalised cell value enters the cell embedding (AU5.16).
+            ``"mlp"`` (default) is the existing small MLP on the scalar. ``"rbf"`` adds
+            ``value_basis_size`` Gaussian bumps over the normalised value; ``"fourier"`` adds
+            ``value_basis_size`` random-frequency sine/cosine pairs. Both keep the raw value
+            as a channel beside the basis and feed the same two-layer MLP, so the flag
+            changes the input features and nothing downstream. See :class:`ValueBasis`.
+        value_basis_size: Number of RBF centres, or of Fourier frequencies (each giving a
+            sine and a cosine). Ignored for ``value_embedding="mlp"``.
+        value_basis_learnable: Train the RBF centres and widths, or the Fourier frequencies,
+            instead of keeping them at their initial values. Ignored for ``"mlp"``.
+        value_ecdf: Add a channel holding each cell's empirical CDF rank within its column,
+            computed against the **context rows only** (:func:`ecdf_rank`), so a query value
+            never affects any other row's features. Combines with any ``value_embedding``.
+        attn_length_scale: Length-aware softmax scaling in the row (in-context) attention
+            (AU5.17, the attention half of TabICLv2's QASSMax idea, without its learned
+            per-query factor). The attention logits are multiplied by
+            ``log(n_ctx) / log(attn_length_ref)``; see :func:`length_scale` for the formula
+            and why. ``False`` (default) runs the stock encoder. The cell-stage attentions
+            are not scaled.
+        attn_length_ref: Context length at which the scaled attention equals the stock one.
+            Set near the pretraining context so training is a small perturbation of the
+            unscaled model there; longer inference contexts then get sharper logits rather
+            than flatter attention. Ignored unless ``attn_length_scale``.
+        hazard_period_context: Context rows of a hazard model carry their default period, or
+            a censored token, in the label embedding as well as the binary label (AU5.9).
+            Without it the context says only *whether* a firm defaulted, so the term
+            structure cannot be read from context in principle. Used by
+            :meth:`term_structure` and :meth:`survival_loss` only, which then require
+            ``period``; :meth:`forward` (the classification path) is unchanged. Requires
+            ``n_horizons``.
     """
 
     max_features: int = 24
@@ -180,15 +231,46 @@ class ModelConfig:
     mask_embedding: bool = False
     head_type: str = "binned"
     n_quantiles: int = 99
+    n_cell_heads: int | None = None
+    n_summary_tokens: int = 1
+    value_embedding: str = "mlp"
+    value_basis_size: int = 16
+    value_basis_learnable: bool = False
+    value_ecdf: bool = False
+    attn_length_scale: bool = False
+    attn_length_ref: int = 512
+    hazard_period_context: bool = False
 
     def __post_init__(self) -> None:
-        """Validate ``head_type`` and its interaction with ``n_horizons``.
+        """Validate ``head_type``, the Phase 5 levers, and their interactions.
 
         Raises:
             ValueError: If ``head_type`` is not one of the two supported values, or if a
                 quantile head is combined with a hazard head -- a combination nothing in this
-                codebase builds, scores, or has a designed loss for.
+                codebase builds, scores, or has a designed loss for. Also for an unknown
+                ``value_embedding``, a non-positive size, summary tokens combined with
+                attention pooling, or ``hazard_period_context`` without a hazard head.
         """
+        if self.value_embedding not in ("mlp", "rbf", "fourier"):
+            raise ValueError(
+                "value_embedding must be 'mlp', 'rbf' or 'fourier', "
+                f"got {self.value_embedding!r}"
+            )
+        if self.value_basis_size < 1:
+            raise ValueError(f"value_basis_size must be >= 1, got {self.value_basis_size}")
+        if self.n_summary_tokens < 1:
+            raise ValueError(f"n_summary_tokens must be >= 1, got {self.n_summary_tokens}")
+        if self.n_summary_tokens > 1 and self.pooling == "attention":
+            raise ValueError(
+                "n_summary_tokens > 1 replaces the pooling step, so it cannot be combined "
+                "with pooling='attention'"
+            )
+        if self.n_cell_heads is not None and self.n_cell_heads < 1:
+            raise ValueError(f"n_cell_heads must be >= 1, got {self.n_cell_heads}")
+        if self.attn_length_ref < 2:
+            raise ValueError(f"attn_length_ref must be >= 2, got {self.attn_length_ref}")
+        if self.hazard_period_context and self.n_horizons is None:
+            raise ValueError("hazard_period_context requires n_horizons (a hazard head)")
         if self.head_type not in ("binned", "quantile"):
             raise ValueError(
                 f"head_type must be 'binned' or 'quantile', got {self.head_type!r}"
@@ -239,6 +321,148 @@ def normalize_features(
     return Z, missing.to(Z.dtype), pad
 
 
+def ecdf_rank(X: torch.Tensor, n_ctx: int) -> torch.Tensor:
+    """Each cell's mid-rank empirical CDF within its column, against context rows only.
+
+    The reference set is the column's present **context** values, never the query rows, for
+    the same reason :func:`normalize_features` uses context statistics: a query value that
+    entered the reference would shift every other row's feature, so a prediction would
+    depend on which other queries shared its forward pass (audit AU1.1's failure shape).
+    Ties count half (mid-rank), so a value equal to every context value maps to the centre.
+
+    Computed by sorting the context once per column and binary-searching every cell, so the
+    cost is ``O(N log n_ctx)`` per column rather than the ``O(N * n_ctx)`` of a pairwise
+    comparison, which at ``N = 4096`` and 136 features would not fit in memory.
+
+    Args:
+        X: ``(B, N, F)`` raw values, NaN for missing cells and padded columns.
+        n_ctx: Number of leading context rows forming the reference set.
+
+    Returns:
+        ``(B, N, F)`` ranks mapped from ``[0, 1]`` to ``[-1, 1]``, so the column median sits
+        at 0. Missing cells and columns with no context values are 0.
+    """
+    ctx = X[:, :n_ctx].transpose(1, 2)  # (B, F, n_ctx)
+    present = ~torch.isnan(ctx)
+    n_present = present.sum(dim=-1, keepdim=True)  # (B, F, 1)
+    # Missing context cells become +inf, so they sort after every finite value and are
+    # never counted as below or equal to a finite query value.
+    ref = torch.where(present, ctx, torch.full_like(ctx, float("inf"))).sort(dim=-1).values
+    vals = X.transpose(1, 2).contiguous()  # (B, F, N)
+    absent = torch.isnan(vals)
+    probe = torch.where(absent, torch.zeros_like(vals), vals)
+    below = torch.searchsorted(ref.contiguous(), probe, side="left")
+    at_or_below = torch.searchsorted(ref.contiguous(), probe, side="right")
+    u = (below + at_or_below).to(X.dtype) / (2.0 * n_present.clamp(min=1).to(X.dtype))
+    r = (2.0 * u.clamp(0.0, 1.0) - 1.0).masked_fill(absent | (n_present == 0), 0.0)
+    return r.transpose(1, 2)
+
+
+def length_scale(n_keys: int, n_ref: int) -> float:
+    """Multiplier on the row-attention logits for a context of ``n_keys`` rows (AU5.17).
+
+    ``factor = log(max(n_keys, 2)) / log(n_ref)``, applied on top of the usual
+    ``1 / sqrt(d_head)``, so the logits are ``factor * q.k / sqrt(d_head)``.
+
+    Why this form. With logits of bounded spread, softmax over ``n`` keys gives the largest
+    weight about ``1 / n`` of the mass once ``n`` dominates the exponentiated spread, so the
+    same learned query attends more diffusely the longer the context: a model pretrained at
+    a few hundred rows and served at 4,096 sees flatter attention than it ever trained on.
+    Multiplying the logits by ``log n`` (scalable softmax) keeps a logit gap of fixed size
+    worth a fixed share of the mass as ``n`` grows. Dividing by ``log(n_ref)`` makes the
+    factor exactly 1 at the reference length, so near the pretraining context the scaled
+    model is the stock model, and the flag only changes behaviour away from it. ``n_keys``
+    is the context-row count: the quantity that varies between tasks. A query row also sees
+    itself, one key more, which is ignored. The floor at 2 keeps the factor positive; a
+    one-row context is degenerate anyway.
+
+    TabICLv2 learns a per-query multiplier on top of ``log n`` (QASSMax); that part is not
+    implemented here, so this is the fixed-scale variant only.
+
+    Args:
+        n_keys: Number of context rows the attention runs over.
+        n_ref: Reference length at which the factor is 1. Must be at least 2.
+
+    Returns:
+        The multiplier.
+    """
+    return math.log(max(n_keys, 2)) / math.log(n_ref)
+
+
+class ValueBasis(nn.Module):
+    """Fixed-width basis expansion of a normalised cell value (AU5.16).
+
+    A two-layer MLP on a single scalar can represent sharp or periodic responses to a value
+    only by spending most of its hidden units on them. Expanding the scalar into a basis
+    first hands the MLP those shapes directly: ``"rbf"`` gives Gaussian bumps at fixed
+    positions (local, so a threshold anywhere in the bulk is one weight away), ``"fourier"``
+    gives random-frequency sinusoids (global, the random-features approximation of the same
+    Gaussian kernel). This is the general idea behind LimiX's RaBEL and TabPFN's value
+    encodings as described in their public write-ups; it is an independent implementation.
+
+    Both kinds use the same length scale, ``ell = 2 * RBF_HALF_RANGE / (size - 1)`` (the
+    RBF spacing), so ``"rbf"`` and ``"fourier"`` approximate the same kernel and the
+    comparison between them is about the parameterisation, not the resolution. Fourier
+    frequencies are drawn as ``omega ~ N(0, 1 / ell**2)``, which is the spectral density of
+    a Gaussian kernel of width ``ell``, from a private generator with a fixed seed, so the
+    draw neither consumes nor depends on the global RNG. Both are stored in the checkpoint.
+
+    Args:
+        kind: ``"rbf"`` or ``"fourier"``.
+        size: Number of centres, or of frequencies (each yields a sine and a cosine).
+        learnable: Make centres and log-widths, or frequencies, trainable parameters.
+    """
+
+    #: RBF centres span ``[-3, 3]``: the bulk of a z-scored or rank-to-normal column. Values
+    #: beyond it still reach the MLP through the raw-value channel kept beside the basis.
+    RBF_HALF_RANGE = 3.0
+    #: Seed of the private generator for Fourier frequencies. Arbitrary; fixed on purpose.
+    FOURIER_SEED = 0
+
+    def __init__(self, kind: str, size: int, learnable: bool) -> None:
+        """Build the basis; see the class docstring for the arguments."""
+        super().__init__()
+        if kind not in ("rbf", "fourier"):
+            raise ValueError(f"kind must be 'rbf' or 'fourier', got {kind!r}")
+        self.kind = kind
+        ell = 2.0 * self.RBF_HALF_RANGE / (size - 1) if size > 1 else 1.0
+        if kind == "rbf":
+            centres = torch.linspace(-self.RBF_HALF_RANGE, self.RBF_HALF_RANGE, size)
+            log_width = torch.full((size,), math.log(ell))
+            if learnable:
+                self.centres = nn.Parameter(centres)
+                self.log_width = nn.Parameter(log_width)
+            else:
+                self.register_buffer("centres", centres)
+                self.register_buffer("log_width", log_width)
+            self.out_dim = size
+        else:
+            g = torch.Generator().manual_seed(self.FOURIER_SEED)
+            freqs = torch.randn(size, generator=g) / ell
+            if learnable:
+                self.freqs = nn.Parameter(freqs)
+            else:
+                self.register_buffer("freqs", freqs)
+            self.out_dim = 2 * size
+
+    def forward(self, z: torch.Tensor) -> torch.Tensor:
+        """Expand values.
+
+        Args:
+            z: ``(...)`` normalised values.
+
+        Returns:
+            ``(..., out_dim)`` basis features, each in ``[-1, 1]``.
+        """
+        z = z.unsqueeze(-1)
+        if self.kind == "rbf":
+            centres = self.centres.to(z.dtype)
+            width = self.log_width.to(z.dtype).exp()
+            return torch.exp(-0.5 * ((z - centres) / width) ** 2)
+        angle = z * self.freqs.to(z.dtype)
+        return torch.cat([torch.sin(angle), torch.cos(angle)], dim=-1)
+
+
 class FinancialTFM(nn.Module):
     """Tabular in-context classifier.
 
@@ -260,21 +484,35 @@ class FinancialTFM(nn.Module):
         # output, so it must not enter a checkpoint or require a load-time backfill. See
         # :attr:`feature_chunk`.
         self.feature_chunk: int | None = None
+        # AU5.16: optional basis expansion and ECDF channel ahead of the cell MLP. With both
+        # off the MLP's input is the scalar value alone, exactly as before these existed.
+        self.value_basis = (
+            ValueBasis(cfg.value_embedding, cfg.value_basis_size, cfg.value_basis_learnable)
+            if cfg.value_embedding != "mlp"
+            else None
+        )
+        n_value_inputs = (
+            1
+            + (self.value_basis.out_dim if self.value_basis is not None else 0)
+            + int(cfg.value_ecdf)
+        )
         if cfg.mask_embedding:
             # Dedicated missingness embedding (task 48.10), added to a value-only embedding
             # of matching depth rather than concatenated as a second input channel.
             self.value_embed = nn.Sequential(
-                nn.Linear(1, cfg.d_cell),
+                nn.Linear(n_value_inputs, cfg.d_cell),
                 nn.GELU(),
                 nn.Linear(cfg.d_cell, cfg.d_cell),
             )
             self.mask_embed = nn.Embedding(2, cfg.d_cell)
         else:
             self.cell_embed = nn.Sequential(
-                nn.Linear(2, cfg.d_cell),
+                nn.Linear(n_value_inputs + 1, cfg.d_cell),
                 nn.GELU(),
                 nn.Linear(cfg.d_cell, cfg.d_cell),
             )
+        # AU5.3: the cell-width stages may use their own head count; None shares n_heads.
+        cell_heads = cfg.n_heads if cfg.n_cell_heads is None else cfg.n_cell_heads
         # Random per-task column identities (§54). Resolved here so ``None`` can mean
         # "the sensible default" without the training entry point having to know d_cell.
         self.col_id_dim = (
@@ -285,7 +523,7 @@ class FinancialTFM(nn.Module):
         )
         col_layer = nn.TransformerEncoderLayer(
             d_model=cfg.d_cell,
-            nhead=cfg.n_heads,
+            nhead=cell_heads,
             dim_feedforward=2 * cfg.d_cell,
             dropout=cfg.dropout,
             activation="gelu",
@@ -303,7 +541,7 @@ class FinancialTFM(nn.Module):
         if cfg.n_cell_blocks > 0:
             row_within_feature_layer = nn.TransformerEncoderLayer(
                 d_model=cfg.d_cell,
-                nhead=cfg.n_heads,
+                nhead=cell_heads,
                 dim_feedforward=2 * cfg.d_cell,
                 dropout=cfg.dropout,
                 activation="gelu",
@@ -328,7 +566,17 @@ class FinancialTFM(nn.Module):
             raise ValueError(
                 f"pooling must be 'meanmax' or 'attention', got {cfg.pooling!r}"
             )
-        if cfg.pooling == "attention":
+        if cfg.n_summary_tokens > 1:
+            # AU5.3: K learned queries cross-attend over a row's feature tokens and their
+            # outputs are concatenated, replacing mean+max. Same small init as pool_query.
+            self.summary_queries = nn.Parameter(
+                torch.randn(1, cfg.n_summary_tokens, cfg.d_cell) * 0.02
+            )
+            self.summary_attn = nn.MultiheadAttention(
+                cfg.d_cell, cell_heads, dropout=cfg.dropout, batch_first=True
+            )
+            self.row_proj = nn.Linear(cfg.n_summary_tokens * cfg.d_cell, cfg.d_model)
+        elif cfg.pooling == "attention":
             # A single learned query attends over the feature tokens, so the reduction can
             # weight features instead of averaging them (§50). Mean and max are kept
             # alongside: they are cheap, they carry the summary statistics attention would
@@ -336,7 +584,7 @@ class FinancialTFM(nn.Module):
             # than a replacement whose regressions would be hard to attribute.
             self.pool_query = nn.Parameter(torch.randn(1, 1, cfg.d_cell) * 0.02)
             self.pool_attn = nn.MultiheadAttention(
-                cfg.d_cell, cfg.n_heads, dropout=cfg.dropout, batch_first=True
+                cfg.d_cell, cell_heads, dropout=cfg.dropout, batch_first=True
             )
             self.row_proj = nn.Linear(3 * cfg.d_cell, cfg.d_model)
         else:
@@ -373,6 +621,13 @@ class FinancialTFM(nn.Module):
         self.hazard = (
             HazardHead(cfg.d_model, cfg.n_horizons) if cfg.n_horizons is not None else None
         )
+        if cfg.hazard_period_context:
+            # AU5.9: index 0 is the censored token, index p + 1 a default in period p.
+            # Zero-initialised so a fresh model computes exactly what it would without the
+            # flag; the periods enter only as training moves this table off zero.
+            assert cfg.n_horizons is not None  # checked in ModelConfig.__post_init__
+            self.period_embed = nn.Embedding(cfg.n_horizons + 1, cfg.d_model)
+            nn.init.zeros_(self.period_embed.weight)
 
     @staticmethod
     def _row_mask(n_rows: int, n_ctx: int, device: torch.device) -> torch.Tensor:
@@ -484,10 +739,26 @@ class FinancialTFM(nn.Module):
         """
         B, N, Fdim = X.shape
         Z, missing, pad = normalize_features(X, n_ctx)
-        if self.cfg.mask_embedding:
-            cells = self.value_embed(Z.unsqueeze(-1)) + self.mask_embed(missing.long())
+        if self.value_basis is None and not self.cfg.value_ecdf:
+            # The original value channel, kept as its own branch so the default path is the
+            # pre-AU5.16 code byte for byte.
+            if self.cfg.mask_embedding:
+                cells = self.value_embed(Z.unsqueeze(-1)) + self.mask_embed(missing.long())
+            else:
+                cells = self.cell_embed(torch.stack([Z, missing], dim=-1))  # (B, N, F, d_cell)
         else:
-            cells = self.cell_embed(torch.stack([Z, missing], dim=-1))  # (B, N, F, d_cell)
+            # AU5.16: raw value, then the basis (zeroed on missing cells so a missing value
+            # is not read as a value of 0), then the context-only ECDF rank.
+            value = [Z.unsqueeze(-1)]
+            if self.value_basis is not None:
+                value.append(self.value_basis(Z) * (1.0 - missing).unsqueeze(-1))
+            if self.cfg.value_ecdf:
+                value.append(ecdf_rank(X, n_ctx).to(Z.dtype).unsqueeze(-1))
+            v = torch.cat(value, dim=-1)
+            if self.cfg.mask_embedding:
+                cells = self.value_embed(v) + self.mask_embed(missing.long())
+            else:
+                cells = self.cell_embed(torch.cat([v, missing.unsqueeze(-1)], dim=-1))
 
         if self.col_id_proj is not None:
             cells = cells + self.col_id_proj(
@@ -539,6 +810,17 @@ class FinancialTFM(nn.Module):
             flat = self.column_encoder(flat, src_key_padding_mask=safe_pad)
             cells = flat.reshape(B, N, Fdim, self.cfg.d_cell)
 
+        if self.cfg.n_summary_tokens > 1:
+            # AU5.3: K summary tokens per row, concatenated, in place of mean+max.
+            tokens = cells.reshape(B * N, Fdim, self.cfg.d_cell)
+            q = self.summary_queries.expand(tokens.shape[0], -1, -1)
+            summary, _ = self.summary_attn(
+                q, tokens, tokens, key_padding_mask=safe_pad, need_weights=False
+            )
+            return self.row_proj(
+                summary.reshape(B, N, self.cfg.n_summary_tokens * self.cfg.d_cell)
+            )
+
         keep = (~pad)[:, None, :, None].to(cells.dtype)  # (B, 1, F, 1)
         denom = keep.sum(dim=2).clamp(min=1.0)
         pooled_mean = (cells * keep).sum(dim=2) / denom
@@ -556,6 +838,120 @@ class FinancialTFM(nn.Module):
         return self.row_proj(
             torch.cat([pooled_mean, pooled_max, pooled_attn], dim=-1)
         )
+
+    def _label_embedding(
+        self,
+        y: torch.Tensor,
+        n_ctx: int,
+        dtype: torch.dtype,
+        period: torch.Tensor | None = None,
+        hazard: bool = False,
+    ) -> torch.Tensor:
+        """Row-level label embedding: context rows get their label, query rows a mask token.
+
+        The one place every row-stage path (:meth:`forward`, :meth:`term_structure`,
+        :meth:`survival_loss`) builds it, so a change to what the context carries cannot
+        reach one path and miss the others (``CLAUDE.md``, "a correction that lives in one
+        method").
+
+        Args:
+            y: ``(B, N)`` labels; only the first ``n_ctx`` are read.
+            n_ctx: Context/query split.
+            dtype: Dtype of the row representations this is added to.
+            period: ``(B, N)`` zero-based default period, ``CENSORED`` for none. Read only
+                when ``cfg.hazard_period_context``, and then only its first ``n_ctx``
+                entries, so a query row's period (its training target) never reaches any
+                input.
+            hazard: True from the hazard paths. The period embedding is a hazard-path
+                input only; :meth:`forward` is the classification path and is unchanged by
+                ``hazard_period_context`` (the training loop's held-out classification
+                check calls it without periods).
+
+        Returns:
+            ``(B, N, d_model)``.
+
+        Raises:
+            ValueError: If ``hazard`` and ``cfg.hazard_period_context`` and ``period`` is
+                ``None``. Falling
+                back to the binary label alone would serve a model a context unlike the one
+                it was trained on, with no error.
+        """
+        B, N = y.shape[0], y.shape[1]
+        if self.cfg.head_type == "quantile":
+            y_label = y[:, :n_ctx].to(dtype).unsqueeze(-1)
+        else:
+            y_label = F.one_hot(
+                y[:, :n_ctx].clamp(0, self.cfg.max_classes - 1), self.cfg.max_classes
+            ).to(dtype)
+        ctx_emb = self.y_proj(y_label)
+        use_period = hazard and self.cfg.hazard_period_context
+        if use_period and period is not None:
+            assert self.cfg.n_horizons is not None
+            idx = period[:, :n_ctx].long().clamp(CENSORED, self.cfg.n_horizons - 1) - CENSORED
+            ctx_emb = ctx_emb + self.period_embed(idx).to(dtype)
+        elif use_period:
+            raise ValueError(
+                "this model was built with hazard_period_context=True, so its context rows "
+                "need their default period: pass period=(B, N) with CENSORED (-1) for none"
+            )
+        return torch.cat([ctx_emb, self.query_token.expand(B, N - n_ctx, -1)], dim=1)
+
+    def _row_attention(self, h: torch.Tensor, n_ctx: int) -> torch.Tensor:
+        """Run the row (in-context) encoder, length-scaled when ``cfg.attn_length_scale``.
+
+        Args:
+            h: ``(B, N, d_model)`` row representations with label embeddings added.
+            n_ctx: Context/query split.
+
+        Returns:
+            ``(B, N, d_model)``.
+        """
+        mask = self._row_mask(h.shape[1], n_ctx, h.device)
+        if not self.cfg.attn_length_scale:
+            return self.encoder(h, mask=mask)
+        factor = length_scale(n_ctx, self.cfg.attn_length_ref)
+        allowed = ~mask
+        # The same pre-norm layer as nn.TransformerEncoderLayer(norm_first=True), written
+        # out so the attention logits can carry the length factor. It reads the stock
+        # layer's own parameters, so the flag adds no weight and a checkpoint trained
+        # either way loads either way.
+        for layer in self.encoder.layers:
+            h = h + layer.dropout1(
+                self._scaled_self_attention(layer.self_attn, layer.norm1(h), allowed, factor)
+            )
+            ff = layer.linear2(layer.dropout(layer.activation(layer.linear1(layer.norm2(h)))))
+            h = h + layer.dropout2(ff)
+        return h
+
+    def _scaled_self_attention(
+        self, mha: nn.MultiheadAttention, x: torch.Tensor, allowed: torch.Tensor, factor: float
+    ) -> torch.Tensor:
+        """Self-attention through ``mha``'s weights with logits multiplied by ``factor``.
+
+        Args:
+            mha: The stock attention module whose projections are used.
+            x: ``(B, N, D)`` normalised inputs.
+            allowed: ``(N, N)`` boolean mask, True = may attend (the inverse of
+                :meth:`_row_mask`'s convention, as ``scaled_dot_product_attention`` expects).
+            factor: Multiplier on ``q.k / sqrt(d_head)``; 1 reproduces ``mha``.
+
+        Returns:
+            ``(B, N, D)``.
+        """
+        B, N, D = x.shape
+        H = mha.num_heads
+        dh = D // H
+        q, k, v = F.linear(x, mha.in_proj_weight, mha.in_proj_bias).chunk(3, dim=-1)
+        q, k, v = (t.reshape(B, N, H, dh).transpose(1, 2) for t in (q, k, v))
+        out = F.scaled_dot_product_attention(
+            q,
+            k,
+            v,
+            attn_mask=allowed,
+            dropout_p=mha.dropout if self.training else 0.0,
+            scale=factor / math.sqrt(dh),
+        )
+        return mha.out_proj(out.transpose(1, 2).reshape(B, N, D))
 
     def forward(
         self,
@@ -582,19 +978,9 @@ class FinancialTFM(nn.Module):
             continuous quantile predictions for ``"quantile"``. Only rows at or past
             ``n_ctx`` are predictions either way.
         """
-        B, N, _ = X.shape
         h = self.encode_rows(X, n_ctx, column_id_seed=column_id_seed, y=y)
-        if self.cfg.head_type == "quantile":
-            y_label = y[:, :n_ctx].to(h.dtype).unsqueeze(-1)
-        else:
-            y_label = F.one_hot(
-                y[:, :n_ctx].clamp(0, self.cfg.max_classes - 1), self.cfg.max_classes
-            ).to(h.dtype)
-        y_emb = torch.cat(
-            [self.y_proj(y_label), self.query_token.expand(B, N - n_ctx, -1)], dim=1
-        )
-        h = h + y_emb
-        h = self.encoder(h, mask=self._row_mask(N, n_ctx, X.device))
+        h = h + self._label_embedding(y, n_ctx, h.dtype)
+        h = self._row_attention(h, n_ctx)
         out = self.head(self.norm(h))
         if self.cfg.head_type == "quantile":
             return out
@@ -733,7 +1119,11 @@ class FinancialTFM(nn.Module):
             )
 
     def term_structure(
-        self, X: torch.Tensor, y: torch.Tensor, n_ctx: int
+        self,
+        X: torch.Tensor,
+        y: torch.Tensor,
+        n_ctx: int,
+        period: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """Cumulative PD across horizons for the query rows, monotone by construction.
 
@@ -741,6 +1131,9 @@ class FinancialTFM(nn.Module):
             X: ``(B, N, F)`` raw features, NaN for missing and padded.
             y: ``(B, N)`` labels; only the first ``n_ctx`` are read.
             n_ctx: Context/query split.
+            period: ``(B, N)`` default periods, ``CENSORED`` for none; only the first
+                ``n_ctx`` are read. Required when ``cfg.hazard_period_context``, ignored
+                otherwise.
 
         Returns:
             ``(B, N - n_ctx, n_horizons)`` cumulative default probability, non-decreasing in
@@ -748,20 +1141,15 @@ class FinancialTFM(nn.Module):
 
         Raises:
             RuntimeError: If the model was built without ``n_horizons``.
+            ValueError: If ``cfg.hazard_period_context`` and no ``period`` is given.
         """
         if self.hazard is None:
             raise RuntimeError(
                 "this model has no hazard head; build it with ModelConfig(n_horizons=K)"
             )
         rows = self.encode_rows(X, n_ctx, y=y)
-        y_onehot = F.one_hot(
-            y[:, :n_ctx].clamp(0, self.cfg.max_classes - 1), self.cfg.max_classes
-        ).to(rows.dtype)
-        y_emb = torch.cat(
-            [self.y_proj(y_onehot), self.query_token.expand(X.shape[0], X.shape[1] - n_ctx, -1)],
-            dim=1,
-        )
-        h = self.encoder(rows + y_emb, mask=self._row_mask(X.shape[1], n_ctx, X.device))
+        y_emb = self._label_embedding(y, n_ctx, rows.dtype, period=period, hazard=True)
+        h = self._row_attention(rows + y_emb, n_ctx)
         return self.hazard.cumulative_pd(self.norm(h)[:, n_ctx:])
 
     def survival_loss(
@@ -776,7 +1164,9 @@ class FinancialTFM(nn.Module):
         Args:
             X: ``(B, N, F)`` raw features.
             y: ``(B, N)`` binary labels, used only to embed the context.
-            period: ``(B, N)`` zero-based default period, ``-1`` for censored.
+            period: ``(B, N)`` zero-based default period, ``-1`` for censored. The query
+                rows' entries are the targets; with ``cfg.hazard_period_context`` the context
+                rows' entries are also embedded as inputs, and only those.
             n_ctx: Context/query split.
 
         Returns:
@@ -790,13 +1180,7 @@ class FinancialTFM(nn.Module):
                 "this model has no hazard head; build it with ModelConfig(n_horizons=K)"
             )
         rows = self.encode_rows(X, n_ctx, y=y)
-        y_onehot = F.one_hot(
-            y[:, :n_ctx].clamp(0, self.cfg.max_classes - 1), self.cfg.max_classes
-        ).to(rows.dtype)
-        y_emb = torch.cat(
-            [self.y_proj(y_onehot), self.query_token.expand(X.shape[0], X.shape[1] - n_ctx, -1)],
-            dim=1,
-        )
-        h = self.encoder(rows + y_emb, mask=self._row_mask(X.shape[1], n_ctx, X.device))
+        y_emb = self._label_embedding(y, n_ctx, rows.dtype, period=period, hazard=True)
+        h = self._row_attention(rows + y_emb, n_ctx)
         h = self.norm(h)[:, n_ctx:]
         return self.hazard.loss(h.reshape(-1, self.cfg.d_model), period[:, n_ctx:].reshape(-1))
