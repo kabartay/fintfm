@@ -39,6 +39,7 @@ from typing import Literal
 import numpy as np
 import torch
 from sklearn.base import BaseEstimator, ClassifierMixin
+from sklearn.utils.validation import check_is_fitted
 
 from fintfm.inference.preprocess import FeatureConditioner, FeatureTransform
 from fintfm.inference.retrieval import (
@@ -297,10 +298,15 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             same fold can be fine-tuned at several seeds. Seeds torch as well as numpy --
             column identities are drawn from torch's generator in training mode -- inside a
             forked RNG, so the caller's random state, CPU and CUDA/MPS, is untouched.
+        finetune_clip: Gradient-norm clip per fine-tuning step, as pretraining applies at 1.0.
+            **``None`` (the default) does not clip**, because §163 and §164 were measured
+            without clipping and clipping changes the tuned weights; pass 1.0 to match
+            pretraining in a new experiment.
 
     Attributes:
         model_: The network predictions run through: ``model`` itself, placed on ``device``
             and in eval mode at :meth:`fit`, or its fine-tuned copy when ``finetune_steps > 0``.
+        n_features_in_: Feature count seen by :meth:`fit`.
     """
 
     def __init__(
@@ -328,6 +334,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         finetune_query_group_frac: float = 0.3,
         finetune_query_pos_frac: float | None = None,
         finetune_seed: int = 0,
+        finetune_clip: float | None = None,
     ) -> None:
         """Configure the classifier. See the class docstring — every argument is documented
         there with the measurement that set its default."""
@@ -356,6 +363,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         self.finetune_query_group_frac = finetune_query_group_frac
         self.finetune_query_pos_frac = finetune_query_pos_frac
         self.finetune_seed = finetune_seed
+        self.finetune_clip = finetune_clip
         # Placement, eval mode and feature_chunk are applied in fit, not here: applied at
         # construction, a later set_params(device=...) moved nothing and the first forward
         # pass mixed devices. A checkpoint path is still loaded here, so model.cfg is readable
@@ -402,6 +410,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         ).fit(X)
         X = self._conditioner.transform(X)
         self.classes_ = np.unique(y)
+        self.n_features_in_ = X.shape[1]
         if len(self.classes_) > self.model.cfg.max_classes:
             raise ValueError(
                 f"model supports at most {self.model.cfg.max_classes} classes, got {len(self.classes_)}"
@@ -548,37 +557,47 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         F = model.cfg.max_features
         nc = torch.full((B,), n_classes, dtype=torch.long, device=self.device)
         self.finetune_losses_: list[float] = []
-        with _forked_rng():
-            torch.manual_seed(1_000_003 * int(self.random_state) + int(self.finetune_seed))
-            for _ in range(self.finetune_steps):
-                Xb = np.full((B, n_ctx + n_q, F), np.nan, dtype=np.float32)
-                yb = np.zeros((B, n_ctx + n_q), dtype=np.int64)
-                wb = np.ones((B, n_q), dtype=np.float32)
-                weighted = False
-                for b in range(B):
-                    ci, qi, w = _finetune_rows(rng, g, uniq, n_q_groups, n_ctx, n_q, y, pos_frac)
-                    rows = np.concatenate([ci, qi])
-                    Xb[b, :, : X.shape[1]] = X[rows]
-                    yb[b] = y[rows]
-                    if w is not None:
-                        wb[b], weighted = w, True
-                loss = model.loss(
-                    torch.from_numpy(Xb).to(self.device), torch.from_numpy(yb).to(self.device),
-                    n_ctx, nc,
-                    weights=torch.from_numpy(wb).to(self.device) if weighted else None,
-                )
-                opt.zero_grad()
-                loss.backward()
-                opt.step()
-                self.finetune_losses_.append(float(loss.detach()))
-        # free what training held -- gradients, optimiser state, the allocator's cache --
-        # before prediction needs the memory: on a 14.5 GB T4 it was the difference between
-        # scoring and an out-of-memory error at the first query chunk (§164)
-        opt.zero_grad(set_to_none=True)
-        del opt
-        if str(self.device).startswith("cuda"):
-            torch.cuda.empty_cache()
-        model.eval()
+        try:
+            with _forked_rng():
+                torch.manual_seed(1_000_003 * int(self.random_state) + int(self.finetune_seed))
+                for _ in range(self.finetune_steps):
+                    Xb = np.full((B, n_ctx + n_q, F), np.nan, dtype=np.float32)
+                    yb = np.zeros((B, n_ctx + n_q), dtype=np.int64)
+                    wb = np.ones((B, n_q), dtype=np.float32)
+                    weighted = False
+                    for b in range(B):
+                        ci, qi, w = _finetune_rows(
+                            rng, g, uniq, n_q_groups, n_ctx, n_q, y, pos_frac
+                        )
+                        rows = np.concatenate([ci, qi])
+                        Xb[b, :, : X.shape[1]] = X[rows]
+                        yb[b] = y[rows]
+                        if w is not None:
+                            wb[b], weighted = w, True
+                    loss = model.loss(
+                        torch.from_numpy(Xb).to(self.device),
+                        torch.from_numpy(yb).to(self.device),
+                        n_ctx, nc,
+                        weights=torch.from_numpy(wb).to(self.device) if weighted else None,
+                    )
+                    opt.zero_grad()
+                    loss.backward()
+                    if self.finetune_clip is not None:
+                        torch.nn.utils.clip_grad_norm_(model.parameters(), self.finetune_clip)
+                    opt.step()
+                    self.finetune_losses_.append(float(loss.detach()))
+        finally:
+            # free what training held -- gradients, optimiser state, the allocator's cache --
+            # before prediction needs the memory: on a 14.5 GB T4 it was the difference between
+            # scoring and an out-of-memory error at the first query chunk (§164). In a finally
+            # so a failed step does not leave the model in training mode either.
+            opt.zero_grad(set_to_none=True)
+            del opt
+            if str(self.device).startswith("cuda"):
+                torch.cuda.empty_cache()
+            elif str(self.device).startswith("mps"):
+                torch.mps.empty_cache()
+            model.eval()
 
     def _pooled_prior_shift(self, pooled_rate: float) -> np.ndarray:
         """Class-prior correction from a pooled context rate, for the retrieval path.
@@ -591,10 +610,17 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
 
         Returns:
             ``(n_classes,)`` log-odds shift, zero for any class absent from either side.
+            With more than two classes the pooled share of every class is used, as cached by
+            :meth:`_pooled_context_rate`; one rate alone cannot say how the rest divide.
         """
         n_classes = len(self.classes_)
-        ctx_prior = np.full(n_classes, (1.0 - pooled_rate) / max(n_classes - 1, 1))
-        ctx_prior[n_classes - 1] = pooled_rate
+        if n_classes > 2:
+            # an equal split of 1 - rate over the other classes was wrong whenever the
+            # retrieved classes were unequal, which on an ordinal bin grid is always
+            ctx_prior = self._pooled_class_shares
+        else:
+            ctx_prior = np.full(n_classes, (1.0 - pooled_rate) / max(n_classes - 1, 1))
+            ctx_prior[n_classes - 1] = pooled_rate
         with np.errstate(divide="ignore"):
             return np.where(
                 (self._full_prior > 0) & (ctx_prior > 0),
@@ -623,12 +649,19 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
 
         Returns:
             The positive-class rate over all retrieved contexts, weighted by how many queries
-            each context serves. Also stored as ``pooled_context_rate_``.
+            each context serves. Also stored as ``pooled_context_rate_``, and the same
+            weighting of every class's share as ``_pooled_class_shares`` for the multiclass
+            correction in :meth:`_pooled_prior_shift`.
         """
-        pos_class = len(self.classes_) - 1
+        n_classes = len(self.classes_)
+        pos_class = n_classes - 1
         weight = sum(q.size for q, _ in plan)
         if weight == 0:
+            self._pooled_class_shares = self._full_prior
             return self._full_rate
+        self._pooled_class_shares = sum(
+            q.size * np.bincount(self._pool_y[c], minlength=n_classes) / c.size for q, c in plan
+        ) / weight
         total = sum(q.size * float((self._pool_y[c] == pos_class).mean()) for q, c in plan)
         # cached so a caller reporting what was actually retrieved does not have to rebuild
         # the plan; recomputing it means a second k-means and a second pass over the pool,
@@ -783,6 +816,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         Returns:
             ``(n, d_model)`` row representations, one per query row.
         """
+        check_is_fitted(self, "_ctx_X")
         self.model_.assert_trained_for("classification")
         X = np.asarray(X, dtype=np.float32)
         if X.shape[1] != self._ctx_X.shape[1]:
@@ -852,6 +886,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         Returns:
             ``(n, n_classes)`` probabilities.
         """
+        check_is_fitted(self, "_ctx_X")
         self.model_.assert_trained_for("classification")
         if self.n_ensemble > 1 or self.ensemble_label_swap or self.ensemble_feature_frac < 1.0:
             # average probabilities, not logits: the members disagree about the base rate
@@ -949,6 +984,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             RuntimeError: If the model has no hazard head.
             ValueError: If the feature width does not match :meth:`fit`.
         """
+        check_is_fitted(self, "_ctx_X")
         if self.model_.hazard is None:
             raise RuntimeError("this checkpoint has no hazard head; pretrain with --n-horizons K")
         self.model_.assert_trained_for("survival")

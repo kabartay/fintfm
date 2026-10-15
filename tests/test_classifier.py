@@ -358,6 +358,44 @@ def test_set_params_device_moves_the_model_at_fit(device):
     assert clf.predict_proba(X[:5]).shape == (5, 2)
 
 
+def test_fit_records_the_feature_count():
+    """AU1.11: no n_features_in_, which sklearn tooling reads."""
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(40, 4)).astype(np.float32)
+    clf = FinancialTFMClassifier(_tiny_model(), max_context=40).fit(X, (X[:, 0] > 0).astype(int))
+    assert clf.n_features_in_ == 4
+
+
+def test_predicting_before_fit_raises_not_fitted():
+    """AU1.11: predict before fit raised AttributeError, which sklearn does not recognise."""
+    from sklearn.exceptions import NotFittedError
+
+    clf = FinancialTFMClassifier(_tiny_model())
+    X = np.zeros((3, 4), dtype=np.float32)
+    for method in (clf.predict_proba, clf.predict, clf.transform_representation):
+        with pytest.raises(NotFittedError):
+            method(X)
+
+
+def test_pooled_prior_shift_uses_each_class_share_in_multiclass_retrieval():
+    """AU1.11: the pooled correction gave every non-positive class an equal share of the
+    context, which is wrong whenever the retrieved classes are unequal."""
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(300, 4)).astype(np.float32)
+    y = rng.choice(3, size=300, p=[0.7, 0.2, 0.1])
+    torch.manual_seed(0)
+    clf = FinancialTFMClassifier(
+        _tiny_model(), max_context=60, context_strategy="retrieval", retrieval_groups=4,
+    ).fit(X, y)
+    Xq = clf._conditioner.transform(rng.normal(size=(40, 4)).astype(np.float32))
+    plan = clf._retrieval_plan(Xq)
+    rate = clf._pooled_context_rate(plan)
+    shares = sum(q.size * np.bincount(clf._pool_y[c], minlength=3) / c.size for q, c in plan)
+    shares = shares / sum(q.size for q, _ in plan)
+    expected = np.log(clf._full_prior) - np.log(shares)
+    np.testing.assert_allclose(clf._pooled_prior_shift(rate), expected, rtol=1e-10)
+
+
 def test_label_swap_leaves_a_multiclass_task_unchanged():
     """AU1.4: the swap is defined for two classes only. On three, reversing the columns paired
     each class with another, so label swap on scrambled the probabilities it averaged."""

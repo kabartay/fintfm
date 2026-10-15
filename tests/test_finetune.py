@@ -303,6 +303,52 @@ def test_finetuning_warns_when_inference_reads_another_context_distribution():
         FinancialTFMClassifier(_model(), max_context=30, context_strategy="balanced").fit(X, y)
 
 
+def test_gradient_clipping_is_opt_in(monkeypatch):
+    """AU1.11: pretraining clips at 1.0 and fine-tuning did not clip at all. Off by default,
+    because clipping changes the tuned weights and §163/§164 were measured without it."""
+    calls = []
+    real = torch.nn.utils.clip_grad_norm_
+
+    def spy(parameters, max_norm, *args, **kwargs):
+        calls.append(max_norm)
+        return real(parameters, max_norm, *args, **kwargs)
+
+    monkeypatch.setattr(torch.nn.utils, "clip_grad_norm_", spy)
+    X, y, g = _data()
+    kw = {"max_context": 100, "finetune_steps": 2, "finetune_query": 32}
+    FinancialTFMClassifier(_model(), **kw).fit(X, y, groups=g)
+    assert calls == []
+    FinancialTFMClassifier(_model(), finetune_clip=1.0, **kw).fit(X, y, groups=g)
+    assert calls == [1.0, 1.0]
+
+
+@pytest.mark.skipif(not torch.backends.mps.is_available(), reason="no MPS")
+def test_mps_cache_is_released_after_finetuning(monkeypatch):
+    """AU1.11: only the CUDA allocator cache was emptied before prediction."""
+    calls = []
+    monkeypatch.setattr(torch.mps, "empty_cache", lambda: calls.append(True))
+    X, y, g = _data()
+    FinancialTFMClassifier(
+        _model(), device="mps", max_context=100, finetune_steps=1, finetune_query=32,
+    ).fit(X, y, groups=g)
+    assert calls
+
+
+def test_a_failed_finetune_leaves_no_model_in_training_mode(monkeypatch):
+    """AU1.11: an exception mid-fine-tuning left the model in training mode."""
+
+    def fail(*args, **kwargs):
+        raise RuntimeError("loss failed")
+
+    monkeypatch.setattr(FinancialTFM, "loss", fail)
+    X, y, g = _data()
+    clf = FinancialTFMClassifier(_model(), max_context=100, finetune_steps=1, finetune_query=32)
+    with pytest.raises(RuntimeError, match="loss failed"):
+        clf.fit(X, y, groups=g)
+    assert not clf.model.training
+    assert not clf.model_.training
+
+
 def test_finetuning_leaves_no_gradients_behind():
     X, y, g = _data()
     clf = FinancialTFMClassifier(
