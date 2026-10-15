@@ -30,3 +30,17 @@ folds, as in §159), and is written up in FINDINGS whatever the answer.
 - No training on TabArena or BeyondArena datasets.
 - No importing the AXIOM harness.
 - No GPL or AGPL dependencies.
+
+## Blocked by
+
+- **Phase 0 is blocked by the owner.** Each item is a decision only the project owner can make.
+- **Phase 1 and Phase 2 are blocked by nothing.** They are code and evaluation fixes with tests.
+- **Phase 4 is blocked by §164 finishing**, so its GPU time does not compete with §164's arms,
+  and by AU2.2 for the booster arms.
+- **Phase 5 is blocked by Phase 1** (AU1.1 and AU1.13 change what pretraining sees) and by the
+  Phase 4 diagnostics, which say which lever the gap points at.
+
+## Verify
+
+`uv run python openspec/tools/validate.py` passes, and every task's own Verify line is met
+before it is ticked.
