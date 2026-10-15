@@ -34,7 +34,9 @@
       the context std is ~0. Verify: a test that a query's output is identical alone and in a
       chunk with a mate that has a value in a context-empty column. Note: the fix also changes
       pretraining, so record whether it changes any shipped checkpoint's V4 scores.
-- [ ] AU1.2 **Retrieval positive floor falls short.** `inference/retrieval.py:165` takes the
+- [x] AU1.2 **Done (2026-10-16).** Top-up draws only unpicked positives and drops the
+      farthest negatives; `test_min_positive_tops_up_positives_already_in_the_neighbourhood`.
+      **Retrieval positive floor falls short.** `inference/retrieval.py:165` takes the
       `short` nearest positives overall, which include the ones already picked, so the result
       holds about max(have, short) positives, not `min_positive`, and the context can shrink.
       Fix: exclude `picked` before choosing `extra`. Verify: a test with 2 positives in the kNN
