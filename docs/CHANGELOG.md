@@ -6,6 +6,56 @@ not paste one into the other. See `CLAUDE.md`.
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-10-15
+
+The first lever to move V4FinBench: opt-in, per-dataset fine-tuning raises average precision on
+five of five folds. The release also measures, on the full panel, how far that is from the
+gradient-boosted trees, and records why real-data pretraining and context construction did not
+help. Fine-tuning is off by default: the default model is byte-identical to 0.6.0.
+
+### Added
+
+- **Dataset-specific fine-tuning** (Section 163). `FinancialTFMClassifier(finetune_steps=N)`
+  takes N AdamW steps in `fit()` on a copy of the checkpoint, on tasks built from the training
+  rows the way pretraining builds them and scored by the model's own loss. `fit(..., groups=)`
+  keeps each task's query companies out of its context, mirroring a company-grouped test split.
+  The caller's model is never modified. Settings live in the `inference` config section and are
+  recorded in every run. At 200 steps and learning rate 1e-5 it lifts V4FinBench mean AP from
+  0.1986 to 0.2062, positive on five of five folds and significant on three after Holm. A
+  fine-tuned model has seen the target's training rows and is not the zero-shot FinTFM; the
+  protocol's summary says so.
+- **`--no-fintfm`** for `fintfm-v4protocol`, to score the baselines alone on folds whose fintfm
+  scores already exist. Every fold now also records validation AP and saves validation
+  predictions, so a setting can be chosen without looking at test.
+- **`scripts/c5_verdict.py`**: pre-registered decision rules applied as code, with the threshold a
+  constant rather than a parameter, and tests pinning each boundary.
+- **`scripts/kaggle/launch_queue.sh`**: unattended Kaggle runs that wait out an exhausted GPU
+  quota, refuse a CPU fallback, and score each checkpoint one at a time.
+
+### Changed
+
+- **The gap to gradient boosting, measured on the full panel** (Section 163). Untuned CatBoost
+  scores 0.4005 mean AP over the five folds, against 0.2062 for fine-tuned FinTFM, winning every
+  fold; LightGBM 0.2666, XGBoost 0.2229. Fine-tuning closes 3.8% of the gap to CatBoost.
+- **FinTFM-R has no win yet** (Sections 160-161, `DECISIONS` D17). At a 30% real share from
+  scratch, SBA is a null whose two seeds span -0.036 to +0.002 AP, and EDGAR a stable null. D17
+  is not reversed, but no FinTFM-R result may be called an improvement.
+- **Section 158's confound resolved**: against a matched control, the realism and learnability
+  levers are nulls and schedule-free and the mask embedding are losses. A 10-way head alone costs
+  0.0082 AP on this binary benchmark.
+- **Context size is not the bottleneck** (Section 162). A fold-0 gain from a 500-row context was
+  an artefact of the 200,000-row development cap and failed its five-fold, full-panel
+  replication. Untuned logistic regression does not beat FinTFM on the full panel (0.1614 mean AP
+  against 0.1986); the earlier claim that it did held only at the cap.
+- Task 48.19 closed: the order-statistic activations cannot reach the credit model, which trains
+  on the financial prior alone.
+
+### Fixed
+
+- Fine-tuning stalled for 8 hours on V4FinBench's string company ids, where `np.isin` fell back to
+  an O(n x k) comparison. Groups are now coded to integers once; a test bounds the time at 600,000
+  rows.
+
 ## [0.6.0] — 2026-10-09
 
 A second model family opens on real data, seven architecture and prior levers come back

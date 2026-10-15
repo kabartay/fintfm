@@ -53,11 +53,12 @@ financial tables, and to say honestly where it currently is not.
 | | |
 | --- | --- |
 | **External benchmark** | [TabArena](https://tabarena.ai), 27 binary datasets against 94 other methods: **rank 94 of 95**, integration confirmed correct by a maintainer and the entry declined on competitiveness (§122) |
-| **On real credit panels** | calibration consistently among the best measured; discrimination consistently loses to tuned gradient boosting — both, on every panel tried |
+| **On real credit panels** | calibration consistently among the best measured; discrimination consistently loses to gradient boosting — on V4FinBench's full panel, untuned CatBoost scores 0.40 mean AP against FinTFM's 0.20 (§163) |
+| **Fine-tuning** | opt-in per-dataset fine-tuning (`finetune_steps`, 0.7.0) lifts V4FinBench AP on 5 of 5 folds, 0.1986 → 0.2062 — the first lever to move it, closing 3.8% of the gap to CatBoost (§163) |
 | **Licence** | Apache-2.0, **code and weights** — chosen separately, not inherited (see [Licensing](#licensing--provenance)) |
 | **Checkpoint** | [kabartay/fintfm-binary](https://huggingface.co/kabartay/fintfm-binary) — 885K, binary, ≤136 features |
-| **Tests** | 246, plus `ruff`, the openspec validator, a dependency-licence check and a documentation-link check — all in CI |
-| **Measurement log** | 121 numbered findings, each declaring how its numbers were produced |
+| **Tests** | 407, plus `ruff`, the openspec validator, a dependency-licence check and a documentation-link check — all in CI |
+| **Measurement log** | 163 numbered findings, each declaring how its numbers were produced |
 | **Problem types** | binary declared; multiclass and regression implemented but **not** declared (§121) |
 
 **Read [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md) before anything else.** Every claim this
