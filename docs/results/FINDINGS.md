@@ -11125,3 +11125,12 @@ generator in training mode, which §163 left unseeded, so §163's run is one uns
 
 **Cost (ESTIMATED from §163's measured 18.6 s/step):** ~11 h per 200-step arm, ~21 h for `L600`,
 run sequentially, one heavy job at a time.
+
+**Amendment, 2026-10-15 23:40, before any `EN` or `L600` result exists.** `S1` runs on CPU like
+§163's arm, but `EN` and `L600` moved to a Kaggle GPU (`scripts/kaggle/task_164_en`,
+`task_164_l600`, pinned to 5273275), and the rules above compare like with like only on CPU.
+CUDA's backward kernels are not deterministic, so the device adds noise the seed gap does not
+measure. The rules stand, with one addition: **an `EN` or `L600` verdict of better or worse
+also needs its mean ΔAP to exceed twice the device gap**, measured as §163's exact setting
+(seed 0) re-run on the same GPU kernel against §163's CPU arm. Until that re-run exists, a GPU
+arm's verdict is reported as **provisional (device-confounded)**, never as better or worse.
