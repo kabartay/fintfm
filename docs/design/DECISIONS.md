@@ -35,6 +35,9 @@ making the domain undemonstrable.
 
 **Date:** 2026-09-08. **Status:** active, load-bearing invariant. **Status updated
 2026-10-15:** scoped to the FinTFM family since D17; FinTFM-R trains on real panels by design.
+**Status updated 2026-10-16:** pretraining stays synthetic-only, but a FinTFM checkpoint can now
+be fine-tuned on the caller's rows at fit time, opt-in and off by default; the provenance
+argument below covers the zero-shot model only (D18).
 
 The alternative was pretraining on real company panels, which is what Fundamental does with
 "billions of tables" and Kumo does with "real and synthetic relational data".
@@ -389,7 +392,9 @@ the ordering is a matter of taste.
 ## D14 — Synthetic-only training, against the field's counter-thesis (task 48.7)
 
 **Date:** 2026-10-02. **Status:** active; restates D2 against a counter-argument that has since
-published. **Status updated 2026-10-15:** scoped to the FinTFM family since D17.
+published. **Status updated 2026-10-15:** scoped to the FinTFM family since D17. **Status
+updated 2026-10-16:** the auditability claim restated here holds for zero-shot use only; an
+opt-in fine-tuned model has seen the caller's training rows (D18).
 
 ConTextTab (arXiv:2506.10707) argues explicitly that "exclusive training on synthetic data
 limits their ability to fully leverage the rich semantics and world knowledge contained in
@@ -689,3 +694,45 @@ support yet. At a 30% real share, 6,000 steps from scratch, neither EDGAR (a sta
 seeds) nor SBA (a null whose seeds span −0.036 to +0.002) improves V4FinBench AP, and the CPU
 pilot over six sources found nothing separable from the control. Not a reversal -- other shares,
 volumes and sources are untested -- but no FinTFM-R result may be described as an improvement.
+
+---
+
+## D18 — Opt-in dataset-specific fine-tuning exists, off by default, and the provenance claim covers zero-shot use only
+
+**Date:** 2026-10-16, recording what 0.7.0 shipped on 2026-10-15. **Status:** active. Closes
+`openspec/changes/adopt-published-methods` task 36.5.
+
+D2 forbids real data in *pretraining* because a model that never saw real data cannot have
+memorised a benchmark. Task 36.5 asked for the fine-tuned variant to be decided either way rather
+than left implicit, since Kostrzewa et al. fine-tune their TabPFN on V4FinBench and show
+fine-tuning works (§36). It was settled by measurement and by shipping: 0.7.0 added
+`FinancialTFMClassifier(finetune_steps=N)`, which before storing its context takes N AdamW steps
+on a **copy** of the checkpoint, on tasks built from the caller's training rows only (`FINDINGS`
+§163). The caller's model is never modified, and at `finetune_steps: 0`, the default, the result
+is byte-identical to zero-shot (`tests/test_finetune.py`).
+
+**Chose: opt-in, off by default, labelled.** The alternatives considered:
+
+- **No fine-tuning at all**, keeping D2 absolute. Rejected because §162 left fine-tuning as the
+  next lever once the inference side was ruled out, and §163 measured it helping: mean AP 0.1986
+  to 0.2062 on five full-panel V4FinBench folds, 5 of 5 positive, at one fine-tuning seed.
+- **Fine-tuning on by default.** Rejected: it would end the provenance claim for every user,
+  including those who rely on it, to buy +0.0076 AP against an untuned-CatBoost gap of 0.194
+  (§163).
+- **A frozen-base adapter** (`openspec/changes/lender-adaptation` 16.2). Not built; full
+  fine-tuning of a copy was the smaller change. Still open as a cheaper route.
+
+**What this does to D2 and D14.** Pretraining is unchanged and synthetic-only, so a FinTFM
+checkpoint as published still never saw real data. A **fine-tuned** model has seen the caller's
+training rows through gradient steps, as logistic regression and the boosters do, so the D2/D14
+provenance argument covers **zero-shot use only**. This is a third case beside D17's two
+families, not a renaming: a fine-tuned FinTFM is neither the zero-shot FinTFM nor FinTFM-R. Every
+fine-tuned number says "fine-tuned per dataset" (`docs/paper/CLAIMS.md`, Claim 16), and fine-tuned
+weights are never published as, or merged into, a FinTFM checkpoint.
+
+**Reversed if:** §164's seed replicate (`S1`) shows §163's gain is within fine-tuning's own seed
+noise and no setting measured there helps, in which case the option is kept only as a
+diagnostic and stops being described as a lever; **or** a fine-tuned number is found quoted
+under the zero-shot provenance claim, in which case the labelling has failed and fine-tuning
+moves behind an explicit acknowledgement in the API. Default-on is reconsidered only if
+fine-tuning closes a material part of the CatBoost gap, and then as a separate decision.

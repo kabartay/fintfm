@@ -246,7 +246,8 @@
       ~11000-11029 belongs to §162; update the stale status lines at ~10890 (§162 "no result
       exists"), ~10968 and ~11029 ("§163, running"). §158 appears before §157.
       Verify: §162 holds its own result, and no status line says pending or running for a finished run.
-- [ ] AU3.2 **CLAIMS.md and LIMITATIONS.md stop at §121 and §114.** Add §157-§164: fine-tuning,
+- [x] AU3.2 **Done (2026-10-16).** CLAIMS.md Claims 16-18 (fine-tuning, FinTFM-R nulls, ablations and context) plus Claim 6/10 updates; LIMITATIONS.md five new sections and dated notes on the §80 LR and confound lines (the stale `:21-25` text already carried 4a136d6's superseded note); §157-§164 each cited in both files.
+      **CLAIMS.md and LIMITATIONS.md stop at §121 and §114.** Add §157-§164: fine-tuning,
       the full-panel booster gap with its iteration counts, logistic regression beating FinTFM
       only at the 200k cap, the FinTFM-R nulls, and that a fine-tuned model no longer "never
       trains on your data". Resolve `LIMITATIONS.md:21-23` against `CLAIMS.md:290` (§80) and the
@@ -263,7 +264,8 @@
       [Unreleased] is empty despite 76551e2 and 5273275. Check CHANGELOG LightGBM 0.2666 vs the
       per-fold mean.
       Verify: README counts equal `pytest --collect-only`; `tests/test_version_agreement.py` covers BibTeX and `__version__`.
-- [ ] AU3.5 **openspec lag.** `adopt-published-methods/tasks.md:28` (36.5) needs a DECISIONS
+- [x] AU3.5 **Done (2026-10-16).** DECISIONS.md D18 (cross-referenced from D2 and D14) closes 36.5; fintfm-r C5 carries EDGAR's stable null (§161) prepended; §164 is lender-adaptation task 16.6.
+      **openspec lag.** `adopt-published-methods/tasks.md:28` (36.5) needs a DECISIONS
       entry for fine-tuning; `fintfm-r/tasks.md:160` still says "EDGAR scoring"; §164 has no task.
       Verify: the three items closed or updated with their evidence.
 - [x] AU3.6 **Done (2026-10-16).** Both §164 kernels fetch revision f116bfd43a2b15c65ed3551ea8c38e3364629ddc (HF's linked etag equals the pinned SHA-256). EN was already running from the old URL; its SHA-256 check covers it.

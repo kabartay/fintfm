@@ -13,3 +13,15 @@
 - [ ] 16.5 Record the provenance rule in `openspec/specs/pretraining-provenance`: adapters are
       per-lender, never merged into a shipped base model. Verify:
       `uv run python openspec/tools/validate.py` passes.
+- [ ] 16.6 **Score §164's pre-registered fine-tuning arms and write the verdicts into §164.**
+      Full fine-tuning of a copy (`finetune_steps`, 0.7.0, D18) is the measured stand-in for
+      this change's adapter: §163 raised mean AP 0.1986 → 0.2062 on five full-panel V4FinBench
+      folds at one fine-tuning seed. §164 pre-registered three arms from §163's setting: `S1`
+      (`finetune_seed: 1`, CPU), `EN` (`finetune_query_pos_frac: 0.1`) and `L600` (600 steps),
+      the last two on a Kaggle GPU (`scripts/kaggle/task_164_en`, `task_164_l600`), plus the
+      re-run of §163's own setting on the same GPU kernel that §164's 2026-10-15 amendment
+      requires before a GPU arm's verdict is more than provisional. Verify: §164 reports the
+      seed gap (per fold and mean absolute difference, `S1` against §163's arm), whether §163
+      replicates under its own rule, and a verdict for `EN` and `L600` under §164's rules, each
+      GPU verdict either beside the measured device gap or labelled provisional
+      (device-confounded); the predictions stay unedited.

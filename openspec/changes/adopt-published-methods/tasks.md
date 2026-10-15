@@ -25,7 +25,11 @@
       only the easy cases flatters a model exactly as §25 warned. Verify: every experiment
       harness reports a coverage fraction beside its aggregate, and a test asserts that
       attempted tasks equal scored plus explicitly-skipped.
-- [ ] 36.5 **Record the fine-tuned-variant decision in `docs/design/DECISIONS.md`**, either way. D2
+- [x] 36.5 **Done (2026-10-16, D18).** Recorded as `docs/design/DECISIONS.md` D18: opt-in
+      dataset-specific fine-tuning shipped in 0.7.0 (§163), off by default, provenance claim
+      scoped to zero-shot use; alternatives and reversal condition stated, cross-referenced
+      from D2 and D14.
+      **Record the fine-tuned-variant decision in `docs/design/DECISIONS.md`**, either way. D2
       forbids training on real data because auditability is the product; Kostrzewa et al. show
       fine-tuning works and transfers across economies. Whether both offerings can coexist is
       a founder's call, and the task is only to write the answer and its reversal condition

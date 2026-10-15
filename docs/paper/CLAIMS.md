@@ -10,7 +10,8 @@ Status vocabulary:
 - **OPEN** — proposed, not measured.
 
 Statuses last reviewed 2026-09-20. Numbers and section references re-checked against
-`docs/results/FINDINGS.md` on 2026-10-15; corrections made then carry that date.
+`docs/results/FINDINGS.md` on 2026-10-15; corrections made then carry that date. Claims 16-18
+(§157-§164) added 2026-10-16.
 
 > **Every claim in this ledger is a claim about FinTFM, the synthetic-only family.** Decision
 > **D17** (2026-10-06) opened a second family, **FinTFM-R**, trained on real data (SEC EDGAR;
@@ -20,6 +21,12 @@ Statuses last reviewed 2026-09-20. Numbers and section references re-checked aga
 > real data" is false of FinTFM-R and must never be restated for it. Any FinTFM-R evidence
 > added here carries the family name in the evidence line, and any benchmark it is scored on
 > must first be checked for SEC-filer overlap (`CLAUDE.md`, "Two families").
+>
+> (Updated 2026-10-16: FinTFM-R checkpoints now exist and are scored in Claim 17, §157, §160,
+> §161. Separately, **opt-in dataset-specific fine-tuning** (0.7.0, §163, Claim 16) gives a
+> FinTFM checkpoint gradient steps on the caller's training rows. A fine-tuned model has seen
+> those rows, so the provenance half of Claim 2 covers the **zero-shot** model only, the default
+> (decision D18).)
 
 **What changed since 2026-09-14, in one paragraph.** The architecture fix was measured on
 one real panel, V4FinBench (§80/§84, Claim 10), five candidate explanations for the residual accuracy deficit
@@ -311,6 +318,15 @@ p = 0.204, both on the subsample) becomes a significant **fintfm win** of +0.030
 is not "competitive on accuracy" when every tuned booster leads by more than the entire
 fintfm-to-LR margin, roughly sevenfold.
 
+**Updated 2026-10-16 (§162, §163): the gap is to the boosted trees, not to logistic
+regression.** A fold-0 diagnostic at the 200k-row development cap had untuned logistic
+regression ahead, 0.1658 AP against FinTFM's 0.1442. That held only at the cap (34,906 test
+rows, a training pool of ~106k rows). On the full 1,000,087-row panel, five folds, the same
+checkpoint zero-shot scores 0.1986 mean AP against untuned logistic regression's 0.1614, ahead
+on every fold (§163's table). Against untuned boosters on the same five folds (library
+defaults): CatBoost at 1,000 iterations 0.4005, LightGBM 0.2666 and XGBoost 0.2229 at 100 trees
+each. CatBoost wins every fold. Claim 6 stays RETRACTED.
+
 ---
 
 ## Claim 7 — Low-default portfolios are an underserved segment, and the field's own benchmark did not test them
@@ -371,6 +387,11 @@ experiment (`n_cell_blocks=1`, `cell_labels=True`, both `p_financial` arms), con
 independent instruments (a Bayes-ceiling probe with a closed-form, numerically-verified target,
 and the pre-existing antisymmetric probe).
 
+**Narrowed 2026-10-16 (audit task AU2.8).** The real-panel half compares two checkpoints that
+differ in prior mix as well as architecture (`p_financial` 1.0 against 0.7, §80's confound
+note). Until a matched pair is trained, quote the V4FinBench gain as "cell attention plus a
+change of prior mix", not as an architecture effect. The synthetic half (§78) is unaffected.
+
 A checkpoint trained exclusively on the financial prior — the same prior that produced a
 severe, well-characterised capacity cap (§74: regret 0.234-0.277 at Bayes AUC 0.90-0.999,
 independent of seven content-side interventions tried against it, §58-§77) — closes to regret
@@ -397,7 +418,11 @@ than their old-architecture counterparts, unexplained.
 **Task 39.5 closed, 2026-09-15 (§80): the fix transfers.** Two complete five-fold V4FinBench
 runs on the full 1.0M-row panel, differing only in `n_cell_blocks`/`cell_labels`, give cell
 attention **+0.0486 mean AP, 5 folds of 5, every 95% CI excluding zero, every Holm-corrected
-p < 0.001** (possibly confounded with the prior mix, audit task AU2.8). The synthetic result
+p < 0.001** (possibly confounded with the prior mix, audit task AU2.8; **confirmed
+2026-10-16**: the cell arm is `v4-cellattn-fin10`, `p_financial` 1.0, and the old arm
+`v4-colid-fin07`, `p_financial` 0.7, per §80's confound note, and no matched pair was ever
+trained, so the architecture-only effect is unmeasured; the same applies to §84's +0.0417 and
+§91's reference arm). The synthetic result
 did not dissociate on real data — the specific failure §47
 and §74 both exhibited and which this claim was explicitly held open against.
 
@@ -666,3 +691,143 @@ becomes the measurement**, and +0.0754 for a prior full of accounting thresholds
 enough to pass review. Any paper reporting prior-selection statistics must state the baseline's
 preprocessing explicitly.
 
+---
+
+## Claim 16 — Opt-in dataset-specific fine-tuning raises V4FinBench AP, by a small margin
+
+**Status: SINGLE DRAW** (one fine-tuning seed per fold). Evidence: §163. A replication and two
+variants are pre-registered as §164, with no result yet. **This is a claim about a fine-tuned
+model, not about the zero-shot FinTFM**, and it does not carry Claim 2's provenance argument
+(decision D18).
+
+**What was measured.** `FinancialTFMClassifier(finetune_steps=200)` (0.7.0, off by default)
+takes 200 AdamW steps at lr 1e-5 on a copy of `runs/v4-cellattn-labels.pt`, on tasks built from
+each fold's training rows only. Five folds of the full 1,000,087-row V4FinBench horizon-0 panel,
+paired bootstrap against the same checkpoint zero-shot (`control_rescore.json`), Holm across
+folds:
+
+| fold | 0 | 1 | 2 | 3 | 4 | mean |
+| --- | --- | --- | --- | --- | --- | --- |
+| zero-shot AP | 0.2113 | 0.2050 | 0.1786 | 0.1810 | 0.2172 | 0.1986 |
+| fine-tuned AP | 0.2181 | 0.2068 | 0.1901 | 0.1955 | 0.2205 | **0.2062** |
+| ΔAP | +0.0068 | +0.0018 | +0.0115 | +0.0145 | +0.0033 | **+0.0076** |
+| Holm p | <0.001 | 0.291 | <0.001 | <0.001 | 0.138 | |
+
+The mean is the mean of the five per-fold APs. **5 of 5 folds positive, 3 Holm-significant.**
+By §163's pre-registered rule (mean ΔAP above +0.0073 with at least 4 of 5 folds positive) the
+verdict is *helps*, and the prediction held. It is the first lever to move V4FinBench AP after
+D16's seven, real-data pretraining (§160-§161) and context construction (§162).
+
+**Why this is narrower than "+0.0076".**
+
+- **One fine-tuning seed** per fold. Fine-tuning's own seed variance is unmeasured, and the
+  paired bootstrap resamples rows, not fine-tuning runs, so its intervals cannot see it (§158).
+- **The bar it cleared is not a noise estimate.** The 0.0073 mean AP yardstick is §159's, and
+  §160 showed it is mostly a head-size effect: the `max_classes 10` matched control sits −0.0082
+  mean AP below the `max_classes 2` control (5 of 5 folds), while two `max_classes 10` controls
+  at seeds 0 and 1 differ by +0.0009. So the margin over the bar, 0.0003, says nothing about
+  whether the effect exceeds noise; the 5-of-5 sign consistency is the stronger evidence, as
+  §163 itself says (audit task AU2.9).
+- **The learning rate was chosen on a tie.** Stage A's fold-0 validation AP was 0.23247 at both
+  1e-5 and 3e-5.
+
+**Against the gradient-boosted trees (§163, same five full-panel folds, boosters untuned at
+library defaults).**
+
+| model | setting | mean AP, 5 folds |
+| --- | --- | --- |
+| CatBoost | 1,000 iterations | **0.4005** |
+| LightGBM | 100 trees | 0.2666 |
+| XGBoost | 100 trees | 0.2229 |
+| FinTFM, fine-tuned | 200 steps | 0.2062 |
+| FinTFM, zero-shot | | 0.1986 |
+| logistic regression | untuned | 0.1614 |
+
+Untuned CatBoost wins every fold, at 1.94× fine-tuned FinTFM's AP (a 0.194 AP gap). **Fine-tuning
+closes 3.8% of the zero-shot gap to CatBoost.** Fine-tuned FinTFM is within 0.017 AP of untuned
+XGBoost and 0.060 of untuned LightGBM. The published protocol tunes the boosters, but its
+`--tune` grid caps CatBoost at 200 iterations, so tuning under that grid could lower CatBoost
+rather than widen the gap (§163, corrected 2026-10-16).
+
+**Pending: §164, pre-registered 2026-10-15.** Three arms, each one change from §163's setting:
+`S1` (`finetune_seed: 1`; fine-tuning's seed noise, and whether §163 replicates), `EN`
+(`finetune_query_pos_frac: 0.1`, importance-weighted) and `L600` (600 steps). `EN` and `L600`
+run on a Kaggle GPU, so their verdicts stay provisional (device-confounded) until §163's own
+setting is re-run on the same kernel. Nothing from §164 may be quoted until it is in FINDINGS.
+
+**Write it as:** "opt-in fine-tuning per dataset raised mean AP from 0.1986 to 0.2062 on five
+full-panel V4FinBench folds, 5 of 5 positive, at one fine-tuning seed; the fine-tuned model has
+seen the dataset's training rows." Never as a property of the zero-shot model, and never
+without the CatBoost row beside it.
+
+---
+
+## Claim 17 — Real-data pretraining (FinTFM-R) has not improved V4FinBench AP at the one recipe tried
+
+**Status: SURVIVES as a null result, at one recipe** (30% real share, 6,000 steps from scratch,
+two seeds per source). **Family: FinTFM-R.** Evidence: §157 (CPU pilot), §160 and §161 (GPU,
+five folds, full 1,000,087-row panel). Decision rules pre-registered in §159 and applied by
+`scripts/c5_verdict.py`.
+
+Each arm against the `max_classes 10` control at the same seed, mean AP difference over five
+folds:
+
+| source | seed 0 | seed 1 | §159 Rule 1 |
+| --- | --- | --- | --- |
+| EDGAR | −0.0019 | −0.0029 | null |
+| SBA 7(a) | −0.0355 (5 of 5 folds negative) | +0.0024 | null (seed means disagree in sign) |
+
+- **EDGAR is a stable null.** Its two seeds differ by −0.0002 on the mean, as close as the two
+  no-change controls (+0.0009, §160).
+- **SBA is a null whose seeds disagree.** SBA seed 1 against SBA seed 0 is +0.0388 mean AP, 5 of
+  5 folds. Adding the SBA panel turned a run whose outcome barely depended on the seed into one
+  where the seed moves AP by about 0.04. Two seeds cannot say which is typical. PPDai was not
+  launched, under §159 Rule 2.
+- **The CPU pilot did not predict the GPU result.** §157 continued pretraining from
+  `runs/v4-cellattn-labels.pt` for 1,500 steps, one arm per source (six sources), scored on fold
+  0 at the 200k-row development cap (34,906 test rows, 130 positives): no arm separated from the
+  control after Holm, SBA's lead shrank to +0.0073 mean AP over five folds (3 of 5 positive, none
+  significant), and the pre-registered base-rate hypothesis was rejected. §162 later found the
+  cap can change conclusions, so the pilot's ranking may not transfer; §160-§161 are full-panel.
+- **Training loss carries no information about transfer here** (§161): both SBA seeds and both
+  EDGAR seeds fit their mixtures better than the control and transfer no better.
+
+**What this decides.** D17's premise, that real financial data improves the credit benchmark,
+has no support at this recipe. Other shares, step counts and sources are untested, so this is
+not evidence that real data cannot help. No FinTFM-R result may be described as an
+improvement.
+
+---
+
+## Claim 18 — Four training ablations and context size do not move V4FinBench AP
+
+**Status: SURVIVES as a negative result**, on one checkpoint for the context question. Family:
+FinTFM (synthetic-only). Evidence: §158, §160 (re-adjudication), §162 (context).
+
+**Four Kaggle ablations, re-scored against a matched control (§158, §160).** §144-§147 trained
+at `max_classes 10` and had been scored against a `max_classes 2` control, so each difference
+held a head-size and initialisation change beside the change under test. Against the matched
+`max_classes 10` control at seed 0 (five folds, full panel, mean AP difference, §159 Rule 3):
+
+| ablation | mean | folds negative | verdict |
+| --- | --- | --- | --- |
+| §144 realism | +0.0047 | 1 of 5 | null |
+| §145 learnability | −0.0024 | 3 of 5 | null |
+| §146 schedule-free | −0.0098 | 5 of 5 | loss |
+| §147 mask embedding | −0.0230 | 5 of 5 | loss |
+
+Code drift between the ablations' commits and the control's was ruled out for the task sampler
+and the initialisation (identical hashes across six commits, §158).
+
+**Context size is not what limits V4FinBench AP (§162).** A fold-0 diagnostic at the 200k-row
+development cap (34,906 test rows, 130 positives, a training pool of ~106k rows) had a 500-row
+context beating the 2,000-row default, 0.2215 AP against 0.1392. The pre-registered five-fold,
+full-panel confirmation failed: a 500-row context with 8 ensemble members scored −0.0029 mean AP
+against the default (2 of 5 folds positive), and a single 500-row draw −0.0404 (1 of 5). The cap
+changed the shape of the context curve, not only its level: the default scores 0.1392 on fold 0
+at the cap and 0.2113 on the full panel. The scoring default stays.
+
+**What this establishes.** The development cap distorted §162's fold-0 context conclusion, and
+the untuned-logistic-regression lead it showed (0.1658 against 0.1442 AP) does not exist on the
+full panel (Claim 6, update of 2026-10-16). The remaining gap is to the gradient-boosted trees,
+and fine-tuning (Claim 16), the one lever since D16 to move AP, closes 3.8% of it.
