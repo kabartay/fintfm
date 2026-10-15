@@ -32,7 +32,8 @@ property it deliberately trades away.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+import contextlib
+from collections.abc import Callable, Iterator
 from typing import Literal
 
 import numpy as np
@@ -108,6 +109,28 @@ def _finetune_rows(
             return ci, qi, w.astype(np.float32)
     qi = rng.choice(q_pool, size=n_q, replace=len(q_pool) < n_q)
     return ci, qi, None
+
+
+@contextlib.contextmanager
+def _forked_rng() -> Iterator[None]:
+    """Restore every generator ``torch.manual_seed`` reseeds, CPU and accelerator alike.
+
+    ``torch.random.fork_rng(devices=[])`` restores the CPU generator only, while
+    ``torch.manual_seed`` also reseeds CUDA and MPS, so fine-tuning used to leave the caller's
+    accelerator generator at the fine-tuning seed. Reading the CUDA states initialises CUDA
+    where it is available, as ``fork_rng`` does by default.
+    """
+    restore: list[tuple[Callable[[object], None], object]] = []
+    if torch.cuda.is_available():
+        restore.append((torch.cuda.set_rng_state_all, torch.cuda.get_rng_state_all()))
+    if torch.backends.mps.is_available():
+        restore.append((torch.mps.set_rng_state, torch.mps.get_rng_state()))
+    with torch.random.fork_rng(devices=[]):
+        try:
+            yield
+        finally:
+            for set_state, state in restore:
+                set_state(state)
 
 
 def _select_context(
@@ -273,7 +296,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         finetune_seed: Second axis of fine-tuning randomness beside ``random_state``, so the
             same fold can be fine-tuned at several seeds. Seeds torch as well as numpy --
             column identities are drawn from torch's generator in training mode -- inside a
-            forked RNG, so the caller's random state is untouched.
+            forked RNG, so the caller's random state, CPU and CUDA/MPS, is untouched.
 
     Attributes:
         model_: The network predictions run through: ``model`` itself, placed on ``device``
@@ -511,7 +534,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         F = model.cfg.max_features
         nc = torch.full((B,), n_classes, dtype=torch.long, device=self.device)
         self.finetune_losses_: list[float] = []
-        with torch.random.fork_rng(devices=[]):
+        with _forked_rng():
             torch.manual_seed(1_000_003 * int(self.random_state) + int(self.finetune_seed))
             for _ in range(self.finetune_steps):
                 Xb = np.full((B, n_ctx + n_q, F), np.nan, dtype=np.float32)

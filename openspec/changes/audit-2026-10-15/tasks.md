@@ -69,7 +69,10 @@
       (c) `pos_frac` at or near 1 divides by zero, above 1 gives a negative size: validate
       `0 < pos_frac < 1`. (d) `groups` length is not checked against `y`. (e) `finetune_context=0`
       silently means `max_context`. Verify: one test per case.
-- [ ] AU1.8 **Fine-tuning resets the caller's GPU RNG.** `classifier.py:467-468`:
+- [x] AU1.8 **Done (2026-10-16).** `_forked_rng` restores the CUDA and MPS generators as well
+      as the CPU one; `tests/test_finetune.py::test_finetuning_leaves_the_callers_device_rng_alone`
+      (run on MPS, skips without an accelerator).
+      **Fine-tuning resets the caller's GPU RNG.** `classifier.py:467-468`:
       `fork_rng(devices=[])` restores CPU state only, while `manual_seed` reseeds CUDA/MPS.
       Scores are unaffected (column identities are drawn on CPU, dropout 0). Fix: fork the
       active device too, or use a local `torch.Generator`.

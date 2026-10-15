@@ -7,6 +7,7 @@ query companies never appear in its own context.
 """
 
 import numpy as np
+import pytest
 import torch
 
 from fintfm.inference.classifier import FinancialTFMClassifier, _finetune_rows
@@ -158,6 +159,31 @@ def test_finetuning_leaves_the_callers_torch_rng_alone():
     torch.manual_seed(123)
     clf.fit(X, y, groups=g)
     assert torch.equal(torch.rand(3), expected)
+
+
+@pytest.mark.parametrize(
+    "device",
+    [
+        pytest.param(
+            "mps",
+            marks=pytest.mark.skipif(not torch.backends.mps.is_available(), reason="no MPS"),
+        ),
+        pytest.param(
+            "cuda", marks=pytest.mark.skipif(not torch.cuda.is_available(), reason="no CUDA")
+        ),
+    ],
+)
+def test_finetuning_leaves_the_callers_device_rng_alone(device):
+    """AU1.8: fork_rng(devices=[]) restored the CPU generator only, while manual_seed reseeded
+    the accelerator's too. Fine-tuning itself runs on CPU here: the reseed reached the
+    accelerator generator whatever device the model was on."""
+    mod = torch.mps if device == "mps" else torch.cuda
+    X, y, g = _data()
+    clf = FinancialTFMClassifier(_model(), max_context=100, finetune_steps=1, finetune_query=32)
+    mod.manual_seed(123)
+    before = mod.get_rng_state().clone()
+    clf.fit(X, y, groups=g)
+    assert torch.equal(mod.get_rng_state(), before)
 
 
 def _weights(model: FinancialTFM) -> torch.Tensor:
