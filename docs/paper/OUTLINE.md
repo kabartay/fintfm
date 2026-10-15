@@ -8,7 +8,9 @@ reviewer checks first, not by narrative appeal.**
 draft left a framing question open — a credit-domain paper or an architecture-diagnosis paper
 — and said it should be decided once real-data validation reported. It has reported, along
 with four other things that bear on the choice, and the question is now settled by evidence
-rather than preference. What follows is the argument for that, then the structure.
+rather than preference. What follows is the argument for that, then the structure. Rank,
+categorical and regression figures were corrected against `docs/results/FINDINGS.md` on
+2026-10-15.
 
 ## The framing question, and why the evidence closed it
 
@@ -24,8 +26,8 @@ Four measurements since then make **B** the only defensible one:
 | --- | --- |
 | §80/§84 — the fix transfers to real data, +0.042 AP best-vs-best, 5/5 folds | B's central result holds outside synthetic probes |
 | §96 — the accuracy deficit is **general, not credit-specific**; behind on 14 of 15 public tasks | A's premise is weakened at its core |
-| §98 — 93rd of 95 on TabArena | A cannot be written at all: there is no transfer story to tell against the field |
-| §100 — 82% of that gap is categorical preprocessing, −0.668 with log cardinality | B's residual is small and *characterised*, which is what a diagnosis paper needs |
+| §98 — 93rd of 95 on TabArena (94th of 95 on the later board snapshot, §122) | A cannot be written at all: there is no transfer story to tell against the field |
+| §100 — up to 82% of that gap sits on datasets with categorical columns (a ceiling; §101 recovered 34%), −0.668 correlation with log cardinality | B's residual is small and *characterised*, which is what a diagnosis paper needs |
 
 **A is not currently writable.** Its claim is comparative and the comparison is lost, on our
 own benchmark and on the field's. **B is writable now**, and its strength is unusual: it has a
@@ -50,10 +52,10 @@ Three sentences of result and one of deficit, deficit not buried: a pooled symme
 encoder is provably incapable of representing a rule as simple as `x₀ − x₁`, and a probe with
 an exactly-known Bayes-optimal AUC shows the resulting cap is severe and independent of task
 difficulty; seven content-side explanations are eliminated one at a time; two-way cell
-attention with per-cell label injection closes the regret to 0.001–0.005 and transfers to real
-credit panels at +0.042 AP on 5 of 5 folds; **and the fixed model still places 93rd of 95 on
-TabArena, where 82% of the residual gap is categorical preprocessing rather than
-architecture.**
+attention with per-cell label injection closes the regret to 0.001–0.005 and transfers to one
+real credit panel, V4FinBench, at +0.042 AP best-vs-best on 5 of 5 folds; **and the fixed model
+still places 94th of 95 on TabArena (§122). Native categorical handling recovered 34% of the gap
+to tuned logistic regression (§101), leaving a uniform deficit of about 0.035 ROC-AUC.**
 
 That last clause is not self-flagellation — it is what makes the diagnosis credible. A paper
 that fixes a defect and then claims the field is solved invites exactly the scrutiny it cannot
@@ -100,7 +102,8 @@ direction (§93/§97) — this project misread it once and the correction belong
   (§58–§77). The eliminations are the evidence that the diagnosis is right, so they are
   results and not an appendix.
 - **5.2 The fix, synthetic.** §78, both `p_financial` arms, two independent instruments.
-- **5.3 The fix, real.** §80/§84: +0.0486 matched-context, +0.0417 best-vs-best, 5/5 folds.
+- **5.3 The fix, real.** §80/§84: +0.0486 AP matched-context, +0.0417 AP best-vs-best, 5/5
+  folds, V4FinBench (the gain possibly confounded with the prior mix, audit task AU2.8).
 - **5.4 Where it still loses, externally.** §98 and §100 together — the placement *and* the
   decomposition. Presented as one result, because the placement without the decomposition
   overstates the architectural deficit by 2.8×.
@@ -116,7 +119,8 @@ direction (§93/§97) — this project misread it once and the correction belong
 ## 6. Limitations
 
 See [LIMITATIONS.md](LIMITATIONS.md). Written first, cited here. The TabArena placement and
-the missing regression head both belong in the paper's own text, not only in this repository.
+the absence of any LGD or EAD panel both belong in the paper's own text (a regression head now
+exists, §106, and ranks near last on TabArena regression, mean rank 93.1, §121), not only in this repository.
 
 ## 7. Conclusion
 

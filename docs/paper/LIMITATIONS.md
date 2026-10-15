@@ -6,21 +6,28 @@ it, so none of this is hedging language — every entry is a measured fact.
 ## Behind the incumbent on accuracy and calibration
 
 On the V4FinBench out-of-time split, per-horizon logistic regression fitted on all 72,622
-training rows leads on mean AUC **0.8616 to 0.8209** and on expected calibration error by
-roughly fivefold (~0.0018 against 0.0095). Three of four horizon differences were significant
-after Holm correction at the previous best (§32). Claim 6.
+training rows leads on mean AUC **0.8616 to 0.8143** (prototype context, three seeds, §38)
+and on expected calibration error by roughly fourfold (~0.0018 against 0.0072). Three of four
+horizon differences were significant after Holm correction at the previous best (§32). Claim 6.
+(Corrected 2026-10-15: this entry previously quoted 0.8209, a single-seed draw that §38
+retracted, and an ECE of 0.0095 that has no FINDINGS source.)
 
-The gap closed from 0.142 to 0.041 in one day of inference-time changes with no retraining,
+The gap closed from 0.142 to 0.047 mean AUC (FINDINGS scorecard; §35, §38) in one day of inference-time changes with no retraining,
 which is the reason to think it is closable — and it is not closed.
 
-**A second, more rigorous measurement (§60/§69/§71, 2026-09-13/14) says the same thing more
-precisely and less favourably.** On V4FinBench's own published protocol — five folds, tuned
-gradient-boosting baselines, average precision rather than ROC-AUC at this 0.38% base rate
-(D13) — fintfm ties logistic regression (Holm p = 0.204) and loses to CatBoost, XGBoost and
-LightGBM by 0.14-0.17 AP, all Holm p < 0.001. Reading ROC-AUC with untuned baselines instead
+**A second, more rigorous measurement (§60/§69/§71, 2026-09-13/14, on a 10x subsample of
+105,900 test rows, §82) says the same thing more precisely and less favourably.** On
+V4FinBench's own published protocol — five folds, tuned gradient-boosting baselines, average
+precision rather than ROC-AUC at the subsample's 0.38% base rate (D13) — fintfm after §71's
+configuration fix ties logistic regression (dAP +0.018, Holm p = 0.204; at library defaults
+§69 measured dAP −0.0127, p = 0.309) and loses to CatBoost, XGBoost and LightGBM by 0.14-0.17
+AP, all Holm p < 0.001. Reading ROC-AUC with untuned baselines instead
 would have placed fintfm second of five; AP with tuned baselines places it third. **Neither
 measurement has been re-run on the architecture that closed the synthetic capacity cap**
-(§78) — see the new limitation below.
+(§78) — see the new limitation below. (Superseded 2026-10-15: §80 re-ran the published
+protocol with cell attention on the full 1,000,087-row panel, five folds. fintfm now leads
+logistic regression by +0.0307 AP, Holm p < 0.001, and trails tuned LightGBM, CatBoost and
+XGBoost by 0.204 to 0.236 AP. These AP values are not comparable with §69-§71's subsample.)
 
 ## The comparison to the published benchmark does not exist yet
 
@@ -30,6 +37,11 @@ inference context is 10,000 rows rather than 2,000, and its TabPFN is fine-tuned
 (§36). **We cannot say where we would place on their table.** Out-of-time is the harder split,
 so the difference does not flatter us, which makes it a precision problem rather than a
 credibility one — but it is unresolved either way.
+
+(Superseded 2026-10-15: §39 produced the first number on V4FinBench's own protocol, and
+§69-§71 and §80 then scored all five published folds with tuned baselines. The comparison now
+exists for horizon 0; the out-of-time results in the section above remain on this project's own
+split.)
 
 ## Context size is capped by pretraining, and larger tasks are priced out
 
@@ -66,7 +78,8 @@ limitation of their own.
 §37's grouping numbers, §36's figure readings, and the group-count sweep are single draws.
 More importantly, this project produced **five wrong diagnoses in one day** (§28, §30, §32's
 monotonicity claim, §34, and the retrieval correction), every one caught by measurement and
-none by review (`docs/results/POSTMORTEM.md`). The corrections all ran in the same direction — each
+none by review (`docs/results/POSTMORTEM.md`, which now records seven wrong diagnoses in
+three days). The corrections all ran in the same direction — each
 made the result worse for the project's story before it got better.
 
 That history is a reason to trust the *current* numbers more than the earlier ones, and a
@@ -109,6 +122,11 @@ piles up at both ends — a point estimate or a Gaussian head would average the 
 middle value that occurs rarely in the data. **Until that lands, "IFRS 9" should not appear in
 a claim without this sentence attached.**
 
+(Superseded in part 2026-10-15: the binned regression head now exists. §106 measured it on
+synthetic probes, where it beats ridge where ridge is misspecified, and §121 scored it on 12
+TabArena regression datasets, where it ranks last on 5 of 12, mean rank 93.1. No LGD or EAD
+panel has been scored, so the IFRS 9 sentence above still applies.)
+
 ## Multiclass works but is measured once, against a weak ceiling
 
 §99 verified that a `--max-classes 10` checkpoint clears its own untrained control at K = 3, 5
@@ -116,6 +134,10 @@ and 10. That is the floor, not the bar. Against multinomial logistic regression 
 correctly-specified model for the probe — it is behind by **0.211 / 0.262 / 0.359** macro
 one-vs-rest AUC, a deficit that *widens* with class count. One checkpoint, one probe family,
 three seeds: `SINGLE DRAW` in the ledger's vocabulary, and not quotable externally.
+
+(Updated 2026-10-15: §121 then scored the multiclass checkpoint on TabArena's 7 eligible
+multiclass datasets. It runs correctly and ranks near last, mean rank 93.4 of 95, last on 3 of
+7.)
 
 ## Regulatory terms are used without primary-source verification
 
@@ -125,7 +147,7 @@ supervisory expectations for low-default portfolios, and whether the model's out
 point-in-time or through-the-cycle. **None of these may be asserted to a regulator or in a
 paper's framing until checked against a primary source.**
 
-## The architecture fix that closed the synthetic capacity cap — validated on real data 2026-09-15, with one caveat that outlives it
+## The architecture fix that closed the synthetic capacity cap — measured on V4FinBench 2026-09-15, with one caveat that outlives it
 
 A severe capacity defect — achieved AUC capped at ~0.73 regardless of true task difficulty,
 measured against an exactly-known Bayes-optimal AUC — was found (§74), attributed correctly to
@@ -136,14 +158,19 @@ panel has been scored with the new architecture, and this project has already le
 (§47, §74 itself) that a synthetic result and a real-benchmark result can dissociate sharply.
 **Task 39.5 has since closed this (§80).** Two complete five-fold V4FinBench runs on the full
 1.0M-row panel, differing only in `n_cell_blocks`/`cell_labels`, give the new architecture
-+0.0486 mean AP, 5 folds of 5, every Holm-corrected p < 0.001. The synthetic result did not
-dissociate.
++0.0486 mean AP, 5 folds of 5, every Holm-corrected p < 0.001 (possibly confounded with the
+prior mix, audit task AU2.8). The synthetic result did not dissociate.
 
 **What survives is narrower and still limiting**: the fix is established at *matched context*,
 and §79's memory cost means the new architecture cannot be run at the context its predecessor
 scored best at. Its best reachable score (0.1941) is below the old architecture's best recorded
 score (0.2116, §71, single fold). So "the architecture is better" is measured; "the project's
 real-data standing is better" is not, and the two must not be conflated.
+
+(Superseded 2026-10-15: §82 retracted this comparison, because 0.2116 is §71's fold 0 on a 10x
+subsample of 105,900 test rows, and §84 then measured cell attention ahead of the old
+architecture by +0.0417 AP best-vs-best on the full panel, 5 of 5 folds. See the corrected
+entry further down.)
 
 The reported experiment also deviated from the protocol it was meant to replicate exactly:
 `--batch-size 4 --n-rows-choices 256,512` rather than `--batch-size 8 --n-rows-choices
@@ -203,7 +230,7 @@ suggestion that the architecture change might be a net real-data loss is withdra
 
 ## Training volume is not the explanation for the accuracy gap, at least not at 5x
 
-The most-cited untested explanation for this project's ~0.22-0.24 AP deficit to tuned gradient
+The most-cited untested explanation for this project's 0.20-0.24 AP deficit (§80: 0.204-0.236, full panel, five folds) to tuned gradient
 boosting has been training volume: every checkpoint has come from 48,000 synthetic tasks
 against a field norm near 10^7, a ~200x shortfall recorded in `CLAUDE.md` since 2026-09-10.
 
@@ -223,7 +250,8 @@ Every real-data number this project had was corporate default data, so the ~0.22
 tuned gradient boosting had never been separated from the kind of data it was measured on.
 
 **§96 separated it.** On 15 public OpenML binary tasks spanning 2.3%-44.5% prevalence and 4-72
-features, fintfm is behind the best baseline on **14 of 15**, mean deficit **-0.134**, and wins
+features, fintfm is behind the best baseline on **14 of 15**, mean deficit **-0.134** AP for the SCM-prior checkpoint (-0.144 for the financial-prior
+one), and wins
 outright on one. It reproduces on ecology, speech, software defects, medicine and astronomy.
 
 Three candidate explanations are ruled out by that same experiment. It is not credit-specific,
@@ -236,15 +264,17 @@ The baselines in that suite are untuned, so the honest reading is that the defic
 understated: §69 measured tuning as roughly doubling a booster's lead.
 
 
-## Placed 93rd of 95 on TabArena, the field's own benchmark
+## Placed 94th of 95 on TabArena, the field's own benchmark
 
 Every accuracy claim in this ledger before 2026-09-20 was measured against baselines this
 project ran itself. §98 is the first placement against the field: `fintfm-0.3` registered as a
 model in TabArena and run under TabArena's protocol — their preprocessing, their splits, 8
 bagged child models per dataset — against a cached leaderboard of 95 methods.
 
-**Rank 93 of 95. Mean ROC-AUC 0.7642 against leaders at ~0.90.** Below every linear baseline;
-above only `KNN (default)`. 26 of 27 eligible datasets, zero failures.
+**Rank 93 of 95 at §98. Mean ROC-AUC 0.7642 against leaders at ~0.90.** Below every linear
+baseline; above only `KNN (default)`. 26 of 27 eligible datasets, zero failures. **On the later
+board snapshot used for the submission the rank is 94 of 95** at mean ROC-AUC 0.7823, over 27
+of 27 datasets (§122), unchanged against a refreshed baseline cache (§150). Quote 94 of 95.
 
 Three things bound it, and none of them rescue it. Coverage is **51%** of the suite, since
 binary-only excludes 13 regression and 8 multiclass datasets. Categoricals are label-encoded
@@ -258,25 +288,29 @@ categorical content, the gap to tuned logistic regression is **−0.0320** on th
 with no categorical columns and **−0.0894** on the nine that are mostly categorical; by
 maximum level count it runs −0.0320 / −0.0437 / **−0.1109**, correlating **−0.668** with log
 cardinality. **82% of the distance to the method ranked #89 sits on datasets carrying
-categorical columns.** So the headline 0.0527 mean gap overstates the modelling problem: the
+categorical columns.** That 82% is a ceiling; native categorical handling recovered 34% of
+the gap (§101, below). So the headline 0.0527 mean gap overstates the modelling problem: the
 honest figure is the numeric-only **−0.0320**, and the rest was a preprocessing decision.
 
 That cuts both ways as a limitation. It is good news for the work queue and bad news for the
 published number — **§98's rank measured a workaround as much as a model**, which is exactly
-why no leaderboard PR has been submitted.
+why no leaderboard PR has been submitted. (Superseded 2026-10-15: after §101 a binary-only
+submission was made as autogluon/tabarena#616. A maintainer confirmed the integration correct
+and declined it on competitiveness, §122.)
 
 **Fixed, and the rank still did not move (§101).** Out-of-fold target statistics lifted the
 mean to 0.7823 and destroyed the cardinality correlation (−0.668 → −0.025), with the eight
-numeric-only datasets unchanged to four decimals. Rank: **93 of 95, unchanged.** The residual
+numeric-only datasets unchanged to four decimals. Rank: **93 of 95, unchanged** (94 of 95 on the later board snapshot, §122). The residual
 is now uniform at ~0.035 across every bucket, so the deficit is one population rather than
 two — sharper to attack, and no smaller where it counts. **The project's stated target,
 untuned trees < fintfm < tuned trees, is not reached:** default random forest leads on 21 of
 27 datasets.
 
-The one encouraging pattern: **two of its three best datasets are the corporate bankruptcy
-panels it was designed for** (`taiwanese_bankruptcy_prediction` 0.9291,
-`polish_companies_bankruptcy` 0.8436), with `GiveMeSomeCredit` sixth. The model is least bad
-where it was aimed.
+**Retracted (§107; pointer added 2026-10-15).** This paragraph used to say two of the three
+best datasets were the corporate bankruptcy panels (`taiwanese_bankruptcy_prediction` 0.9291,
+`polish_companies_bankruptcy` 0.8436 ROC-AUC). Those are absolute AUCs compared against
+nothing. By rank among the 95 methods they are 83rd and 91st, `GiveMeSomeCredit` 91st, `heloc`
+94th and `credit-g` 95th, so there is no measured specialist profile (CLAIMS.md, Claim 11).
 
 ## Scale cannot close the gap, and a peer's published curve is why we know
 
@@ -284,7 +318,8 @@ where it was aimed.
 weakened the mechanism it proposed, leaving **scale** as the only standing explanation. §108's
 first attempt at it lost 0.0077 on TabArena binary — on a confounded design, since the larger
 model ran at batch 4 against the baseline's batch 8 and therefore saw **half the tasks** at
-matched steps. A matched-task rerun is in flight and a confounded negative is not a negative.
+matched steps. A matched-task rerun is in flight and a confounded negative is not a negative. (Done: §114,
+reported below.)
 
 **But the hypothesis was already capped by evidence we did not generate.** Synthefy's Nori
 publishes a clean scaling curve for a synthetic-prior in-context model: 6M → 100M parameters,
@@ -334,7 +369,7 @@ chosen for *performance, diversity and distinctiveness*.
 data saturates; it says synthetic data saturates **when the prior is wrong**, and that a better
 prior beats a bigger corpus. Which is the best news this project's thesis has had — a financial
 prior is exactly a bet on prior design — and simultaneously the sharpest indictment of where its
-effort has gone: §54, §104 and §44 are architecture, while MITRA reports its priors are
+effort has gone: §54, §78 and §104 are architecture, while MITRA reports its priors are
 **model-agnostic**, improving both 1D row attention and 2D element attention.
 
 **The specific, named gap is a tree-based prior.** MITRA finds that TFMs pretrained on SCMs
@@ -344,6 +379,11 @@ random forest, decision tree, extra tree. This project's mixture is financial (0
 tabular data is full of threshold structure. A draft must state that the prior mixture was never
 evaluated against MITRA's three criteria, because that is a gap in the work rather than a
 property of the domain.
+
+(Superseded 2026-10-15: §111/§112 scored the mixture on MITRA's three criteria with
+`fintfm-priorscore`, and §115/§116 trained and scored a tree prior: +0.0094 mean ROC-AUC on
+TabArena at two seeds, −0.0221 AP on V4FinBench, so `p_tree` stays 0.0 by default. See the
+last section of this file and CLAIMS.md, Claim 15.)
 
 **Decision D2's cost is therefore smaller than two earlier drafts of this section claimed,
 and the drafting itself is the limitation worth reporting.** This entry was rewritten three
@@ -355,7 +395,8 @@ statement is that D2 costs the adaptation step, not the foundation.
 
 **State this, because "the model is small" is the explanation a reader will reach for.** It is
 the explanation this project reached for too, for weeks, and it is quantitatively insufficient
-by roughly an order of magnitude. `openspec/changes/learn-from-peers` task 48.1 tests the
+by roughly an order of magnitude. `openspec/changes/learn-from-peers` task 48.1 (done: §114, the deep-narrow arm could not
+complete the benchmark) tests the
 cheapest remaining candidate — that §108 scaled the wrong *dimension*, since Nori-6M is 16
 layers at width 128 where our scale-up went wide rather than deep.
 
@@ -387,7 +428,8 @@ redundant and was the strongest available argument against building it at all.
 
 First, the defect was one this project had already found, measured and fixed *elsewhere*. §35
 is among the older findings here; `feature_transform="rank"` has been the inference default
-since, on the strength of +0.086 AUC across six of six configurations. A finding does not
+since, on the strength of +0.086 mean AUC for uniform context out of time and AUC gains in seven of
+eight binary-path configurations (§35). A finding does not
 propagate to new code by having been published.
 
 Second, and more general: **a weak baseline behaves differently in a diagnostic than in a

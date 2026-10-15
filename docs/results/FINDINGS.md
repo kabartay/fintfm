@@ -493,7 +493,7 @@ Both UCI sets are anonymised cross-sectional ratio tables — usable for discrim
 calibration work, useless for anything temporal. Verified for Taiwan by download and column
 inspection; its only date-shaped column names are ratios containing the word "times".
 
-**V4FinBench is the dataset this project needs.** Tomczak et al., *V4FinBench: Benchmarking
+**V4FinBench is the dataset this project needs.** Kostrzewa, Tomczak et al. (corrected 2026-10-15: Kostrzewa is first author), *V4FinBench: Benchmarking
 Tabular Foundation Models, LLMs, and Standard Methods on Corporate Bankruptcy Prediction*,
 [arXiv:2605.10896](https://arxiv.org/abs/2605.10896), May 2026. Visegrád Group economies
 (Czech Republic, Hungary, Poland, Slovakia), 2006-2021, six prediction horizons, a composite

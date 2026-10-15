@@ -137,7 +137,7 @@ wider than the spread between TFM families. Acted on in `docs/results/FINDINGS.m
 AUC-only framing corrected by §6. On V4FinBench out of time the ordering reversed: uniform beat
 balanced by 10-12 AUC points (§29).
 
-**Tomczak et al. (2026).** *V4FinBench: Benchmarking Tabular Foundation Models, LLMs, and
+**Kostrzewa, Tomczak et al. (2026).** *V4FinBench: Benchmarking Tabular Foundation Models, LLMs, and
 Standard Methods on Corporate Bankruptcy Prediction.*
 [arXiv:2605.10896](https://arxiv.org/abs/2605.10896)
 1,106,879 company-year observations, Visegrád Group economies, 2006-2021, 131 features, six

@@ -20,13 +20,14 @@ evidence now settles a framing question [OUTLINE.md](OUTLINE.md) had left open s
 | candidate paper | state |
 | --- | --- |
 | **The architecture diagnosis** (symmetric-encoder limit, Bayes-ceiling probe, cell-attention fix) | **writable now.** Provable ceiling, closed-form instrument, seven eliminated alternatives, controlled fix, real-data confirmation at +0.042 AP on 5/5 folds |
-| **A synthetic prior transfers to credit risk** | **not writable.** §96 found the deficit is general rather than credit-specific; §98 placed the model 93rd of 95 on the field's own benchmark. The claim is comparative and the comparison is lost |
+| **A synthetic prior transfers to credit risk** | **not writable.** §96 found the deficit is general rather than credit-specific; §98 placed the model 93rd of 95 on the field's own benchmark (94th of 95 on the later board snapshot, §122). The claim is comparative and the comparison is lost |
 | **Term-structure coherence** (Claim 1) | **writable now, separately.** Small, structural, independent of the above. Folding it into the diagnosis paper would dilute both |
 
 **What changed the answer was external measurement.** §98 is the first placement in this
 project's history whose baselines and protocol belong to someone else, and §100 is the first
-decomposition of a deficit into a part that is the model's and a part that is not — 82% of the
-TabArena gap is categorical preprocessing, leaving a **−0.0320** numeric-only residual that is
+decomposition of a deficit into a part that is the model's and a part that is not — up to 82%
+of the TabArena gap sits on datasets with categorical columns (a ceiling; native categorical
+handling recovered 34%, §101), leaving a **−0.0320** ROC-AUC numeric-only residual that is
 2.8× smaller than the headline. A diagnosis paper needs a characterised residual, and now has
 one.
 
@@ -36,7 +37,7 @@ one.
 > the command that produced it.**
 
 This is not ceremony. Over 2026-09-08/09 this project produced five wrong diagnoses in one day
-(`docs/results/POSTMORTEM.md`), every one caught by measurement and none by review. A paper drafted
+(`docs/results/POSTMORTEM.md`, which now records seven in three days), every one caught by measurement and none by review. A paper drafted
 from recollection would have stated at least three claims that were true when believed and
 false a day later — including one that a retrain was spent on.
 
@@ -81,4 +82,4 @@ Two further blockers, both concrete:
 
 What is publishable *today* is the coherence result and the synthetic-only provenance
 argument. Both are real; neither is an accuracy claim; and a paper that leads with accuracy
-would be overclaiming by 0.041 AUC.
+would be overclaiming by 0.047 AUC.

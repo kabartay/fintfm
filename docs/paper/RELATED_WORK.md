@@ -73,7 +73,7 @@ over uniform. **We measured the reverse** on the survival path, by three times t
 (§29), and §35 explains why both can hold: "balanced" is not one operation, and the harm
 scales with how extreme the rebalancing actually is.
 
-**Meyer et al.** Leakage and contamination in tabular benchmarking, up to 32 points of MAPE
+**Meyer et al.** Leakage and contamination in time-series foundation-model benchmarking, up to 32 points of MAPE
 (§1). The basis of the synthetic-only provenance argument.
 
 ## Commercial context, cited as context only
@@ -91,26 +91,33 @@ opened from primary sources in one afternoon. The three findings worth carrying 
 future draft or conversation:
 
 1. **The scale hypothesis is capped by evidence we didn't have to generate.** Nori's published
-   curve (6M→100M params, +0.0049 R²) and TabPFN-2.5's own numbers (see below) both show
-   parameter scale returning single-digit thousandths at this point in the curve, against our
-   0.035 residual. §108's own scaling attempt (−0.0077, confounded) is consistent with this,
-   not contradicted by it.
+   curve (6M→100M params, +0.0049 R² on TabArena) shows parameter scale returning single-digit
+   thousandths at this point in the curve, against our 0.035 ROC-AUC residual. (Corrected
+   2026-10-15: this item also cited "TabPFN-2.5's own numbers (see below)"; the TabPFN-2.5
+   section below contains no scaling numbers, and no source was found.) §108's own scaling
+   attempt (−0.0077 mean ROC-AUC, confounded) is consistent with this, not contradicted by it,
+   and §114's matched-task rerun (−0.0049) confirmed it.
 2. **Every top-14 TabArena rank is synthetic-pretrained (§110).** TabPFN-2.5 and its lineage,
    LimiX-2, Mitra-v2, TabICLv2 — all synthetic. The best real-data model (TabDPT-Turbo) is
    21st. Decision D2's synthetic-only constraint costs nothing measurable in rank; the frontier
    is *there*, not despite it.
-3. **The lever nobody here has pulled is the prior, not the architecture.** §104 closed the one
-   architectural knob that ever moved real-data accuracy; MITRA's entire contribution — rank 8,
+3. **The lever nobody here has pulled is the prior, not the architecture.** §104 closed
+   `column_id_dim`, the only recent architectural knob to move real-data accuracy (§97). The
+   larger earlier gain, cell attention's +0.0486 AP on V4FinBench (§80), is possibly confounded
+   with the prior mix (audit task AU2.8). MITRA's entire contribution — rank 8,
    synthetic-only — is prior design (performance/diversity/distinctiveness) plus a tree-based
    prior this project's mixture lacks. `learn-from-peers` (48.x) is the resulting task list,
    led by 48.13 (tree prior) and 48.14 (score our own mixture against MITRA's criteria).
+   (Updated 2026-10-15: 48.14 was measured in §111/§112, and 48.13's tree prior in §115/§116,
+   +0.0094 mean ROC-AUC on TabArena and −0.0221 AP on V4FinBench, so it is not shipped.)
 
 Also recorded as a process lesson: the synthetic-vs-real conclusion above was **rewritten three
 times in one session**, once per arriving abstract, before anyone checked the rank ordering
 that actually settles it (§110). Read the measurement before writing the claim.
 
-Ten TabArena entrants opened on 2026-09-21 (full entries in `docs/research/REFERENCES.md`). Two of
-them change what this file can claim.
+Ten TabArena entrants opened on 2026-09-21 (entries in `docs/research/REFERENCES.md` for most;
+as of 2026-10-15 Nori, ConTextTab, Xiaomi TabLDM and LimiX have none there, so their details
+below rest on this file alone). Two of them change what this file can claim.
 
 ### Nori is what we are, executed further — and it is public
 
@@ -119,7 +126,7 @@ Apache-2.0**, checked separately on 2026-09-21 as the rule requires.
 
 Trained **entirely on synthetic data**, in-context, single forward pass, no fine-tuning.
 Alternating **feature attention and sample attention** — independently the same two-way
-structure as this project's cell attention (§54), which is mild external validation of that
+structure as this project's cell attention (§78), which is mild external validation of that
 design and simultaneously removes it from the contribution list. Hierarchical-DAG SCM prior
 with 8 edge-function types, 9 regression target families, an ExtraTrees learnability filter,
 and a **999-quantile pinball head**.
@@ -145,7 +152,9 @@ stating in the paper explicitly, because "the model is small" is the explanation
 reach for and it is quantitatively insufficient.
 
 Nori is also **regression-only** (`_supported_problem_types = ["regression"]`), which is the
-one axis where our declared coverage is broader.
+one axis where our declared coverage is broader. (Superseded 2026-10-15: §121 withdrew
+multiclass and regression and §122's submission declared binary only, so the two declared
+coverages no longer overlap; ours is not broader.)
 
 ### Task 48.4: what this prior already covers of Nori's published target list, and what it does not
 
@@ -186,7 +195,9 @@ rather than by the length of their list (task 48.4's own verification clause).
 | conv1d (edge type) | no local, sliding-window combination of adjacent features; every mechanism here is either fully random-graph (permutation-invariant across feature order) or single/few-feature |
 
 **Reading it.** The covered column is exactly task 40.2's contribution plus the pre-existing SCM
-and tree priors -- three of Nori's nine families and two of eight edge types were already
+and tree priors -- five of Nori's nine families (dense linear, sparse linear, interactions,
+random MLP, random tree) and three of eight edge types (MLP, decision tree, piecewise-linear)
+were already
 addressed by work already in this repository before this list was made, which is a useful sanity
 check that `mechanism-diverse-prior` was not chasing a gap that did not exist. The six genuinely
 missing mechanisms (GAM, radial/RBF, chained trigonometric, polynomial, log/exp, conv1d) are a
@@ -225,6 +236,9 @@ TFMs "do not always generalize well to all types of data generated from TBPs".
 with `p_trivial`/`p_crossed` diagnostic-only and `p_regression` new. Every baseline we lose to
 is a tree ensemble, real tabular data is full of threshold structure, and our prior generates
 none of it. `mechanism-diverse-prior` asked this question; MITRA answers it with a measurement.
+(Superseded 2026-10-15: `prior/tree.py` now exists, task 48.13, behind `p_tree`, which
+defaults to 0.0. §115/§116 measured it at +0.0094 mean ROC-AUC on TabArena at two seeds and
+−0.0221 AP on V4FinBench, so it is not shipped.)
 
 **And their priors are model-agnostic** — the same mixture improves both 1D row attention and 2D
 element-based attention. So this is a prior-side gain that needs no change to the architecture
@@ -235,6 +249,8 @@ this project is memory-bound by (§79, §94, §108), which makes it cheaper than
 lost on parameters, §93 lost on volume. MITRA's thesis is that the lever is the prior, and this
 project's one genuinely distinctive asset *is* a prior — which has never been evaluated against
 performance, diversity or distinctiveness, and is missing the one family MITRA singles out.
+(Superseded 2026-10-15: §111/§112 have since scored the mixture on all three criteria, and
+the tree family was added and measured, §115/§116.)
 
 ### The counter-thesis is now the field's direction, and it is aimed at our foundation
 
@@ -271,9 +287,9 @@ or a finding here — which is more useful than agreement.
 
 | their negative result | our status |
 | --- | --- |
-| **Cell-token architectures with vertical+horizontal attention "proved more memory intensive"**; the simpler `(B, N, d)` form "permits a higher embedding dimension `d`" | **This is our architecture.** §79's 16 GB at N=2024, §84's unreachable `max_context=4000`, §94's OOM for 5M parameters at `n_rows=1024`, and §108's forced batch 4 are all the same wall. They chose the cheaper form and got a wider `d`. |
-| Robust Scaler / Power Transform: "no improvement", "slowing the training process" | **Contradicted here.** §35's rank conditioning is worth **+0.086 AUC**, six of six configurations. Their tables are general OpenML; ours have 110 of 136 features with sd > 10× IQR. Domain, not technique. |
-| NaN tokens no better than mean imputation; binary is-missing features "also failed" | **Agrees with our default** (`fillna(0)`, which is the mean post-normalisation). Note **Nori disagrees** — it uses learned mask embeddings. Two peers, opposite conclusions, so this is unsettled and cheap to test. |
+| **Cell-token architectures with vertical+horizontal attention "proved more memory intensive"**; the simpler `(B, N, d)` form "permits a higher embedding dimension `d`" | **This is our architecture.** §79's 16 GB at N=2024, §79's estimated ~63 GB at `max_context=4000` before §81's chunking fix, §94's OOM for 5M parameters at `n_rows=1024`, and §108's forced batch 4 are all the same wall. They chose the cheaper form and got a wider `d`. |
+| Robust Scaler / Power Transform: "no improvement", "slowing the training process" | **Contradicted here.** §35's rank conditioning is worth **+0.086 mean AUC** for uniform context out of time, and improves AUC in seven of eight binary-path configurations. Their tables are general OpenML; ours have 110 of 136 features with sd > 10× IQR. Domain, not technique. |
+| NaN tokens no better than mean imputation; binary is-missing features "also failed" | **Agrees with our default** (`fillna(0)`, which is the mean post-normalisation). Note **Nori disagrees** — it uses learned mask embeddings. Two peers, opposite conclusions, so this is unsettled and cheap to test. (Corrected 2026-10-15: the default `cell_embed` is a joint [value, missing] MLP rather than a zero fill, per task 48.10's premise correction, and §147 measured a dedicated mask embedding as a uniform loss on V4FinBench.) |
 | Class embeddings and proto-network query-class similarity "hurt the performance, especially on real data" | Relevant to `regression-and-multiclass`; we use a plain `Linear(d_model, max_classes)` head and should keep it. |
 | Alternative `y_ctx` embeddings "did not lead to performance improvements **in large models with sufficient data**" | **Do not transfer this one.** §91 found removing per-cell label injection drops this model **below chance**. Their qualifier is the whole sentence — we are neither large nor data-sufficient. |
 
@@ -282,7 +298,7 @@ panic.** They write: "While Hollmann et al. is able to make this architecture wo
 that the **differences between synthetic and real data** are enough to change which
 architectures are performant." TabPFN is synthetic-only and makes cell attention work; TabDPT
 is real-data and does not. **This project is synthetic-only**, so their negative result may
-simply not apply — and §78/§80/§91 measured cell attention as load-bearing here (+0.0486 AP,
+simply not apply — and §78/§80/§91 measured cell attention as load-bearing here (+0.0486 AP on V4FinBench, possibly confounded with the prior mix, AU2.8;
 and below chance without labels).
 
 What does transfer is the **cost**: they got a wider `d` for the same memory, and this project
@@ -311,7 +327,9 @@ worth citing; it is not a contribution either of us can claim.
 **They are the third data point against our 2D architecture.** TabSwift treats each row as a
 single token — the `(B, N, d)` form — rather than embedding cells individually. With TabDPT's
 Bitter Lessons and TabFlex's linear attention, three independent groups have chosen the cheap
-form. TabPFN, MITRA and this project use element-level 2D attention. The split is not random:
+form. TabPFN and this project use element-level 2D attention; MITRA reports its priors
+improve both 1D row attention and 2D element attention, so it is not counted in either camp
+(corrected 2026-10-15). The split is not random:
 TabDPT's own hypothesis is that synthetic-versus-real changes which architecture wins, and the
 2D camp is the synthetic camp.
 
@@ -363,8 +381,9 @@ because it is implementation detail, not a claim, and because it is the single m
 actionable thing in the whole sweep: their random-graph SCM prior is architecturally the same
 idea as `sample_scm_task`, described in enough detail to diff against.
 
-**What `prior/scm.py` has:** a fixed-depth layered graph (1–5 dense layers, not a general DAG),
-5 fixed activations (`tanh`, `sin`, ReLU, identity, signed-sqrt), independent sparse Gaussian
+**What `prior/scm.py` has:** a fixed-depth layered graph (1–4 dense layers, `rng.integers(1, 5)`, not a general DAG),
+7 fixed activations (`tanh`, `sin`, ReLU, identity, signed-sqrt, and since this was first
+written `rank` and `softmax`; legacy mode keeps the first 5), independent sparse Gaussian
 edge weights, quantile or random-cutpoint discretisation for the label, and — as of §106/46.4 —
 four target shapes for regression. That is the whole generative vocabulary.
 
@@ -384,9 +403,10 @@ four target shapes for regression. That is the whole generative vocabulary.
   **They note explicitly that TabPFNv2 uses single trees; they moved to ensembles because
   single trees "facilitate efficient computations" only up to a point** — worth reading before
   choosing between single-tree and ensemble for 48.13, rather than guessing.
-- **21 fixed activations plus 4 parametric ones** (Appendix E.9), against our 5. Their
+- **21 fixed activations plus 4 parametric ones** (Appendix E.9), against our 7. Their
   activation set includes `rank`, `softmax`, `one-hot argmax` and `argsort` — order-statistics
-  functions with no analogue in ours, which is notable given §35's own finding that this
+  functions; ours has since gained `rank` and `softmax` (`_rank_act`, `_softmax_act`, corrected
+  2026-10-15) but not `one-hot argmax` or `argsort`, which is notable given §35's own finding that this
   project's *inference-time* feature conditioning (`feature_transform="rank"`) is worth +0.086
   AUC. If rank-like transforms help at inference, a prior whose *label mechanism* never uses
   one may be under-representing exactly the structure real financial ratios have.
@@ -562,7 +582,7 @@ most peers do not disclose; naming it here is a citation worth having on hand.
 
 | change | detail | relevance here |
 | --- | --- | --- |
-| depth | 12 → 18 layers (regression), 24 (classification) | depth, not width — §108 scaled width and lost; task 48.1 already tests the opposite corner |
+| depth | 12 → 18 layers (regression), 24 (classification) | depth, not width — §108 scaled width and lost; task 48.1 tested the opposite corner, and the deep-narrow arm could not complete the benchmark (§114) |
 | feature grouping | group size 2 → 3, embedding several features together | a cheap lever this project has never had a knob for |
 | regression encoder | linear → 2-layer MLP | trivial to test against our binned head (§106) |
 | **"thinking" rows** | 64 additional learned rows appended to the input, present only at pretraining, acting partly as **attention sinks** so the model can learn to ignore rows | closest published relative of `explicit-task-representation`'s task token and TabSwift's register tokens — a third independent group solving the same problem a different way |
@@ -578,8 +598,11 @@ inventory) rule out shipping the foundation model itself.
 
 **Threshold tuning and temperature scaling are named as separate, off-by-default steps** — "all
 classification results in this report are computed using uncalibrated, default scores". That
-discipline is one `docs/paper/LIMITATIONS.md`'s multiclass entry already asks for (temperature
-scaling, currently unimplemented, with multiclass 94th of 94 on log loss despite decent AUC).
+discipline is relevant to this project's multiclass head, where temperature scaling is
+currently unimplemented. (Corrected 2026-10-15: this sentence said `docs/paper/LIMITATIONS.md`'s
+multiclass entry asks for it, which that entry does not, and quoted multiclass as "94th of 94
+on log loss"; no FINDINGS source found 2026-10-15. §121 measures multiclass at mean rank 93.4
+of 95 on its TabArena metric.)
 
 ### The three remaining entrants, as design references only
 
@@ -623,8 +646,9 @@ reading papers and running comparisons** — the fourth by a single afternoon's 
 TabArena field, which cost nothing and removed a differentiator that would otherwise have been
 written into a draft.
 
-**Three of the original eight were superseded or retracted by reading one
-paper and running one comparison.** That is the value of this file existing before a draft
+**As first written, before the 2026-09-21 sweep (superseded by the paragraph above): three of
+the original eight were superseded or retracted by reading one paper and running one
+comparison.** That is the value of this file existing before a draft
 does, and it is an argument for reading the benchmark's own paper *before* scoring on its
 data rather than after.
 
@@ -636,7 +660,9 @@ summariser fabricating a results table (`docs/results/POSTMORTEM.md`), and the d
 it applies here too: an abstract or a relayed summary is a lead, not a citation.
 
 - **TabDPT** (Ma, Thomas et al., NeurIPS 2025, arXiv link supplied and the abstract read in
-  full this session) — combines retrieval with self-supervised learning on real tables,
+  full this session; promoted 2026-09-21 after the full paper was opened, see the TabDPT entry
+  above and `docs/research/REFERENCES.md`, which dates it 2024 on arXiv; the NeurIPS 2025
+  venue stated here has not been checked, noted 2026-10-15) — combines retrieval with self-supervised learning on real tables,
   reports real data speeds training and improves downstream generalisation over synthetic-only,
   and reports scaling laws in both model and data size. Directly relevant to Claim 2's
   synthetic-only positioning (decision D2) as the standing counter-example; **their code and
@@ -693,11 +719,14 @@ framing places Seldon as tied with TabPFN v3 and TabICL rather than distinct fro
   regression) rather than using the TFM end-to-end. This is a different question from anything
   measured here so far: every finding to date scores fintfm's own head, never whether its
   representation is useful when handed to something else. Worth one experiment: extract fintfm's
-  representation and test it as input to a plain classifier.
+  representation and test it as input to a plain classifier. (Done, noted 2026-10-15: §130-§136.
+  A linear probe on fintfm's representation beats its own head on V4FinBench, +0.039 mean AP,
+  5 of 5 folds, §130.)
 - **Yeo-Johnson `PowerTransformer`**, offered as a config-toggled alternative to standard
   scaling. A direct, one-line alternative to this project's rank-based `feature_transform` on
-  the heavy-tailed financial ratios §100 already identified as a preprocessing lever. Cheapest
-  experiment on this list.
+  the heavy-tailed financial ratios §35 already identified as a preprocessing lever. Cheapest
+  experiment on this list. (Done, noted 2026-10-15: §129, Yeo-Johnson loses to rank on every
+  fold.)
 
 **From the FAQ, for positioning rather than for the roadmap.** Verbatim: "Unlike LLMs, Tabular
 Foundation Models like Seldon do not contain broad, latent world knowledge. They act as
@@ -778,8 +807,10 @@ Code: `github.com/NVIDIA/structured-data-models` (Apache-2.0, verified from the 
 summary). Weights: `huggingface.co/nvidia/Kumo-Tabular`, under **OpenMDW-1.1** — checked
 separately from the code licence per this file's own standing rule, and confirmed
 unrestricted for commercial use, no field-of-use limitation, no separate commercial licence
-required. A third project, after Nori and Mitra-v2, matching this project's own
-synthetic-only-plus-permissive positioning, now from a considerably better-resourced lab.
+required. A second project, after Nori, matching this project's own
+synthetic-only-plus-permissive positioning, now from a better-resourced lab. (Corrected
+2026-10-15: this sentence also counted Mitra-v2, which is synthetic-only but has no recorded
+weights-licence check in `docs/research/REFERENCES.md`.)
 
 **The number that matters for this project's own claims.** TabArena Elo **1950, rank 1** --
 ahead of the LimiX-2 entry two days ago sold as "117 points above the runner-up" (Elo 1935).
@@ -810,7 +841,7 @@ conditional one is not obviously inferior at the frontier.
 - **Missing values get "special treatment... without imputation"** rather than a zero-fill.
   Relevant to task 48.10's now-narrower open question (`learn-from-peers` tasks.md): this
   project's `normalize_features`/`cell_embed` already encodes missingness through a learned
-  linear combination rather than naive imputation (§48.10's premise correction, 2026-10-01),
+  linear combination rather than naive imputation (task 48.10's premise correction, 2026-10-01),
   but Kumo Tabular's specific mechanism is undescribed in the blog excerpt read here and worth
   opening the paper for, not assumed to be the same thing.
 

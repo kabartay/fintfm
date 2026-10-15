@@ -83,8 +83,8 @@ to produce and disproportionately persuasive to the model-risk reader this proje
 
 ## Not a figure: the failure log
 
-`docs/results/POSTMORTEM.md`. Consider an appendix. Five wrong diagnoses in one day, each caught by
-measurement — unusual to publish, and the strongest available evidence that the numbers were
+`docs/results/POSTMORTEM.md`. Consider an appendix. Five wrong diagnoses in one day (POSTMORTEM
+now records seven in three days), each caught by measurement — unusual to publish, and the strongest available evidence that the numbers were
 checked adversarially rather than defended.
 
 ## Figure 5 — The Bayes-ceiling curve (new, 2026-09-14)
@@ -117,14 +117,16 @@ from fintfm.experiments.capability import bayes_ceiling_probe
 
 ## Table 5 — The bisection (new, 2026-09-14)
 
-§76's elimination table as a paper table: seven candidate causes for the capacity cap, each
+The elimination record as a paper table: seven content-side candidate causes for the capacity
+cap (§58-§77; §76 itself bisects four content axes, so the table is assembled from several
+findings rather than copied from §76, corrected 2026-10-15), each
 isolated using a checkpoint that already existed (zero additional pretraining), each measured
 against the Bayes-ceiling probe, none closing the gap. Doubles as the paper's demonstration of
 negative-result discipline — the honest statement is "we do not know why the financial prior
 will not teach this" until §78, and the table is what earns the right to say the architecture
 experiment was not a guess.
 
-Data exists in full (§58, §62, §64, §65, §72, §76); assembling the table is a formatting task,
+Data exists in full (§58, §62, §64, §65, §72, §76, §77); assembling the table is a formatting task,
 not a measurement one.
 
 ## Figure 6 — The deficit decomposed by categorical cardinality (new, 2026-09-20)
@@ -149,7 +151,9 @@ import openml
 X, y, cat, names = openml.tasks.get_task(tid).get_dataset().get_data(target=...)
 ```
 
-**Pair it with a before/after bar** for the three A/B datasets (Claim 13): label encoding
+**Pair it with a before/after bar** for the three A/B datasets (Claim 13; only
+`Amazon_employee_access` has a FINDINGS source, §101, and the other two A/B gains have no
+FINDINGS source found 2026-10-15, so use §101's full-suite deltas instead): label encoding
 against out-of-fold target statistics on one checkpoint, with the tuned-logistic-regression
 line drawn across. `Amazon_employee_access` 0.5455 → 0.8220 carries the point on its own, and
 the fact that the bar lands *below* the baseline rather than above it is the visual evidence
