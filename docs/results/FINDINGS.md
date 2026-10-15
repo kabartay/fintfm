@@ -5,7 +5,7 @@ a conversation is lost when the conversation compacts.
 
 ## Where we stand — the honest scorecard
 
-Updated 2026-09-10 after forty-seven findings. **Read this before quoting any number below**,
+Updated 2026-09-10 after forty-seven findings (2026-10-15 note: not updated since; the log now runs past §139, and §54 and §56 retract or qualify several readings below). **Read this before quoting any number below**,
 because several findings temper, amend or outright retract earlier ones and the amendments
 matter more than the originals. §28 retracts §26's headline as our own bug.
 
@@ -17,14 +17,14 @@ the model's predictions unchanged (rank correlation 0.977) and its AUC *higher* 
 labels. **It was not doing in-context learning at all.** The cause was one line of the prior:
 the driver signs were fixed, so every task ever generated shared one feature-to-label mapping,
 and a model could memorise it and never consult a labelled example. Fixed by randomising the
-sign per task; verification runs in flight.
+sign per task; verification runs in flight (2026-10-15 note: §48 confirmed the fix).
 
 Read §47 first, then §42. Coherence (§11, §20, §26) is structural and unaffected — it is a
 property of the output parameterisation, not of anything learned.
 
 **§42 also puts every accuracy number in this repository in question.** Against an untrained model of
 the same architecture, pretraining is worth **+0.015 AUC** on a clean linear task that logistic
-regression solves at 0.9997; four times the context buys 0.014; and the training loop's only
+regression solves at 0.9997; ten times the context buys 0.014 (corrected 2026-10-15: 200 to 2,000 rows is 10×, not 4×; 500 to 2,000 buys 0.005); and the training loop's only
 quality signal was *accuracy*, which a constant predictor beats at these base rates. The likely
 cause is that the prior was deliberately tuned to be hard (§19) and so contains almost no
 learnable tasks. Coherence (§11, §20, §26) is structural and unaffected. Everything about
@@ -43,8 +43,8 @@ accuracy below should be read as provisional until the prior and the training me
 | **Context construction dominates**: the best construction beats the worst by ~0.22 AUC out of time (0.8143 against 0.5938 for balanced), which is larger than any architectural change measured here | measured, 3 seeds | §29, §33, §35, §38 |
 | ~~Query-conditioned retrieval is our accuracy contribution~~ — **retired**: the published prototype context matches it on AUC, beats it significantly at horizon 0, is 1.6× better calibrated, 4× cheaper, and stays batch-independent | measured, 3 seeds, paired bootstrap | §32 → §36, §38 |
 | **Rank-transforming features is worth +0.086 AUC** — 110 of 136 features have a standard deviation above 10× their interquartile range, which the model's mean/std normalisation cannot survive | measured, 3 seeds, 3 panels | §35 |
-| **Out-of-time mean AUC 0.5869 → 0.8143 in one day**, closing the gap to the incumbent from 0.142 to 0.047, from three inference-time changes and **no retraining** | measured | §35, §38 |
-| **Balanced context sampling costs 10-12 AUC points on the survival path**, reversing the default adopted from the literature; 12 in-context defaults outrank 1,122 | measured, 3 context sizes | §29 |
+| **Out-of-time mean AUC 0.5869 → 0.8143 in one day**, closing the gap to the incumbent from 0.275 to 0.047 (corrected 2026-10-15: 0.8616 − 0.5869 = 0.275; 0.142 was the gap at 0.7192, §30), from three inference-time changes and **no retraining** | measured | §35, §38 |
+| **Balanced context sampling costs 10-12 AUC points on the survival path** (corrected 2026-10-15: 6.7-12.3 points on one seed, §29; 8-11 on three seeds, §33), reversing the default adopted from the literature; 12 in-context defaults outrank 1,122 | measured, 3 context sizes | §29 |
 | ~~The prior cannot generate the low-default regime~~ — **retracted**: the floor was 1% and is now 0.195%, but it was never what caused §26's failure | superseded | §26 → §28, §30 |
 
 ### What is measured and small
@@ -53,9 +53,9 @@ accuracy below should be read as provisional until the prior and the training me
 | --- | --- | --- |
 | Domain prior beats a generic one | **+0.049 AUC**, 3 of 6 cells significant | §14 |
 | **Gap to a competent gradient booster** | **CatBoost 40-60% Brier skill against our 1-2%** | **§25** |
-| Model beats logistic regression | **+0.033 AUC** | §17 |
+| Model beats logistic regression | **+0.033 AUC** (no source found 2026-10-15: §17 has no logistic-regression comparison) | §17 |
 | Model beats an untrained model of the same architecture | **+0.031 AUC** | §15 |
-| Calibration advantage over a *calibrated* gradient boosting | **~2×**, and only below ~250 rows | §16 |
+| Calibration advantage over a *calibrated* gradient boosting | **~2×**, and only below ~250 rows (2026-10-15 note: §27 narrows this to about 200 rows against CatBoost) | §16 |
 | Low-default retrain, under the configuration that works | **+0.023 AUC, 2.7× ECE** | §30 |
 | Brier skill over a feature-free constant predictor | **1-2%** | §17 |
 
@@ -125,6 +125,8 @@ one panel family with a prior that was too narrow at the time. The honest form i
 demonstrated", not "does not work". See `docs/roadmap/STRATEGY.md`.
 
 ## 1. Synthetic-only pretraining is an auditability property, not just a cost saving
+
+> **Later evidence, 2026-10-15 note:** decision D17 (2026-10-06) added the FinTFM-R family, which trains on real data (`prior/real_*.py`, `train.py --p-real-*`). The provenance claims below hold for FinTFM (synthetic-only) only, and the grep below now also matches `evaluation/datasets.py` and `experiments/openml_breadth.py`.
 
 **Date:** 2026-09-08. **Status:** design invariant.
 
@@ -331,7 +333,7 @@ not because its data is not.**
 ## 5. Context-construction strategy affects credit AUC more than expected; verified on real data at smoke scale
 
 **Date:** 2026-09-08. **Status:** SMOKE-TEST-SCALE MEASURED. Real data
-(`data.py::load_polish_bankruptcy`), real benchmark run, but the checkpoint is a 400-step,
+(`data.py::load_polish_bankruptcy`; 2026-10-15: now `evaluation/datasets.py::load_polish_bankruptcy`), real benchmark run, but the checkpoint is a 400-step,
 64-dim, 2-layer toy — this is a directional check, not a claim about the architecture.
 
 **Source of the design.** Tanna, Solanki, Bouadi, Bouarour, Seth & Sankarapu (2026), *Data
@@ -393,7 +395,7 @@ calibration metrics (`metrics.py`) immediately showed what an AUC-only compariso
 **The mechanism.** An in-context learner reads the class balance out of its context, because
 that context is the only evidence it has about how common the positive class is. Rebalancing
 the context therefore tells the model that defaults are roughly ten times commoner than they
-are, and its probabilities come out inflated by about that factor. Ranking survives, since
+are, and its probabilities come out inflated (corrected 2026-10-15: the tables below show 3.2× at 3 years, 14.94% against 4.71%, and about 1.4× at 1 and 5 years, not tenfold). Ranking survives, since
 every prediction is inflated alike — which is exactly why AUC cannot see the damage, and why
 a paper optimising AUC would not report it. For credit risk this is the wrong thing to
 break: a bank prices, provisions and holds capital against the *level*, not the ordering.
@@ -472,6 +474,8 @@ already a filtered subset rather than the raw panel.
 
 ## 8. Every free bankruptcy dataset is a cross-sectional ratio table, except one — and it is licensed
 
+> **Later evidence, 2026-10-15 note:** §22 measured the ingested V4FinBench panel at 1,000,087 company-years at h=0, 136 numeric features and years 2006-2020. The 1,106,879 / 131 / 2006-2021 figures below predate ingestion.
+
 **Date:** 2026-09-08. **Status:** MEASURED by inspection and licence verification. Resolves
 `second-credit-panel` tasks 7.1 and 7.2, and **unblocks** `time-based-evaluation` and
 `temporal-financial-prior`.
@@ -518,6 +522,8 @@ credentials, and 131 features exceeds the current `max_features=64`, so a wider 
 pretrained rather than reusing existing checkpoints.
 
 ## 9. The winning niche is small and low-default portfolios, and this reverses §8's prioritisation
+
+> **Later evidence, 2026-10-15 note:** §22 corrects the V4FinBench shape used below (136 features, 1,000,087 rows at h=0), and §56 lists §9 among results to re-measure.
 
 **Date:** 2026-09-08. **Status:** MEASURED by others, verified to abstract level. Full PDFs
 not yet read, so the specifics flagged below are genuinely open.
@@ -617,7 +623,7 @@ Three caveats that change how much weight this can carry, none of them in the ab
 ### Two consequences, one of which is a defect in our own harness
 
 **Our panels sit at or above the crossover, so we have not been testing the regime where TFMs
-win.** UCI Polish is 6,027-10,503 rows and Taiwan is 6,819 — right where Baesens et al. find
+win.** UCI Polish is 5,910-10,503 rows (corrected 2026-10-15: per §8's table) and Taiwan is 6,819 — right where Baesens et al. find
 GBMs converging and TFM advantage decaying. `bench.py` evaluates on the *full* panel every
 time. It therefore measures the regime the literature says we lose, and never the one where
 the thesis lives. **Fix: a learning-curve evaluation that subsamples training data** to a few
@@ -729,6 +735,8 @@ regression cannot pass unnoticed behind a healthy-looking aggregate.
 
 ## 12. The advantage is calibration, not ranking — and it holds at every dataset size
 
+> **Later evidence, 2026-10-15 note:** §56 lists §12 among results measured through the §54 encoder ceiling.
+>
 > **ALSO WEAKENED by §17:** a feature-free constant predictor beats every model here on ECE
 > (0.0002 vs our 0.00255), so a low ECE is not by itself evidence of a good model. Report
 > Brier *skill* against that baseline, which for us is 1-2%.
@@ -1022,6 +1030,8 @@ can be made, and `docs/roadmap/STRATEGY.md` has been amended accordingly.
 **Date:** 2026-09-08. **Status:** MEASURED. Resolves `phase1-prior-ablation` task 1.8.
 **This finding corrects §14's central framing** — see the amendment note there.
 
+> **Later evidence, 2026-10-15 note:** §42 weakens this: on a clean linear task, pretraining bought +0.015 AUC over an untrained control.
+
 An untrained control (random initialisation, identical architecture and parameter count,
 2,175,234, zero gradient steps) was evaluated on the same six cells. Re-derivable from
 `runs/phase1-5k/results-paired.json`.
@@ -1090,6 +1100,8 @@ Resolves `sample-efficiency-regime` task 13.7 and `calibration-mechanism` task 1
 **This finding tempers §12**, whose comparison was against an uncalibrated baseline — a
 limitation §12 itself flagged as the most important follow-up. It was right to.
 
+> **Later evidence, 2026-10-15 note:** §27 narrows this against CatBoost (window below about 200 rows), and §42 reads the boosting crossover as partly a property of this checkpoint.
+
 Gradient boosting with Platt (`sigmoid`) and isotonic calibration, fitted by
 `CalibratedClassifierCV(cv=3)` on the training data:
 
@@ -1114,12 +1126,12 @@ calibration gap against the best calibrated arm is roughly **2×** (0.0070 again
 not tenfold. Any external use of the 11.7× figure would have been against a straw baseline.
 
 **Above roughly 1,000 rows, calibrated gradient boosting is simply the better model** — better
-AUC and better Brier. At n = 4,000 it wins Brier 0.0333 to 0.0445, which is not close.
+AUC and better Brier. At n = 4,000 it wins Brier 0.0333 to 0.0445, which is not close (2026-10-15 note: the n = 4,000 row is the uncalibrated `gboost raw` arm).
 
 ### What survives, and it is narrower but real
 
-**We hold the best ECE at every single size**, by 2× to 4× against the calibrated arms
-(0.0017-0.0080 against 0.0099-0.0330). Calibration remains our strongest metric.
+**We hold the best ECE at every single size**, by 1.7× to 4.6× against the calibrated arms
+(0.0017-0.0080 against 0.0079-0.0330; corrected 2026-10-15: no 0.0099 appears in the table, and the n = 4,000 comparator is the raw arm). Calibration remains our strongest metric.
 
 **On Brier — the proper scoring rule, and therefore the honest single number — we win below
 about 250 rows** and lose above about 1,000. The crossover sits in between, and pinning it
@@ -1156,6 +1168,8 @@ is any general claim to beat gradient boosting, and any use of the 11.7× number
 **Date:** 2026-09-08. **Status:** MEASURED. Resolves `calibration-mechanism` task 14.4.
 **This finding weakens the metric basis of §12, §14, §15 and §16** and is the most important
 methodological correction so far. Amendment notes added to each.
+
+> **Later evidence, 2026-10-15 note:** §42 reads a constant predictor beating every model on ECE as partly a property of this barely-learning checkpoint.
 
 A predictor that ignores every feature and returns the training base rate for all firms:
 
@@ -1202,7 +1216,7 @@ that goes.
 - §15's finding that pretraining buys calibration: the untrained model's ECE of 0.53 and
   predicted mean of 39% against a 4.7% base rate are catastrophic by any reference.
 - §16's finding that calibrated gradient boosting wins above ~1,000 rows: that was decided
-  on AUC as well as Brier (0.8856 against 0.7159).
+  on AUC as well as Brier (0.8856 against 0.7159; 2026-10-15 note: 0.8856 is the uncalibrated arm).
 
 **The honest summary is that our discrimination results are sound and our calibration results
 were measured on a scale too narrow to support the weight put on them.**
@@ -1330,8 +1344,8 @@ difficulty targets should be justified from the literature, never from the evalu
 **PROVED** (structural, see below). Implements `pd-term-structure` tasks 11.2-11.4.
 
 §11 measured the defect: **11.0% of horizon steps and 39% of firms** received a cumulative
-PD that *fell* as the horizon grew, invisible behind a monotone portfolio aggregate. §19's
-"small because early or structural?" placed it firmly in the structural column — nothing in
+PD that *fell* as the horizon grew, invisible behind a monotone portfolio aggregate. The scorecard's
+"small because early or structural?" section (corrected 2026-10-15: not §19) placed it firmly in the structural column — nothing in
 the architecture or loss forbade a violation, so no amount of training or scale would close
 it.
 
@@ -1362,7 +1376,7 @@ tuning, and would still leave a residual violation rate to explain to a reviewer
 cumulative-product parameterisation has nothing to tune and nothing to explain.
 
 This matters strategically because it is the project's **first advantage that is not a
-scale advantage** (see §19's framing). A scale advantage must be bought and then defended
+scale advantage** (see the scorecard's "What this implies"; corrected 2026-10-15: not §19). A scale advantage must be bought and then defended
 against better-funded teams. This one is arithmetic.
 
 ### The training objective changed too, and that is the deeper part
@@ -1397,7 +1411,7 @@ Two guards that matter more than they look:
 `fintfm-train --n-horizons 5` now trains the term structure.
 
 ### What is still not true
-- **Untrained curves are not calibrated.** The 0.44 → 0.95 demonstration above is a
+- **Untrained curves are not calibrated.** The 0.44 → 0.95 demonstration (2026-10-15 note: not present in this section; no source found) is a
   random-initialisation artefact and says nothing about levels. Coherence and calibration are
   independent properties and this finding is only about the first.
 - **No comparison against per-horizon models on accuracy.** Task 11.5. The survival objective
@@ -1411,6 +1425,8 @@ Two guards that matter more than they look:
 
 **Date:** 2026-09-08. **Status:** MEASURED on held-out synthetic survival tasks, single seed.
 Resolves `pd-term-structure` task 11.5. Re-derivable:
+
+> **Later evidence, 2026-10-15 note:** the three-seed table below reverses the single-seed direction: the 5× compute arm has more violations (22.81%) than matched total (19.05%), so "worsens as budget shrinks" does not replicate.
 
 ```bash
 uv run fintfm-termstruct --steps 1500 --device mps --out runs/term-structure
@@ -1483,7 +1499,7 @@ rather than asserted as a win.
 - **No paired bootstrap on the AUC differences**, only across-seed means and standard
   deviations. That is weaker than the Holm-corrected test used in §14 and should be upgraded
   before any external use.
-- **Small models near a ceiling.** Giving the baseline 5× compute bought +0.003 AUC, which
+- **Small models near a ceiling.** Giving the baseline 5× compute bought +0.0092 AUC (corrected 2026-10-15: three seeds, 0.7737 against 0.7645; one seed gave +0.0071), which
   suggests every arm is close to what this size can do. The comparison may look different at
   scale, in either direction.
 - **Nothing here is about calibration of the curve levels.** §17's warning applies: coherence
@@ -1550,6 +1566,8 @@ hazard, which is the seasoning shape `_sample_survival` already samples among it
 hypothesis I stated before testing it**, which is why it is recorded rather than quietly
 dropped.
 
+> **Later evidence, 2026-10-15 note:** §56 lists §23 among results measured through the §54 encoder ceiling; re-measure before quoting.
+
 Submitted to Kaggle's Home Credit Default Risk (7,176 teams, closed 2018) using only
 `application_train`/`application_test` — no auxiliary tables, no feature engineering, no
 gradient step on competition data.
@@ -1581,13 +1599,13 @@ Measured on 10,000 held-out rows, sweeping context with no retraining:
 | 8,000 | 0.5606 | 0.5655 | 37 |
 | 20,000 | 0.5608 | 0.5663 | 233 |
 
-**A 40× increase in context buys 0.0016 AUC at 33× the inference cost.** Completely flat.
+**A 40× increase in context buys 0.0016 AUC at 58× the inference cost** (corrected 2026-10-15: 233 s against 4 s, not 33×). Completely flat.
 The model is not starved; it cannot extract signal from these features at any context size.
 
 ### What it is instead
 
-Domain mismatch, and the contrast is stark. The same architecture and prior reach **0.78 AUC
-on UCI corporate panels** (§14) and **0.77 on synthetic corporate tasks** (§21), against
+Domain mismatch, and the contrast is stark. The same architecture and prior reach **0.76 AUC
+on UCI corporate panels** (§14; corrected 2026-10-15: §14's best mean is 0.7568, not 0.78) and **0.77 on synthetic corporate tasks** (§21), against
 **0.56 here**. Home Credit is consumer credit — bureau scores, employment, housing,
 demographics — while the prior generates corporate balance sheets and P&L. There is no
 leverage ratio, no interest coverage, no working capital. The relationships the prior teaches
@@ -1609,7 +1627,7 @@ prior that matters is a prior whose absence hurts.
 
 Build a consumer-credit prior. **We should not**, because consumer credit is a different
 wedge, and 0.55 on a 2018 consumer competition is not a result worth optimising. The finding
-worth keeping is the contrast between 0.78 corporate and 0.56 consumer.
+worth keeping is the contrast between 0.76 corporate and 0.56 consumer (corrected 2026-10-15: not 0.78).
 
 ## 24. The frontier labs are restricting their weights, and that is a market gap
 
@@ -1684,7 +1702,7 @@ imports torch. Tracked in `openspec/changes/strong-baselines`.
 
 **A guarded exception is not a passing test.** The guard added in §5 turned a crash into a
 silent absence, and a silently absent baseline flatters us. Skips must be *announced*, which
-`_boosting_family()` now does.
+`_boosting_family()` now does (2026-10-15: now `evaluation/boosting.py::fit_predict_boosting`, which prints `baseline skipped`).
 
 **I fell into the pipe trap again** while diagnosing this — `python ... | grep` reported
 `exit=0` for a segfaulting process, because that is grep's status. It is written down in
@@ -1730,6 +1748,9 @@ remain it.
 
 **Date:** 2026-09-09. **Status:** MEASURED on V4FinBench, out-of-time. The first evaluation
 in this project that tests the actual thesis on real corporate panels with a date-based split.
+
+> **Later evidence, 2026-10-15 note:** §28 retracts this section's diagnosis: the level error was the term-structure path skipping the base-rate correction, not the prior's 1% floor. §30 measures what the retrain bought, and §56 lists §26-§40 for re-measurement.
+
 Re-derivable:
 
 ```bash
@@ -1764,7 +1785,7 @@ synthetic to real without qualification, and it is the only claim in this projec
 ### Everything else failed, and by a wide margin
 
 Logistic regression — not CatBoost, not a tuned anything, **plain logistic regression** —
-beat us by **0.27 mean AUC**, and its calibration is 40× to 200× better. Our ECE degrades
+beat us by **0.27 mean AUC**, and its calibration is 39× to 1,260× better (corrected 2026-10-15: per horizon, 0.1085/0.0028 up to 0.2519/0.0002). Our ECE degrades
 from 0.11 at the first horizon to **0.33 at the fourth**, meaning stated probabilities are off
 by thirty-three percentage points against a base rate near 1%.
 
@@ -1773,11 +1794,11 @@ by thirty-three percentage points against a base rate near 1%.
 `prior/financial.py` samples the base rate as `exp(U(log 0.01, log 0.30))`. Measured over
 20,000 draws: **minimum 1.0003%, and exactly 0% of tasks fall below 1%**.
 
-V4FinBench's cumulative default rates by horizon are **0.36%, 0.30%, 0.25%, 0.23%, 0.21%,
+V4FinBench's per-horizon positive rates (corrected 2026-10-15: §22 calls these per-horizon rates; the cumulative rate is ~1.4%) are **0.36%, 0.30%, 0.25%, 0.23%, 0.21%,
 0.19%**.
 
 **The model has never once seen a task as imbalanced as the target** — not in any of the
-~96,000 synthetic tasks it trained on. Its entire calibration behaviour is anchored to a
+~96,000 synthetic tasks it trained on (2026-10-15 note: §43 states every checkpoint saw 48,000; not reconciled). Its entire calibration behaviour is anchored to a
 1-30% regime and it is being asked about a 0.2-0.4% one. That explains the ECE rising with
 horizon, since the cumulative rate *falls* with horizon here and the model pushes it up.
 
@@ -1808,6 +1829,8 @@ rate closes the accuracy gap is **unknown and should not be assumed** — logist
 **Date:** 2026-09-09. **Status:** MEASURED, single seed, `polish-bankruptcy-3y`, `mixed`
 checkpoint. Resolves `strong-baselines` task 18.4. §25 established that every earlier
 gradient-boosting comparison used sklearn's weakest implementation; this is the honest rerun.
+
+> **Later evidence, 2026-10-15 note:** §42 reads the crossover as partly a property of this checkpoint, §28 retracts the §26 diagnosis the last paragraph relies on, and §56 lists this section for re-measurement.
 
 | n (defaults) | model | AUC | ECE | Brier skill |
 | --- | --- | --- | --- | --- |
@@ -1844,7 +1867,7 @@ not a contest.
 
 ### What holds across every size
 
-**Best ECE at every n tested**, by 2× to 20× (0.0013-0.0070 against 0.0149-0.0500). §12's
+**Best ECE at every n tested**, by 2× to 12× (0.0013-0.0070 against 0.0149-0.0500; corrected 2026-10-15: the largest ratio is 0.0156/0.0013 at n = 4,000, not 20×). §12's
 calibration claim survives contact with the strong family — unlike its 11.7× magnitude, which
 §16 already retired.
 
@@ -1868,6 +1891,8 @@ ECE margins are larger but still one draw. Three seeds before this is quoted any
 uv run fintfm-v4oot --model runs/v4-hazard-ldp.pt --max-rows 120000 \
     --train-until 2016 --test-from 2017 --out runs/v4-oot-corrected
 ```
+
+> **Later evidence, 2026-10-15 note:** §56 lists this section among results measured through the §54 encoder ceiling; re-measure before quoting.
 
 §26 reported the hazard head stating a **12.8% mean default probability against a 0.47%
 observed rate** out of time, with ECE degrading to 0.3322 by the fourth horizon. It
@@ -1904,7 +1929,7 @@ now asserted rather than argued (`tests/test_hazard.py`).
 
 Three separate safeguards each failed to see a 27× level error:
 
-- **AUC could not see it.** Every prediction inflates alike, which is the same blindness §5
+- **AUC could not see it.** Every prediction inflates alike, which is the same blindness §6 (corrected 2026-10-15: not §5)
   found and D5 was written to address.
 - **The coherence check could not see it.** The curve was 100% monotone throughout. A
   perfectly coherent curve can state perfectly wrong levels.
@@ -1942,6 +1967,7 @@ saved 6,372 seconds of retraining. It is now printed by the harness on every run
 uv run fintfm-ctxsweep --model runs/v4-hazard-ldp.pt --out runs/context-sweep
 ```
 
+> **Later evidence, 2026-10-15 note:** §33 gives the three-seed margins (8-11 points), §35 finds this mechanism too broad (the effect scales with how extreme the rebalancing is), §36 shows the mechanism was published first, and §56 lists this section for re-measurement.
 
 D5 adopted `context_strategy="balanced"` as the default on published evidence: Tanna et al.
 (2026) benchmark seven context-construction strategies for credit-risk TFMs and report
@@ -1966,8 +1992,8 @@ all three.** Three context sizes give three replications of the ordering, which 
 reported at all from a single seed.
 
 **It is not about how many defaults the context contains.** Uniform with **12** positives
-(0.6921) beats balanced with **1,122** positives (0.6013). Mean AUC tracks the context's
-*default rate* monotonically and ignores the positive count, which rules out the obvious
+(0.6921) beats balanced with **1,122** positives (0.6013). Mean AUC falls as the context's
+*default rate* rises across the three strategies and ignores the positive count (corrected 2026-10-15: not monotonically; 1.20% gives 0.6921 and 1.55% gives 0.7192), which rules out the obvious
 "balanced supplies more signal about the rare class" mechanism.
 
 **The likely mechanism is the majority class, not the minority one.** A balanced 2,000-row
@@ -1979,7 +2005,7 @@ balancing is precisely the operation that throws it away.
 
 **Calibration goes the other way, mildly.** Balanced-plus-correction is slightly better
 calibrated (mean ECE 0.0041-0.0052 against 0.0073-0.0081). So the choice is a real trade, not
-a free win: roughly 10 AUC points for roughly 0.003 ECE. At that exchange rate, uniform.
+a free win: roughly 7-12 AUC points (corrected 2026-10-15: 6.7 at 1,000 rows, 12.3 at 2,000) for roughly 0.003 ECE. At that exchange rate, uniform.
 
 **Scope, honestly.** One dataset, one checkpoint, one seed, and the *survival* path only. The
 binary-classification evidence behind D5 has not been re-measured under uniform sampling, so
@@ -1994,6 +2020,8 @@ six-horizon hazard model evaluated out of time.
 
 **Date:** 2026-09-09. **MEASURED.** **Command:** `fintfm-ctxsweep` run against each
 checkpoint in turn, identical split and protocol.
+
+> **Later evidence, 2026-10-15 note:** §56 lists this section among results measured through the §54 encoder ceiling; re-measure before quoting.
 
 §26 concluded the prior's 1% base-rate floor was the problem and drove a 6,000-step retrain
 that lowered it to 0.195%. §28 showed the floor was not what caused the reported failure. The
@@ -2020,7 +2048,7 @@ before either effect was visible.
 
 Best configuration to date on V4FinBench out of time: LDP checkpoint, uniform context,
 corrected. **Mean AUC 0.7192, mean ECE 0.0077, 0% coherence violations.** Per-horizon logistic
-regression on the same split: **mean AUC 0.8616, mean ECE ~0.0018, 39.06% violations** with
+regression on the same split: **mean AUC 0.8616, mean ECE ~0.0015 (corrected 2026-10-15: mean of §26's 0.0028, 0.0014, 0.0002, 0.0016), 39.06% violations** with
 only 1.4% of firms fully monotone.
 
 **We are still behind on both discrimination and calibration on this benchmark.** The AUC gap
@@ -2042,6 +2070,8 @@ top-priority change in the queue.
 **Date:** 2026-09-09. **MEASURED**, from `runs/v4-oot-corrected/v4_out_of_time.json` and the
 context sweep. **This finding corrects a claim made in §30 and in
 `openspec/changes/survival-context-labels` earlier the same day.**
+
+> **Later evidence, 2026-10-15 note:** §56 lists this section among results measured through the §54 encoder ceiling; re-measure before quoting.
 
 §30 read the hazard head's decay across horizons — 0.8398 at the first, 0.5968 at the fourth
 — as the signature of a context that says *who* defaulted and never *when*, and the proposal
@@ -2113,6 +2143,8 @@ identical in a summary table and imply completely different work.
 uv run fintfm-ctxsweep --model runs/v4-hazard-ldp.pt --out runs/context-sweep-retrieval
 ```
 
+> **Later evidence, 2026-10-15 note:** §33 shows "rises monotonically" was noise, §38 retires retrieval against the prototype context, and §56 lists this section for re-measurement. The significant per-horizon gains below are +0.063 to +0.095, not +0.066 to +0.095 as the heading says.
+
 §31 concluded that *which* rows enter the context was the only remaining lever on the
 horizon-independent part of the out-of-time gap. It is, and it is a large one.
 
@@ -2165,7 +2197,7 @@ ranking (ECE 0.0119 uncorrected against 0.0169 pooled at 2,000 rows), because th
 much left to correct once the context is no longer resampled on the label.
 
 **This is the third time today that a documented assumption was carried into a context where
-it did not hold** — §28 bypassed the correction, §30 misattributed a level error, and here the
+it did not hold** — §28 bypassed the correction, §26 misattributed a level error (corrected 2026-10-15: not §30), and here the
 correction was applied where its own stated precondition fails. The pattern is not
 carelessness about the assumption; it is that each new code path silently inherits it.
 
@@ -2175,7 +2207,7 @@ carelessness about the assumption; it is that each new code path silently inheri
 | --- | --- | --- | --- |
 | **fintfm, retrieval, 4,000** | **0.7934** | 0.0111 | **0.00%** |
 | fintfm, uniform, 2,000 | 0.7192 | 0.0077 | 0.00% |
-| per-horizon logistic regression | **0.8616** | **~0.0018** | 39.06% |
+| per-horizon logistic regression | **0.8616** | **~0.0015** (corrected 2026-10-15) | 39.06% |
 
 Against the incumbent, Holm-corrected: **−0.0654, −0.0716, −0.0516 at the first three
 horizons, all significant**; the fourth is inconclusive. The mean AUC gap has closed from
@@ -2208,6 +2240,8 @@ named for what they return.
 uv run fintfm-ctxsweep --model runs/v4-hazard-ldp.pt --seeds 0,1,2 --out runs/context-sweep-seeds
 ```
 
+> **Later evidence, 2026-10-15 note:** §56 lists this section among results measured through the §54 encoder ceiling; re-measure before quoting.
+
 Every context-strategy result before this rested on one draw per cell. Replicated:
 
 | max context | balanced | hybrid | uniform | **retrieval** |
@@ -2235,7 +2269,7 @@ seeds, **2,000 and 4,000 rows are tied** (0.7888 ± 0.0029 against 0.7890 ± 0.0
 The corrected statement: retrieval improves on uniform *at every size*, and gains from 1,000
 to 2,000 rows, then **plateaus**. §31's ceiling on context size was real; retrieval raises the
 plateau's height without moving where it starts. Practically this makes **2,000 the operating
-point**, since 4,000 costs 1.7× the time for nothing.
+point**, since 4,000 costs 2.1× the time for nothing (corrected 2026-10-15: §32's 73 s against 155 s).
 
 Calibration does keep improving with size (ECE 0.0223 → 0.0178 → 0.0145), so a
 calibration-first configuration would still prefer 4,000. It remains 2× worse than uniform's
@@ -2295,6 +2329,8 @@ should not be reachable.**
 
 **Date:** 2026-09-09. **MEASURED**, three seeds, three panels.
 
+> **Later evidence, 2026-10-15 note:** §56 lists this section among results measured through the §54 encoder ceiling; re-measure before quoting.
+
 `normalize_features` standardises each feature by its **context mean and standard deviation**,
 then clips to ±10. That is the standard PFN treatment, and on this data it is close to
 useless. Measured on the V4FinBench training rows:
@@ -2338,19 +2374,19 @@ On the binary path, two independent panels, three seeds, the rank transform impr
 | taiwan, **rank** | 0.8879 | 0.8887 | 0.8932 | **0.9062** |
 
 Retrieval beats balanced on both panels with Holm-corrected significance: **+0.0138**
-[+0.0026, +0.0261] on Polish and **+0.0154** [+0.0072, +0.0235] on Taiwan. So retrieval is now
+[+0.0026, +0.0261] on Polish and **+0.0154** [+0.0072, +0.0235] on Taiwan (2026-10-15 note: the rank rows above give +0.0131 and +0.0183; not reconciled, source not found). So retrieval is now
 the best strategy on **all three panels and both prediction paths**.
 
 ### D9 resolves, and §29's mechanism was too broad
 
 D9 left `context_strategy` at `"balanced"` pending binary-path evidence. Here it is: on the
 binary path the strategies are **nearly tied** — uniform − balanced is −0.0004 (not
-significant) on Polish and +0.0077 on Taiwan. §29's 10-12 point margin does **not** generalise
+significant) on Polish and +0.0077 on Taiwan (2026-10-15 note: the rank rows above give −0.0020 and +0.0053; not reconciled, source not found). §29's 10-12 point margin does **not** generalise
 to this path.
 
 The reason is that "balanced" is not one operation. Polish 3-year has roughly 500 positives
 against a 2,000-row budget, so balanced *cannot* reach 50/50 and lands near 25% — much closer
-to hybrid than to the 50% it reaches on V4FinBench's 1,122 positives. **The effect scales with
+to hybrid than to the 50% it reaches on V4FinBench at 1,000 and 2,000 rows (corrected 2026-10-15: with 1,122 positives in a 4,000-row context it reached 28.05%, §29). **The effect scales with
 how extreme the rebalancing actually is, not with the strategy's name**, which is a narrower
 and more useful claim than §29's.
 
@@ -2372,10 +2408,10 @@ both explicitly to reproduce them.
 | arm | mean AUC | mean ECE | violations |
 | --- | --- | --- | --- |
 | **fintfm, retrieval + rank, 2,000** | **0.8118** | 0.0126 | **0.00%** |
-| fintfm this morning (§26) | 0.5869 | ~0.19 | 0.00% |
-| per-horizon logistic regression | **0.8616** | **~0.0018** | 39.06% |
+| fintfm this morning (§26) | 0.5869 | ~0.22 (corrected 2026-10-15) | 0.00% |
+| per-horizon logistic regression | **0.8616** | **~0.0015** (corrected 2026-10-15) | 39.06% |
 
-The mean-AUC gap has gone **0.142 → 0.048** over the day, and at the first horizon 0.132 →
+The mean-AUC gap has gone **0.142 → 0.050** over the day (corrected 2026-10-15: 0.8616 − 0.8118; 0.142 is the gap at 0.7192, §30, not at this morning's 0.5869), and at the first horizon 0.132 →
 0.030 (0.942 against 0.9717). Still behind on both discrimination and calibration, and the
 remaining gap is now small enough that closing it is a plausible target rather than a hope.
 
@@ -2503,6 +2539,8 @@ uv run fintfm-retrgroup --model runs/v4-hazard-ldp.pt --n-positives 150 --n-nega
     --group-sizes 2,8,32,128,400
 ```
 
+> **2026-10-15 note:** the heading's "up to 0.24" is wrong; the table and text give a maximum of 0.64. §56 lists this section for re-measurement.
+
 §32 and §35 rest on an approximation that was documented as unmeasured. Per-query retrieval is
 the correct operation; queries are clustered instead and each **group** shares one retrieved
 context, so a firm's prediction depends on which other firms were scored beside it. This is
@@ -2536,7 +2574,7 @@ same picture at 2/8/32 queries per context: deviations of 0.0004-0.0009, Spearma
 AUC deltas of +0.002 to −0.014, and an exact reference costing 561 s for 533 queries.
 
 **Exact retrieval costs 1.05 s per query**, measured. Grouped scoring of the full 47,378-firm
-panel takes about 110 s in total (§32), which is 0.0023 s per firm, so the exact operation is
+panel takes about 110 s in total (§38; corrected 2026-10-15: 111 s at 64 groups is in §38, not §32), which is 0.0023 s per firm, so the exact operation is
 roughly **450× more expensive** — confirming the "~500×" estimate the module docstring had
 been asserting without measurement.
 
@@ -2575,6 +2613,8 @@ noise, not a real gain from coarser grouping.
 
 **Date:** 2026-09-09. **MEASURED**, three seeds, plus a Holm-corrected paired bootstrap.
 **This finding retires §32's contribution claim.**
+
+> **Later evidence, 2026-10-15 note:** §56 lists this section among results measured through the §54 encoder ceiling; re-measure before quoting.
 
 §36 established that our §29 context mechanism was published first, as prototype
 undersampling. What was left as arguably ours is that retrieval is **query-conditioned** —
@@ -2645,6 +2685,8 @@ the error was over-crediting our own result rather than mis-attributing a failur
 ```bash
 uv run fintfm-v4protocol --model runs/v4-clf-small.pt --horizon 0 --folds 0,1,2,3,4
 ```
+
+> **Later evidence, 2026-10-15 note:** §42 shows horizon 0 is nearly solved by one column (0.9799), so 0.9811 is not evidence of capability, and §56 lists this section for re-measurement.
 
 §36 established that nothing this project had produced could be placed against V4FinBench's
 published table. This is the first number that can be, on their protocol, their folds, their
@@ -2732,6 +2774,8 @@ uv run fintfm-v4protocol --model runs/v4-clf-small.pt --horizon 0 --folds 0,1,2,
     --no-boosting --config configs/best.yaml
 ```
 
+> **Later evidence, 2026-10-15 note:** §56 lists this section among results measured through the §54 encoder ceiling; re-measure before quoting.
+
 §39's protocol run used `uniform` context, the class default. That looked like an oversight:
 at a 0.359% base rate a 2,000-row uniform context holds about **7 positive examples**, and the
 horizon-0 label is a *conjunction* of three thresholds, so seven examples to infer an AND from
@@ -2755,7 +2799,7 @@ Four settings, four different answers about which context construction wins:
 
 | setting | result |
 | --- | --- |
-| survival, out-of-time, V4FinBench | balanced loses to uniform by 10-12 AUC points (§29, §33) |
+| survival, out-of-time, V4FinBench | balanced loses to uniform by 7-12 AUC points (§29, §33; corrected 2026-10-15: 6.7-12.3 on one seed, 8-11 on three) |
 | binary, Polish and Taiwan panels | strategies nearly tied; the effect scales with how extreme the rebalancing actually is (§35) |
 | survival, out-of-time, V4FinBench | prototype beats uniform and beats retrieval (§38) |
 | **binary, their cross-validation protocol** | **prototype loses to uniform by 0.012 AUC** |
@@ -2892,8 +2936,8 @@ regression solves at 0.9997. Varying the input changed nothing that matters:
 - **Feature count** 5 / 10 / 20 / 60 / 130 → 0.643 / 0.553 / 0.700 / 0.576 / **0.505**. At 130
   features it is at chance.
 - **Feature transform** none / winsor / rank → 0.7010 / 0.7019 / 0.7001. Irrelevant here.
-- **Context size** 200 / 500 / 1,000 / 2,000 → 0.687 / 0.696 / 0.700 / 0.701. **Four times the
-  context buys 0.014.** A working in-context learner improves with context; this one does not.
+- **Context size** 200 / 500 / 1,000 / 2,000 → 0.687 / 0.696 / 0.700 / 0.701. **Ten times the
+  context buys 0.014** (corrected 2026-10-15: 200 to 2,000 rows is 10×; 500 to 2,000, 4×, buys 0.005). A working in-context learner improves with context; this one does not.
 
 ### Pretraining bought almost nothing
 
@@ -2966,7 +3010,7 @@ finding in favour.
   constant predictor beats every model on ECE, are exactly what a barely-learning model
   produces. They were read as properties of the regime; they are at least partly properties of
   this checkpoint.
-- **The scaling result** (§43) is now unsurprising rather than informative: 17× the parameters
+- **The scaling result** (§42's table above; corrected 2026-10-15: not §43) is now unsurprising rather than informative: 17× the parameters
   cannot help a model whose training signal is noise.
 
 ### What to do, in order
@@ -3136,7 +3180,7 @@ label naming.
 Two results, and the second is the important one.
 
 **Context-draw ensembling does nothing** — 0.6841 against 0.6838 across three seeds. Consistent
-with §42, where quadrupling the context bought 0.014: if more context does not help, neither do
+with §42, where ten times the context bought 0.014 (corrected 2026-10-15: not quadrupling): if more context does not help, neither do
 more draws of it.
 
 **Label-swap averaging drops the model to chance.** Not "helps less than hoped" — 0.684 → 0.453
@@ -3218,7 +3262,7 @@ on a model trained at 0.5% of the field's data volume is not a diagnosis.
 
 Four hypotheses had been tested and found wrong or marginal — conjunction representation
 (§41, falsified), prior difficulty (§44, no effect), prior diversity (§46, +0.027), training
-volume (§43, no effect at 10×). The pattern was guessing at causes. This is the diagnostic
+volume (§43, no effect at 10×; 2026-10-15 note: §43 records no 10× run, the 480k result first appears in this section's table). The pattern was guessing at causes. This is the diagnostic
 that isolates one.
 
 ### The test: shuffle the context labels
@@ -3332,10 +3376,10 @@ requires genuine interaction learning.
 **Every null result in §42-§46 was obtained on a model that ignored the input the lever acts
 through**, and must be re-run:
 
-- **§43's volume null** (10× data, no change) — measured on a label-ignorer, where more data
+- **§43's volume null** (10× data, no change; 2026-10-15 note: the run is the 480k checkpoint in §47, not recorded in §43) — measured on a label-ignorer, where more data
   buys a better label-ignorer. The 480k checkpoint's *regression* to correlation 0.804 is
   direct evidence of exactly that.
-- **§42's flat scaling curve** (847K / 4.9M / 14.5M within 0.001) — same objection. Capacity
+- **§42's flat scaling curve** (847K / 4.9M / 14.5M within 0.003 on linear and 0.007 on conjunction; corrected 2026-10-15: not 0.001) — same objection. Capacity
   cannot help a model not using the mechanism capacity would serve.
 - **§45's ensembling null** — the axes were averaging a prediction whose signal was artefact.
 
@@ -3347,6 +3391,8 @@ rows is the new open question, and capacity is the first suspect worth re-testin
 ## 49. The model degrades with feature count, and that is where the architecture is suspect
 
 **Date:** 2026-09-10. **MEASURED**, two seeds, synthetic linear task with a perfect boundary.
+
+> **Later evidence, 2026-10-15 note:** §52 falsifies the pooling reading, and §54 identifies the encoder ceiling.
 
 With §48's checkpoint reading its context, the question becomes what limits it at 0.71. Sweeping
 the number of features, holding everything else fixed:
@@ -3405,13 +3451,13 @@ check and it reversed the conclusion of a paragraph written twenty minutes earli
 ## 50. Capacity is ruled out: 17× the parameters gives identical curves. The pooling is the constraint.
 
 **Date:** 2026-09-10. **MEASURED**, three seeds, three model sizes, prediction registered in
+§49 **before** the runs finished.
 
 > **RETRACTED READING (2026-09-11).** The measurements here stand; the conclusion drawn
 > from them does not. Every variant compared was equally constrained by the encoder bug
 > of §54 — the row representation could not represent "column j matters" at all — so
 > this finding's *reading* is unsafe to carry forward and the comparison must be re-run.
 > §56 records the fix and what it invalidates.
-§49 **before** the runs finished.
 
 §49 predicted: if pooling *capacity* is the limit, larger models degrade less steeply with
 feature count; if they degrade identically, the pooling *design* is at fault. Three checkpoints
@@ -3424,7 +3470,7 @@ on the fixed prior, identical in everything but size:
 | large | 14,506,466 | 0.8243 | 0.7355 | 0.7099 | 0.6466 | 0.5618 | 0.5541 | **−0.2701** |
 | logistic regression | — | 0.9999 | 1.0000 | 0.9997 | 0.9994 | 0.9983 | 0.9965 | −0.0034 |
 
-**The three curves are identical to three decimal places at every width.** Not merely the same
+**The three curves are within 0.004 of each other at every width** (corrected 2026-10-15: not identical to three decimals; F=40 gives 0.6492, 0.6461, 0.6466). Not merely the same
 slope — the same values, from independently trained models spanning 17× in parameters. Three
 runs converging that precisely are converging to the same function, which is the signature of
 a structural bottleneck rather than a capacity one.
@@ -3465,10 +3511,10 @@ else costs 0.17 at the narrow end, and fixing the pooling will not address it.
 
 ### Sequence worth recording
 
-Five hypotheses, each narrowing the last, each measured: conjunction representation (§41,
+Six hypotheses (corrected 2026-10-15: six are listed), each narrowing the last, each measured: conjunction representation (§41,
 falsified) → prior difficulty (§44, no effect) → prior diversity (§46, +0.027) → **fixed
-label direction (§47, the root cause)** → training volume and capacity (§43, §50, both ruled
-out) → **pooling design (§50, indicted)**. The first four were about whether the model learned
+label direction (§47, the root cause)** → capacity (§50, ruled out) and training volume (§43; corrected 2026-10-15: not ruled
+out, §48 calls the volume null unmeasured and §52 says volume was not re-tested) → **pooling design (§50, indicted)**. The first four were about whether the model learned
 anything at all; only now that it demonstrably reads its context (§48) is an architectural
 question even well-posed.
 
@@ -3477,6 +3523,8 @@ question even well-posed.
 ## 51. The model detects extremes rather than ordering: performance falls as the base rate rises
 
 **Date:** 2026-09-10. **MEASURED**, three seeds, five-feature linear task, `signfix-mixed`.
+
+> **Later evidence, 2026-10-15 note:** §52 falsifies this section's registered prediction (attention pooling changes nothing).
 
 §50 indicted the pooling for the collapse with feature count, but noted that even at F=5 —
 where aggregation is trivial — the model reaches 0.826 against logistic regression's 1.000.
@@ -3525,13 +3573,13 @@ explanation should be discarded rather than adjusted.
 ## 52. Attention pooling changes nothing, and neither does label noise. Two more falsifications.
 
 **Date:** 2026-09-10. **MEASURED**, three seeds. **Falsifies §50's and §51's readings, and the
+probe-artefact hypothesis.**
 
 > **RETRACTED READING (2026-09-11).** The measurements here stand; the conclusion drawn
 > from them does not. Every variant compared was equally constrained by the encoder bug
 > of §54 — the row representation could not represent "column j matters" at all — so
 > this finding's *reading* is unsafe to carry forward and the comparison must be re-run.
 > §56 records the fix and what it invalidates.
-probe-artefact hypothesis.**
 
 Both predictions registered in §50 and §51 failed.
 
@@ -3566,7 +3614,7 @@ stochastic labels might reasonably hedge. Testing it:
 | threshold (separable) | 0.8516 | 1.0000 | **0.1484** |
 | Bernoulli (matches the prior) | 0.6071 | 0.7523 | **0.1451** |
 
-The gap is the same to three decimals. **Our probes were representative**; the deficit is not
+The gap differs by 0.003 (corrected 2026-10-15: 0.1484 against 0.1451, not the same to three decimals). **Our probes were representative**; the deficit is not
 an artefact of noiseless evaluation.
 
 ### What is now ruled out
@@ -3578,7 +3626,7 @@ The ~0.15 AUC deficit against logistic regression on linear tasks is invariant t
 | model capacity, 847K → 14.5M | identical curves (§50) |
 | pooling design, mean+max → attention | identical curves (this finding) |
 | context size, 250 → 4,000 rows | flat (§51) |
-| base rate, 5% → 50% | level moves, gap does not |
+| base rate, 5% → 50% | level and gap both move (corrected 2026-10-15: gap 0.150 at 5%, 0.342 at 50%, §51) |
 | label noise, deterministic → Bernoulli | gap identical |
 
 **A deficit that survives every one of those is not an architecture problem.** Five
@@ -3587,7 +3635,7 @@ more than it feels: the remaining space is much smaller.
 
 ### The one lever not yet re-tested
 
-**Training volume, with the fixed prior.** §43 measured 10× data and found nothing — but that
+**Training volume, with the fixed prior.** The 480k checkpoint (§47's table; 2026-10-15 note: §43 itself records no run) showed nothing at 10× data — but that
 was on a checkpoint from the *broken* prior, which §47 showed was ignoring its context
 entirely, and §48 argued makes every pre-fix null uninformative. Capacity was re-tested after
 the fix; volume was not.
@@ -3679,7 +3727,7 @@ gives the mechanism, a proof, and a confirming prediction. **This is the root ca
 
 ### What the control returned
 
-A model trained *exclusively* on trivial tasks plateaus at held-out **AUC 0.73** with training
+A model trained *exclusively* on trivial tasks plateaus at held-out **AUC 0.73** (corrected 2026-10-15: 0.713, as §56 records for the same run) with training
 loss flat at 0.52 from step 1850 onward. Scored per task against logistic regression fitted on
 the identical context:
 
@@ -4111,7 +4159,8 @@ recover the capability. `configs/balanced-financial.yaml` does exactly that — 
 identities, same drivers, same missingness, median base rate 0.401 instead of 0.021 — and is
 training now. If it reaches the mixture's ~0.91 on the antisymmetric probe, base rate is the
 cause. If it stays near 0.54, base rate is **excluded** and the cause is missingness or task
-separability, which is worth the run either way.
+separability, which is worth the run either way. (Outcome, added 2026-10-15: it stayed at
+0.5669, so the prediction was falsified; see §62.)
 
 ### The uncomfortable part
 
@@ -4279,7 +4328,7 @@ Holm-adjusted across the family of four:
 
 **Exactly one comparison of four is established: CatBoost is genuinely ahead.** fintfm,
 logistic regression, LightGBM and XGBoost form a four-way tie at this sample size. The
-intervals run +/-0.07 to +/-0.09, so with 79 positives only a gap of roughly 0.15 was ever
+intervals run +/-0.07 to +/-0.11 (corrected 2026-10-15: was +/-0.09; XGBoost's is +/-0.108), so with 79 positives only a gap of roughly 0.15 was ever
 detectable — which is precisely Baesens et al.'s finding of significance in 22 of 406
 comparisons, reproduced on our own data.
 
@@ -4344,7 +4393,8 @@ which `configs/balanced-financial.yaml` already does in the other direction.
 The two readings make opposite predictions for a balanced-rate *financial* prior. If domain
 content is what matters, it should keep most of the benefit here; if base-rate regime is what
 matters, it should lose it. That run is in flight for a different reason (§58) and will
-discriminate these as a side effect.
+discriminate these as a side effect. (Outcome, added 2026-10-15: §63 ran this contrast and found
+domain content, not base rate.)
 
 ### What this does not license
 
@@ -4404,7 +4454,9 @@ would stop it being a financial prior at all.
 
 The prediction was written into §58 and the run launched before its result was known,
 specifically so it could fail visibly. It failed. Recording that is the point: three of this
-session's readings (§59, §60, §61) had to be retracted after further measurement, and each
+session's readings (§59, §60, §61) had to be retracted after further measurement (corrected
+2026-10-15: §59's reading and §60's ordering were retracted; nothing retracts §61, and §63
+later confirmed its result), and each
 retraction came from a check made *after* the conclusion was drafted. A prediction registered
 in advance is the cheap version of the same discipline.
 
@@ -4433,12 +4485,12 @@ generator at a base rate close to the SCM prior's:
 | --- | --- | --- | --- |
 | `colid-fin00` | none | 0.500 | 0.0918 |
 | **`colid-finbal`** | **full** | **0.401** | **0.1900** |
-| `colid-fin07` | 70% | 0.021 | 0.1853 |
+| `colid-fin07` | 70% | 0.021 (financial share only; corrected 2026-10-15: the arm is a 70/30 mixture) | 0.1853 |
 
 | contrast | dAP | 95% CI | Holm p | verdict |
 | --- | --- | --- | --- | --- |
 | **domain content**, density matched (`finbal` - `fin00`) | **+0.0982** | [+0.0333, +0.1747] | **0.002** | **DIFFERENT** |
-| **density**, domain matched (`finbal` - `fin07`) | +0.0047 | [-0.0675, +0.0750] | 0.895 | indistinguishable |
+| **density**, domain matched (`finbal` - `fin07`; corrected 2026-10-15: only approximately, as `fin07` carries 30% SCM) | +0.0047 | [-0.0675, +0.0750] | 0.895 | indistinguishable |
 
 **The financial generator's structure is worth a significant +0.098 AP. A twenty-fold change
 in its base rate is worth nothing measurable.** This is the second comparison in this session
@@ -4500,7 +4552,8 @@ discards which column is which. The gap is exactly what column identity is worth
 
 **The hypothesis is false.** The financial and generic-SCM priors demand column identity
 equally — 0.1480 against 0.1425 — while one teaches it (antisymmetric probe 0.9932) and the
-other does not (0.5669). The prior's tasks require the capability; the model fails to acquire
+other does not (0.5352; corrected 2026-10-15: was 0.5669, which is the balanced envelope's
+probe). The prior's tasks require the capability; the model fails to acquire
 it regardless.
 
 ### What does track teaching
@@ -4511,7 +4564,7 @@ The **raw** column, which is simply how learnable each prior's tasks are by any 
 | --- | --- | --- |
 | trivial | 0.9912 | 0.9995 |
 | generic SCM | 0.8306 | 0.9932 |
-| financial | 0.7276 | 0.5669 |
+| financial | 0.7276 | 0.5352 (corrected 2026-10-15: was 0.5669, the balanced arm's probe) |
 
 Monotone, and the mixture sits between its components on both. **Signal-to-noise, not identity
 demand.** Gradient boosting tops out at 0.73 on financial tasks — they are intrinsically hard,
@@ -4599,7 +4652,7 @@ That is measurable as the AUC lost by deleting the single best column, and it is
 ### Why this finding is worth its space
 
 Two predictions registered in advance, both falsified, on the same afternoon. That is the
-process working: §59, §60 and §61 each had to be retracted *after* being drafted as
+process working: §59, §60 and §61 (corrected 2026-10-15: §59 and §60 only, see §62) each had to be retracted *after* being drafted as
 conclusions, and the difference here is that the failure cost one 70-minute run instead of a
 retraction. The elimination table is a genuine asset — five named, measured, closed
 explanations — even though it does not yet contain the answer.
@@ -4704,7 +4757,7 @@ design to separate whether teaching tracks the **label function** or the **featu
 pool and replaces its label with the financial generator's own mechanism — signed random
 weights over a driver subset, an optional two-way nonlinear interaction, log-uniform
 sharpness, sigmoid, Bernoulli — with base rate held fixed by the identical calibration policy
-used everywhere else (`_finish_binary`), so it cannot confound the result as it did not in §62.
+used everywhere else (`_finish_binary`), so it cannot confound the result (wording corrected 2026-10-15: base rate was already excluded as the cause in §62).
 
 | arm | antisymmetric probe | orientation | linear |
 | --- | --- | --- | --- |
@@ -4739,7 +4792,9 @@ GPU spend. The full pretraining run above confirms what the cheap probe suggeste
 
 **Not which specific feature property.** §65 already eliminated near-duplicate columns,
 overall correlation (financial is *less* correlated, wrong direction) and label-dependence
-concentration (also wrong direction) as continuous statistics. This finding says the cause is
+concentration (also wrong direction) as continuous statistics (corrected 2026-10-15:
+concentration was eliminated in §66, and §65 rated the first two as weak rather than
+eliminated). This finding says the cause is
 somewhere in the feature-generating process, not that any of the previously-measured
 statistics is it — those remain eliminated. The candidate not yet isolated is the **accounting
 identities themselves**: ratios built as quotients and sums of a small set of underlying
@@ -4753,7 +4808,7 @@ that trade as one requiring an explicit argument, not a default fix.
 
 ### Status
 
-Eight explanations now addressed: seven eliminated (§58, §62, §64, §65) and one confirmed
+Eight explanations now addressed: seven eliminated (§58, §62, §64, §65, §66; corrected 2026-10-15, §66 added) and one confirmed
 (this finding) as the side of the boundary the cause sits on, without yet naming the specific
 mechanism. The next test is the one this finding could not avoid deferring: hold the exposed
 feature *statistics* fixed while removing the accounting-identity dependency structure between
@@ -4838,8 +4893,9 @@ still crosses zero.
 
 **What changed is the boosters.** Untuned (§60), only CatBoost's lead was significant --
 LightGBM and XGBoost were statistically indistinguishable from fintfm on one fold. Tuned, all
-three separate from fintfm with Holm p < 0.001, and CatBoost's gap **roughly doubled**, from
--0.1457 untuned to -0.2059 tuned. §60's caveat -- "the gap to CatBoost and XGBoost is, if
+three separate from fintfm with Holm p < 0.001, and CatBoost's gap **roughly doubled** (corrected 2026-10-15: it grew
+1.41×, not doubled), from -0.1457 untuned to -0.2059 tuned. §60's caveat (in the wording §61
+repeats; attribution corrected 2026-10-15) -- "the gap to CatBoost and XGBoost is, if
 anything, understated" by using untuned baselines -- is now a measured fact rather than a
 caveat.
 
@@ -4852,7 +4908,7 @@ improving in-context scoring (retrieval-based context, §32's measured +0.066 to
 gain; ensembling over context draws and column-identity seeds, D12's stated mitigation for
 exactly the invariance §54 traded away) was engaged for this comparison. Tuning the baselines
 and not tuning our own inference configuration is not a fair fight, and it is the most likely
-reason for the doubled gap.
+reason for the widened gap (corrected 2026-10-15: was "doubled").
 
 ### What this settles and what it does not
 
@@ -4893,11 +4949,13 @@ combination on the identical fold:
 | **n_ensemble=8 + ctx=4000, no retrieval** | **0.2116** | **+0.026** | 254s |
 
 **Retrieval alone drops AP by 0.133 — the opposite direction from `docs/results/FINDINGS.md` §32's
-+0.066 to +0.095 AUC gain on the same protocol.** Widening the context partially offsets the
++0.066 to +0.095 AUC gain.** (Corrected 2026-10-15: was "on the same protocol"; §32 was
+measured on the out-of-time hazard evaluation, as the next subsection says.) Widening the context partially offsets the
 damage (0.0527 to 0.1184) but no combination that includes retrieval recovers the baseline,
 let alone improves on it. **Dropping retrieval and keeping the other two levers reaches 0.2116
--- the best AP measured for this checkpoint on this benchmark, and combining almost exactly
-additively** (0.1853 + 0.025 + 0.013 = 0.223 predicted, 0.2116 measured).
+-- the best AP measured for this checkpoint on this benchmark, and combining sub-additively** (0.1853 + 0.025 + 0.013 = 0.223 predicted, 0.2116 measured;
+corrected 2026-10-15: was "almost exactly additively", but the pair keeps about 69% of the
+summed single-lever gains).
 
 ### Why retrieval likely hurts here and did not in §32
 
@@ -4938,7 +4996,7 @@ equality asserted per fold before pooling, so this is a same-data comparison).
 §70's single-fold result (0.1853 to 0.2116) was optimistic. Per fold, the corrected config
 won on 3 of 5 and lost narrowly on 2:
 
-| fold | S70 config | S69 config |
+| fold | §70 config | §69 config |
 | --- | --- | --- |
 | 0 | 0.2116 | 0.1853 |
 | 1 | 0.2020 | 0.2083 |
@@ -4946,15 +5004,16 @@ won on 3 of 5 and lost narrowly on 2:
 | 3 | 0.1930 | 0.1794 |
 | 4 | 0.1527 | 0.1450 |
 
-Pooled across all five (n=105,900, 402 positives), paired bootstrap, Holm-adjusted:
+Pooled across all five (n=105,900, 402 positives), paired bootstrap, Holm-adjusted (table
+labels corrected 2026-10-15: "S70"/"S69" read as §70/§69):
 
 | comparison | dAP | 95% CI | Holm p | verdict |
 | --- | --- | --- | --- | --- |
-| S70 config vs S69 config (fintfm, same checkpoint) | **+0.0311** | [+0.0142, +0.0501] | <0.001 | **DIFFERENT** |
-| S70 config vs logistic_regression | +0.0183 | [-0.0105, +0.0488] | 0.204 | indistinguishable |
-| S70 config vs lightgbm | -0.1400 | [-0.1812, -0.1007] | <0.001 | **DIFFERENT** |
-| S70 config vs catboost | -0.1749 | [-0.2120, -0.1378] | <0.001 | **DIFFERENT** |
-| S70 config vs xgboost | -0.1730 | [-0.2134, -0.1329] | <0.001 | **DIFFERENT** |
+| §70 config vs §69 config (fintfm, same checkpoint) | **+0.0311** | [+0.0142, +0.0501] | <0.001 | **DIFFERENT** |
+| §70 config vs logistic_regression | +0.0183 | [-0.0105, +0.0488] | 0.204 | indistinguishable |
+| §70 config vs lightgbm | -0.1400 | [-0.1812, -0.1007] | <0.001 | **DIFFERENT** |
+| §70 config vs catboost | -0.1749 | [-0.2120, -0.1378] | <0.001 | **DIFFERENT** |
+| §70 config vs xgboost | -0.1730 | [-0.2134, -0.1329] | <0.001 | **DIFFERENT** |
 
 **The fold-to-fold variance was real, and the pooled effect is real too.** Dropping retrieval
 and turning on `n_ensemble=8` plus a wider `max_context` improves fintfm's AP from 0.1365 to
@@ -5012,8 +5071,9 @@ with §67's implication of the features, and stronger evidence for the accountin
 hypothesis specifically than anything measured so far.
 
 **But `symmetric_sum` and `symmetric_count` collapsed to 0.30 and 0.26 — below the 0.5 chance
-floor, and every other checkpoint in this project scores at or above 0.92 on these two probes,
-without exception.** An AUC below 0.5 means the ranking is *systematically inverted*: the model
+floor, and every other checkpoint in this project scores at or above 0.90 on these two probes.**
+(Corrected 2026-10-15: was "at or above 0.92 ... without exception"; §56's pre-fix trivial
+checkpoint scored 0.9034 on `count(x > 0)`.) An AUC below 0.5 means the ranking is *systematically inverted*: the model
 is confidently wrong, not merely uninformative. Verified stable across 16 independent seeds
 (sd ~0.026), so this is not a fluke of one measurement.
 
@@ -5076,8 +5136,9 @@ this repo), single 70/30 split per dataset (seed 0), `colid-fin07` with §71's l
 
 ### The gap does not track base rate
 
-Polish 1y (3.86%) and Taiwan (3.23%) are at nearly identical base rates and have the *most*
-and *least* favourable gaps measured, respectively. Whatever drives the difference is specific
+Polish 1y (3.86%) and Taiwan (3.23%) are at nearly identical base rates and have the *least*
+and *most* favourable gaps measured, respectively (corrected 2026-10-15: the order was
+reversed; Polish 1y is 7.2×, Taiwan 1.7×). Whatever drives the difference is specific
 to each dataset's structure, not its class balance — consistent with §63/§67's reading that
 domain match, not density match, is the thing that carries transfer.
 
@@ -5092,7 +5153,8 @@ domain match, not density match, is the thing that carries transfer.
 
 Best or near-best on all four independent panels. This is the first time this project's
 calibration thesis (§12, measured 2.3x-11.7x better than boosting) has been tested outside
-V4FinBench, and it replicated without exception. §60's finding that the discrimination deficit
+V4FinBench, and it replicated on three of the four (corrected 2026-10-15: was "without
+exception"; on Polish 5y fintfm's 0.0102 trails random forest's 0.0082). §60's finding that the discrimination deficit
 is real and the calibration edge is real *simultaneously* now has cross-dataset support rather
 than resting on one benchmark.
 
@@ -5112,6 +5174,10 @@ untested and is the natural next question, since §61/§63 predict the ordering 
 domain match rather than being fixed across datasets.
 
 ## 74. The Bayes-ceiling test resolves it: pure financial training induces a severe capacity-like cap the architecture does not have
+
+> **SUPERSEDED IN PART (added 2026-10-15, §78).** The measurements stand. The reading that
+> architecture capacity is ruled out does not: §78 closed this cap with two-way cell attention
+> on the same pure-financial prior.
 
 **Date:** 2026-09-14. **MEASURED**, three existing checkpoints, a task with an *exactly known*
 Bayes-optimal AUC rather than an estimated one -- proposed externally (relayed by the user) as
@@ -5171,7 +5237,8 @@ represent.
 which column matters. This probe requires none of that: the signal sits in a single named
 dimension with five inert companions. A model that has merely failed to learn column identity
 should still find this signal, since no column-identity reasoning is needed to read dimension
-0. That it does not, and caps at almost exactly the same ~0.73 region §51 and §53 measured
+0. That it does not, and caps at almost exactly the same ~0.73 region §51 and §53 measured (corrected 2026-10-15:
+§53 measured 0.63-0.69; ~0.73 is §54's trivial-prior control)
 across a whole family of *different* probes days ago, suggests the financial prior teaches a
 general under-confidence or under-extraction strategy that is not specific to any one probe
 family.
@@ -5179,7 +5246,7 @@ family.
 ### Connection to §73
 
 Read alongside this finding, the Polish/Taiwan reversal (pure SCM beating 70%-financial on all
-four external panels, opposite of V4FinBench) stops looking like a domain-match curiosity and
+four external panels, opposite of V4FinBench; measured in §75, not §73, corrected 2026-10-15) stops looking like a domain-match curiosity and
 starts looking like a symptom of the same underlying defect: the financial prior's only
 demonstrated benefit anywhere is the +0.098 AP on V4FinBench specifically (§63), and training
 on it measurably damages the model's basic signal-extraction capability everywhere else,
@@ -5231,6 +5298,10 @@ V4FinBench" is established; "the financial prior helps on credit risk" is now co
 two independent panels.
 
 ### Consistent with §74
+
+> **Superseded (added 2026-10-15).** This reading predates §78, which traced §74's cap to the
+> architecture rather than to the financial generator; §78 also weakens the "SCM prior is the
+> stronger default" conclusion below.
 
 This is the same story §74 tells from the architecture side. Training on the financial prior
 caps basic signal extraction (§74) and its one measured real-data benefit does not travel past
@@ -5367,8 +5438,9 @@ review converging with D12) was built to run.
 
 **A checkpoint trained exclusively on the financial prior -- the exact prior that produced a
 hard ~0.73 ceiling regardless of true task difficulty -- now tracks the true Bayes-optimal
-curve almost perfectly.** Regret in the 0.90-0.999 range falls from 0.234-0.277 to 0.001-0.005,
-roughly a 60-90x reduction. The SCM arm, already near-optimal under the old architecture, shows
+curve almost perfectly.** Regret in the 0.90-0.999 range falls from 0.234-0.277 to 0.001-0.004,
+roughly a 70-270x reduction (corrected 2026-10-15: was 0.001-0.005 and 60-90x; the per-target
+ratios are 78x, 69x and 271x). The SCM arm, already near-optimal under the old architecture, shows
 **no regression** and if anything a small further improvement at every target.
 
 ### Confirmed by two further, independent instruments before trusting one metric
@@ -5391,7 +5463,9 @@ across §58-§77 came close: the best any content intervention achieved was the 
 features, broken identities) stayed at 0.53-0.59. The architecture change does in one run what
 seven content interventions could not.
 
-**One honest exception**: `symmetric_count` is lower on both new checkpoints (0.87-0.89) than
+**One honest exception** (corrected 2026-10-15: not the only one; the SCM cell-attention arm is
+also lower on `symmetric_sum`, 0.9775 against 0.9964, and `linear`, 0.9739 against 0.9897):
+`symmetric_count` is lower on both new checkpoints (0.87-0.89) than
 their old-architecture counterparts (0.92-0.93). Both new arms land in a narrow band regardless
 of prior, which suggests a property of the architecture change generally rather than noise, but
 this is one data point and not yet understood. Recorded rather than glossed over.
@@ -5512,10 +5586,20 @@ could previously select it.
 
 ## 80. §78's architecture fix transfers to real data: +0.049 AP on V4FinBench, 5/5 folds — but it does not clear the project's own best-ever score
 
+> **CONFOUND (added 2026-10-15).** The two arms differ in more than the architecture. The
+> cell-attention arm is `v4-cellattn-fin10` (`p_financial=1.0`, deviated training protocol): its
+> per-fold values are §97's row A. The old arm is `v4-colid-fin07` (`p_financial=0.7`): §83
+> names it as the arm §80 quoted, and its context-1,000 row matches the table below. So every
+> "architecture" delta here also changes the prior mix, and the same applies wherever §84, §85,
+> §88 and §91 compare these two checkpoints. The architecture-only effect is unmeasured; it
+> will be filed as an audit task. Separately, the heading's "does not clear the project's own
+> best-ever score" was retracted by §82.
+
 **Date:** 2026-09-15. **MEASURED**, two complete five-fold V4FinBench runs on the full
 1,000,087-row horizon-0 panel (3,587 positives, 0.359%), both under
 `configs/cellattn-v4-validation.yaml` so the *only* term differing between arms is
-`n_cell_blocks`/`cell_labels`. Baselines grid-searched on the validation fold per the
+`n_cell_blocks`/`cell_labels` (corrected 2026-10-15: only in the inference configuration; the
+checkpoints also differ in prior mix, see the callout above). Baselines grid-searched on the validation fold per the
 published protocol. Paired bootstrap, 2,000 resamples, Holm-corrected. This is
 `cell-attention-and-task-inference` task 39.5 — the real-data validation §78 declared
 non-optional.
@@ -5545,9 +5629,10 @@ and §74 both exhibited, and the one this project had explicitly warned itself a
 | vs XGBoost | -0.2361 | < 0.001 | fintfm behind |
 
 The logistic-regression result is a genuine change of status. §69 measured a **tie**
-(Holm p = 0.204) on this protocol; the same comparison now favours fintfm significantly.
+(Holm p = 0.309; corrected 2026-10-15: was 0.204, which is §71's) on this protocol; the same comparison now favours fintfm significantly.
 The gradient-boosting gap is unchanged in character and remains the project's headline
-deficit — `docs/paper/LIMITATIONS.md` and Claim 6 stand.
+deficit — `docs/paper/LIMITATIONS.md` stands, and Claim 6 remains RETRACTED (corrected 2026-10-15: was
+"and Claim 6 stand"; see `docs/paper/CLAIMS.md`, Claim 6).
 
 ### The finding that complicates the headline
 
@@ -5580,7 +5665,7 @@ this project's real-data standing** — only that it improves the architecture a
 context, which is what was actually measured.
 
 **Update, §81 (same day)**: the chunking fix is implemented and `max_context=4000` now runs at
-22.5 GB. The "trades memory for time" expectation stated above was wrong — chunking is faster
+22.5 GB. The "trades memory for time" expectation stated above (since corrected in place, §81) was wrong — chunking is faster
 too. This entry's open question is now *measurable* but still *unmeasured*.
 
 ### Provenance and process notes
@@ -5632,7 +5717,8 @@ precisely what §80 said was needed to make its open question measurable.
 ### A prediction of mine that was wrong, in the useful direction
 
 §79, §80 and task 39.24 all described this as "trades the memory back for time." **It does
-not: it is 1.6-2.4x *faster* as well as 6.2x smaller.** The reasoning behind the wrong
+not: it is 1.6-2.4x *faster* as well as 4.2-6.2x smaller.** (Corrected 2026-10-15: was "6.2x
+smaller"; 6.2x holds at N=2024 and 4.2x at N=2512.) The reasoning behind the wrong
 prediction was that chunking serialises work that was previously one batched call, which must
 cost time. What it actually does is keep each attention score tensor small enough to stay in
 cache instead of spilling — the same mechanism behind §79's 92x cliff, working in reverse.
@@ -5658,7 +5744,8 @@ not reveal. The tell was that it disagreed with a mechanism that had to be true 
 ### What this does not yet say
 
 **No accuracy claim.** This finding is entirely about cost. Whether cell attention at
-`max_context=4000` actually beats the old architecture's 0.2116 (§71) — §80's open question,
+`max_context=4000` actually beats the old architecture's 0.2116 (§71; pointer added 2026-10-15:
+that comparison was retracted in §82, and §84 settled the question on the full panel) — §80's open question,
 and the reason this task existed — requires re-running the V4FinBench protocol at the newly
 reachable contexts. That is the next step and it is not done.
 
@@ -5765,8 +5852,8 @@ supposed to threaten it.
 fix" combining `n_ensemble=8` with `max_context=4000`. On the full panel the `max_context`
 half of that is worth **-0.0011** relative to 2,000 and +0.0058 relative to 1,000. Whatever
 §71 measured was either the `n_ensemble` half, a subsample-specific effect, or fold noise —
-its own per-fold spread (0.1184 to 0.2116) is three times the entire context range found
-here. `n_ensemble` is not isolated by this experiment and remains untested at full scale.
+its own per-fold spread (0.1184 to 0.2116) is about 13 times the entire context range found
+here (corrected 2026-10-15: was "three times"; 0.093 against 0.0069). `n_ensemble` is not isolated by this experiment and remains untested at full scale.
 
 ### What it does not say
 
@@ -5906,7 +5993,7 @@ context size tested, and the new one's does not exist at any.
 > **ATTRIBUTION CORRECTED (2026-09-19, §94).** The result below stands — the full protocol
 > does train on a T4. The *cause* stated here does not: §94 measured training memory as flat
 > in `feature_chunk` to within 0.2% across a 34x range, so `--feature-chunk 8` cannot have
-> been what fixed it. The credit belongs to §79's independently-fixed `_eval_quality`
+> been what fixed it. The credit belongs to §78's (corrected 2026-10-15: was §79's) independently-fixed `_eval_quality`
 > hardcoded batch size of 16, which is where §78's OOM actually landed.
 
 **Date:** 2026-09-17. **MEASURED**, HF Jobs `fintfm-cellattn-labels2` on `t4-small`
@@ -5918,7 +6005,8 @@ context size tested, and the new one's does not exist at any.
 recorded at `--batch-size 4 --n-rows-choices 256,512` with the deviation documented as
 something that "should be closed before the comparison is called final". §79 attributed the
 cost to the `(batch*F, heads, N, N)` attention introduced by the cell-attention blocks, and
-estimated 18.25 GB against the card's 14.74.
+estimated 18.25 GB against the card's 14.74 (corrected 2026-10-15: no 18.25 GB estimate appears
+in §79; §78 records 34 GB attempted on the 14.74 GB card).
 
 With `--feature-chunk 8` (§81), the run reaches and passes the step-500 held-out evaluation —
 **the exact point §78's OOM landed**, since that evaluation had its own, larger batch:
@@ -6109,8 +6197,10 @@ so this was tested on the warped features where §88 measured real degradation.
 | p=5 (heavier) | 0.9445 | 0.9430 | -0.0015 |
 
 **Widening the clip never helps, and is mildly worse on the heaviest tails.** The direction is
-consistent across all six cells and grows with tail weight, which is the signature of a real
-if tiny effect rather than noise: clipping extreme z-scores is doing a small amount of good.
+consistent across the four cells that move (the two identity cells are unchanged) and grows
+with tail weight, which suggests a real if tiny effect; no significance test was run
+(softened 2026-10-15: was "all six cells" and "the signature of a real ... effect rather than
+noise"): clipping extreme z-scores is doing a small amount of good.
 No change recommended, and the constant stays in code rather than becoming configuration, per
 `configs/README.md`'s rule that a value whose change would make results incomparable is not
 configuration.
@@ -6171,6 +6261,12 @@ step-500 evaluation, stands on the log and does not depend on the checkpoint.
 
 ## 91. Two-way cell attention without per-cell labels scores BELOW CHANCE: the two changes are jointly necessary, not separable
 
+> **CONFOUND (added 2026-10-15).** The `column_id_dim=16` ablation below is a matched pair. The
+> `column_id_dim=12` reference is not: it compares `v4-cellattn-fin10` (`p_financial=1.0`) with
+> `v4-colid-fin07` (`p_financial=0.7`), the confound recorded at the top of §80 (§97 row A, and
+> §83 naming `v4-colid-fin07` as the old arm). The architecture-only effect is unmeasured; it
+> will be filed as an audit task.
+
 **Date:** 2026-09-17. **MEASURED**, two 6,000-step T4 runs at §74's full protocol
 (`--batch-size 8 --n-rows-choices 256,512,1024 --feature-chunk 8 --column-id-dim 16
 --n-cell-blocks 1`), identical but for `--cell-labels`, scored on the Bayes-ceiling probe
@@ -6186,7 +6282,8 @@ step-500 evaluation, stands on the log and does not depend on the checkpoint.
 | difference | **+0.4410** | **+0.5434** | **+0.5578** |
 
 For reference, the `column_id_dim=12` pair (§74/§78's arms, quoted only within its own group per
-§86): cells+labels beats `n_cell_blocks=0` by **+0.0337** mean.
+§86): cells+labels beats `n_cell_blocks=0` by **+0.0337** mean (corrected 2026-10-15: not a
+matched pair; these checkpoints also differ in prior mix, see the callout above).
 
 **The unlabelled variant is below chance at every difficulty**, and roughly the mirror of a
 weak-but-positive score (0.4575 ≈ 1 - 0.5425). It is not failing to learn; it is producing
@@ -6322,7 +6419,7 @@ has recorded", against §84's 0.1941. That was true and misleading. The matched 
 **0.2072** — higher still. **The improvement over §84 came from `column_id_dim=16` and the
 closed protocol deviation (§86), not from training volume.** The comparison that looked like a
 scale result was a configuration result, and the only thing that separated them was running
-the control. Same shape as §82, one week later.
+the control. Same shape as §82, three days later (corrected 2026-10-15: was "one week later").
 
 ### What this buys
 
@@ -6382,7 +6479,7 @@ that makes it useless in training.
 **This makes §86's causal claim unsupported.** §86 reported that with `--feature-chunk 8` the
 full protocol (`--batch-size 8 --n-rows-choices 256,512,1024`) trains on a T4 where §78's
 attempt OOMed, and credited the chunking. The run did succeed and that fact stands. But this
-probe shows chunking cannot have been the reason. The remaining candidate is the one §79
+probe shows chunking cannot have been the reason. The remaining candidate is the one §78 (corrected 2026-10-15: was §79)
 identified independently: `_eval_quality`'s **hardcoded evaluation batch size of 16**, which
 made the held-out evaluation at step 500 allocate twice the training step's memory, and which
 was fixed separately. §78's OOM landed exactly at that step-500 evaluation.
@@ -6512,7 +6609,9 @@ checkpoint was run on the identical suite.
 
 **The SCM prior is better on 11 of 15 and worth +0.0100 on average — and it changes nothing
 about the conclusion.** It closes roughly **7%** of a ~0.14 deficit. fintfm is behind on 14 of
-15 tasks under either prior, and wins outright on exactly one (`diabetes`, +0.014).
+15 tasks under either prior, and wins outright on exactly one under each prior (corrected 2026-10-15: `diabetes`, +0.014,
+under the SCM prior; under the financial prior the one win is `credit-g`, +0.005, and
+`diabetes` is a loss of 0.0006).
 
 ### What it settles
 
@@ -6536,7 +6635,8 @@ other; both are this project's own generators. A prior with genuine *mechanism* 
 (`mechanism-diverse-prior`, 40.x) is untested and this result says nothing about it.
 
 **The baselines here are untuned**, so the true deficit is probably larger, not smaller: §69
-measured proper tuning as roughly doubling CatBoost's lead on V4FinBench.
+measured proper tuning as widening CatBoost's lead on V4FinBench 1.41× (corrected 2026-10-15:
+was "roughly doubling").
 
 **One split per dataset**, chosen so fifteen datasets were affordable rather than five precise
 ones. No number here is at the five-fold paired-bootstrap standard the credit panels use, and
@@ -6544,7 +6644,8 @@ none should be quoted as if it were.
 
 **The SCM arm carries a handicap.** `v4-cellattn-fin00` has `column_id_dim=12` and §78's
 deviated training protocol, against the financial arm's 16 and the full protocol. Task 39.29's
-first two folds put the identity width at roughly +0.015, so the SCM prior's true advantage may
+first two folds put the identity width at roughly +0.015 (pointer added 2026-10-15: the
+five-fold figure is +0.0126, §97), so the SCM prior's true advantage may
 be nearer +0.025 — which is still a small fraction of 0.14.
 
 ### Consequence
@@ -6628,6 +6729,10 @@ be a peak at 16 as a monotone climb. **One seed per cell**, as with §91 and §9
 
 ## 98. TabArena places fintfm 93rd of 95 — and its three best datasets are corporate credit
 
+> **RETRACTED IN PART (added 2026-10-15, §107).** The placement stands. The heading's "three
+> best datasets are corporate credit" and the closing reading that the best public results are
+> the credit panels do not hold: by rank the credit panels sit at 83-95 of 95 (§107).
+
 **Date:** 2026-09-20. **MEASURED**, `fintfm-0.3` (`v4-cellattn-labels`, `column_id_dim=16`)
 registered as a model in a local TabArena clone (Apache-2.0) and run under TabArena's own
 protocol: shared preprocessing, their validation splits, 8 bagged child models per dataset,
@@ -6659,7 +6764,8 @@ regression on several tasks, while TabArena's protocol places it below every lin
 | customer_satisfaction_in_airline | 0.8643 | in_vehicle_coupon_recommendation | 0.6657 |
 | **polish_companies_bankruptcy** | **0.8436** | E-CommereShippingData | 0.6776 |
 
-**Two of the three best results are the corporate bankruptcy panels** this project was built
+**Two of the five best results are the corporate bankruptcy panels** (corrected 2026-10-15: was
+"two of the three"; Taiwan is second and Polish fifth) this project was built
 for, and which §73/§75 already benchmark independently. `GiveMeSomeCredit` (consumer credit,
 0.8373) is sixth. The worst, `Amazon_employee_access` at 0.5455, is nine high-cardinality
 **categorical** columns.
@@ -6810,7 +6916,8 @@ only 18% sits where fintfm is being measured fairly.
 says so** rather than the intuition §98 recorded. It also reframes the residual: on the eight
 datasets with no categorical columns at all, fintfm is −0.0320 behind tuned logistic
 regression and −0.0350 behind default random forest. That is the honest size of the *modelling*
-deficit, separate from the preprocessing one, and it is 2.8× smaller than the headline.
+deficit, separate from the preprocessing one, and it is 1.6× smaller than the −0.0527 headline (corrected 2026-10-15: was 2.8×, which is the
+ratio to the categorical-heavy subset's −0.0894).
 
 **§98's ranking stands but its attribution was one dataset deep.** It named
 `Amazon_employee_access` as "the clearest symptom", which was right, and left the reader to
@@ -6867,7 +6974,8 @@ comparison would have been confounded by something other than the encoding.
 
 §100 computed that if every categorical-bearing dataset reached parity with tuned logistic
 regression, 82% of the gap would close. **The measured recovery is 34%** — 0.0181 of the
-0.0527. That entry said explicitly the figure was "a ceiling, not a forecast" and that "no
+0.0527 (clarified 2026-10-15: 34% of the gap, which is 42% of the 0.0432 bound; the heading's
+"a third of the bound" and "34% of it" should be read that way). That entry said explicitly the figure was "a ceiling, not a forecast" and that "no
 mechanism is entitled to it". It is on the record here that the ceiling overstated the
 outcome by 2.4×, because a bound quoted without its realised value invites being read as a
 prediction later.
@@ -7064,7 +7172,8 @@ Adjacent-pair deltas with Holm-adjusted per-fold p-values across all 20 tests:
 | 20 → 24 | −0.0082 | 0/5 | 1.000, 0.266, 1.000, 0.096, 0.000 |
 | 24 → 32 | −0.0038 | 2/5 | 0.273, 1.000, 1.000, 1.000, 1.000 |
 
-**Only 12 → 16 has folds surviving Holm at all** (two of five). Every decline arm is
+**Only 12 → 16 has more than one fold surviving Holm** (two of five; corrected 2026-10-15: was
+"has folds surviving Holm at all", but 20 → 24 has one, fold 4 at p = 0.000). Every decline arm is
 individually non-significant almost everywhere. A fold is one panel-year, and a paired
 bootstrap within one fold is testing whether *these rows* separate — it is underpowered for a
 0.007 effect, and Holm across 20 tests is deliberately conservative on top of that.
@@ -7114,7 +7223,9 @@ changes the picture, this curve is the thing to re-run — not the thing to cite
 **How these numbers were produced.** MEASURED. `run_fintfm_lite.py --full` on TabArena's 27
 eligible binary datasets, `FINTFM_RUN_NAME=mixedprior` so the results cache could not return
 §101's numbers (the failure mode `docs/results/TABARENA.md` records). The arm is `v4-multiclass.pt` —
-885K parameters, `--max-classes 10`, the generic SCM prior mixed into the financial one —
+888,090 parameters (corrected 2026-10-15: was 885K, see §99), `--max-classes 10`, the generic
+SCM prior mixed into the financial one; its checkpoint records `trained_objectives =
+['classification']`, so it was not trained on regression (verified 2026-10-15) —
 against §101's `cat_full` run of the binary-only `v4-cellattn-labels.pt`. Both use the
 out-of-fold target-statistics categorical path, so the only difference is the checkpoint.
 Paired per dataset on the 27 tasks both ran.
@@ -7126,13 +7237,15 @@ Paired per dataset on the 27 tasks both ran.
 | mean ROC-AUC | 0.7642 | **0.7823** | **0.7817** |
 | rank | 93 / 95 | 93 / 95 | 93 / 95 |
 | Elo | 662 (+123/−211) | 765 (+125/−175) | 813 (+179/−301) |
-| harmonic rank | 90.74 | 88.04 | 86.26 |
+| mean rank (label corrected 2026-10-15: was "harmonic rank") | 90.74 | 88.04 | 86.26 |
 
 Paired, per dataset: **mean delta −0.0006**, better on **13 of 27**, two-sided sign test
 **p = 1.000**. Deltas span −0.0867 to +0.0341 with no sign of structure.
 
 **Capacity spent on 10-class structure and continuous targets is not capacity taken from the
-binary task** — at least not at 885K parameters, and not measurably. Task 46.2 raised this as
+binary task** — at least not at 885K parameters, and not measurably. (Corrected 2026-10-15:
+this checkpoint has 888,090 parameters and was trained on classification only, so the result
+covers 10-class structure, not regression; the heading's "and regression" is not measured here.) Task 46.2 raised this as
 the cost that would have to be paid for coverage. At this size there is no bill.
 
 ### The Elo moved and the mean did not, and that is not a contradiction
@@ -7409,8 +7522,9 @@ ids, so this establishes that datasets *of the same name* appear on both sides. 
 underlying tables are identical needs an id-level or hash-level comparison that neither project
 publishes. Cite this as a **name-level overlap**, precisely, or not at all.
 
-**It is also not evidence that TabDPT's leaderboard position is unearned.** Four of the seven
-are outside fintfm's eligible set entirely, memorisation is not the only route to a high score,
+**It is also not evidence that TabDPT's leaderboard position is unearned.** Three of the seven
+are outside fintfm's eligible set entirely and a fourth (`wine_quality`) is outside the binary
+subset (corrected 2026-10-15: was "Four of the seven ... eligible set"), memorisation is not the only route to a high score,
 and no per-dataset attribution has been attempted here.
 
 ### The finding that actually matters
@@ -7476,7 +7590,8 @@ be cited without checking.
 | 67–78 | TabSTAR | 1101–1178 | **real + text** |
 | 93 | FinTFM | 813 | synthetic (financial + SCM) |
 
-**Every one of the top 14 ranks is synthetic-pretrained.** The first entry with any real data is
+**Every one of the top 15 ranks (0 to 14) is synthetic-pretrained** (corrected 2026-10-15: was
+"top 14"). The first entry with any real data is
 RealTabPFN-2.5 at 15, and it is *synthetic-pretrained with real adaptation*. The best model
 trained on a real corpus is TabDPT-Turbo at **21**.
 
@@ -7632,6 +7747,9 @@ denying its baseline the conditioning this project's own inference path has used
 | **scm** | −0.0234 | **−0.0021** | +0.021, effectively zero |
 | tree | +0.0304 | +0.0225 | −0.008 |
 | trivial | −0.0163 | −0.0142 | — |
+
+(Note 2026-10-15: §111's own table prints the SCM gap as −0.0233, from 0.6806 − 0.7039; the
+−0.0234 here and below is presumably from unrounded AUCs. The swing is unaffected.)
 
 Full corrected table:
 
@@ -7886,7 +8004,8 @@ evidence than anything else here and it is not a settled result.
 
 **And nothing has been measured on credit data.** The claim is about TabArena's general
 tabular suite. V4FinBench's five-fold protocol is where this project's actual claims live, and
-the tree prior has not been run there.
+the tree prior has not been run there. (Since run, in §116: −0.0221 AP on V4FinBench, negative on
+5 of 5 folds. Pointer added 2026-10-15.)
 
 ### Why it was predicted before it was measured
 
@@ -8101,7 +8220,8 @@ which the change is neutral.
 
 The SCM prior is 4× more learnable and 3.5× more diverse than the financial prior by that
 statistic. Raising its share from 0.3 to 0.5 made credit performance **worse**, and the prior
-the instrument ranks *worst* is the one more of which helps.
+the instrument ranks *below* SCM is the one more of which helps (corrected 2026-10-15: was
+"ranks *worst*"; financial is second of three, and tree is last).
 
 So `fintfm-priorscore`'s record is now:
 
@@ -8126,11 +8246,13 @@ sector and macro effects, a default-rate envelope reaching real low-default-port
 low AP at 0.4% plausibly reflects that it generates genuinely *hard* tasks of the *right kind*,
 which is what §42 established a prior must do. A statistic that rewards learnability cannot
 distinguish that from a prior generating easy tasks of the wrong kind, and it ranked the
-financial prior last on exactly that confusion.
+financial prior below SCM on exactly that confusion (corrected 2026-10-15: was "last"; tree was
+last).
 
 **§117 flagged this and I acted against it.** Its own closing paragraph says the relationship
-was "measured on exactly one prior, retrospectively" and that the instrument "asks a question it
-previously could not, which is not the same as its answers being established." The arm was
+was "measured on exactly one prior, retrospectively" and that "the instrument now asks a
+question it previously could not — not that its answers are established" (quotation corrected
+2026-10-15 to §117's exact wording). The arm was
 launched anyway, within the hour, on a single retrospective data point.
 
 ### What survives
@@ -8294,7 +8416,9 @@ error is uniformly **1.1× to 6.5×** the best method's.
 §106 named the structural limit plainly: resolution is bounded by `K` bins, so an interval can
 never be narrower than one bin. The per-dataset error ratios confirm it — the worst are
 `airfoil_self_noise` (6.5×) and `diamonds` (3.2×), wide smooth targets where 10 quantile bins
-are a coarse grid, and the best is `wine_quality` (1.2×), a target nearly discrete already.
+are a coarse grid, and the best is `wine_quality` (1.2×), a target nearly discrete already. (Note 2026-10-15: the
+range above and the "least" row below start at 1.1×, so one dataset has a lower ratio than
+`wine_quality`; which one is not recorded here.)
 
 **But rank is flat against that axis:**
 
@@ -8321,7 +8445,7 @@ approximately zero.
 the same failure in a new costume: it would submit a capability whose quality nobody has
 checked."* The measurement now exists, and it says these two are not capabilities yet.
 
-**The submission declares `binary` only** — 27 datasets, 51% coverage, rank 93 of 95, every
+**The submission declares `binary` only** — 27 datasets, 53% coverage (corrected 2026-10-15: was 51%; 27 of 51), rank 93 of 95, every
 declared capability measured. `multiclass` and `regression` stay implemented, tested and
 documented but **undeclared**, with this finding as the reason.
 
@@ -8464,6 +8588,9 @@ The reference recipe's `--batch-size 8 --n-rows 1024 --max-features 136` **canno
 each other and **not** comparable to the published checkpoint, which was trained at batch 8 on
 CUDA. Any local result is a direction to escalate, never a number to publish.
 
+> **Later (§128):** the ceiling is a 64-bit indexing bound, not a memory limit, and batch 8 at
+> `n_rows` 512 runs locally on MPS at 1.74 s/step. Only the 1,024-row draws exceed it.
+
 ## §124 — Depth at constant width is null, and the held-out score predicted the wrong sign again
 
 > **Superseded in part by §126.** The conclusion holds: depth is null, and §126 confirms it
@@ -8510,8 +8637,9 @@ credit panels say the opposite, weakly.
 
 ### The conclusion is null, and the significance column is why that needs saying
 
-Four of five folds reach significance after Holm correction and **they disagree in sign**: two
-say depth helps significantly, one says it hurts significantly. That is not a direction. It is
+Four of five folds reach significance after Holm correction and **they disagree in sign**: three
+say depth helps significantly (folds 1, 2, 4), one says it hurts significantly (fold 3)
+(corrected 2026-10-15: was "two say depth helps"). That is not a direction. It is
 fold-to-fold variance exceeding the consistent effect, and at 200,000 rows per fold a row-level
 bootstrap will certify nearly any difference. **Significance at row level is not a reproducible
 effect**, and a mean of +0.0019 against a −0.035 deficit would not move rank even if its sign
@@ -8563,6 +8691,10 @@ filter is inert here and that is the finding." It is not near zero.
 | financial only | 9.0% | 0.0% | **30.0%** | 33.5% | 42.0% |
 | **production mix, 0.7/0.3** | **13.5%** | 6.5% | **35.0%** | 40.5% | 46.5% |
 | SCM only | 4.5% | 15.0% | 35.5% | 45.0% | 51.0% |
+
+(Note 2026-10-15: §127/§128 later established that the published checkpoint was trained at
+`--p-financial 1.0`, so the production rate is the "financial only" row, 30.0% at AUC <= 0.51,
+not the 0.7/0.3 row labelled "production mix" here.)
 
 **Over a third of the production prior's tasks carry no signal an ExtraTrees can find**, and a
 fifth are single-class or unscorable outright. On the face of it that is a third of pretraining
@@ -8685,7 +8817,10 @@ effect is a batch-size artifact and the default stands.
 ### The methodological finding, which outranks both
 
 All four cells score **0.768 to 0.771 pooled AUC on held-out synthetic**, and 0.2124 to 0.2134
-final loss. The metric is flat across arms whose downstream AP spans 0.0952 to 0.1196.
+final loss. The metric is flat across arms whose downstream AP spans 0.0952 to 0.1196. (Note
+2026-10-15: §124's table gives pooled AUC 0.7804 and 0.7772 for the two lr 3e-4 cells, outside
+this range. Neither entry states which statistic it reports, for example the mean over the 12
+evaluation points or the final one, so the two figures are not directly comparable.)
 
 **The cheap screening signal cannot see an effect the credit panels measure at 5 of 5 folds.**
 That is now three failures of the same kind: §117 predicted the wrong sign downstream, §124's
@@ -8765,7 +8900,8 @@ cell_labels`, `feature_chunk=8`), timed on an idle MPS device, two timed repetit
 warm-up, `torch.mps.synchronize()` around the timing. CPU arm measured the same way.
 
 §123 recorded that the reference recipe cannot run on MPS and concluded local arms are
-"internally comparable and externally meaningless". §127 priced that at about **0.08 AP**, which
+internally comparable but not comparable to the published checkpoint ("internally comparable and
+externally meaningless" is §127's wording; attribution corrected 2026-10-15). §127 priced that at about **0.08 AP**, which
 is larger than every effect measured locally. That made the ceiling worth understanding rather
 than working around.
 
@@ -8945,7 +9081,8 @@ designed to sit between.
 
 **The context-conditioned representation carries more linearly-usable signal for this task
 than the model's own classification head extracts from it.** The head is not broken —
-`own_head`'s 0.1986 matches §127's and §129's rank-transform number exactly, so this is not a
+`own_head`'s 0.1986 matches §128's and §129's rank-transform number exactly (corrected
+2026-10-15: was §127, whose figure is the rerun's 0.1957), so this is not a
 pipeline error — but a plain logistic regression on the embedding does better than the
 architecture's own read of it.
 
@@ -9035,8 +9172,8 @@ input) and the effect requiring a specific checkpoint quirk visible only in a sh
 representation (it persists at the deepest point measurable).
 
 Still open: whether a differently-trained or differently-shaped head would close this margin,
-whether this holds on a second checkpoint (`docs/roadmap/ROADMAP.md` Phase A' item 3, not yet
-run), and — the question with an external answer rather than an internal one — whether the
+whether this holds on a second checkpoint (`docs/roadmap/ROADMAP.md` Phase A' item 4, corrected
+2026-10-15 from "item 3"; run in §136), and — the question with an external answer rather than an internal one — whether the
 representation's advantage on V4FinBench's binary task transfers to TabArena's Lite protocol,
 where the comparison is against 94 other methods rather than two arms of the same model.
 
@@ -9065,14 +9202,17 @@ Not yet published; this entry is exploratory, not a resubmission candidate.
 | `TA-FINTFM` (own head, §122) | 765 | 94 of 95 | 88.04 |
 | **`TA-FINTFM-LINPROBE`** | **910** | **93 of 95** | **82.76** |
 
-**+145 Elo, one position up, past `KNN (default)` (627).** Still below every other real method;
-this closes none of the gap to `Linear (default)` at 936 (`docs/roadmap/ROADMAP.md`'s
-next milestone) — 910 is a whisker below it. The direction is real and external, not a null.
+**+145 Elo, one position up.** (Corrected 2026-10-15: this said "past `KNN (default)` (627)",
+but the own head at 765 was already above that entry. The method passed lies between 765 and
+910; `KNN (tuned)` sat at 859 in §101's snapshot.) Still below every other real method; this
+closes 145 of the 171 Elo to `Linear (default)` at 936 (`docs/roadmap/ROADMAP.md`'s next
+milestone) but does not pass it (corrected 2026-10-15: was "closes none of the gap") — 910 is a
+whisker below it. The direction is real and external, not a null.
 
 ### One dataset needed the safety net; the other 26 did not
 
-A single-class training subsample (§131's fallback path, `docs/results/FINDINGS.md` need not
-repeat the code, see `fintfm_linprobe/model.py`) fired ten times, and all ten belong to one
+A single-class training subsample (the fallback path in `fintfm_linprobe/model.py`; wording
+corrected 2026-10-15) fired ten times, and all ten belong to one
 dataset: `363613`, `Amazon_employee_access`, a severely imbalanced access-control task where
 some bagged folds' subsamples degenerate to one class. On that dataset the linear-probe entry
 is byte-identical to the own-head entry. **The other 26 of 27 datasets used the linear probe
@@ -9089,8 +9229,9 @@ arms of one model).
 
 **Not settled:** whether this is the largest gain available from touching the decision layer,
 whether a differently-shaped head (rather than a post-hoc linear probe bolted on) would do
-better still, and whether the residual mechanism §131 left unlocated (roughly 45% of the
-original margin explained by depth, the rest not) has an architectural fix. This result raises
+better still, and whether the residual mechanism §131 left unlocated (the margin fell by
+roughly 45% across the added stages, and §131 left open whether depth explains that fall;
+softened 2026-10-15 from "45% ... explained by depth") has an architectural fix. This result raises
 the ceiling on how much those questions are worth answering; it does not answer them.
 
 ### What this does not yet justify
@@ -9277,6 +9418,10 @@ fold, Holm-corrected, matching §130-§134.
 | 4 | 0.2172 | 0.2041 | 0.2199 | +0.0028 | +0.0158 |
 | **mean** | **0.1986** | **0.2214** | **0.2171** | **+0.0185** | **-0.0042** |
 
+(Note 2026-10-15: the linear-probe column does not match §131's table on every fold: fold 4 is
+0.2041 here against 0.1968 there, and the mean 0.2214 against 0.2201. The cause is not recorded.
+The "MLP vs linear" column is computed against this column.)
+
 **MLP head beats own_head on 4 of 5 folds, significant after Holm on 3 of 5.** Notably, fold
 4 -- the one fold where the linear probe itself underperforms `own_head` (§131's only
 reversal) -- is where the MLP head does best relative to the linear probe (+0.0158), though
@@ -9309,7 +9454,8 @@ in this line (§130-§134).
 Item 3 is answered, not in the direction that would have opened a large new lever: a fancier
 head is not the fix. Item 4 (a second checkpoint) remains open. Given §133 and this entry
 together, the honest read is that Phase A' has extracted what it has to give -- a real,
-external, +145 Elo, reproduced gain (§132) -- and the next open lever is Phase C (prior
+external +145 Elo gain from one exploratory run (§132; softened 2026-10-15 from "reproduced") --
+and the next open lever is Phase C (prior
 diversity), not a further search inside the decision layer.
 
 ## §136 — The linear-probe advantage replicates on a second, independently-trained checkpoint
@@ -9342,8 +9488,10 @@ where `own_head` comes out ahead, unlike §131's fold 4 reversal).
 
 ### What this settles
 
-**The linear-probe advantage is not specific to one training run.** Two checkpoints from the
-same learning-rate sweep, differing only in training hyperparameters, show the same
+**The linear-probe advantage is not specific to one training run.** Two independently trained
+checkpoints at the same documented recipe, the published one and its §127/§128 rerun, show the
+same (corrected 2026-10-15: was "from the same learning-rate sweep, differing only in training
+hyperparameters"; the published checkpoint is not a sweep arm)
 qualitative pattern at comparable magnitude: `self.head`'s own final layer underperforms a
 linear probe fit on its own input. Combined with §133 (the gap decays gradually through
 `self.encoder`'s depth) and §135 (a nonlinear head does not close it further), this closes
@@ -9354,7 +9502,8 @@ measured answer, and none of them point at the decision layer as the remaining l
 
 Phase A' is done. The next open, untested lever is Phase C (prior diversity), per
 `docs/roadmap/STRATEGY.md`'s synthesis: scale and depth are closed both internally (§93, §108,
-§133, §135) and externally (the Neuralk-AI corroboration in `docs/paper/RELATED_WORK.md`), and
+§114 for scale; §124, §126 for depth; corrected 2026-10-15 from "§93, §108, §133, §135") and
+externally (the Neuralk-AI corroboration in `docs/paper/RELATED_WORK.md`), and
 the decision-layer search (§131-§136) recovers a real but bounded gain rather than closing the
 TabArena/TabBench gap outright.
 
@@ -9417,6 +9566,8 @@ probe suite reported `xor` at 0.530-0.537 (chance) on the §42-era checkpoint, l
 two-way cell-attention architecture, the label-conditioning fix, or any of the scale/depth work
 this project has since done. §137 is the first time this specific null has been checked against
 the checkpoints this project's current claims actually rest on, and it has not gone away.
+(Note 2026-10-15: the null was not universal in between. §46 measured `xor` at 0.614 with the
+mixed `p_financial 0.7` prior, and §48 at 0.650, both on that earlier probe and architecture.)
 
 ### Where this leaves Phase C
 
@@ -9532,7 +9683,8 @@ at or above it.** If the model had cleanly separated "`P` was informative becaus
 that channel is now gone, but `C` still works exactly as well as it always did," `intervened`
 should land at or above `cause_only` -- the intervention removes information, it adds none, so
 nothing should make `C`'s own contribution *worse* than the no-confound-ever-existed baseline.
-Instead both checkpoints score roughly 0.08-0.09 AUC *below* the cause-only ceiling. The model
+Instead both checkpoints score roughly 0.08 to 0.09 AUC *below* the cause-only ceiling (0.088
+for `fin10`, 0.077 for `fin00`; exact values added 2026-10-15). The model
 is not discarding the now-uninformative `P`; it is still weighting it as if the confound path
 were intact, and that residual weight actively hurts once the proxy no longer means anything.
 
@@ -9648,7 +9800,9 @@ produced by a training-time change rather than a scoring one.
 
 This is not a broken checkpoint. The task 40.7 verify clause requires the §74 bayes-ceiling
 probe suite run on the result before any other claim is made about it, and it clears the
-untrained-control floor by a wide margin on every one of the eight probes, at levels
+untrained-control floor by a wide margin on the six structured probes, with `xor` and `noise` at
+or near chance as they are for the control (softened 2026-10-15 from "on every one of the eight
+probes"), at levels
 comparable to the control checkpoint (`orientation` 0.987 vs 0.991, `linear` 0.973 vs 0.963,
 `conjunction` 0.971 vs 0.958, `xor` 0.515 vs 0.588 -- both near chance, consistent with §137's
 existing interaction-order collapse rather than a new failure, `symmetric_sum` 0.942 vs 0.935,
@@ -9732,7 +9886,9 @@ Closes task 39.28 and the last open item of `cell-attention-and-task-inference`.
 direction follows from replicating an already-acted-on finding; this closes the proposal
 rather than opening one.
 
-## §143 — The widened SCM prior roughly doubles its own difficulty spread, exactly as predicted, for zero GPU cost
+## §143 — The widened SCM prior widens its own difficulty spread by 45%, as predicted, for zero GPU cost
+
+(Heading corrected 2026-10-15: it said "roughly doubles"; the measured rise is 45%.)
 
 **How these numbers were produced.** MEASURED. Task 48.17 (`learn-from-peers`): `scm.py`
 already carries both the Cauchy edge-connectivity sampler (`_cauchy_edge_mask`) and the
@@ -9741,10 +9897,11 @@ new default, implemented in an earlier session but never measured. The task's ow
 clause asks only for the task-difficulty-spread statistic before and after — "since the claim
 is about diversity, not about any single accuracy number moving" — so this needed no
 checkpoint and no GPU: `fintfm.experiments.prior_score.score_prior` (task 48.14's instrument,
-used for §111's corrected table) was called directly with `functools.partial(sample_scm_task,
+used for §112's corrected table; corrected 2026-10-15 from "§111's") was called directly with `functools.partial(sample_scm_task,
 legacy=True/False)` as the sampler, `n_rows=800`, `seed0=0`, run locally on CPU in under a
-minute total. Run twice, at `n_tasks=30` (matching §111's protocol) and again at `n_tasks=100`
-for a tighter estimate; both agree.
+minute total. Run twice, at `n_tasks=30` and again at `n_tasks=100`
+for a tighter estimate; both agree. (Corrected 2026-10-15: this said `n_tasks=30` matched
+§111's protocol, but §111 and §112 used 25 tasks.)
 
 ### The result
 
@@ -9754,6 +9911,10 @@ for a tighter estimate; both agree.
 | widened (Cauchy edges + rank/softmax) | 93 | 0.7585 | **0.1863** | −0.0000 |
 
 (`n_tasks=30` run: 0.1422 → 0.2066 — same +45%-ish shift, smaller sample.)
+
+(Note 2026-10-15: the legacy row does not reproduce §112's SCM row, 0.7106 performance, 0.2046
+diversity, −0.0021 distinctiveness. The settings differ in task count and possibly elsewhere;
+the cause is not recorded. The before-and-after comparison within this entry is unaffected.)
 
 Diversity — the standard deviation of per-task AUC across draws, the exact statistic §42
 established this project needed and tracked ever since — rises by 45% (0.1286 → 0.1863).
@@ -9777,10 +9938,12 @@ the claim was about diversity, and diversity moved, cleanly, in the predicted di
 checkpoint trained with the widened activation set beats the current one *on V4FinBench* —
 an accuracy question this diagnostic cannot answer (§93's 5x-volume null is the standing
 reminder that a measurably distinctive prior can still be inert downstream), and one that
-needs a mixture design (none of this project's checkpoints have trained with `p_scm > 0` at
-all — every reference recipe so far runs `--p-financial 1.0`) and a full V4FinBench scoring
-pass. With four checkpoints' worth of scoring already queued on this machine's CPU as of this
-entry (tasks 48.5/48.6/48.9/48.10, write-up pending), that comparison is deferred rather than
+needs a mixture design (every reference recipe since §127 runs `--p-financial 1.0`; corrected
+2026-10-15: this said no checkpoint had trained with `p_scm > 0` at all, but §74's `fin00`,
+§116's `priorctl` and §118's `scm50` did, with the SCM sampler of their time) and a full
+V4FinBench scoring pass. With four checkpoints' worth of scoring already queued on this
+machine's CPU as of this entry (tasks 48.5/48.6/48.9/48.10, since written up as §144-§147),
+that comparison is deferred rather than
 rushed onto an already-saturated queue.
 
 ### Where this leaves the peer sweep
@@ -9790,6 +9953,10 @@ half — a trained-checkpoint comparison on V4FinBench — remains open, scoped 
 gated on this project's local CPU scoring capacity rather than on GPU quota.
 
 ## §144 — The bundled realism augmentations are a small net negative on V4FinBench, not a gain
+
+> **Re-adjudicated by §158 and §160 (pointer added 2026-10-15).** The control here was trained
+> at `max_classes 2` and this checkpoint at 10. Against the matched `max_classes 10` control
+> (§160) the bundle is **null**: +0.0047 mean AP, 1 of 5 folds negative.
 
 **How these numbers were produced.** MEASURED. Task 48.6 (`learn-from-peers`): a checkpoint
 (`runs/task48-6-kaggle/v4-cellattn-realism48_6.pt`) trained at the exact §127 reference recipe
@@ -9851,6 +10018,10 @@ isolated.
 
 ## §145 — The learnability filter at full strength is a small net negative on V4FinBench
 
+> **Re-adjudicated by §158 and §160 (pointer added 2026-10-15).** The control here differs in
+> head size. Against the matched `max_classes 10` control (§160) the filter is **null**: −0.0024
+> mean AP, 3 of 5 folds negative.
+
 **How these numbers were produced.** MEASURED. Task 48.5 (`learn-from-peers`): a checkpoint
 (`runs/task48-5-kaggle/v4-cellattn-learnfilter48_5.pt`) trained at the identical §127
 reference recipe and control, with `--p-learnability-filter 1.0` — every sampled task judged
@@ -9880,7 +10051,9 @@ fold rather than a uniform effect.
 
 **Filtering out unlearnable tasks at full strength does not help this project's prior, and
 trends mildly negative.** §125 already found the naive filter would reject 35% of the
-production mixture's tasks, including a fifth that are single-class or otherwise unscorable,
+0.7/0.3 mixture's tasks, including a fifth that are single-class or otherwise unscorable (and
+30% of the financial-only prior this checkpoint trains on; corrected 2026-10-15, since the
+"production" label in §125 was wrong),
 and that the model itself scores *better* than the filter's own judge on the rejected
 subset (0.520 against 0.392) — this measurement is consistent with that: the filter is
 discarding tasks that carry usable signal for this architecture even though a cheap judge
@@ -9901,6 +10074,11 @@ weaker filter strength (between 0.0 and 1.0) is a different, un-run experiment a
 to behave better by this result alone.
 
 ## §146 — Schedule-free optimisation, at the AdamW-tuned learning rate, is a clear net negative
+
+> **Re-adjudicated by §158 and §160 (pointer added 2026-10-15).** The control here differs in
+> head size. Against the matched `max_classes 10` control (§160) this run is a **loss** under
+> §159's Rule 3: −0.0098 mean AP, 5 of 5 folds negative. See also the addendum below and §160's
+> note on the retuned run.
 
 **How these numbers were produced.** MEASURED. Task 48.9 (`learn-from-peers`): a checkpoint
 (`runs/task48-9-kaggle/v4-cellattn-schedulefree48_9.pt`) trained at the identical §127
@@ -9942,7 +10120,7 @@ V4FinBench.** The checkpoint is healthy (the probe rules out a broken run), so t
 effect of the optimiser change, not an artifact.
 
 **This does not settle whether schedule-free optimisation is bad here, only whether it is
-good *at an LR chosen for a different optimiser*.** §124/§127 already measured, on this exact
+good *at an LR chosen for a different optimiser*.** §126/§127 (corrected 2026-10-15 from "§124/§127") already measured, on this exact
 architecture, that the optimal learning rate is sensitive to batch size for plain AdamW — the
 kind of sensitivity that argues against assuming one method's tuned value transfers to
 another's substantially different update rule. Schedule-free's own paper reports it is
@@ -9973,9 +10151,15 @@ both an unrecommended learning rate and with the one feature (warmup) its own au
 built to replace a schedule turned off. §146's measured −0.0180 AP is not yet evidence
 about schedule-free optimisation on this architecture at all; it is evidence about this one
 specific (likely badly mistuned) configuration of it. The comment's claim should be read as
-describing what the package is *capable of*, not what this run used.
+describing what the package is *capable of*, not what this run used. (Code location updated
+2026-10-15: the call is now in `src/fintfm/modeling/train.py` and passes
+`warmup_steps=train_cfg.warmup_steps`; the run measured above predates that fix.)
 
 ## §147 — A dedicated mask embedding is a clean, uniform loss on V4FinBench
+
+> **Re-adjudicated by §158 and §160 (pointer added 2026-10-15).** The control here differs in
+> head size. Against the matched `max_classes 10` control (§160) the loss stands: −0.0230 mean
+> AP, 5 of 5 folds negative.
 
 **How these numbers were produced.** MEASURED. Task 48.10 (`learn-from-peers`): a checkpoint
 (`runs/task48-10-kaggle/v4-cellattn-maskembed48_10.pt`) trained at the identical §127
@@ -10008,10 +10192,10 @@ and in the direction that correction anticipated.** The existing joint `[value, 
 embedding through a shared 2-layer MLP is not naive imputation — it already learns a
 genuine value/missingness interaction — and splitting that interaction apart into a separate
 value-only embedding plus an independent per-column missingness lookup *loses* something the
-joint computation was doing: the MLP can condition how it represents a present value on
-whether *other* cells of the same type tend to be missing, in a way two embeddings summed
-together cannot express by construction (addition is a weaker operation than a shared
-nonlinear function of both inputs together). This is the opposite of Nori's own reported
+joint computation was doing. One possible mechanism, not measured here: a shared nonlinear
+function of value and missing flag can represent interactions that two summed embeddings
+cannot (softened 2026-10-15: this was stated as established, including a claim about
+conditioning on *other* cells that a per-cell MLP does not see). This is the opposite of Nori's own reported
 preference for a dedicated mask embedding, which is itself informative: Nori's base
 architecture does not have this project's joint-MLP cell embedding to begin with, so their
 comparison was dedicated-embedding versus no explicit missingness signal at all, not
@@ -10125,8 +10309,9 @@ against is one §104 already paid for.
 
 Mean absolute error across all five: 0.0085 (GBM), 0.0078 (linear) — a plain linear fit is not
 worse here, which is itself informative about how little curvature §104's own five points
-carry outside the peak. **Both surrogates miss by the largest margin exactly at the peak**
-(16): the curve is non-monotone there and leave-one-out removes the only point that breaks
+carry outside the peak. **The GBM surrogate misses by its largest margin exactly at the peak
+(16), and the linear fit by its second largest** (corrected 2026-10-15: this said both miss
+most at 16; the linear fit's largest miss is at 12, +0.0153): the curve is non-monotone there and leave-one-out removes the only point that breaks
 monotonicity, so neither method — least of all the linear one, which has no way to represent
 a peak at all — can recover it from its four neighbours.
 
@@ -10179,7 +10364,7 @@ systemic) and the full 27-dataset run completed with 0 failures.
 
 ### The result
 
-| | before (2026-09-27, §98/§132) | after (2026-10-06) |
+| | before (2026-09-27, §122/§132; corrected 2026-10-15 from §98/§132) | after (2026-10-06) |
 | --- | --- | --- |
 | Elo (own classification head, `TA-FINTFM`) | 765 | **763** |
 | rank | 94 of 95 | 94 of 95 (unchanged) |
@@ -10217,7 +10402,8 @@ guidance.
   numeric facts. 65,705 distinct XBRL tags, but a core set — `StockholdersEquity` (102,770
   instances that quarter), `NetIncomeLoss` (56,788), `Revenues` (42,301), `Assets` (35,011),
   `OperatingIncomeLoss` (26,262) — recurs tens of thousands of times, the same kind of common-
-  concept density a cross-firm panel needs and V4FinBench's own 131-feature panel has.
+  concept density a cross-firm panel needs and V4FinBench's own 130-feature panel has (corrected 2026-10-15 from 131; the run files record
+`n_features: 130`).
 - **Labels are real and stable across 15 years.** "Item 1.03 Bankruptcy" hits by quarter:
   **57** (2010 Q1), **67** (2015 Q1), **77** (2019 Q1), **49** (2023 Q1), **80** (2024 Q1) —
   roughly 50-100 a quarter throughout, no collapse or explosion at either end of the range.
@@ -10241,8 +10427,9 @@ guidance.
 ### What this settles
 
 **D17's reversal condition does not trigger.** The panel is the right scale, the labels are
-real (verified by reading one, not assumed from a count), stable over the full 2009-2026
-window this project would train on, and in the right rarity regime. Censoring exists at a
+real (verified by reading one, not assumed from a count), stable across the five quarters
+probed between 2010 and 2024 (softened 2026-10-15 from "stable over the full 2009-2026 window";
+the other quarters were not checked), and in the right rarity regime. Censoring exists at a
 rate worth taking seriously but maps onto survival-analysis machinery this project already
 has, rather than requiring a new design.
 
@@ -10263,8 +10450,9 @@ small (109,242-parameter) checkpoint directly against the resulting panel, with
 ### Two real bugs, caught by running the pipeline rather than trusting the arithmetic
 
 - **Quarter-end dates were a month early.** `date(end_year, end_month, 1) - 1 day` used
-  `end_month = 3 * eq`, which is the *first* month of the quarter after `eq`'s last month, not
-  the one after it -- Q4 computed as ending November 30. Caught by checking all four quarters'
+  `end_month = 3 * eq`, which is the quarter's own last month, so day 1 of it minus one day
+  lands on the last day of the month before (description corrected 2026-10-15) -- Q4 computed
+  as ending November 30. Caught by checking all four quarters'
   computed end-dates against known calendar values before trusting the script on real data.
 - **The bankruptcy-event search window was not extended past the panel's last quarter.** A
   forward-looking label needs events up to `label_horizon_quarters` past `period_end`, but the
@@ -10389,7 +10577,7 @@ memory.
 ### What was built
 
 - **`scripts/freddie_mac/build_panel.py`**: parses both files, turns the origination file's
-  lettered/coded fields into one-hot float indicator columns (33 feature columns total,
+  lettered/coded fields into one-hot float indicator columns (38 feature columns total, corrected 2026-10-15 from 33 to match the code and §156,
   `ORIGINATION_FEATURE_COLUMNS`) rather than adding a categorical-feature code path the model
   has never exercised — mirrors `real_edgar.py`'s all-float, `is_categorical=False` precedent
   exactly rather than extending it. Geography (`Property State`, `Postal Code`) and entity
@@ -10422,7 +10610,7 @@ memory.
 downloaded files.** `build_panel.py` against the real sample produced **50,000 rows, 24
 positive (0.0480%)**.
 
-**That rate is a real problem, not a curiosity.** It is roughly 4-30x rarer than V4FinBench's
+**That rate is a real problem, not a curiosity.** It is roughly 4-83x rarer (corrected 2026-10-15 from "4-30x") than V4FinBench's
 own 0.19-4% regime and about 29x rarer than EDGAR's measured 1.39% (§152). The concern is not
 the rate alone — a genuinely safe loan population is allowed to be rare — it is the **absolute
 count**: 24 positives spread across 50,000 rows means most tasks sampled at a reasonable
@@ -10565,7 +10753,11 @@ Nothing here says any source *helps* FinTFM-R. §157 is the first attempt at tha
 **How this was produced.** MEASURED from the stored checkpoint files (their saved `config`
 and parameter counts), not from any new training or scoring run. Every checkpoint's `config` was diffed field by field against the A6/D16 control,
 `runs/v4-cellattn-labels.pt`. (Numbered §158 because §157 is reserved for the continued-
-pretraining pilot still running when this was found.)
+pretraining pilot still running when this was found.) This entry therefore precedes §157 in
+the file; §157 follows it (note added 2026-10-15).
+
+> **Step 2 was run in §160 (pointer added 2026-10-15).** Against the matched `max_classes 10`
+> control, §144 and §145 are nulls and §146 and §147 are losses.
 
 ### The finding
 
@@ -10663,7 +10855,7 @@ against s1. §147 stays below both on every fold and by three times the yardstic
 
 **Not yet settled:** two references at two seeds bracket the noise; they do not replace step 2,
 the seed-0 `max_classes 10` control (`task_158_matched_control`, queued for Kaggle), which
-matches the ablations exactly. §146's verdict waits on it.
+matches the ablations exactly. §146's verdict waits on it. (Since run: see §160.)
 
 ## §157 — Continued-pretraining pilot, one arm per real source (task C4)
 
@@ -10804,6 +10996,13 @@ code records (`head_type`, `n_quantiles`), which change no weight.
 §159's prediction for §146 (loss) holds. The §158 confound is now removed and D16's four rows
 stand as: two nulls (§144, §145), two losses (§146, §147).
 
+**Note 2026-10-15: the schedule-free retune was scored and not recorded until now.**
+`runs/kaggle-fintfm-task-48-9-schedulefree-retuned/score.json` (scored 2026-10-10, same protocol):
+−0.0032 mean AP against the `max_classes 2` control and +0.0050 against the matched `max_classes
+10` control (1 of 5 folds negative). Both are within the yardstick, so it is a null. The §160
+verdict on the original §146 run and the §162 statement that schedule-free has not moved
+V4FinBench both stand.
+
 **What §158's yardstick actually was.** The matched control against the original
 `max_classes 2` control: −0.0082 mean AP, 5 of 5 folds negative. The two `max_classes 10`
 controls at seeds 0 and 1 differ by +0.0009. So the 0.0073 gap §158 measured was mostly **head
@@ -10864,7 +11063,7 @@ its own, what happened at seed 0.
 **What this decides for FinTFM-R (D17).** Neither the CPU pilot (§157, no arm separable from the
 control) nor the GPU run finds a real source that helps on V4FinBench. SBA at a 30% share is at
 best neutral and at worst a large loss, depending on the seed. EDGAR's two seeds are scoring and
-will be appended here. The matched-volume run proposed for the displacement question is not
+will be appended here (appended below, 2026-10-12). The matched-volume run proposed for the displacement question is not
 launched: seed 1 removes its motivation.
 
 **EDGAR, both seeds (MEASURED, appended 2026-10-12; scored 2026-10-10/11).**
@@ -10888,10 +11087,13 @@ at this scale.
 ## §162 — Is the V4FinBench gap on the inference side? A context diagnostic, pre-registered
 
 **Status: PRE-REGISTERED 2026-10-12 ~23:25, the first arm just started; no result exists.**
+(Status updated 2026-10-15: fold-0 result, follow-up arms and the five-fold confirmation are
+below. The confirmation FAILED on 2026-10-13, and the scoring default stays.)
 
 **Why.** §157-§161: no training-side change (prior levers, real data, schedule-free, 5× volume)
 has moved V4FinBench AP. At scoring time the model sees `max_context 2000` rows drawn uniformly,
-one ensemble member. At the 200k development cap a fold's training pool is ~160k rows at ~0.37%
+one ensemble member. At the 200k development cap a fold's training pool is ~106k rows (corrected 2026-10-15 from
+~160k; `n_train` 106,187 in `runs/ctxdiag`) at ~0.37%
 positives, so the context carries **about 7 positives** (ESTIMATED from the base rate), while
 untuned logistic regression fits on all of them (fold 0 of §157: LR 0.1658 AP against FinTFM's
 0.1442). If the model is starved of positives at inference, no change to its weights can show.
@@ -10929,6 +11131,10 @@ logistic regression on the same rows 0.1658 AP):**
 | `ctx1000` | 0.1795 | 0.9868 | +0.0403 | [+0.0148, +0.0683] | 0.030 |
 | `ctx2000` | 0.1392 | 0.9817 | (base) | | |
 
+(Note 2026-10-15: the p_holm column is Holm over the six pre-registered comparisons.
+`runs/ctxdiag/comparison.json` now holds a 10-arm correction that includes the four follow-up
+arms below, so its values are larger, for example `balanced` 0.081 and `ctx1000` 0.040.)
+
 **Scored against the rules: inference-bound**, on the first clause (four arms beat `ctx2000`
 after Holm). **The prediction is half wrong.** `ens8` beating `ctx2000` held; "AP rises with
 context" is the reverse of what happened -- AP *falls* with context, 0.2215 → 0.1795 → 0.1392 from
@@ -10963,12 +11169,50 @@ same protocol). **The in-range finding replicates** if the five-fold mean ΔAP i
 least 4 of 5 folds positive, for the `n_ensemble 8` arm. Otherwise it is a fold-0 artefact and the
 scoring default stays.
 
+(Moved here from inside §163 on 2026-10-15, where it had been appended; text unchanged except
+the marked corrections.)
+
+**Confirmation: FAILED (MEASURED, 2026-10-13 18:51; five folds, full panel, against
+`control_rescore.json`, the same checkpoint at the 2,000-row default).**
+
+| arm | fold 0 | fold 1 | fold 2 | fold 3 | fold 4 | mean | folds positive |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `ctx500`, 1 member | −0.0096 | −0.1366 | +0.0093 | −0.0071 | −0.0582 | −0.0404 | 1/5 |
+| `ctx500`, 8 members | −0.0109 | −0.0149 | +0.0085 | +0.0171 | −0.0144 | −0.0029 | 2/5 |
+
+The pre-registered rule needed the eight-member arm above zero with 4 of 5 folds positive; it has
+2 of 5 and a mean of −0.0029. **The fold-0 result does not replicate**, and the out-of-
+distribution explanation does not survive the full panel: there, the 2,000-row default is as good
+as or better than an in-range 500-row context. A single 500-row draw can collapse a fold (fold 1:
+0.0684 AP).
+
+**Why fold 0 misled: the development cap.** At `--max-rows 200000` the 2,000-row default scores
+0.1392 on fold 0; on the full panel the same checkpoint and fold score 0.2113. The cap shrinks the
+training pool to ~106k rows (corrected 2026-10-15 from ~141k; the run files record `n_train`
+106,187) and the test fold to 34,906 rows (130 positives), and it changed the
+shape of the context curve, not just its level. This is CLAUDE.md's rule that a context
+conclusion drawn on one pool does not transfer to another, broken in exactly the way it describes.
+Two consequences:
+
+- **Untuned logistic regression does not beat FinTFM on V4FinBench.** That was true only at the
+  cap (0.1658 vs 0.1442). Full panel, fold 0: FinTFM 0.2113, LR 0.1671. The benchmark gap is to
+  the gradient-boosted trees, not to logistic regression.
+- **§157's pilot ranking was scored at the same cap** and may not transfer either. §160-§161 were
+  full-panel and stand.
+
+**Verdict on §162's question:** context size and ensembling are not why V4FinBench does not move.
+The scoring default stays. Per the consequence fixed in advance, the next lever is fine-tuning
+(§163; since run, see its result).
+
 ## §163 — Dataset-specific fine-tuning, pre-registered
 
-**Status: PRE-REGISTERED 2026-10-13, before any fine-tuned model is scored.**
+**Status: PRE-REGISTERED 2026-10-13, before any fine-tuned model is scored.** (Status updated
+2026-10-15: Stage A and Stage B have run; by the pre-registered rule fine-tuning **helps**, see
+the result below.)
 
 **Why.** §162 ruled out the inference side as the reason V4FinBench does not move (pending its
-fold 4, whose result cannot change the replication verdict), and fixed fine-tuning as the next
+fold 4, whose result cannot change the replication verdict; fold 4 has since landed, see §162's
+confirmation), and fixed fine-tuning as the next
 lever if so. This project has never tried it; TabDPT and Real-TabPFN both report gains from it.
 
 **What it is.** `FinancialTFMClassifier(finetune_steps=N, ...)`: before storing its context,
@@ -10994,39 +11238,8 @@ context 2,000, 512 queries, at learning rates 1e-5 and 3e-5. The rate with the h
 positive; **hurts** under the mirror condition; otherwise null.
 
 **Prediction:** helps. The zero-shot model already leads untuned logistic regression on the full
-panel (§162's addendum) but trails the boosters, which fit every training row; fine-tuning is the
+panel (§162's confirmation step) but trails the boosters, which fit every training row; fine-tuning is the
 first lever that lets the network use those rows.
-
-**Confirmation: FAILED (MEASURED, 2026-10-13 18:51; five folds, full panel, against
-`control_rescore.json`, the same checkpoint at the 2,000-row default).**
-
-| arm | fold 0 | fold 1 | fold 2 | fold 3 | fold 4 | mean | folds positive |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| `ctx500`, 1 member | −0.0096 | −0.1366 | +0.0093 | −0.0071 | −0.0582 | −0.0404 | 1/5 |
-| `ctx500`, 8 members | −0.0109 | −0.0149 | +0.0085 | +0.0171 | −0.0144 | −0.0029 | 2/5 |
-
-The pre-registered rule needed the eight-member arm above zero with 4 of 5 folds positive; it has
-2 of 5 and a mean of −0.0029. **The fold-0 result does not replicate**, and the out-of-
-distribution explanation does not survive the full panel: there, the 2,000-row default is as good
-as or better than an in-range 500-row context. A single 500-row draw can collapse a fold (fold 1:
-0.0684 AP).
-
-**Why fold 0 misled: the development cap.** At `--max-rows 200000` the 2,000-row default scores
-0.1392 on fold 0; on the full panel the same checkpoint and fold score 0.2113. The cap shrinks the
-training pool to ~141k rows and the test fold to 34,906 rows (130 positives), and it changed the
-shape of the context curve, not just its level. This is CLAUDE.md's rule that a context
-conclusion drawn on one pool does not transfer to another, broken in exactly the way it describes.
-Two consequences:
-
-- **Untuned logistic regression does not beat FinTFM on V4FinBench.** That was true only at the
-  cap (0.1658 vs 0.1442). Full panel, fold 0: FinTFM 0.2113, LR 0.1671. The benchmark gap is to
-  the gradient-boosted trees, not to logistic regression.
-- **§157's pilot ranking was scored at the same cap** and may not transfer either. §160-§161 were
-  full-panel and stand.
-
-**Verdict on §162's question:** context size and ensembling are not why V4FinBench does not move.
-The scoring default stays. Per the consequence fixed in advance, the next lever is fine-tuning
-(§163, running).
 
 **Stall and fix (2026-10-14 03:30).** Stage A's first run sat 8h15m on one core without
 completing a fine-tuning step. Cause, from a stack sample: V4FinBench's company ids are strings,
@@ -11037,7 +11250,9 @@ selecting by table lookup (O(n)); `tests/test_finetune.py` now covers string ids
 with a 2-second bound. Re-measured at full scale with string ids: 18.6 s/step, 9.0 GB. Stage A
 restarted from scratch; no result existed, so the pre-registration is unaffected.
 
-**Result (MEASURED, 2026-10-14 11:14; full panel, five folds, `runs/ft/B_lr1e5`).**
+**Result (MEASURED, 2026-10-14 11:14; full panel, five folds, `runs/ft/B_lr1e5`).** (Note
+2026-10-15: `runs/ft/B_lr1e5/v4_protocol.json` holds folds 1-4; fold 0 comes from
+`runs/ft/A_lr1e5`, the Stage A run at the same setting.)
 
 Stage A chose 1e-5 on fold 0 **validation** AP: 0.23247 against 0.23247 at 3e-5 -- a tie to
 four decimals, so the result is not sensitive to the learning rate in this range. Stage B, against
@@ -11067,7 +11282,8 @@ and a mean of +0.0076 against the +0.0073 bar. **The prediction held.** It clear
   unmeasured.
 - **Not compared with the gradient-boosted trees here** (`--no-boosting`). Whether this closes
   part of the gap to them is the next number to measure, not one to infer.
-- Fine-tuning loss fell modestly (first 10% of steps ≈0.0145, last 10% ≈0.0118, per fold) at
+- Fine-tuning loss fell modestly (first 10% of steps ≈0.0143, last 10% ≈0.0123, averaged over
+  folds, range 0.0113 to 0.0132; corrected 2026-10-15 from ≈0.0145 and ≈0.0118 per the run logs) at
   200 steps, ~3.8 positive query labels per step. More steps, or positive-enriched queries, are
   untested.
 
