@@ -231,7 +231,8 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             the same probabilities; on a real checkpoint it returns predictions correlated
             **−0.62** with the original (``docs/results/FINDINGS.md`` §45), so the model's output
             depends on which class occupies the "1" slot. Averaging removes that component.
-            It is a workaround, not a cure, and should be reported as one.
+            It is a workaround, not a cure, and should be reported as one. Binary tasks only:
+            with more classes there is no swap, and the member is returned as it is.
         ensemble_feature_frac: Fraction of features each member sees, sampled without
             replacement. Below 1.0 this is a real diversity axis — a 70% subset moves
             predictions to correlation 0.496 with the full-feature prediction (§45).
@@ -624,7 +625,9 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             Xa, Xb = Xa[:, cols], Xb[:, cols]
         twin = self._clone_with_seed(seed, Xa, self._raw_y)
         p = twin.predict_proba(Xb)
-        if not self.ensemble_label_swap:
+        # the swap is defined for two classes only: on more, reversing the columns would pair
+        # each class with another, and through the regressor would reverse the bin order
+        if not self.ensemble_label_swap or len(np.unique(self._raw_y)) != 2:
             return p
         # the label-swapped twin: relabel the context, predict, and reverse the columns back.
         # Averaging the two removes the part of the prediction that depends on which class is

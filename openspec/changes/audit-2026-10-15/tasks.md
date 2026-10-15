@@ -40,7 +40,9 @@
       default `feature_transform="rank"` passes infinities to `QuantileTransformer`, which
       raises; the `power` branch already clamps. Fix: reuse that clamp. Verify: fit and
       transform on a column with ±inf.
-- [ ] AU1.4 **Label-swap ensembling scrambles multiclass.** `classifier.py:633` reverses the
+- [x] AU1.4 **Done (2026-10-16).** `_member_proba` swaps only when the task is binary;
+      `tests/test_classifier.py::test_label_swap_leaves_a_multiclass_task_unchanged`.
+      **Label-swap ensembling scrambles multiclass.** `classifier.py:633` reverses the
       probability columns even when `_flip` returned `y` unchanged (≠2 classes), so each class
       is averaged with another; through the regressor it reverses bin order. Fix: swap only
       when binary. Verify: a 3-class test where label swap on equals label swap off.

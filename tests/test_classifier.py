@@ -332,3 +332,19 @@ def test_ensembling_recovers_column_order_invariance():
         f"ensembling did not reduce the column-permutation gap ({one:.4f} -> {many:.4f}); "
         "decision D12 relies on it doing so"
     )
+
+
+def test_label_swap_leaves_a_multiclass_task_unchanged():
+    """AU1.4: the swap is defined for two classes only. On three, reversing the columns paired
+    each class with another, so label swap on scrambled the probabilities it averaged."""
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(90, 4)).astype(np.float32)
+    y = np.digitize(X[:, 0], [-0.4, 0.4])  # three classes
+    Xq = rng.normal(size=(12, 4)).astype(np.float32)
+    kw = {"max_context": 60, "n_ensemble": 2, "random_state": 0}
+    torch.manual_seed(0)
+    model = _tiny_model()
+    off = FinancialTFMClassifier(model, **kw).fit(X, y).predict_proba(Xq)
+    on = FinancialTFMClassifier(model, ensemble_label_swap=True, **kw).fit(X, y).predict_proba(Xq)
+    assert off.shape == (12, 3)
+    np.testing.assert_array_equal(on, off)
