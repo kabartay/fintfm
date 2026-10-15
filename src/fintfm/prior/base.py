@@ -94,6 +94,70 @@ class TaskBatch:
         )
 
 
+def ensure_context_classes(
+    rng: np.random.Generator, task: Task, n_ctx: int, min_per_class: int
+) -> Task:
+    """Reorder a task's rows so every class has ``min_per_class`` rows in the context.
+
+    Audit AU1.16: the SCM and tree priors cut a continuous target at random points, which
+    leaves a class with two rows or fewer in about 31% of 256-row tasks, and the batch's
+    context/query split is drawn afterwards without looking at labels. A class can then sit
+    only in the query, and the loss is taken on a label the context never showed -- a
+    prediction no in-context learner can make. This swaps whole rows (features, label and
+    period together) between the query and the context until each class present has
+    ``min(min_per_class, its row count)`` context rows; a class with fewer rows than that ends
+    up entirely in the context. Donor context rows come only from classes above their own
+    requirement, so a fix for one class never breaks another. Nothing is relabelled and no row
+    is added or dropped, so the task's class balance is unchanged; only which rows are context
+    moves.
+
+    Applied at batch level (:func:`fintfm.prior.mixture.sample_batch`) rather than inside the
+    priors, because only the batch knows ``n_ctx``.
+
+    Args:
+        rng: NumPy random generator; consumed only when a swap is needed.
+        task: A classification task. A regression task (``y_continuous`` set) is returned
+            unchanged, since its labels are binned later from the context.
+        n_ctx: The batch's context size.
+        min_per_class: Context rows wanted per class. ``0`` returns ``task`` unchanged.
+
+    Returns:
+        ``task`` itself when nothing needs to move, otherwise a reordered copy.
+    """
+    if min_per_class <= 0 or task.y_continuous is not None:
+        return task
+    y = task.y
+    classes, totals = np.unique(y, return_counts=True)
+    need = dict(zip(classes.tolist(), np.minimum(totals, min_per_class).tolist()))
+    order = np.arange(len(y))
+    moved = False
+    for c in classes.tolist():
+        while True:
+            ctx_y = y[order[:n_ctx]]
+            if int((ctx_y == c).sum()) >= need[c]:
+                break
+            surplus = [k for k in need if int((ctx_y == k).sum()) > need[k]]
+            donors = np.flatnonzero(np.isin(ctx_y, surplus))
+            if len(donors) == 0:
+                break  # the context is too small to hold every class's floor
+            recipients = n_ctx + np.flatnonzero(y[order[n_ctx:]] == c)
+            d, r = int(rng.choice(donors)), int(rng.choice(recipients))
+            order[d], order[r] = order[r], order[d]
+            moved = True
+    if not moved:
+        return task
+    return Task(
+        X=task.X[order],
+        y=y[order],
+        n_classes=task.n_classes,
+        is_categorical=task.is_categorical,
+        source=task.source,
+        period=None if task.period is None else task.period[order],
+        n_horizons=task.n_horizons,
+        y_continuous=None,
+    )
+
+
 def collate(
     tasks: list[Task], n_ctx: int, max_features: int, head_type: str = "binned"
 ) -> TaskBatch:

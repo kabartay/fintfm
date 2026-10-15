@@ -602,6 +602,13 @@ def main() -> None:
         "see docs/results/FINDINGS.md 125/129",
     )
     p.add_argument(
+        "--min-ctx-per-class",
+        type=int,
+        default=None,
+        help="context rows guaranteed to every class once the batch's split is drawn (audit "
+        "AU1.16); defaults to the config's prior.min_ctx_per_class, 0, which moves nothing",
+    )
+    p.add_argument(
         "--scm-reuse-graph",
         type=int,
         default=None,
@@ -940,6 +947,11 @@ def main() -> None:
         absolute_rate_floor=cfg.prior.absolute_rate_floor,
         rate_ceiling=cfg.prior.rate_ceiling,
         n_sectors_max=cfg.prior.n_sectors,
+        min_ctx_per_class=(
+            cfg.prior.min_ctx_per_class
+            if args.min_ctx_per_class is None
+            else args.min_ctx_per_class
+        ),
     )
     train_cfg = TrainConfig(
         steps=args.steps,

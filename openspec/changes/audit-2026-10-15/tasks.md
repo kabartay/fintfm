@@ -115,7 +115,12 @@
       row-wise sampling (`prior/real_edgar.py:131`) puts the same firm in context and query,
       which teaches lookup. Fix: split by firm, as `_finetune_rows` does.
       Verify: a test that no `cik` appears in both context and query of an EDGAR task.
-- [ ] AU1.16 **Rare classes appear only in query rows.** Random cut-points (`prior/scm.py:248-250`,
+- [x] AU1.16 **Done (2026-10-16).** New `PriorConfig.min_ctx_per_class` (default 0, unchanged
+      behaviour; config `prior.min_ctx_per_class`, `--min-ctx-per-class`) moves whole rows
+      into the context once the split is drawn (`base.ensure_context_classes`). Applied in
+      `sample_batch`, not in scm.py/tree.py, since only the batch knows `n_ctx`
+      (`tests/test_mixture.py::test_every_query_class_is_in_the_context_with_a_class_floor`).
+      **Rare classes appear only in query rows.** Random cut-points (`prior/scm.py:248-250`,
       `prior/tree.py:143-145`) leave a class with ≤2 rows in ~31% of 256-row tasks; the loss is
       then taken on labels absent from the context. Fix: a minimum count per class in context.
       Verify: sample 1,000 256-row tasks; every class present in the query is present in the context.

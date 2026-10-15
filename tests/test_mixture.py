@@ -5,8 +5,12 @@ drift from its configured weights still trains, still logs a falling loss, and o
 as a comparison that measured two changes at once (audit AU1.13).
 """
 
-import numpy as np
+from dataclasses import replace
 
+import numpy as np
+import torch
+
+from fintfm.prior.base import Task, TaskBatch, ensure_context_classes
 from fintfm.prior.mixture import (
     PriorConfig,
     _sample_tasks_reusing_graphs,
@@ -91,3 +95,51 @@ def test_source_shares_agree_at_reuse_one_and_four():
             assert abs(shares[reuse][kind] - p) < 4 * sd, (kind, reuse, shares[reuse][kind], p)
         # and the two arms against each other, two-sample
         assert abs(shares[1][kind] - shares[4][kind]) < 4 * np.sqrt(2) * sd, (kind, shares)
+
+
+def _query_only_classes(batch: TaskBatch) -> int:
+    """Count tasks in a batch with a query class that never appears in the context."""
+    bad = 0
+    y = batch.y.numpy()
+    for i in range(y.shape[0]):
+        if set(y[i, batch.n_ctx :].tolist()) - set(y[i, : batch.n_ctx].tolist()):
+            bad += 1
+    return bad
+
+
+def test_every_query_class_is_in_the_context_with_a_class_floor():
+    # Audit AU1.16: random cut-points leave rare classes that can land only in the query. Over
+    # 1,000 256-row SCM and tree tasks the floor must leave none; without it some exist, so
+    # the check is not vacuous.
+    base = {"max_features": 8, "max_classes": 10, "n_rows": 256, "p_financial": 0.0,
+            "p_tree": 0.5}
+    counts = {}
+    for floor in (0, 1):
+        cfg = PriorConfig(**base, min_ctx_per_class=floor)
+        rng = np.random.default_rng(5)
+        counts[floor] = sum(_query_only_classes(sample_batch(rng, cfg, 8)) for _ in range(125))
+    assert counts[0] > 0
+    assert counts[1] == 0
+
+
+def test_class_floor_moves_whole_rows_and_keeps_the_class_balance():
+    n = 40
+    y = np.zeros(n, dtype=np.int64)
+    y[-3:] = [1, 2, 2]  # classes 1 and 2 only in the last rows, so only in the query
+    X = np.arange(n, dtype=np.float32)[:, None].repeat(2, axis=1)
+    task = Task(X=X, y=y, n_classes=3, is_categorical=np.zeros(2, dtype=bool))
+    out = ensure_context_classes(np.random.default_rng(0), task, n_ctx=20, min_per_class=2)
+    assert np.bincount(out.y).tolist() == np.bincount(y).tolist()
+    np.testing.assert_array_equal(y[out.X[:, 0].astype(int)], out.y)  # rows moved whole
+    ctx = out.y[:20]
+    assert (ctx == 1).sum() == 1  # class 1 has one row, and it is now context
+    assert (ctx == 2).sum() == 2
+    assert 1 not in out.y[20:].tolist()
+
+
+def test_class_floor_zero_changes_nothing():
+    cfg = PriorConfig(max_features=8, max_classes=6, n_rows=64, p_financial=0.3)
+    a = sample_batch(np.random.default_rng(3), cfg, 4)
+    b = sample_batch(np.random.default_rng(3), replace(cfg, min_ctx_per_class=0), 4)
+    assert torch.equal(a.y, b.y)
+    assert torch.equal(torch.nan_to_num(a.X), torch.nan_to_num(b.X))

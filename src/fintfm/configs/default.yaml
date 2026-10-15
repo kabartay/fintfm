@@ -94,3 +94,7 @@ prior:
   absolute_rate_floor: 0.001
   rate_ceiling: 0.30
   n_sectors: 12
+  # Context rows guaranteed to every class once the batch's split is drawn (audit AU1.16).
+  # 0 moves nothing and reproduces every existing checkpoint; any other value changes the
+  # pretraining distribution. Mirrors PriorConfig.min_ctx_per_class (tests/test_config.py).
+  min_ctx_per_class: 0

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from fintfm.prior.base import Task, TaskBatch, collate
+from fintfm.prior.base import Task, TaskBatch, collate, ensure_context_classes
 from fintfm.prior.crossed import sample_scm_features_financial_label
 from fintfm.prior.financial import (
     _ABSOLUTE_RATE_FLOOR,
@@ -218,6 +218,15 @@ class PriorConfig:
     """Give up and keep the task rather than resample forever. A batch member must never be
     silently dropped -- :func:`sample_batch` always returns exactly ``batch_size`` tasks -- and
     a task family with a rejection rate above this bound would otherwise spin without limit."""
+    min_ctx_per_class: int = 0
+    """Context rows guaranteed to every class of a classification task, by moving rows between
+    query and context once the batch's split is drawn
+    (:func:`fintfm.prior.base.ensure_context_classes`). Audit AU1.16: random cut-points in the
+    SCM and tree priors leave a class with two rows or fewer in about 31% of 256-row tasks, and
+    such a class can land only in the query, where the loss asks for a label the context never
+    showed. Applies to every classification source, not only SCM and tree. ``0`` (default)
+    moves nothing and consumes no random draw, reproducing every checkpoint trained before this
+    field existed; any other value changes the pretraining distribution."""
     head_type: str = "binned"
     p_real_edgar: float = 0.0
     """Probability of drawing a task sampled from real SEC EDGAR firm-quarters instead of a
@@ -523,4 +532,6 @@ def sample_batch(rng: np.random.Generator, cfg: PriorConfig, batch_size: int) ->
         ]
     n_ctx = int(rng.integers(int(cfg.min_ctx_frac * n_rows), int(cfg.max_ctx_frac * n_rows) + 1))
     n_ctx = min(max(n_ctx, 2), n_rows - 1)
+    if cfg.min_ctx_per_class > 0:
+        tasks = [ensure_context_classes(rng, t, n_ctx, cfg.min_ctx_per_class) for t in tasks]
     return collate(tasks, n_ctx=n_ctx, max_features=cfg.max_features, head_type=cfg.head_type)
