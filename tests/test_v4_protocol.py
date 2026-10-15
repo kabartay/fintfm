@@ -206,3 +206,32 @@ def test_an_unknown_selection_metric_is_refused(tmp_path):
 
     with pytest.raises(ValueError, match="select_metric"):
         run(None, tmp_path, select_metric="f1")
+
+
+def test_predictions_carry_the_company_of_every_row(tmp_path):
+    """A cluster bootstrap needs each test row's company; the npz must carry it (audit AU2.1)."""
+    pd = pytest.importorskip("pandas")
+    pytest.importorskip("pyarrow")
+    from fintfm.experiments.v4_protocol import company_codes, run
+
+    rng = np.random.RandomState(0)
+    country, company = _panel(n_companies=40, rows_each=5)
+    df = pd.DataFrame({
+        "company": company.astype(str), "country": [int(c[-1]) for c in country],
+        "main_label": (rng.rand(len(company)) < 0.25).astype(int),
+        "x1": rng.randn(len(company)), "x2": rng.randn(len(company)),
+    })
+    df.to_parquet(tmp_path / HORIZON_FILES[0])
+    run(None, tmp_path / "out", root=tmp_path, folds=(0, 3), with_boosting=False)
+
+    folds = build_fold_assignments(df["country"].to_numpy(), df["company"].to_numpy())
+    codes = company_codes(df["company"].to_numpy())
+    for fold in (0, 3):
+        saved = np.load(tmp_path / "out" / f"predictions_fold{fold}.npz")
+        _, va, te = split_indices_for_fold(folds, fold)
+        assert saved["company_test"].dtype == np.int32  # codes, not pickled strings
+        np.testing.assert_array_equal(saved["company_test"], codes[te])
+        np.testing.assert_array_equal(saved["company_val"], codes[va])
+        np.testing.assert_array_equal(saved["y_true"], df["main_label"].to_numpy()[te])
+    # equal codes are the same company and nothing else
+    assert len(np.unique(codes)) == df["company"].nunique()
