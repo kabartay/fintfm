@@ -175,7 +175,8 @@
 
 ## Phase 2 — evaluation rigour
 
-- [ ] AU2.1 **Bootstrap resamples rows, not companies.** `evaluation/metrics.py:238`; test
+- [x] AU2.1 **Done (2026-10-16).** `paired_auc_difference(groups=)` resamples whole companies (`groups=None` byte-identical, pinned); new runs save `company_test`/`company_val` codes; `compare_v4_scores.py --cluster [--companies]` prints both bootstraps; `scripts/v4_fold_companies.py` rebuilt the old runs' companies (verified against every saved `y_true`/`y_val`, 5.3 rows per company) into `runs/audit-cluster/`. §163 side by side, n_boot 2000: row CIs reproduce §163's table, company CIs are at most 0.0006 wider per end, Holm p unchanged except fold 4 (0.138 → 0.232); no fold changes significance. Tests: `test_cluster_bootstrap_is_wider_on_clustered_data`, `test_singleton_groups_reproduce_the_row_bootstrap`, `test_row_bootstrap_is_unchanged_by_cluster_support`, `test_predictions_carry_the_company_of_every_row`, `tests/test_cluster_comparison.py`. §159-§162 and §164 not yet re-reported with the company bootstrap.
+      **Bootstrap resamples rows, not companies.** `evaluation/metrics.py:238`; test
       folds hold ~5.3 rows per company, so CIs and p-values are somewhat narrow. Fix: save
       `company` in `predictions_fold*.npz`, add a cluster bootstrap, report both for §159-§164.
       Verify: the cluster and row bootstraps reported side by side for §163; a test on synthetic clustered data shows the cluster CI is wider.
@@ -231,7 +232,21 @@
       "+0.042 AP from cell attention" in README.md needs the qualifier. Fix: confirm from the
       checkpoints, then score a matched pair (same prior, same budget) or restate the claim.
       Verify: the two checkpoints' recorded prior configs quoted in FINDINGS, then a matched pair or a restated claim.
-- [ ] AU2.9 **§159's 0.0073 bar is not seed noise.** §160 showed it is mostly the max_classes
+- [ ] AU2.9 **Update 2026-10-16: "the bar errs conservative" may not hold for pretraining arms.**
+      From §160's one matched replicate pair (per-fold Δ +0.0145, −0.0113, +0.0075, −0.0066,
+      +0.0003), SD 0.0104, so the noise of a five-fold mean is about 0.0047 and 1.96σ about 0.009
+      (ESTIMATED from one pair), above 0.0073. Fine-tuning arms share one checkpoint, so their
+      noise is the fine-tuning seed gap (§164's S1: +0.0004 and −0.0013 on folds 0-1 so far),
+      not this. Method agreed: σ = SD(per-fold Δ)/√5 pooled over replicate pairs, yardstick
+      t(0.975, df)·σ, separate σ for pretraining and fine-tuning arms, Holm across arms.
+      `c5_verdict.py helps` landed (ee5df44). **Partly done (2026-10-16), still open.** `c5_verdict.py helps` applies §163's rule
+      (two-sided, `rule_helps`) and reproduces §163's verdict on `runs/ft` against
+      `control_rescore.json` (+0.0076, 5/5 positive: helps); tests
+      `test_helps_rule_needs_the_mean_and_four_folds_of_its_sign`,
+      `test_helps_rule_reproduces_section_163s_verdict`. Open: the re-derived yardstick (waits for
+      §164's `S1`; `YARDSTICK` is unchanged) and the family of comparisons in §164's write-up.
+      Original text follows.
+      **§159's 0.0073 bar is not seed noise.** §160 showed it is mostly the max_classes
       10-against-2 head effect; seed noise at matched head size is 0.0009 mean AP. §163 kept the
       bar and cleared it by 0.0003, with a fold-to-fold SD of Δ of 0.0054. The bar errs
       conservative, so no verdict flips, but its size is not a noise estimate. Also: fine-tuning's
@@ -332,11 +347,18 @@
       16). Arms: lr {1e-5, 3e-5, 1e-4}, up to 3,000 steps, early stopping on inner-validation
       companies. Depends on §164.
       Verify: five-fold AP against §163's arm under §159's rule, inner-validation selection only.
-- [ ] AU5.2 **Pretraining throughput.** bf16 autocast (training is fp32, `modeling/train.py:471-484`),
+- [ ] AU5.2 **`--amp fp16` with loss scaling added for GPUs without native bf16 (T4, P100) (2026-10-16, 6ec5534); measurement open.**
+      **Implemented behind `--amp bf16` and `--benchmark-steps` (2026-10-16, 9c3b615); measurement open.**
+      Flash attention not implemented: CUDA's flash kernel takes no attention mask at all, and
+      `MultiheadAttention` already turns the bool mask into an additive float one, so a float
+      mask changes nothing. An exact route (FlexAttention with this mask, or context and query
+      attention split and merged by log-sum-exp) replaces the encoder layers in `model.py`.
+      **Pretraining throughput.** bf16 autocast (training is fp32, `modeling/train.py:471-484`),
       and an attention path that allows flash attention (the bool row mask blocks it). Measure
       tasks per GPU-hour before and after; no accuracy claim.
       Verify: tasks per GPU-hour measured before and after on the same kernel; outputs equal within fp tolerance on a fixed batch.
-- [ ] AU5.3 **Capacity where the bottleneck is.** The shipped model has ~886k parameters (agent
+- [ ] AU5.3 **fintfm-train flags `--n-heads`, `--n-cell-heads` and `--n-summary-tokens` wired (2026-10-16, 6ec5534); measurement open.**
+      **Hooks implemented behind `n_cell_heads` and `n_summary_tokens` (2026-10-16, 0a3b8c8); measurement open; fintfm-train flags and `--n-heads` not yet wired; more cell blocks is the existing `n_cell_blocks`.** **Capacity where the bottleneck is.** The shipped model has ~886k parameters (agent
       measurement; verify) and pools up to 136 cell tokens into one 128-d row vector after one
       cell block (`model.py:537-553`). Peers keep per-cell tokens (TabPFN v2) or several summary
       tokens per row (TabICL); verify their sizes from primary sources first. Arms: more cell
@@ -362,7 +384,11 @@
       defaults to rank-to-normal. Draw a random transform per pretraining task and ensemble over
       transforms at inference.
       Verify: a test that pretraining draws each transform; five-fold AP against the current checkpoint.
-- [ ] AU5.7 **Stronger default ensembling.** `n_ensemble` is 1 in the library and V4 configs;
+- [ ] AU5.7 **Implemented behind `max_features_strategy: subsample` and `ensemble_transforms`
+      (2026-10-16, b3da945); measurement open.** Round-robin column subsets per member cover
+      every feature of a table wider than `max_features`, raising the member count to
+      `ceil(F / size)` when `n_ensemble` is below it; the default `raise` is unchanged.
+      **Stronger default ensembling.** `n_ensemble` is 1 in the library and V4 configs;
       add feature-shuffle and transform members, and feature-subset ensembling to lift the
       `max_features` hard limit (`classifier.py:373`).
       Verify: TabArena-Lite and V4FinBench scores against `n_ensemble` 1 and the current 8.
@@ -371,10 +397,13 @@
       reimplement); a tree partition or forest of PFNs (tabpfn-extensions `rf_pfn`,
       Apache-2.0); BoostPFN (arXiv 2503.01256, MIT).
       Verify: each arm's five-fold AP against §163's arm under §159's rule.
-- [ ] AU5.9 **Hazard context carries only the binary label** (`model.py:751-759,787-797`): embed
+- [ ] AU5.9 **fintfm-train flag `--hazard-period-context` wired (2026-10-16, 6ec5534); measurement open; inference gap unchanged.**
+      **Implemented behind `hazard_period_context` (2026-10-16, 0a3b8c8); measurement open; the classifier cannot yet pass context periods at inference.** **Hazard context carries only the binary label** (`model.py:751-759,787-797`): embed
       the default period and a censored token for context rows.
       Verify: a hazard test where the term structure is learnable only from context periods.
-- [ ] AU5.10 **Optimiser nits.** Weight decay also hits LayerNorm, biases and embeddings
+- [ ] AU5.10 **Implemented behind `--no-decay-norm-bias` and `--warmup-steps` (2026-10-16, 9c3b615); measurement open.**
+      The final-LayerNorm-before-pooling nit is not done (model.py).
+      **Optimiser nits.** Weight decay also hits LayerNorm, biases and embeddings
       (`train.py:407`); no final LayerNorm before pooling in two encoders; warmup fixed at 500
       steps with no flag.
       Verify: a test that LayerNorm, biases and embeddings are excluded from weight decay.
@@ -391,7 +420,16 @@
       (`prior/tree.py:79-82,136`). Arm: a TabArena checkpoint on SCM + tree + families with
       `p_financial ≤ 0.3`, more tasks, after AU1.13.
       Verify: the prior sampler's statistics (class balance, categoricals, missingness, kurtosis) reported before and after.
-- [ ] AU5.12 **Per-member inference diversity** (peer recipes read from installed TabPFN 9.0.0,
+- [ ] AU5.12 **Implemented behind `ensemble_class_shift`, `ensemble_transforms` (new `squash`
+      transform) and `ensemble_svd_components`, with `max_features_strategy: subsample` for
+      wide tables (2026-10-16, b3da945); measurement open.** Label-symmetry probe
+      (`scripts/label_symmetry_probe.py`), MEASURED on `runs/v4-cellattn-labels.pt`, Pearson
+      r of `p` against `1 - p_swapped`, pooled over queries (median per task): synthetic
+      financial 0.891 (0.687), 24 tasks, 6,144 queries; synthetic SCM 0.955 (0.872), 24 tasks,
+      6,144 queries; Polish 3y 0.490 (0.445), 3 draws of 512 context and 512 query rows;
+      Taiwan 0.829 (0.839), same draws. No task negative, against §45's −0.62 on an older
+      checkpoint; the Polish panel is the least symmetric.
+      **Per-member inference diversity** (peer recipes read from installed TabPFN 9.0.0,
       TabICL 2.2.0, TabDPT 1.3.0, LimiX code; all reimplemented, no code copied): first a
       label-symmetry probe on the current checkpoint (§45 found −0.62 on an older one), then
       class permutation as a member axis, alternating preprocessing per member (rank vs robust
@@ -414,10 +452,15 @@
       `--checkpoint-every`. Cost to be measured on one Kaggle session before committing. After
       it, re-test the closed architecture verdicts, all measured at 48k tasks.
       Verify: tasks per GPU-hour and cost measured on one Kaggle session before the full run; then §159's rule on V4FinBench and TabArena-Lite.
-- [ ] AU5.16 **Value embedding**: Fourier or RBF plus ECDF-rank features in place of the MLP on
+- [ ] AU5.16 **fintfm-train flags `--value-embedding`, `--value-basis-size`, `--value-basis-learnable` and `--value-ecdf` wired (2026-10-16, 6ec5534); measurement open.**
+      **Implemented behind `value_embedding` and `value_ecdf` (2026-10-16, 0a3b8c8); measurement open.** **Value embedding**: Fourier or RBF plus ECDF-rank features in place of the MLP on
       (z, missing) (LimiX-2M RaBEL, TabPFN-3.5). One module, behind a flag.
       Verify: a flag, a test that it is off by default, and five-fold AP at matched tasks.
-- [ ] AU5.17 **Optimiser and attention scaling from TabICLv2**: Muon, QASSMax (length-aware
+- [ ] AU5.17 **fintfm-train flags `--attn-length-scale` and `--attn-length-ref` wired (2026-10-16, 6ec5534); measurement open.**
+      **Implemented behind flags (2026-10-16); measurement open.** Attention half:
+      `attn_length_scale` (0a3b8c8; fixed log-length scale, no learned per-query factor).
+      Optimiser half: `--optimizer muon` (9c3b615). Early target inclusion not done.
+      **Optimiser and attention scaling from TabICLv2**: Muon, QASSMax (length-aware
       softmax scaling), early target inclusion; also the fix for AU4.3 if context length is the
       problem.
       Verify: each change behind a flag, scored at matched tasks.

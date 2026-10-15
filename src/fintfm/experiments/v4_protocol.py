@@ -229,6 +229,24 @@ def build_fold_assignments(
     return np.array([assignment[(a, b)] for a, b in zip(country, company)], dtype=np.int64)
 
 
+def company_codes(company: np.ndarray) -> np.ndarray:
+    """Code each row's company as an integer, for storing beside per-row predictions.
+
+    The code is the company's index among the panel's sorted unique ids, so it is fixed by the
+    loaded panel alone and the same run's folds share one coding. Integers rather than the ids
+    themselves: V4FinBench's ids are strings, which ``np.savez`` would store either as wide
+    fixed-width unicode or as a pickled object array that ``np.load`` refuses by default.
+
+    Args:
+        company: ``(n,)`` company identifier per row.
+
+    Returns:
+        ``(n,)`` ``int32`` codes; equal codes mean the same company.
+    """
+    _, codes = np.unique(company, return_inverse=True)
+    return codes.ravel().astype(np.int32)
+
+
 def split_indices_for_fold(
     folds: np.ndarray, fold: int, n_splits: int = N_SPLITS
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -479,6 +497,7 @@ def run(
     )
     assignments = build_fold_assignments(country, company)
     print(f"folds: {np.bincount(assignments).tolist()} rows per fold\n")
+    codes = company_codes(company)
 
     model = FinancialTFM.load(model_path) if model_path is not None else None
     # §25: every gradient-boosting comparison in this project once used sklearn's weakest
@@ -535,6 +554,10 @@ def run(
                 finetune_query_group_frac=cfg.inference.finetune_query_group_frac,
                 finetune_query_pos_frac=cfg.inference.finetune_query_pos_frac,
                 finetune_seed=cfg.inference.finetune_seed,
+                ensemble_transforms=cfg.inference.ensemble_transforms,
+                ensemble_svd_components=cfg.inference.ensemble_svd_components,
+                ensemble_class_shift=cfg.inference.ensemble_class_shift,
+                max_features_strategy=cfg.inference.max_features_strategy,
                 device=device,
                 random_state=fold,
             ).fit(Xtr.astype(np.float32), y[tr], groups=company[tr])
@@ -598,6 +621,10 @@ def run(
             # without anyone having to look at test to choose it
             y_val=y[va],
             **{f"val_{a}": v[0] for a, v in arms.items()},
+            # company per row (codes from `company_codes`), so a comparison can resample whole
+            # companies: a fold holds ~5 rows each, and they are not independent (audit AU2.1)
+            company_test=codes[te],
+            company_val=codes[va],
         )
 
         for arm, (p_val, p_test) in arms.items():
@@ -672,6 +699,10 @@ def run(
             "finetune_query_group_frac": cfg.inference.finetune_query_group_frac,
             "finetune_query_pos_frac": cfg.inference.finetune_query_pos_frac,
             "finetune_seed": cfg.inference.finetune_seed,
+            "ensemble_transforms": cfg.inference.ensemble_transforms,
+            "ensemble_svd_components": cfg.inference.ensemble_svd_components,
+            "ensemble_class_shift": cfg.inference.ensemble_class_shift,
+            "max_features_strategy": cfg.inference.max_features_strategy,
             "config_sources": list(cfg.sources),
         },
         "arms": [asdict(s) for s in summaries],

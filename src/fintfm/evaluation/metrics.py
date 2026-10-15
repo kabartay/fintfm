@@ -17,6 +17,7 @@ So every reported result carries three kinds of number:
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -175,6 +176,39 @@ def evaluate_binary(y_true: np.ndarray, p: np.ndarray, n_bins: int = 10) -> Cred
     )
 
 
+def _group_sampler(groups: np.ndarray, rng: np.random.Generator) -> Callable[[], np.ndarray]:
+    """Build a function drawing one cluster-bootstrap resample's row indices.
+
+    Groups are drawn with replacement, as many as there are distinct groups, and every row of
+    each drawn group is taken, so a resample's row count varies with the groups drawn. Drawing
+    group indices with ``rng.integers(0, n_groups, size=n_groups)`` is the same call the row
+    bootstrap makes, which is why singleton groups in row order reproduce it exactly.
+
+    Args:
+        groups: Cluster label per row, any sortable dtype (V4FinBench company ids are strings).
+        rng: The generator to draw from, shared with the caller so the stream is one stream.
+
+    Returns:
+        A zero-argument function returning one resample's row indices.
+    """
+    _, codes = np.unique(np.asarray(groups), return_inverse=True)
+    codes = codes.ravel()
+    order = np.argsort(codes, kind="stable")  # rows grouped, original order within a group
+    counts = np.bincount(codes)
+    starts = np.concatenate(([0], np.cumsum(counts)[:-1]))
+    n_groups = len(counts)
+
+    def draw() -> np.ndarray:
+        g = rng.integers(0, n_groups, size=n_groups)
+        lens = counts[g]
+        # each output position, minus where its drawn group begins in the output, plus where
+        # that group begins in `order`
+        shift = np.repeat(starts[g] - np.cumsum(lens) + lens, lens)
+        return order[shift + np.arange(lens.sum())]
+
+    return draw
+
+
 def paired_auc_difference(
     y_true: np.ndarray,
     p_a: np.ndarray,
@@ -182,6 +216,7 @@ def paired_auc_difference(
     n_boot: int = 2000,
     seed: int = 0,
     metric=None,
+    groups: np.ndarray | None = None,
 ) -> tuple[float, tuple[float, float], float]:
     """Bootstrap the metric difference between two models scored on the *same* rows.
 
@@ -208,6 +243,14 @@ def paired_auc_difference(
             compresses the whole usable range into its top few percent, while average
             precision's floor **is** the prevalence and the range stays legible
             (``docs/design/DECISIONS.md`` D13).
+        groups: Optional cluster label per row (on V4FinBench, the company). When given, the
+            bootstrap resamples **whole groups** with replacement instead of rows, and each
+            resample holds every row of each drawn group. Rows of one company share a
+            balance sheet and an outcome history, so they are not independent draws: a V4FinBench
+            test fold holds about five rows per company, and a row bootstrap treats them as
+            five, narrowing the interval and shrinking the p-value (audit AU2.1). ``None`` (the
+            default) is the row bootstrap, unchanged and on the same random stream; labels
+            that are all distinct and in row order reproduce it exactly.
 
     Returns:
         ``(delta, (lo, hi), p_two_sided)`` where ``delta`` is ``AUC(a) - AUC(b)`` on the
@@ -216,7 +259,7 @@ def paired_auc_difference(
         ``delta``. Returns NaNs if either class is absent.
 
     Raises:
-        ValueError: If the three arrays disagree in length.
+        ValueError: If the arrays (``groups`` included, when given) disagree in length.
     """
     y_true = np.asarray(y_true).astype(int)
     p_a = np.asarray(p_a, dtype=float)
@@ -225,6 +268,8 @@ def paired_auc_difference(
         raise ValueError(
             f"shape mismatch: y_true {y_true.shape}, p_a {p_a.shape}, p_b {p_b.shape}"
         )
+    if groups is not None and np.shape(groups) != y_true.shape:
+        raise ValueError(f"shape mismatch: groups {np.shape(groups)} vs y_true {y_true.shape}")
     if len(np.unique(y_true)) < 2:
         return float("nan"), (float("nan"), float("nan")), float("nan")
 
@@ -232,10 +277,11 @@ def paired_auc_difference(
     delta = float(score(y_true, p_a) - score(y_true, p_b))
     rng = np.random.default_rng(seed)
     n = len(y_true)
+    draw = (lambda: rng.integers(0, n, size=n)) if groups is None else _group_sampler(groups, rng)
     deltas = np.empty(n_boot)
     drawn = 0
     for _ in range(n_boot):
-        idx = rng.integers(0, n, size=n)
+        idx = draw()
         # a resample missing a class has no defined AUC; skip it (so `drawn` can fall short
         # of n_boot) rather than silently skew
         if len(np.unique(y_true[idx])) < 2:

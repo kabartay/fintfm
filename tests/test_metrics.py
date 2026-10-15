@@ -85,6 +85,74 @@ def test_paired_auc_difference_detects_a_real_gap_and_ignores_a_fake_one():
     assert p2 > 0.05
 
 
+def _pinned_inputs():
+    """A small fixed problem whose row-bootstrap output is pinned below."""
+    rng = np.random.default_rng(7)
+    y = (rng.random(300) < 0.2).astype(int)
+    return y, y * 0.3 + rng.random(300), rng.random(300)
+
+
+def test_row_bootstrap_is_unchanged_by_cluster_support():
+    """`groups=None` must stay byte-identical to the bootstrap every §144-§164 table used (AU2.1).
+
+    Values computed with the code before `groups` existed.
+    """
+    from sklearn.metrics import average_precision_score
+
+    from fintfm.evaluation.metrics import paired_auc_difference
+
+    y, a, b = _pinned_inputs()
+    assert paired_auc_difference(y, a, b, n_boot=300, seed=3, metric=average_precision_score) == (
+        0.3495457401755093, (0.1996078476595747, 0.44564383730758306), 0.0033222591362126247
+    )
+    assert paired_auc_difference(y, a, b, n_boot=300, seed=3) == (
+        0.24720380416582954, (0.11251744049050161, 0.34792782634226976), 0.0033222591362126247
+    )
+
+
+def test_singleton_groups_reproduce_the_row_bootstrap():
+    """One row per group, in row order, is the row bootstrap draw for draw (AU2.1)."""
+    from fintfm.evaluation.metrics import paired_auc_difference
+
+    y, a, b = _pinned_inputs()
+    row = paired_auc_difference(y, a, b, n_boot=300, seed=3)
+    assert paired_auc_difference(y, a, b, n_boot=300, seed=3, groups=np.arange(300)) == row
+
+
+def test_cluster_bootstrap_is_wider_on_clustered_data():
+    """Rows of one company are not independent; resampling companies must widen the CI (AU2.1).
+
+    Each company's rows share its label and a company-level error in each model, as V4FinBench's
+    ~5 rows per company share a balance sheet. The row bootstrap counts them as independent.
+    """
+    from sklearn.metrics import average_precision_score
+
+    from fintfm.evaluation.metrics import paired_auc_difference
+
+    rng = np.random.default_rng(0)
+    n_companies, rows_each = 300, 5
+    company = np.repeat(np.array([f"c{i:04d}" for i in range(n_companies)]), rows_each)
+    y = np.repeat((rng.random(n_companies) < 0.1).astype(int), rows_each)
+    shared_a = np.repeat(rng.normal(size=n_companies), rows_each)
+    shared_b = np.repeat(rng.normal(size=n_companies), rows_each)
+    noise = rng.normal(scale=0.2, size=(2, len(y)))
+    a = y * 1.5 + shared_a + noise[0]
+    b = y * 1.5 + shared_b + noise[1]
+    kw = {"n_boot": 500, "metric": average_precision_score}
+    d_row, (lo_r, hi_r), _ = paired_auc_difference(y, a, b, **kw)
+    d_grp, (lo_g, hi_g), _ = paired_auc_difference(y, a, b, groups=company, **kw)
+    assert d_row == d_grp  # the point estimate does not depend on how we resample
+    assert hi_g - lo_g > 1.5 * (hi_r - lo_r)
+
+
+def test_cluster_bootstrap_refuses_misaligned_groups():
+    from fintfm.evaluation.metrics import paired_auc_difference
+
+    y, a, b = _pinned_inputs()
+    with pytest.raises(ValueError, match="groups"):
+        paired_auc_difference(y, a, b, groups=np.arange(299))
+
+
 def test_holm_bonferroni_is_stricter_than_raw_alpha():
     from fintfm.evaluation.metrics import holm_bonferroni
 

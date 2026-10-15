@@ -12,7 +12,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from c5_verdict import YARDSTICK, fold_diffs, rule1, rule2, rule3
+from c5_verdict import YARDSTICK, fold_diffs, rule1, rule2, rule3, rule_helps
 
 
 def test_yardstick_is_section_158s_measured_gap():
@@ -38,6 +38,26 @@ def test_rule3_needs_the_mean_and_four_negative_folds():
     assert rule3([-0.02, -0.02, -0.02, -0.02, 0.01]) == "loss"
     assert rule3([-0.04, -0.04, -0.04, 0.01, 0.01]) == "null"  # big mean, only 3 negative
     assert rule3([-0.005, -0.005, -0.005, -0.005, -0.005]) == "null"  # 5 negative, small mean
+
+
+def test_helps_rule_needs_the_mean_and_four_folds_of_its_sign():
+    """§163's rule, two-sided (audit AU2.9)."""
+    assert rule_helps([0.01, 0.01, 0.01, 0.01, -0.001]) == "helps"
+    assert rule_helps([0.04, 0.04, 0.04, -0.01, -0.01]) == "null"  # big mean, only 3 positive
+    assert rule_helps([0.007, 0.007, 0.007, 0.007, 0.007]) == "null"  # 5 positive, small mean
+    assert rule_helps([0.0073] * 5) == "null"  # the boundary itself is not past it
+    assert rule_helps([-0.01, -0.01, -0.01, -0.01, 0.001]) == "hurts"
+    assert rule_helps([-0.04, -0.04, -0.04, 0.01, 0.01]) == "null"
+    assert rule_helps([-0.0073] * 5) == "null"
+    assert rule_helps([0.0, 0.02, 0.02, 0.02, 0.02]) == "helps"  # a zero fold is not positive...
+    assert rule_helps([0.0, 0.0, 0.03, 0.03, 0.03]) == "null"  # ...so two of them leave three
+
+
+def test_helps_rule_reproduces_section_163s_verdict():
+    """§163's per-fold ΔAP, as published: mean +0.0076, five of five positive -> helps."""
+    assert rule_helps([0.0068, 0.0018, 0.0115, 0.0145, 0.0033]) == "helps"
+    # the same folds with fold 1 lowered by 0.0020 put the mean at +0.0072, under the bar
+    assert rule_helps([0.0068, -0.0002, 0.0115, 0.0145, 0.0033]) == "null"
 
 
 def test_fold_diffs_refuses_mismatched_rows(tmp_path):
@@ -90,6 +110,11 @@ def test_fold_diffs_refuses_a_different_protocol(tmp_path):
     capped = write("capped", max_rows=200_000)
     with pytest.raises(SystemExit, match="protocol settings differ"):
         fold_diffs(control, capped)
+    ablation = write("ablation", n_features=129, drop_columns=["operational_status"])
+    assert len(fold_diffs(control, ablation)) == 5  # one column dropped on purpose: pairs
+    narrower = write("narrower", n_features=129)
+    with pytest.raises(SystemExit, match="protocol settings differ"):
+        fold_diffs(control, narrower)
 
 
 def test_bootstrap_p_is_never_exactly_zero():

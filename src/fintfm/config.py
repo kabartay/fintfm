@@ -75,6 +75,10 @@ class InferenceConfig:
     finetune_query_group_frac: float = 0.3
     finetune_query_pos_frac: float | None = None
     finetune_seed: int = 0
+    ensemble_transforms: tuple[str, ...] | None = None
+    ensemble_svd_components: int = 0
+    ensemble_class_shift: bool = False
+    max_features_strategy: str = "raise"
 
 
 @dataclass(frozen=True)
@@ -135,6 +139,45 @@ class PriorConfigDefaults:
 
 
 @dataclass(frozen=True)
+class TrainConfigDefaults:
+    """Pretraining knobs ``fintfm-train`` reads (audit AU5.2, AU5.10, AU5.17).
+
+    Mirrors :class:`~fintfm.modeling.train.TrainConfig`'s literal defaults, for the same
+    reason the ``inference`` section mirrors the classifier: ``train()`` must behave the same
+    without reading a file. ``tests/test_config.py`` is the drift guard. Every default
+    reproduces pretraining as it ran before these knobs existed.
+    """
+
+    warmup_steps: int = 500
+    decay_norm_bias: bool = True
+    amp: str = "none"
+    muon_lr: float = 0.02
+
+
+@dataclass(frozen=True)
+class ModelConfigDefaults:
+    """Architecture knobs ``fintfm-train`` reads from configuration (audit AU5.3/5.9/5.16/5.17).
+
+    Mirrors the matching fields of :class:`~fintfm.modeling.model.ModelConfig`, whose own
+    literal defaults stay authoritative because a checkpoint rebuilds its model from them
+    without reading a file. ``tests/test_config.py`` is the drift guard. Every default
+    builds the architecture as it was before these knobs existed. The older architecture
+    flags (``--d-model`` and the rest) keep their literal CLI defaults and are not here.
+    """
+
+    n_heads: int = 4
+    n_cell_heads: int | None = None
+    n_summary_tokens: int = 1
+    value_embedding: str = "mlp"
+    value_basis_size: int = 16
+    value_basis_learnable: bool = False
+    value_ecdf: bool = False
+    attn_length_scale: bool = False
+    attn_length_ref: int = 512
+    hazard_period_context: bool = False
+
+
+@dataclass(frozen=True)
 class Config:
     """The whole configuration, with the path it was loaded from for the run record."""
 
@@ -143,6 +186,8 @@ class Config:
     v4finbench: V4FinBenchConfig = field(default_factory=V4FinBenchConfig)
     context_sweep: ContextSweepConfig = field(default_factory=ContextSweepConfig)
     prior: PriorConfigDefaults = field(default_factory=PriorConfigDefaults)
+    train: TrainConfigDefaults = field(default_factory=TrainConfigDefaults)
+    model: ModelConfigDefaults = field(default_factory=ModelConfigDefaults)
     sources: tuple[str, ...] = ()
 
     def provenance(self) -> str:
@@ -280,6 +325,13 @@ def _validate(cfg: Config) -> None:
         )
     if not 0.0 <= cfg.inference.winsor_quantile < 0.5:
         raise ConfigError("inference.winsor_quantile must lie in [0, 0.5)")
+    if cfg.inference.max_features_strategy not in ("raise", "subsample"):
+        raise ConfigError(
+            "inference.max_features_strategy must be 'raise' or 'subsample', got "
+            f"{cfg.inference.max_features_strategy!r}"
+        )
+    if cfg.inference.ensemble_svd_components < 0:
+        raise ConfigError("inference.ensemble_svd_components must be at least 0")
     if any(n < 1 for n in cfg.context_sweep.context_sizes):
         raise ConfigError("context_sweep.context_sizes must all be at least 1")
     if not cfg.context_sweep.seeds:
@@ -299,6 +351,26 @@ def _validate(cfg: Config) -> None:
         )
     if p.max_query_rows is not None and p.max_query_rows < 1:
         raise ConfigError(f"prior.max_query_rows must be at least 1, got {p.max_query_rows}")
+    t = cfg.train
+    if t.amp not in ("none", "bf16", "fp16"):
+        # YAML reads a bare `off`/`no` as False, which would otherwise surface as a confusing
+        # type error deep inside the training loop
+        raise ConfigError(f"train.amp must be 'none', 'bf16' or 'fp16', got {t.amp!r}")
+    if t.warmup_steps < 0:
+        raise ConfigError(f"train.warmup_steps must be at least 0, got {t.warmup_steps}")
+    if not isinstance(t.decay_norm_bias, bool):
+        raise ConfigError(f"train.decay_norm_bias must be true or false, got {t.decay_norm_bias!r}")
+    if t.muon_lr <= 0:
+        raise ConfigError(f"train.muon_lr must be positive, got {t.muon_lr}")
+    m = cfg.model
+    # ModelConfig validates the rest when the run builds its model; these two are the ones a
+    # hand-edited file most plausibly gets wrong, so they fail at load instead
+    if m.value_embedding not in ("mlp", "rbf", "fourier"):
+        raise ConfigError(
+            f"model.value_embedding must be 'mlp', 'rbf' or 'fourier', got {m.value_embedding!r}"
+        )
+    if m.n_heads < 1:
+        raise ConfigError(f"model.n_heads must be at least 1, got {m.n_heads}")
 
 
 #: Section name to dataclass. Declared explicitly rather than read off ``Config``'s
@@ -310,6 +382,8 @@ _SECTIONS: dict[str, type] = {
     "v4finbench": V4FinBenchConfig,
     "context_sweep": ContextSweepConfig,
     "prior": PriorConfigDefaults,
+    "train": TrainConfigDefaults,
+    "model": ModelConfigDefaults,
 }
 
 

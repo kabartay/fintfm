@@ -39,7 +39,8 @@ def test_inference_section_matches_the_classifier_defaults():
         "query_chunk", "retrieval_groups", "retrieval_min_positive",
         "prototype_minority_ratio", "n_ensemble", "finetune_steps", "finetune_lr",
         "finetune_batch", "finetune_query", "finetune_context", "finetune_query_group_frac",
-        "finetune_query_pos_frac", "finetune_seed",
+        "finetune_query_pos_frac", "finetune_seed", "ensemble_transforms",
+        "ensemble_svd_components", "ensemble_class_shift", "max_features_strategy",
     ):
         assert sig.parameters[name].default == getattr(cfg, name), (
             f"{name}: classifier default {sig.parameters[name].default!r} disagrees with "
@@ -197,4 +198,63 @@ def test_malformed_hazard_arm_is_refused(tmp_path):
     f = tmp_path / "o.yaml"
     f.write_text("v4finbench:\n  hazard_arms:\n    - {name: a, strategy: uniform, oops: 1}\n")
     with pytest.raises(ConfigError, match="oops"):
+        load_config(f)
+
+
+def test_train_section_matches_the_train_config_defaults():
+    """Drift guard for the ``train`` section (audit AU5.2/5.10/5.17): it mirrors
+    ``TrainConfig``'s literal defaults, which are what pretraining did before those knobs."""
+    from dataclasses import fields
+
+    from fintfm.config import TrainConfigDefaults
+    from fintfm.modeling.train import TrainConfig
+
+    cfg = load_config().train
+    library = TrainConfig()
+    for f in fields(TrainConfigDefaults):
+        assert getattr(cfg, f.name) == getattr(library, f.name), (
+            f"train.{f.name}: config {getattr(cfg, f.name)!r} disagrees with TrainConfig "
+            f"{getattr(library, f.name)!r} — update fintfm/configs/default.yaml"
+        )
+
+
+def test_model_section_matches_the_model_config_defaults():
+    """Drift guard for the ``model`` section (audit AU5.3/5.9/5.16/5.17): each key mirrors a
+    ``ModelConfig`` default, and the set of keys is exactly what ``fintfm-train`` reads, so a
+    key added to one side and not the other fails here rather than being silently ignored."""
+    from dataclasses import fields
+
+    from fintfm.config import ModelConfigDefaults
+    from fintfm.modeling.model import ModelConfig
+    from fintfm.modeling.train import _MODEL_CONFIG_KNOBS
+
+    cfg = load_config().model
+    library = ModelConfig()
+    names = [f.name for f in fields(ModelConfigDefaults)]
+    assert set(names) == set(_MODEL_CONFIG_KNOBS)
+    for name in names:
+        assert getattr(cfg, name) == getattr(library, name), (
+            f"model.{name}: config {getattr(cfg, name)!r} disagrees with ModelConfig "
+            f"{getattr(library, name)!r} — update fintfm/configs/default.yaml"
+        )
+
+
+@pytest.mark.parametrize(
+    "body, match",
+    [
+        ("train:\n  amp: off\n", "train.amp"),
+        ("train:\n  amp: fp8\n", "train.amp"),
+        ("model:\n  value_embedding: spline\n", "model.value_embedding"),
+        ("model:\n  n_heads: 0\n", "model.n_heads"),
+        ("model:\n  n_head: 2\n", "n_head"),
+        ("train:\n  warmup_steps: -1\n", "warmup_steps"),
+        ("train:\n  muon_lr: 0\n", "muon_lr"),
+        ("train:\n  decay_norm_bias: maybe\n", "decay_norm_bias"),
+    ],
+)
+def test_train_section_values_are_validated(tmp_path, body, match):
+    """``amp: off`` is the trap: YAML reads it as ``False``, not as a mode name."""
+    f = tmp_path / "c.yaml"
+    f.write_text(body)
+    with pytest.raises(ConfigError, match=match):
         load_config(f)

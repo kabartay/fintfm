@@ -410,3 +410,197 @@ def test_label_swap_leaves_a_multiclass_task_unchanged():
     on = FinancialTFMClassifier(model, ensemble_label_swap=True, **kw).fit(X, y).predict_proba(Xq)
     assert off.shape == (12, 3)
     np.testing.assert_array_equal(on, off)
+
+
+# --- AU5.7 / AU5.12: member-diversity and wide-table levers, all off by default -------------
+
+_LEVERS_OFF = {
+    "ensemble_transforms": None,
+    "ensemble_svd_components": 0,
+    "ensemble_class_shift": False,
+    "max_features_strategy": "raise",
+}
+
+
+@pytest.mark.parametrize(
+    "kw",
+    [{}, {"n_ensemble": 3}, {"ensemble_label_swap": True},
+     {"n_ensemble": 2, "ensemble_feature_frac": 0.5}],
+)
+def test_levers_default_off_and_the_default_member_is_the_plain_model(kw):
+    """The defaults reproduce the classifier as it was, bit for bit.
+
+    Two checks: the defaults equal every lever passed explicitly off, and the default
+    ensemble is exactly the mean of plain single models at consecutive seeds -- the member
+    construction the levers were added around. (Checked once more by hand when the levers
+    landed: every default path, retrieval, prototype, multiclass, the regressor and
+    ``transform_representation`` included, returned the same bytes before and after.)
+    """
+    Xtr, ytr, Xte, _ = _toy(n=240)
+    m = _model()
+    base = {"max_context": 60, "random_state": 2, **kw}
+    default = FinancialTFMClassifier(m, **base).fit(Xtr, ytr).predict_proba(Xte)
+    off = FinancialTFMClassifier(m, **base, **_LEVERS_OFF).fit(Xtr, ytr).predict_proba(Xte)
+    np.testing.assert_array_equal(default, off)
+    if kw == {"n_ensemble": 3}:
+        singles = [
+            FinancialTFMClassifier(m, max_context=60, random_state=s).fit(Xtr, ytr).predict_proba(Xte)
+            for s in (2, 3, 4)
+        ]
+        np.testing.assert_array_equal(default, np.mean(singles, axis=0))
+
+
+def test_ensemble_transforms_cycle_the_conditioning_over_members():
+    Xtr, ytr, Xte, _ = _toy(n=240)
+    m = _model()
+    kw = {"max_context": 60, "random_state": 0}
+    ens = FinancialTFMClassifier(
+        m, n_ensemble=3, ensemble_transforms=("rank", "squash"), **kw
+    ).fit(Xtr, ytr).predict_proba(Xte)
+    by_hand = [
+        FinancialTFMClassifier(m, max_context=60, random_state=s, feature_transform=t)
+        .fit(Xtr, ytr).predict_proba(Xte)
+        for s, t in ((0, "rank"), (1, "squash"), (2, "rank"))
+    ]
+    np.testing.assert_array_equal(ens, np.mean(by_hand, axis=0))
+    plain = FinancialTFMClassifier(m, n_ensemble=3, **kw).fit(Xtr, ytr).predict_proba(Xte)
+    assert not np.allclose(ens, plain, atol=1e-4), "the squash member changed nothing"
+
+
+def test_ensemble_transforms_rejects_a_misspelling_rather_than_running_rank():
+    Xtr, ytr, _, _ = _toy(n=120)
+    for bad in (("rank", "powr"), ()):
+        with pytest.raises(ValueError, match="ensemble_transforms"):
+            FinancialTFMClassifier(_model(), ensemble_transforms=bad).fit(Xtr, ytr)
+
+
+def test_svd_components_go_to_odd_members_only_fitted_on_their_context():
+    from fintfm.inference.preprocess import SVDAugmenter
+
+    Xtr, ytr, Xte, _ = _toy(n=240, n_feat=6)
+    m = _model(n_feat=9)  # room for up to 3 appended columns
+    parent = FinancialTFMClassifier(
+        m, max_context=60, random_state=0, n_ensemble=2, ensemble_svd_components=2
+    ).fit(Xtr, ytr)
+    plain_member = parent._clone_with_seed(0, svd_components=0)
+    svd_member = parent._clone_with_seed(1, svd_components=2)
+    assert plain_member.svd_components_ == 0 and plain_member._ctx_X.shape[1] == 6
+    assert svd_member.svd_components_ == 2 and svd_member._ctx_X.shape[1] == 8
+    # the projections come from the member's own conditioned context rows
+    ctx_raw = svd_member._ctx_X[:, :6]
+    np.testing.assert_array_equal(
+        svd_member._ctx_X, SVDAugmenter(2).fit(ctx_raw).transform(ctx_raw)
+    )
+    ens = parent.predict_proba(Xte)
+    np.testing.assert_array_equal(
+        ens, np.mean([plain_member.predict_proba(Xte), svd_member.predict_proba(Xte)], axis=0)
+    )
+    no_svd = FinancialTFMClassifier(m, max_context=60, random_state=0, n_ensemble=2)
+    assert not np.allclose(ens, no_svd.fit(Xtr, ytr).predict_proba(Xte), atol=1e-5)
+    # capped at the model's spare width: 9 - 6 leaves room for 3, not 5
+    assert parent._clone_with_seed(1, svd_components=5).svd_components_ == 3
+
+
+def test_svd_components_refuse_settings_where_no_member_would_carry_them():
+    Xtr, ytr, _, _ = _toy(n=120)
+    with pytest.raises(ValueError, match="n_ensemble >= 2"):
+        FinancialTFMClassifier(_model(8), ensemble_svd_components=2).fit(Xtr, ytr)
+    with pytest.raises(ValueError, match="retrieval"):
+        FinancialTFMClassifier(
+            _model(8), n_ensemble=2, ensemble_svd_components=2, context_strategy="retrieval"
+        ).fit(Xtr, ytr)
+
+
+def test_class_shift_on_a_binary_task_swaps_labels_on_odd_members():
+    Xtr, ytr, Xte, _ = _toy(n=240)
+    m = _model()
+    ens = FinancialTFMClassifier(
+        m, max_context=60, random_state=0, n_ensemble=2, ensemble_class_shift=True
+    ).fit(Xtr, ytr).predict_proba(Xte)
+    member0 = FinancialTFMClassifier(m, max_context=60, random_state=0).fit(Xtr, ytr)
+    member1 = FinancialTFMClassifier(m, max_context=60, random_state=1).fit(Xtr, 1 - ytr)
+    np.testing.assert_array_equal(
+        ens, np.mean([member0.predict_proba(Xte), member1.predict_proba(Xte)[:, ::-1]], axis=0)
+    )
+
+
+def test_class_shift_maps_multiclass_probabilities_back_to_the_original_classes():
+    """A member trained on labels shifted by s reports class c in column c + s; undo that."""
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(150, 4)).astype(np.float32)
+    names = np.array(["a", "b", "c"])
+    y = names[np.digitize(X[:, 0], [-0.4, 0.4])]  # string labels, three classes
+    Xq = rng.normal(size=(12, 4)).astype(np.float32)
+    torch.manual_seed(0)
+    m = _tiny_model()
+    ens = FinancialTFMClassifier(
+        m, max_context=60, random_state=0, n_ensemble=3, ensemble_class_shift=True
+    ).fit(X, y).predict_proba(Xq)
+    by_hand = []
+    for s in range(3):
+        shifted = names[(np.searchsorted(names, y) + s) % 3]
+        p = FinancialTFMClassifier(m, max_context=60, random_state=s).fit(X, shifted).predict_proba(Xq)
+        by_hand.append(np.stack([p[:, (c + s) % 3] for c in range(3)], axis=1))
+    np.testing.assert_array_equal(ens, np.mean(by_hand, axis=0))
+    np.testing.assert_allclose(ens.sum(axis=1), 1.0, atol=1e-5)
+    unshifted = FinancialTFMClassifier(m, max_context=60, random_state=0, n_ensemble=3)
+    assert not np.allclose(ens, unshifted.fit(X, y).predict_proba(Xq), atol=1e-5)
+
+
+def _wide(n=160, n_feat=10, seed=0):
+    rng = np.random.default_rng(seed)
+    X = rng.normal(size=(n, n_feat)).astype(np.float32)
+    y = (X[:, 0] + X[:, 7] > 0).astype(np.int64)
+    return X[: n // 2], y[: n // 2], X[n // 2 :]
+
+
+def test_wide_table_raises_by_default():
+    Xtr, ytr, _ = _wide()
+    with pytest.raises(ValueError, match="at most 4 features"):
+        FinancialTFMClassifier(_model(4), max_context=40).fit(Xtr, ytr)
+
+
+@pytest.mark.parametrize(
+    ("n_ensemble", "frac", "n_members", "size"),
+    [(1, 1.0, 3, 4), (5, 1.0, 5, 4), (1, 0.3, 4, 3)],
+)
+def test_subsample_covers_every_feature_with_balanced_round_robin_members(
+    n_ensemble, frac, n_members, size
+):
+    """Ten features through a four-feature model: every column seen, coverage within one."""
+    Xtr, ytr, Xq = _wide()
+    clf = FinancialTFMClassifier(
+        _model(4), max_context=40, n_ensemble=n_ensemble, ensemble_feature_frac=frac,
+        max_features_strategy="subsample",
+    ).fit(Xtr, ytr)
+    assert clf.n_members_ == n_members  # raised above n_ensemble when 10 / size needs it
+    cols = clf._member_columns
+    assert all(len(c) == size == len(set(c.tolist())) for c in cols)
+    counts = np.bincount(np.concatenate(cols), minlength=10)
+    assert counts.min() >= 1 and counts.max() - counts.min() <= 1
+    p = clf.predict_proba(Xq)
+    assert p.shape == (80, 2) and np.isfinite(p).all()
+    np.testing.assert_allclose(p.sum(axis=1), 1.0, atol=1e-5)
+    by_hand = [
+        FinancialTFMClassifier(clf.model_, max_context=40, random_state=i)
+        .fit(Xtr[:, c], ytr).predict_proba(Xq[:, c])
+        for i, c in enumerate(cols)
+    ]
+    np.testing.assert_array_equal(p, np.mean(by_hand, axis=0))
+
+
+def test_subsample_refuses_paths_that_need_the_whole_row():
+    Xtr, ytr, Xq = _wide()
+    clf = FinancialTFMClassifier(
+        _model(4), max_context=40, max_features_strategy="subsample"
+    ).fit(Xtr, ytr)
+    with pytest.raises(ValueError, match="one forward pass"):
+        clf.transform_representation(Xq)
+    with pytest.raises(ValueError, match="feature width"):
+        clf.predict_proba(Xq[:, :9])
+    with pytest.raises(ValueError, match="fine-tuning"):
+        FinancialTFMClassifier(
+            _model(4), max_context=40, max_features_strategy="subsample", finetune_steps=1
+        ).fit(Xtr, ytr)
+    with pytest.raises(ValueError, match="max_features_strategy"):
+        FinancialTFMClassifier(_model(4), max_features_strategy="drop").fit(Xtr, ytr)

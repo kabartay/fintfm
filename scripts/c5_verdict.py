@@ -5,11 +5,13 @@ script is those rules as code, so the verdict is read off rather than argued aft
 are known. The thresholds are §158's measured no-change gap and are not parameters on purpose:
 changing them after seeing a result is exactly what pre-registration exists to prevent.
 
-Two modes:
+Three modes:
 
 * ``pair`` (Rules 1 and 2) -- a real-source arm at two seeds, each against the no-change control
   at the same seed.
 * ``single`` (Rule 3) -- one ablation against one matched control.
+* ``helps`` (§163's rule, reused by §164 for ``S1``) -- one change against one control,
+  two-sided: helps, hurts or null.
 
 Usage:
     uv run python scripts/c5_verdict.py pair sba \\
@@ -17,6 +19,8 @@ Usage:
         runs/cellattn-s1-kaggle/s1_rescore.json runs/kaggle-fintfm-r-sba-s1/score.json
     uv run python scripts/c5_verdict.py single schedfree146 \\
         runs/kaggle-fintfm-task-158-matched-control/score.json runs/task48-9-kaggle/schedulefree48_9_score.json
+    uv run python scripts/c5_verdict.py helps ft163 \\
+        runs/task48-6-kaggle/control_rescore.json runs/audit-cluster/ft163
 """
 
 from __future__ import annotations
@@ -32,6 +36,8 @@ from sklearn.metrics import average_precision_score
 YARDSTICK = 0.0073
 #: §159 Rule 3: folds that must be negative, out of five, for an ablation to count as a loss.
 MIN_NEGATIVE_FOLDS = 4
+#: §163's rule: folds that must share the mean's sign, out of five, for "helps" or "hurts".
+MIN_SAME_SIGN_FOLDS = 4
 
 
 def fold_diffs(control: Path, arm: Path) -> list[float]:
@@ -105,6 +111,27 @@ def rule3(diffs: list[float]) -> str:
     return "loss" if np.mean(diffs) < -YARDSTICK and negative >= MIN_NEGATIVE_FOLDS else "null"
 
 
+def rule_helps(diffs: list[float]) -> str:
+    """§163's rule (and §164's replication test for `S1`): does a change help, hurt, or neither?
+
+    **Helps** if the five-fold mean ΔAP exceeds :data:`YARDSTICK` with at least
+    :data:`MIN_SAME_SIGN_FOLDS` folds positive; **hurts** under the mirror condition. §163 applied
+    this by hand (audit AU2.9); it is the same bar as Rule 3, made two-sided.
+
+    Args:
+        diffs: Five per-fold AP differences, arm minus control.
+
+    Returns:
+        ``"helps"``, ``"hurts"`` or ``"null"``.
+    """
+    mean = np.mean(diffs)
+    if mean > YARDSTICK and sum(d > 0 for d in diffs) >= MIN_SAME_SIGN_FOLDS:
+        return "helps"
+    if mean < -YARDSTICK and sum(d < 0 for d in diffs) >= MIN_SAME_SIGN_FOLDS:
+        return "hurts"
+    return "null"
+
+
 def _fmt(diffs: list[float]) -> str:
     """Render per-fold differences and their mean on one line."""
     return " ".join(f"{d:+.4f}" for d in diffs) + f"  | mean {np.mean(diffs):+.4f}"
@@ -124,6 +151,10 @@ def main() -> None:
     sg.add_argument("name")
     sg.add_argument("control", type=Path)
     sg.add_argument("arm", type=Path)
+    hp = sub.add_parser("helps", help="§163's rule: one change vs one control, two-sided")
+    hp.add_argument("name")
+    hp.add_argument("control", type=Path)
+    hp.add_argument("arm", type=Path)
     args = p.parse_args()
 
     if args.mode == "pair":
@@ -136,6 +167,11 @@ def main() -> None:
         print(f"Rule 1: {rule1(m0, m1)}")
         print(f"Rule 2: next source {'eligible' if rule2(m0, m1) else 'NOT eligible'} "
               f"(seed signs {'agree' if rule2(m0, m1) else 'disagree'})")
+    elif args.mode == "helps":
+        d = fold_diffs(args.control, args.arm)
+        print(f"{args.name}: {_fmt(d)}  ({sum(x > 0 for x in d)}/5 positive, "
+              f"{sum(x < 0 for x in d)}/5 negative; yardstick ±{YARDSTICK})")
+        print(f"§163 rule: {rule_helps(d)}")
     else:
         d = fold_diffs(args.control, args.arm)
         print(f"{args.name}: {_fmt(d)}  ({sum(x < 0 for x in d)}/5 negative)")

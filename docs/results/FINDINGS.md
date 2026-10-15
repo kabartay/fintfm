@@ -11362,3 +11362,29 @@ measure. The rules stand, with one addition: **an `EN` or `L600` verdict of bett
 also needs its mean ΔAP to exceed twice the device gap**, measured as §163's exact setting
 (seed 0) re-run on the same GPU kernel against §163's CPU arm. Until that re-run exists, a GPU
 arm's verdict is reported as **provisional (device-confounded)**, never as better or worse.
+
+## §165 — The published checkpoint is close to label-symmetric on synthetic tasks, and least so on Polish
+
+**MEASURED, 2026-10-16.** `scripts/label_symmetry_probe.py` on `runs/v4-cellattn-labels.pt`, CPU,
+210 s, 1.9 GB peak, through the public `FinancialTFMClassifier` wrapper. For each task the binary
+labels in the context are swapped and the prediction `p_swapped(y=1)` compared with the
+unswapped `p(y=1)`: a label-symmetric model gives `p = 1 − p_swapped`, so the statistic is the
+Pearson r between `p` and `1 − p_swapped`, pooled over all queries and as a per-task median.
+
+| source | sample | pooled r | median r per task |
+| --- | --- | --- | --- |
+| synthetic, financial prior | 24 tasks, 6,144 queries | 0.891 | 0.687 |
+| synthetic, SCM prior | 24 tasks, 6,144 queries | 0.955 | 0.872 |
+| Polish bankruptcy, 3 years | 3 draws of 512 context + 512 query rows | 0.490 | 0.445 |
+| Taiwanese bankruptcy | 3 draws of 512 context + 512 query rows | 0.829 | 0.839 |
+
+25 tasks per synthetic prior were requested; one per prior was skipped because its context held
+a single class. No task came out negative. §45 measured −0.62 on an older checkpoint, which is
+why ensembling over label swaps was introduced; the current checkpoint does not show that
+inversion. Polish 3-year is clearly the least symmetric of the four sources.
+
+**What it decides.** Class permutation as an ensemble member axis (audit AU5.12, now
+`ensemble_class_shift`, off by default) averages a prediction with its swapped twin. That helps a
+model that is roughly symmetric and errs in both directions; it would blur one that reads the
+class index. On this evidence the axis is worth scoring, with Polish the case to watch. No
+accuracy effect is measured here.
