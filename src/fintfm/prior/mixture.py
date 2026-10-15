@@ -7,7 +7,15 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from fintfm.prior.base import Task, TaskBatch, collate, ensure_context_classes
+from fintfm.prior.base import (
+    Task,
+    TaskBatch,
+    collate,
+    condition_task_features,
+    ensure_context_classes,
+    permute_task_classes,
+    truncate_query,
+)
 from fintfm.prior.crossed import sample_scm_features_financial_label
 from fintfm.prior.financial import (
     _ABSOLUTE_RATE_FLOOR,
@@ -269,6 +277,72 @@ class PriorConfig:
     draw with its stated probability, checked after the dedicated ``p_real_*`` sources and before
     :attr:`p_financial`. ``""`` (default) parses nothing and opens nothing, so every checkpoint
     trained before this field existed is reproduced exactly."""
+    permute_classes: bool = False
+    """Relabel every classification task's classes by a fresh random permutation once the
+    batch's split is drawn (audit AU5.5; :func:`fintfm.prior.base.permute_task_classes`).
+    The SCM prior's classes are ordinal bands and the financial prior's default is always
+    class 1, so without it a model can learn which class *index* is rare instead of reading
+    the context. Context and query labels share the permutation; regression tasks are left
+    alone because their bins are ordinal. Refused with :attr:`n_horizons` (a survival label is
+    tied to its period) and with ``head_type="quantile"`` (every task is regression, so the
+    flag could never act). ``False`` (default) consumes no draw and reproduces every existing
+    checkpoint's batches byte for byte."""
+    feature_transforms: tuple[str, ...] = ()
+    """Inference-time feature transforms to train under (audit AU5.6). Each task draws one
+    uniformly from this tuple and has it fitted on its **context rows only** and applied to all
+    its rows (:func:`fintfm.prior.base.condition_task_features`), mirroring
+    :class:`~fintfm.inference.preprocess.FeatureConditioner` at ``fit``. Names are
+    ``"none"``, ``"rank"``, ``"power"`` and ``"winsor"``. ``()`` (default) transforms nothing
+    and consumes no draw -- today's behaviour, where the model's own context z-score is the
+    only normalisation. A one-element tuple applies that transform to every task without a
+    draw, so ``("none",)`` is also byte-identical to the default."""
+    max_query_rows: int | None = None
+    """Keep at most this many query rows per task once the split is drawn (audit AU5.4;
+    :func:`fintfm.prior.base.truncate_query`). Contexts up to 4,096 rows are already reachable
+    through :attr:`n_rows_choices` -- ``int(0.9 * 4552) == 4096`` at the default
+    :attr:`max_ctx_frac` -- but at that size a task also carries 456-3,187 query rows, and
+    the row encoder's cost is paid on context plus query. This caps the query so a long
+    context costs what its context costs. ``None`` (default) keeps every row and consumes no
+    draw, reproducing every existing checkpoint's batches byte for byte."""
+
+
+#: The names :attr:`PriorConfig.feature_transforms` accepts -- the values of
+#: :data:`fintfm.inference.preprocess.FeatureTransform`, so pretraining can draw exactly the
+#: transforms inference can apply.
+FEATURE_TRANSFORMS: tuple[str, ...] = ("none", "rank", "power", "winsor")
+
+
+def _check_levers(cfg: PriorConfig) -> None:
+    """Refuse audit Phase 5 lever settings that are malformed or could never take effect.
+
+    Checked before any draw, so a bad configuration fails at the first batch rather than
+    training on a knob that silently did nothing -- the failure ``scm_legacy`` at
+    ``p_financial=1.0`` once cost a 6,000-step run.
+
+    Args:
+        cfg: Prior configuration.
+
+    Raises:
+        ValueError: On an unknown transform name, a non-positive ``max_query_rows``, or
+            ``permute_classes`` combined with ``n_horizons`` or ``head_type="quantile"``.
+    """
+    unknown = [k for k in cfg.feature_transforms if k not in FEATURE_TRANSFORMS]
+    if unknown:
+        raise ValueError(
+            f"unknown feature_transforms {unknown}; valid names are {list(FEATURE_TRANSFORMS)}"
+        )
+    if cfg.max_query_rows is not None and cfg.max_query_rows < 1:
+        raise ValueError(f"max_query_rows must be at least 1, got {cfg.max_query_rows}")
+    if cfg.permute_classes and cfg.n_horizons is not None:
+        raise ValueError(
+            "permute_classes cannot be combined with n_horizons: a survival task's label is "
+            "exactly period != CENSORED, and relabelling it would break that identity"
+        )
+    if cfg.permute_classes and cfg.head_type == "quantile":
+        raise ValueError(
+            "permute_classes is inert with head_type='quantile': every task is regression, "
+            "and regression bins are never permuted"
+        )
 
 
 def _draw_source(rng: np.random.Generator, cfg: PriorConfig) -> tuple[str, str | None]:
@@ -517,7 +591,24 @@ def sample_batch(rng: np.random.Generator, cfg: PriorConfig, batch_size: int) ->
 
     The task size is drawn per batch from ``cfg.n_rows_choices`` when set, because the
     base-rate floor scales with it and a fixed size caps how imbalanced any task can be.
+
+    Once the split is drawn, the audit Phase 5 levers apply in a fixed order, each consuming
+    random draws only when switched on: the class floor, query truncation
+    (:attr:`PriorConfig.max_query_rows`, no draw), the feature transform
+    (:attr:`PriorConfig.feature_transforms`, one draw per task when there is a choice), then
+    class permutation (:attr:`PriorConfig.permute_classes`, one draw per classification task).
+    With all of them off the random stream and the batch are exactly what they were before the
+    levers existed.
+
+    Args:
+        rng: NumPy random generator; the only source of randomness.
+        cfg: Prior configuration.
+        batch_size: Tasks in the batch.
+
+    Returns:
+        The collated batch.
     """
+    _check_levers(cfg)
     n_rows = int(rng.choice(cfg.n_rows_choices)) if cfg.n_rows_choices else cfg.n_rows
     if cfg.scm_reuse_graph > 1:
         tasks = _sample_tasks_reusing_graphs(rng, cfg, n_rows, batch_size)
@@ -534,4 +625,16 @@ def sample_batch(rng: np.random.Generator, cfg: PriorConfig, batch_size: int) ->
     n_ctx = min(max(n_ctx, 2), n_rows - 1)
     if cfg.min_ctx_per_class > 0:
         tasks = [ensure_context_classes(rng, t, n_ctx, cfg.min_ctx_per_class) for t in tasks]
+    if cfg.max_query_rows is not None:
+        tasks = [truncate_query(t, n_ctx, cfg.max_query_rows) for t in tasks]
+    if cfg.feature_transforms:
+        kinds = cfg.feature_transforms
+        tasks = [
+            condition_task_features(
+                t, n_ctx, kinds[int(rng.integers(len(kinds)))] if len(kinds) > 1 else kinds[0]
+            )
+            for t in tasks
+        ]
+    if cfg.permute_classes:
+        tasks = [permute_task_classes(rng, t) for t in tasks]
     return collate(tasks, n_ctx=n_ctx, max_features=cfg.max_features, head_type=cfg.head_type)

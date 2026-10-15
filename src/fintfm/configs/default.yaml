@@ -98,3 +98,14 @@ prior:
   # 0 moves nothing and reproduces every existing checkpoint; any other value changes the
   # pretraining distribution. Mirrors PriorConfig.min_ctx_per_class (tests/test_config.py).
   min_ctx_per_class: 0
+  # Audit Phase 5 pretraining levers, all off by default so every existing checkpoint's
+  # batches are reproduced byte for byte. Each mirrors the PriorConfig field of the same name
+  # (tests/test_config.py) and is overridden by the matching fintfm-train flag.
+  # AU5.5: relabel each classification task's classes by a random permutation.
+  permute_classes: false
+  # AU5.6: per-task draw from these inference transforms (none, rank, power, winsor), fitted
+  # on context rows only. [] applies none, as today.
+  feature_transforms: []
+  # AU5.4: cap query rows per task so a long context does not bring a long query with it.
+  # null keeps every row.
+  max_query_rows: null

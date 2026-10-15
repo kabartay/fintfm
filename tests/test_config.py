@@ -71,6 +71,18 @@ def test_prior_section_mirrors_the_context_class_floor_default():
     assert load_config().prior.min_ctx_per_class == PriorConfig.min_ctx_per_class == 0
 
 
+def test_prior_section_mirrors_the_phase5_lever_defaults():
+    # AU5.4-AU5.6's levers live in PriorConfig and are supplied from configuration by
+    # fintfm-train; the defaults must agree and must all be off, so no existing checkpoint's
+    # batches move unless a run asks for it.
+    from fintfm.prior import PriorConfig
+
+    cfg = load_config().prior
+    assert cfg.permute_classes is PriorConfig.permute_classes is False
+    assert cfg.feature_transforms == PriorConfig.feature_transforms == ()
+    assert cfg.max_query_rows is PriorConfig.max_query_rows is None
+
+
 def test_shipped_example_configs_all_load():
     """A broken example is worse than no example: it is copied before it is run."""
     root = Path(__file__).resolve().parents[1] / "configs"
@@ -128,6 +140,8 @@ def test_overlapping_time_split_is_refused(tmp_path):
         ("context_sweep:\n  context_sizes: [0]\n", "context_sizes"),
         ("context_sweep:\n  seeds: []\n", "seeds"),
         ("prior:\n  absolute_rate_floor: 0.9\n  rate_ceiling: 0.3\n", "prior rates"),
+        ("prior:\n  feature_transforms: [rank, quantile]\n", "feature_transforms"),
+        ("prior:\n  max_query_rows: 0\n", "max_query_rows"),
     ],
 )
 def test_out_of_range_values_are_refused(tmp_path, body, match):

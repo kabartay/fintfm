@@ -16,6 +16,8 @@ import torch
 from fintfm.config import load_config
 from fintfm.modeling.model import FinancialTFM, ModelConfig
 from fintfm.prior import PriorConfig
+from fintfm.prior.dump import open_task_dump
+from fintfm.prior.levers import add_prior_lever_arguments, prior_lever_values
 from fintfm.prior.mixture import sample_batch
 
 #: Second element of the evaluation generator's seed, ``[seed, _EVAL_STREAM]``, so held-out
@@ -80,6 +82,9 @@ class TrainConfig:
     #: it can be resumed against a *larger* total step count -- the ``requires schedulefree``
     #: extra must be installed.
     optimizer: str = "adamw"
+    #: Pre-generated batches to train from instead of sampling (audit AU5.15); see
+    #: :mod:`fintfm.prior.dump`. ``None`` samples live, as every run before it did.
+    task_dump: str | None = None
 
 
 class _NullSchedule:
@@ -484,8 +489,15 @@ def train(
     if train_cfg.run_steps is not None:
         stop_step = min(train_cfg.steps, start_step + train_cfg.run_steps)
     _set_optimizer_mode(opt, train_cfg.optimizer, "train")
+    dump = (
+        None
+        if train_cfg.task_dump is None
+        else open_task_dump(train_cfg.task_dump, prior_cfg, train_cfg.batch_size, train_cfg.steps)
+    )
     for step in range(start_step, stop_step):
-        batch = sample_batch(rng, prior_cfg, train_cfg.batch_size).to(train_cfg.device)
+        batch = (
+            sample_batch(rng, prior_cfg, train_cfg.batch_size) if dump is None else dump.batch(step)
+        ).to(train_cfg.device)
         # survival objective when the model has a hazard head and the prior emits periods
         if model.hazard is not None and batch.period is not None:
             loss = model.survival_loss(batch.X, batch.y, batch.period, batch.n_ctx)
@@ -884,6 +896,7 @@ def main() -> None:
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--out", type=str, default="runs/v0.pt")
     p.add_argument("--config", type=str, default=None, help="YAML overriding the defaults")
+    add_prior_lever_arguments(p)
     args = p.parse_args()
     cfg = load_config(args.config)
     if args.threads is not None:
@@ -972,6 +985,7 @@ def main() -> None:
             if args.min_ctx_per_class is None
             else args.min_ctx_per_class
         ),
+        **prior_lever_values(args, cfg.prior),
     )
     train_cfg = TrainConfig(
         steps=args.steps,
@@ -985,6 +999,7 @@ def main() -> None:
         resume=args.resume,
         init_from=args.init_from,
         optimizer=args.optimizer,
+        task_dump=args.task_dump,
     )
     print(f"config: {cfg.provenance()}")
     train(model_cfg, prior_cfg, train_cfg, args.out)

@@ -119,7 +119,8 @@ class ContextSweepConfig:
 
 @dataclass(frozen=True)
 class PriorConfigDefaults:
-    """The financial prior's default-rate envelope, plus the context class floor (AU1.16)."""
+    """The financial prior's default-rate envelope, the context class floor (AU1.16), and the
+    audit Phase 5 pretraining levers (AU5.4-AU5.6), each mirroring a ``PriorConfig`` field."""
 
     sharpness_min: float = 0.3
     sharpness_max: float = 12.0
@@ -128,6 +129,9 @@ class PriorConfigDefaults:
     rate_ceiling: float = 0.30
     n_sectors: int = 12
     min_ctx_per_class: int = 0
+    permute_classes: bool = False
+    feature_transforms: tuple[str, ...] = ()
+    max_query_rows: int | None = None
 
 
 @dataclass(frozen=True)
@@ -286,6 +290,15 @@ def _validate(cfg: Config) -> None:
             f"prior rates must satisfy 0 < absolute_rate_floor ({p.absolute_rate_floor}) < "
             f"rate_ceiling ({p.rate_ceiling}) <= 1"
         )
+    valid_transforms = ("none", "rank", "power", "winsor")
+    bad = [k for k in p.feature_transforms if k not in valid_transforms]
+    if bad:
+        raise ConfigError(
+            f"prior.feature_transforms has unknown name(s) {bad}; valid names are "
+            f"{list(valid_transforms)}"
+        )
+    if p.max_query_rows is not None and p.max_query_rows < 1:
+        raise ConfigError(f"prior.max_query_rows must be at least 1, got {p.max_query_rows}")
 
 
 #: Section name to dataclass. Declared explicitly rather than read off ``Config``'s

@@ -8,6 +8,7 @@ import numpy as np
 import torch
 
 from fintfm.inference.binning import QuantileBinner
+from fintfm.inference.preprocess import FeatureConditioner
 
 
 @dataclass
@@ -155,6 +156,139 @@ def ensure_context_classes(
         period=None if task.period is None else task.period[order],
         n_horizons=task.n_horizons,
         y_continuous=None,
+    )
+
+
+def permute_task_classes(rng: np.random.Generator, task: Task) -> Task:
+    """Relabel a classification task's classes by a random permutation (audit AU5.5).
+
+    The SCM prior cuts an ordinal latent, so class 0 is always its lowest band, and the
+    financial prior always emits the rare default as class 1. A model can therefore learn a
+    class-*index* prior ("class 1 is rare") that no in-context reading of the labels taught
+    it, and which a real table with the minority coded 0 would contradict. Drawing a fresh
+    permutation of ``[0, n_classes)`` per task removes that shortcut. Context and query labels
+    are mapped by the same permutation, so the task's in-context problem is unchanged; only
+    the arbitrary names of its classes move. Labels stay inside ``[0, n_classes)``, so
+    :class:`TaskBatch`'s ``n_classes`` masking is untouched.
+
+    Args:
+        rng: NumPy random generator; consumed once (one permutation) per classification task.
+        task: The task to relabel. A regression task (``y_continuous`` set) is returned
+            unchanged and consumes no draw: its bins are ordinal and are decoded as such, so
+            permuting them would not remove a shortcut, it would corrupt the target. A survival
+            task (``period`` set) is refused, since its ``y`` must equal
+            ``period != CENSORED`` exactly.
+
+    Returns:
+        A relabelled copy, or ``task`` itself for a regression task.
+
+    Raises:
+        ValueError: If the task carries a ``period``.
+    """
+    if task.y_continuous is not None:
+        return task
+    if task.period is not None:
+        raise ValueError(
+            "class permutation would break a survival task's y == (period != CENSORED) "
+            "identity; do not combine permute_classes with n_horizons"
+        )
+    perm = rng.permutation(task.n_classes)
+    return Task(
+        X=task.X,
+        y=perm[task.y].astype(task.y.dtype, copy=False),
+        n_classes=task.n_classes,
+        is_categorical=task.is_categorical,
+        source=task.source,
+        period=None,
+        n_horizons=task.n_horizons,
+        y_continuous=None,
+    )
+
+
+def condition_task_features(task: Task, n_ctx: int, kind: str) -> Task:
+    """Apply one inference-time feature transform to a task, fitted on its context rows only.
+
+    Audit AU5.6: pretraining fed the model raw prior features (z-scored inside the model by
+    :func:`fintfm.modeling.model.normalize_features`), while inference defaults to
+    ``feature_transform="rank"`` before that same z-score -- so the shipped checkpoint is
+    always evaluated on an input distribution it never trained on. This mirrors exactly what
+    :class:`~fintfm.inference.classifier.FinancialTFMClassifier` does at ``fit``: a
+    :class:`~fintfm.inference.preprocess.FeatureConditioner` with its default quantile and
+    subsample, fitted on the labelled rows and applied to every row. Here the labelled rows are
+    the batch's **context** rows; the query rows never enter the fit, so a query cannot shape
+    its own conditioning, which is the same leakage rule :func:`collate` keeps for regression
+    bin edges.
+
+    Args:
+        task: Task whose ``X`` to condition; every column is transformed, categorical or
+            not, as inference does.
+        n_ctx: The batch's context size; rows ``[:n_ctx]`` are the fit rows.
+        kind: ``"none"``, ``"rank"``, ``"power"`` or ``"winsor"``. ``"none"`` returns
+            ``task`` itself.
+
+    Returns:
+        ``task`` for ``"none"``, otherwise a copy with transformed ``X`` (NaN preserved).
+    """
+    if kind == "none":
+        return task
+    ctx = task.X[:n_ctx]
+    # A column with no finite context value has nothing to fit on, and ``"power"`` raises on
+    # one (sklearn's Yeo-Johnson unpacks an empty optimisation). Small contexts over sparse
+    # columns produce these, so they are left untransformed -- what ``"none"`` would do -- and
+    # the rest are fitted exactly as inference fits them.
+    fittable = np.isfinite(ctx).any(axis=0)
+    if fittable.all():
+        X = FeatureConditioner(kind).fit(ctx).transform(task.X)  # type: ignore[arg-type]
+    else:
+        X = task.X.copy()
+        cols = np.flatnonzero(fittable)
+        if len(cols):
+            X[:, cols] = (
+                FeatureConditioner(kind)  # type: ignore[arg-type]
+                .fit(ctx[:, cols])
+                .transform(task.X[:, cols])
+            )
+    return Task(
+        X=X,
+        y=task.y,
+        n_classes=task.n_classes,
+        is_categorical=task.is_categorical,
+        source=task.source,
+        period=task.period,
+        n_horizons=task.n_horizons,
+        y_continuous=task.y_continuous,
+    )
+
+
+def truncate_query(task: Task, n_ctx: int, max_query_rows: int) -> Task:
+    """Keep the context and at most ``max_query_rows`` query rows of a task (audit AU5.4).
+
+    Lets a batch carry a long context without paying for a proportionally long query: the
+    row encoder's cost grows with the whole task length, context plus query, so a 4,096-row
+    context drawn at the default context fraction would otherwise bring up to ~3,000 query
+    rows with it. Rows are kept in order, so this assumes what the context/query split itself
+    already assumes -- that a prior's rows are exchangeable -- and consumes no random draw.
+
+    Args:
+        task: The task, of ``n_rows`` rows with the first ``n_ctx`` as context.
+        n_ctx: The batch's context size.
+        max_query_rows: Query rows to keep at most.
+
+    Returns:
+        ``task`` itself when its query is already short enough, otherwise a truncated copy.
+    """
+    keep = n_ctx + max_query_rows
+    if task.n_rows <= keep:
+        return task
+    return Task(
+        X=task.X[:keep],
+        y=task.y[:keep],
+        n_classes=task.n_classes,
+        is_categorical=task.is_categorical,
+        source=task.source,
+        period=None if task.period is None else task.period[:keep],
+        n_horizons=task.n_horizons,
+        y_continuous=None if task.y_continuous is None else task.y_continuous[:keep],
     )
 
 
