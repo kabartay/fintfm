@@ -61,7 +61,8 @@ def check_protocol(control: Path, arm: Path) -> None:
         arm: The arm's.
 
     Raises:
-        SystemExit: If any :data:`PROTOCOL_KEYS` setting differs.
+        SystemExit: If any :data:`PROTOCOL_KEYS` setting differs. Columns a run dropped
+            with ``--drop-columns`` are added back before ``n_features`` is compared.
     """
     recs = []
     for d in (control, arm):
@@ -70,7 +71,12 @@ def check_protocol(control: Path, arm: Path) -> None:
             print(f"note: {d} has no v4_protocol.json; protocol settings not checked")
             return
         rec = json.loads(f.read_text())
-        recs.append({**rec.get("config", {}), "dataset": rec.get("dataset")})
+        cfg = {**rec.get("config", {}), "dataset": rec.get("dataset")}
+        # an ablation drops columns on purpose (`--drop-columns`); count what it would have had,
+        # so the ablation pairs with its control while any other width difference still refuses
+        if cfg.get("n_features") is not None:
+            cfg["n_features"] += len(cfg.get("drop_columns") or ())
+        recs.append(cfg)
     diff = {k: (recs[0].get(k), recs[1].get(k)) for k in PROTOCOL_KEYS
             if recs[0].get(k) != recs[1].get(k)}
     if diff:

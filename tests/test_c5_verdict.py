@@ -110,6 +110,11 @@ def test_fold_diffs_refuses_a_different_protocol(tmp_path):
     capped = write("capped", max_rows=200_000)
     with pytest.raises(SystemExit, match="protocol settings differ"):
         fold_diffs(control, capped)
+    ablation = write("ablation", n_features=129, drop_columns=["operational_status"])
+    assert len(fold_diffs(control, ablation)) == 5  # one column dropped on purpose: pairs
+    narrower = write("narrower", n_features=129)
+    with pytest.raises(SystemExit, match="protocol settings differ"):
+        fold_diffs(control, narrower)
 
 
 def test_bootstrap_p_is_never_exactly_zero():
