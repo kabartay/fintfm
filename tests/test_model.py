@@ -292,16 +292,18 @@ def test_eval_quality_handles_multi_class_tasks():
         cfg = PriorConfig(max_features=16, max_classes=max_classes, p_financial=0.5, n_rows=200)
         q = _eval_quality(model, cfg, np.random.default_rng(0), n_batches=2)
         assert set(q) == {"auc", "auc_per_task", "brier_skill", "base_rate"}
+        # At this seed every metric is defined: both pools hold two or more classes and some
+        # held-out task is binary. `isnan or isfinite` admitted the NaN this test exists to
+        # catch (audit AU1.12); NaN is legitimate only when no task qualifies, which a fixed
+        # seed rules out here.
         for key, value in q.items():
-            assert np.isnan(value) or np.isfinite(value), (max_classes, key, value)
-        if np.isfinite(q["auc"]):
-            assert 0.0 <= q["auc"] <= 1.0
-        # the per-task mean is the honest discrimination number (§57); it is NaN when no
-        # held-out task was binary, which a multi-class prior makes likely
-        if np.isfinite(q["auc_per_task"]):
-            assert 0.0 <= q["auc_per_task"] <= 1.0
-            # skill against the class-frequency predictor is bounded above by 1
-            assert q["brier_skill"] <= 1.0
+            assert np.isfinite(value), (max_classes, key, value)
+        assert 0.0 <= q["auc"] <= 1.0
+        # the per-task mean is the honest discrimination number (§57)
+        assert 0.0 <= q["auc_per_task"] <= 1.0
+        # skill against the class-frequency predictor is bounded above by 1
+        assert q["brier_skill"] <= 1.0
+        assert 0.0 < q["base_rate"] < 1.0
 
 
 def test_periodic_checkpointing_writes_recoverable_files(tmp_path):

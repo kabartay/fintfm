@@ -58,7 +58,10 @@ def test_unscorable_tasks_are_skipped_not_counted_as_zero():
 def test_every_registered_prior_loads_and_scores():
     for name, spec in PRIORS.items():
         s = score_prior(_load(spec), n_tasks=3, n_rows=300)
-        assert s["n_scored"] >= 0, name
+        # `n_scored >= 0` could not fail (audit AU1.12). A prior whose three seeded tasks are
+        # all unscorable, or that scores outside [0, 1], is broken in a way this must catch.
+        assert 1 <= s["n_scored"] <= 3, name
+        assert 0.0 <= s["performance"] <= 1.0, name
 
 
 def test_summarise_renders_all_priors():

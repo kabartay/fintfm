@@ -82,7 +82,11 @@
       target; `_pooled_prior_shift` assumes equal shares for multiclass retrieval
       (`classifier.py:514`).
       Verify: one test per item, each failing before its fix.
-- [ ] AU1.12 **Tests that cannot fail.** `tests/test_prior.py:16` (`... or True`),
+- [ ] AU1.12 **Partly done (2026-10-16).** The three assertions are rewritten and the
+      fine-tuning bound now forbids `np.isin` (backstop 60 s); each fails when its condition is
+      broken by hand. Still open: direct tests for `inference/preprocess.py` (left to the
+      preprocess work) and the `.pytest_cache/lastfailed` re-check on a free machine.
+      **Tests that cannot fail.** `tests/test_prior.py:16` (`... or True`),
       `tests/test_model.py:296` (`isnan or isfinite`), `tests/test_prior_score.py:61`
       (`n_scored >= 0`). The wall-clock bound at `tests/test_finetune.py:97` is flaky on a
       loaded machine: assert on operation count or loosen it. `inference/preprocess.py` has no

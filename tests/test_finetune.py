@@ -85,6 +85,7 @@ def test_finetuning_reduces_the_loss_on_a_learnable_task():
 def test_string_company_ids_work_and_stay_linear():
     """V4FinBench's company ids are strings; np.isin over them was O(n x k) and stalled §163."""
     import time
+    from unittest import mock
 
     n, n_groups = 600_000, 150_000
     raw = np.array([f"company-{i:06d}" for i in range(n_groups)])[
@@ -93,8 +94,13 @@ def test_string_company_ids_work_and_stay_linear():
     uniq, codes = np.unique(raw, return_inverse=True)
     rng = np.random.default_rng(1)
     t = time.perf_counter()
-    ci, qi, _ = _finetune_rows(rng, codes, uniq, n_q_groups=45_000, n_ctx=2000, n_q=512)
-    assert time.perf_counter() - t < 2.0
+    # The regression was np.isin over the ids, so the helper must not call it at all; that is
+    # a check a loaded machine cannot make flaky. The wall-clock bound stays only as a backstop
+    # against a gross regression (the original took hours), loose enough for a busy machine
+    # (audit AU1.12; it was 2 s).
+    with mock.patch.object(np, "isin", side_effect=AssertionError("np.isin is O(n x k) here")):
+        ci, qi, _ = _finetune_rows(rng, codes, uniq, n_q_groups=45_000, n_ctx=2000, n_q=512)
+    assert time.perf_counter() - t < 60.0
     assert not set(raw[ci]) & set(raw[qi])
 
     X, y, _ = _data()
