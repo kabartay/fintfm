@@ -103,7 +103,8 @@ direction (§93/§97) — this project misread it once and the correction belong
   results and not an appendix.
 - **5.2 The fix, synthetic.** §78, both `p_financial` arms, two independent instruments.
 - **5.3 The fix, real.** §80/§84: +0.0486 AP matched-context, +0.0417 AP best-vs-best, 5/5
-  folds, V4FinBench (the gain possibly confounded with the prior mix, audit task AU2.8).
+  folds, V4FinBench (the gain confounded with the prior mix, 100% against 70% financial
+  tasks; confirmed 2026-10-16, audit task AU2.8).
 - **5.4 Where it still loses, externally.** §98 and §100 together — the placement *and* the
   decomposition. Presented as one result, because the placement without the decomposition
   overstates the architectural deficit by 2.8×.

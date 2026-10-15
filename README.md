@@ -116,8 +116,9 @@ that unrepresentable, at zero measured accuracy cost.
 capped discrimination regardless of true task difficulty, caught against an exactly-known
 Bayes-optimal AUC. Its cause was isolated to the architecture rather than the prior after
 eliminating seven other candidates one at a time, then closed by a two-way cell-attention change
-worth +0.042 average precision on real data (that comparison may also have changed the
-prior mix; audit task AU2.8 checks it).
+worth +0.042 average precision on real data. That comparison also changed the prior mix
+(100% against 70% financial tasks; confirmed 2026-10-16, audit task AU2.8), so the effect of the
+architecture alone is unmeasured.
 
 **The record corrects itself in public.** This README has been wrong about its own results at
 least twice (§107, §112). Both are retracted in place, with the reasoning kept, and
