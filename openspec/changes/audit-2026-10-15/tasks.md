@@ -195,7 +195,12 @@
       Validation predictions (`y_val`, `val_<arm>`) are already saved: switch the pilot to them,
       and note in §157/§162 that fold 0 selected the arm.
       Verify: `pilot_compare.py --split val` exists and is the default.
-- [ ] AU2.5 **`operational_status` looks like a collection-time snapshot.** Constant within
+- [ ] AU2.5 **Partly done (2026-10-16).** Upstream checked: their drop list
+      (`docs/benchmark_protocol.md`, `preprocessing.py` at 59d33ea) equals ours and keeps both
+      `operational_status` and `Insolvency_flag` as features; the paper lists the latter as
+      "Total_liab > Total_assets". `--drop-columns` added (`test_drop_columns_*`). Still open:
+      the ablation run and its FINDINGS write-up.
+      **`operational_status` looks like a collection-time snapshot.** Constant within
       99.9% of companies (209 of 188,065 vary), so for earlier years it may carry future
       information; not in `DROP_COLUMNS` (`v4_protocol.py:67`). Check the upstream V4FinBench
       drop list, then run every arm without it as an ablation. Also note that `Insolvency_flag`
@@ -289,7 +294,10 @@
 
 ## Phase 4 — cheap diagnostics of the CatBoost gap (hours, CPU or one Kaggle session)
 
-- [ ] AU4.1 **Is the gap boosting rounds?** LightGBM at 1,000 trees and lr 0.05, CatBoost at
+- [ ] AU4.1 **Prepared (2026-10-16), not launched.** `--booster-params` adds fixed-parameter
+      booster arms (`test_booster_params_*`); CPU kernel
+      `scripts/kaggle/task_au41_boost_rounds/`, commit pin still a placeholder.
+      **Is the gap boosting rounds?** LightGBM at 1,000 trees and lr 0.05, CatBoost at
       100 iterations, same folds. If LightGBM approaches 0.40, the gap is rounds over all
       ~2,150 training positives, not categoricals (CatBoost gets no `cat_features` here; check
       `get_all_params()` for its boosting type).

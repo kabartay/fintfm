@@ -206,3 +206,111 @@ def test_an_unknown_selection_metric_is_refused(tmp_path):
 
     with pytest.raises(ValueError, match="select_metric"):
         run(None, tmp_path, select_metric="f1")
+
+
+def _write_horizon(root, n_companies=60, rows_each=4, seed=0):
+    """A tiny horizon-0 parquet with V4FinBench's column names, for end-to-end runs."""
+    pd = pytest.importorskip("pandas")
+    pytest.importorskip("pyarrow")
+    rng = np.random.RandomState(seed)
+    rows = []
+    for k in range(n_companies):
+        pos = k % 4 == 0  # a quarter of companies end distressed
+        for t in range(rows_each):
+            last = t == rows_each - 1
+            rows.append({
+                "country": k % 2, "company": f"f{k}", "year": 2010 + t,
+                "operational_status": float(not pos), "Equity/total_assets": rng.randn(),
+                "Cash/total_assets": rng.randn() + (2.0 if pos and last else 0.0),
+                "main_label": int(pos and last),
+            })
+    pd.DataFrame(rows).to_parquet(root / HORIZON_FILES[0])
+
+
+def test_drop_columns_removes_a_feature_and_is_recorded(tmp_path):
+    """AU2.5: the operational_status ablation runs from the CLI, not by editing DROP_COLUMNS."""
+    from fintfm.experiments.v4_protocol import _load_horizon, run
+
+    _write_horizon(tmp_path)
+    *_, names = _load_horizon(tmp_path, 0, None)
+    assert "operational_status" in names
+    *_, names = _load_horizon(tmp_path, 0, None, ("operational_status",))
+    assert "operational_status" not in names and "Cash/total_assets" in names
+
+    rec = run(None, tmp_path / "out", root=tmp_path, with_boosting=False,
+              drop_columns=("operational_status",), folds=(0,))
+    assert rec["config"]["drop_columns"] == ["operational_status"]
+    assert rec["config"]["n_features"] == len(names)
+    default = run(None, tmp_path / "out0", root=tmp_path, with_boosting=False, folds=(0,))
+    assert default["config"]["drop_columns"] == []
+    assert default["config"]["n_features"] == len(names) + 1
+
+
+def test_drop_columns_refuses_a_misspelt_column_or_the_target(tmp_path):
+    from fintfm.experiments.v4_protocol import _load_horizon
+
+    _write_horizon(tmp_path)
+    with pytest.raises(ValueError, match="operatonal_status"):
+        _load_horizon(tmp_path, 0, None, ("operatonal_status",))
+    with pytest.raises(ValueError, match="target"):
+        _load_horizon(tmp_path, 0, None, ("main_label",))
+
+
+def test_booster_params_parse_into_named_arms():
+    """AU4.1: fixed booster settings are typed, ordered, and named so they cannot collide."""
+    from fintfm.experiments.v4_protocol import booster_arm_name, parse_booster_params
+
+    specs = parse_booster_params(
+        ["lightgbm:n_estimators=1000,learning_rate=0.05", "catboost:iterations=100", "catboost:"]
+    )
+    assert specs == [
+        ("lightgbm", {"n_estimators": 1000, "learning_rate": 0.05}),
+        ("catboost", {"iterations": 100}),
+        ("catboost", {}),
+    ]
+    assert isinstance(specs[0][1]["n_estimators"], int)
+    assert [booster_arm_name(*s) for s in specs] == [
+        "lightgbm[n_estimators=1000,learning_rate=0.05]", "catboost[iterations=100]", "catboost",
+    ]
+    for bad in ("lightgbm", "svm:n=1", "lightgbm:n_estimators"):
+        with pytest.raises(ValueError):
+            parse_booster_params([bad])
+
+
+def test_booster_params_fit_fixed_arms_and_record_them(tmp_path, monkeypatch):
+    """Each fixed arm is fitted once per fold with exactly its params, beside the defaults."""
+    from fintfm.evaluation import boosting
+    from fintfm.experiments.v4_protocol import run
+
+    calls = []
+
+    def fake_fit(name, Xtr, ytr, Xte, timeout=1800, params=None):
+        calls.append((name, params))
+        return np.linspace(0, 1, len(Xte))
+
+    monkeypatch.setattr(boosting, "fit_predict_boosting", fake_fit)
+    monkeypatch.setattr(boosting, "available_boosting", list)
+    _write_horizon(tmp_path)
+    fixed = (("lightgbm", {"n_estimators": 1000, "learning_rate": 0.05}),
+             ("catboost", {"iterations": 100}), ("catboost", {}))
+    rec = run(None, tmp_path / "out", root=tmp_path, classical=(), folds=(0, 1),
+              booster_params=fixed)
+    assert calls == [(n, p or None) for n, p in fixed] * 2
+    arms = {a["arm"] for a in rec["arms"]}
+    assert arms == {"lightgbm[n_estimators=1000,learning_rate=0.05]",
+                    "catboost[iterations=100]", "catboost"}
+    assert [b["params"] for b in rec["config"]["booster_params"]] == [p for _, p in fixed]
+    saved = np.load(tmp_path / "out" / "predictions_fold0.npz")
+    assert "pred_catboost[iterations=100]" in saved.files
+
+
+def test_booster_params_refuse_a_name_collision(tmp_path, monkeypatch):
+    from fintfm.evaluation import boosting
+    from fintfm.experiments.v4_protocol import run
+
+    with pytest.raises(ValueError, match="same name"):
+        run(None, tmp_path, booster_params=(("catboost", {}), ("catboost", {})))
+    monkeypatch.setattr(boosting, "available_boosting", lambda: ["catboost"])
+    _write_horizon(tmp_path)
+    with pytest.raises(ValueError, match="collide"):
+        run(None, tmp_path / "out", root=tmp_path, booster_params=(("catboost", {}),))
