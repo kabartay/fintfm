@@ -119,3 +119,27 @@ def test_svd_augmenter_caps_components_and_zero_appends_nothing():
     np.testing.assert_array_equal(SVDAugmenter(0).fit(ctx).transform(ctx), ctx)
     with pytest.raises(ValueError):
         SVDAugmenter(-1)
+
+
+def test_power_leaves_a_column_with_no_finite_training_value_untransformed():
+    """A training column that is entirely missing must not crash ``"power"``.
+
+    sklearn's Yeo-Johnson fit raises (``not enough values to unpack``) on an all-NaN column,
+    so one empty column failed the whole fit. The column now comes out missing everywhere --
+    what ``"rank"`` already produced for it, and all the training rows ever said about it --
+    and every other column is transformed exactly as if the empty one were absent.
+    """
+    rng = np.random.default_rng(3)
+    X = rng.lognormal(size=(50, 3)).astype(np.float32)
+    X[:, 1] = np.nan
+    cond = FeatureConditioner("power").fit(X)
+    query = rng.lognormal(size=(5, 3)).astype(np.float32)
+    query[0, 1] = np.inf
+    out = cond.transform(query)
+    assert np.isnan(out[:, 1]).all()
+    alone = FeatureConditioner("power").fit(X[:, [0, 2]]).transform(query[:, [0, 2]])
+    # equal up to float32 rounding: the column subset changes the arrays' memory layout
+    np.testing.assert_allclose(out[:, [0, 2]], alone, rtol=1e-6, atol=1e-6)
+    assert np.isnan(cond.transform(X)[:, 1]).all()
+    # without an empty column the fit takes the path it always took
+    assert FeatureConditioner("power").fit(X[:, [0, 2]])._pt_cols is None

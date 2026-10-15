@@ -159,6 +159,15 @@ class FeatureConditioner:
                 # result is clipped below the same way every other tail value here is, so the
                 # warning describes a case already handled rather than an unhandled one.
                 warnings.simplefilter("ignore", category=RuntimeWarning)
+                # A column with no value in the training rows gives Yeo-Johnson nothing to fit
+                # and sklearn raises on it, failing the whole fit over one empty column. Fit the
+                # rest; transform() returns the empty ones as NaN, which is what "rank" already
+                # yields for them and all the training rows say about them. With no empty
+                # column, ``_pt_cols`` is None and the path below is the one it always was.
+                fittable = ~np.isnan(S).all(axis=0)
+                self._pt_cols = None if fittable.all() else np.flatnonzero(fittable)
+                if self._pt_cols is not None:
+                    S = S[:, self._pt_cols]
                 self._pt = PowerTransformer(method="yeo-johnson", standardize=False).fit(S)
                 yj = self._pt.transform(S)
             yj_finite = np.where(np.isfinite(yj), yj, np.nan)
@@ -207,12 +216,18 @@ class FeatureConditioner:
             z = (X - self._sq_centre) / self._sq_scale
             return (z / np.sqrt(1.0 + (z / SQUASH_SCALE) ** 2)).astype(np.float32)
         if self.kind == "power":
+            cols = self._pt_cols
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", category=RuntimeWarning)
-                yj = self._pt.transform(X)
+                yj = self._pt.transform(X if cols is None else X[:, cols])
             yj = np.where(np.isposinf(yj), self._pt_yj_hi, yj)
             yj = np.where(np.isneginf(yj), self._pt_yj_lo, yj)
-            return ((yj - self._pt_mean) / self._pt_std).astype(np.float32)
+            out = ((yj - self._pt_mean) / self._pt_std).astype(np.float32)
+            if cols is None:
+                return out
+            full = np.full(X.shape, np.nan, dtype=np.float32)
+            full[:, cols] = out
+            return full
         return self._qt.transform(X).astype(np.float32)
 
     def _clamp_infinities(self, X: np.ndarray) -> np.ndarray:
