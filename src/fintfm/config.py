@@ -75,6 +75,10 @@ class InferenceConfig:
     finetune_query_group_frac: float = 0.3
     finetune_query_pos_frac: float | None = None
     finetune_seed: int = 0
+    ensemble_transforms: tuple[str, ...] | None = None
+    ensemble_svd_components: int = 0
+    ensemble_class_shift: bool = False
+    max_features_strategy: str = "raise"
 
 
 @dataclass(frozen=True)
@@ -293,6 +297,13 @@ def _validate(cfg: Config) -> None:
         )
     if not 0.0 <= cfg.inference.winsor_quantile < 0.5:
         raise ConfigError("inference.winsor_quantile must lie in [0, 0.5)")
+    if cfg.inference.max_features_strategy not in ("raise", "subsample"):
+        raise ConfigError(
+            "inference.max_features_strategy must be 'raise' or 'subsample', got "
+            f"{cfg.inference.max_features_strategy!r}"
+        )
+    if cfg.inference.ensemble_svd_components < 0:
+        raise ConfigError("inference.ensemble_svd_components must be at least 0")
     if any(n < 1 for n in cfg.context_sweep.context_sizes):
         raise ConfigError("context_sweep.context_sizes must all be at least 1")
     if not cfg.context_sweep.seeds:

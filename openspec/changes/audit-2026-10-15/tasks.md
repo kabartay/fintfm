@@ -373,7 +373,11 @@
       defaults to rank-to-normal. Draw a random transform per pretraining task and ensemble over
       transforms at inference.
       Verify: a test that pretraining draws each transform; five-fold AP against the current checkpoint.
-- [ ] AU5.7 **Stronger default ensembling.** `n_ensemble` is 1 in the library and V4 configs;
+- [ ] AU5.7 **Implemented behind `max_features_strategy: subsample` and `ensemble_transforms`
+      (2026-10-16, b3da945); measurement open.** Round-robin column subsets per member cover
+      every feature of a table wider than `max_features`, raising the member count to
+      `ceil(F / size)` when `n_ensemble` is below it; the default `raise` is unchanged.
+      **Stronger default ensembling.** `n_ensemble` is 1 in the library and V4 configs;
       add feature-shuffle and transform members, and feature-subset ensembling to lift the
       `max_features` hard limit (`classifier.py:373`).
       Verify: TabArena-Lite and V4FinBench scores against `n_ensemble` 1 and the current 8.
@@ -400,7 +404,16 @@
       (`prior/tree.py:79-82,136`). Arm: a TabArena checkpoint on SCM + tree + families with
       `p_financial ≤ 0.3`, more tasks, after AU1.13.
       Verify: the prior sampler's statistics (class balance, categoricals, missingness, kurtosis) reported before and after.
-- [ ] AU5.12 **Per-member inference diversity** (peer recipes read from installed TabPFN 9.0.0,
+- [ ] AU5.12 **Implemented behind `ensemble_class_shift`, `ensemble_transforms` (new `squash`
+      transform) and `ensemble_svd_components`, with `max_features_strategy: subsample` for
+      wide tables (2026-10-16, b3da945); measurement open.** Label-symmetry probe
+      (`scripts/label_symmetry_probe.py`), MEASURED on `runs/v4-cellattn-labels.pt`, Pearson
+      r of `p` against `1 - p_swapped`, pooled over queries (median per task): synthetic
+      financial 0.891 (0.687), 24 tasks, 6,144 queries; synthetic SCM 0.955 (0.872), 24 tasks,
+      6,144 queries; Polish 3y 0.490 (0.445), 3 draws of 512 context and 512 query rows;
+      Taiwan 0.829 (0.839), same draws. No task negative, against §45's −0.62 on an older
+      checkpoint; the Polish panel is the least symmetric.
+      **Per-member inference diversity** (peer recipes read from installed TabPFN 9.0.0,
       TabICL 2.2.0, TabDPT 1.3.0, LimiX code; all reimplemented, no code copied): first a
       label-symmetry probe on the current checkpoint (§45 found −0.62 on an older one), then
       class permutation as a member axis, alternating preprocessing per member (rank vs robust

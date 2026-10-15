@@ -39,7 +39,8 @@ def test_inference_section_matches_the_classifier_defaults():
         "query_chunk", "retrieval_groups", "retrieval_min_positive",
         "prototype_minority_ratio", "n_ensemble", "finetune_steps", "finetune_lr",
         "finetune_batch", "finetune_query", "finetune_context", "finetune_query_group_frac",
-        "finetune_query_pos_frac", "finetune_seed",
+        "finetune_query_pos_frac", "finetune_seed", "ensemble_transforms",
+        "ensemble_svd_components", "ensemble_class_shift", "max_features_strategy",
     ):
         assert sig.parameters[name].default == getattr(cfg, name), (
             f"{name}: classifier default {sig.parameters[name].default!r} disagrees with "

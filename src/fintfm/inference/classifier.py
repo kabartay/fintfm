@@ -34,14 +34,14 @@ from __future__ import annotations
 
 import contextlib
 from collections.abc import Callable, Iterator
-from typing import Literal
+from typing import Literal, get_args
 
 import numpy as np
 import torch
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.utils.validation import check_is_fitted
 
-from fintfm.inference.preprocess import FeatureConditioner, FeatureTransform
+from fintfm.inference.preprocess import FeatureConditioner, FeatureTransform, SVDAugmenter
 from fintfm.inference.retrieval import (
     distance_stats,
     group_queries,
@@ -53,6 +53,8 @@ from fintfm.modeling.hazard import base_rate_shift, shift_cumulative_pd
 from fintfm.modeling.model import FinancialTFM
 
 ContextStrategy = Literal["balanced", "hybrid", "uniform", "retrieval", "prototype"]
+#: What :meth:`FinancialTFMClassifier.fit` does with a table wider than the checkpoint.
+MaxFeaturesStrategy = Literal["raise", "subsample"]
 
 
 def _finetune_rows(
@@ -302,11 +304,52 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             **``None`` (the default) does not clip**, because §163 and §164 were measured
             without clipping and clipping changes the tuned weights; pass 1.0 to match
             pretraining in a new experiment.
+        ensemble_transforms: Per-member feature conditioning (audit AU5.12/AU5.6). **``None``
+            (the default) gives every member ``feature_transform``**, today's behaviour. A
+            sequence, e.g. ``("rank", "power", "squash")``, gives member ``i`` the transform
+            ``ensemble_transforms[i % len]``, so the members disagree about how a tail value
+            should look rather than only about which rows they condition on. Experiment lever;
+            nothing here measures its effect on a score yet.
+        ensemble_svd_components: Members with an odd index (1, 3, ...) append this many
+            truncated-SVD projections of their own conditioned context to every row; see
+            :class:`fintfm.inference.preprocess.SVDAugmenter`. **0 (the default) appends
+            none.** Member 0 never carries them, so the plain model stays one of the votes,
+            and a value above 0 therefore needs ``n_ensemble >= 2``. Capped per member at the
+            checkpoint's ``max_features`` minus the member's own width, so a member already
+            at capacity (a wide table under ``max_features_strategy="subsample"``) gets none.
+            Not supported with ``context_strategy="retrieval"``, whose distance space would
+            then disagree with the model's input width.
+        ensemble_class_shift: Member ``i`` relabels the context by a cyclic shift of ``i``
+            modulo the number of classes (class ``c`` becomes ``c + i``), predicts, and maps
+            the probabilities back, so averaging over members cancels the part of a
+            prediction tied to which class occupies which output slot. **``False`` (the
+            default) shifts nothing.** On a binary task this is label swap on every other
+            member at no extra cost, where ``ensemble_label_swap`` doubles each member
+            instead; the two compose. Through :class:`FinancialTFMRegressor` the classes are
+            ordinal bins, so a shifted member sees a scrambled bin order: legal, but a
+            different experiment from the one this axis was written for.
+        max_features_strategy: What :meth:`fit` does with a table wider than the checkpoint's
+            ``max_features`` (audit AU5.7). **``"raise"`` (the default) raises**, as before.
+            ``"subsample"`` scores the table with an ensemble whose members each see a
+            balanced round-robin subset of the columns: the columns are shuffled once (at
+            ``random_state``) and member ``i`` takes the next ``size`` of them cyclically, so
+            every column is seen by at least one member and no column by more than one
+            member more than any other. ``size`` is ``max_features``, or
+            ``round(F * ensemble_feature_frac)`` when that is smaller. **The member count is
+            raised to ``ceil(F / size)`` when ``n_ensemble`` is below it**, so ``n_ensemble``
+            is a floor on a wide table, not the count; the count used is ``n_members_``.
+            Only :meth:`predict_proba` (and :meth:`predict`) can score a wide table; fine-
+            tuning, :meth:`predict_term_structure` and :meth:`transform_representation`
+            need the whole row in one forward pass and raise.
 
     Attributes:
         model_: The network predictions run through: ``model`` itself, placed on ``device``
             and in eval mode at :meth:`fit`, or its fine-tuned copy when ``finetune_steps > 0``.
         n_features_in_: Feature count seen by :meth:`fit`.
+        n_members_: Ensemble members :meth:`predict_proba` averages: ``n_ensemble``, or more
+            on a wide table under ``max_features_strategy="subsample"``.
+        svd_components_: Projections this estimator appended to its own rows; 0 except on an
+            ensemble member that ``ensemble_svd_components`` selected.
     """
 
     def __init__(
@@ -335,6 +378,10 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         finetune_query_pos_frac: float | None = None,
         finetune_seed: int = 0,
         finetune_clip: float | None = None,
+        ensemble_transforms: tuple[FeatureTransform, ...] | None = None,
+        ensemble_svd_components: int = 0,
+        ensemble_class_shift: bool = False,
+        max_features_strategy: MaxFeaturesStrategy = "raise",
     ) -> None:
         """Configure the classifier. See the class docstring — every argument is documented
         there with the measurement that set its default."""
@@ -364,6 +411,10 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         self.finetune_query_pos_frac = finetune_query_pos_frac
         self.finetune_seed = finetune_seed
         self.finetune_clip = finetune_clip
+        self.ensemble_transforms = ensemble_transforms
+        self.ensemble_svd_components = ensemble_svd_components
+        self.ensemble_class_shift = ensemble_class_shift
+        self.max_features_strategy = max_features_strategy
         # Placement, eval mode and feature_chunk are applied in fit, not here: applied at
         # construction, a later set_params(device=...) moved nothing and the first forward
         # pass mixed devices. A checkpoint path is still loaded here, so model.cfg is readable
@@ -394,9 +445,13 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         Raises:
             ValueError: If the task exceeds the checkpoint's class or feature capacity. It
                 raises rather than truncating, so a caller records a skip instead of a
-                meaningless score. Also if ``groups`` does not have one entry per row, and
-                for the fine-tuning settings :meth:`_finetune` rejects.
+                meaningless score; with ``max_features_strategy="subsample"`` a wide table
+                is accepted instead (and fine-tuning on it rejected). Also if ``groups``
+                does not have one entry per row, for the ensemble settings
+                :meth:`_check_ensemble_settings` rejects, and for the fine-tuning settings
+                :meth:`_finetune` rejects.
         """
+        self._check_ensemble_settings()
         X = np.asarray(X, dtype=np.float32)
         y = np.asarray(y)
         if groups is not None and len(groups) != len(y):
@@ -415,10 +470,21 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             raise ValueError(
                 f"model supports at most {self.model.cfg.max_classes} classes, got {len(self.classes_)}"
             )
-        if X.shape[1] > self.model.cfg.max_features:
+        wide = X.shape[1] > self.model.cfg.max_features
+        if wide and self.max_features_strategy != "subsample":
             raise ValueError(
                 f"model supports at most {self.model.cfg.max_features} features, got {X.shape[1]}"
             )
+        if wide and self.finetune_steps > 0:
+            raise ValueError(
+                f"fine-tuning needs every feature in one forward pass, and this table has "
+                f"{X.shape[1]} against the model's {self.model.cfg.max_features}"
+            )
+        # None unless the table is wide: then each member's columns, planned once per fit
+        self._member_columns = self._plan_member_columns(X.shape[1]) if wide else None
+        self.n_members_ = (
+            self.n_ensemble if self._member_columns is None else len(self._member_columns)
+        )
         label_map = {c: i for i, c in enumerate(self.classes_)}
         y_coded = np.array([label_map[v] for v in y], dtype=np.int64)
         if self.context_strategy == "retrieval":
@@ -447,6 +513,17 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
                 self.context_strategy,
                 np.random.default_rng(self.random_state),
             )
+        # an ensemble member selected by ensemble_svd_components appends projections fitted on
+        # its own context rows; set by _clone_with_seed, absent (0) on any other estimator
+        self._svd: SVDAugmenter | None = None
+        self.svd_components_ = 0
+        k = min(getattr(self, "_member_svd", 0), self.model.cfg.max_features - X.shape[1])
+        if k > 0:
+            if self.context_strategy == "retrieval":
+                raise ValueError("SVD components are not supported with retrieval contexts")
+            self._svd = SVDAugmenter(k).fit(X[idx])
+            X = self._svd.transform(X)
+            self.svd_components_ = self._svd.components_.shape[0]
         n_classes = len(self.classes_)
         # Identity-preserving, so it is safe to default on: asserted byte-for-byte by
         # tests/test_model.py::test_feature_chunking_is_an_identity. No effect on a
@@ -729,25 +806,158 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
                 out[block] = chunk_fn(X[block], ctx, rate)
         return out
 
-    def _member_proba(self, X: np.ndarray, seed: int) -> np.ndarray:
-        """One ensemble member: its own context draw, feature subset and label orientation."""
+    def _check_ensemble_settings(self) -> None:
+        """Reject AU5.7/AU5.12 settings that would otherwise be silently ignored or misread.
+
+        Raises:
+            ValueError: For an unknown ``max_features_strategy``, an empty or unknown entry in
+                ``ensemble_transforms``, a negative ``ensemble_svd_components``, or SVD
+                components that no member would carry (``n_ensemble < 2``) or that the
+                retrieval path cannot score.
+        """
+        if self.max_features_strategy not in get_args(MaxFeaturesStrategy):
+            raise ValueError(
+                f"max_features_strategy must be one of {get_args(MaxFeaturesStrategy)}, "
+                f"got {self.max_features_strategy!r}"
+            )
+        if self.ensemble_transforms is not None:
+            # FeatureConditioner treats any unrecognised kind as "rank", so a misspelling here
+            # would run, report numbers, and have measured something else
+            known = get_args(FeatureTransform)
+            if len(self.ensemble_transforms) == 0 or any(
+                t not in known for t in self.ensemble_transforms
+            ):
+                raise ValueError(
+                    f"ensemble_transforms must be None or a non-empty sequence drawn from "
+                    f"{known}, got {self.ensemble_transforms!r}"
+                )
+        if self.ensemble_svd_components < 0:
+            raise ValueError(
+                f"ensemble_svd_components must be >= 0, got {self.ensemble_svd_components}"
+            )
+        if self.ensemble_svd_components > 0 and self.n_ensemble < 2:
+            raise ValueError(
+                "ensemble_svd_components applies to odd-indexed members only, so it needs "
+                f"n_ensemble >= 2; got n_ensemble={self.n_ensemble}"
+            )
+        if self.ensemble_svd_components > 0 and self.context_strategy == "retrieval":
+            raise ValueError("ensemble_svd_components is not supported with retrieval contexts")
+
+    def _plan_member_columns(self, n_features: int) -> list[np.ndarray]:
+        """Balanced round-robin column subsets covering a table wider than the model.
+
+        The columns are shuffled once at ``random_state``; member ``i`` then takes positions
+        ``i * size`` to ``i * size + size - 1`` of that order, wrapping around, so consecutive
+        members tile the shuffled columns and every column is covered as soon as the members'
+        sizes add up to the width. Coverage counts differ by at most one between columns.
+
+        Args:
+            n_features: Width of the table, above the checkpoint's ``max_features``.
+
+        Returns:
+            One sorted column-index array per member: ``max(n_ensemble, ceil(F / size))``
+            members of ``size`` columns each, ``size`` being ``max_features`` or
+            ``round(F * ensemble_feature_frac)``, whichever is smaller.
+        """
+        size = min(
+            self.model.cfg.max_features,
+            max(1, round(n_features * self.ensemble_feature_frac)),
+        )
+        n_members = max(self.n_ensemble, -(-n_features // size))
+        order = np.random.default_rng(self.random_state).permutation(n_features)
+        return [
+            np.sort(order[(i * size + np.arange(size)) % n_features]) for i in range(n_members)
+        ]
+
+    def _uses_members(self) -> bool:
+        """Whether :meth:`predict_proba` averages ensemble members rather than one pass."""
+        return (
+            self.n_ensemble > 1
+            or self.ensemble_label_swap
+            or self.ensemble_feature_frac < 1.0
+            or self.ensemble_transforms is not None
+            or self.ensemble_class_shift
+            or getattr(self, "_member_columns", None) is not None
+        )
+
+    def _member_proba(self, X: np.ndarray, seed: int, member: int = 0) -> np.ndarray:
+        """One ensemble member: its own context draw, features, conditioning and labelling.
+
+        Args:
+            X: ``(n, n_features)`` raw query rows.
+            seed: The member's seed, for its context draw and column identities.
+            member: The member's index, which selects its transform, SVD components, class
+                shift and, on a wide table, its column subset.
+
+        Returns:
+            ``(n, n_classes)`` probabilities in this estimator's class order.
+        """
         rng = np.random.default_rng(seed)
         Xa, Xb = self._raw_X, np.asarray(X, dtype=np.float32)
-        if self.ensemble_feature_frac < 1.0:
+        member_columns = getattr(self, "_member_columns", None)
+        if member_columns is not None:
+            cols = member_columns[member]
+            Xa, Xb = Xa[:, cols], Xb[:, cols]
+        elif self.ensemble_feature_frac < 1.0:
             k = max(1, round(Xa.shape[1] * self.ensemble_feature_frac))
             cols = np.sort(rng.choice(Xa.shape[1], size=k, replace=False))
             Xa, Xb = Xa[:, cols], Xb[:, cols]
-        twin = self._clone_with_seed(seed, Xa, self._raw_y)
+        transform = (
+            None
+            if self.ensemble_transforms is None
+            else self.ensemble_transforms[member % len(self.ensemble_transforms)]
+        )
+        svd = self.ensemble_svd_components if member % 2 == 1 else 0
+        n_classes = len(np.unique(self._raw_y))
+        shift = member % n_classes if self.ensemble_class_shift else 0
+        y = self._raw_y if shift == 0 else self._shift_labels(self._raw_y, shift)
+        twin = self._clone_with_seed(seed, Xa, y, transform, svd)
         p = twin.predict_proba(Xb)
         # the swap is defined for two classes only: on more, reversing the columns would pair
         # each class with another, and through the regressor would reverse the bin order
-        if not self.ensemble_label_swap or len(np.unique(self._raw_y)) != 2:
-            return p
-        # the label-swapped twin: relabel the context, predict, and reverse the columns back.
-        # Averaging the two removes the part of the prediction that depends on which class is
-        # called "1" (§45).
-        swapped = self._clone_with_seed(seed, Xa, self._flip(self._raw_y))
-        return 0.5 * (p + swapped.predict_proba(Xb)[:, ::-1])
+        if self.ensemble_label_swap and n_classes == 2:
+            # the label-swapped twin: relabel the context, predict, and reverse the columns
+            # back. Averaging the two removes the part of the prediction that depends on which
+            # class is called "1" (§45).
+            swapped = self._clone_with_seed(seed, Xa, self._flip(y), transform, svd)
+            p = 0.5 * (p + swapped.predict_proba(Xb)[:, ::-1])
+        # the twin's column j is the class shifted onto slot j, i.e. original class j - shift,
+        # so original class c sits in column c + shift
+        return p if shift == 0 else np.roll(p, -shift, axis=1)
+
+    def _shift_labels(self, y: np.ndarray, shift: int) -> np.ndarray:
+        """Relabel class ``classes[j]`` as ``classes[(j + shift) % K]``, a cyclic shift."""
+        classes = np.unique(y)
+        return classes[(np.searchsorted(classes, y) + shift) % len(classes)]
+
+    def _condition(self, X: np.ndarray) -> np.ndarray:
+        """Query rows as the stored context saw them: conditioned, then SVD-augmented if fit was.
+
+        Args:
+            X: ``(n, n_features_in_)`` raw query rows.
+
+        Returns:
+            ``(n, n_features_in_ + svd_components_)`` rows, the conditioner's output alone
+            unless this estimator is an SVD-carrying ensemble member.
+        """
+        X = self._conditioner.transform(X)
+        svd = getattr(self, "_svd", None)
+        return X if svd is None else svd.transform(X)
+
+    def _refuse_wide(self, method: str) -> None:
+        """Raise if ``fit`` saw a table wider than the model, which only members can score.
+
+        Raises:
+            ValueError: Naming ``method``, when ``max_features_strategy="subsample"`` let a
+                wide table through :meth:`fit`.
+        """
+        if getattr(self, "_member_columns", None) is not None:
+            raise ValueError(
+                f"{method} needs every feature in one forward pass; this table has "
+                f"{self.n_features_in_} features against the model's "
+                f"{self.model_.cfg.max_features}, which only predict_proba's column-subset "
+                "members can score"
+            )
 
     def _flip(self, y: np.ndarray) -> np.ndarray:
         """Exchange the two class labels; only meaningful for binary tasks."""
@@ -757,9 +967,26 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         return np.where(y == classes[0], classes[1], classes[0])
 
     def _clone_with_seed(
-        self, seed: int, X: np.ndarray | None = None, y: np.ndarray | None = None
+        self,
+        seed: int,
+        X: np.ndarray | None = None,
+        y: np.ndarray | None = None,
+        feature_transform: FeatureTransform | None = None,
+        svd_components: int = 0,
     ) -> FinancialTFMClassifier:
-        """A sibling estimator differing in its context draw, features or label orientation."""
+        """A sibling estimator differing in its context draw, features or label orientation.
+
+        Args:
+            seed: The sibling's ``random_state``.
+            X: Raw training rows, ``_raw_X`` when omitted.
+            y: Training labels, ``_raw_y`` when omitted.
+            feature_transform: The sibling's conditioning; this estimator's when ``None``.
+            svd_components: SVD projections the sibling appends (see
+                :class:`fintfm.inference.preprocess.SVDAugmenter`); 0 appends none.
+
+        Returns:
+            The fitted sibling, a single model (``n_ensemble=1``) with no ensemble settings.
+        """
         twin = FinancialTFMClassifier(
             self.model_,
             device=self.device,
@@ -770,11 +997,16 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             query_chunk=self.query_chunk,
             retrieval_groups=self.retrieval_groups,
             retrieval_min_positive=self.retrieval_min_positive,
-            feature_transform=self.feature_transform,
+            feature_transform=(
+                self.feature_transform if feature_transform is None else feature_transform
+            ),
             prototype_minority_ratio=self.prototype_minority_ratio,
             n_ensemble=1,
             feature_chunk=self.feature_chunk,
         )
+        # private, not a constructor argument: a member's SVD is the parent's decision, and a
+        # public single-model knob would be a second way to ask for the same thing
+        twin._member_svd = svd_components
         return twin.fit(self._raw_X if X is None else X, self._raw_y if y is None else y)
 
     @torch.no_grad()
@@ -818,10 +1050,11 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         """
         check_is_fitted(self, "_ctx_X")
         self.model_.assert_trained_for("classification")
+        self._refuse_wide("transform_representation")
         X = np.asarray(X, dtype=np.float32)
-        if X.shape[1] != self._ctx_X.shape[1]:
+        if X.shape[1] != self.n_features_in_:
             raise ValueError("feature width at predict time must match fit time")
-        X = self._conditioner.transform(X)
+        X = self._condition(X)
         if X.shape[0] > self.query_chunk:
             return np.concatenate(
                 [
@@ -888,16 +1121,23 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         """
         check_is_fitted(self, "_ctx_X")
         self.model_.assert_trained_for("classification")
-        if self.n_ensemble > 1 or self.ensemble_label_swap or self.ensemble_feature_frac < 1.0:
+        if self._uses_members():
+            # a wide table's members each slice their own columns, so a query table of the
+            # wrong width would be sliced rather than caught by the members' own check
+            wide = getattr(self, "_member_columns", None) is not None
+            if wide and np.shape(X)[1] != self.n_features_in_:
+                raise ValueError("feature width at predict time must match fit time")
             # average probabilities, not logits: the members disagree about the base rate
             # their context implies, and averaging in logit space would let one confident
             # member dominate the mean rather than contribute one vote to it
-            members = [self._member_proba(X, self.random_state + i) for i in range(self.n_ensemble)]
+            members = [
+                self._member_proba(X, self.random_state + i, i) for i in range(self.n_members_)
+            ]
             return np.mean(members, axis=0)
         X = np.asarray(X, dtype=np.float32)
-        if X.shape[1] != self._ctx_X.shape[1]:
+        if X.shape[1] != self.n_features_in_:
             raise ValueError("feature width at predict time must match fit time")
-        X = self._conditioner.transform(X)
+        X = self._condition(X)
         if self.context_strategy == "retrieval":
             return self._run_retrieval(X, self._predict_chunk, len(self.classes_))
         if X.shape[0] > self.query_chunk:
@@ -988,10 +1228,11 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         if self.model_.hazard is None:
             raise RuntimeError("this checkpoint has no hazard head; pretrain with --n-horizons K")
         self.model_.assert_trained_for("survival")
+        self._refuse_wide("predict_term_structure")
         X = np.asarray(X, dtype=np.float32)
-        if X.shape[1] != self._ctx_X.shape[1]:
+        if X.shape[1] != self.n_features_in_:
             raise ValueError("feature width at predict time must match fit time")
-        X = self._conditioner.transform(X)
+        X = self._condition(X)
         if self.context_strategy == "retrieval":
             plan = self._retrieval_plan(X)
             out = np.empty((X.shape[0], self.model_.hazard.n_horizons), dtype=np.float32)
