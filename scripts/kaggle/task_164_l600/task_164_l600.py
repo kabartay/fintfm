@@ -1,7 +1,7 @@
 """Kaggle kernel: §164 arm `L600` -- V4FinBench five folds with dataset-specific fine-tuning, on GPU.
 
 Same protocol and settings as the CPU arms in runs/ft2/ (`runs/ft2/L600.yaml`), moved to GPU to
-spend an expiring quota. Pinned to 76551e2. The checkpoint is the public kabartay/fintfm-binary
+spend an expiring quota. Pinned to 5273275 (76551e2 plus freeing training memory before prediction). The checkpoint is the public kabartay/fintfm-binary
 file, verified by SHA-256 against runs/v4-cellattn-labels.pt; the data is V4FinBench's own public
 Kaggle dataset. Outputs (per-fold predictions, v4_protocol.json) land in /kaggle/working/L600/.
 """
@@ -19,6 +19,8 @@ CONFIG = """inference:
   finetune_lr: 1.0e-5
   finetune_batch: 2
   finetune_query: 512
+  query_chunk: 512        # identity-preserving (tests); a 2,048 chunk did not fit a T4 after fine-tuning
+  feature_chunk: 8        # identity-preserving (tests)
 
 """
 
@@ -30,7 +32,7 @@ def main():
     root = hits[0].parent
     print(f"data: {root}", flush=True)
     subprocess.run([sys.executable, "-m", "pip", "install", "--quiet",
-                    "fintfm @ git+https://github.com/kabartay/fintfm.git@76551e2"], check=True)
+                    "fintfm @ git+https://github.com/kabartay/fintfm.git@5273275"], check=True)
     import torch
     print(f"torch {torch.__version__}, CUDA available: {torch.cuda.is_available()}", flush=True)
     if not torch.cuda.is_available():
