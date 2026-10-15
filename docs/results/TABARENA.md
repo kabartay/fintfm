@@ -12,7 +12,8 @@ competitiveness requirement.
 Earlier runs reported 93rd. §98 first measured mean ROC-AUC **0.7642** over 26 of 27 eligible
 datasets; §100 located most of that deficit in categorical preprocessing rather than
 architecture, and §101's fix lifted the mean to **0.7823** with the rank unchanged. Every
-binary arm since has landed between 0.7746 and 0.7926, and none has moved the rank.
+binary arm since has landed between 0.7746 and 0.7926, and none has moved the rank, except
+§132's unpublished linear-probe variant: Elo 910, 93rd of 95.
 
 ## Why bother, given the rank
 
@@ -32,13 +33,14 @@ because TabArena discovers models from its own registry:
 
 ```text
 <tabarena clone>/packages/tabarena/src/tabarena/models/fintfm/
-    model.py   # FinTFMModel(AbstractTorchModel), ag_key = "FinTFM"
+    model.py   # FinTFMModel(AbstractTorchModel), ag_key = "TA-FINTFM", ag_name = "FinTFM"
     info.py    # ModelInfo(model_cls=..., search_space=..., method_metadata=...)
 <tabarena clone>/run_fintfm_lite.py
 ```
 
-`fintfm` itself is installed into the TabArena environment as an editable install, so a change
-here is live there with no reinstall.
+TabArena's `fintfm` extra pins `fintfm==0.5.5` from PyPI (`packages/tabarena/pyproject.toml`).
+To test an unreleased change, install the local checkout into the TabArena environment as an
+editable install instead, as §132 did; a change here is then live there with no reinstall.
 
 ## Running it
 
@@ -49,7 +51,7 @@ FINTFM_RUN_NAME=my_run python run_fintfm_lite.py --full
 
 | variable | purpose |
 | --- | --- |
-| `FINTFM_CHECKPOINT` | required; weights are not distributed with the wrapper |
+| `FINTFM_CHECKPOINT` | optional override; by default the wrapper fetches the published weights from the Hugging Face Hub at a pinned commit |
 | `FINTFM_RUN_NAME` | results directory. **See the caching trap below — this is not cosmetic.** |
 | `FINTFM_DATASETS` | comma-separated subset, for smoke-testing a change before paying for the suite |
 | `FINTFM_CATEGORICAL` | `target` (default) or `label`, to A/B the encoding on one checkpoint |
@@ -124,7 +126,7 @@ is a real answer where a truncated class set would not be.
 
 ## The leaderboard name is `FinTFM`, with no version
 
-The leaderboard renders `ag_key`, and it lists **models**, not releases — TabSTAR, OrionMSP,
+The leaderboard renders `ag_name`, and it lists **models**, not releases — TabSTAR, OrionMSP,
 TabFlex and iLTM all appear unversioned. `0.3` is a version of one model, so it belongs in
 `docs/CHANGELOG.md` next to the numbers it produced, not in the row a reader compares against
 TabPFN. Registered as `TA-FINTFM-0.3` through §105; renamed after.
@@ -138,6 +140,8 @@ paired deltas were computed, rather than trusting the harness to merge them.
 ## On submitting a PR
 
 **The conditions are now met, and they were met by losing an argument with the measurement.**
+(Since submitted as PR #616 and declined, §122: binary-only coverage was ruled ineligible, and
+the model does not beat simple baselines. See `docs/roadmap/TABARENA_BAR.md`.)
 
 The original position was: not yet, and the ranking is not the reason. At 51% coverage with a
 knowingly degraded categorical path, the submitted number would have measured the workaround as
@@ -150,8 +154,8 @@ regression (46.x), then a submission whose number means what it says.
   measurement now exists and says they rank last, so they are not declared.
 
 **So the submission declares `binary` only**: 27 eligible datasets, 53% coverage, rank 93 of
-95, with every declared capability measured. That is a narrower entry than the 90% one, and a
-truer one.
+95 as measured then (§122 measured 94 of 95 against the board at submission), with every
+declared capability measured. That is a narrower entry than the 90% one, and a truer one.
 
 **The weights are now published, which was the last blocker.** A reviewer could not reproduce
 a number without them. `kabartay/fintfm-binary` is public and **Apache-2.0** as of 2026-09-25 —

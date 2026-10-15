@@ -1,8 +1,8 @@
 # The queue
 
-Ordered by urgency in tiers. Work it in tier order unless the conversation overrides that,
-and prefer the cheapest item that unblocks others. Proposals live in
-[`openspec/changes/`](../../openspec/changes/); this file is the ordering.
+[`ROADMAP.md`](ROADMAP.md) is the ordering since 2026-09-25 (see Tier 0 below). This file keeps
+the earlier tiers, with the reasoning behind each, and the "Found while working" list. Proposals
+live in [`openspec/changes/`](../../openspec/changes/).
 
 **Derive the count, do not recall it:**
 
@@ -10,8 +10,9 @@ and prefer the cheapest item that unblocks others. Proposals live in
 grep -c "^- \[ \]" openspec/changes/*/tasks.md | awk -F: '{s+=$2} END {print s" open tasks"}'
 ```
 
-As of 2026-09-20: **170 open tasks across 34 changes.** Expect the count to rise — finishing
-one item often discovers two, and that is the queue working.
+As of 2026-10-15: **224 open tasks, in 36 of 37 changes**, 61 of them in
+`audit-2026-10-15` (170 across 34 changes on 2026-09-20). The count can rise as well as
+fall: finishing one item often discovers two, and that is the queue working.
 
 ---
 
@@ -63,7 +64,8 @@ degraded categorical path it would measure the workaround as much as the model
 **Everything from here down predates the architecture fix (§78), its real-data validation
 (§80/§84) and the first external measurement (§98/§100).** It is kept because the reasoning
 that produced each ordering is worth more than the ordering itself — several of these items
-were closed by being measured rather than by being done. Tier 0 above is the live queue.
+were closed by being measured rather than by being done. [`ROADMAP.md`](ROADMAP.md) is the live
+queue.
 
 Reordered after §28-§30. The out-of-time failure that §26 blamed on the prior was our own
 missing base-rate correction; fixing it cut fourth-horizon calibration error 32×, left AUC
@@ -78,11 +80,11 @@ was driving the ranking. The queue follows that.
    priced out at 32× per step for 2,048 rows (`docs/infra/COMPUTE.md`). **Choosing which 2,000 rows
    is therefore the only remaining lever on the dominant term.**
 
-2. **`revisit-context-strategy`** — §29 reversed a published default by 10-12 AUC points on
-   one seed. Task 32.1 (three seeds) is cheap and either promotes the finding or closes the
-   proposal; the class default should not stay in a state one experiment contradicts. It also
-   feeds item 1: §29 says the context's composition dominates, and retrieval is a claim about
-   composition.
+2. **`revisit-context-strategy`** — **Done: task 32.1 replicated §29 on three seeds (§33).**
+   §29 reversed a published default by 10-12 AUC points on one seed. Task 32.1 (three seeds)
+   is cheap and either promotes the finding or closes the proposal; the class default should
+   not stay in a state one experiment contradicts. It also feeds item 1: §29 says the
+   context's composition dominates, and retrieval is a claim about composition.
 
 3. **`survival-context-labels`** — **demoted the same day it was written** (§31). Its honest
    ceiling is the 0.024 of excess horizon decay, not the 0.03+ its pre-registration claimed,
@@ -94,10 +96,10 @@ Reordered 2026-09-08 after the day's measurements. Accuracy and calibration were
 small; coherence was measured large. The queue follows the evidence.
 
 2. **`pd-term-structure` tasks 11.2-11.6** — hazard-path output and a permanent coherence
-   diagnostic. §11 measured 39% of firms getting a self-contradicting curve, an order of
-   magnitude larger than any accuracy edge here, and structural rather than incremental:
-   nothing in the loss forbids a violation, so training cannot fix it. **This is now the
-   product.**
+   diagnostic. **11.2, 11.4 (§20) and 11.5 (§21) done; 11.3 and 11.6 open.** §11 measured
+   39% of firms getting a self-contradicting curve, an order of magnitude larger than any
+   accuracy edge here, and structural rather than incremental: nothing in the loss forbids a
+   violation, so training cannot fix it. **This is now the product.**
 3. **`prior-width-and-fidelity` task 15.5** — retrain at matched compute against the old
    prior. The width fix (§19) is a fidelity improvement with **unmeasured** transfer impact,
    and until this runs we do not know whether width was the binding constraint.
@@ -107,17 +109,21 @@ small; coherence was measured large. The queue follows the evidence.
 
 ## Tier 2 — blocks any external claim
 
-5. **`second-credit-panel` task 7.5** — ingest V4FinBench. The only licensed panel with dates,
-   so it is the only route to temporal validation. **Not** the accuracy target (`FINDINGS` §9).
+5. **`second-credit-panel` tasks 7.2-7.3** — ingest V4FinBench. **Done in practice: ingested in
+   §22** (the tasks' checkboxes are still open). The only licensed panel with
+   dates, so it is the only route to temporal validation. **Not** the accuracy target
+   (`FINDINGS` §9).
 6. **`time-based-evaluation`** — unblocked by the above. Every current split is random, which
    for credit is optimistic in exactly the way a supervisory reviewer looks for.
-7. **`ci-and-release-gates`** — there is no CI, and `v0.1.0` was cut from a locally-green tree
-   carrying files the repository does not.
+7. **`ci-and-release-gates`** — **CI and a release workflow now exist (`.github/workflows/ci.yml`,
+   `release.yml`).** When this was written there was no CI, and `v0.1.0` was cut from a
+   locally-green tree carrying files the repository does not.
 
 ## Tier 3 — the product
 
-8. **`pd-term-structure` tasks 11.2-11.6** — hazard-path output. IFRS 9 requires lifetime ECL,
-   so this is the object a regulated lender must buy rather than merely like.
+8. **`pd-term-structure` tasks 11.2-11.6** — hazard-path output (same tasks as Tier 1 item 2).
+   IFRS 9 requires lifetime ECL, so this is the object a regulated lender must buy rather than
+   merely like.
 9. **`fitted-calibration`** — the analytic base-rate correction has a known counterexample in
    its own evidence (`FINDINGS` §6, 1-year horizon).
 10. **`conformal-pd-certificate`** — what is actually sold. Add the supervisory coverage tests
@@ -138,7 +144,8 @@ small; coherence was measured large. The queue follows the evidence.
 
 Discoveries append here rather than into a tier. Triage happens when Tier 0 empties.
 
-- **The training loop's eval metric is uninformative.** `_eval_accuracy` reports plain
+- **Done (§42): `_eval_accuracy` was replaced by `_eval_quality` (`modeling/train.py`).** **The
+  training loop's eval metric is uninformative.** `_eval_accuracy` reports plain
   accuracy on tasks whose base rates are 1-30%, so majority-class prediction scores 0.70-0.99.
   Replace with AUC or balanced accuracy. Cheap; do not trust the training log meanwhile.
 - **Horizon independence is unverifiable.** The UCI files have no identifiers, so we cannot
@@ -149,7 +156,8 @@ Discoveries append here rather than into a tier. Triage happens when Tier 0 empt
 - **Two papers are known only from abstracts** and both bear on scope: Baesens et al. for the
   exact crossover and which TFMs, ExplainerPFN for how attribution targets are generated.
 - **Regression head for LGD.** Expected credit loss needs PD *and* LGD; the model is
-  classification-only. No proposal yet, and Baesens et al. benchmark LGD too.
+  classification-only. No proposal yet, and Baesens et al. benchmark LGD too. **Since proposed
+  and built: `regression-and-multiclass` 46.3-46.6, the binned head (§106).**
 - **Distillation for serving.** In-context inference carries the context on every request.
   Kumo's published answer is a two-stage distil. Only matters once latency is a requirement.
 - **GraphPFN convergence risk.** If tabular foundation models can be turned into graph ones,

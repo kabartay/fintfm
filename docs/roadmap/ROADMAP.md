@@ -12,8 +12,8 @@ Proposals live in [`openspec/changes/`](../../openspec/changes/); the IDs below 
 
 | | |
 | --- | --- |
-| today | Elo **765**, rank **94 of 95**, mean ROC-AUC **0.7823** |
-| clear a tuned KNN | +94 Elo |
+| today | Elo **765**, rank **94 of 95**, mean ROC-AUC **0.7823** (§150, refreshed baseline cache: Elo 763, same rank) |
+| clear a tuned KNN | +94 Elo (passed by §132's unpublished linear-probe variant: Elo 910 against KNN (tuned) 859) |
 | clear every simple baseline | **+389 Elo** |
 | listable | full coverage of all 51 datasets **and** the above |
 
@@ -56,8 +56,8 @@ Measured closed. Reopening any of them needs a new reason, stated first.
 - **Scale**, three independent lines (§114), independently consistent with Neuralk-AI's own
   published account of TFM scaling requiring matched prior richness (`docs/paper/RELATED_WORK.md`).
 - **The binning head**, rank is flat against the axis it controls (§121).
-- **Inference-time knobs**: context nearly flat (S83/S84), retrieval harmful at low prevalence
-  (S70).
+- **Inference-time knobs**: context nearly flat (§83/§84), retrieval harmful at low prevalence
+  (§70).
 - **The tree prior for credit**: −0.0221 AP, 0 of 5 folds (§118).
 - **Categorical preprocessing**: already harvested, +0.018 and no rank move (§101).
 - **Larger query chunks**: 10.7× slower (§120).
@@ -118,7 +118,8 @@ status before scheduling work is cheaper than rediscovering a closed result.
 Each is days not weeks, and each has external or internal evidence behind it. Run them before
 committing to any architectural rewrite. **Exit condition for the phase: at least one arm moves
 rank by 3 or more positions.** If none does, the deficit is structural and Phase B is the only
-remaining move.
+remaining move. (None did; Phase A' and Phase C were then worked ahead of Phase B, which is
+still entirely open: see Phase A' above and the stop rule below.)
 
 1. ~~**Depth at constant width.**~~ **Done, null.** §123 priced it, §124 ran it, §126 confirmed
    it at a matched learning rate: depth contributes **+0.0010 AP** and the two tuned arms are
@@ -134,17 +135,24 @@ remaining move.
    batch-size artifact. §114's scale arms were not measured on mis-tuned models and the
    published checkpoints are not under-optimised. Nothing changes.
 2. ~~**Learnability filter on the prior** (48.5).~~ **Done, measured negative (§145).** At full
-   strength, mean V4FinBench AP drops 0.1986 → 0.1880 against the matched control. Not
-   recommended at the strength measured.
+   strength, mean V4FinBench AP drops 0.1986 → 0.1880 against the `max_classes 2` control. Not
+   recommended at the strength measured. (Superseded: §160, against the matched `max_classes 10`
+   control, a null at −0.0024 mean AP, 3 of 5 folds negative.)
 3. ~~**Cheap realism augmentations** (48.6).~~ **Done, bundle measured net negative, not a gain
-   (§144).** Mean V4FinBench AP drops 0.1986 → 0.1952 against the matched control — closer to
-   noise with a slight negative lean than the "a point or two" gain this item hoped for.
+   (§144).** Mean V4FinBench AP drops 0.1986 → 0.1952 against the `max_classes 2` control —
+   closer to noise with a slight negative lean than the "a point or two" gain this item hoped
+   for. (Superseded: §160, against the matched `max_classes 10` control, a null at +0.0047 mean AP,
+   1 of 5 folds negative.)
 4. ~~**Is-missing encoding** (48.10).~~ **Done, clean negative (§147).** Mean V4FinBench AP
    drops 0.1986 → 0.1674 (16% relative), every one of five folds significant at p < 0.001 —
    the existing joint `[value, missing]` embedding is confirmed better than a dedicated one.
+   (Figures against the `max_classes 2` control; §160, against the matched control: −0.0230 mean
+   AP, 5 of 5 folds negative, still a loss.)
 5. ~~**Schedule-free optimisation** (48.9).~~ **Done, resumability demonstrated, accuracy
-   negative at the untuned learning rate (§146).** Mean V4FinBench AP drops 0.1986 → 0.1806;
-   whether a schedule-free-tuned rate closes the gap is an open, cheap follow-up.
+   negative at the untuned learning rate (§146).** Mean V4FinBench AP drops 0.1986 → 0.1806
+   against the `max_classes 2` control (§160, against the matched control: −0.0098 mean AP, 5 of 5
+   folds negative, a loss); whether a schedule-free-tuned rate closes the gap is an open, cheap
+   follow-up.
 6. ~~**Random monotonic marginal augmentation** (40.8).~~ **Closed unmeasured:** a re-proposal
    of `marginal-invariance` 43.3-43.5, already closed on the same grounds (§88) -- on cell
    attention the rank transform already pins Bayes-ceiling regret flat across warps, and the
@@ -261,13 +269,15 @@ the stop rule's premise is close to being met on this axis alone.
 
 D17 and `openspec/changes/fintfm-r/` open a **second model family** rather than continuing to
 re-run Phase A/B/C's kind of lever: real training data (SEC EDGAR, public domain; Freddie Mac's
-loan-level data once licensed), which D14 named as the reversal condition for staying
-synthetic-only and which every peer near or above 1200 TabArena Elo actually uses. Task A1
-(§151) already passed its own feasibility check — the EDGAR + 8-K Item 1.03 panel is real
--world-scale, rare-event, and stable across 15 years. This does not change FinTFM, which keeps
-its name and its auditability claim; it is additive, and its own cost (a benchmark forfeited
-permanently, a claim that must now carry a family name forever) is named in full in
-`CLAUDE.md`'s "Two families" and D17.
+loan-level data, whose terms §153 read in full and which §154 loads and trains on), which D14
+named as the reversal condition for staying synthetic-only and which several peers use (TabDPT,
+iLTM, ConTextTab), although every one of TabArena's top 14 entries is synthetic-pretrained
+(§110). Task A1 (§151) already passed its own feasibility check — the EDGAR + 8-K Item 1.03
+panel is real-world-scale, rare-event, and stable across 15 years. Since then A2 to A4, A5
+(§152), B3 and B4 (§154) and C1 to C5 (§155 to §161) are done; C5 found SBA a null at GPU
+scale (§161). This does not change FinTFM, which keeps its name and its auditability claim;
+it is additive, and its own cost (a benchmark forfeited permanently, a claim that must now
+carry a family name forever) is named in full in `CLAUDE.md`'s "Two families" and D17.
 
 ## Audit of 2026-10-15 — ahead of every phase above
 

@@ -1,10 +1,11 @@
 # Postmortem: seven wrong diagnoses in three days, and the one question nobody asked
 
-**Date:** 2026-09-09. Companion to `docs/results/FINDINGS.md` §28-§32, which carry the numbers. This
-document exists for the *pattern*, because the individual findings each read as an isolated
-slip and they were not isolated.
+**Date:** 2026-09-09; the section on the seventh diagnosis was added 2026-09-10. Companion to
+`docs/results/FINDINGS.md` §28-§32, which carry the numbers. This document exists for the
+*pattern*, because the individual findings each read as an isolated slip and they were not
+isolated.
 
-It was five by the end of the day. On 2026-09-08 this project produced finding 26, its first out-of-time result on real corporate
+On 2026-09-08 this project produced finding 26, its first out-of-time result on real corporate
 data, and concluded that the synthetic prior could not generate the low-default regime the
 strategy targets. A 6,000-step retrain followed. On 2026-09-09 that conclusion turned out to
 be wrong, and so did the two explanations that replaced it, and so did the first fix for the
@@ -81,7 +82,7 @@ Mechanical changes, not resolutions:
 Two things worth keeping separate.
 
 **The failures were expensive but self-correcting, and the correction ran in one direction.**
-Every one of the four was caught by measurement inside a day, and each correction made the
+Every one of the six was caught by measurement inside a day, and each correction made the
 result *worse* for the project's story before it made it better: §28 retracted a finding, §29
 reversed a decision taken from the literature, §31 demoted a proposal written an hour earlier.
 Nothing here was caught by review or by reasoning about the code.
@@ -120,16 +121,16 @@ that question costs five minutes. When a system underperforms, establish that it
 mechanism operates at all before optimising the mechanism's parameters.
 
 **The scorecard did move, in the end.** Mean AUC out of time went 0.5869 → 0.8118 across the
-day and the gap to per-horizon logistic regression went 0.142 → 0.048, from three inference-time
-changes and no retraining: the base-rate correction applied where it belongs, retrieved
-contexts, and a rank transform on features whose standard deviation exceeds ten times their
-interquartile range in 110 of 136 columns. **None of the three was on the roadmap this
-morning**; all three came out of chasing a wrong diagnosis to its cause.
+day and the gap to per-horizon logistic regression went 0.142 → 0.048 (both from §35), from
+three inference-time changes and no retraining: the base-rate correction applied where it
+belongs, retrieved contexts, and a rank transform on features whose standard deviation exceeds
+ten times their interquartile range in 110 of 136 columns. **None of the three was on the
+roadmap this morning**; all three came out of chasing a wrong diagnosis to its cause.
 
-**But the story moved further than the position.** After all four corrections, the
+**But the story moved further than the position.** After all six corrections, the
 measured position is that per-horizon logistic regression still leads on mean AUC 0.8616 to
-0.8143 and on calibration by roughly fourfold. The gap is a third of what it was. It is not
-closed, and six fixed diagnoses do not close it.
+0.8143 (§38's best configuration) and on calibration by roughly fourfold. The gap is a third of
+what it was. It is not closed, and six fixed diagnoses do not close it.
 
 **And the best configuration now uses a competitor's context construction.** §36 found that
 our headline context mechanism had been published four months earlier; §38 found their method
@@ -145,7 +146,7 @@ own paper *before* scoring on its data, not after.
 **Date:** 2026-09-26. Companion to `docs/results/FINDINGS.md` §123-§130, which carry the numbers.
 Different shape from the chain above — nothing here was a wrong diagnosis about the model.
 Every claim shipped was eventually correct. What recurred was a **cheap proxy standing in for an
-expensive measurement**, twice for cost and four times for direction, and the proxy was wrong
+expensive measurement**, three times for cost and four times for direction, and the proxy was wrong
 often enough that the pattern is worth naming rather than filed under each individual finding.
 
 ## The chain
@@ -156,7 +157,7 @@ often enough that the pattern is worth naming rather than filed under each indiv
 | 2 | Held-out synthetic AUC ranked depth 16 **below** depth 4, cleanly, on two of three metrics | The five-fold credit protocol ranked depth 16 **above** depth 4, +0.0019 AP, though the folds disagreed in sign badly enough that the honest read was null either way (§124) | Would have shipped "depth hurts" in writing if the held-out number alone had been trusted |
 | 3 | At batch 2, `--lr 1e-4` beat the shipped default by **+0.0243 AP, 5 of 5 folds**, all significant after Holm | At the reference recipe (batch 8) the shipped default **beat** `1e-4` by +0.0116, also 5 of 5 folds — the whole effect was a batch-size artifact the finding's own text had flagged as the reason not to trust it yet | About $2.80 and two HF Jobs runs to find out the flagged caveat was the entire story |
 | 4 | Held-out pooled AUC at batch 8 ranked the shipped default above `1e-4` | The credit protocol agreed, for the first time this session | The one case where the cheap signal and the expensive one matched |
-| 5 | A per-task ExtraTrees judge, timed on the wall clock of a probe that also sampled each task, implied filtering 48,000 pretraining tasks would cost **~20 hours** | Timed on judging alone, the real cost was **~0.03-0.04 s/task**, under 30 minutes total (§125's docstring in `prior/learnability.py`) | Would have made a genuinely cheap experiment look prohibitive, and did briefly discourage running it |
+| 5 | A per-task ExtraTrees judge, timed on the wall clock of a probe that also sampled each task, implied filtering 48,000 pretraining tasks would cost **~20 hours** | Timed on judging alone, the real cost was **~0.03-0.04 s/task**, about 24 to 32 minutes for 48,000 tasks (the `p_learnability_filter` docstring in `prior/mixture.py`, citing §125) | Would have made a genuinely cheap experiment look prohibitive, and did briefly discourage running it |
 | 6 | `PowerTransformer.fit` on real V4FinBench data raised on a literal `+-inf` from a near-zero-denominator ratio; clamping it fixed the crash | Clamping the input revealed a **second, independent** overflow inside Yeo-Johnson's own formula, on 5 of 78,015,600 cells, that the first fix did nothing about (§129) | Two separate debugging passes for what looked like one bug |
 | 7 | A first design for testing whether fintfm's representation transfers extracted it over the full ~600,000-row training split, matching how `predict_proba` is normally costed | At this model's documented 8.6 s/1,000-row inference cost, that prices at roughly 14 hours; a bounded 20,000-row stratified subsample cut it to **under 15 minutes a fold** with no loss of signal (§130) | A run left going for over two hours before being killed on a projected cost rather than an observed completion |
 

@@ -39,8 +39,10 @@ Four claims, ordered by how much evidence each carries:
    regulated PD, and one that can now be *quantified* rather than asserted. No camp in the
    field predicts this object at all (`docs/competition/LANDSCAPE.md`).
 2. **Auditable provenance.** Nothing real reaches pretraining, checkable by grep and enforced
-   in CI-in-waiting. Competitors training on real tables cannot retrofit this, and the
-   leakage literature prices contamination at up to 32 MAPE points (§1).
+   in CI-in-waiting. (CI now exists, `.github/workflows/ci.yml`, but has no step that checks
+   this; and since D17 it holds for FinTFM, not FinTFM-R.) Competitors training on real
+   tables cannot retrofit this, and the leakage literature prices contamination at up to 32
+   MAPE points (§1).
 3. **Small and low-default portfolios**, but for a sharper reason than accuracy. It is where
    the *incumbent's remedies fail*: post-hoc calibration needs held-out defaults and Platt
    scaling at n=100 dropped gradient boosting's AUC from 0.632 to 0.545 (§16), and
@@ -58,7 +60,8 @@ early, or small because structural?"). The accuracy gap is **provisional**: this
 the day these numbers were taken, AUC is flat across dataset sizes (the signature of a model
 that cannot yet use more data), and **Baesens et al. found properly trained TFMs beating 29
 competitors including tuned gradient boosting on real credit data.** The approach works at
-scale; ours is not there.
+scale; ours is not there. (Superseded: §114 closed scale as a lever for this model; see
+"What this revision overturns" below.)
 
 What is *not* provisional is coherence, the metric-range problem, and calibration being a
 method property rather than a domain one. Those are design and measurement facts that scale
@@ -88,7 +91,7 @@ for calibration, and the certificate for evidence. A head-to-head against TabPFN
 before any calibration claim is made against other foundation models.
 
 Still open: whether a *calibrated* gradient boosting closes the gap in the small-n regime.
-See `changes/calibration-mechanism`.
+See `openspec/changes/calibration-mechanism`.
 
 ## What this revision overturns
 
@@ -265,8 +268,10 @@ path, and no longer the justification for renting NVIDIA.
   outright" when its capacity outran its prior's richness, which is this project's own §112
   finding (prior distinctiveness measured weak) from the other side. **The conclusion this
   supports is not "stop measuring general-tabular standing" -- `docs/roadmap/ROADMAP.md`'s
-  Phase A' and Phase C are still worth running, because a differently-shaped decision layer
-  (§130-§133) has already moved rank once and prior diversity is untested, not closed -- it is
+  Phase A' and Phase C were still worth running, because a differently-shaped decision layer
+  (§130-§133) moved an unpublished exploratory variant up one position (§132, 94th to 93rd of
+  95) and prior diversity was untested (since run: Phase A' closed at §136, and Phase C's
+  combined prior measured negative on V4FinBench, §141) -- it is
   "the credit-panel thesis below is the actual bet, and every general-tabular result is a
   calibration check on that bet's cost, not a competing goal in its own right."**
 - Fraud. Owned by Kumo and Feedzai, and needs real-time serving infrastructure.
@@ -329,7 +334,8 @@ show a validator* — rather than a claim to be more accurate than Google.
 
 ## The honest risk register
 
-- **The prior may not transfer.** Unmeasured. Phase 1 exists to kill it fast.
+- **The prior may not transfer.** Unmeasured. Phase 1 exists to kill it fast. (Since measured:
+  exit condition A met, §14, amended by §15; see Phase 1 above.)
 - **The margins in this domain are small.** Baesens et al. found significance in 22 of 406
   comparisons. Even a positive Phase 1 may be a small effect, and a small effect cannot carry
   a pitch built on accuracy — which is another reason the certificate is the product.

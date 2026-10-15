@@ -35,7 +35,8 @@ pretraining run. Measure both against the five datasets in question before choos
 > "Here, it seems the model does not beat simple baselines. Hence, I recommend withdrawing the
 > submission until the model performance meets a reasonable minimum."
 
-FinTFM sits at **Elo 765**. The gap, from the run in §122:
+FinTFM sits at **Elo 765** (763 on §150's refreshed baseline cache, same rank). The gap, from
+the run in §122:
 
 | to clear | Elo | gap |
 | --- | --- | --- |
@@ -67,8 +68,8 @@ should be revisited without a new reason:
   volume (null at 5x, +0.0028 at 2x), and Nori's published curve (+0.0049 R2 for 16.7x).
 - **The binning head.** §121 showed rank is flat against the axis binning controls. Fixing it
   is ~1 day and $1.40 for an expected rank change of approximately zero.
-- **Inference-time knobs.** Context size is nearly flat (S83/S84), retrieval harms at low
-  prevalence (S70). This is why the search space is empty.
+- **Inference-time knobs.** Context size is nearly flat (§83/§84), retrieval harms at low
+  prevalence (§70). This is why the search space is empty.
 - **The tree prior for credit.** §118 measured -0.0221 AP, 0 of 5 folds.
 - **Categorical preprocessing.** §101 already harvested it: +0.018 mean ROC-AUC, **rank
   unchanged**.
@@ -80,7 +81,9 @@ multiple of that, not a fraction.
 
 ### What has not been tried
 
-Four axes remain, and they are the only places a step change can come from:
+Four axes remain, and they are the only places a step change can come from. (Since run: depth
+at constant width is null, §124 and §126; `mechanism-diverse-prior` has 8 of its 9 tasks done,
+and its combined prior measured negative on V4FinBench, §141.)
 
 | axis | queued as | why it might matter |
 | --- | --- | --- |
@@ -93,6 +96,9 @@ The fourth is the cheapest to test and has the clearest external evidence behind
 go first.
 
 ## Ordering
+
+**Superseded by [`ROADMAP.md`](ROADMAP.md)**, which is the current ordering. Kept for the
+reasoning.
 
 **Competitiveness before coverage.** Coverage is a precondition for listing, not a contributor
 to rank, and paying for a >1776-feature pretraining run before the model can clear a tuned KNN
