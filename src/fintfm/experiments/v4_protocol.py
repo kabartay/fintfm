@@ -116,6 +116,58 @@ def _grid(space: dict[str, list]) -> list[dict]:
     return [dict(zip(keys, combo)) for combo in product(*(space[k] for k in keys))]
 
 
+def _parse_value(text: str) -> object:
+    """Read one ``key=value`` value as JSON (int, float, bool, null), else keep the string."""
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return text
+
+
+def parse_booster_params(specs: list[str]) -> list[tuple[str, dict]]:
+    """Parse ``--booster-params`` specs into ``(booster, params)`` pairs.
+
+    Args:
+        specs: Each ``name:key=value,key=value``, e.g.
+            ``lightgbm:n_estimators=1000,learning_rate=0.05``. ``name:`` with nothing after
+            the colon means the library defaults, scored as an arm of its own.
+
+    Returns:
+        One ``(booster, params)`` per spec, in the order given.
+
+    Raises:
+        ValueError: On an unknown booster, a missing colon, or an item without ``=``.
+    """
+    from fintfm.evaluation.boosting import BOOSTING_MODELS
+
+    out: list[tuple[str, dict]] = []
+    for spec in specs:
+        name, sep, rest = spec.partition(":")
+        if not sep:
+            raise ValueError(f"booster spec {spec!r} needs 'name:key=value,...'")
+        if name not in BOOSTING_MODELS:
+            raise ValueError(f"unknown booster {name!r}; expected one of {BOOSTING_MODELS}")
+        params: dict = {}
+        for item in filter(None, (t.strip() for t in rest.split(","))):
+            key, eq, value = item.partition("=")
+            if not eq or not key.strip():
+                raise ValueError(f"booster parameter {item!r} in {spec!r} needs key=value")
+            params[key.strip()] = _parse_value(value.strip())
+        out.append((name, params))
+    return out
+
+
+def booster_arm_name(name: str, params: dict) -> str:
+    """Arm name for a booster at fixed parameters: ``lightgbm[n_estimators=1000,...]``.
+
+    The bare name is kept for empty parameters, so a defaults arm reads the same as the
+    ordinary untuned booster arm it reproduces.
+    """
+    if not params:
+        return name
+    return f"{name}[" + ",".join(f"{k}={v}" for k, v in params.items()) + "]"
+
+
 def _classical_estimator(name: str, params: dict) -> ClassifierMixin:
     """Build one of the paper's non-boosting baselines."""
     from sklearn.ensemble import RandomForestClassifier
@@ -269,9 +321,25 @@ class ArmSummary:
 
 
 def _load_horizon(
-    root: Path, horizon: int, max_rows: int | None
+    root: Path, horizon: int, max_rows: int | None, drop_columns: tuple[str, ...] = ()
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, list[str]]:
-    """Read one horizon file, returning features, target, and the fold-grouping columns."""
+    """Read one horizon file, returning features, target, and the fold-grouping columns.
+
+    Args:
+        root: Directory holding the parquet files.
+        horizon: Paper horizon, a key of :data:`HORIZON_FILES`.
+        max_rows: Development cap; companies are kept whole.
+        drop_columns: Columns to drop **in addition to** :data:`DROP_COLUMNS`, for an
+            ablation. Grouping columns are still read for the folds, so dropping ``country``
+            removes it as a feature only.
+
+    Returns:
+        ``(X, y, country, company, feature_names)``.
+
+    Raises:
+        ValueError: If an extra column is absent from the file or is the target. A misspelled
+            name must not complete a run that silently dropped nothing.
+    """
     import pyarrow.parquet as pq
 
     path = root / HORIZON_FILES[horizon]
@@ -281,6 +349,11 @@ def _load_horizon(
         )
     table = pq.read_table(path)
     df = table.to_pandas()
+    missing = [c for c in drop_columns if c not in df.columns]
+    if missing:
+        raise ValueError(f"--drop-columns names columns not in {path.name}: {missing}")
+    if TARGET in drop_columns:
+        raise ValueError(f"{TARGET!r} is the target and cannot be dropped as a feature")
     if max_rows is not None and len(df) > max_rows:
         # take whole companies, never a partial company, or the grouping guarantee breaks
         keep = df["company"].drop_duplicates()
@@ -290,7 +363,9 @@ def _load_horizon(
     y = df[TARGET].to_numpy().astype(np.int64)
     country = df["country"].to_numpy()
     company = df["company"].to_numpy()
-    features = df.drop(columns=[c for c in (*DROP_COLUMNS, TARGET) if c in df.columns])
+    features = df.drop(
+        columns=[c for c in (*DROP_COLUMNS, *drop_columns, TARGET) if c in df.columns]
+    )
     features = features.select_dtypes(include=[np.number])
     return features.to_numpy(dtype=np.float32), y, country, company, list(features.columns)
 
@@ -331,6 +406,8 @@ def run(
     cfg: Config | None = None,
     device: str = "cpu",
     select_metric: str = "ap",
+    drop_columns: tuple[str, ...] = (),
+    booster_params: tuple[tuple[str, dict], ...] = (),
 ) -> dict:
     """Score arms under V4FinBench's published protocol.
 
@@ -360,9 +437,18 @@ def run(
             validation fold: ``"ap"`` (average precision, this project's headline metric) or
             ``"auc"`` (ROC-AUC, what runs before 2026-10-16 used; their protocol does not say).
             At a 0.36% base rate the two disagree, so the choice is recorded with the run.
+        drop_columns: Feature columns to drop beyond :data:`DROP_COLUMNS`, for an ablation
+            (audit AU2.5). Recorded with the run; ``n_features`` changes accordingly.
+        booster_params: Extra booster arms at **fixed** parameters, as ``(booster, params)``
+            pairs (see :func:`parse_booster_params`). Each is fitted once per fold, never
+            tuned, and named by :func:`booster_arm_name` so it cannot collide with the
+            ordinary booster arm; they run whether or not ``with_boosting`` is set.
 
     Returns:
         The recorded result dictionary.
+
+    Raises:
+        ValueError: On an unknown ``select_metric``, or two arms that would share a name.
     """
     from sklearn.impute import SimpleImputer
     from sklearn.metrics import average_precision_score, f1_score, roc_auc_score
@@ -370,6 +456,10 @@ def run(
 
     if select_metric not in ("ap", "auc"):
         raise ValueError(f"select_metric must be 'ap' or 'auc', got {select_metric!r}")
+    fixed_arms = [(booster_arm_name(n, p), n, p) for n, p in booster_params]
+    fixed_names = [a for a, _, _ in fixed_arms]
+    if len(set(fixed_names)) != len(fixed_names):
+        raise ValueError(f"--booster-params gives two arms the same name: {fixed_names}")
     out_dir.mkdir(parents=True, exist_ok=True)
 
     from fintfm.evaluation.boosting import available_boosting, fit_predict_boosting
@@ -379,7 +469,10 @@ def run(
 
     cfg = cfg or load_config()
     root = root or (CACHE_DIR / "v4finbench")
-    X, y, country, company, _names = _load_horizon(root, horizon, max_rows)
+    X, y, country, company, _names = _load_horizon(root, horizon, max_rows, drop_columns)
+    if drop_columns:
+        print(f"dropping {len(drop_columns)} extra column(s) for an ablation: "
+              f"{list(drop_columns)}")
     print(
         f"horizon {horizon} ({HORIZON_FILES[horizon]}): {len(y):,} rows, {X.shape[1]} features, "
         f"{y.sum():,} positive ({y.mean():.3%})"
@@ -394,6 +487,10 @@ def run(
     boosters = available_boosting() if with_boosting else []
     if with_boosting and not boosters:
         print("  no boosting baselines available; install with `uv sync --extra bench`")
+    clash = set(fixed_names) & set(boosters)
+    if clash:
+        raise ValueError(f"--booster-params arms {sorted(clash)} collide with the default "
+                         "booster arms; drop the empty spec or pass --no-boosting")
     results: list[FoldResult] = []
     for fold in folds:
         tr, va, te = split_indices_for_fold(assignments, fold)
@@ -478,6 +575,16 @@ def run(
                     print(f"    {name} best params: {best_params} (selected on val "
                           f"{select_metric}; val AP {best_val[0]:.4f}, val AUC {best_val[1]:.4f})")
 
+        # fixed-parameter booster arms (audit AU4.1): one fit each, no search
+        if fixed_arms:
+            both = np.vstack([Xva, Xte])
+            for arm, name, params in fixed_arms:
+                p_both = fit_predict_boosting(name, Xtr, y[tr], both, params=params or None)
+                if p_both is None:
+                    print(f"  {arm} failed on fold {fold}; excluded from this fold")
+                    continue
+                arms[arm] = (p_both[: len(va)], p_both[len(va) :])
+
         # Per-row test predictions, kept so arms can be compared with a **paired** bootstrap.
         # Two models scored on the same rows have correlated errors, so an unpaired interval
         # overstates the uncertainty of their difference; without the raw vectors the only
@@ -549,6 +656,10 @@ def run(
             "classical": list(classical),
             "tuned": tune,
             "select_metric": select_metric if tune else None,
+            "drop_columns": list(drop_columns),
+            "booster_params": [
+                {"arm": a, "booster": n, "params": p} for a, n, p in fixed_arms
+            ],
             "context_strategy": cfg.inference.context_strategy,
             "feature_transform": cfg.inference.feature_transform,
             "max_context": cfg.inference.max_context,
@@ -610,6 +721,15 @@ def summarise(record: dict) -> str:
                  "necessarily weaker: the --tune grid caps CatBoost at 200 iterations. Quote "
                  "a booster with its iteration count. ***"
         ),
+        *(
+            ["", "Fixed-parameter booster arms (one fit per fold, never tuned): "
+             + ", ".join(b["arm"] for b in c["booster_params"]) + "."]
+            if c.get("booster_params") else []
+        ),
+        *(
+            ["", f"*** ABLATION: dropped beyond their drop list: {c['drop_columns']}. ***"]
+            if c.get("drop_columns") else []
+        ),
         "",
         "Their published reference at this horizon is in docs/results/FINDINGS.md §36.",
         (
@@ -669,7 +789,23 @@ def main() -> None:
         help="what --tune selects each baseline on, on the validation fold (runs before "
              "2026-10-16 used auc)",
     )
+    p.add_argument(
+        "--drop-columns", type=str, default="",
+        help="comma-separated feature columns to drop beyond their drop list, for an "
+             "ablation (e.g. operational_status); recorded in the run config",
+    )
+    p.add_argument(
+        "--booster-params", nargs="+", default=[], metavar="NAME:K=V,...",
+        help="extra booster arms at fixed parameters, one fit per fold and never tuned, "
+             "e.g. lightgbm:n_estimators=1000,learning_rate=0.05 catboost:iterations=100. "
+             "'name:' alone is that booster at library defaults (pair with --no-boosting). "
+             "Arms are named name[k=v,...]; recorded in the run config",
+    )
     args = p.parse_args()
+    try:
+        booster_params = tuple(parse_booster_params(args.booster_params))
+    except ValueError as e:
+        p.error(str(e))
     if not args.no_fintfm and args.model is None:
         p.error("--model is required unless --no-fintfm")
     cfg = load_config(args.config)
@@ -678,6 +814,8 @@ def main() -> None:
         folds=tuple(int(v) for v in args.folds.split(",")),
         max_rows=args.max_rows, with_boosting=not args.no_boosting, tune=args.tune,
         select_metric=args.select_metric,
+        drop_columns=tuple(v.strip() for v in args.drop_columns.split(",") if v.strip()),
+        booster_params=booster_params,
         classical=tuple(v.strip() for v in args.classical.split(",") if v.strip()),
         cfg=cfg, device=args.device,
     )
