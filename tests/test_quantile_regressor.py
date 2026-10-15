@@ -95,6 +95,47 @@ def test_predicting_before_fit_raises():
         reg.predict(np.zeros((2, 4)))
 
 
+def test_quantile_grid_never_crosses():
+    """Each row's quantiles must be non-decreasing in ``tau`` (audit AU1.11).
+
+    Nothing in the head ties one output column to the next, so an untrained model's raw
+    columns cross freely; a crossed grid would make ``predict_interval`` return an upper
+    bound below its lower one.
+    """
+    torch.manual_seed(0)
+    X, y = _data()
+    reg = FinancialTFMQuantileRegressor(_tiny_model(n_quantiles=11), max_context=40).fit(
+        X[:40], y[:40]
+    )
+    grid = reg.predict_quantile_grid(X[40:])
+    assert (np.diff(grid, axis=1) >= 0).all()
+    lo, hi = reg.predict_interval(X[40:], level=0.8)
+    assert (lo <= hi).all()
+
+
+@pytest.mark.parametrize("bad", [np.nan, np.inf, -np.inf])
+def test_non_finite_targets_are_refused(bad):
+    """One NaN target made the scaler's mean NaN and every prediction NaN (audit AU1.11)."""
+    X, y = _data()
+    y = y[:40].copy()
+    y[3] = bad
+    reg = FinancialTFMQuantileRegressor(_tiny_model(), max_context=40)
+    with pytest.raises(ValueError, match="finite"):
+        reg.fit(X[:40], y)
+
+
+def test_query_feature_width_must_match_the_fit():
+    """A narrower query table would otherwise be NaN-padded and scored silently."""
+    torch.manual_seed(0)
+    X, y = _data()
+    reg = FinancialTFMQuantileRegressor(
+        _tiny_model(), max_context=40, feature_transform="none"
+    ).fit(X[:40], y[:40])
+    assert reg.n_features_in_ == 4
+    with pytest.raises(ValueError, match="features"):
+        reg.predict(X[40:, :3])
+
+
 def test_scaler_is_fit_on_context_rows_only():
     # Same property test_regressor.py's test_bin_edges_ignore_the_query_rows asserts for the
     # binned head's edges: query rows must not move the fitted mean/std.

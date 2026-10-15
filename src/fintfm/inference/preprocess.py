@@ -92,30 +92,29 @@ class FeatureConditioner:
             self._lo = np.where(np.isfinite(lo), lo, -np.inf).astype(np.float32)
             self._hi = np.where(np.isfinite(hi), hi, np.inf).astype(np.float32)
             return self
+        # A ratio with a near-zero denominator produces a genuine +-inf, not merely a large
+        # value; replace it with the finite extreme per column, fitted on training rows only
+        # and reused at transform time -- the same discipline "winsor" applies -- so neither
+        # "power" nor "rank" crashes on this data's tails. ``QuantileTransformer`` raises on
+        # an infinity, which made the default "rank" fail where "power" did not (audit
+        # AU1.3). On finite data the clamp is the identity.
+        finite = np.where(np.isfinite(S), S, np.nan)
+        # An all-NaN column (handled below) makes nanmax/nanmin warn; errstate does not
+        # cover it, since it is a RuntimeWarning rather than a floating-point exception.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=RuntimeWarning)
+            self._inf_hi = np.nanmax(finite, axis=0)
+            self._inf_lo = np.nanmin(finite, axis=0)
+        # A column that is entirely +-inf in the fitting subsample has no finite value to
+        # clamp to; nanmax/nanmin then return NaN, which the transforms below also reject.
+        # Such a column carries no information in this subsample regardless, so 0.0 is an
+        # arbitrary but finite and harmless placeholder rather than a value someone chose
+        # to mean something.
+        self._inf_hi = np.where(np.isfinite(self._inf_hi), self._inf_hi, 0.0)
+        self._inf_lo = np.where(np.isfinite(self._inf_lo), self._inf_lo, 0.0)
+        S = self._clamp_infinities(S)
         if self.kind == "power":
             from sklearn.preprocessing import PowerTransformer
-
-            # A ratio with a near-zero denominator produces a genuine +-inf, not merely a
-            # large value; replace it with the finite extreme per column, fitted on training
-            # rows only and reused at transform time -- the same discipline "winsor" applies
-            # -- so power is a genuine drop-in alternative rather than one that crashes on
-            # this data's tails.
-            finite = np.where(np.isfinite(S), S, np.nan)
-            # An all-NaN column (handled below) makes nanmax/nanmin warn; errstate does not
-            # cover it, since it is a RuntimeWarning rather than a floating-point exception.
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore", category=RuntimeWarning)
-                self._pt_hi = np.nanmax(finite, axis=0)
-                self._pt_lo = np.nanmin(finite, axis=0)
-            # A column that is entirely +-inf in the fitting subsample has no finite value to
-            # clamp to; nanmax/nanmin then return NaN, which the formula below also rejects.
-            # Such a column carries no information in this subsample regardless, so 0.0 is an
-            # arbitrary but finite and harmless placeholder rather than a value someone chose
-            # to mean something.
-            self._pt_hi = np.where(np.isfinite(self._pt_hi), self._pt_hi, 0.0)
-            self._pt_lo = np.where(np.isfinite(self._pt_lo), self._pt_lo, 0.0)
-            S = np.where(np.isposinf(S), self._pt_hi, S)
-            S = np.where(np.isneginf(S), self._pt_lo, S)
 
             # standardize=False: sklearn's Yeo-Johnson formula itself overflows to +-inf on a
             # small fraction of cells (measured: 5 of 78,015,600 on this project's real V4
@@ -173,9 +172,8 @@ class FeatureConditioner:
             return X
         if self.kind == "winsor":
             return np.clip(X, self._lo, self._hi).astype(np.float32)
+        X = self._clamp_infinities(X)
         if self.kind == "power":
-            X = np.where(np.isposinf(X), self._pt_hi, X)
-            X = np.where(np.isneginf(X), self._pt_lo, X)
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", category=RuntimeWarning)
                 yj = self._pt.transform(X)
@@ -183,3 +181,15 @@ class FeatureConditioner:
             yj = np.where(np.isneginf(yj), self._pt_yj_lo, yj)
             return ((yj - self._pt_mean) / self._pt_std).astype(np.float32)
         return self._qt.transform(X).astype(np.float32)
+
+    def _clamp_infinities(self, X: np.ndarray) -> np.ndarray:
+        """Replace ``+-inf`` with each column's finite extreme from the fitted rows.
+
+        Args:
+            X: ``(n, F)`` features, possibly holding ``+-inf``.
+
+        Returns:
+            ``(n, F)`` features with no infinity; NaN and finite values untouched.
+        """
+        X = np.where(np.isposinf(X), self._inf_hi, X)
+        return np.where(np.isneginf(X), self._inf_lo, X)

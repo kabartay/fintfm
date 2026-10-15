@@ -84,6 +84,29 @@ def test_min_positive_rescues_a_context_with_no_defaults():
     assert got.size == 100  # the floor must not silently change the context size
 
 
+
+def test_min_positive_tops_up_positives_already_in_the_neighbourhood():
+    """Positives already retrieved count toward the floor, and extras are new rows.
+
+    Audit AU1.2: the top-up used to take the ``short`` nearest positives overall, which
+    included the ones already picked, so the context held fewer than ``min_positive``
+    positives and could also shrink below ``max_context``.
+    """
+    rng = np.random.default_rng(3)
+    Z = rng.normal(size=(2000, 4)).astype(np.float32)
+    y = np.zeros(2000, dtype=np.int64)
+    target = np.zeros(4, dtype=np.float32)
+    near = np.argsort(np.linalg.norm(Z - target, axis=1))[:2]
+    y[near] = 1  # two positives sit inside the plain neighbourhood
+    y[10:30] = 1
+    Z[10:30] += 50.0  # the rest are far away
+    assert (y[retrieve(Z, y, target, 100, min_positive=0)] == 1).sum() == 2
+    got = retrieve(Z, y, target, 100, min_positive=8)
+    assert (y[got] == 1).sum() >= 8
+    assert got.size == 100
+    assert np.unique(got).size == got.size
+    assert set(near) <= set(got.tolist())  # positives already held are not dropped
+
 def test_grouping_covers_every_query_exactly_once():
     X, _ = _clustered(n_per=150)
     c, s = distance_stats(X)

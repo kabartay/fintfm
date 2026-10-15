@@ -160,12 +160,17 @@ def retrieve(
         have = int((yt[picked] == pos_class).sum())
         short = min_positive - have
         if short > 0:
-            pos = np.flatnonzero(yt == pos_class)
-            if pos.size:
-                extra = pos[np.argsort(d[pos])[: min(short, pos.size)]]
-                # drop the farthest current picks to make room, keeping the size fixed
-                keep = picked[np.argsort(d[picked])][: max(k - extra.size, 0)]
-                picked = np.union1d(keep, extra)
+            # Only positives not already picked can top up the floor: drawing from all of
+            # them re-selected the ones held and left the context short (audit AU1.2).
+            pos = np.setdiff1d(np.flatnonzero(yt == pos_class), picked)
+            # Room comes from the farthest negatives only, so a positive already held is
+            # never dropped to make room for another and the size stays exactly ``k``.
+            neg = picked[yt[picked] != pos_class]
+            n_extra = min(short, pos.size, neg.size)
+            if n_extra:
+                extra = pos[np.argsort(d[pos])[:n_extra]]
+                drop = neg[np.argsort(d[neg])[neg.size - n_extra :]]
+                picked = np.union1d(np.setdiff1d(picked, drop), extra)
     return np.sort(picked)
 
 

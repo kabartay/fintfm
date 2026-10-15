@@ -129,6 +129,7 @@ class FinancialTFMQuantileRegressor(BaseEstimator, RegressorMixin):
         scaler_: The fitted :class:`ContinuousTargetScaler`.
         taus_: ``(n_quantiles,)`` the quantile levels the head's output columns correspond
             to, read off the loaded checkpoint.
+        n_features_in_: Feature width seen by :meth:`fit`; every query table must match it.
     """
 
     def __init__(
@@ -174,10 +175,17 @@ class FinancialTFMQuantileRegressor(BaseEstimator, RegressorMixin):
 
         Raises:
             ValueError: If the conditioned feature width exceeds the checkpoint's
-                ``max_features``.
+                ``max_features``, or if ``y`` holds a NaN or an infinity.
         """
         X = np.asarray(X, dtype=np.float32)
         y = np.asarray(y, dtype=np.float64).ravel()
+        # One NaN makes the scaler's mean NaN and with it every prediction; an infinity
+        # does the same to its standard deviation (audit AU1.11).
+        if not np.isfinite(y).all():
+            raise ValueError(
+                f"y must be finite; got {int(np.isnan(y).sum())} NaN and "
+                f"{int(np.isinf(y).sum())} infinite value(s)"
+            )
         self._conditioner = FeatureConditioner(
             self.feature_transform, random_state=self.random_state
         ).fit(X)
@@ -187,6 +195,7 @@ class FinancialTFMQuantileRegressor(BaseEstimator, RegressorMixin):
                 f"model supports at most {self.model.cfg.max_features} features, "
                 f"got {Xc.shape[1]}"
             )
+        self.n_features_in_ = X.shape[1]
         rng = np.random.default_rng(self.random_state)
         n = Xc.shape[0]
         idx = np.sort(rng.choice(n, size=self.max_context, replace=False)) if n > self.max_context else np.arange(n)
@@ -225,10 +234,22 @@ class FinancialTFMQuantileRegressor(BaseEstimator, RegressorMixin):
             X: ``(n, n_features)`` query features.
 
         Returns:
-            ``(n, n_quantiles)`` predictions, column ``j`` corresponding to ``taus_[j]``.
+            ``(n, n_quantiles)`` predictions, column ``j`` corresponding to ``taus_[j]``,
+            non-decreasing along each row.
+
+        Raises:
+            ValueError: If ``X``'s feature width differs from the one :meth:`fit` saw.
         """
         self._check_fitted()
-        Xc = self._conditioner.transform(np.asarray(X, dtype=np.float32))
+        X = np.asarray(X, dtype=np.float32)
+        # A narrower table would otherwise be NaN-padded up to max_features and scored as
+        # if the missing columns were merely missing (audit AU1.11).
+        if X.ndim != 2 or X.shape[1] != self.n_features_in_:
+            raise ValueError(
+                f"X has {X.shape[-1]} features, but this regressor was fitted with "
+                f"{self.n_features_in_}"
+            )
+        Xc = self._conditioner.transform(X)
         if Xc.shape[0] > self.query_chunk:
             raw = np.concatenate(
                 [
@@ -238,7 +259,11 @@ class FinancialTFMQuantileRegressor(BaseEstimator, RegressorMixin):
             )
         else:
             raw = self._predict_chunk(Xc)
-        return self.scaler_.inverse_transform(raw)
+        # Nothing in the head ties one output column to the next, so the raw quantiles can
+        # cross, and a crossed grid gives an interval whose upper end sits below its lower
+        # one. Sorting each row (monotone rearrangement) restores a valid quantile function
+        # and leaves an already monotone row unchanged (audit AU1.11).
+        return self.scaler_.inverse_transform(np.sort(raw, axis=1))
 
     def predict(self, X: np.ndarray) -> np.ndarray:
         """Point estimate: the predicted value at the quantile level closest to 0.5.

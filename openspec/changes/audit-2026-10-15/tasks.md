@@ -23,7 +23,10 @@
 
 ## Phase 1 — correctness (code)
 
-- [ ] AU1.1 **Padding mask reads query rows.** `modeling/model.py:233` computes
+- [x] AU1.1 **Done (2026-10-16).** `pad` now reads context rows only;
+      `test_query_chunking_is_exact_with_a_context_empty_column`. Near-zero-std Z left as is
+      (changes ordinary outputs; follow-up). **Padding mask reads query rows.**
+      `modeling/model.py:233` computes
       `pad = isnan(X).all(dim=1)` over context and query rows, so one query with a value in a
       column that is all-NaN in the context un-pads that column for every row in the chunk, and
       chunked prediction stops being exact (breaks the docstrings at `classifier.py:197`,
@@ -31,12 +34,16 @@
       the context std is ~0. Verify: a test that a query's output is identical alone and in a
       chunk with a mate that has a value in a context-empty column. Note: the fix also changes
       pretraining, so record whether it changes any shipped checkpoint's V4 scores.
-- [ ] AU1.2 **Retrieval positive floor falls short.** `inference/retrieval.py:165` takes the
+- [x] AU1.2 **Done (2026-10-16).** Top-up draws only unpicked positives and drops the
+      farthest negatives; `test_min_positive_tops_up_positives_already_in_the_neighbourhood`.
+      **Retrieval positive floor falls short.** `inference/retrieval.py:165` takes the
       `short` nearest positives overall, which include the ones already picked, so the result
       holds about max(have, short) positives, not `min_positive`, and the context can shrink.
       Fix: exclude `picked` before choosing `extra`. Verify: a test with 2 positives in the kNN
       set and floor 8 ends with ≥8 positives and exactly `k` rows.
-- [ ] AU1.3 **Rank transform crashes on ±inf.** `inference/preprocess.py:152-159,185`: the
+- [x] AU1.3 **Done (2026-10-16).** `rank` and `power` share one fitted ±inf clamp;
+      `tests/test_preprocess.py::test_infinities_are_clamped_to_the_finite_extremes`.
+      **Rank transform crashes on ±inf.** `inference/preprocess.py:152-159,185`: the
       default `feature_transform="rank"` passes infinities to `QuantileTransformer`, which
       raises; the `power` branch already clamps. Fix: reuse that clamp. Verify: fit and
       transform on a column with ±inf.
@@ -44,7 +51,8 @@
       probability columns even when `_flip` returned `y` unchanged (≠2 classes), so each class
       is averaged with another; through the regressor it reverses bin order. Fix: swap only
       when binary. Verify: a 3-class test where label swap on equals label swap off.
-- [ ] AU1.5 **Non-finite regression targets go to edge bins.** `inference/binning.py:141`
+- [x] AU1.5 **Done (2026-10-16).** `FinancialTFMRegressor.fit` raises on NaN/±inf `y`;
+      `test_non_finite_targets_are_refused`. **Non-finite regression targets go to edge bins.** `inference/binning.py:141`
       (`np.digitize`) puts NaN and +inf in the top bin and -inf in bin 0; `regressor.py:112`
       then trains on them. Fix: raise on non-finite `y` in `FinancialTFMRegressor.fit`.
       Verify: a test that NaN or ±inf targets raise.
@@ -70,7 +78,9 @@
       `ensemble_label_swap`, inference sees a distribution the tuned weights never saw. Fix:
       warn or raise unless uniform and no swap, or draw with the same strategy.
       Verify: a test that a non-uniform strategy with fine-tuning on warns or raises.
-- [ ] AU1.10 **Regressor `clone` drops every classifier setting.** `regressor.py:74-83` takes
+- [x] AU1.10 **Done (2026-10-16).** Explicit `classifier_params`; bare keywords still work
+      with a `DeprecationWarning`; `test_clone_keeps_the_classifier_settings`.
+      **Regressor `clone` drops every classifier setting.** `regressor.py:74-83` takes
       `**classifier_kwargs`, which `get_params` ignores, so `clone`/`GridSearchCV` silently
       revert to defaults. Fix: one explicit `classifier_params: dict`. Verify: `clone(r)`
       round-trips the settings.

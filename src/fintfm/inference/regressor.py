@@ -42,6 +42,8 @@ actually looks like and what a Gaussian head cannot represent at all.
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 from sklearn.base import BaseEstimator, RegressorMixin
 
@@ -60,10 +62,15 @@ class FinancialTFMRegressor(BaseEstimator, RegressorMixin):
             truncation otherwise, and this raises the cap into view instead. More bins means
             finer resolution and fewer rows per bin; ``DEFAULT_N_BINS`` is a starting point,
             not a measured optimum.
-        **classifier_kwargs: Forwarded verbatim to :class:`FinancialTFMClassifier`
-            (``device``, ``max_context``, ``feature_transform``, ``n_ensemble``, ...), so
-            every context and conditioning choice measured for classification applies here
-            unchanged.
+        classifier_params: Keyword arguments forwarded verbatim to
+            :class:`FinancialTFMClassifier` (``device``, ``max_context``,
+            ``feature_transform``, ``n_ensemble``, ...), so every context and conditioning
+            choice measured for classification applies here unchanged. ``None`` means the
+            classifier's defaults. One explicit parameter rather than ``**kwargs`` so that
+            ``get_params``, and with it ``sklearn.clone`` and ``GridSearchCV``, carries the
+            settings (audit AU1.10).
+        **classifier_kwargs: Deprecated spelling of ``classifier_params``: still accepted,
+            with a ``DeprecationWarning``, and merged over it.
 
     Attributes:
         binner_: The fitted :class:`QuantileBinner`. Its ``representatives_`` are the only
@@ -75,12 +82,23 @@ class FinancialTFMRegressor(BaseEstimator, RegressorMixin):
         self,
         model: FinancialTFM | str,
         n_bins: int = DEFAULT_N_BINS,
+        classifier_params: dict[str, object] | None = None,
         **classifier_kwargs: object,
     ) -> None:
         """Configure the regressor. See the class docstring for what each argument means."""
         self.model = model
         self.n_bins = int(n_bins)
-        self.classifier_kwargs = classifier_kwargs
+        if classifier_kwargs:
+            warnings.warn(
+                "passing classifier settings as bare keywords is deprecated, and they were "
+                "lost by sklearn.clone; pass classifier_params={...} instead",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            classifier_params = {**(classifier_params or {}), **classifier_kwargs}
+        # Stored as passed, not copied: sklearn.clone checks the attribute *is* the object
+        # it handed to the constructor.
+        self.classifier_params = classifier_params
         self.binner_: QuantileBinner | None = None
         self.classifier_: FinancialTFMClassifier | None = None
 
@@ -95,16 +113,24 @@ class FinancialTFMRegressor(BaseEstimator, RegressorMixin):
             self.
 
         Raises:
-            ValueError: If ``n_bins`` exceeds the checkpoint's ``max_classes``.
+            ValueError: If ``n_bins`` exceeds the checkpoint's ``max_classes``, or if ``y``
+                holds a NaN or an infinity.
         """
-        clf = FinancialTFMClassifier(self.model, **self.classifier_kwargs)  # type: ignore[arg-type]
+        y = np.asarray(y, dtype=np.float64).ravel()
+        # np.digitize puts NaN and +inf in the top bin and -inf in bin 0, so a non-finite
+        # target would otherwise be trained on as an ordinary extreme value (audit AU1.5).
+        if not np.isfinite(y).all():
+            raise ValueError(
+                f"y must be finite; got {int(np.isnan(y).sum())} NaN and "
+                f"{int(np.isinf(y).sum())} infinite value(s)"
+            )
+        clf = FinancialTFMClassifier(self.model, **(self.classifier_params or {}))  # type: ignore[arg-type]
         cap = clf.model.cfg.max_classes
         if self.n_bins > cap:
             raise ValueError(
                 f"n_bins={self.n_bins} exceeds the checkpoint's max_classes={cap}; "
                 "the head has one logit per bin, so the extra bins have nowhere to go"
             )
-        y = np.asarray(y, dtype=np.float64).ravel()
         # Fitted on the training targets only. The query rows' targets are what is being
         # predicted, so letting them set the edges would leak the answer into the grid the
         # answer is read off -- the same reason `prior/base.py` bins on context rows alone.

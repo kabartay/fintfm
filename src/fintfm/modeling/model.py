@@ -218,7 +218,7 @@ def normalize_features(
             - ``Z``: ``(B, N, F)`` normalised values, clipped, with missing cells set to 0.
             - ``missing``: ``(B, N, F)`` float mask, 1.0 where the cell was NaN.
             - ``pad``: ``(B, F)`` bool mask, True for columns that are entirely absent
-              across the whole task and are therefore padding rather than data.
+              from the *context* and are therefore padding rather than data.
     """
     ctx = X[:, :n_ctx]
     present = ~torch.isnan(ctx)
@@ -230,7 +230,12 @@ def normalize_features(
     missing = torch.isnan(Z)
     Z = torch.nan_to_num(Z).clamp(-10.0, 10.0)
     Z = torch.where(missing, torch.zeros_like(Z), Z)
-    pad = torch.isnan(X).all(dim=1)
+    # Context rows only, like the statistics above. Reading query rows here let one query
+    # with a value in a context-empty column un-pad that column for every row of the task,
+    # so a query's output depended on which other queries shared its forward pass and
+    # chunked prediction stopped being exact (audit AU1.1). A context-empty column carries
+    # no evidence to compare a query against, so treating it as padding loses nothing.
+    pad = torch.isnan(ctx).all(dim=1)
     return Z, missing.to(Z.dtype), pad
 
 
