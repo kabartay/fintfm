@@ -110,8 +110,8 @@ future draft or conversation:
    source for only some of them; see the checked sweep at the end of this file.)
 3. **The lever nobody here has pulled is the prior, not the architecture.** §104 closed
    `column_id_dim`, the only recent architectural knob to move real-data accuracy (§97). The
-   larger earlier gain, cell attention's +0.0486 AP on V4FinBench (§80), is possibly confounded
-   with the prior mix (audit task AU2.8). MITRA's entire contribution — rank 8 (updated
+   larger earlier gain, cell attention's +0.0486 AP on V4FinBench (§80), is confounded
+   with the prior mix (confirmed 2026-10-16, audit task AU2.8). MITRA's entire contribution — rank 8 (updated
    2026-10-16: Mitra-v2 is 9th at Elo 1754 on TabArena v0.1.9.7's default board),
    synthetic-only — is prior design (performance/diversity/distinctiveness) plus a tree-based
    prior this project's mixture lacks. `learn-from-peers` (48.x) is the resulting task list,
@@ -309,7 +309,7 @@ panic.** They write: "While Hollmann et al. is able to make this architecture wo
 that the **differences between synthetic and real data** are enough to change which
 architectures are performant." TabPFN is synthetic-only and makes cell attention work; TabDPT
 is real-data and does not. **This project is synthetic-only**, so their negative result may
-simply not apply — and §78/§80/§91 measured cell attention as load-bearing here (+0.0486 AP on V4FinBench, possibly confounded with the prior mix, AU2.8;
+simply not apply — and §78/§80/§91 measured cell attention as load-bearing here (+0.0486 AP on V4FinBench, confounded with the prior mix, confirmed 2026-10-16, AU2.8;
 and below chance without labels).
 
 What does transfer is the **cost**: they got a wider `d` for the same memory, and this project

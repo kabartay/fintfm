@@ -7900,6 +7900,14 @@ generating different task distributions, and nothing in any accuracy number woul
 
 ## §114 — Scale closed: 5.7× parameters at matched tasks is −0.0049, and depth cannot even be scored
 
+> **Scope note, 2026-10-16 (audit AU3.9).** "Scale closed" holds at this project's task budget,
+> 48,000 pretraining tasks for both arms, and no further. Peers that scale train on far more:
+> LimiX-2 fits 34.68 TabArena Elo per parameter doubling (1766 at 12.5M to 1935 at 406.2M,
+> arXiv 2609.17488 Table 8), Mitra-v2 trained on 28.7M tasks, and LightPFN measured +1.66 AUC
+> points [1.03, 2.46] from 256k to 7.68M task draws at fixed size
+> (`docs/paper/RELATED_WORK.md`, peer sweep of 2026-10-15). Parameter scale at 48,000 tasks is
+> closed; parameter scale at a peer's task volume is untested here (audit AU5.15).
+
 **How these numbers were produced.** MEASURED. `run_fintfm_lite.py --full` on TabArena's 27
 eligible binary datasets, paired per dataset against §101's `cat_full` baseline. The 5.0M arm
 was trained **12,000 steps at batch 4 = 48,000 tasks**, exactly matching the 885K baseline's
