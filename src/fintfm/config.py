@@ -131,6 +131,22 @@ class PriorConfigDefaults:
 
 
 @dataclass(frozen=True)
+class TrainConfigDefaults:
+    """Pretraining knobs ``fintfm-train`` reads (audit AU5.2, AU5.10, AU5.17).
+
+    Mirrors :class:`~fintfm.modeling.train.TrainConfig`'s literal defaults, for the same
+    reason the ``inference`` section mirrors the classifier: ``train()`` must behave the same
+    without reading a file. ``tests/test_config.py`` is the drift guard. Every default
+    reproduces pretraining as it ran before these knobs existed.
+    """
+
+    warmup_steps: int = 500
+    decay_norm_bias: bool = True
+    amp: str = "none"
+    muon_lr: float = 0.02
+
+
+@dataclass(frozen=True)
 class Config:
     """The whole configuration, with the path it was loaded from for the run record."""
 
@@ -139,6 +155,7 @@ class Config:
     v4finbench: V4FinBenchConfig = field(default_factory=V4FinBenchConfig)
     context_sweep: ContextSweepConfig = field(default_factory=ContextSweepConfig)
     prior: PriorConfigDefaults = field(default_factory=PriorConfigDefaults)
+    train: TrainConfigDefaults = field(default_factory=TrainConfigDefaults)
     sources: tuple[str, ...] = ()
 
     def provenance(self) -> str:
@@ -286,6 +303,17 @@ def _validate(cfg: Config) -> None:
             f"prior rates must satisfy 0 < absolute_rate_floor ({p.absolute_rate_floor}) < "
             f"rate_ceiling ({p.rate_ceiling}) <= 1"
         )
+    t = cfg.train
+    if t.amp not in ("none", "bf16"):
+        # YAML reads a bare `off`/`no` as False, which would otherwise surface as a confusing
+        # type error deep inside the training loop
+        raise ConfigError(f"train.amp must be 'none' or 'bf16', got {t.amp!r}")
+    if t.warmup_steps < 0:
+        raise ConfigError(f"train.warmup_steps must be at least 0, got {t.warmup_steps}")
+    if not isinstance(t.decay_norm_bias, bool):
+        raise ConfigError(f"train.decay_norm_bias must be true or false, got {t.decay_norm_bias!r}")
+    if t.muon_lr <= 0:
+        raise ConfigError(f"train.muon_lr must be positive, got {t.muon_lr}")
 
 
 #: Section name to dataclass. Declared explicitly rather than read off ``Config``'s
@@ -297,6 +325,7 @@ _SECTIONS: dict[str, type] = {
     "v4finbench": V4FinBenchConfig,
     "context_sweep": ContextSweepConfig,
     "prior": PriorConfigDefaults,
+    "train": TrainConfigDefaults,
 }
 
 

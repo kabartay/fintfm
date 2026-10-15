@@ -184,3 +184,38 @@ def test_malformed_hazard_arm_is_refused(tmp_path):
     f.write_text("v4finbench:\n  hazard_arms:\n    - {name: a, strategy: uniform, oops: 1}\n")
     with pytest.raises(ConfigError, match="oops"):
         load_config(f)
+
+
+def test_train_section_matches_the_train_config_defaults():
+    """Drift guard for the ``train`` section (audit AU5.2/5.10/5.17): it mirrors
+    ``TrainConfig``'s literal defaults, which are what pretraining did before those knobs."""
+    from dataclasses import fields
+
+    from fintfm.config import TrainConfigDefaults
+    from fintfm.modeling.train import TrainConfig
+
+    cfg = load_config().train
+    library = TrainConfig()
+    for f in fields(TrainConfigDefaults):
+        assert getattr(cfg, f.name) == getattr(library, f.name), (
+            f"train.{f.name}: config {getattr(cfg, f.name)!r} disagrees with TrainConfig "
+            f"{getattr(library, f.name)!r} — update fintfm/configs/default.yaml"
+        )
+
+
+@pytest.mark.parametrize(
+    "body, match",
+    [
+        ("train:\n  amp: off\n", "train.amp"),
+        ("train:\n  amp: fp16\n", "train.amp"),
+        ("train:\n  warmup_steps: -1\n", "warmup_steps"),
+        ("train:\n  muon_lr: 0\n", "muon_lr"),
+        ("train:\n  decay_norm_bias: maybe\n", "decay_norm_bias"),
+    ],
+)
+def test_train_section_values_are_validated(tmp_path, body, match):
+    """``amp: off`` is the trap: YAML reads it as ``False``, not as a mode name."""
+    f = tmp_path / "c.yaml"
+    f.write_text(body)
+    with pytest.raises(ConfigError, match=match):
+        load_config(f)

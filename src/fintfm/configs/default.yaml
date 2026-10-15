@@ -98,3 +98,13 @@ prior:
   # 0 moves nothing and reproduces every existing checkpoint; any other value changes the
   # pretraining distribution. Mirrors PriorConfig.min_ctx_per_class (tests/test_config.py).
   min_ctx_per_class: 0
+
+# Pretraining knobs read by fintfm-train (audit AU5.2, AU5.10, AU5.17). These MIRROR the literal
+# defaults of TrainConfig in modeling/train.py, as the inference section mirrors the classifier,
+# so train() behaves the same without reading a file; tests/test_config.py is the drift guard.
+# Every value here reproduces pretraining as it ran before the knob existed.
+train:
+  warmup_steps: 500        # linear warmup before the cosine decay
+  decay_norm_bias: true    # true = AdamW decays every parameter; false exempts norms/biases/embeddings
+  amp: "none"              # "none" (float32) or "bf16" autocast; quoted, YAML reads a bare off as false
+  muon_lr: 0.02            # Muon's matrix-group rate; read only under --optimizer muon
