@@ -55,10 +55,10 @@ def test_finetuning_copies_the_model_and_changes_the_copy():
     ).fit(X, y, groups=g)
     for k, v in model.state_dict().items():
         assert torch.equal(v, before[k]), f"caller's model was modified at {k}"
-    assert clf.model is not model
-    assert any(not torch.equal(v, before[k]) for k, v in clf.model.state_dict().items())
+    assert clf.model is model and clf.model_ is not model
+    assert any(not torch.equal(v, before[k]) for k, v in clf.model_.state_dict().items())
     assert len(clf.finetune_losses_) == 3
-    assert not clf.model.training  # returned to eval mode for prediction
+    assert not clf.model_.training  # returned to eval mode for prediction
 
 
 def test_query_groups_never_appear_in_the_context():
@@ -144,7 +144,7 @@ def test_same_seed_reproduces_and_a_different_seed_differs():
 
     def weights(seed):
         clf = FinancialTFMClassifier(_model(), finetune_seed=seed, **kw).fit(X, y, groups=g)
-        return torch.cat([p.detach().flatten() for p in clf.model.parameters()])
+        return torch.cat([p.detach().flatten() for p in clf.model_.parameters()])
 
     assert torch.equal(weights(0), weights(0))
     assert not torch.equal(weights(0), weights(1))
@@ -160,9 +160,31 @@ def test_finetuning_leaves_the_callers_torch_rng_alone():
     assert torch.equal(torch.rand(3), expected)
 
 
+def _weights(model: FinancialTFM) -> torch.Tensor:
+    return torch.cat([p.detach().flatten() for p in model.parameters()])
+
+
+def test_refitting_fine_tunes_from_the_model_passed_in_not_the_tuned_copy():
+    """AU1.6: fit replaced self.model with the tuned copy, so a second fit (or a clone of a
+    fitted estimator) tuned the tuned weights again and could carry one fold into the next."""
+    from sklearn.base import clone
+
+    X, y, g = _data()
+    model = _model()
+    kw = {"max_context": 100, "finetune_steps": 2, "finetune_lr": 1e-3, "finetune_query": 32}
+    clf = FinancialTFMClassifier(model, **kw).fit(X, y, groups=g)
+    once = _weights(clf.model_)
+    assert clf.model is model
+    clf.fit(X, y, groups=g)
+    assert torch.equal(_weights(clf.model_), once)
+    cloned = clone(clf)
+    assert torch.equal(_weights(cloned.model), _weights(model))
+    assert torch.equal(_weights(cloned.fit(X, y, groups=g).model_), once)
+
+
 def test_finetuning_leaves_no_gradients_behind():
     X, y, g = _data()
     clf = FinancialTFMClassifier(
         _model(), max_context=100, finetune_steps=2, finetune_query=32,
     ).fit(X, y, groups=g)
-    assert all(p.grad is None for p in clf.model.parameters())
+    assert all(p.grad is None for p in clf.model_.parameters())

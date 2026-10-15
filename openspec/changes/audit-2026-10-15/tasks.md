@@ -50,7 +50,10 @@
       (`np.digitize`) puts NaN and +inf in the top bin and -inf in bin 0; `regressor.py:112`
       then trains on them. Fix: raise on non-finite `y` in `FinancialTFMRegressor.fit`.
       Verify: a test that NaN or ±inf targets raise.
-- [ ] AU1.6 **`fit` replaces `self.model` with the fine-tuned copy** (`classifier.py:450`). A
+- [x] AU1.6 **Done (2026-10-16).** `model` stays as passed, the tuned copy is `model_` and
+      prediction runs through it;
+      `tests/test_finetune.py::test_refitting_fine_tunes_from_the_model_passed_in_not_the_tuned_copy`.
+      **`fit` replaces `self.model` with the fine-tuned copy** (`classifier.py:450`). A
       second `fit`, or `sklearn.clone` of a fitted estimator, fine-tunes the already tuned
       weights again and can carry one fold's rows into another. No current caller does this.
       Fix: keep `self.model` as passed; store the tuned copy as `model_`. Verify: fitting twice

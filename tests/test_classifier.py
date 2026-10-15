@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 import torch
 
 from fintfm.inference.classifier import FinancialTFMClassifier, _select_context
@@ -332,6 +333,29 @@ def test_ensembling_recovers_column_order_invariance():
         f"ensembling did not reduce the column-permutation gap ({one:.4f} -> {many:.4f}); "
         "decision D12 relies on it doing so"
     )
+
+
+ACCELERATORS = [
+    pytest.param(
+        "mps", marks=pytest.mark.skipif(not torch.backends.mps.is_available(), reason="no MPS")
+    ),
+    pytest.param(
+        "cuda", marks=pytest.mark.skipif(not torch.cuda.is_available(), reason="no CUDA")
+    ),
+]
+
+
+@pytest.mark.parametrize("device", ACCELERATORS)
+def test_set_params_device_moves_the_model_at_fit(device):
+    """AU1.11: __init__ placed the model, so set_params(device=...) left it where it was and
+    the first forward pass mixed devices."""
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(40, 4)).astype(np.float32)
+    y = (X[:, 0] > 0).astype(np.int64)
+    clf = FinancialTFMClassifier(_tiny_model(), device="cpu", max_context=40)
+    clf.set_params(device=device).fit(X, y)
+    assert next(clf.model_.parameters()).device.type == device
+    assert clf.predict_proba(X[:5]).shape == (5, 2)
 
 
 def test_label_swap_leaves_a_multiclass_task_unchanged():

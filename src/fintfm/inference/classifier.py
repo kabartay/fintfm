@@ -249,10 +249,12 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         finetune_steps: Gradient steps of dataset-specific fine-tuning taken in :meth:`fit`
             before the context is stored. **0 (the default) takes none**, and the classifier is
             then byte-identical to one without these arguments: the in-context model as
-            pretrained. Above 0, a *copy* of the model is updated -- the instance passed in is
-            never modified, because callers (the V4FinBench protocol among them) reuse one
-            loaded model across folds. A fine-tuned classifier has seen the target's training
-            rows through gradients, so it is no longer the zero-shot FinTFM; label results.
+            pretrained. Above 0, a *copy* of the model is updated and kept as ``model_`` -- the
+            instance passed in is never modified, because callers (the V4FinBench protocol
+            among them) reuse one loaded model across folds, and ``model`` stays that instance,
+            so refitting or cloning starts again from the pretrained weights. A fine-tuned
+            classifier has seen the target's training rows through gradients, so it is no
+            longer the zero-shot FinTFM; label results.
         finetune_lr: AdamW learning rate for fine-tuning.
         finetune_batch: Tasks per fine-tuning step.
         finetune_query: Query rows per fine-tuning task, whose labels the loss is taken on.
@@ -268,6 +270,10 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             same fold can be fine-tuned at several seeds. Seeds torch as well as numpy --
             column identities are drawn from torch's generator in training mode -- inside a
             forked RNG, so the caller's random state is untouched.
+
+    Attributes:
+        model_: The network predictions run through: ``model`` itself, placed on ``device``
+            and in eval mode at :meth:`fit`, or its fine-tuned copy when ``finetune_steps > 0``.
     """
 
     def __init__(
@@ -323,11 +329,10 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         self.finetune_query_group_frac = finetune_query_group_frac
         self.finetune_query_pos_frac = finetune_query_pos_frac
         self.finetune_seed = finetune_seed
-        # Identity-preserving, so it is safe to default on: asserted byte-for-byte by
-        # tests/test_model.py::test_feature_chunking_is_an_identity. No effect on a
-        # checkpoint with n_cell_blocks=0, which has no row-within-feature stage at all.
-        self.model.feature_chunk = feature_chunk
-        self.model.to(device).eval()
+        # Placement, eval mode and feature_chunk are applied in fit, not here: applied at
+        # construction, a later set_params(device=...) moved nothing and the first forward
+        # pass mixed devices. A checkpoint path is still loaded here, so model.cfg is readable
+        # before fit (FinancialTFMRegressor reads max_classes from it).
 
     def fit(
         self, X: np.ndarray, y: np.ndarray, groups: np.ndarray | None = None
@@ -404,6 +409,11 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
                 np.random.default_rng(self.random_state),
             )
         n_classes = len(self.classes_)
+        # Identity-preserving, so it is safe to default on: asserted byte-for-byte by
+        # tests/test_model.py::test_feature_chunking_is_an_identity. No effect on a
+        # checkpoint with n_cell_blocks=0, which has no row-within-feature stage at all.
+        self.model.feature_chunk = self.feature_chunk
+        self.model_ = self.model.to(self.device).eval()
         if self.finetune_steps > 0:
             # on the full conditioned pool, before the stored context is cut from it
             self._finetune(X, y_coded, groups, n_classes)
@@ -448,9 +458,11 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         """
         import copy
 
-        self.model = copy.deepcopy(self.model)
-        self.model.feature_chunk = self.feature_chunk
-        model = self.model.to(self.device).train()
+        # a copy of self.model, never self.model itself: a second fit, or a clone of a fitted
+        # estimator, must start again from the weights it was given, not from these
+        self.model_ = copy.deepcopy(self.model)
+        self.model_.feature_chunk = self.feature_chunk
+        model = self.model_.to(self.device).train()
         opt = torch.optim.AdamW(model.parameters(), lr=self.finetune_lr)
         # seed 0 keeps §163's numpy stream; other seeds mix in finetune_seed
         rng = np.random.default_rng(
@@ -647,7 +659,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
     ) -> FinancialTFMClassifier:
         """A sibling estimator differing in its context draw, features or label orientation."""
         twin = FinancialTFMClassifier(
-            self.model,
+            self.model_,
             device=self.device,
             max_context=self.max_context,
             context_strategy=self.context_strategy,
@@ -659,6 +671,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             feature_transform=self.feature_transform,
             prototype_minority_ratio=self.prototype_minority_ratio,
             n_ensemble=1,
+            feature_chunk=self.feature_chunk,
         )
         return twin.fit(self._raw_X if X is None else X, self._raw_y if y is None else y)
 
@@ -701,7 +714,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         Returns:
             ``(n, d_model)`` row representations, one per query row.
         """
-        self.model.assert_trained_for("classification")
+        self.model_.assert_trained_for("classification")
         X = np.asarray(X, dtype=np.float32)
         if X.shape[1] != self._ctx_X.shape[1]:
             raise ValueError("feature width at predict time must match fit time")
@@ -722,7 +735,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         """One chunk of query rows, encoded but not classified. See :meth:`transform_representation`."""
         ctx_X, ctx_y = self._ctx_X, self._ctx_y
         n_ctx = ctx_X.shape[0]
-        cfg = self.model.cfg
+        cfg = self.model_.cfg
         Xp = np.full((1, n_ctx + X.shape[0], cfg.max_features), np.nan, dtype=np.float32)
         Xp[0, :n_ctx, : ctx_X.shape[1]] = ctx_X
         Xp[0, n_ctx:, : X.shape[1]] = X
@@ -731,7 +744,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         Xt = torch.from_numpy(Xp).to(self.device)
         yt = torch.from_numpy(yp).to(self.device)
         N = Xt.shape[1]
-        h = self.model.encode_rows(Xt, n_ctx, column_id_seed=int(self.random_state), y=yt)
+        h = self.model_.encode_rows(Xt, n_ctx, column_id_seed=int(self.random_state), y=yt)
         if stage in ("encoder_mid", "pre_head"):
             import torch.nn.functional as Fnn
 
@@ -741,22 +754,22 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             )
             y_emb = torch.cat(
                 [
-                    self.model.y_proj(y_onehot),
-                    self.model.query_token.expand(B, N - n_ctx, -1),
+                    self.model_.y_proj(y_onehot),
+                    self.model_.query_token.expand(B, N - n_ctx, -1),
                 ],
                 dim=1,
             )
             h = h + y_emb
-            mask = self.model._row_mask(N, n_ctx, Xt.device)
+            mask = self.model_._row_mask(N, n_ctx, Xt.device)
             if stage == "pre_head":
-                h = self.model.encoder(h, mask=mask)
-                h = self.model.norm(h)
+                h = self.model_.encoder(h, mask=mask)
+                h = self.model_.norm(h)
             else:
                 # Half the row-to-row stack, rounded up -- partway through, not before or
                 # after all of it. No final `self.norm`: that normalisation is shaped for
                 # `self.head`'s input, not for a linear probe reading an intermediate layer.
-                n_half = (len(self.model.encoder.layers) + 1) // 2
-                for layer in self.model.encoder.layers[:n_half]:
+                n_half = (len(self.model_.encoder.layers) + 1) // 2
+                for layer in self.model_.encoder.layers[:n_half]:
                     h = layer(h, src_mask=mask)
         return h[0, n_ctx:].cpu().numpy()
 
@@ -770,7 +783,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         Returns:
             ``(n, n_classes)`` probabilities.
         """
-        self.model.assert_trained_for("classification")
+        self.model_.assert_trained_for("classification")
         if self.n_ensemble > 1 or self.ensemble_label_swap or self.ensemble_feature_frac < 1.0:
             # average probabilities, not logits: the members disagree about the base rate
             # their context implies, and averaging in logit space would let one confident
@@ -818,7 +831,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         """
         ctx_X, ctx_y = ctx if ctx is not None else (self._ctx_X, self._ctx_y)
         n_ctx = ctx_X.shape[0]
-        cfg = self.model.cfg
+        cfg = self.model_.cfg
         Xp = np.full((1, n_ctx + X.shape[0], cfg.max_features), np.nan, dtype=np.float32)
         Xp[0, :n_ctx, : ctx_X.shape[1]] = ctx_X
         Xp[0, n_ctx:, : X.shape[1]] = X
@@ -830,7 +843,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         # Each ensemble member draws its own column identities, keyed off its own seed, so
         # n_ensemble > 1 averages over them and recovers the column-order invariance that
         # decision D12 traded for expressiveness. A single member is still deterministic.
-        logits = self.model(Xt, yt, n_ctx, nc, column_id_seed=int(self.random_state))[
+        logits = self.model_(Xt, yt, n_ctx, nc, column_id_seed=int(self.random_state))[
             0, n_ctx:, : len(self.classes_)
         ]
         if self.correct_prior:
@@ -867,16 +880,16 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             RuntimeError: If the model has no hazard head.
             ValueError: If the feature width does not match :meth:`fit`.
         """
-        if self.model.hazard is None:
+        if self.model_.hazard is None:
             raise RuntimeError("this checkpoint has no hazard head; pretrain with --n-horizons K")
-        self.model.assert_trained_for("survival")
+        self.model_.assert_trained_for("survival")
         X = np.asarray(X, dtype=np.float32)
         if X.shape[1] != self._ctx_X.shape[1]:
             raise ValueError("feature width at predict time must match fit time")
         X = self._conditioner.transform(X)
         if self.context_strategy == "retrieval":
             plan = self._retrieval_plan(X)
-            out = np.empty((X.shape[0], self.model.hazard.n_horizons), dtype=np.float32)
+            out = np.empty((X.shape[0], self.model_.hazard.n_horizons), dtype=np.float32)
             for q_idx, c_idx in plan:
                 ctx = (self._pool_X[c_idx], self._pool_y[c_idx])
                 for start in range(0, q_idx.size, self.query_chunk):
@@ -904,13 +917,13 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         """Uncorrected cumulative PD for one chunk of queries."""
         ctx_X, ctx_y = ctx if ctx is not None else (self._ctx_X, self._ctx_y)
         n_ctx = ctx_X.shape[0]
-        cfg = self.model.cfg
+        cfg = self.model_.cfg
         Xp = np.full((1, n_ctx + X.shape[0], cfg.max_features), np.nan, dtype=np.float32)
         Xp[0, :n_ctx, : ctx_X.shape[1]] = ctx_X
         Xp[0, n_ctx:, : X.shape[1]] = X
         yp = np.zeros((1, n_ctx + X.shape[0]), dtype=np.int64)
         yp[0, :n_ctx] = ctx_y
-        out = self.model.term_structure(
+        out = self.model_.term_structure(
             torch.from_numpy(Xp).to(self.device), torch.from_numpy(yp).to(self.device), n_ctx
         )
         return out[0].cpu().numpy()
