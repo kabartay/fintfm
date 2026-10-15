@@ -268,3 +268,21 @@ synthetic-only and which every peer near or above 1200 TabArena Elo actually use
 its name and its auditability claim; it is additive, and its own cost (a benchmark forfeited
 permanently, a claim that must now carry a family name forever) is named in full in
 `CLAUDE.md`'s "Two families" and D17.
+
+## Audit of 2026-10-15 — ahead of every phase above
+
+[`openspec/changes/audit-2026-10-15/`](../../openspec/changes/audit-2026-10-15/) holds what an
+independent review of the code, evaluation and documents found, each item checked against the
+code or the runs before it was filed. Its order overrides the phases above until it is worked
+through:
+
+1. **Owner decisions (AU0)**, chiefly whether LendingClub stays in FinTFM-R given that it is a
+   BeyondArena dataset.
+2. **Correctness (AU1)** before any new score is taken: the padding-mask bug (AU1.1) touches
+   pretraining and inference, and the graph-reuse bug (AU1.13) confounds earlier prior
+   comparisons.
+3. **Evaluation rigour (AU2)** before any figure is quoted again: company-level bootstrap,
+   selection on AP, and the CatBoost figure relabelled with its 1,000 iterations.
+4. **Cheap gap diagnostics (AU4)** in the next GPU session after §164: boosting rounds, context
+   composition, context length past the trained range.
+5. **Strength levers (AU5)** only after those, each under §159's pre-registered rule.
