@@ -108,7 +108,7 @@
       target; `_pooled_prior_shift` assumes equal shares for multiclass retrieval
       (`classifier.py:514`).
       Verify: one test per item, each failing before its fix.
-- [ ] AU1.12 **Partly done (2026-10-16).** The three assertions are rewritten and the
+- [x] AU1.12 **Done (2026-10-16).** `tests/test_preprocess.py` now exists (from AU1.3), and the full suite on the merged fixes ran green, 450 passed and 8 skipped, including the permutation, padding-invariance and task-family tests `.pytest_cache/lastfailed` had listed. **Partly done (2026-10-16).** The three assertions are rewritten and the
       fine-tuning bound now forbids `np.isin` (backstop 60 s); each fails when its condition is
       broken by hand. Still open: direct tests for `inference/preprocess.py` (left to the
       preprocess work) and the `.pytest_cache/lastfailed` re-check on a free machine.
