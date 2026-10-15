@@ -16,6 +16,16 @@ not paste one into the other. See `CLAUDE.md`.
   (cross-entropy only, `None` is the unchanged mean). All off by default.
 - Kaggle kernels for Section 164's enriched-query and 600-step arms.
 
+### Changed
+
+- **Training streams differ from 0.7.1 when evaluation is on** (audit AU1.18). Held-out
+  evaluation inside `fintfm-train` now draws from its own generator, seeded `[seed, 1]`, instead
+  of the training generator. Before, every training batch after the first `eval_every` step
+  depended on `eval_every`; now two runs differing only in `eval_every` train on identical
+  batches. The cost is that a run with evaluation enabled (the default `eval_every` is 500)
+  draws different training tasks from 0.7.1 at the same seed; a run whose evaluation never
+  fires draws the same ones. Resumable state files carry the evaluation stream too.
+
 ### Fixed
 
 - Fine-tuning now frees its gradients and optimiser state before predicting. A 200-step run on a

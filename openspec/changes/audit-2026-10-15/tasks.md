@@ -131,7 +131,10 @@
       placeholder `y=zeros` (`prior/scm.py:340`, `prior/learnability.py:47-49`). Fix: skip
       regression or judge on `y_continuous`.
       Verify: with `p_learnability_filter > 0`, regression tasks pass at their true rate in a test.
-- [ ] AU1.18 **Evaluation shares the training RNG** (`modeling/train.py:518`): changing
+- [x] AU1.18 **Done (2026-10-16).** Evaluation draws from its own generator (`[seed, 1]`, saved
+      in the resume state); CHANGELOG notes training streams differ from 0.7.1 with evaluation
+      on (`tests/test_train.py::test_evaluation_does_not_change_the_training_batches`).
+      **Evaluation shares the training RNG** (`modeling/train.py:518`): changing
       `eval_every` changes the training tasks. Fix: a separate generator for evaluation.
       Verify: two runs differing only in `eval_every` draw identical training batches.
 - [ ] AU1.19 **TabArena adapter fills NaN with 0** (`tabarena/.../models/fintfm/model.py:147`,

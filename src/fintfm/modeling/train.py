@@ -18,6 +18,10 @@ from fintfm.modeling.model import FinancialTFM, ModelConfig
 from fintfm.prior import PriorConfig
 from fintfm.prior.mixture import sample_batch
 
+#: Second element of the evaluation generator's seed, ``[seed, _EVAL_STREAM]``, so held-out
+#: evaluation has a stream of its own that no training draw touches (audit AU1.18).
+_EVAL_STREAM = 1
+
 
 @dataclass
 class TrainConfig:
@@ -339,6 +343,7 @@ def _save_training_state(
     objectives: set[str],
     total_steps: int,
     optimizer_name: str = "adamw",
+    eval_rng: np.random.Generator | None = None,
 ) -> None:
     """Write everything needed to continue a run, not just the weights.
 
@@ -364,22 +369,25 @@ def _save_training_state(
         optimizer_name: :attr:`TrainConfig.optimizer`. Recorded so a resume cannot silently
             load one optimiser's state into the other, which would corrupt training without
             raising -- AdamW's and schedule-free's state dicts carry different keys.
+        eval_rng: The separate generator held-out evaluation draws from (audit AU1.18), saved
+            so a resumed run continues the evaluation stream rather than replaying it. Omitted
+            from the file when ``None``.
     """
-    torch.save(
-        {
-            "model_state": model.state_dict(),
-            "model_config": asdict(model.cfg),
-            "optimizer": opt.state_dict(),
-            "scheduler": sched.state_dict(),
-            "numpy_rng": rng.bit_generator.state,
-            "torch_rng": torch.get_rng_state(),
-            "step": step,
-            "objectives": sorted(objectives),
-            "total_steps": total_steps,
-            "optimizer_name": optimizer_name,
-        },
-        path,
-    )
+    state = {
+        "model_state": model.state_dict(),
+        "model_config": asdict(model.cfg),
+        "optimizer": opt.state_dict(),
+        "scheduler": sched.state_dict(),
+        "numpy_rng": rng.bit_generator.state,
+        "torch_rng": torch.get_rng_state(),
+        "step": step,
+        "objectives": sorted(objectives),
+        "total_steps": total_steps,
+        "optimizer_name": optimizer_name,
+    }
+    if eval_rng is not None:
+        state["eval_numpy_rng"] = eval_rng.bit_generator.state
+    torch.save(state, path)
 
 
 def train(
@@ -387,6 +395,12 @@ def train(
 ) -> FinancialTFM:
     """Run pretraining and save the final checkpoint to ``out_path``."""
     rng = np.random.default_rng(train_cfg.seed)
+    # Held-out evaluation draws from its own stream (audit AU1.18). Sharing ``rng`` made every
+    # training batch after the first evaluation depend on ``eval_every``, so two runs that
+    # differed only in how often they were monitored trained on different tasks. A run with
+    # evaluation on therefore draws different training batches from 0.7.1 and earlier at the
+    # same seed; one whose evaluation never fires draws the same ones.
+    eval_rng = np.random.default_rng([train_cfg.seed, _EVAL_STREAM])
     torch.manual_seed(train_cfg.seed)
     model = FinancialTFM(model_cfg).to(train_cfg.device)
     model.feature_chunk = train_cfg.feature_chunk
@@ -457,6 +471,8 @@ def train(
         opt.load_state_dict(state["optimizer"])
         sched.load_state_dict(state["scheduler"])
         rng.bit_generator.state = state["numpy_rng"]
+        if "eval_numpy_rng" in state:  # absent from states written before AU1.18
+            eval_rng.bit_generator.state = state["eval_numpy_rng"]
         torch.set_rng_state(
             state["torch_rng"].cpu() if hasattr(state["torch_rng"], "cpu") else state["torch_rng"]
         )
@@ -506,16 +522,19 @@ def train(
                 objectives,
                 train_cfg.steps,
                 optimizer_name=train_cfg.optimizer,
+                eval_rng=eval_rng,
             )
             _set_optimizer_mode(opt, train_cfg.optimizer, "train")
             print(f"  checkpoint at step {step + 1}: {partial}", flush=True)
         if (step + 1) % train_cfg.eval_every == 0:
             _set_optimizer_mode(opt, train_cfg.optimizer, "eval")
             if model.cfg.head_type == "quantile":
-                qq = _eval_quality_quantile(model, prior_cfg, rng, batch_size=train_cfg.batch_size)
+                qq = _eval_quality_quantile(
+                    model, prior_cfg, eval_rng, batch_size=train_cfg.batch_size
+                )
                 print(f"  held-out: pinball {qq['pinball']:.4f}  nRMSE {qq['nrmse']:.4f}")
             else:
-                q = _eval_quality(model, prior_cfg, rng, batch_size=train_cfg.batch_size)
+                q = _eval_quality(model, prior_cfg, eval_rng, batch_size=train_cfg.batch_size)
                 print(
                     f"  held-out: AUC/task {q['auc_per_task']:.3f}  AUC pooled {q['auc']:.3f}"
                     f"  Brier skill vs base rate {q['brier_skill']:+.3f}"
@@ -534,6 +553,7 @@ def train(
         objectives,
         train_cfg.steps,
         optimizer_name=train_cfg.optimizer,
+        eval_rng=eval_rng,
     )
     print(f"saved checkpoint to {out_path}")
     if stop_step < train_cfg.steps:
