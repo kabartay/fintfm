@@ -13,7 +13,15 @@ def test_financial_task_shapes_and_labels():
     assert task.n_features <= 24
     assert set(np.unique(task.y)) <= {0, 1}
     assert task.n_classes == 2
-    assert np.isnan(task.X).any() or True  # missingness is probabilistic, just must not crash
+    # Missingness is drawn per task (an MCAR rate up to 15%, plus MNAR on distressed firms half
+    # the time), so it is checked across tasks: nearly every one has some, none is mostly NaN.
+    # The previous `... or True` could not fail (audit AU1.12).
+    fracs = [
+        np.isnan(sample_financial_task(rng, n_rows=200, max_features=24).X).mean()
+        for _ in range(10)
+    ]
+    assert sum(f > 0 for f in fracs) >= 8, fracs
+    assert max(fracs) < 0.5, fracs
 
 
 def test_scm_task_dense_labels():

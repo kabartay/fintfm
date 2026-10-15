@@ -108,7 +108,11 @@
       target; `_pooled_prior_shift` assumes equal shares for multiclass retrieval
       (`classifier.py:514`).
       Verify: one test per item, each failing before its fix.
-- [ ] AU1.12 **Tests that cannot fail.** `tests/test_prior.py:16` (`... or True`),
+- [ ] AU1.12 **Partly done (2026-10-16).** The three assertions are rewritten and the
+      fine-tuning bound now forbids `np.isin` (backstop 60 s); each fails when its condition is
+      broken by hand. Still open: direct tests for `inference/preprocess.py` (left to the
+      preprocess work) and the `.pytest_cache/lastfailed` re-check on a free machine.
+      **Tests that cannot fail.** `tests/test_prior.py:16` (`... or True`),
       `tests/test_model.py:296` (`isnan or isfinite`), `tests/test_prior_score.py:61`
       (`n_scored >= 0`). The wall-clock bound at `tests/test_finetune.py:97` is flaky on a
       loaded machine: assert on operation count or loosen it. `inference/preprocess.py` has no
@@ -116,32 +120,51 @@
       invariance, two task-family cases) when the machine is free.
       Verify: each rewritten assertion fails when its condition is broken by hand.
 
-- [ ] AU1.13 **Graph reuse distorts the prior mixture.** `prior/mixture.py:387-395` draws the
+- [x] AU1.13 **Done (2026-10-16).** Each task's source is drawn once by `_draw_source` and
+      dispatched; SCM tasks are grouped only afterwards; reuse-1 stream unchanged
+      (`tests/test_mixture.py`). **Graph reuse distorts the prior mixture.** `prior/mixture.py:387-395` draws the
       source to decide whether a slot is grouped, then `sample_task` draws it again, and
       `p_trivial`, `p_crossed`, `p_task_family` are left out of the check, while each SCM slot
       fills `scm_reuse_graph` tasks. Agent measurement at p_fin 0.7, p_tree 0.2, p_fam 0.2:
       SCM share 0.198 at reuse 1 against 0.558 at reuse 4. Any comparison across reuse values
       (task 48.12, §113) mixed two changes. Fix: draw the source once and dispatch. Verify: a
       test that source shares match within binomial error at reuse 1 and 4; re-read §113.
-- [ ] AU1.14 **Some prior tasks get labels unrelated to X.** A single-class draw is repaired by
+- [x] AU1.14 **Done (2026-10-16).** Single-class draws are topped up with real rows
+      (`real_panel.ensure_both_classes`), never relabelled; every real loader takes the
+      mixture's positive floor; a one-class panel raises (`tests/test_real_*.py::test_single_class_*`).
+      **Some prior tasks get labels unrelated to X.** A single-class draw is repaired by
       flipping 5% of rows at random. `prior/real_mortgage.py:141-144` has no minimum-positives
       step, so at a 0.048% rate most 256-row mortgage tasks get random labels;
       `prior/real_edgar.py:134-142` likewise at ~3% of 256-row tasks. Fix: resample instead of
       flipping; minimum-positives enrichment in every real loader.
       Verify: a test that no real-loader task has labels flipped at random; positive count ≥ the floor.
-- [ ] AU1.15 **EDGAR context/query leakage.** 73% of EDGAR rows share a `cik` with another row;
+- [x] AU1.15 **Done (2026-10-16).** EDGAR tasks take one row per `cik` (`real_panel.draw_rows`),
+      so every context/query split is firm-disjoint
+      (`tests/test_real_edgar.py::test_no_firm_appears_in_both_context_and_query`).
+      **EDGAR context/query leakage.** 73% of EDGAR rows share a `cik` with another row;
       row-wise sampling (`prior/real_edgar.py:131`) puts the same firm in context and query,
       which teaches lookup. Fix: split by firm, as `_finetune_rows` does.
       Verify: a test that no `cik` appears in both context and query of an EDGAR task.
-- [ ] AU1.16 **Rare classes appear only in query rows.** Random cut-points (`prior/scm.py:248-250`,
+- [x] AU1.16 **Done (2026-10-16).** New `PriorConfig.min_ctx_per_class` (default 0, unchanged
+      behaviour; config `prior.min_ctx_per_class`, `--min-ctx-per-class`) moves whole rows
+      into the context once the split is drawn (`base.ensure_context_classes`). Applied in
+      `sample_batch`, not in scm.py/tree.py, since only the batch knows `n_ctx`
+      (`tests/test_mixture.py::test_every_query_class_is_in_the_context_with_a_class_floor`).
+      **Rare classes appear only in query rows.** Random cut-points (`prior/scm.py:248-250`,
       `prior/tree.py:143-145`) leave a class with ≤2 rows in ~31% of 256-row tasks; the loss is
       then taken on labels absent from the context. Fix: a minimum count per class in context.
       Verify: sample 1,000 256-row tasks; every class present in the query is present in the context.
-- [ ] AU1.17 **Learnability filter rejects every regression task.** `is_learnable` reads the
+- [x] AU1.17 **Done (2026-10-16).** `is_learnable` judges a regression task on `y_continuous`
+      split at its median, at the same AUC floor; regression prior tasks now pass at a
+      non-zero rate (`tests/test_prior_learnability.py`).
+      **Learnability filter rejects every regression task.** `is_learnable` reads the
       placeholder `y=zeros` (`prior/scm.py:340`, `prior/learnability.py:47-49`). Fix: skip
       regression or judge on `y_continuous`.
       Verify: with `p_learnability_filter > 0`, regression tasks pass at their true rate in a test.
-- [ ] AU1.18 **Evaluation shares the training RNG** (`modeling/train.py:518`): changing
+- [x] AU1.18 **Done (2026-10-16).** Evaluation draws from its own generator (`[seed, 1]`, saved
+      in the resume state); CHANGELOG notes training streams differ from 0.7.1 with evaluation
+      on (`tests/test_train.py::test_evaluation_does_not_change_the_training_batches`).
+      **Evaluation shares the training RNG** (`modeling/train.py:518`): changing
       `eval_every` changes the training tasks. Fix: a separate generator for evaluation.
       Verify: two runs differing only in `eval_every` draw identical training batches.
 - [ ] AU1.19 **TabArena adapter fills NaN with 0** (`tabarena/.../models/fintfm/model.py:147`,

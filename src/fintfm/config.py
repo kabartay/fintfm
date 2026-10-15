@@ -119,7 +119,7 @@ class ContextSweepConfig:
 
 @dataclass(frozen=True)
 class PriorConfigDefaults:
-    """The financial prior's default-rate envelope."""
+    """The financial prior's default-rate envelope, plus the context class floor (AU1.16)."""
 
     sharpness_min: float = 0.3
     sharpness_max: float = 12.0
@@ -127,6 +127,7 @@ class PriorConfigDefaults:
     absolute_rate_floor: float = 0.001
     rate_ceiling: float = 0.30
     n_sectors: int = 12
+    min_ctx_per_class: int = 0
 
 
 @dataclass(frozen=True)

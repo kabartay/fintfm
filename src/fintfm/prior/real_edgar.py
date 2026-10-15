@@ -36,6 +36,7 @@ import numpy as np
 import pandas as pd
 
 from fintfm.prior.base import Task
+from fintfm.prior.real_panel import draw_rows, ensure_both_classes
 
 #: Columns that identify a row rather than describe it. Never sampled as features.
 _BOOKKEEPING_COLUMNS = ("cik", "period_end", "label")
@@ -86,6 +87,7 @@ def sample_real_edgar_task(
     min_features: int = 4,
     panel: pd.DataFrame | None = None,
     panel_path: str = DEFAULT_PANEL_PATH,
+    min_positives: int = 0,
 ) -> Task:
     """Sample one task from real SEC EDGAR firm-quarters.
 
@@ -105,14 +107,20 @@ def sample_real_edgar_task(
             caching. When `None`, `panel_path` is read (and cached) instead.
         panel_path: Where to read the panel from when `panel` is not given directly. See
             `DEFAULT_PANEL_PATH`.
+        min_positives: Positive floor per task, met by swapping in real positive rows (from
+            firms not already in the task), never by editing labels. Every task carries at
+            least one real row of each class whatever this is; see
+            :func:`fintfm.prior.real_panel.ensure_both_classes`.
 
     Returns:
-        A binary `Task` with `source="real_edgar"`, no survival framing (`period=None`).
+        A binary `Task` with `source="real_edgar"`, no survival framing (`period=None`), and
+        at most one row per firm (`cik`), so every context/query split is firm-disjoint.
 
     Raises:
         ValueError: If the panel's feature count is outside `[min_features, max_features]`,
-            or if `n_rows` exceeds the panel's own row count (sampling without replacement
-            must not silently fall back to sampling the same real row twice into one task).
+            if `n_rows` exceeds the panel's own row count or firm count (sampling without
+            replacement must not silently fall back to sampling the same real row twice into
+            one task), or if the panel cannot supply a real row of each class.
     """
     df = panel if panel is not None else _load_panel_cached(panel_path)
     cols = feature_columns(df)
@@ -126,18 +134,15 @@ def sample_real_edgar_task(
             f"requested n_rows={n_rows} exceeds the panel's {len(df)} rows; sampling without "
             "replacement cannot supply more distinct real rows than the panel has"
         )
-    idx = rng.choice(len(df), size=n_rows, replace=False)
+    # One row per firm, so no firm can sit in both context and query whatever boundary the
+    # batch draws (audit AU1.15; see `real_panel.draw_rows`).
+    firms = df["cik"].to_numpy()
+    idx = draw_rows(rng, len(df), n_rows, groups=firms)
+    labels = df["label"].to_numpy(dtype=np.int64)
+    idx = ensure_both_classes(rng, labels, idx, min_positives, groups=firms, name=panel_path)
     rows = df.iloc[idx]
     X = rows[cols].to_numpy(dtype=np.float64)
     y = rows["label"].to_numpy(dtype=np.int64, copy=True)
-    present = np.unique(y)
-    if len(present) < 2:
-        # A sampled task with only one class present is unscorable (no AUC, no ranking
-        # signal) rather than merely hard. Matches the same guarantee the synthetic priors
-        # make in `_finish_scm_task` and elsewhere: a task this function returns is always
-        # scorable, and a caller never has to discover a degenerate label space mid-batch.
-        flip = rng.choice(n_rows, size=max(1, n_rows // 20), replace=False)
-        y[flip] = 1 - y[0]
     return Task(
         X=X.astype(np.float32),
         y=y,

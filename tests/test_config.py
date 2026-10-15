@@ -62,6 +62,15 @@ def test_prior_section_matches_the_prior_constants():
     assert cfg.n_sectors == _N_SECTORS
 
 
+def test_prior_section_mirrors_the_context_class_floor_default():
+    # AU1.16's flag lives in PriorConfig and is supplied from configuration by fintfm-train;
+    # the two defaults must agree, and both must be 0 so no existing checkpoint's distribution
+    # moves unless a run asks for it.
+    from fintfm.prior import PriorConfig
+
+    assert load_config().prior.min_ctx_per_class == PriorConfig.min_ctx_per_class == 0
+
+
 def test_shipped_example_configs_all_load():
     """A broken example is worse than no example: it is copied before it is run."""
     root = Path(__file__).resolve().parents[1] / "configs"

@@ -41,6 +41,10 @@ from fintfm.prior.base import Task
 #: without it becoming a feature.
 _BOOKKEEPING = frozenset({"label", "loan_id", "cik", "period_end"})
 
+#: The column that identifies a firm in a panel with several rows per firm (EDGAR's filer id).
+#: When present, a task takes at most one row per firm; see :func:`draw_rows`.
+GROUP_COLUMN = "cik"
+
 
 @functools.lru_cache(maxsize=16)
 def load_panel(path: str) -> pd.DataFrame:
@@ -111,6 +115,144 @@ def source_name(path: str) -> str:
     return f"real:{Path(path).parent.name}"
 
 
+def draw_rows(
+    rng: np.random.Generator, n_panel: int, n_rows: int, groups: np.ndarray | None = None
+) -> np.ndarray:
+    """Draw a task's rows without replacement, at most one per group when groups are given.
+
+    Without ``groups`` this is exactly ``rng.choice(n_panel, n_rows, replace=False)``, the
+    draw every real sampler made before audit AU1.15.
+
+    With ``groups`` (EDGAR's ``cik``), no group contributes two rows. A task's context/query
+    boundary is drawn per batch, after the task exists (:func:`fintfm.prior.mixture.sample_batch`),
+    so the sampler cannot split firms across a boundary it does not know; one row per firm
+    makes *every* boundary firm-disjoint, which is the property
+    :func:`fintfm.inference.classifier._finetune_rows` enforces for fine-tuning. Without it,
+    73% of EDGAR rows share a firm with another row, and a task holding the same firm in
+    context and query rewards lookup over inference. Rows are taken in a random order and a
+    row is skipped when its firm is already in, so the draw stays as close to row-uniform as
+    the constraint allows.
+
+    Args:
+        rng: NumPy random generator.
+        n_panel: Rows in the panel.
+        n_rows: Rows wanted.
+        groups: Optional ``(n_panel,)`` group label per row.
+
+    Returns:
+        ``(n_rows,)`` row indices into the panel.
+
+    Raises:
+        ValueError: If the panel has fewer than ``n_rows`` groups.
+    """
+    if groups is None:
+        return rng.choice(n_panel, size=n_rows, replace=False)
+    # A candidate draw twice the size almost always holds enough distinct firms; the full
+    # permutation is the fallback, not the common path, since it costs O(panel) per task.
+    for candidates in (
+        rng.choice(n_panel, size=min(n_panel, 2 * n_rows), replace=False),
+        rng.permutation(n_panel),
+    ):
+        _, first = np.unique(groups[candidates], return_index=True)
+        if len(first) >= n_rows:
+            return candidates[np.sort(first)[:n_rows]]
+    raise ValueError(
+        f"requested n_rows={n_rows} exceeds the panel's {len(first)} distinct {GROUP_COLUMN} "
+        "values; a task takes one row per firm so that no firm sits in both context and query"
+    )
+
+
+def _swap_in_class(
+    rng: np.random.Generator,
+    labels: np.ndarray,
+    idx: np.ndarray,
+    cls: int,
+    floor: int,
+    groups: np.ndarray | None,
+) -> np.ndarray:
+    """Raise the count of class ``cls`` in ``idx`` to ``floor`` with real rows from the panel.
+
+    Rows of the other class are evicted at random and replaced by rows of ``cls`` that are not
+    already in the task (and, with ``groups``, whose group is not already in it either). Labels
+    are never edited, so every label stays the one the panel recorded for that row's features.
+
+    Args:
+        rng: NumPy random generator.
+        labels: ``(n_panel,)`` binary labels of the whole panel.
+        idx: The task's current row indices.
+        cls: The class to top up.
+        floor: Rows of ``cls`` wanted. Reached only as far as the panel can supply.
+        groups: Optional group label per panel row, kept one-per-task.
+
+    Returns:
+        The (possibly) updated row indices; ``idx`` itself is not modified.
+    """
+    short = floor - int((labels[idx] == cls).sum())
+    if short <= 0:
+        return idx
+    pool = np.flatnonzero(labels == cls)
+    if groups is None:
+        pool = np.setdiff1d(pool, idx, assume_unique=True)
+    else:
+        pool = pool[~np.isin(groups[pool], groups[idx])]
+        pool = pool[rng.permutation(len(pool))]
+        _, first = np.unique(groups[pool], return_index=True)
+        pool = pool[np.sort(first)]
+    evictable = np.flatnonzero(labels[idx] != cls)
+    short = min(short, len(pool), len(evictable))
+    if short <= 0:
+        return idx
+    idx = idx.copy()
+    idx[rng.choice(evictable, size=short, replace=False)] = rng.choice(
+        pool, size=short, replace=False
+    )
+    return idx
+
+
+def ensure_both_classes(
+    rng: np.random.Generator,
+    labels: np.ndarray,
+    idx: np.ndarray,
+    min_positives: int = 0,
+    groups: np.ndarray | None = None,
+    name: str = "panel",
+) -> np.ndarray:
+    """Give a real task its positive floor and both classes, by resampling rows, never labels.
+
+    Every real sampler used to repair a single-class draw by flipping 5% of its labels at
+    random. On a rare-label panel that was the common case, not the edge case -- most 256-row
+    mortgage tasks at the 0.048% rate, about 3% of 256-row EDGAR tasks -- so the model was
+    trained on labels unrelated to the features beside them (audit AU1.14). Here the task is
+    topped up with real rows instead: first to ``max(min_positives, 1)`` positives (capped at
+    ``len(idx) - 1`` so a negative can remain), then to at least one negative.
+
+    Args:
+        rng: NumPy random generator.
+        labels: ``(n_panel,)`` binary 0/1 labels of the whole panel.
+        idx: The task's drawn row indices.
+        min_positives: Positive floor; values below one still guarantee one positive.
+        groups: Optional group label per panel row; swapped-in rows keep one row per group.
+        name: Panel name for the error message.
+
+    Returns:
+        Row indices holding real rows of both classes.
+
+    Raises:
+        ValueError: If the panel cannot supply a row of each class -- a misconfigured panel,
+            which a random relabelling would have hidden.
+    """
+    floor = min(max(min_positives, 1), len(idx) - 1)
+    idx = _swap_in_class(rng, labels, idx, 1, floor, groups)
+    idx = _swap_in_class(rng, labels, idx, 0, 1, groups)
+    if len(np.unique(labels[idx])) < 2:
+        raise ValueError(
+            f"{name}: cannot draw a task with both classes from real rows; the panel holds "
+            f"{int((labels == 1).sum())} positives and {int((labels == 0).sum())} negatives"
+            + ("" if groups is None else " (one row per firm)")
+        )
+    return idx
+
+
 def sample_real_panel_task(
     rng: np.random.Generator,
     n_rows: int,
@@ -134,17 +276,20 @@ def sample_real_panel_task(
             randomly chosen negatives for positives drawn from the panel's own positive pool.
             The real-data counterpart of the synthetic prior's `min_expected_positives` floor:
             at a 256-row context a 0.17%-rate source averages under one positive, so without it
-            most tasks would fall to the label-flip repair below -- random labels presented as
-            real ones. Enriching a task's base rate is safe here for the same reason it is in
-            the synthetic prior, and the resulting rate (2/256, ~0.8%) is inside V4FinBench's
-            own regime.
+            most tasks would be single-class. Enriching a task's base rate is safe here for the
+            same reason it is in the synthetic prior, and the resulting rate (2/256, ~0.8%) is
+            inside V4FinBench's own regime. Whatever its value, every task carries at least one
+            real row of each class; see :func:`ensure_both_classes`.
 
     Returns:
-        A binary `Task`, `source` from :func:`source_name`, no survival framing.
+        A binary `Task`, `source` from :func:`source_name`, no survival framing. When the
+        panel carries a ``cik`` column, no firm appears twice in the task (see
+        :func:`draw_rows`).
 
     Raises:
-        ValueError: If the feature count is outside ``[min_features, max_features]`` or
-            `n_rows` exceeds the panel's rows.
+        ValueError: If the feature count is outside ``[min_features, max_features]``,
+            `n_rows` exceeds the panel's rows (or firms), or the panel cannot supply a real
+            row of each class.
     """
     df = panel if panel is not None else load_panel(panel_path)
     cols = feature_columns(df)
@@ -158,28 +303,13 @@ def sample_real_panel_task(
             f"requested n_rows={n_rows} exceeds the panel's {len(df)} rows; sampling without "
             "replacement cannot supply more distinct real rows than the panel has"
         )
-    idx = rng.choice(len(df), size=n_rows, replace=False)
-    if min_positives > 0:
-        labels = df["label"].to_numpy(dtype=np.int64)
-        short = min_positives - int(labels[idx].sum())
-        if short > 0:
-            pool = np.setdiff1d(np.flatnonzero(labels == 1), idx, assume_unique=True)
-            short = min(short, len(pool))
-            negatives = np.flatnonzero(labels[idx] == 0)
-            if short > 0 and len(negatives) >= short:
-                idx = idx.copy()
-                idx[rng.choice(negatives, size=short, replace=False)] = rng.choice(
-                    pool, size=short, replace=False
-                )
+    groups = df[GROUP_COLUMN].to_numpy() if GROUP_COLUMN in df.columns else None
+    idx = draw_rows(rng, len(df), n_rows, groups=groups)
+    labels = df["label"].to_numpy(dtype=np.int64)
+    idx = ensure_both_classes(rng, labels, idx, min_positives, groups=groups, name=panel_path)
     rows = df.iloc[idx]
     X = rows[cols].to_numpy(dtype=np.float64)
     y = rows["label"].to_numpy(dtype=np.int64, copy=True)
-    if len(np.unique(y)) < 2:
-        # Same guarantee every other prior makes: a returned task is always scorable. Fires
-        # often on the rarest sources (card fraud at 0.17%, mortgages at 0.05%) at small n_rows,
-        # which is a reason to weight those sources low or draw them with larger contexts.
-        flip = rng.choice(n_rows, size=max(1, n_rows // 20), replace=False)
-        y[flip] = 1 - y[0]
     return Task(
         X=X.astype(np.float32),
         y=y,

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from fintfm.prior.base import Task, TaskBatch, collate
+from fintfm.prior.base import Task, TaskBatch, collate, ensure_context_classes
 from fintfm.prior.crossed import sample_scm_features_financial_label
 from fintfm.prior.financial import (
     _ABSOLUTE_RATE_FLOOR,
@@ -92,7 +92,10 @@ class PriorConfig:
             many independent graphs per batch**, which is a diversity loss nothing has yet
             measured. Defensible only because the siblings are genuinely distinct problems: a
             model fitted on one target scores 0.4775 — chance — on another from the same graph
-            (§113).
+            (§113). Since audit AU1.13 every task's source is drawn from the mixture before
+            any grouping, so the reuse value no longer changes the batch's source shares;
+            before it, an SCM-heavy distortion (0.198 SCM share at reuse 1, 0.558 at reuse
+            4) rode along with every reuse comparison.
         scm_legacy: Draw SCM tasks from the pre-48.17/48.19 prior. The control arm for the
             widened prior; see :func:`fintfm.prior.scm.sample_scm_task`. **Note that this knob
             is inert at ``p_financial=1.0``**, where no SCM task is ever drawn -- the mistake
@@ -215,6 +218,15 @@ class PriorConfig:
     """Give up and keep the task rather than resample forever. A batch member must never be
     silently dropped -- :func:`sample_batch` always returns exactly ``batch_size`` tasks -- and
     a task family with a rejection rate above this bound would otherwise spin without limit."""
+    min_ctx_per_class: int = 0
+    """Context rows guaranteed to every class of a classification task, by moving rows between
+    query and context once the batch's split is drawn
+    (:func:`fintfm.prior.base.ensure_context_classes`). Audit AU1.16: random cut-points in the
+    SCM and tree priors leave a class with two rows or fewer in about 31% of 256-row tasks, and
+    such a class can land only in the query, where the loss asks for a label the context never
+    showed. Applies to every classification source, not only SCM and tree. ``0`` (default)
+    moves nothing and consumes no random draw, reproducing every checkpoint trained before this
+    field existed; any other value changes the pretraining distribution."""
     head_type: str = "binned"
     p_real_edgar: float = 0.0
     """Probability of drawing a task sampled from real SEC EDGAR firm-quarters instead of a
@@ -259,34 +271,104 @@ class PriorConfig:
     trained before this field existed is reproduced exactly."""
 
 
-def sample_task(rng: np.random.Generator, cfg: PriorConfig, n_rows: int | None = None) -> Task:
-    """Draw one task from the mixture prior.
+def _draw_source(rng: np.random.Generator, cfg: PriorConfig) -> tuple[str, str | None]:
+    """Decide which prior the next task comes from, consuming only the source draws.
+
+    Split out of :func:`sample_task` (audit AU1.13) so the graph-reusing batch path can draw a
+    slot's source **once** and then dispatch on it. Before this, that path drew the source to
+    decide whether to group a slot, left ``p_trivial``, ``p_crossed`` and ``p_task_family``
+    out of the check, and then let :func:`sample_task` draw the source a second time -- so
+    the realised SCM share at ``scm_reuse_graph=4`` was 0.558 against 0.198 at 1 for the
+    same weights.
+
+    The draws are made in exactly the order :func:`sample_task` always made them, and a
+    weight of zero still consumes no draw, so ``sample_task`` reproduces its pre-split random
+    stream byte for byte.
+
+    Args:
+        rng: NumPy random generator.
+        cfg: Prior configuration.
+
+    Returns:
+        ``(source, panel_path)``. ``source`` is one of ``"tree"``, ``"regression"``,
+        ``"trivial"``, ``"crossed"``, ``"task_family"``, ``"real_edgar"``,
+        ``"real_mortgage"``, ``"real_lendingclub"``, ``"real_panel"``, ``"financial"`` or
+        ``"scm"``; ``panel_path`` is the chosen panel for ``"real_panel"`` and ``None``
+        otherwise.
 
     Raises:
-        ValueError: If ``n_horizons`` is set with ``p_financial < 1``, which would produce
-            batches mixing survival and binary-only tasks.
+        ValueError: If ``n_horizons`` is set with ``p_financial < 1``, checked before any
+            draw exactly as :func:`sample_task` always did.
     """
-    n = cfg.n_rows if n_rows is None else n_rows
     if cfg.n_horizons is not None and cfg.p_financial < 1.0:
         raise ValueError(
             "n_horizons requires p_financial=1.0; the SCM prior has no time axis and a "
             "mixed batch cannot carry a coherent survival likelihood"
         )
-    if cfg.p_tree and rng.random() < cfg.p_tree:
-        if cfg.n_horizons is not None:
-            raise ValueError("n_horizons requires p_financial=1.0; the tree prior has no time axis")
+    for name, p in (
+        ("tree", cfg.p_tree),
+        ("regression", cfg.p_regression),
+        ("trivial", cfg.p_trivial),
+        ("crossed", cfg.p_crossed),
+        ("task_family", cfg.p_task_family),
+        ("real_edgar", cfg.p_real_edgar),
+        ("real_mortgage", cfg.p_real_mortgage),
+        ("real_lendingclub", cfg.p_real_lendingclub),
+    ):
+        if p and rng.random() < p:
+            return name, None
+    for path, p in parse_real_panels(cfg.real_panels):
+        if rng.random() < p:
+            return "real_panel", path
+    if rng.random() < cfg.p_financial:
+        return "financial", None
+    return "scm", None
+
+
+def _sample_from_source(
+    rng: np.random.Generator, cfg: PriorConfig, source: str, panel_path: str | None, n: int
+) -> Task:
+    """Draw one task from the prior :func:`_draw_source` chose.
+
+    Args:
+        rng: NumPy random generator.
+        cfg: Prior configuration.
+        source: A source name returned by :func:`_draw_source`.
+        panel_path: The panel for ``source="real_panel"``; ignored otherwise.
+        n: Rows to generate.
+
+    Returns:
+        The task.
+
+    Raises:
+        ValueError: If ``n_horizons`` is set and the chosen prior has no time axis, or if
+            ``source`` is unknown.
+    """
+    if cfg.n_horizons is not None and source not in ("financial", "trivial", "crossed"):
+        reasons = {
+            "tree": "n_horizons requires p_financial=1.0; the tree prior has no time axis",
+            "regression": "n_horizons requires a survival label; a regression task has no event time",
+            "task_family": "n_horizons requires p_financial=1.0; task_families has no time axis",
+            "real_edgar": "n_horizons requires p_financial=1.0; real_edgar carries no horizon grid",
+            "real_mortgage": (
+                "n_horizons requires p_financial=1.0; real_mortgage carries no horizon grid"
+            ),
+            "real_lendingclub": (
+                "n_horizons requires p_financial=1.0; real_lendingclub carries no horizon grid"
+            ),
+            "real_panel": "n_horizons requires p_financial=1.0; real panels carry no horizon grid",
+        }
+        if source in reasons:
+            raise ValueError(reasons[source])
+    if source == "tree":
         return sample_tree_task(rng, n, max_features=cfg.max_features, max_classes=cfg.max_classes)
-    if cfg.p_regression and rng.random() < cfg.p_regression:
-        if cfg.n_horizons is not None:
-            raise ValueError(
-                "n_horizons requires a survival label; a regression task has no event time"
-            )
+    if source == "regression":
         return sample_scm_regression_task(
             rng, n, max_features=cfg.max_features, n_bins=cfg.max_classes
         )
-    if cfg.p_trivial and rng.random() < cfg.p_trivial:
+    if source == "trivial":
         return sample_trivial_task(rng, n, max_features=min(8, cfg.max_features))
-    if cfg.p_crossed and rng.random() < cfg.p_crossed:
+    if source == "crossed":
         return sample_scm_features_financial_label(
             rng,
             n,
@@ -297,45 +379,33 @@ def sample_task(rng: np.random.Generator, cfg: PriorConfig, n_rows: int | None =
             sharpness_min=cfg.sharpness_min,
             sharpness_max=cfg.sharpness_max,
         )
-    if cfg.p_task_family and rng.random() < cfg.p_task_family:
-        if cfg.n_horizons is not None:
-            raise ValueError(
-                "n_horizons requires p_financial=1.0; task_families has no time axis"
-            )
+    if source == "task_family":
         return _sample_task_family_mixture(rng, n, max_features=cfg.max_features)
-    if cfg.p_real_edgar and rng.random() < cfg.p_real_edgar:
-        if cfg.n_horizons is not None:
-            raise ValueError(
-                "n_horizons requires p_financial=1.0; real_edgar carries no horizon grid"
-            )
+    # Every real source gets the synthetic financial prior's positive floor (audit AU1.14), met
+    # with real positive rows, so a rare-label panel is enriched rather than relabelled.
+    min_positives = math.ceil(cfg.min_expected_positives)
+    if source == "real_edgar":
         return sample_real_edgar_task(
-            rng, n, max_features=cfg.max_features, panel_path=cfg.real_edgar_panel_path
+            rng, n, max_features=cfg.max_features, panel_path=cfg.real_edgar_panel_path,
+            min_positives=min_positives,
         )
-    if cfg.p_real_mortgage and rng.random() < cfg.p_real_mortgage:
-        if cfg.n_horizons is not None:
-            raise ValueError(
-                "n_horizons requires p_financial=1.0; real_mortgage carries no horizon grid"
-            )
+    if source == "real_mortgage":
         return sample_real_mortgage_task(
-            rng, n, max_features=cfg.max_features, panel_path=cfg.real_mortgage_panel_path
+            rng, n, max_features=cfg.max_features, panel_path=cfg.real_mortgage_panel_path,
+            min_positives=min_positives,
         )
-    if cfg.p_real_lendingclub and rng.random() < cfg.p_real_lendingclub:
-        if cfg.n_horizons is not None:
-            raise ValueError(
-                "n_horizons requires p_financial=1.0; real_lendingclub carries no horizon grid"
-            )
+    if source == "real_lendingclub":
         return sample_real_lendingclub_task(
-            rng, n, max_features=cfg.max_features, panel_path=cfg.real_lendingclub_panel_path
+            rng, n, max_features=cfg.max_features, panel_path=cfg.real_lendingclub_panel_path,
+            min_positives=min_positives,
         )
-    for path, p in parse_real_panels(cfg.real_panels):
-        if rng.random() < p:
-            if cfg.n_horizons is not None:
-                raise ValueError("n_horizons requires p_financial=1.0; real panels carry no horizon grid")
-            return sample_real_panel_task(
-                rng, n, panel_path=path, max_features=cfg.max_features,
-                min_positives=math.ceil(cfg.min_expected_positives),
-            )
-    if rng.random() < cfg.p_financial:
+    if source == "real_panel":
+        assert panel_path is not None
+        return sample_real_panel_task(
+            rng, n, panel_path=panel_path, max_features=cfg.max_features,
+            min_positives=min_positives,
+        )
+    if source == "financial":
         return sample_financial_task(
             rng,
             n,
@@ -353,13 +423,27 @@ def sample_task(rng: np.random.Generator, cfg: PriorConfig, n_rows: int | None =
             sharpness_min=cfg.sharpness_min,
             sharpness_max=cfg.sharpness_max,
         )
-    return sample_scm_task(
-        rng,
-        n,
-        max_features=cfg.max_features,
-        max_classes=cfg.max_classes,
-        legacy=cfg.scm_legacy,
-    )
+    if source == "scm":
+        return sample_scm_task(
+            rng,
+            n,
+            max_features=cfg.max_features,
+            max_classes=cfg.max_classes,
+            legacy=cfg.scm_legacy,
+        )
+    raise ValueError(f"unknown prior source {source!r}")
+
+
+def sample_task(rng: np.random.Generator, cfg: PriorConfig, n_rows: int | None = None) -> Task:
+    """Draw one task from the mixture prior.
+
+    Raises:
+        ValueError: If ``n_horizons`` is set with ``p_financial < 1``, which would produce
+            batches mixing survival and binary-only tasks.
+    """
+    n = cfg.n_rows if n_rows is None else n_rows
+    source, panel_path = _draw_source(rng, cfg)
+    return _sample_from_source(rng, cfg, source, panel_path, n)
 
 
 def _sample_tasks_reusing_graphs(
@@ -367,9 +451,18 @@ def _sample_tasks_reusing_graphs(
 ) -> list[Task]:
     """Fill a batch, drawing several SCM tasks per graph (task 48.12).
 
-    Non-SCM draws are unaffected and go through :func:`sample_task` one at a time; only the
-    SCM slots are grouped, since the financial and tree priors have no shared-graph structure
-    to amortise.
+    Every task's source is drawn **first and once**, by :func:`_draw_source`, exactly as
+    :func:`sample_task` would draw it (audit AU1.13). Only then are the tasks that came up SCM
+    filled, ``scm_reuse_graph`` at a time from one shared graph; every other source is sampled
+    one task at a time, since the financial and tree priors have no shared-graph structure to
+    amortise. So the batch's source mix follows the configured mixture whatever the reuse
+    value, and reuse changes only which SCM tasks share a graph.
+
+    Before AU1.13 this function decided whether a *slot* was SCM, left ``p_trivial``,
+    ``p_crossed`` and ``p_task_family`` out of that check, drew the source a second time inside
+    :func:`sample_task`, and filled each SCM slot with several tasks -- measured at p_financial
+    0.7, p_tree 0.2, p_task_family 0.2, an SCM share of 0.198 at reuse 1 against 0.558 at
+    reuse 4. Any comparison across reuse values made before the fix changed two things at once.
 
     Args:
         rng: NumPy random generator.
@@ -380,33 +473,27 @@ def _sample_tasks_reusing_graphs(
     Returns:
         Exactly ``batch_size`` tasks, in draw order.
     """
-    tasks: list[Task] = []
-    while len(tasks) < batch_size:
-        # Decide the slot's source the same way sample_task would, then either group it or
-        # fall through. Drawing the source first keeps the mixture proportions intact.
-        if (
-            (cfg.p_tree and rng.random() < cfg.p_tree)
-            or (cfg.p_regression and rng.random() < cfg.p_regression)
-            or (cfg.p_real_edgar and rng.random() < cfg.p_real_edgar)
-            or (cfg.p_real_mortgage and rng.random() < cfg.p_real_mortgage)
-            or (cfg.p_real_lendingclub and rng.random() < cfg.p_real_lendingclub)
-            or any(rng.random() < p for _, p in parse_real_panels(cfg.real_panels))
-            or rng.random() < cfg.p_financial
-        ):
-            tasks.append(sample_task(rng, cfg, n_rows=n_rows))
-            continue
-        want = min(cfg.scm_reuse_graph, batch_size - len(tasks))
-        tasks.extend(
-            sample_scm_task_group(
-                rng,
-                n_rows,
-                n_targets=want,
-                max_features=cfg.max_features,
-                max_classes=cfg.max_classes,
-                legacy=cfg.scm_legacy,
-            )[:want]
-        )
-    return tasks[:batch_size]
+    sources = [_draw_source(rng, cfg) for _ in range(batch_size)]
+    tasks: list[Task | None] = [None] * batch_size
+    for i, (source, panel_path) in enumerate(sources):
+        if source != "scm":
+            tasks[i] = _sample_from_source(rng, cfg, source, panel_path, n_rows)
+    scm_slots = [i for i, (source, _) in enumerate(sources) if source == "scm"]
+    while scm_slots:
+        want = min(cfg.scm_reuse_graph, len(scm_slots))
+        group = sample_scm_task_group(
+            rng,
+            n_rows,
+            n_targets=want,
+            max_features=cfg.max_features,
+            max_classes=cfg.max_classes,
+            legacy=cfg.scm_legacy,
+        )[:want]
+        # A group comes back short only if a graph has too few nodes for distinct targets;
+        # the loop then draws another graph for the slots still empty.
+        for task in group:
+            tasks[scm_slots.pop(0)] = task
+    return [t for t in tasks if t is not None]
 
 
 def _resample_until_learnable(
@@ -445,4 +532,6 @@ def sample_batch(rng: np.random.Generator, cfg: PriorConfig, batch_size: int) ->
         ]
     n_ctx = int(rng.integers(int(cfg.min_ctx_frac * n_rows), int(cfg.max_ctx_frac * n_rows) + 1))
     n_ctx = min(max(n_ctx, 2), n_rows - 1)
+    if cfg.min_ctx_per_class > 0:
+        tasks = [ensure_context_classes(rng, t, n_ctx, cfg.min_ctx_per_class) for t in tasks]
     return collate(tasks, n_ctx=n_ctx, max_features=cfg.max_features, head_type=cfg.head_type)

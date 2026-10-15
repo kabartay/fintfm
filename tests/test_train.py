@@ -158,3 +158,49 @@ def test_resume_refuses_mismatched_optimizer(tmp_path):
                         log_every=100, device="cpu", seed=0, optimizer="adamw"),
             str(tmp_path / "x.pt"),
         )
+
+
+def test_evaluation_does_not_change_the_training_batches(tmp_path, monkeypatch):
+    """Audit AU1.18: evaluation used to draw its held-out tasks from the training generator,
+    so changing ``eval_every`` changed every training batch after the first evaluation. Two
+    runs differing only in ``eval_every`` must see identical training batches and end with
+    identical weights."""
+    import importlib
+
+    from fintfm.modeling.train import TrainConfig, train
+
+    # the package re-exports a function named `train`, which shadows the module attribute
+    train_mod = importlib.import_module("fintfm.modeling.train")
+
+    model_cfg = ModelConfig(
+        max_features=8, max_classes=2, d_cell=8, d_model=16, n_layers=1, n_col_layers=1,
+        n_heads=2,
+    )
+    prior_cfg = PriorConfig(max_features=8, max_classes=2, n_rows=32)
+    real_sample_batch = train_mod.sample_batch
+
+    def run(eval_every: int, name: str):
+        calls: list = []
+
+        def recording(rng, cfg, batch_size):
+            batch = real_sample_batch(rng, cfg, batch_size)
+            calls.append((rng, batch.y.clone()))
+            return batch
+
+        monkeypatch.setattr(train_mod, "sample_batch", recording)
+        model = train(
+            model_cfg, prior_cfg,
+            TrainConfig(steps=6, batch_size=2, eval_every=eval_every, log_every=1000,
+                        device="cpu", seed=4),
+            str(tmp_path / name),
+        )
+        training_rng = calls[0][0]  # the loop's first call precedes any evaluation
+        return [y for rng, y in calls if rng is training_rng], model
+
+    with_eval, a = run(2, "eval.pt")
+    without_eval, b = run(1000, "noeval.pt")
+    assert len(with_eval) == len(without_eval) == 6
+    for ya, yb in zip(with_eval, without_eval):
+        assert torch.equal(ya, yb)
+    for (name, wa), (_, wb) in zip(a.state_dict().items(), b.state_dict().items()):
+        assert torch.equal(wa, wb), name

@@ -84,15 +84,28 @@ def test_sample_task_refuses_a_panel_outside_the_feature_bounds():
         sample_real_edgar_task(rng, n_rows=10, max_features=136, min_features=4, panel=panel)
 
 
-def test_degenerate_single_class_draw_is_repaired():
-    # A tiny panel with an all-zero label column, drawn in full, must still come back
-    # scorable -- the same guarantee every synthetic prior makes.
-    n = 20
-    panel = _fixture_panel(n=n, n_features=4)
+def test_single_class_draw_is_repaired_with_real_rows_not_flipped_labels():
+    # Audit AU1.14: a single-class draw used to be repaired by flipping 5% of labels at
+    # random -- labels unrelated to X. A feature echoing each row's true label shows any flip;
+    # the positive floor must be met with real rows instead.
+    rng = np.random.default_rng(0)
+    panel = _fixture_panel(n=2000, n_features=4)
+    panel["label"] = (rng.random(len(panel)) < 0.004).astype(np.int64)
+    panel["true_label_echo"] = panel["label"].astype(float)
+    for seed in range(20):
+        task = sample_real_edgar_task(
+            np.random.default_rng(seed), n_rows=64, max_features=10, panel=panel,
+            min_positives=2,
+        )
+        assert task.y.sum() >= 2
+        np.testing.assert_array_equal(task.X[:, -1].astype(np.int64), task.y)
+
+
+def test_single_class_panel_is_refused_not_relabelled():
+    panel = _fixture_panel(n=20, n_features=4)
     panel["label"] = 0
-    rng = np.random.default_rng(5)
-    task = sample_real_edgar_task(rng, n_rows=n, max_features=10, panel=panel)
-    assert len(np.unique(task.y)) == 2
+    with pytest.raises(ValueError, match="both classes"):
+        sample_real_edgar_task(np.random.default_rng(5), n_rows=20, max_features=10, panel=panel)
 
 
 def test_p_real_edgar_zero_never_touches_the_panel_path():
@@ -127,6 +140,39 @@ def test_batch_with_p_real_edgar_collates(tmp_path):
     batch = sample_batch(rng, cfg, batch_size=4)
     assert batch.X.shape == (4, 40, 20)
     assert batch.y.shape == (4, 40)
+
+
+def test_no_firm_appears_in_both_context_and_query(tmp_path):
+    # Audit AU1.15: 73% of real EDGAR rows share a cik with another row, and row-wise
+    # sampling put the same firm on both sides of the split, which teaches lookup. The split
+    # point is drawn per batch, so the check runs through sample_batch over many batches.
+    rng = np.random.default_rng(9)
+    n_firms, per_firm = 80, 10
+    n = n_firms * per_firm
+    panel = pd.DataFrame({f"feat_{i}": rng.normal(size=n) for i in range(5)})
+    panel["cik"] = np.repeat(np.arange(n_firms), per_firm)
+    panel["period_end"] = pd.Timestamp("2020-03-31")
+    panel["firm_echo"] = panel["cik"].astype(float)
+    panel["label"] = (rng.random(n) < 0.05).astype(np.int64)
+    path = tmp_path / "panel.parquet"
+    panel.to_parquet(path)
+    cfg = PriorConfig(
+        p_real_edgar=1.0, max_features=20, real_edgar_panel_path=str(path), n_rows=60
+    )
+    echo = feature_columns(panel).index("firm_echo")
+    for _ in range(25):
+        batch = sample_batch(rng, cfg, batch_size=4)
+        for task in batch.X.numpy():
+            ctx, query = task[: batch.n_ctx, echo], task[batch.n_ctx :, echo]
+            assert not set(ctx.tolist()) & set(query.tolist())
+
+
+def test_more_rows_than_firms_is_refused():
+    panel = _fixture_panel(n=40, n_features=4)
+    panel["cik"] = np.arange(40) // 4
+    panel.loc[:3, "label"] = 1
+    with pytest.raises(ValueError, match="distinct cik"):
+        sample_real_edgar_task(np.random.default_rng(0), n_rows=20, max_features=10, panel=panel)
 
 
 def test_real_edgar_task_collates_fine_next_to_synthetic_tasks(tmp_path):
