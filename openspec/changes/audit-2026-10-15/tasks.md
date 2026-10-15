@@ -226,7 +226,14 @@
       "+0.042 AP from cell attention" in README.md needs the qualifier. Fix: confirm from the
       checkpoints, then score a matched pair (same prior, same budget) or restate the claim.
       Verify: the two checkpoints' recorded prior configs quoted in FINDINGS, then a matched pair or a restated claim.
-- [ ] AU2.9 **§159's 0.0073 bar is not seed noise.** §160 showed it is mostly the max_classes
+- [ ] AU2.9 **Partly done (2026-10-16), still open.** `c5_verdict.py helps` applies §163's rule
+      (two-sided, `rule_helps`) and reproduces §163's verdict on `runs/ft` against
+      `control_rescore.json` (+0.0076, 5/5 positive: helps); tests
+      `test_helps_rule_needs_the_mean_and_four_folds_of_its_sign`,
+      `test_helps_rule_reproduces_section_163s_verdict`. Open: the re-derived yardstick (waits for
+      §164's `S1`; `YARDSTICK` is unchanged) and the family of comparisons in §164's write-up.
+      Original text follows.
+      **§159's 0.0073 bar is not seed noise.** §160 showed it is mostly the max_classes
       10-against-2 head effect; seed noise at matched head size is 0.0009 mean AP. §163 kept the
       bar and cleared it by 0.0003, with a fold-to-fold SD of Δ of 0.0054. The bar errs
       conservative, so no verdict flips, but its size is not a noise estimate. Also: fine-tuning's
