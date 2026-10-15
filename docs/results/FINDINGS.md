@@ -11070,3 +11070,23 @@ and a mean of +0.0076 against the +0.0073 bar. **The prediction held.** It clear
 - Fine-tuning loss fell modestly (first 10% of steps ≈0.0145, last 10% ≈0.0118, per fold) at
   200 steps, ~3.8 positive query labels per step. More steps, or positive-enriched queries, are
   untested.
+
+**Against the gradient-boosted trees (MEASURED, 2026-10-15; same five full-panel folds,
+`runs/boost/full`, baselines-only mode). Boosters are UNTUNED (library defaults); the published
+protocol tunes them, which can only widen the gap.**
+
+| fold | FinTFM zero-shot | FinTFM fine-tuned | LightGBM | **CatBoost** | XGBoost |
+| --- | --- | --- | --- | --- | --- |
+| 0 | 0.2113 | 0.2181 | 0.2638 | 0.4097 | 0.2077 |
+| 1 | 0.2050 | 0.2068 | 0.2497 | 0.3807 | 0.2274 |
+| 2 | 0.1786 | 0.1901 | 0.2620 | 0.4231 | 0.2044 |
+| 3 | 0.1810 | 0.1955 | 0.2803 | 0.3896 | 0.2642 |
+| 4 | 0.2172 | 0.2205 | 0.2769 | 0.3992 | 0.2107 |
+| **mean** | 0.1986 | 0.2062 | 0.2666 | **0.4005** | 0.2229 |
+
+**Fine-tuning closes 3.8% of the gap to the best booster.** Untuned CatBoost doubles FinTFM's AP
+(0.4005 vs 0.2062, gap +0.194 after fine-tuning), and it wins every fold. Fine-tuned FinTFM is
+within 0.017 of untuned XGBoost and 0.060 of untuned LightGBM. So §163's result is real and
+small: the right direction, at roughly a twenty-fifth of the distance that matters. This is the
+benchmark-level answer to "why can we not move" -- the distance to the strongest classical model
+on this panel is ~0.2 AP, and every lever measured so far is worth at most ~0.008 of it.
