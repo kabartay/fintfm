@@ -342,14 +342,23 @@
       tokens per row (TabICL); verify their sizes from primary sources first. Arms: more cell
       blocks; 4 summary tokens per row; expose `n_heads`.
       Verify: peer sizes quoted from primary sources; each arm scored at matched tasks under §159's rule.
-- [ ] AU5.4 **Train on the context lengths inference uses** (up to 4,096 rows; query-to-context
+- [ ] AU5.4 **Implemented behind `--max-query-rows` / `prior.max_query_rows` (2026-10-16,
+      b1084ce); measurement open.** Contexts to 4,096 rows were already reachable through
+      `--n-rows-choices` (4552 gives `int(0.9 * 4552) == 4096`); the flag caps the query rows
+      that come with them. Row attention is a dense masked N x N, so cost grows with context
+      plus query, not linearly in queries as stated below.
+      **Train on the context lengths inference uses** (up to 4,096 rows; query-to-context
       attention keeps cost linear in queries).
       Verify: the trained `n_rows` range covers inference's `max_context`; five-fold AP against the current checkpoint.
-- [ ] AU5.5 **Class-index permutation in pretraining** (`collate`): SCM classes are ordinal and
+- [ ] AU5.5 **Implemented behind `--permute-classes` / `prior.permute_classes` (2026-10-16,
+      b1084ce); measurement open.**
+      **Class-index permutation in pretraining** (`collate`): SCM classes are ordinal and
       class 1 is always the rare default in the financial prior, so the model can learn a
       class-index prior.
       Verify: a test that class indices are permuted per task; label-symmetry probe before and after.
-- [ ] AU5.6 **Match pretraining and inference preprocessing.** Pretraining z-scores; inference
+- [ ] AU5.6 **Implemented behind `--feature-transforms` / `prior.feature_transforms`
+      (2026-10-16, b1084ce); measurement open.**
+      **Match pretraining and inference preprocessing.** Pretraining z-scores; inference
       defaults to rank-to-normal. Draw a random transform per pretraining task and ensemble over
       transforms at inference.
       Verify: a test that pretraining draws each transform; five-fold AP against the current checkpoint.
@@ -369,7 +378,11 @@
       (`train.py:407`); no final LayerNorm before pooling in two encoders; warmup fixed at 500
       steps with no flag.
       Verify: a test that LayerNorm, biases and embeddings are excluded from weight decay.
-- [ ] AU5.11 **Prior diversity gaps** (agent sampling, verify each): the binary checkpoint was
+- [ ] AU5.11 **"Before" statistics measured with `scripts/prior_stats.py` (2026-10-16,
+      a4806e2), 300 tasks per mixture; no default changed.** Two claims below do not hold for
+      the financial prior: its missingness is label-informative in 11.7% of tasks (Fisher,
+      Bonferroni 0.01) and its marginals are heavy-tailed (median excess kurtosis 4.06).
+      **Prior diversity gaps** (agent sampling, verify each): the binary checkpoint was
       trained at `p_financial 1.0` (§91/§104), where tasks are binary, ~1% categorical and have
       a median logistic-regression AUC of 0.57; categoricals are always ordered 2-7 level codes
       (`prior/scm.py:261-264`); missingness is only MCAR and never label-informative; SCM and
@@ -393,7 +406,9 @@
 - [ ] AU5.14 **TabArena context size**: TabArena-Lite at `max_context` 500 and 750 against 1000
       (trained range ends ~921 rows).
       Verify: TabArena-Lite Elo at 500, 750 and 1,000 recorded.
-- [ ] AU5.15 **Pretraining volume first: 48k tasks → at least 2M.** The strongest evidence in
+- [ ] AU5.15 **Task-dump prerequisite implemented behind `--task-dump` and
+      `scripts/dump_prior_tasks.py` (2026-10-16, b1084ce); measurement open.**
+      **Pretraining volume first: 48k tasks → at least 2M.** The strongest evidence in
       the 2026-10-15 sweep (LightPFN's 256k → 7.68M draws, +1.66 AUC points; LimiX-2 and Kumo
       scale curves at 10^7+ tasks). Prerequisites: AU1.13, AU5.2, pre-generated task dumps,
       `--checkpoint-every`. Cost to be measured on one Kaggle session before committing. After
