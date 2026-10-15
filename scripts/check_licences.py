@@ -53,6 +53,11 @@ KNOWN_GOOD: dict[str, str] = {
     # Declares the literal string "Dual License"; it is dual Apache-2.0 / BSD-3-Clause, both
     # permissive, so the ambiguity is in the metadata rather than the terms.
     "python-dateutil": "dual Apache-2.0 / BSD-3-Clause",
+    # Dual-licensed Artistic License or GPLv2+ (PyPI classifiers, 1.3, checked 2026-10-16) and
+    # taken under the Artistic terms. It arrives only through the optional `kaggle` extra
+    # (kaggle -> python-slugify), a data-fetching CLI that fintfm never imports, which is why
+    # CI (`--extra bench`) never sees it. Nothing in the package depends on it.
+    "text-unidecode": "dual Artistic / GPLv2+, used under Artistic; kaggle extra only",
 }
 
 

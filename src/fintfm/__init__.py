@@ -19,10 +19,18 @@ Package layout follows the pipeline:
 See ``docs/design/ARCHITECTURE.md`` for how the model works and ``docs/roadmap/STRATEGY.md`` for why.
 """
 
+from importlib.metadata import PackageNotFoundError, version
+
 from fintfm.evaluation.metrics import CreditMetrics, evaluate_binary
 from fintfm.inference.classifier import ContextStrategy, FinancialTFMClassifier
 from fintfm.inference.regressor import FinancialTFMRegressor
 from fintfm.modeling.model import FinancialTFM, ModelConfig
+
+try:
+    #: Read from the installed distribution, so ``pyproject.toml`` stays the one place it is set.
+    __version__ = version("fintfm")
+except PackageNotFoundError:  # a source tree on sys.path without an install
+    __version__ = "0+unknown"
 
 __all__ = [
     "ContextStrategy",

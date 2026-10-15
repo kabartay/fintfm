@@ -207,11 +207,17 @@
       configs minus `model`. Floor bootstrap p-values at 1/(drawn+1) (`metrics.py:249`) and fix
       the "redraw" comment at `:239`.
       Verify: a test that a config mismatch makes both scripts exit non-zero.
-- [ ] AU2.7 **Re-derive §159-§163 from the raw runs** and correct any mismatch (in progress
+- [x] AU2.7 **Done (2026-10-15).** Every §159-§163 figure recomputed from the npz and json files matches (claim-by-claim table in the audit's re-derivation report); the method issues it found are AU2.9.
+      **Re-derive §159-§163 from the raw runs** and correct any mismatch (in progress
       2026-10-15; results appended here when the check reports).
       Verify: every §159-§163 figure is listed beside its recomputed value.
 
-- [ ] AU2.8 **Cell attention's credited gain may be confounded with the prior mix.** §80 says
+- [ ] AU2.8 **Confirmed 2026-10-16, still open.** No checkpoint records its prior config, but the
+      arm names and §78/§84 settle it: the cell arm is `v4-cellattn-fin10` (`p_financial` 1.0, batch 4,
+      `n_rows` 256/512) and the old arm `v4-colid-fin07` (`p_financial` 0.7); no `colid-fin10` or
+      `cellattn-fin07` was ever trained. The matched pair needs one training run (old architecture at
+      `p_financial` 1.0 on §84's protocol, or the reverse). Original text follows.
+      **Cell attention's credited gain may be confounded with the prior mix.** §80 says
       the only difference between arms is `n_cell_blocks`/`cell_labels`, but the doc review
       found the cell arm is `v4-cellattn-fin10` (`p_financial` 1.0, batch 4, `n_rows` 256/512;
       its values equal §97 row A) and the old arm `v4-colid-fin07` (`p_financial` 0.7; §83).
@@ -235,7 +241,8 @@
 
 ## Phase 3 — documents
 
-- [ ] AU3.1 **§162's confirmation result sits under §163.** `docs/results/FINDINGS.md`
+- [x] AU3.1 **Done (2026-10-15, 25da290).** §162's confirmation block moved back under §162; the stale status lines in §162 and §163 updated.
+      **§162's confirmation result sits under §163.** `docs/results/FINDINGS.md`
       ~11000-11029 belongs to §162; update the stale status lines at ~10890 (§162 "no result
       exists"), ~10968 and ~11029 ("§163, running"). §158 appears before §157.
       Verify: §162 holds its own result, and no status line says pending or running for a finished run.
@@ -245,10 +252,12 @@
       trains on your data". Resolve `LIMITATIONS.md:21-23` against `CLAIMS.md:290` (§80) and the
       stale `LIMITATIONS.md:25`.
       Verify: every § from 157 to 164 is cited in CLAIMS.md or LIMITATIONS.md.
-- [ ] AU3.3 **"No gradient steps at fit time" is now true only by default.** `README.md:23-25`,
+- [x] AU3.3 **Done (2026-10-15, 5450410).** README (two places), the `pyproject.toml` description and the package docstring now say no gradient steps *by default*, with fine-tuning opt-in.
+      **"No gradient steps at fit time" is now true only by default.** `README.md:23-25`,
       `README.md:211`, the `pyproject.toml` description, `src/fintfm/__init__.py` docstring.
       Verify: `grep -rn "gradient steps" README.md pyproject.toml src/fintfm/__init__.py` shows the qualifier at each hit.
-- [ ] AU3.4 **Counts and versions.** README test counts disagree (`:60` 407, `:205` "246 tests;
+- [x] AU3.4 **Done (2026-10-16).** README counts and BibTeX fixed in 5450410; `fintfm.__version__` now reads the installed distribution, and `test_package_and_readme_citation_state_the_same_version` pins it and the BibTeX to `pyproject.toml`.
+      **Counts and versions.** README test counts disagree (`:60` 407, `:205` "246 tests;
       1 skip"); derive the count and state the sync line it assumes. README BibTeX
       `version = {0.5.5}` (`:484`). No `__version__` in `src/fintfm/__init__.py`. CHANGELOG
       [Unreleased] is empty despite 76551e2 and 5273275. Check CHANGELOG LightGBM 0.2666 vs the
@@ -261,11 +270,13 @@
       **Kaggle checkpoint URL is not pinned.** `scripts/kaggle/task_164_*.py:15` use
       `resolve/main`; pin the revision as the README does (the SHA-256 check already guards it).
       Verify: `grep -n resolve/main scripts/kaggle` prints nothing.
-- [ ] AU3.7 **Licence checker fails locally** on `text-unidecode` (Artistic/GPL, via `kaggle` →
+- [x] AU3.7 **Done (2026-10-16).** Kept the `kaggle` extra and recorded `text-unidecode` in `KNOWN_GOOD` (dual Artistic / GPLv2+, taken under Artistic; reached only through the optional kaggle CLI, never imported by fintfm).
+      **Licence checker fails locally** on `text-unidecode` (Artistic/GPL, via `kaggle` →
       `python-slugify`); CI does not see it because it syncs only `--extra bench`. Decide:
       drop the `kaggle` extra from the project, or record why a dev-only tool is acceptable.
       Verify: `uv run python scripts/check_licences.py` passes locally, or the exception is documented.
-- [ ] AU3.8 **Documentation review findings** from the seven doc agents (appended below as they
+- [x] AU3.8 **Done (2026-10-15).** All seven doc reviews applied (5450410, 41c7d88, 16b6626, 25da290, 4a136d6); items deliberately left are listed in those commits' reports and in AU0.2.
+      **Documentation review findings** from the seven doc agents (appended below as they
       report).
       Verify: each doc agent's list applied or explicitly left alone, and `check_doc_links.py` passes.
 - [ ] AU3.9 **Check the 2026-10-15 peer sweep against primary sources** (RELATED_WORK.md, last
