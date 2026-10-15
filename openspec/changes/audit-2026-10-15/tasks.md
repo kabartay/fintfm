@@ -90,7 +90,9 @@
       invariance, two task-family cases) when the machine is free.
       Verify: each rewritten assertion fails when its condition is broken by hand.
 
-- [ ] AU1.13 **Graph reuse distorts the prior mixture.** `prior/mixture.py:387-395` draws the
+- [x] AU1.13 **Done (2026-10-16).** Each task's source is drawn once by `_draw_source` and
+      dispatched; SCM tasks are grouped only afterwards; reuse-1 stream unchanged
+      (`tests/test_mixture.py`). **Graph reuse distorts the prior mixture.** `prior/mixture.py:387-395` draws the
       source to decide whether a slot is grouped, then `sample_task` draws it again, and
       `p_trivial`, `p_crossed`, `p_task_family` are left out of the check, while each SCM slot
       fills `scm_reuse_graph` tasks. Agent measurement at p_fin 0.7, p_tree 0.2, p_fam 0.2:
