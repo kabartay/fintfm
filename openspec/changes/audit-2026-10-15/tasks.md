@@ -347,7 +347,12 @@
       16). Arms: lr {1e-5, 3e-5, 1e-4}, up to 3,000 steps, early stopping on inner-validation
       companies. Depends on §164.
       Verify: five-fold AP against §163's arm under §159's rule, inner-validation selection only.
-- [ ] AU5.2 **Pretraining throughput.** bf16 autocast (training is fp32, `modeling/train.py:471-484`),
+- [ ] AU5.2 **Implemented behind `--amp bf16` and `--benchmark-steps` (2026-10-16, 9c3b615); measurement open.**
+      Flash attention not implemented: CUDA's flash kernel takes no attention mask at all, and
+      `MultiheadAttention` already turns the bool mask into an additive float one, so a float
+      mask changes nothing. An exact route (FlexAttention with this mask, or context and query
+      attention split and merged by log-sum-exp) replaces the encoder layers in `model.py`.
+      **Pretraining throughput.** bf16 autocast (training is fp32, `modeling/train.py:471-484`),
       and an attention path that allows flash attention (the bool row mask blocks it). Measure
       tasks per GPU-hour before and after; no accuracy claim.
       Verify: tasks per GPU-hour measured before and after on the same kernel; outputs equal within fp tolerance on a fixed batch.
@@ -380,7 +385,9 @@
 - [ ] AU5.9 **Implemented behind `hazard_period_context` (2026-10-16, 0a3b8c8); measurement open; the classifier cannot yet pass context periods at inference.** **Hazard context carries only the binary label** (`model.py:751-759,787-797`): embed
       the default period and a censored token for context rows.
       Verify: a hazard test where the term structure is learnable only from context periods.
-- [ ] AU5.10 **Optimiser nits.** Weight decay also hits LayerNorm, biases and embeddings
+- [ ] AU5.10 **Implemented behind `--no-decay-norm-bias` and `--warmup-steps` (2026-10-16, 9c3b615); measurement open.**
+      The final-LayerNorm-before-pooling nit is not done (model.py).
+      **Optimiser nits.** Weight decay also hits LayerNorm, biases and embeddings
       (`train.py:407`); no final LayerNorm before pooling in two encoders; warmup fixed at 500
       steps with no flag.
       Verify: a test that LayerNorm, biases and embeddings are excluded from weight decay.
@@ -417,7 +424,10 @@
 - [ ] AU5.16 **Implemented behind `value_embedding` and `value_ecdf` (2026-10-16, 0a3b8c8); measurement open.** **Value embedding**: Fourier or RBF plus ECDF-rank features in place of the MLP on
       (z, missing) (LimiX-2M RaBEL, TabPFN-3.5). One module, behind a flag.
       Verify: a flag, a test that it is off by default, and five-fold AP at matched tasks.
-- [ ] AU5.17 **Attention half implemented behind `attn_length_scale` (2026-10-16, 0a3b8c8; fixed log-length scale, no learned per-query factor); measurement open; Muon and early target inclusion not done.** **Optimiser and attention scaling from TabICLv2**: Muon, QASSMax (length-aware
+- [ ] AU5.17 **Implemented behind flags (2026-10-16); measurement open.** Attention half:
+      `attn_length_scale` (0a3b8c8; fixed log-length scale, no learned per-query factor).
+      Optimiser half: `--optimizer muon` (9c3b615). Early target inclusion not done.
+      **Optimiser and attention scaling from TabICLv2**: Muon, QASSMax (length-aware
       softmax scaling), early target inclusion; also the fix for AU4.3 if context length is the
       problem.
       Verify: each change behind a flag, scored at matched tasks.
