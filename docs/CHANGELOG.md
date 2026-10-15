@@ -6,6 +6,20 @@ not paste one into the other. See `CLAUDE.md`.
 
 ## [Unreleased]
 
+## [0.7.1] — 2026-10-15
+
+Supersedes 0.7.0, which was published with `.zenodo.json` still stating 0.6.0. The release
+workflow's version gate caught the mismatch, so 0.7.0 attached no wheel and published nothing to
+PyPI, but its GitHub release was already public and its Zenodo record carries the wrong version.
+Public releases are superseded rather than re-tagged, so this is the same code under a correct
+version. Everything listed under 0.7.0 applies.
+
+### Fixed
+
+- `.zenodo.json` states the release's version. A new test,
+  `tests/test_version_agreement.py`, checks `pyproject.toml`, `CITATION.cff` and `.zenodo.json`
+  agree on every push, not only when a tag is pushed, which was after the release was public.
+
 ## [0.7.0] — 2026-10-15
 
 The first lever to move V4FinBench: opt-in, per-dataset fine-tuning raises average precision on
