@@ -42,17 +42,17 @@ in-context learning are the right lenses, and it is the framing behind `docs/res
 | --- | --- |
 | transformer attention | implemented |
 | row/column attention | implemented (`modeling/model.py`, three stages) |
-| permutation invariance/equivariance | implemented **and asserted in tests** (spec M1-M2) |
+| permutation invariance/equivariance | asserted in tests (spec M1-M2): exact at `column_id_dim=0`, distributional with column identities on (D12) |
 | in-context learning | implemented |
 | meta-learning | implemented (PFN training is meta-learning) |
 | Bayesian / amortized inference | the mechanism in §13 |
 | synthetic priors and SCMs | implemented (`prior/financial.py`, `prior/scm.py`) |
-| calibration and uncertainty | metrics + base-rate correction; **intervals missing** |
-| leakage-safe evaluation | provenance invariant; out-of-time split in progress |
-| concept drift / distribution shift | being measured now on V4FinBench |
-| **quantile regression / CRPS** | **gap** — needed by `conformal-pd-certificate` |
-| **retrieval-augmented models** | **gap** — now `changes/retrieval-context` |
-| **domain adaptation / LoRA** | **gap** — now `changes/lender-adaptation` |
+| calibration and uncertainty | metrics + base-rate correction; regression intervals via `predict_interval`; **PD intervals missing** |
+| leakage-safe evaluation | provenance invariant (FinTFM family, D17); V4FinBench out-of-time split and published protocol in use (§26, §39) |
+| concept drift / distribution shift | measured on V4FinBench's out-of-time split (§26, §31) |
+| quantile regression / CRPS | binned and pinball quantile heads implemented (§106, §148); CRPS not reported; PD coverage still needed by `conformal-pd-certificate` |
+| retrieval-augmented models | implemented, opt-in (`inference/retrieval.py`, §32); beaten by `prototype` (§38) |
+| domain adaptation / LoRA | full fine-tuning opt-in (`finetune_steps`, §163); LoRA not done (`changes/lender-adaptation`) |
 | masked/self-supervised pretraining | not done (TabDPT's approach: real tables + retrieval) |
 | scaling laws across datasets/tasks | `changes/scaling-curve`, deliberately demoted |
 | patching, tokenization/quantization | time-series concepts, not applicable to tabular |
@@ -66,7 +66,7 @@ A common failure is demonstrating `FM > poorly-tuned NN` when the question is
 
 | family | methods | our status |
 | --- | --- | --- |
-| gradient boosting | CatBoost, LightGBM, XGBoost | **added, but blocked by an OpenMP conflict — see §25** |
+| gradient boosting | CatBoost, LightGBM, XGBoost | running, out of process to avoid the OpenMP conflict (§25, `docs/infra/COMPUTE.md`) |
 | classical | logistic regression, RF, ExtraTrees | logreg, RF, sklearn GBM running |
 | tabular neural | FT-Transformer, ResNet, RealMLP, TabM | none |
 | tabular FM | TabPFN, TabFM, TabICL, TabDPT | none (licence care needed: §24) |

@@ -82,7 +82,7 @@ context_sweep:
   seeds: [0]
 
 # The financial prior's default-rate envelope. The floor is what lets the prior reach the
-# low-default regime the strategy targets: at two expected defaults a 512-row task reaches
+# low-default regime the strategy targets: at two expected defaults a 1,024-row task reaches
 # 0.195%, which covers V4FinBench's 0.19% (docs/infra/COMPUTE.md).
 prior:
   # The financial prior's signal-to-noise range, drawn log-uniformly per task. Spans

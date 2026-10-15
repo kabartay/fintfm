@@ -33,7 +33,8 @@ making the domain undemonstrable.
 
 ## D2 — Synthetic-only pretraining, and the prior stays parametric
 
-**Date:** 2026-09-08. **Status:** active, load-bearing invariant.
+**Date:** 2026-09-08. **Status:** active, load-bearing invariant. **Status updated
+2026-10-15:** scoped to the FinTFM family since D17; FinTFM-R trains on real panels by design.
 
 The alternative was pretraining on real company panels, which is what Fundamental does with
 "billions of tables" and Kumo does with "real and synthetic relational data".
@@ -83,7 +84,9 @@ else's platform rather than a company.
 
 ## D4 — Column attention over a flat row projection
 
-**Date:** 2026-09-08. **Status:** active. **Supersedes** the original architecture.
+**Date:** 2026-09-08. **Status:** active. **Supersedes** the original architecture. **Status
+updated 2026-10-15:** amended by D12; column-order and padding-width invariance are now
+distributional, not exact, whenever column identities are on (the default).
 
 The first architecture fed a flat row vector through `Linear(2·max_features → d_model)`.
 Simple, fast, and wrong: it gave every feature a fixed weight slot, so permuting columns
@@ -107,7 +110,9 @@ not a return to the flat projection.
 
 ## D5 — Calibration is a first-class metric, and balanced context is corrected
 
-**Date:** 2026-09-08. **Status:** active. See `FINDINGS` §5 and §6.
+**Date:** 2026-09-08. **Status:** partly superseded. See `FINDINGS` §5 and §6. **Status updated
+2026-10-15:** the context half (keep balanced sampling) was superseded by D9 and D10, and
+`uniform` is the default; the base-rate correction half stays active, amended by D8.
 
 Balanced context sampling was adopted on published AUC evidence, then adding calibration
 metrics showed it inflated predicted default rates roughly threefold, because an in-context
@@ -131,7 +136,8 @@ hypothetical.
 
 ## D6 — Apache-2.0, and no LICENSE while private
 
-**Date:** 2026-09-08. **Status:** active.
+**Date:** 2026-09-08. **Status:** active. **Status updated 2026-10-15:** the "no LICENSE while
+private" half is closed: the repository went public on 2026-09-25 with `LICENSE` in place.
 
 Considered AGPLv3 with a commercial dual licence.
 
@@ -149,7 +155,8 @@ the architecture is far more novel than currently believed.
 
 ## D7 — Metal for local training
 
-**Date:** 2026-09-08. **Status:** active. See `docs/infra/COMPUTE.md`.
+**Date:** 2026-09-08. **Status:** active, partially reversed 2026-10-03 (below). See
+`docs/infra/COMPUTE.md`.
 
 **Chose `--device mps`.** Measured 3.5x faster than CPU at identical loss, but the deciding
 factor is that it runs on the GPU, which the genomics pipeline sharing this machine does not
@@ -200,7 +207,9 @@ it is a visible choice at the call site instead of an omission.
 
 ## D9 — Uniform context on the survival path; balanced stays the class default pending re-measurement
 
-**Date:** 2026-09-09. **Status:** active. **Partially reverses D5.** See `FINDINGS` §29.
+**Date:** 2026-09-09. **Status:** superseded. **Partially reverses D5.** See `FINDINGS` §29.
+**Status updated 2026-10-15:** resolved by D10 (same day), which made `uniform` the class
+default on §35's binary evidence.
 
 D5 adopted `balanced` on published evidence (Tanna et al. 2026: balanced worth 3-4 AUC points
 over uniform on credit-risk TFMs). Measured on the V4FinBench out-of-time split, the ordering
@@ -227,7 +236,11 @@ seeds, since §29 rests on a single draw per cell.
 
 ## D10 — Rank-transform features by default; uniform context by default; retrieval opt-in
 
-**Date:** 2026-09-09. **Status:** active. **Resolves D9.** See `FINDINGS` §33 and §35.
+**Date:** 2026-09-09. **Status:** active. **Resolves D9.** See `FINDINGS` §33 and §35. **Status
+updated 2026-10-15:** the retrieval paragraph below predates §38, which found the published
+`prototype` context beats query-conditioned retrieval on every axis, and §70, which found
+retrieval harmful on V4FinBench's protocol. Retrieval remains opt-in; the defaults are
+unchanged.
 
 Three changes to what the classifier does when nobody passes an argument, each on measured
 evidence rather than on the literature this project took its first defaults from.
@@ -285,9 +298,14 @@ written on `save` rather than guessed on `load`.
 **Reversed if:** joint training lands and makes every checkpoint serve both paths, at which
 point the guard becomes a formality. Keep it anyway.
 
+---
+
 ## D12 — Random per-task column identities, and exact D4 invariance traded for expressiveness
 
-**Date:** 2026-09-11. **Status:** active. **Amends D4.** See `FINDINGS` §54 and §56.
+**Date:** 2026-09-11. **Status:** active. **Amends D4.** See `FINDINGS` §54 and §56. **Status
+updated 2026-10-15:** the reversal trigger below was met when two-way cell attention landed
+(§78), but column identities were kept: §97 measured `column_id_dim` as a real-data gain and
+§104 found its curve peaks at 16. Not reversed.
 
 D4 chose per-cell embedding plus column attention, deliberately with **no feature-index
 embedding**, so that "identity comes from the data distribution rather than position". Its
@@ -334,6 +352,8 @@ rather than in distribution. That is the better answer; this one is fifteen line
 today. Losing exactness is a real regression against D4 and should not be left standing
 permanently.
 
+---
+
 ## D13 — Average precision is read first on any low-base-rate split
 
 **Date:** 2026-09-11. **Status:** active. See `FINDINGS` §60.
@@ -364,10 +384,12 @@ being sold. The criticism was right and we were committing a version of it simul
 **Reversed if:** never for low base rates. On balanced data ROC-AUC and AP largely agree and
 the ordering is a matter of taste.
 
+---
+
 ## D14 — Synthetic-only training, against the field's counter-thesis (task 48.7)
 
-**Date:** 2026-10-02. **Status:** active; restates D2 against a counter-argument that has
-since published.
+**Date:** 2026-10-02. **Status:** active; restates D2 against a counter-argument that has since
+published. **Status updated 2026-10-15:** scoped to the FinTFM family since D17.
 
 ConTextTab (arXiv:2506.10707) argues explicitly that "exclusive training on synthetic data
 limits their ability to fully leverage the rich semantics and world knowledge contained in
@@ -400,9 +422,16 @@ ROC-AUC gap, worse on small tables per D15) turns out to be semantic-knowledge-s
 than architecture- or scale-shaped, which would mean the synthetic prior is the actual
 bottleneck and no further architecture or prior-diversity work (Phase C) can close it.
 
+---
+
 ## D15 — The small-data thesis and §102's measured direction (task 48.8)
 
-**Date:** 2026-10-02. **Status:** active; names a tension rather than resolving it.
+**Date:** 2026-10-02. **Status:** active; names a tension rather than resolving it. **Status
+updated 2026-10-15:** read §102 itself before quoting this entry. §102 found row count does not
+explain the residual (Pearson r = +0.177 with log row count) and labels the minority-fraction
+pattern "suggestive, not significant" (Spearman p of 0.051 or more against every baseline), so
+the size contrast and the minority-fraction reading below are descriptive, not measured
+effects.
 
 TabPFN v2 (*Nature*, 2025) claims dominance "for datasets with up to 10,000 samples and 500
 features". `docs/roadmap/STRATEGY.md`'s Phase 1 exit condition B bet on the same segment: "the model
@@ -418,7 +447,7 @@ largest edge, this architecture currently shows its largest deficit.
 
 **Why this is not simply "the small-data thesis is dead."** §102 also found minority-class
 fraction, not size, is the variable that actually tracks the residual (balanced classes lose
-most, rare-event classes least) — V4FinBench itself is a rare-event panel (0.3-4% positive
+most, rare-event classes least) — V4FinBench itself is a rare-event panel (0.19-0.36% positive
 rates depending on horizon), which is closer to the regime where §102's data says this
 architecture does comparatively better, not worse. TabArena's small datasets skew more
 balanced than V4FinBench's credit panels. So the contradiction may be between "small" as
@@ -438,6 +467,8 @@ condition B should be restated in those terms) or shows V4FinBench's gap also wi
 smallest folds (the small-data thesis loses its strongest piece of indirect support and
 `docs/roadmap/STRATEGY.md` should say so rather than continue to assume it).
 
+---
+
 ## D16 — The Bitter-Lesson critique against this project's own effort allocation (task 48.11)
 
 **Date:** 2026-10-05. **Status:** active; names the trade rather than resolving it.
@@ -453,7 +484,7 @@ architecture/prior-mechanism side, with its measured return:
 | lever | result |
 | --- | --- |
 | 5x training-task volume (§93) | −0.0012 AP, null |
-| 5.7x parameters at matched tasks (§108) | −0.0077 AP, a loss |
+| 5.7x parameters at matched tasks (§114) | −0.0049 TabArena mean ROC-AUC, a loss |
 | learnability filter on the prior, full strength (§145) | −0.0106 AP, a loss |
 | cheap realism augmentations, bundled (§144) | −0.0035 AP, noise with a negative lean |
 | schedule-free optimisation, untuned (§146) | −0.0180 AP, a loss (confound found, §146's addendum) |
@@ -519,9 +550,23 @@ exists and the tests themselves are cheap. It only names, plainly, that the proj
 track record on this axis is seven losses and no wins, so the next one should be evaluated
 against that base rate rather than against hope.
 
+**Note added 2026-10-15 (documentation audit).** The table above is not the complete record it
+claims to be. Two measured levers are missing from it. §80, two-way cell attention, is a win:
++0.049 AP on V4FinBench, 5 of 5 folds. §141, mixing in the nine task families at weight 0.3,
+is a loss: −0.0261 mean AP. So the record reads one win and eight nulls or losses, not zero
+wins in seven. The §80 win carries a caveat of its own: its two arms may also differ in prior
+mix (`p_financial` 1.0 against 0.7) and training recipe, so the architecture-only effect may
+be unmeasured (audit task AU2.8, `openspec/changes/audit-2026-10-15/tasks.md`). The §108 row
+was also replaced by §114 on the same date: §108 was a TabArena ROC-AUC result at half the
+training tasks, not an AP result at matched tasks.
+
+---
+
 ## D17 — Two model families: FinTFM stays synthetic-only, FinTFM-R trains on real data
 
-**Date:** 2026-10-06. **Status:** active; direction agreed, nothing implemented yet.
+**Date:** 2026-10-06. **Status:** active. **Status updated 2026-10-15:** implemented: EDGAR
+(§152), Freddie Mac (§154) and LendingClub (§155) loaders train; no real source has yet
+improved V4FinBench AP (status note at the end).
 
 D14 recorded synthetic-only training as a deliberate trade and named its reversal condition:
 "a genuinely open, commercially licensed firm-level panel at the scale these peers use". D16
@@ -601,8 +646,9 @@ Elo was considered and declined -- see §156 for the full reasoning. Each additi
 source is still evaluated one at a time, against the same financial-domain bar A1/B1 used,
 not folded into a bulk import.
 
-**Corrected 2026-10-06 (§153): the gating condition above was stated too broadly, on an
-unchecked premise.** Freddie Mac's free tier, read in full rather than assumed, grants two
+**Corrected 2026-10-06 (§153): the original gating condition (no Freddie Mac data until a
+commercial licence is signed) was stated too broadly, on an unchecked premise.** Freddie
+Mac's free tier, read in full rather than assumed, grants two
 royalty-free uses without any paid agreement: internal use (training and evaluating, including
 scoring a checkpoint against public benchmarks — not restricted to non-commercial entities), and
 academic/research use including **public distribution of results and derived products**,
@@ -616,18 +662,20 @@ fee-based agreement becomes relevant only if fintfm's status changes (a paid pro
 monetised API), not for the release this project actually does. See §153 for the full read.
 
 The prior mixture carries **separate weights per real source** (`p_real_edgar`,
-`p_real_mortgage`) from the first commit, so the second source drops in without rework and so
-any published checkpoint can state exactly which real corpora it saw — which the per-family
-claim above makes mandatory rather than merely tidy.
+`p_real_mortgage`; since joined by `p_real_lendingclub` and the generic `real_panels`) from the
+first commit, so the second source drops in without rework and so any published checkpoint can
+state exactly which real corpora it saw — which the per-family claim above makes mandatory
+rather than merely tidy.
 
 **Implementation shape, so the scope is not mistaken for larger than it is.** FinTFM-R is
 expected to need **no parallel codebase**. `PriorConfig` already mixes task generators by
-weight (`p_financial`, `p_scm`, `p_tree`, `p_task_family`, `p_regression`), and a real panel
-enters as one more weighted source that *samples* in-context tasks rather than generating them.
-`collate()`, the training loop, the checkpointing and the whole evaluation harness are reused
-unchanged. That also means the synthetic-versus-real question is measurable by the same paired
--bootstrap V4FinBench comparison every other lever in §144-§148 was judged by — a fair fight on
-instruments this project already trusts.
+weight (`p_financial`, with the SCM prior taking the remainder, plus `p_tree`, `p_task_family`
+and `p_regression`), and a real panel enters as one more weighted source that *samples*
+in-context tasks rather than generating them. `collate()`, the training loop, the checkpointing
+and the whole evaluation harness are reused unchanged. That also means the
+synthetic-versus-real question is measurable by the same paired-bootstrap V4FinBench
+comparison every other lever in §144-§148 was judged by — a fair fight on instruments this
+project already trusts.
 
 **Reversed if:** the EDGAR panel proves unusable in a way that is about the data rather than the
 modelling — label censoring too severe to work around (a firm that stops filing entirely never

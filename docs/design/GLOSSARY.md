@@ -29,8 +29,9 @@ predict; cumulative PD follows from it and must be non-decreasing in the horizon
 
 **Cumulative PD.** Probability of default at any point up to horizon *k*. **Must not
 decrease** as *k* grows — a firm defaulted by year 3 has defaulted by year 5. Measured
-violation rate in this repository: 11.0% per step, with only 60.6% of firms fully monotone
-(`docs/results/FINDINGS.md` §11).
+violation rate in this repository, with independent per-horizon heads: 11.0% per step, with
+only 60.6% of firms fully monotone (`docs/results/FINDINGS.md` §11). The hazard head removes
+this by construction: 0 of 12,000 horizon steps in violation (§20).
 
 ## The regulatory objects
 
@@ -78,8 +79,11 @@ nothing about whether a stated probability is correct.**
 
 **Calibration.** Agreement between stated probabilities and observed frequencies. If the model
 says 2% for a thousand obligors, about twenty should default. Measured by Brier score and
-expected calibration error. **This is where this project's measured advantage lies** — 2.3× to
-11.7× better than gradient boosting at every dataset size (`docs/results/FINDINGS.md` §12).
+expected calibration error. The project's calibration edge is narrower than first reported:
+against a calibrated gradient-boosting baseline it is roughly 2× at 100 rows and gone above
+about 1,000 rows (`docs/results/FINDINGS.md` §16), and against CatBoost the usable window is
+below about 200 obligors (§27). A feature-free constant predictor comes within 1-2% on Brier
+(§17), so report Brier skill, not ECE alone.
 
 **Brier score.** Mean squared error of a predicted probability. A **proper scoring rule**,
 meaning it is minimised only by honest probabilities.
@@ -110,18 +114,26 @@ not evidence.
 
 ## This project's own terms
 
-**Prior.** The generative distribution of synthetic tasks the model is pretrained on. Here a
-*financial prior* (company balance sheets, P&L, macro regime, default labels) mixed with a
-generic structural-causal-model prior.
+**Prior.** The distribution of tasks the model is pretrained on, mixed by weight in
+`prior/mixture.py`. For FinTFM it is synthetic only: a *financial prior* (company balance
+sheets, P&L, macro regime, default labels), a generic structural-causal-model prior, and
+optional tree, task-family and regression generators. FinTFM-R (D17) also samples tasks from
+real panels (`prior/real_*.py`); say which family whenever the prior is described.
 
 **In-context learning.** Prediction by conditioning on labelled examples supplied at
-inference, with no gradient step. `fit()` stores the table; it does not train.
+inference, with no gradient step. `fit()` stores the table; it does not train, unless
+`finetune_steps > 0` is set (opt-in fine-tuning, §163), which makes it a fine-tuned model
+rather than the zero-shot one.
 
-**Context.** The labelled rows handed to the model at inference. **Context construction
-matters more than architecture choice** on imbalanced credit data (`docs/results/FINDINGS.md` §5).
+**Context.** The labelled rows handed to the model at inference. The literature this project
+started from reports context construction mattering more than model family on imbalanced
+credit data (Tanna et al., quoted in `docs/results/FINDINGS.md` §5). On the full V4FinBench
+panel the cell-attention gain measured 6-7 times any context effect (§84), though those arms
+may also differ in prior mix (audit task AU2.8).
 
-**Context strategy.** How the context is subsampled when the table exceeds `max_context`:
-`uniform`, `balanced`, or `hybrid`.
+**Context strategy.** How the context is subsampled when the table exceeds `max_context`
+(default 2,000 rows): `uniform` (the default, D10), `balanced`, `hybrid`, `prototype` (§38) or
+`retrieval` (query-conditioned, opt-in).
 
 **Base-rate correction.** The logit shift undoing the class-balance distortion that
 resampling the context introduces. Exact under label shift and provably ranking-preserving

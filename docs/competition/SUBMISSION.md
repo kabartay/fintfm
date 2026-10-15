@@ -1,5 +1,14 @@
 # Submitting FinTFM to TabArena
 
+> **Status, 2026-10-15.** This procedure was followed for `fintfm==0.5.5`. The pull request
+> ([autogluon/tabarena#616](https://github.com/autogluon/tabarena/pull/616)) was reviewed on
+> 2026-09-25: a TabArena collaborator confirmed the integration correct and declined the entry
+> on competitiveness, at rank 94 of 95 and 0.7823 mean ROC-AUC over 27 binary datasets. The
+> reviewer also ruled the binary-only coverage below ineligible, so a future submission needs
+> all 51 datasets. The submission was withdrawn before the maintainers' full run, so stages 2-5
+> did not take place (`docs/results/FINDINGS.md` §122). The rest of this file is kept as the
+> procedure for a future submission.
+
 The procedure, and the two points where it needs a person rather than a script. Written down
 because stage 2 can take weeks, by which time the details of stage 1 are no longer in anyone's
 head.
@@ -71,7 +80,7 @@ argument is that its numbers are checkable, that would undercut the point for no
 
 The search space is empty, and the pull request checklist asks for about 200 configurations.
 `can_hpo=False` has precedent upstream (`causilo`), and `info.py` records the measured reasons:
-context size is nearly flat ([FINDINGS](../results/FINDINGS.md) S83/S84), retrieval harms at
-low prevalence (S70), and ensembling over column-identity draws is a correctness setting rather
+context size is nearly flat ([FINDINGS](../results/FINDINGS.md) §83/§84), retrieval harms at
+low prevalence (§70), and ensembling over column-identity draws is a correctness setting rather
 than a hyperparameter ([DECISIONS](../design/DECISIONS.md) D12). Expect a reviewer to ask, and
 answer with the measurements rather than the precedent.

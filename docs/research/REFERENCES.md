@@ -1,9 +1,10 @@
 # References
 
 Literature this project stands on. **Every entry below was verified against the source**
-(title, authors, venue confirmed 2026-09-08) rather than cited from memory — the sibling
-repos have shipped a fabricated cross-reference before, and a citation reads as authority
-whether or not anyone checked it. Add nothing here without opening it first.
+(title, authors, venue; the first entries on 2026-09-08, later ones dated in their own text,
+with any limit on how far they were read stated there) rather than cited from memory — the
+sibling repos have shipped a fabricated cross-reference before, and a citation reads as
+authority whether or not anyone checked it. Add nothing here without opening it first.
 
 ## The architectural lineage
 
@@ -85,7 +86,7 @@ diagnosis, not as a source either result depends on.
 [neuralk.ai/post/feature-engineering-with-seldon](https://www.neuralk.ai/post/feature-engineering-with-seldon)
 Operational notes on iterating against a hosted TFM with no retraining step. Not directly
 applicable to a from-scratch pretrained-only project; its context-curation observation is a
-useful contrast to this project's own S70 (retrieval harmful at low prevalence).
+useful contrast to this project's own §70 (retrieval harmful at low prevalence).
 
 **Neuralk-AI (2026).** *Foundation models on structured data: tables vs. time series.*
 [neuralk.ai/post/foundation-models-on-structured-data-tables-vs-time-series](https://www.neuralk.ai/post/foundation-models-on-structured-data-tables-vs-time-series)
@@ -133,7 +134,8 @@ Models.* [arXiv:2605.18635](https://arxiv.org/abs/2605.18635)
 Seven context-construction strategies across four classical models and five TFMs on Home
 Credit and Lending Club. Balanced and hybrid sampling add 3-4 AUC points over uniform, a gap
 wider than the spread between TFM families. Acted on in `docs/results/FINDINGS.md` §5, and its
-AUC-only framing corrected by §6.
+AUC-only framing corrected by §6. On V4FinBench out of time the ordering reversed: uniform beat
+balanced by 10-12 AUC points (§29).
 
 **Tomczak et al. (2026).** *V4FinBench: Benchmarking Tabular Foundation Models, LLMs, and
 Standard Methods on Corporate Bankruptcy Prediction.*
@@ -171,7 +173,9 @@ data. Defines which half of credit risk is winnable (`docs/results/FINDINGS.md` 
 **Hollmann, Müller, Purucker, Krishnakumar, Körfer, Hoo, Schirrmeister & Hutter (2025).**
 *Accurate predictions on small data with a tabular foundation model.* Nature 637:319-326.
 [doi:10.1038/s41586-024-08328-6](https://doi.org/10.1038/s41586-024-08328-6)
-TabPFN v2. The canonical citation for the small-data strength this project is betting on.
+TabPFN v2. The canonical citation for the small-data strength this project is betting on;
+`docs/design/DECISIONS.md` D15 records that this project's own TabArena measurement does not
+yet support that bet.
 
 **Erickson, Purucker, Tschalzev, Holzmüller, Mutalik Desai, Salinas & Hutter (2025).**
 *TabArena: A Living Benchmark for Machine Learning on Tabular Data.* NeurIPS Datasets and
@@ -220,7 +224,9 @@ result matters for our scaling question: pretrained on synthetic sets up to 60K 
 handling 500K, and on 53 datasets above 10K samples it **beats both TabPFNv2 and CatBoost**.
 That qualifies the Beyond IID reading (§9): ICL can scale, given the right architecture.
 Note also that TabPFNv2 is reported as excelling only up to ~10K samples because alternating
-column/row attention becomes prohibitive — the cost our row-pooling stage also avoids.
+column/row attention becomes prohibitive — the cost our row-pooling stage avoids at the
+default `n_cell_blocks=0`. The published checkpoint uses one two-way cell-attention block, which
+pays part of that cost (§79).
 
 **Zhu, Chen, Qu & Chung (2025).** *FinCast: A Foundation Model for Financial Time-Series
 Forecasting.* [arXiv:2508.19609](https://arxiv.org/abs/2508.19609)
@@ -255,7 +261,8 @@ head-on.
 ### TabArena's nearer neighbours — the four methods immediately above us
 
 Opened 2026-09-21 because §107 needs the competitive context, and because these four sit in
-the band fintfm is trying to leave rather than at the top of the board. **Ideas only.**
+the band fintfm is trying to leave rather than at the top of the board. Entries from MITRA
+onwards were added later and include methods at the top of the board. **Ideas only.**
 `CLAUDE.md`'s prohibition on ingesting code or weights from tabular-foundation-model products
 applies to every one of them, and a weights licence is checked separately from a code licence,
 every time — none of these has had its weights licence checked, because nothing from them is
@@ -273,15 +280,16 @@ structural reason fintfm's turned out to be spurious: it is genuinely a text-fie
 **Zeng, Dinh, Kang & Mueller (2025).** *TabFlex: Scaling Tabular Learning to Millions with
 Linear Attention.* [arXiv:2506.05584](https://arxiv.org/abs/2506.05584). Replaces quadratic
 attention with a linear variant so in-context learning reaches millions of rows. Directly
-relevant to our binding constraint: attention cost is why `max_context` is 1000 and why §83/§84
+relevant to our binding constraint: attention cost is why `max_context` is capped (2,000 rows by
+default, 1,000 in the TabArena runs) and why §83/§84
 had to measure whether context even helps. Note the trade this implies — linear attention is
-not free, and §80's finding that context is nearly flat on a 1M-row panel means more context is
+not free, and §83's finding that context is nearly flat on a 1M-row panel means more context is
 not obviously the lever for us.
 
 **Bouadi, Seth, Tanna & Sankarapu (2025).** *Orion-MSP: Multi-Scale Sparse Attention for
 Tabular In-Context Learning.* [arXiv:2511.02818](https://arxiv.org/abs/2511.02818). Code at
 `github.com/Lexsi-Labs/Orion-MSP`. Multi-scale **sparse** attention over tabular structure.
-Our two-way cell attention (§54) is dense in both directions, and `openspec/changes/
+Our two-way cell attention (§78) is dense in both directions, and `openspec/changes/
 factorized-attention` (44.x) is the remaining architectural candidate for the uniform residual
 — this is prior art on the same axis.
 

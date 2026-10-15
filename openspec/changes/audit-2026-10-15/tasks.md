@@ -167,6 +167,18 @@
       "+0.042 AP from cell attention" in README.md needs the qualifier. Fix: confirm from the
       checkpoints, then score a matched pair (same prior, same budget) or restate the claim.
       Verify: the two checkpoints' recorded prior configs quoted in FINDINGS, then a matched pair or a restated claim.
+- [ ] AU2.9 **§159's 0.0073 bar is not seed noise.** §160 showed it is mostly the max_classes
+      10-against-2 head effect; seed noise at matched head size is 0.0009 mean AP. §163 kept the
+      bar and cleared it by 0.0003, with a fold-to-fold SD of Δ of 0.0054. The bar errs
+      conservative, so no verdict flips, but its size is not a noise estimate. Also: fine-tuning's
+      own variance (seed and context draw) is outside the bootstrap CIs; §163's Stage A lr choice
+      was a 4×10⁻⁶ AP tie and used fold 0's validation rows, which are fold 4's test rows; §163's
+      "helps" rule is applied by hand, not in `scripts/c5_verdict.py`; and §162-§164 judge many
+      arms against one bar with no family-wise correction. Re-derived numbers all match
+      (2026-10-15). Fix: re-derive a yardstick from matched-head replicates (S1 gives one), add
+      a `helps` mode to `c5_verdict.py`, and state the family of comparisons in §164's write-up.
+      Verify: `c5_verdict.py helps` reproduces §163's verdict; FINDINGS states the new yardstick
+      with its source runs.
 
 ## Phase 3 — documents
 

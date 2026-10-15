@@ -3,14 +3,17 @@
 **Status: the recipe below has been executed.** Following the sibling
 `finkele-axiom/scripts/hf_job_recipe.md`, every line here was run rather than inferred, and the
 failures are kept because each one cost a probe and would otherwise be rediscovered. Six probes
-established the working configuration; the three training runs are in flight.
+established the working configuration. **Status 2026-10-15:** the scaling runs described
+below have completed; their results are `docs/results/FINDINGS.md` §108 and §114.
 
 ## Why GPU at all
 
-Every accuracy number in this project comes from a checkpoint of **846,818 parameters** trained
-for 6,000 steps at batch 8. `docs/roadmap/STRATEGY.md`'s Phase 1 target is 10-50M. That is 12-60× under
-size and has never been tested, so "the model is small" is currently an untested explanation
-for the 0.047 out-of-time AUC gap rather than a measured one.
+When this was written (2026-09-09), every accuracy number in this project came from a
+checkpoint of **846,818 parameters** trained for 6,000 steps at batch 8. The published
+checkpoint is now the 885K-parameter `v4-cellattn-labels.pt`. `docs/roadmap/STRATEGY.md`'s
+Phase 1 target is 10-50M. That is 12-60× under size and has never been tested, so "the model is
+small" is currently an untested explanation for the 0.047 out-of-time AUC gap rather than a
+measured one.
 
 There is recorded counter-evidence — `docs/results/FINDINGS.md` §9, that TFMs lose on large/wide
 non-IID data regardless of scale — so this is a real experiment with a real chance of a null
@@ -164,12 +167,13 @@ instead. **The repository went public on 2026-09-25**, so a direct install from 
 possible; the wheel route is kept because it is faster and pins an exact build rather than
 whatever `main` happens to be during a three-hour run.
 
-1. `uv build --wheel` — 111 KB, pure Python, and the packaged `configs/default.yaml` is
-   inside it **[verified]**.
-2. Upload the wheel to a **private** HF model repo **[unverified]**.
-3. Mount it read-only in the job with `-v hf://...:/build` **[unverified]**.
-4. `pip install --no-deps /build/fintfm-*.whl` so the image's own torch is not replaced
-   **[unverified]**.
+1. `uv build --wheel` — 111 KB, pure Python, and the packaged `configs/default.yaml` is inside
+   it **[verified]**.
+2. Upload the wheel to a **private** HF model repo **[verified]**, see the table above.
+3. Mount it read-only in the job with `-v hf://...:/build` **[verified]**; §141's run used this
+   route to completion.
+4. `pip install --no-deps /build/fintfm-0.7.1-py3-none-any.whl` (the exact filename, never a
+   glob; see the table below) so the image's own torch is not replaced **[verified]**.
 
 **The HF build repo must stay private, even though the source repository no longer is.**
 `CLAUDE.md` records the trained weights and the mature prior as
@@ -195,8 +199,13 @@ hf jobs run --flavor l4x1 --timeout 4h --name fintfm-clf-small \
   --secrets HF_TOKEN \
   -v hf://kabartay/fintfm-build:/build \
   pytorch/pytorch:2.12.1-cuda12.6-cudnn9-devel \
-  bash -c 'pip install --break-system-packages --no-deps /build/fintfm-*.whl; pip install --break-system-packages numpy pandas scikit-learn scipy pyyaml huggingface_hub; hf --version || exit 1; fintfm-train --steps 6000 --batch-size 8 --n-rows 512 --n-rows-choices 256,512,1024 --d-cell 48 --d-model 128 --n-layers 4 --n-col-layers 2 --max-features 136 --max-classes 2 --p-financial 1.0 --device cuda --out /tmp/v4-clf-small.pt; hf upload kabartay/fintfm-build /tmp/v4-clf-small.pt v4-clf-small.pt'
+  bash -c 'pip install --break-system-packages --no-deps /build/fintfm-0.7.1-py3-none-any.whl; pip install --break-system-packages numpy pandas scikit-learn scipy pyyaml huggingface_hub; hf --version || exit 1; fintfm-train --steps 6000 --batch-size 8 --n-rows 512 --n-rows-choices 256,512,1024 --d-cell 48 --d-model 128 --n-layers 4 --n-col-layers 2 --max-features 136 --max-classes 2 --p-financial 1.0 --checkpoint-every 500 --device cuda --out /tmp/v4-clf-small.pt; hf upload kabartay/fintfm-build /tmp/v4-clf-small.pt v4-clf-small.pt'
 ```
+
+`--checkpoint-every` is mandatory on every HF Jobs launch (`CLAUDE.md`). It makes a stalled run
+resumable with `--resume`, but the intermediate files live in the container's `/tmp` and die
+with it (§90), so a run that must survive a crash also has to upload them. Replace
+`fintfm-0.7.1-py3-none-any.whl` with the wheel you actually built and uploaded.
 
 Carried lessons from `finkele-axiom`, each of which cost a probe there:
 
@@ -207,7 +216,7 @@ Carried lessons from `finkele-axiom`, each of which cost a probe there:
 | `pytorch/pytorch:2.12.1-cuda12.6-cudnn9-devel` | Docker Hub; ships Python 3.12.3. The `2.6.0-cuda12.4` tag ships 3.11 and produces a "no matching version" error that reads like a missing package |
 | `--break-system-packages` | PEP 668 marks the image's Python externally managed; the container is disposable |
 | `--no-deps` for our wheel | otherwise pip may replace the image's CUDA-matched torch |
-| **the wheel's exact filename, never `fintfm-*.whl`** | the build repo accumulates wheels. On 2026-09-25 it held 0.2.0, 0.3.0 and 0.5.5, and the glob in the line above matches all three. Name the one you mean |
+| **the wheel's exact filename, never `fintfm-*.whl`** | the build repo accumulates wheels. On 2026-09-25 it held 0.2.0, 0.3.0 and 0.5.5, and a `fintfm-*.whl` glob matches all three. Name the one you mean |
 | Docker Hub image | `nvcr.io` is not an accepted registry |
 | credits, not Pro | Jobs need a positive credit balance, not a subscription |
 

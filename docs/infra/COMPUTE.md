@@ -7,7 +7,8 @@ clears the bound and is 18x too slow. Time the device idle: the same probe read 
 while an evaluation held the GPU.
 
 Measured throughput, what a real run costs, and where to run it. Every number here was
-measured on this machine on the date given — none is estimated. Re-measure rather than
+measured on this machine on the date given unless it is marked ESTIMATED or stated as a
+range ("perhaps 5-15x"). Re-measure rather than
 trusting these after an architecture change, because they will move.
 
 ## The machine
@@ -34,7 +35,9 @@ for this model rather than merely fast.
 **The decisive advantage is not the speedup.** Metal runs on the GPU, which the genomics
 pipeline does not touch, so a training run stops competing for the cores that pipeline needs.
 On a shared machine that turns "wait until the pipeline finishes" into "run now". Prefer
-`--device mps` here even when CPU would be fast enough.
+`--device mps` here even when CPU would be fast enough, except at the current reference recipe:
+see the 2026-10-03 caveat in `docs/design/DECISIONS.md` D7 and the batch ceiling at the top of
+this file.
 
 Synthetic task generation is NumPy on the CPU and runs every step, but it is cheap enough
 not to matter: 0.036 s per batch of 32 for the financial prior, 0.070 s for the generic one.
@@ -46,7 +49,7 @@ partly overlaps anyway.
 | run | scale | Metal | notes |
 | --- | --- | --- | --- |
 | smoke test | 200-400 steps, ~130k params | < 1 min | pipeline check only, says nothing about quality |
-| **Phase 1 first pass** | 5,000 steps × 3 variants, 2.2M params | **~3 h** | 80k tasks/variant; directional signal |
+| **Phase 1 first pass** | 5,000 steps × 3 variants, 2.2M params | **~3 h** | 160k tasks/variant (batch 32); directional signal |
 | Phase 1 full | 20,000 steps × 3 variants | ~12 h | 640k tasks/variant; overnight |
 | ~12M params | `d_model=384`, `n_layers=8`, 20k steps × 3 | ~1.5-2 days | ESTIMATED by scaling, not measured |
 
@@ -99,7 +102,10 @@ positive result.
 - **Check `uptime` first.** At load 145 a native training run is what `CLAUDE.md` records as
   having frozen this machine. Metal reduces but does not eliminate this, since the process
   still needs CPU for the prior.
-- **Use `--device mps`**, and `--threads` below the free core count when on CPU.
+- **Use `--device mps`**, and `--threads` below the free core count when on CPU. At the
+  reference recipe (`--n-rows-choices 256,512,1024 --batch-size 8 --max-features 136`) MPS
+  grew to 78 GB resident on this 64 GB machine on 2026-10-03 (D7); watch memory in the first
+  minutes of any such launch.
 - **Set `PYTHONUNBUFFERED=1`** for a long background run. Without it, Python's stdout
   buffering plus `tee` hides all progress until the process exits, which is how the first
   Phase 1 run became unmonitorable.
@@ -162,8 +168,8 @@ failure to obtain one.
 
 **The consequence for low-default pretraining.** The base-rate floor is
 `MIN_EXPECTED_POSITIVES / n_rows`, so the cheap way to reach a 0.2% rate is to lower the
-expected count rather than grow the task. At two expected defaults, a **512-row task reaches
-0.195%** — covering V4FinBench's 0.19% floor — for about 1 s/step instead of 19.76.
+expected count rather than grow the task. At two expected defaults, a **1,024-row task reaches
+0.195%** (2 / 1,024), covering V4FinBench's 0.19% floor, for about 1.6 s/step instead of 19.76.
 
 Also worth knowing: check CPU time on the **worker**, not the `uv` wrapper. The wrapper shows
 near-zero CPU while the worker runs at 88%, which briefly read as a stalled job here.
@@ -179,10 +185,13 @@ Measured 2026-09-09 on the V4FinBench out-of-time split, 47,378 queries scored a
 | 2,000 | 33 s | 73 s | 2.2× |
 | 4,000 | 61 s | 155 s | 2.5× |
 
-The extra time is k-means over the queries plus one distance pass over the pool per group,
-and it buys +0.066 to +0.095 AUC. **Affordable for batch scoring.** The cost that matters is
-not the seconds: retrieval makes a query's prediction depend on its group-mates, which is fine
-for scoring a book overnight and wrong for a per-request API.
+The extra time is k-means over the queries plus one distance pass over the pool per group, and
+on this split it bought +0.066 to +0.095 AUC over the best blind strategy (§32). Later findings
+narrow that: the published `prototype` context beat it on every axis at about half the time
+(§38), and on V4FinBench's own protocol retrieval was harmful (§70). **Affordable for batch
+scoring.** The cost that matters is not the seconds: retrieval makes a query's prediction
+depend on its group-mates, which is fine for scoring a book overnight and wrong for a
+per-request API.
 
 `retrieval_groups=0` gives exact per-query retrieval. It is priced for validation on a
 subsample only — one forward pass per query, roughly 500× the grouped cost at a 2,000-row

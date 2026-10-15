@@ -13,7 +13,7 @@ will decay.
 | **Fundamental** (NEXUS) | general tabular foundation model, "pretrained on billions of tables"; **now verticalising** — sells NEXUS as purpose-built for oil & gas, in production | single tables | proprietary; $255M Series A per their site |
 | **Prior Labs** | tabular foundation models for spreadsheets/databases; the TabPFN lineage | single tables | open weights/code history, commercial company |
 | **Neuralk** (Seldon) | tabular foundation model, in-context, synthetic-prior pretraining | single tables | proprietary, API + self-hosted |
-| **Kumo** (KumoRFM-2) | relational foundation model, **in-context prediction at query time**, trained on real + synthetic relational data; PQL query language, NL coding agent, optional fine-tuning; Online Serving distills to sub-100 ms | **multi-table relational** | commercial platform; heavy press (AP, Forbes); **documented on docs.nvidia.com** |
+| **Kumo** (KumoRFM-2) | relational foundation model, **in-context prediction at query time**, trained on real + synthetic relational data; PQL query language, NL coding agent, optional fine-tuning; Online Serving distils to sub-100 ms | **multi-table relational** | commercial platform; heavy press (AP, Forbes); **documented on docs.nvidia.com** |
 | **Feedzai** (RiskFM) | "universal tabular foundation model" for financial risk | transactional | direct competitor on **fraud** |
 | **Google** (TabFM) | general TFM, hundreds of millions of synthetic datasets | single tables | research release |
 | **The Forecasting Company** | time-series foundation model (t0-alpha), temporal engine, Retrocast UI | **temporal** | argues explicitly that time series are not tables |
@@ -132,7 +132,8 @@ probability. See `openspec/changes/pd-term-structure`.
   hazard over a panel of firms is not a series to continue either.
 - **Tabular models predict one label at one horizon.** Multiple horizons become unrelated
   tasks with no coherence constraint, which is exactly the defect
-  `pd-term-structure` task 11.1 is designed to expose in our own current output.
+  `pd-term-structure` task 11.1 was designed to expose in our own output (measured in
+  `docs/results/FINDINGS.md` §11, removed by construction with the hazard head in §20).
 - **Graph models add cross-entity structure but still emit a label**, not a path. Kumo's
   relational framing is the strongest threat to the credit use case generally
   (bank data *is* relational), but its object is still a prediction per node.
@@ -219,7 +220,8 @@ the number must be defensible rather than merely fast. That is a narrower market
 
 - **Their credit angle is consumer, not corporate.** The example is a €14,000 personal loan
   with a credit-bureau-style score. SME and specialty corporate lending, where the
-  small-data advantage is strongest (`FINDINGS` §9), is not what this page is selling.
+  literature places the small-data advantage (`FINDINGS` §9), is not what this page is
+  selling. This project's own TabArena slice points the other way (D15, §102).
 - **They claim time series too** ("alpha generation", "time-series forecasting to power and
   commodity price data"). Given Beyond IID on non-IID data and The Forecasting Company's
   argument that time series are not tables, that is a broad claim for a tabular model and
@@ -252,12 +254,13 @@ every case the split is invisible from the repository's headline licence badge.
 
 ### What they lead with, and why fintfm must not copy it
 
-**Every commercial entrant leads with a leaderboard rank**, and Causilo leads with one that does
-not match this project's own measurement of it (§109's neighbour: their README claims Elo
-position 1 at 1792.9; our live run puts them 6th at 1751). Leading with rank is rational when
-you have one.
+**Every commercial entrant leads with a leaderboard rank**, and Causilo leads with one that
+does not match this project's own measurement of it (their README claims Elo position 1 at
+1792.9; our live run puts them 6th at 1751, recorded in `docs/research/REFERENCES.md`). Leading
+with rank is rational when you have one.
 
-**We place 93rd of 95.** So rank-first presentation is unavailable, and imitating it would mean
+**We place 94th of 95** (§122; §98's earlier 93rd was over 26 datasets against an older
+snapshot). So rank-first presentation is unavailable, and imitating it would mean
 either burying the number or reporting a favourable slice of it — which is exactly the
 absolute-AUC-without-rank error §107 already retracted once.
 
@@ -268,7 +271,8 @@ absolute-AUC-without-rank error §107 already retracted once.
   auditability argument, and those pull in the same direction: a provenance claim nobody can
   check is a slogan. `CLAUDE.md` currently treats the mature prior as the private moat, which
   is defensible commercially and in tension with the audit story — a decision to make
-  deliberately rather than by inertia.
+  deliberately rather than by inertia. **Update 2026-10-15:** decided; the generator in
+  `src/fintfm/prior/` was published when the repository went public on 2026-09-25.
 - **From TabPFN: the deployment path.** Their distillation engine converts a fitted model into
   a dataset-specific MLP or tree ensemble for "orders-of-magnitude lower latency", aimed at
   pipelines "constrained by latency, interpretability, or regulatory requirements". That is a
