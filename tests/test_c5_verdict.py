@@ -62,3 +62,42 @@ def test_fold_diffs_refuses_mismatched_rows(tmp_path):
         assert "fold 2" in str(e) and "rows differ" in str(e)
     else:
         raise AssertionError("mismatched rows were compared")
+
+
+def test_fold_diffs_refuses_a_different_protocol(tmp_path):
+    """Matching labels are not enough: a different row cap or horizon is a different run (AU2.6)."""
+    import json
+
+    import pytest
+
+    rng = np.random.default_rng(0)
+    ys = [(rng.random(50) < 0.3).astype(int) for _ in range(5)]
+    for y in ys:
+        y[0], y[1] = 1, 0
+
+    def write(name, **config):
+        d = tmp_path / name
+        d.mkdir()
+        for k, y in enumerate(ys):
+            np.savez(d / f"predictions_fold{k}.npz", y_true=y, pred_fintfm=rng.random(50))
+        base = {"horizon": 0, "max_rows": None, "n_features": 130, "fold_seed": 42, "n_splits": 5}
+        rec = {"dataset": "v4finbench", "config": {**base, **config, "finetune_steps": len(name)}}
+        (d / "v4_protocol.json").write_text(json.dumps(rec))
+        return d
+
+    control, arm = write("c"), write("arm")  # differ only in an inference setting: fine
+    assert len(fold_diffs(control, arm)) == 5
+    capped = write("capped", max_rows=200_000)
+    with pytest.raises(SystemExit, match="protocol settings differ"):
+        fold_diffs(control, capped)
+
+
+def test_bootstrap_p_is_never_exactly_zero():
+    from fintfm.evaluation.metrics import paired_auc_difference
+
+    rng = np.random.default_rng(0)
+    y = (rng.random(400) < 0.3).astype(int)
+    perfect = y + rng.random(400) * 0.1
+    noise = rng.random(400)
+    _, _, p = paired_auc_difference(y, perfect, noise, n_boot=200)
+    assert 0 < p <= 1 / 100

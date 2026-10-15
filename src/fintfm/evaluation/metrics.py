@@ -236,7 +236,8 @@ def paired_auc_difference(
     drawn = 0
     for _ in range(n_boot):
         idx = rng.integers(0, n, size=n)
-        # a resample missing a class has no defined AUC; redraw rather than silently skew
+        # a resample missing a class has no defined AUC; skip it (so `drawn` can fall short
+        # of n_boot) rather than silently skew
         if len(np.unique(y_true[idx])) < 2:
             continue
         deltas[drawn] = score(y_true[idx], p_a[idx]) - score(y_true[idx], p_b[idx])
@@ -247,6 +248,9 @@ def paired_auc_difference(
     lo, hi = np.percentile(deltas, [2.5, 97.5])
     # two-sided: how often the resampled difference contradicts the observed sign
     p = 2.0 * min((deltas <= 0).mean(), (deltas >= 0).mean())
+    # never exactly 0: with `drawn` resamples the smallest p that can be resolved is about
+    # 1/drawn, and a 0 survives Holm unchanged and reads as certainty
+    p = max(p, 1.0 / (drawn + 1))
     return delta, (float(lo), float(hi)), float(min(p, 1.0))
 
 

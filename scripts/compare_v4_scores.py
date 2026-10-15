@@ -14,6 +14,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 import numpy as np
@@ -38,6 +39,39 @@ def _folds(run: Path) -> dict[int, dict[str, np.ndarray]]:
     return out
 
 
+#: Settings that decide *which rows* and *which protocol* a run scored. Two runs that differ in
+#: any of these are not a paired comparison even when their `y_true` arrays happen to match;
+#: inference and fine-tuning settings are what an arm varies, so they are not checked.
+PROTOCOL_KEYS = ("horizon", "max_rows", "n_features", "fold_seed", "n_splits", "dataset")
+
+
+def check_protocol(control: Path, arm: Path) -> None:
+    """Refuse a comparison whose two runs used different protocol settings.
+
+    Reads each directory's `v4_protocol.json`. A directory without one (an older or partial
+    run) is reported and passed, since its rows are still checked fold by fold.
+
+    Args:
+        control: The control's `fintfm-v4protocol` output directory.
+        arm: The arm's.
+
+    Raises:
+        SystemExit: If any :data:`PROTOCOL_KEYS` setting differs.
+    """
+    recs = []
+    for d in (control, arm):
+        f = d / "v4_protocol.json"
+        if not f.exists():
+            print(f"note: {d} has no v4_protocol.json; protocol settings not checked")
+            return
+        rec = json.loads(f.read_text())
+        recs.append({**rec.get("config", {}), "dataset": rec.get("dataset")})
+    diff = {k: (recs[0].get(k), recs[1].get(k)) for k in PROTOCOL_KEYS
+            if recs[0].get(k) != recs[1].get(k)}
+    if diff:
+        raise SystemExit(f"{arm} vs {control}: protocol settings differ {diff} -- not comparable")
+
+
 def main() -> None:
     """Entry point: print one §144-style table per arm."""
     p = argparse.ArgumentParser(description=__doc__)
@@ -48,6 +82,7 @@ def main() -> None:
     ctrl = _folds(args.control)
     for spec in args.arms:
         name, _, path = spec.partition("=")
+        check_protocol(args.control, Path(path))
         arm = _folds(Path(path))
         folds = sorted(set(ctrl) & set(arm))
         if not folds:

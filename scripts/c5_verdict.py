@@ -25,7 +25,7 @@ import argparse
 from pathlib import Path
 
 import numpy as np
-from compare_v4_scores import _folds
+from compare_v4_scores import _folds, check_protocol
 from sklearn.metrics import average_precision_score
 
 #: §158: a no-change ``max_classes 10`` replicate's five-fold mean AP gap to the control.
@@ -47,6 +47,7 @@ def fold_diffs(control: Path, arm: Path) -> list[float]:
     Raises:
         SystemExit: If the two do not cover the same five folds on the same rows.
     """
+    check_protocol(control, arm)
     c, a = _folds(control), _folds(arm)
     if sorted(c) != sorted(a) or len(c) != 5:
         raise SystemExit(f"{arm} vs {control}: folds {sorted(a)} vs {sorted(c)}, need the same five")
