@@ -602,7 +602,12 @@ class FinancialTFM(nn.Module):
         return out
 
     def loss(
-        self, X: torch.Tensor, y: torch.Tensor, n_ctx: int, n_classes: torch.Tensor
+        self,
+        X: torch.Tensor,
+        y: torch.Tensor,
+        n_ctx: int,
+        n_classes: torch.Tensor,
+        weights: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """Mean cross-entropy, or mean pinball loss, over query rows.
 
@@ -616,14 +621,30 @@ class FinancialTFM(nn.Module):
         column alone, minimised exactly at the ``tau``-quantile of the target's conditional
         distribution -- the single-column generalisation of what cross-entropy does for a
         full categorical distribution.
+
+        ``weights`` (``(B, n_queries)``, cross-entropy only) gives each query row a weight and
+        returns the weighted mean. Used by fine-tuning's importance-weighted, default-enriched
+        queries (§164): oversampling the rare class and weighting it back by true/sampled
+        rate keeps the loss an unbiased estimate of the uniform-query loss. ``None`` is the
+        plain mean, unchanged.
         """
         out = self.forward(X, y, n_ctx, n_classes)[:, n_ctx:]
         if self.cfg.head_type == "quantile":
+            if weights is not None:
+                raise ValueError("per-row weights are implemented for cross-entropy only")
             target = y[:, n_ctx:].to(out.dtype).unsqueeze(-1)  # (B, Nq, 1)
             diff = target - out  # (B, Nq, n_quantiles)
             taus = self.quantile_taus.to(out.dtype)
             return torch.maximum(taus * diff, (taus - 1.0) * diff).mean()
-        return F.cross_entropy(out.reshape(-1, self.cfg.max_classes), y[:, n_ctx:].reshape(-1))
+        if weights is None:
+            return F.cross_entropy(
+                out.reshape(-1, self.cfg.max_classes), y[:, n_ctx:].reshape(-1)
+            )
+        per_row = F.cross_entropy(
+            out.reshape(-1, self.cfg.max_classes), y[:, n_ctx:].reshape(-1), reduction="none"
+        )
+        w = weights.reshape(-1).to(per_row.dtype)
+        return (per_row * w).sum() / w.sum()
 
     def num_parameters(self) -> int:
         """Total trainable parameters.

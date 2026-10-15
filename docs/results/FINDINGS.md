@@ -11090,3 +11090,38 @@ within 0.017 of untuned XGBoost and 0.060 of untuned LightGBM. So §163's result
 small: the right direction, at roughly a twenty-fifth of the distance that matters. This is the
 benchmark-level answer to "why can we not move" -- the distance to the strongest classical model
 on this panel is ~0.2 AP, and every lever measured so far is worth at most ~0.008 of it.
+
+## §164 — Stronger fine-tuning: a second seed, default-enriched queries, 3× the steps (pre-registered)
+
+**Status: PRE-REGISTERED 2026-10-15, before any arm runs.**
+
+**Why.** §163's fine-tuning is the first lever to move V4FinBench (+0.0076 mean AP, 5/5 folds),
+but it closes 3.8% of the gap to CatBoost, it ran at one seed, and each step saw ~3.8 default
+labels. Three single changes from §163's setting (200 steps, lr 1e-5, batch 2, context 2,000,
+512 uniform queries), each on the five full-panel folds of `runs/v4-cellattn-labels.pt`:
+
+| arm | change | answers |
+| --- | --- | --- |
+| `S1` | `finetune_seed: 1` | fine-tuning's own seed noise, and whether §163 replicates |
+| `EN` | `finetune_query_pos_frac: 0.1`, importance-weighted | does ~27× more default labels per step help? |
+| `L600` | `finetune_steps: 600` | does more training help? |
+
+**Code (new, off by default, tests in `tests/test_finetune.py`).** `FinancialTFM.loss(weights=)`
+takes per-query weights (cross-entropy only); `weights=None` is the unchanged plain mean.
+Enriched queries draw the stated share from defaults and weight each class by true/sampled rate,
+so the weighted positive share equals the pool's true rate (tested exactly). `finetune_seed` mixes
+into the numpy stream and seeds torch inside a forked RNG -- column identities come from torch's
+generator in training mode, which §163 left unseeded, so §163's run is one unseeded draw.
+
+**Rules.**
+- **Seed noise** is reported as the per-fold and mean absolute difference, `S1` vs §163's arm.
+- **§163 replicates** if `S1` against zero-shot passes §163's own rule (mean ΔAP > +0.0073, at
+  least 4 of 5 folds positive).
+- **`EN` and `L600`, each against §163's arm:** **better** if the mean ΔAP exceeds the larger of
+  0.0073 and twice the measured seed gap of the means, with at least 4 of 5 folds positive;
+  **worse** under the mirror condition; otherwise **no different**.
+
+**Predictions:** `S1` replicates; `EN` is better; `L600` is better.
+
+**Cost (ESTIMATED from §163's measured 18.6 s/step):** ~11 h per 200-step arm, ~21 h for `L600`,
+run sequentially, one heavy job at a time.

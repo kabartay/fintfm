@@ -73,6 +73,8 @@ class InferenceConfig:
     finetune_query: int = 512
     finetune_context: int | None = None
     finetune_query_group_frac: float = 0.3
+    finetune_query_pos_frac: float | None = None
+    finetune_seed: int = 0
 
 
 @dataclass(frozen=True)

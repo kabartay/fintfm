@@ -60,7 +60,9 @@ def _finetune_rows(
     n_q_groups: int,
     n_ctx: int,
     n_q: int,
-) -> tuple[np.ndarray, np.ndarray]:
+    y: np.ndarray | None = None,
+    pos_frac: float | None = None,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray | None]:
     """Draw one fine-tuning task's context and query rows, with no group on both sides.
 
     Args:
@@ -70,10 +72,15 @@ def _finetune_rows(
         n_q_groups: Groups held out to supply queries.
         n_ctx: Context rows to draw.
         n_q: Query rows to draw.
+        y: ``(n,)`` coded labels; needed only with ``pos_frac``.
+        pos_frac: When set, draw this fraction of the queries from positive rows (the last
+            class) and return importance weights -- true rate over sampled rate, per class --
+            so a weighted loss is still an estimate of the uniform-query loss (§164).
 
     Returns:
-        ``(context_rows, query_rows)`` indices. Drawn with replacement only when a side has
-        fewer rows than requested.
+        ``(context_rows, query_rows, query_weights)``. Indices are drawn with replacement only
+        when a side has fewer rows than requested; weights are ``None`` for uniform queries,
+        and for a query side with no positives, which falls back to uniform.
     """
     # groups arrive as integer codes into ``uniq``: membership by table lookup is O(n), where
     # np.isin over string company ids degraded to an O(n x k) object comparison that took a
@@ -83,8 +90,22 @@ def _finetune_rows(
     is_q = held_out[groups]
     ctx_pool, q_pool = np.flatnonzero(~is_q), np.flatnonzero(is_q)
     ci = rng.choice(ctx_pool, size=n_ctx, replace=len(ctx_pool) < n_ctx)
+    if pos_frac is not None and y is not None:
+        pos_label = y.max()
+        q_pos, q_neg = q_pool[y[q_pool] == pos_label], q_pool[y[q_pool] != pos_label]
+        if len(q_pos) and len(q_neg):
+            n_pos = max(1, round(n_q * pos_frac))
+            qi = np.concatenate([
+                rng.choice(q_pos, size=n_pos, replace=len(q_pos) < n_pos),
+                rng.choice(q_neg, size=n_q - n_pos, replace=len(q_neg) < n_q - n_pos),
+            ])
+            true_rate, sampled = len(q_pos) / len(q_pool), n_pos / n_q
+            w = np.where(
+                y[qi] == pos_label, true_rate / sampled, (1 - true_rate) / (1 - sampled)
+            )
+            return ci, qi, w.astype(np.float32)
     qi = rng.choice(q_pool, size=n_q, replace=len(q_pool) < n_q)
-    return ci, qi
+    return ci, qi, None
 
 
 def _select_context(
@@ -239,6 +260,13 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             ``groups``) held out per task to supply its queries; the context comes from the
             rest. Mirrors a company-grouped test split, so the model is never trained to
             recognise a firm it can also see in its context.
+        finetune_query_pos_frac: ``None`` (default) draws queries uniformly. A fraction, e.g.
+            0.1, draws that share of each task's queries from defaults and weights the loss
+            back to the true rate (§164): more default labels per step, same expected loss.
+        finetune_seed: Second axis of fine-tuning randomness beside ``random_state``, so the
+            same fold can be fine-tuned at several seeds. Seeds torch as well as numpy --
+            column identities are drawn from torch's generator in training mode -- inside a
+            forked RNG, so the caller's random state is untouched.
     """
 
     def __init__(
@@ -264,6 +292,8 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         finetune_query: int = 512,
         finetune_context: int | None = None,
         finetune_query_group_frac: float = 0.3,
+        finetune_query_pos_frac: float | None = None,
+        finetune_seed: int = 0,
     ) -> None:
         """Configure the classifier. See the class docstring — every argument is documented
         there with the measurement that set its default."""
@@ -290,6 +320,8 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         self.finetune_query = finetune_query
         self.finetune_context = finetune_context
         self.finetune_query_group_frac = finetune_query_group_frac
+        self.finetune_query_pos_frac = finetune_query_pos_frac
+        self.finetune_seed = finetune_seed
         # Identity-preserving, so it is safe to default on: asserted byte-for-byte by
         # tests/test_model.py::test_feature_chunking_is_an_identity. No effect on a
         # checkpoint with n_cell_blocks=0, which has no row-within-feature stage at all.
@@ -419,7 +451,10 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         self.model.feature_chunk = self.feature_chunk
         model = self.model.to(self.device).train()
         opt = torch.optim.AdamW(model.parameters(), lr=self.finetune_lr)
-        rng = np.random.default_rng(self.random_state)
+        # seed 0 keeps §163's numpy stream; other seeds mix in finetune_seed
+        rng = np.random.default_rng(
+            self.random_state if self.finetune_seed == 0 else [self.random_state, self.finetune_seed]
+        )
         raw = np.asarray(groups) if groups is not None else np.arange(len(y))
         uniq, g = np.unique(raw, return_inverse=True)  # integer codes; see _finetune_rows
         n_q_groups = max(1, round(len(uniq) * self.finetune_query_group_frac))
@@ -429,21 +464,31 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         F = model.cfg.max_features
         nc = torch.full((B,), n_classes, dtype=torch.long, device=self.device)
         self.finetune_losses_: list[float] = []
-        for _ in range(self.finetune_steps):
-            Xb = np.full((B, n_ctx + n_q, F), np.nan, dtype=np.float32)
-            yb = np.zeros((B, n_ctx + n_q), dtype=np.int64)
-            for b in range(B):
-                rows = np.concatenate(_finetune_rows(rng, g, uniq, n_q_groups, n_ctx, n_q))
-                Xb[b, :, : X.shape[1]] = X[rows]
-                yb[b] = y[rows]
-            loss = model.loss(
-                torch.from_numpy(Xb).to(self.device), torch.from_numpy(yb).to(self.device),
-                n_ctx, nc,
-            )
-            opt.zero_grad()
-            loss.backward()
-            opt.step()
-            self.finetune_losses_.append(float(loss.detach()))
+        with torch.random.fork_rng(devices=[]):
+            torch.manual_seed(1_000_003 * int(self.random_state) + int(self.finetune_seed))
+            for _ in range(self.finetune_steps):
+                Xb = np.full((B, n_ctx + n_q, F), np.nan, dtype=np.float32)
+                yb = np.zeros((B, n_ctx + n_q), dtype=np.int64)
+                wb = np.ones((B, n_q), dtype=np.float32)
+                weighted = False
+                for b in range(B):
+                    ci, qi, w = _finetune_rows(
+                        rng, g, uniq, n_q_groups, n_ctx, n_q, y, self.finetune_query_pos_frac
+                    )
+                    rows = np.concatenate([ci, qi])
+                    Xb[b, :, : X.shape[1]] = X[rows]
+                    yb[b] = y[rows]
+                    if w is not None:
+                        wb[b], weighted = w, True
+                loss = model.loss(
+                    torch.from_numpy(Xb).to(self.device), torch.from_numpy(yb).to(self.device),
+                    n_ctx, nc,
+                    weights=torch.from_numpy(wb).to(self.device) if weighted else None,
+                )
+                opt.zero_grad()
+                loss.backward()
+                opt.step()
+                self.finetune_losses_.append(float(loss.detach()))
         model.eval()
 
     def _pooled_prior_shift(self, pooled_rate: float) -> np.ndarray:

@@ -46,6 +46,8 @@ inference:
   finetune_query: 512
   finetune_context: null
   finetune_query_group_frac: 0.3
+  finetune_query_pos_frac: null   # §164: e.g. 0.1, importance-weighted
+  finetune_seed: 0
 
 # Thresholds used when scoring. Changing these changes what counts as a result, so they are
 # recorded in every run's output alongside the numbers they produced.

@@ -405,6 +405,8 @@ def run(
                 finetune_query=cfg.inference.finetune_query,
                 finetune_context=cfg.inference.finetune_context,
                 finetune_query_group_frac=cfg.inference.finetune_query_group_frac,
+                finetune_query_pos_frac=cfg.inference.finetune_query_pos_frac,
+                finetune_seed=cfg.inference.finetune_seed,
                 device=device,
                 random_state=fold,
             ).fit(Xtr.astype(np.float32), y[tr], groups=company[tr])
@@ -525,6 +527,8 @@ def run(
             "finetune_query": cfg.inference.finetune_query,
             "finetune_context": cfg.inference.finetune_context,
             "finetune_query_group_frac": cfg.inference.finetune_query_group_frac,
+            "finetune_query_pos_frac": cfg.inference.finetune_query_pos_frac,
+            "finetune_seed": cfg.inference.finetune_seed,
             "config_sources": list(cfg.sources),
         },
         "arms": [asdict(s) for s in summaries],
