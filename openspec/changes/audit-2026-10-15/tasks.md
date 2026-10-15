@@ -99,7 +99,8 @@
       `**classifier_kwargs`, which `get_params` ignores, so `clone`/`GridSearchCV` silently
       revert to defaults. Fix: one explicit `classifier_params: dict`. Verify: `clone(r)`
       round-trips the settings.
-- [ ] AU1.11 **Smaller estimator issues.** `__init__` loads and moves the model (so
+- [x] AU1.11 **Done (2026-10-16).** Classifier part in 683f9c4 (`n_features_in_`, `NotFittedError`, opt-in `finetune_clip`, MPS cache, eval mode restored in `finally`, per-class pooled prior shift; device placement moved to `fit` in f9ec061); quantile part in b1ca937 (sorted grid, non-finite targets refused, width check). Tests in `test_classifier.py`, `test_finetune.py`, `test_quantile_regressor.py`.
+      **Smaller estimator issues.** `__init__` loads and moves the model (so
       `set_params(device=...)` leaves it on the old device); no `n_features_in_`; predict
       before fit raises `AttributeError`, not `NotFittedError`; no gradient clipping in
       fine-tuning (pretraining clips at 1.0); MPS cache not cleared after fine-tuning; quantile
