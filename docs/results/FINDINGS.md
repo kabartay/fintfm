@@ -11036,3 +11036,37 @@ tests used integer groups and could not see it. Fixed by coding groups to intege
 selecting by table lookup (O(n)); `tests/test_finetune.py` now covers string ids at 600k rows
 with a 2-second bound. Re-measured at full scale with string ids: 18.6 s/step, 9.0 GB. Stage A
 restarted from scratch; no result existed, so the pre-registration is unaffected.
+
+**Result (MEASURED, 2026-10-14 11:14; full panel, five folds, `runs/ft/B_lr1e5`).**
+
+Stage A chose 1e-5 on fold 0 **validation** AP: 0.23247 against 0.23247 at 3e-5 -- a tie to
+four decimals, so the result is not sensitive to the learning rate in this range. Stage B, against
+the zero-shot scores of the same checkpoint (`control_rescore.json`), paired bootstrap, Holm across
+folds:
+
+| fold | zero-shot | fine-tuned | ΔAP | 95% CI | Holm p | logistic regression |
+| --- | --- | --- | --- | --- | --- | --- |
+| 0 | 0.2113 | 0.2181 | +0.0068 | [+0.0038, +0.0102] | <0.001 | 0.1671 |
+| 1 | 0.2050 | 0.2068 | +0.0018 | [−0.0017, +0.0048] | 0.291 | 0.1522 |
+| 2 | 0.1786 | 0.1901 | +0.0115 | [+0.0085, +0.0146] | <0.001 | 0.1382 |
+| 3 | 0.1810 | 0.1955 | +0.0145 | [+0.0106, +0.0187] | <0.001 | 0.1715 |
+| 4 | 0.2172 | 0.2205 | +0.0033 | [−0.0002, +0.0070] | 0.138 | 0.1779 |
+| **mean** | 0.1986 | **0.2062** | **+0.0076** | | | 0.1614 |
+
+**Scored against the rule: helps** -- five of five folds positive, three individually significant,
+and a mean of +0.0076 against the +0.0073 bar. **The prediction held.** It clears the bar by
+0.0003, so the size is modest and the consistency is the stronger evidence: no fold moved down.
+
+**What this is and is not.**
+- **The first lever in this project's record to improve V4FinBench AP** after the seven of D16,
+  real-data pretraining (§160-§161) and context construction (§162).
+- **Not the zero-shot FinTFM.** It has seen each fold's training rows through 200 gradient steps,
+  as logistic regression and the boosters do. Claims about the synthetic-only model are unchanged;
+  claims about this one must say "fine-tuned per dataset".
+- **One fine-tuning seed per fold** (`random_state = fold`). Fine-tuning's own seed variance is
+  unmeasured.
+- **Not compared with the gradient-boosted trees here** (`--no-boosting`). Whether this closes
+  part of the gap to them is the next number to measure, not one to infer.
+- Fine-tuning loss fell modestly (first 10% of steps ≈0.0145, last 10% ≈0.0118, per fold) at
+  200 steps, ~3.8 positive query labels per step. More steps, or positive-enriched queries, are
+  untested.
