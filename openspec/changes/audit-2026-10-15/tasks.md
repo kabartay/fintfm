@@ -164,6 +164,10 @@
       drop the `kaggle` extra from the project, or record why a dev-only tool is acceptable.
 - [ ] AU3.8 **Documentation review findings** from the seven doc agents (appended below as they
       report).
+- [ ] AU3.9 **Check the 2026-10-15 peer sweep against primary sources** (RELATED_WORK.md, last
+      section) before any figure in it is quoted, then update the earlier entries it
+      contradicts (TabPFN-3.5 rank and Elo, Mitra, Kumo, LimiX-2, best real-data model, the
+      TabSwift "data points against 2D") and §114's scope (48k tasks, not scale in general).
 
 ## Phase 4 — cheap diagnostics of the CatBoost gap (hours, CPU or one Kaggle session)
 
@@ -237,3 +241,15 @@
       once AU5.12 exists; compute-heavy (11 s per 1k rows locally), so GPU only.
 - [ ] AU5.14 **TabArena context size**: TabArena-Lite at `max_context` 500 and 750 against 1000
       (trained range ends ~921 rows).
+- [ ] AU5.15 **Pretraining volume first: 48k tasks → at least 2M.** The strongest evidence in
+      the 2026-10-15 sweep (LightPFN's 256k → 7.68M draws, +1.66 AUC points; LimiX-2 and Kumo
+      scale curves at 10^7+ tasks). Prerequisites: AU1.13, AU5.2, pre-generated task dumps,
+      `--checkpoint-every`. Cost to be measured on one Kaggle session before committing. After
+      it, re-test the closed architecture verdicts, all measured at 48k tasks.
+- [ ] AU5.16 **Value embedding**: Fourier or RBF plus ECDF-rank features in place of the MLP on
+      (z, missing) (LimiX-2M RaBEL, TabPFN-3.5). One module, behind a flag.
+- [ ] AU5.17 **Optimiser and attention scaling from TabICLv2**: Muon, QASSMax (length-aware
+      softmax scaling), early target inclusion; also the fix for AU4.3 if context length is the
+      problem.
+- [ ] AU5.18 **Score the TabArena imbalanced subset** (v0.1.9), the credit-relevant slice, with
+      the current checkpoint as a baseline.
