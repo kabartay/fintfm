@@ -372,23 +372,29 @@ def _sample_from_source(
         )
     if source == "task_family":
         return _sample_task_family_mixture(rng, n, max_features=cfg.max_features)
+    # Every real source gets the synthetic financial prior's positive floor (audit AU1.14), met
+    # with real positive rows, so a rare-label panel is enriched rather than relabelled.
+    min_positives = math.ceil(cfg.min_expected_positives)
     if source == "real_edgar":
         return sample_real_edgar_task(
-            rng, n, max_features=cfg.max_features, panel_path=cfg.real_edgar_panel_path
+            rng, n, max_features=cfg.max_features, panel_path=cfg.real_edgar_panel_path,
+            min_positives=min_positives,
         )
     if source == "real_mortgage":
         return sample_real_mortgage_task(
-            rng, n, max_features=cfg.max_features, panel_path=cfg.real_mortgage_panel_path
+            rng, n, max_features=cfg.max_features, panel_path=cfg.real_mortgage_panel_path,
+            min_positives=min_positives,
         )
     if source == "real_lendingclub":
         return sample_real_lendingclub_task(
-            rng, n, max_features=cfg.max_features, panel_path=cfg.real_lendingclub_panel_path
+            rng, n, max_features=cfg.max_features, panel_path=cfg.real_lendingclub_panel_path,
+            min_positives=min_positives,
         )
     if source == "real_panel":
         assert panel_path is not None
         return sample_real_panel_task(
             rng, n, panel_path=panel_path, max_features=cfg.max_features,
-            min_positives=math.ceil(cfg.min_expected_positives),
+            min_positives=min_positives,
         )
     if source == "financial":
         return sample_financial_task(

@@ -106,10 +106,43 @@ def test_mixture_applies_the_positive_floor(tmp_path):
     assert all(t.y.sum() >= 2 for t in draws)
 
 
-def test_degenerate_draw_is_repaired():
+def test_single_class_panel_is_refused_not_relabelled():
+    # Audit AU1.14: this used to come back "repaired" by flipping 5% of labels at random.
     panel = _panel(n=40, rate=0.0)
-    task = sample_real_panel_task(np.random.default_rng(4), 40, "x/p.parquet", 20, panel=panel)
-    assert len(np.unique(task.y)) == 2
+    with pytest.raises(ValueError, match="both classes"):
+        sample_real_panel_task(np.random.default_rng(4), 40, "x/p.parquet", 20, panel=panel)
+
+
+def test_without_a_floor_a_single_class_draw_still_gets_a_real_positive():
+    # min_positives=0 still guarantees both classes, with a real row rather than a flip.
+    n = 4000
+    rng = np.random.default_rng(2)
+    label = (rng.random(n) < 0.002).astype(np.int64)
+    panel = pd.DataFrame({f"f{i}": rng.normal(size=n) for i in range(5)})
+    panel["true_label_echo"] = label.astype(float)
+    panel["label"] = label
+    for seed in range(30):
+        task = sample_real_panel_task(
+            np.random.default_rng(seed), 64, "x/p.parquet", 20, panel=panel
+        )
+        assert set(np.unique(task.y)) == {0, 1}
+        np.testing.assert_array_equal(task.X[:, -1].astype(np.int64), task.y)
+
+
+def test_a_cik_panel_keeps_one_row_per_firm():
+    # The generic sampler reads EDGAR panels too, so it applies the same firm rule (AU1.15).
+    rng = np.random.default_rng(3)
+    n_firms, per_firm = 60, 8
+    panel = pd.DataFrame({f"f{i}": rng.normal(size=n_firms * per_firm) for i in range(5)})
+    panel["cik"] = np.repeat(np.arange(n_firms), per_firm)
+    panel["firm_echo"] = panel["cik"].astype(float)
+    panel["label"] = (rng.random(len(panel)) < 0.1).astype(np.int64)
+    for seed in range(10):
+        task = sample_real_panel_task(
+            np.random.default_rng(seed), 40, "x/p.parquet", 20, panel=panel
+        )
+        firms = task.X[:, -1]
+        assert len(np.unique(firms)) == len(firms)
 
 
 def test_empty_default_never_opens_a_file():

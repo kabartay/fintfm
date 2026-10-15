@@ -43,6 +43,7 @@ import numpy as np
 import pandas as pd
 
 from fintfm.prior.base import Task
+from fintfm.prior.real_panel import draw_rows, ensure_both_classes
 
 #: Columns that identify a row rather than describe it. Never sampled as features.
 _BOOKKEEPING_COLUMNS = ("loan_id", "label")
@@ -92,6 +93,7 @@ def sample_real_lendingclub_task(
     min_features: int = 4,
     panel: pd.DataFrame | None = None,
     panel_path: str = DEFAULT_PANEL_PATH,
+    min_positives: int = 0,
 ) -> Task:
     """Sample one task from real LendingClub loans.
 
@@ -108,13 +110,18 @@ def sample_real_lendingclub_task(
         panel_path: Where to read the panel from when `panel` is not given directly. See
             `DEFAULT_PANEL_PATH`.
 
+        min_positives: Positive floor per task, met by swapping in real positive rows, never
+            by editing labels. Every task carries at least one real row of each class whatever
+            this is; see :func:`fintfm.prior.real_panel.ensure_both_classes`.
+
     Returns:
         A binary `Task` with `source="real_lendingclub"`, no survival framing (`period=None`).
 
     Raises:
         ValueError: If the panel's feature count is outside `[min_features, max_features]`,
             or if `n_rows` exceeds the panel's own row count (sampling without replacement
-            must not silently fall back to sampling the same real loan twice into one task).
+            must not silently fall back to sampling the same real loan twice into one task), or if
+            the panel cannot supply a real row of each class.
     """
     df = panel if panel is not None else _load_panel_cached(panel_path)
     cols = feature_columns(df)
@@ -128,17 +135,12 @@ def sample_real_lendingclub_task(
             f"requested n_rows={n_rows} exceeds the panel's {len(df)} rows; sampling without "
             "replacement cannot supply more distinct real rows than the panel has"
         )
-    idx = rng.choice(len(df), size=n_rows, replace=False)
+    idx = draw_rows(rng, len(df), n_rows)
+    labels = df["label"].to_numpy(dtype=np.int64)
+    idx = ensure_both_classes(rng, labels, idx, min_positives, name=panel_path)
     rows = df.iloc[idx]
     X = rows[cols].to_numpy(dtype=np.float64)
     y = rows["label"].to_numpy(dtype=np.int64, copy=True)
-    present = np.unique(y)
-    if len(present) < 2:
-        # A sampled task with only one class present is unscorable -- the same guarantee
-        # real_edgar.py/real_mortgage.py make. Much less likely to fire here than for the
-        # mortgage source: this panel's base rate is ~20%, not ~0.05%.
-        flip = rng.choice(n_rows, size=max(1, n_rows // 20), replace=False)
-        y[flip] = 1 - y[0]
     return Task(
         X=X.astype(np.float32),
         y=y,

@@ -68,13 +68,28 @@ def test_sample_task_refuses_a_panel_outside_the_feature_bounds():
         sample_real_lendingclub_task(rng, n_rows=10, max_features=136, min_features=4, panel=panel)
 
 
-def test_degenerate_single_class_draw_is_repaired():
-    n = 20
-    panel = _fixture_panel(n=n, n_features=4)
+def test_single_class_draw_is_repaired_with_real_rows_not_flipped_labels():
+    # Audit AU1.14: a single-class draw used to be repaired by flipping 5% of labels at
+    # random -- labels unrelated to X. A feature echoing each row's true label shows any flip;
+    # the positive floor must be met with real rows instead.
+    rng = np.random.default_rng(0)
+    panel = _fixture_panel(n=2000, n_features=4)
+    panel["label"] = (rng.random(len(panel)) < 0.004).astype(np.int64)
+    panel["true_label_echo"] = panel["label"].astype(float)
+    for seed in range(20):
+        task = sample_real_lendingclub_task(
+            np.random.default_rng(seed), n_rows=64, max_features=10, panel=panel,
+            min_positives=2,
+        )
+        assert task.y.sum() >= 2
+        np.testing.assert_array_equal(task.X[:, -1].astype(np.int64), task.y)
+
+
+def test_single_class_panel_is_refused_not_relabelled():
+    panel = _fixture_panel(n=20, n_features=4)
     panel["label"] = 0
-    rng = np.random.default_rng(5)
-    task = sample_real_lendingclub_task(rng, n_rows=n, max_features=10, panel=panel)
-    assert len(np.unique(task.y)) == 2
+    with pytest.raises(ValueError, match="both classes"):
+        sample_real_lendingclub_task(np.random.default_rng(5), n_rows=20, max_features=10, panel=panel)
 
 
 def test_p_real_lendingclub_zero_never_touches_the_panel_path():

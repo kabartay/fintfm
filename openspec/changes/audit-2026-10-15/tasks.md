@@ -99,13 +99,19 @@
       SCM share 0.198 at reuse 1 against 0.558 at reuse 4. Any comparison across reuse values
       (task 48.12, §113) mixed two changes. Fix: draw the source once and dispatch. Verify: a
       test that source shares match within binomial error at reuse 1 and 4; re-read §113.
-- [ ] AU1.14 **Some prior tasks get labels unrelated to X.** A single-class draw is repaired by
+- [x] AU1.14 **Done (2026-10-16).** Single-class draws are topped up with real rows
+      (`real_panel.ensure_both_classes`), never relabelled; every real loader takes the
+      mixture's positive floor; a one-class panel raises (`tests/test_real_*.py::test_single_class_*`).
+      **Some prior tasks get labels unrelated to X.** A single-class draw is repaired by
       flipping 5% of rows at random. `prior/real_mortgage.py:141-144` has no minimum-positives
       step, so at a 0.048% rate most 256-row mortgage tasks get random labels;
       `prior/real_edgar.py:134-142` likewise at ~3% of 256-row tasks. Fix: resample instead of
       flipping; minimum-positives enrichment in every real loader.
       Verify: a test that no real-loader task has labels flipped at random; positive count ≥ the floor.
-- [ ] AU1.15 **EDGAR context/query leakage.** 73% of EDGAR rows share a `cik` with another row;
+- [x] AU1.15 **Done (2026-10-16).** EDGAR tasks take one row per `cik` (`real_panel.draw_rows`),
+      so every context/query split is firm-disjoint
+      (`tests/test_real_edgar.py::test_no_firm_appears_in_both_context_and_query`).
+      **EDGAR context/query leakage.** 73% of EDGAR rows share a `cik` with another row;
       row-wise sampling (`prior/real_edgar.py:131`) puts the same firm in context and query,
       which teaches lookup. Fix: split by firm, as `_finetune_rows` does.
       Verify: a test that no `cik` appears in both context and query of an EDGAR task.
