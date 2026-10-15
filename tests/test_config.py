@@ -204,11 +204,35 @@ def test_train_section_matches_the_train_config_defaults():
         )
 
 
+def test_model_section_matches_the_model_config_defaults():
+    """Drift guard for the ``model`` section (audit AU5.3/5.9/5.16/5.17): each key mirrors a
+    ``ModelConfig`` default, and the set of keys is exactly what ``fintfm-train`` reads, so a
+    key added to one side and not the other fails here rather than being silently ignored."""
+    from dataclasses import fields
+
+    from fintfm.config import ModelConfigDefaults
+    from fintfm.modeling.model import ModelConfig
+    from fintfm.modeling.train import _MODEL_CONFIG_KNOBS
+
+    cfg = load_config().model
+    library = ModelConfig()
+    names = [f.name for f in fields(ModelConfigDefaults)]
+    assert set(names) == set(_MODEL_CONFIG_KNOBS)
+    for name in names:
+        assert getattr(cfg, name) == getattr(library, name), (
+            f"model.{name}: config {getattr(cfg, name)!r} disagrees with ModelConfig "
+            f"{getattr(library, name)!r} — update fintfm/configs/default.yaml"
+        )
+
+
 @pytest.mark.parametrize(
     "body, match",
     [
         ("train:\n  amp: off\n", "train.amp"),
-        ("train:\n  amp: fp16\n", "train.amp"),
+        ("train:\n  amp: fp8\n", "train.amp"),
+        ("model:\n  value_embedding: spline\n", "model.value_embedding"),
+        ("model:\n  n_heads: 0\n", "model.n_heads"),
+        ("model:\n  n_head: 2\n", "n_head"),
         ("train:\n  warmup_steps: -1\n", "warmup_steps"),
         ("train:\n  muon_lr: 0\n", "muon_lr"),
         ("train:\n  decay_norm_bias: maybe\n", "decay_norm_bias"),

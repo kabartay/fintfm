@@ -111,5 +111,21 @@ prior:
 train:
   warmup_steps: 500        # linear warmup before the cosine decay
   decay_norm_bias: true    # true = AdamW decays every parameter; false exempts norms/biases/embeddings
-  amp: "none"              # "none" (float32) or "bf16" autocast; quoted, YAML reads a bare off as false
+  amp: "none"              # "none" (float32), "bf16" or "fp16" autocast; quoted, YAML reads off as false
   muon_lr: 0.02            # Muon's matrix-group rate; read only under --optimizer muon
+
+# Architecture knobs read by fintfm-train (audit AU5.3, AU5.9, AU5.16, AU5.17). These MIRROR
+# ModelConfig's literal defaults in modeling/model.py, which stay authoritative because a
+# checkpoint rebuilds its model without reading a file; tests/test_config.py is the drift guard.
+# Every value here builds the architecture as it was before the knob existed.
+model:
+  n_heads: 4                    # attention heads; must divide d_cell and d_model
+  n_cell_heads: null            # heads in the cell-width stages; null shares n_heads (AU5.3)
+  n_summary_tokens: 1           # >1: K learned summary tokens per row replace mean+max (AU5.3)
+  value_embedding: mlp          # mlp, rbf or fourier basis on the cell value (AU5.16)
+  value_basis_size: 16          # RBF centres or Fourier frequencies; unused for mlp
+  value_basis_learnable: false  # train the basis centres/widths or frequencies
+  value_ecdf: false             # context-only ECDF-rank channel per cell (AU5.16)
+  attn_length_scale: false      # row-attention logits times log(n_ctx)/log(attn_length_ref) (AU5.17)
+  attn_length_ref: 512          # context length at which the length scale is 1
+  hazard_period_context: false  # hazard context rows embed their default period (AU5.9)
