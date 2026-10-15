@@ -48,6 +48,11 @@ inference:
   finetune_query_group_frac: 0.3
   finetune_query_pos_frac: null   # §164: e.g. 0.1, importance-weighted
   finetune_seed: 0
+  # Audit AU5.12/AU5.7 experiment levers; these defaults reproduce the classifier as it was
+  ensemble_transforms: null        # e.g. [rank, power, squash], cycled over members
+  ensemble_svd_components: 0       # SVD projections appended in odd-indexed members
+  ensemble_class_shift: false      # cyclic class relabelling per member, mapped back
+  max_features_strategy: raise     # or "subsample": round-robin column subsets per member
 
 # Thresholds used when scoring. Changing these changes what counts as a result, so they are
 # recorded in every run's output alongside the numbers they produced.
