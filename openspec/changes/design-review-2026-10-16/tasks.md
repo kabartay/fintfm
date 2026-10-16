@@ -156,7 +156,15 @@
       datasets.
       Verify: a test that the SUITE shares no OpenML id, name or row hash with TabArena-v0.1 or
       BeyondArena.
-- [ ] DR4.2 **A proxy Elo suite:** about 45 OpenML-CC18/CTR23 tasks outside TabArena and
+- [ ] DR4.2 **Partly done (2026-10-16), left open.** Built, not run:
+      `fintfm.evaluation.proxy_suite` records all 107 CC18/CTR23 tasks with OpenML licences
+      (re-fetched, 0 changed) and excludes by TabArena id, name against both arenas, a
+      same-source list and licence; `--dry-run` prints every exclusion, `tests/test_proxy_suite.py`
+      checks the suite against both lists. Only 10 regression tasks survive: all 72 CC18 datasets
+      carry OpenML's default `Public`, a research-use grant, so no binary or multiclass task
+      passes until licences are verified at source (owner decision). Open: that, the row hash,
+      the runner, the sign test and the Spearman Verify.
+      **A proxy Elo suite:** about 45 OpenML-CC18/CTR23 tasks outside TabArena and
       BeyondArena (excluded by id, name and row hash; CC-BY, CC0 or public licences only), 30
       binary / 8 multiclass / 13 regression, three splits, run through TabArena's own custom-task
       pipeline against cached RF, ExtraTrees, Linear, KNN and GBDT baselines; Elo anchored at RF
