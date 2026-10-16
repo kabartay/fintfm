@@ -1,0 +1,17 @@
+{
+  "id": "muhakabartay/fintfm-task-164-dev",
+  "title": "fintfm-task-164-dev",
+  "code_file": "task_164_dev.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": "true",
+  "enable_gpu": "true",
+  "enable_tpu": "false",
+  "enable_internet": "true",
+  "dataset_sources": [
+    "sebastiantomczak10/v4-group-corporate-bankruptcy"
+  ],
+  "competition_sources": [],
+  "kernel_sources": [],
+  "model_sources": []
+}
