@@ -11635,3 +11635,38 @@ missing cells here.
 dominated by ranking within the flagged 10.57%, the label sits at each defaulting company's
 last year, the rate varies by year, and FinTFM is scored on imputed, standardised, 130-column
 data. DR3.1 adds AP within the flagged rows beside the headline.
+
+## §169 — Partitioned contexts lift zero-shot V4FinBench AP by 0.0375, on 5 of 5 folds, with no training
+
+**MEASURED, 2026-10-16.** `fintfm-v4protocol --model runs/v4-cellattn-labels.pt --large-n
+partition --no-boosting --device cpu` (`runs/dr31/partition`): a depth-2 tree with a 5% leaf floor
+splits each fold's training rows, every leaf gets its own uniform 2,000-row context, and each
+test row is scored by its leaf's `FinancialTFMClassifier` (audit AU5.8, design review DR3.1).
+Same checkpoint, same inference settings and identical test rows as the zero-shot control
+(`runs/task48-6-kaggle/control_rescore.json`). One context draw per leaf, `n_ensemble` 1.
+
+| fold | zero-shot AP | partitioned AP | difference | 95% CI, companies | Holm p, companies |
+| --- | --- | --- | --- | --- | --- |
+| 0 | 0.2113 | 0.2241 | +0.0128 | [−0.0051, +0.0324] | 0.140 |
+| 1 | 0.2050 | 0.2262 | +0.0211 | [+0.0047, +0.0345] | 0.036 |
+| 2 | 0.1786 | 0.2411 | +0.0625 | [+0.0441, +0.0801] | 0.005 |
+| 3 | 0.1810 | 0.2370 | +0.0559 | [+0.0389, +0.0735] | 0.005 |
+| 4 | 0.2172 | 0.2524 | +0.0352 | [+0.0174, +0.0526] | 0.005 |
+| **mean** | 0.1986 | **0.2362** | **+0.0375** | | |
+
+Paired bootstrap of 1,000 resamples, resampling whole companies (audit AU2.1); the row
+bootstrap gives near-identical intervals. **Verdict under §163's rule: helps** (mean +0.0375
+against a bar of 0.0073, 5 of 5 folds positive, 4 of 5 significant after Holm).
+
+**AP within the `Insolvency_flag = 1` rows** (10.4-10.8% of each fold's test rows, holding all
+but one positive): zero-shot 0.1988, partitioned 0.2375, +0.0387, every fold up. The two models
+already rank the unflagged rows below the flagged ones, so the headline AP is the within-gate
+ranking (§168), and the gain is entirely there.
+
+**What it means.** A uniform context holds about 7 positives because 89% of its rows sit outside
+the gate (§168); a tree leaf gives the flagged rows their own context with roughly ten times
+the positives. That one inference-time change gains about five times what 200 steps of
+fine-tuning did (+0.0076, §163), and closes 19% of the gap to CatBoost (0.4005, §167). It is
+zero-shot: no weights changed and no training rows were fitted beyond the tree's split.
+Untested so far: bagging over trees, depth 1 or 3, combining with fine-tuning or with 8
+members, and TabArena (where a partition must also not lose).

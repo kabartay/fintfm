@@ -94,7 +94,8 @@
 
 ## Phase DR3 — measurements that need no pretraining
 
-- [ ] DR3.1 **V4: partitioned contexts against uniform** (`--large-n partition`, depth 2, leaf
+- [x] DR3.1 **Done (2026-10-16, §169).** Helps: zero-shot mean AP 0.1986 → 0.2362 (+0.0375), 5 of 5 folds positive, 4 significant on a company bootstrap; AP within flagged rows +0.0387.
+      **V4: partitioned contexts against uniform** (`--large-n partition`, depth 2, leaf
       minimum 5%), zero-shot, five folds, company bootstrap; report AP within flagged rows beside
       headline AP. Comparator: the zero-shot control. Rule: §163's (mean delta above the bar, 4 of 5
       folds the same sign).
@@ -152,6 +153,11 @@
 - [ ] DR3.10 **FinTFM without `operational_status`** (zero-shot and fine-tuned arms), paired
       against the published-feature runs, so both models' dependence on the column is known.
       Verify: per-fold AP for both arms in FINDINGS beside §167.
+
+- [ ] DR3.11 **Follow up §169.** Partitioned contexts with fine-tuning per leaf; with 8 members;
+      depth 1 and 3; bagging over 4-8 trees; and on TabArena-Lite (must not lose on numeric-only
+      datasets). Each against §169's arm under §163's rule.
+      Verify: per-fold AP for each arm in FINDINGS.
 
 ## Phase DR4 — an evaluation loop that does not overlap TabArena
 
