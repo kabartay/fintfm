@@ -24,7 +24,7 @@ from pathlib import Path
 
 # v4: pin to the DR5.5 fix (fp16 cell-stage heads padded to a fused-kernel width) once it is
 # pushed; v1-v3 ran b2b836e. The placeholder refuses to run rather than install a wrong ref.
-COMMIT = "<COMMIT>"
+COMMIT = "49f415c"  # DR5.5 fix
 RECIPE_URL = (f"https://raw.githubusercontent.com/kabartay/fintfm/{COMMIT}/"
               "configs/published/v4-cellattn-labels.yaml")
 OUT = Path("/kaggle/working/e0")
