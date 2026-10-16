@@ -50,3 +50,20 @@ default. This project has already lost a pretraining run to a value that was qui
 it appeared to be (`docs/results/FINDINGS.md` §28), so validation happens before a run starts —
 including refusing an overlapping train/test split, which would be reported as out-of-time
 validation while not being it.
+
+## Published recipes pin every key
+
+`configs/published/` holds the training recipe of each published checkpoint, and inverts the
+rule above on purpose: it states every `model`, `prior` and `train` key `fintfm-train` reads,
+leaving only the per-invocation ones (`device`, `run_steps`, `resume`, `init_from`) to the
+command line. An override that inherits a key moves when the packaged default moves, which is
+right for an experiment and wrong for a record of what produced a set of weights.
+
+```bash
+uv run fintfm-train --config configs/published/v4-cellattn-labels.yaml --device cuda \
+    --out runs/v4-cellattn-labels.pt
+```
+
+Every `fintfm-train` flag defaults to `None` and takes its value from these sections, so the
+file alone is the recipe (design review DR1.3). `tests/test_train.py` checks that the file
+pins every key and builds the published checkpoint's stored `ModelConfig`.

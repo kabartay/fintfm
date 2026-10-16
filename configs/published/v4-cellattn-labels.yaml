@@ -1,0 +1,99 @@
+# The recipe of the published checkpoint runs/v4-cellattn-labels.pt (kabartay/fintfm-binary):
+#
+#   uv run fintfm-train --config configs/published/v4-cellattn-labels.yaml --device cuda \
+#       --out runs/v4-cellattn-labels.pt
+#
+# reproduces the command recorded in docs/results/FINDINGS.md §127 and §141 ("--batch-size 8
+# --n-rows-choices 256,512,1024 --d-cell 48 --d-model 128 --n-layers 4 --n-col-layers 2
+# --n-cell-blocks 1 --cell-labels --column-id-dim 16 --feature-chunk 8 --max-features 136
+# --p-financial 1.0", 6,000 steps, seed 0; §91 for the cell-attention protocol), plus
+# max_classes 2, which the commands do not show and the checkpoint's stored ModelConfig does
+# (§158: the control was trained at max_classes 2). 6,000 steps x batch 8 = 48,000 tasks.
+# Trained on a T4 (CUDA); the device is a flag, not part of the recipe.
+#
+# Every key fintfm-train reads is pinned here rather than inherited from the packaged
+# default, so a later change to a default cannot move this recipe; only the per-invocation
+# keys (train.device, run_steps, resume, init_from) are left to the command line.
+# tests/test_config.py checks that this file builds the checkpoint's ModelConfig and that it
+# pins every model, prior and train key.
+
+model:
+  max_features: 136
+  max_classes: 2
+  d_cell: 48
+  d_model: 128
+  n_heads: 4
+  n_col_layers: 2
+  n_layers: 4
+  d_ff: 512                     # 4 x d_model, as the CLI resolved it
+  dropout: 0.0
+  pooling: meanmax
+  column_id_dim: 16             # §104: the curve peaks here
+  n_horizons: null
+  n_cell_blocks: 1
+  cell_labels: true             # §91: jointly necessary with the cell-attention block
+  mask_embedding: false
+  head_type: binned
+  n_quantiles: 99
+  n_cell_heads: null
+  n_summary_tokens: 1
+  value_embedding: mlp
+  value_basis_size: 16
+  value_basis_learnable: false
+  value_ecdf: false
+  attn_length_scale: false
+  attn_length_ref: 512
+  attn_impl: masked
+  hazard_period_context: false
+
+train:
+  steps: 6000
+  batch_size: 8
+  lr: 3.0e-4                    # §127: the default wins at this recipe
+  warmup_steps: 500
+  log_every: 50
+  eval_every: 500
+  checkpoint_every: 1000        # §90's runs set it; saving changes no weight
+  seed: 0
+  feature_chunk: 8              # identity-preserving (§81); bounds memory on a T4
+  optimizer: adamw
+  task_dump: null
+  task_dump_allow_code_mismatch: false
+  decay_norm_bias: true
+  amp: "none"
+  muon_lr: 0.02
+
+prior:
+  sharpness_min: 0.3
+  sharpness_max: 12.0
+  min_expected_positives: 2.0
+  absolute_rate_floor: 0.001
+  rate_ceiling: 0.30
+  n_sectors: 12
+  min_ctx_per_class: 0
+  permute_classes: false
+  feature_transforms: []
+  max_query_rows: null
+  n_rows: 256                   # unused: n_rows_choices is set
+  n_rows_choices: [256, 512, 1024]
+  p_financial: 1.0
+  p_tree: 0.0
+  p_trivial: 0.0
+  p_crossed: 0.0
+  p_task_family: 0.0
+  p_regression: 0.0
+  p_learnability_filter: 0.0
+  scm_legacy: false
+  scm_reuse_graph: 1
+  identity_shuffle: false
+  discretize_frac: 0.0
+  n_noise_features: 0
+  n_correlated_block_features: 0
+  label_noise_rate: 0.0
+  p_real_edgar: 0.0
+  real_edgar_panel_path: data/edgar/panel.parquet
+  p_real_mortgage: 0.0
+  real_mortgage_panel_path: data/mortgage/panel.parquet
+  p_real_lendingclub: 0.0
+  real_lendingclub_panel_path: data/lendingclub/panel.parquet
+  real_panels: ""

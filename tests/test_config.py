@@ -9,6 +9,7 @@ only safe if something fails when the two diverge, which is what that test is.
 """
 
 import inspect
+from dataclasses import fields
 from pathlib import Path
 
 import pytest
@@ -17,9 +18,14 @@ from fintfm.config import (
     CONFIG_ENV_VAR,
     DEFAULT_CONFIG_PATH,
     ConfigError,
+    InferenceConfig,
     load_config,
 )
 from fintfm.inference.classifier import FinancialTFMClassifier
+
+#: Constructor arguments with no ``inference`` key: the network, where it runs, and the seed a
+#: harness varies per fold. Every other argument must have one (design review DR1.3).
+_NOT_CONFIGURATION = {"self", "model", "device", "random_state"}
 
 
 def test_packaged_default_exists_and_loads():
@@ -31,22 +37,111 @@ def test_packaged_default_exists_and_loads():
 
 
 def test_inference_section_matches_the_classifier_defaults():
-    """The drift guard. If you change one, change the other."""
+    """The drift guard. If you change one, change the other.
+
+    Iterates the constructor's signature and the section's fields rather than a hand-written
+    list (design review DR1.3), so a constructor argument added without a config key, or a key
+    with no argument behind it, fails here instead of being silently ignored."""
     cfg = load_config().inference
-    sig = inspect.signature(FinancialTFMClassifier.__init__)
-    for name in (
-        "max_context", "context_strategy", "feature_transform", "correct_prior",
-        "query_chunk", "retrieval_groups", "retrieval_min_positive",
-        "prototype_minority_ratio", "n_ensemble", "finetune_steps", "finetune_lr",
-        "finetune_batch", "finetune_query", "finetune_context", "finetune_query_group_frac",
-        "finetune_query_pos_frac", "finetune_seed", "ensemble_transforms",
-        "ensemble_svd_components", "ensemble_class_shift", "max_features_strategy",
-        "retrieval_per_class",
-    ):
-        assert sig.parameters[name].default == getattr(cfg, name), (
-            f"{name}: classifier default {sig.parameters[name].default!r} disagrees with "
+    params = inspect.signature(FinancialTFMClassifier.__init__).parameters
+    wanted = set(params) - _NOT_CONFIGURATION
+    keys = {f.name for f in fields(InferenceConfig)}
+    assert wanted - keys == set(), f"constructor arguments with no inference key: {wanted - keys}"
+    assert keys - wanted == set(), f"inference keys no constructor argument reads: {keys - wanted}"
+    for name in sorted(keys):
+        assert params[name].default == getattr(cfg, name), (
+            f"{name}: classifier default {params[name].default!r} disagrees with "
             f"config {getattr(cfg, name)!r} — update fintfm/configs/default.yaml"
         )
+        assert getattr(InferenceConfig(), name) == getattr(cfg, name), name
+
+
+#: A valid non-default value for every inference key; the test below refuses to run if a key
+#: is missing here, so a new key must state what "changed" means for it.
+_NON_DEFAULT_INFERENCE = {
+    "max_context": 777,
+    "context_strategy": "retrieval",
+    "feature_transform": "power",
+    "n_ensemble": 3,
+    "ensemble_label_swap": True,
+    "ensemble_feature_frac": 0.5,
+    "correct_prior": False,
+    "query_chunk": 99,
+    "feature_chunk": 4,
+    "retrieval_groups": 5,
+    "retrieval_min_positive": 2,
+    "prototype_minority_ratio": 0.6,
+    "winsor_quantile": 0.05,
+    "transform_subsample": 123,
+    "finetune_steps": 2,
+    "finetune_lr": 3e-4,
+    "finetune_batch": 3,
+    "finetune_query": 64,
+    "finetune_context": 128,
+    "finetune_query_group_frac": 0.5,
+    "finetune_query_pos_frac": 0.2,
+    "finetune_seed": 4,
+    "finetune_clip": 1.0,
+    "ensemble_transforms": ("rank", "squash"),
+    "ensemble_svd_components": 2,
+    "ensemble_class_shift": True,
+    "max_features_strategy": "subsample",
+    "retrieval_per_class": 3,
+}
+
+
+def _tiny_model():
+    """An untrained network; construction never runs it."""
+    from fintfm.modeling.model import FinancialTFM, ModelConfig
+
+    return FinancialTFM(ModelConfig(max_features=8, max_classes=2, d_cell=8, d_model=16,
+                                    n_heads=2, n_layers=1, n_col_layers=1, d_ff=32))
+
+
+def test_every_inference_key_reaches_the_classifier(tmp_path):
+    """DR1.3's verification: a file setting every inference key to a non-default value builds,
+    through ``from_config`` and through the V4FinBench protocol's constructor, a classifier
+    carrying every one of them. Before DR1.3 ``correct_prior``, ``retrieval_groups``,
+    ``retrieval_min_positive`` and ``prototype_minority_ratio`` loaded and never arrived."""
+    import yaml
+
+    from fintfm.experiments.v4_protocol import fintfm_classifier
+
+    keys = {f.name for f in fields(InferenceConfig)}
+    assert set(_NON_DEFAULT_INFERENCE) == keys
+    defaults = InferenceConfig()
+    for name, value in _NON_DEFAULT_INFERENCE.items():
+        assert value != getattr(defaults, name), f"{name}: {value!r} is the default"
+    f = tmp_path / "every-key.yaml"
+    f.write_text(yaml.safe_dump({"inference": {
+        k: list(v) if isinstance(v, tuple) else v for k, v in _NON_DEFAULT_INFERENCE.items()
+    }}))
+    cfg = load_config(f)
+    model = _tiny_model()
+    for clf in (FinancialTFMClassifier.from_config(model, cfg.inference),
+                fintfm_classifier(model, cfg, random_state=3)):
+        got = clf.get_params(deep=False)
+        for name, value in _NON_DEFAULT_INFERENCE.items():
+            assert got[name] == value, f"{name}: classifier has {got[name]!r}, config {value!r}"
+        assert got["model"] is model
+
+
+def test_from_config_overrides_win_and_unknown_overrides_are_refused():
+    model = _tiny_model()
+    clf = FinancialTFMClassifier.from_config(
+        model, load_config().inference, max_context=50, random_state=9, device="cpu"
+    )
+    assert (clf.max_context, clf.random_state) == (50, 9)
+    with pytest.raises(TypeError):
+        FinancialTFMClassifier.from_config(model, load_config().inference, max_contxt=50)
+
+
+def test_from_config_at_the_packaged_defaults_is_the_plain_classifier():
+    """Byte identity at the default: the section mirrors the constructor, so ``from_config``
+    builds exactly ``FinancialTFMClassifier(model)``."""
+    model = _tiny_model()
+    built = FinancialTFMClassifier.from_config(model, load_config().inference)
+    assert built.get_params(deep=False) == FinancialTFMClassifier(model).get_params(deep=False)
 
 
 def test_prior_section_matches_the_prior_constants():
@@ -88,7 +183,8 @@ def test_prior_section_mirrors_the_phase5_lever_defaults():
 def test_shipped_example_configs_all_load():
     """A broken example is worse than no example: it is copied before it is run."""
     root = Path(__file__).resolve().parents[1] / "configs"
-    files = sorted(root.glob("*.yaml"))
+    files = sorted(root.rglob("*.yaml"))  # configs/published/ too
+    assert root / "published" / "v4-cellattn-labels.yaml" in files
     assert files, f"no example configs found under {root}"
     for f in files:
         cfg = load_config(f)
@@ -207,17 +303,18 @@ def test_malformed_hazard_arm_is_refused(tmp_path):
 
 
 def test_train_section_matches_the_train_config_defaults():
-    """Drift guard for the ``train`` section (audit AU5.2/5.10/5.17): it mirrors
-    ``TrainConfig``'s literal defaults, which are what pretraining did before those knobs."""
-    from dataclasses import fields
-
+    """Drift guard for the ``train`` section: it carries every ``TrainConfig`` field (design
+    review DR1.3), each at ``TrainConfig``'s literal default, which is what pretraining did
+    before the knob existed. Iterates both dataclasses' fields, so a field added to either
+    alone fails here."""
     from fintfm.config import TrainConfigDefaults
     from fintfm.modeling.train import TrainConfig
 
     cfg = load_config().train
     library = TrainConfig()
+    assert [f.name for f in fields(TrainConfigDefaults)] == [f.name for f in fields(TrainConfig)]
     for f in fields(TrainConfigDefaults):
-        assert getattr(cfg, f.name) == getattr(library, f.name), (
+        assert getattr(cfg, f.name) == getattr(library, f.name) == f.default, (
             f"train.{f.name}: config {getattr(cfg, f.name)!r} disagrees with TrainConfig "
             f"{getattr(library, f.name)!r} — update fintfm/configs/default.yaml"
         )
@@ -251,24 +348,64 @@ def test_large_n_section_matches_the_wrapper_defaults():
 
 
 def test_model_section_matches_the_model_config_defaults():
-    """Drift guard for the ``model`` section (audit AU5.3/5.9/5.16/5.17): each key mirrors a
-    ``ModelConfig`` default, and the set of keys is exactly what ``fintfm-train`` reads, so a
-    key added to one side and not the other fails here rather than being silently ignored."""
-    from dataclasses import fields
-
+    """Drift guard for the ``model`` section: it carries every ``ModelConfig`` field (design
+    review DR1.3), each at ``ModelConfig``'s default, so a field added to one side and not the
+    other fails here rather than being silently ignored. ``d_ff`` is the one stated exception:
+    ``None``, which ``fintfm-train`` resolves to ``4 * d_model`` as its flag always did."""
     from fintfm.config import ModelConfigDefaults
     from fintfm.modeling.model import ModelConfig
-    from fintfm.modeling.train import _MODEL_CONFIG_KNOBS
 
     cfg = load_config().model
     library = ModelConfig()
-    names = [f.name for f in fields(ModelConfigDefaults)]
-    assert set(names) == set(_MODEL_CONFIG_KNOBS)
-    for name in names:
-        assert getattr(cfg, name) == getattr(library, name), (
-            f"model.{name}: config {getattr(cfg, name)!r} disagrees with ModelConfig "
-            f"{getattr(library, name)!r} — update fintfm/configs/default.yaml"
+    assert [f.name for f in fields(ModelConfigDefaults)] == [f.name for f in fields(ModelConfig)]
+    for f in fields(ModelConfigDefaults):
+        if f.name == "d_ff":
+            assert cfg.d_ff is None and f.default is None and library.d_ff == 512
+            continue
+        assert getattr(cfg, f.name) == getattr(library, f.name) == f.default, (
+            f"model.{f.name}: config {getattr(cfg, f.name)!r} disagrees with ModelConfig "
+            f"{getattr(library, f.name)!r} — update fintfm/configs/default.yaml"
         )
+
+
+def test_prior_section_mirrors_every_prior_flag_default():
+    """Each prior key ``fintfm-train`` resolves is a field of ``PriorConfig`` and of the
+    section, at ``PriorConfig``'s default, and every section field is consumed: a knob, a
+    lever, or the envelope (``n_sectors`` is ``PriorConfig.n_sectors_max``)."""
+    from fintfm.config import PriorConfigDefaults
+    from fintfm.modeling.train import _PRIOR_CONFIG_KNOBS
+    from fintfm.prior import PriorConfig
+
+    section = {f.name: f.default for f in fields(PriorConfigDefaults)}
+    library = PriorConfig()
+    cfg = load_config().prior
+    for name in _PRIOR_CONFIG_KNOBS:
+        assert name in section, f"prior.{name}: no config key"
+        assert getattr(cfg, name) == section[name] == getattr(library, name), name
+    envelope = {"sharpness_min", "sharpness_max", "min_expected_positives",
+                "absolute_rate_floor", "rate_ceiling", "n_sectors"}
+    levers = {"permute_classes", "feature_transforms", "max_query_rows"}
+    assert set(section) == set(_PRIOR_CONFIG_KNOBS) | envelope | levers
+
+
+def test_every_train_flag_defaults_to_none_and_names_a_config_field():
+    """``CLAUDE.md``, "Configuration, not constants": every ``fintfm-train`` flag defaults to
+    ``None`` so the configuration supplies the value (``--out``, a path, aside), every flag
+    names a field the run consumes, and every ``ModelConfig`` and ``TrainConfig`` field has a
+    flag. Iterated off the parser, so a flag added with a literal default fails here."""
+    from fintfm.modeling.model import ModelConfig
+    from fintfm.modeling.train import _PRIOR_CONFIG_KNOBS, TrainConfig, build_parser
+
+    actions = {a.dest: a for a in build_parser()._actions if a.dest != "help"}
+    literal = {d for d, a in actions.items() if a.default is not None}
+    assert literal == {"out"}, f"flags with a literal default: {sorted(literal - {'out'})}"
+    model = {f.name for f in fields(ModelConfig)}
+    train = {f.name for f in fields(TrainConfig)}
+    levers = {"permute_classes", "feature_transforms", "max_query_rows"}
+    invocation = {"config", "out", "threads", "benchmark_steps"}
+    consumed = model | train | set(_PRIOR_CONFIG_KNOBS) | levers | invocation
+    assert set(actions) - consumed == set(), f"flags nothing reads: {set(actions) - consumed}"
+    assert (model | train) - set(actions) == set(), (model | train) - set(actions)
 
 
 @pytest.mark.parametrize(

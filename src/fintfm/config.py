@@ -24,7 +24,16 @@ A library must behave identically without reading a file from disk, and an estim
 defaults depend on an environment variable is not reproducible across machines. The
 ``inference`` section therefore *mirrors* those defaults for experiments to read, and
 ``tests/test_config.py`` asserts the two agree — the test is the drift guard, so changing one
-without the other fails the suite rather than diverging quietly.
+without the other fails the suite rather than diverging quietly. The same holds for the
+``model`` and ``train`` sections against ``ModelConfig`` and ``TrainConfig``.
+
+Why a harness builds its classifier from the whole section
+----------------------------------------------------------
+:meth:`FinancialTFMClassifier.from_config` passes every ``inference`` field. Before it, each
+harness copied a keyword list by hand, and four keys (``correct_prior``, ``retrieval_groups``,
+``retrieval_min_positive``, ``prototype_minority_ratio``) loaded, validated, and never reached
+the V4FinBench protocol's classifier: the failure shape a strict loader exists to prevent,
+one step later (design review DR1.3).
 """
 
 from __future__ import annotations
@@ -53,12 +62,22 @@ DEFAULT_CONFIG_PATH = Path(__file__).with_name("configs") / "default.yaml"
 
 @dataclass(frozen=True)
 class InferenceConfig:
-    """Mirror of :class:`FinancialTFMClassifier`'s defaults, for experiments to read."""
+    """Mirror of :class:`FinancialTFMClassifier`'s defaults, one field per constructor argument.
+
+    Every constructor argument except ``model``, ``device`` and ``random_state`` (the network,
+    where it runs, and the seed a harness varies per fold) has a field here, and
+    :meth:`FinancialTFMClassifier.from_config` passes every field, so a key set in a file
+    reaches the classifier rather than being read by some harnesses and not others (design
+    review DR1.3). ``tests/test_config.py`` iterates the constructor's signature and these
+    fields, so an argument added to one and not the other fails the suite.
+    """
 
     max_context: int = 2000
     context_strategy: str = "uniform"
     feature_transform: str = "rank"
     n_ensemble: int = 1
+    ensemble_label_swap: bool = False
+    ensemble_feature_frac: float = 1.0
     correct_prior: bool = True
     query_chunk: int = 2048
     feature_chunk: int | None = 16
@@ -75,6 +94,7 @@ class InferenceConfig:
     finetune_query_group_frac: float = 0.3
     finetune_query_pos_frac: float | None = None
     finetune_seed: int = 0
+    finetune_clip: float | None = None
     ensemble_transforms: tuple[str, ...] | None = None
     ensemble_svd_components: int = 0
     ensemble_class_shift: bool = False
@@ -124,8 +144,15 @@ class ContextSweepConfig:
 
 @dataclass(frozen=True)
 class PriorConfigDefaults:
-    """The financial prior's default-rate envelope, the context class floor (AU1.16), and the
-    audit Phase 5 pretraining levers (AU5.4-AU5.6), each mirroring a ``PriorConfig`` field."""
+    """The pretraining task distribution ``fintfm-train`` builds its ``PriorConfig`` from.
+
+    The default-rate envelope, the context class floor (AU1.16) and the audit Phase 5
+    pretraining levers (AU5.4-AU5.6), plus one field per ``fintfm-train`` prior flag (design
+    review DR1.3), so a recipe can be stated in a file. Each mirrors the ``PriorConfig`` field
+    of the same name (``n_sectors`` mirrors ``n_sectors_max``); ``tests/test_config.py`` is
+    the drift guard. ``max_features``, ``max_classes``, ``n_horizons`` and ``head_type`` are
+    not here: the prior takes them from the ``model`` section, so the two cannot disagree.
+    """
 
     sharpness_min: float = 0.3
     sharpness_max: float = 12.0
@@ -137,36 +164,95 @@ class PriorConfigDefaults:
     permute_classes: bool = False
     feature_transforms: tuple[str, ...] = ()
     max_query_rows: int | None = None
+    n_rows: int = 256
+    n_rows_choices: tuple[int, ...] | None = None
+    p_financial: float = 0.7
+    p_tree: float = 0.0
+    p_trivial: float = 0.0
+    p_crossed: float = 0.0
+    p_task_family: float = 0.0
+    p_regression: float = 0.0
+    p_learnability_filter: float = 0.0
+    scm_legacy: bool = False
+    scm_reuse_graph: int = 1
+    identity_shuffle: bool = False
+    discretize_frac: float = 0.0
+    n_noise_features: int = 0
+    n_correlated_block_features: int = 0
+    label_noise_rate: float = 0.0
+    p_real_edgar: float = 0.0
+    real_edgar_panel_path: str = "data/edgar/panel.parquet"
+    p_real_mortgage: float = 0.0
+    real_mortgage_panel_path: str = "data/mortgage/panel.parquet"
+    p_real_lendingclub: float = 0.0
+    real_lendingclub_panel_path: str = "data/lendingclub/panel.parquet"
+    real_panels: str = ""
 
 
 @dataclass(frozen=True)
 class TrainConfigDefaults:
-    """Pretraining knobs ``fintfm-train`` reads (audit AU5.2, AU5.10, AU5.17).
+    """Every :class:`~fintfm.modeling.train.TrainConfig` field, for ``fintfm-train`` to read.
 
-    Mirrors :class:`~fintfm.modeling.train.TrainConfig`'s literal defaults, for the same
-    reason the ``inference`` section mirrors the classifier: ``train()`` must behave the same
-    without reading a file. ``tests/test_config.py`` is the drift guard. Every default
-    reproduces pretraining as it ran before these knobs existed.
+    Mirrors ``TrainConfig``'s literal defaults, for the same reason the ``inference`` section
+    mirrors the classifier: ``train()`` must behave the same without reading a file. Each
+    field is also a ``fintfm-train`` flag defaulting to ``None``, so a flag given wins and a
+    flag omitted takes this section's value (design review DR1.3). ``tests/test_config.py``
+    is the drift guard, both ways. Every default reproduces pretraining as it ran before these
+    knobs existed.
     """
 
+    steps: int = 20_000
+    batch_size: int = 64
+    lr: float = 3e-4
     warmup_steps: int = 500
-    decay_norm_bias: bool = True
+    log_every: int = 50
+    eval_every: int = 500
+    checkpoint_every: int = 0
+    seed: int = 0
+    device: str = "cpu"
+    run_steps: int | None = None
+    resume: str | None = None
+    init_from: str | None = None
+    feature_chunk: int | None = None
+    optimizer: str = "adamw"
+    task_dump: str | None = None
+    task_dump_allow_code_mismatch: bool = False
     amp: str = "none"
+    decay_norm_bias: bool = True
     muon_lr: float = 0.02
 
 
 @dataclass(frozen=True)
 class ModelConfigDefaults:
-    """Architecture knobs ``fintfm-train`` reads from configuration (audit AU5.2/5.3/5.9/5.16/5.17).
+    """Every :class:`~fintfm.modeling.model.ModelConfig` field, for ``fintfm-train`` to read.
 
-    Mirrors the matching fields of :class:`~fintfm.modeling.model.ModelConfig`, whose own
-    literal defaults stay authoritative because a checkpoint rebuilds its model from them
-    without reading a file. ``tests/test_config.py`` is the drift guard. Every default
-    builds the architecture as it was before these knobs existed. The older architecture
-    flags (``--d-model`` and the rest) keep their literal CLI defaults and are not here.
+    Mirrors ``ModelConfig``'s literal defaults, which stay authoritative because a checkpoint
+    rebuilds its model from them without reading a file. Each field is also a
+    ``fintfm-train`` flag defaulting to ``None`` (design review DR1.3); ``tests/test_config.py``
+    is the drift guard, both ways. **One deliberate difference:** ``d_ff`` is ``None``, which
+    ``fintfm-train`` resolves to ``4 * d_model``, the transformer convention its ``--d-ff``
+    flag has always applied; ``ModelConfig``'s own 512 is what a bare ``ModelConfig()``
+    builds and is not what the command line ever built. Every other default builds the
+    architecture as it was before these knobs existed.
     """
 
+    max_features: int = 24
+    max_classes: int = 10
+    d_cell: int = 64
+    d_model: int = 192
     n_heads: int = 4
+    n_col_layers: int = 2
+    n_layers: int = 6
+    d_ff: int | None = None
+    dropout: float = 0.0
+    pooling: str = "meanmax"
+    column_id_dim: int | None = None
+    n_horizons: int | None = None
+    n_cell_blocks: int = 0
+    cell_labels: bool = False
+    mask_embedding: bool = False
+    head_type: str = "binned"
+    n_quantiles: int = 99
     n_cell_heads: int | None = None
     n_summary_tokens: int = 1
     value_embedding: str = "mlp"
@@ -353,6 +439,15 @@ def _validate(cfg: Config) -> None:
         )
     if not 0.0 <= cfg.inference.winsor_quantile < 0.5:
         raise ConfigError("inference.winsor_quantile must lie in [0, 0.5)")
+    if cfg.inference.transform_subsample < 1:
+        raise ConfigError("inference.transform_subsample must be at least 1")
+    if not 0.0 < cfg.inference.ensemble_feature_frac <= 1.0:
+        raise ConfigError(
+            "inference.ensemble_feature_frac must lie in (0, 1], got "
+            f"{cfg.inference.ensemble_feature_frac}"
+        )
+    if cfg.inference.finetune_clip is not None and cfg.inference.finetune_clip <= 0:
+        raise ConfigError("inference.finetune_clip must be null or positive")
     if cfg.inference.max_features_strategy not in ("raise", "subsample"):
         raise ConfigError(
             "inference.max_features_strategy must be 'raise' or 'subsample', got "
