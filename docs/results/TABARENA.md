@@ -124,6 +124,81 @@ exception is regression's bin count, which is *our* parameter rather than the ta
 10-bin request against an 8-logit head is clamped to 8 and logged, because the coarser grid
 is a real answer where a truncated class set would not be.
 
+## The imbalanced subset, from results already held (2026-10-16)
+
+**Result: Elo 914.1 (+127.3/-343.6), 87th of 95 (tied with `TABSTAR (default)`), over 7 of the
+subset's 15 datasets.** MEASURED by re-aggregation on 2026-10-16 (design review task DR3.6): no
+model was fitted. Below `RF (default)` (1000.0, 84th) and `LR (default)` (1021.2, 82nd) on the
+same 7 datasets, so it does not change §122's reading. The interval is wide because 7 datasets
+are few: its lower end, 570.5, is below the 764.6 of all 27.
+
+| scope | datasets | Elo | position of 95 | win rate | mean rank |
+| --- | --- | --- | --- | --- | --- |
+| all eligible (§122, reproduced) | 27 | 764.6 (+124.9/-175.3) | 94 | 0.074 | 88.04 |
+| **imbalanced, covered** | **7** | **914.1 (+127.3/-343.6)** | **87** | 0.147 | 81.14 |
+
+**The subset.** TabArena-v0.1.9's `imbalanced` subset (added in v0.1.9, 2026-09-17): a
+classification dataset whose largest class is at least 10 times its smallest, or a regression
+dataset whose target has absolute skewness of at least 1. Read from the fork's own predicate
+(`tabarena/benchmark/task/metadata/balance.py`, `IMBALANCE_RATIO_THRESHOLD = 10.0`,
+`TARGET_SKEWNESS_THRESHOLD = 1.0`), not restated: 15 of 51 datasets, 9 binary, 3 multiclass, 3
+regression.
+
+**Covered: the 7 binary datasets FinTFM ran.** `Amazon_employee_access`, `Diabetes130US`,
+`GiveMeSomeCredit`, `coil2000_insurance_policies`, `polish_companies_bankruptcy`,
+`seismic-bumps`, `taiwanese_bankruptcy_prediction`. Not covered, 8: `APSFailure` (170 features)
+and `kddcup09_appetency` (212) are over the 136-feature cap; `MIC`, `anneal` and `hiva_agnostic`
+are multiclass and `diamonds`, `healthcare_insurance_expenses` and `miami_housing` are
+regression, neither declared (§121). An Elo over all 15 would need FinTFM's 8 missing datasets
+imputed from another method, which would score that method rather than FinTFM, so it was not
+computed.
+
+**Pool: §122's, unchanged.** The fork's `eval/fintfm_lite_tafintfm/results_per_split.csv`,
+written by §122's `context.compare` on 2026-09-25: 95 methods by 27 datasets, split 0 (Lite).
+Re-scored with the fork's `TabArenaContext.compare(ta_results=..., datasets=..., fillna=None)`,
+Elo anchored at `RF (default)` = 1000. Re-scoring all 27 reproduces §122 exactly (764.6, 94 of
+95), which is the check that the pool and the method are the same. Command, in the fork's
+environment and read-only:
+
+```bash
+~/proj/tabarena/.venv/bin/python -P scripts/tabarena_subset_elo.py \
+    ~/proj/tabarena/eval/fintfm_lite_tafintfm/results_per_split.csv --subset imbalanced
+```
+
+**Imputation.** None for FinTFM. In the 7-dataset frame, 12 of 665 rows are imputed, as §122
+left them: `TABPFNV2_GPU` (default, tuned, tuned + ensemble) and `MITRA_GPU (default)` on
+`Amazon_employee_access`, `Diabetes130US` and `GiveMeSomeCredit`, filled from `RF (default)`
+(`MITRA_GPU`'s rows carry no `impute_method`).
+
+**These Lite results were produced with NaN filled with 0.** They predate AU1.19: the adapter
+then filled numeric NaN with 0 before the model saw it, so the model's missingness mask was
+never used and a missing value was indistinguishable from a real zero. The fork's adapter now
+passes NaN through; nothing here was produced by that version, and DR3.5's same-day A/B is
+what will measure the difference. The fork's task metadata records no missing-value fraction for
+these 7 datasets, so which of them the fill affected is not stated here.
+
+**Per dataset**, ROC-AUC on split 0 (the only metric the cached results hold, so no average
+precision is available for these low-base-rate sets):
+
+| dataset | FinTFM | RF (default) | LR (default) | best of 95 | FinTFM rank of 95 |
+| --- | --- | --- | --- | --- | --- |
+| Amazon_employee_access | 0.8220 | 0.8415 | 0.8411 | 0.8855 | 81 |
+| Diabetes130US | 0.6566 | 0.6372 | 0.6527 | 0.6950 | 69 |
+| GiveMeSomeCredit | 0.8373 | 0.8532 | 0.8444 | 0.8735 | 91 |
+| coil2000_insurance_policies | 0.7020 | 0.6828 | 0.7359 | 0.7758 | 90 |
+| polish_companies_bankruptcy | 0.8436 | 0.9357 | 0.8727 | 0.9973 | 91 |
+| seismic-bumps | 0.7862 | 0.7650 | 0.7788 | 0.8088 | 63 |
+| taiwanese_bankruptcy_prediction | 0.9291 | 0.9458 | 0.9419 | 0.9598 | 83 |
+| **mean** | **0.7967** | 0.8087 | 0.8096 | | 81.14 |
+
+FinTFM is above `RF (default)` on 3 of 7 (`Diabetes130US`, `coil2000_insurance_policies`,
+`seismic-bumps`) and above `LR (default)` on 2 of 7 (`Diabetes130US`, `seismic-bumps`). Ranks
+use average ties over the 95 methods' split-0 errors.
+
+**Not a public-board number.** The published imbalanced board scores all splits of all 15
+datasets, and FinTFM is not on it. This is one split, 7 datasets, against §122's 2026-09-25
+snapshot of the board.
+
 ## The leaderboard name is `FinTFM`, with no version
 
 The leaderboard renders `ag_name`, and it lists **models**, not releases — TabSTAR, OrionMSP,

@@ -113,7 +113,12 @@
       "squash")`, then `max_context` 500 and 750 against 1,000. Paired per-dataset differences,
       not Elo, decide.
       Verify: per-dataset paired differences recorded in `docs/results/TABARENA.md`.
-- [ ] DR3.6 **Score the TabArena imbalanced subset** from results already held (minutes).
+- [x] DR3.6 **Done (2026-10-16).** `docs/results/TABARENA.md` "The imbalanced subset": Elo
+      914.1 (+127.3/-343.6), 87th of 95, over the 7 of 15 subset datasets FinTFM ran (8 are
+      multiclass, regression or over 136 features), re-scored from §122's held Lite frame with
+      `scripts/tabarena_subset_elo.py` (no fits; all 27 reproduce §122's 764.6); results predate
+      AU1.19 (NaN filled with 0).
+      **Score the TabArena imbalanced subset** from results already held (minutes).
       Verify: the subset Elo in `docs/results/TABARENA.md` with its date.
 - [x] DR3.7 **Done (2026-10-16).** FINDINGS §168 states each fact with its recomputed count,
       with pointers from §35 and §147; the review's 8,171 cross-company rows (6 positives) did
@@ -161,7 +166,15 @@
       datasets.
       Verify: a test that the SUITE shares no OpenML id, name or row hash with TabArena-v0.1 or
       BeyondArena.
-- [ ] DR4.2 **A proxy Elo suite:** about 45 OpenML-CC18/CTR23 tasks outside TabArena and
+- [ ] DR4.2 **Partly done (2026-10-16), left open.** Built, not run:
+      `fintfm.evaluation.proxy_suite` records all 107 CC18/CTR23 tasks with OpenML licences
+      (re-fetched, 0 changed) and excludes by TabArena id, name against both arenas, a
+      same-source list and licence; `--dry-run` prints every exclusion, `tests/test_proxy_suite.py`
+      checks the suite against both lists. Only 10 regression tasks survive: all 72 CC18 datasets
+      carry OpenML's default `Public`, a research-use grant, so no binary or multiclass task
+      passes until licences are verified at source (owner decision). Open: that, the row hash,
+      the runner, the sign test and the Spearman Verify.
+      **A proxy Elo suite:** about 45 OpenML-CC18/CTR23 tasks outside TabArena and
       BeyondArena (excluded by id, name and row hash; CC-BY, CC0 or public licences only), 30
       binary / 8 multiclass / 13 regression, three splits, run through TabArena's own custom-task
       pipeline against cached RF, ExtraTrees, Linear, KNN and GBDT baselines; Elo anchored at RF
