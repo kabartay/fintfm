@@ -90,7 +90,7 @@ class TrainConfig:
     #: it can be resumed against a *larger* total step count -- the ``requires schedulefree``
     #: extra must be installed. ``"muon"`` (audit AU5.17, :mod:`fintfm.modeling.muon`) runs
     #: Muon on the attention and feed-forward matrices and AdamW on everything else, under
-    #: the same cosine schedule as ``"adamw"``.
+    #: the same cosine schedule as ``"adamw"`` (settings: :attr:`muon_scale`, :attr:`muon_lr`).
     optimizer: str = "adamw"
     #: Pre-generated batches to train from instead of sampling (audit AU5.15); see
     #: :mod:`fintfm.prior.dump`. ``None`` samples live, as every run before it did.
@@ -115,14 +115,24 @@ class TrainConfig:
     #: ``"adamw"`` and ``"muon"`` only; schedule-free applies no weight decay to exempt.
     decay_norm_bias: bool = True
     #: Base learning rate of Muon's matrix groups under ``optimizer="muon"``; the AdamW side
-    #: keeps :attr:`lr`. 0.02 is the write-up's default. Ignored by the other optimisers.
-    muon_lr: float = 0.02
+    #: keeps :attr:`lr`. ``None`` (default) follows :attr:`muon_scale`: :attr:`lr` under
+    #: ``"rms_match"``, whose scaling exists to share AdamW's rate, and the write-up's 0.02
+    #: under ``"keller"``. Ignored by the other optimisers.
+    muon_lr: float | None = None
+    #: How Muon scales its orthogonalised updates (design review DR1.7):
+    #: ``"rms_match"`` (default, ``0.2·sqrt(max(n, m))``, Moonlight's rule) or ``"keller"``
+    #: (``sqrt(max(1, n/m))``, the reference implementation's); see :mod:`fintfm.modeling.muon`.
+    muon_scale: str = "rms_match"
 
 
 #: AdamW's weight decay. It is ``torch.optim.AdamW``'s own default, which every checkpoint
 #: trained with implicitly; named here only so the ``decay_norm_bias=False`` groups can state
-#: it without changing it.
+#: it without changing it. Muon's matrices take the same value (design review DR1.7).
 _ADAMW_WEIGHT_DECAY = 0.01
+
+#: Muon's matrix rate under ``muon_scale="keller"`` when no ``muon_lr`` is given: the
+#: write-up's default, which that scaling was tuned with.
+_KELLER_MUON_LR = 0.02
 
 #: Accepted values of :attr:`TrainConfig.amp`.
 AMP_MODES = ("none", "bf16", "fp16")
@@ -188,6 +198,26 @@ def _muon_parameters(model: torch.nn.Module) -> set[int]:
     return ids
 
 
+def _fused_qkv_parameters(model: torch.nn.Module) -> set[int]:
+    """Ids of every attention module's fused Q/K/V projection, ``in_proj_weight``.
+
+    ``nn.MultiheadAttention`` stacks the three projections by rows, ``[Q; K; V]``, whenever
+    keys and values share the query width; Muon orthogonalises those three blocks separately
+    (design review DR1.7).
+
+    Args:
+        model: The model being trained.
+
+    Returns:
+        ``id()`` of every fused projection.
+    """
+    return {
+        id(module.in_proj_weight)
+        for module in model.modules()
+        if isinstance(module, torch.nn.MultiheadAttention) and module.in_proj_weight is not None
+    }
+
+
 def _build_optimizer(
     model: FinancialTFM, train_cfg: TrainConfig
 ) -> tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LRScheduler]:
@@ -199,15 +229,15 @@ def _build_optimizer(
 
     Args:
         model: The model being trained, already on its device.
-        train_cfg: Read for ``optimizer``, ``lr``, ``warmup_steps``, ``decay_norm_bias`` and
-            ``muon_lr``.
+        train_cfg: Read for ``optimizer``, ``lr``, ``warmup_steps``, ``decay_norm_bias``,
+            ``muon_lr`` and ``muon_scale``.
 
     Returns:
         ``(optimizer, schedule)``.
 
     Raises:
-        ValueError: For an unknown optimiser, or ``decay_norm_bias=False`` under
-            schedule-free, where it would be silently inert.
+        ValueError: For an unknown optimiser or Muon scale, or ``decay_norm_bias=False``
+            under schedule-free, where it would be silently inert.
     """
     if train_cfg.optimizer not in OPTIMIZERS:
         raise ValueError(f"optimizer must be one of {OPTIMIZERS}, got {train_cfg.optimizer!r}")
@@ -231,21 +261,35 @@ def _build_optimizer(
 
     exempt = _no_decay_parameters(model) if not train_cfg.decay_norm_bias else set()
     if train_cfg.optimizer == "muon":
-        from fintfm.modeling.muon import Muon
+        from fintfm.modeling.muon import MUON_SCALES, Muon
 
-        # Muon's matrices take no weight decay, as in the write-up's reference; the AdamW
-        # side follows decay_norm_bias like plain AdamW does.
+        if train_cfg.muon_scale not in MUON_SCALES:
+            raise ValueError(
+                f"muon_scale must be one of {MUON_SCALES}, got {train_cfg.muon_scale!r}"
+            )
+        muon_lr = train_cfg.muon_lr
+        if muon_lr is None:
+            muon_lr = train_cfg.lr if train_cfg.muon_scale == "rms_match" else _KELLER_MUON_LR
+        # Muon's matrices take AdamW's decoupled decay (DR1.7), and a fused Q/K/V projection
+        # is orthogonalised as its three blocks; the AdamW side follows decay_norm_bias like
+        # plain AdamW does.
         muon_ids = _muon_parameters(model)
+        fused = _fused_qkv_parameters(model)
         params = list(model.parameters())
         groups = [
-            {"params": [p for p in params if id(p) in muon_ids], "use_muon": True,
-             "lr": train_cfg.muon_lr, "weight_decay": 0.0},
+            {"params": [p for p in params if id(p) in muon_ids and id(p) not in fused],
+             "use_muon": True, "lr": muon_lr, "weight_decay": _ADAMW_WEIGHT_DECAY,
+             "row_blocks": 1},
+            {"params": [p for p in params if id(p) in muon_ids and id(p) in fused],
+             "use_muon": True, "lr": muon_lr, "weight_decay": _ADAMW_WEIGHT_DECAY,
+             "row_blocks": 3},
             {"params": [p for p in params if id(p) not in muon_ids and id(p) not in exempt],
              "use_muon": False, "lr": train_cfg.lr, "weight_decay": _ADAMW_WEIGHT_DECAY},
             {"params": [p for p in params if id(p) not in muon_ids and id(p) in exempt],
              "use_muon": False, "lr": train_cfg.lr, "weight_decay": 0.0},
         ]
-        opt = Muon([g for g in groups if g["params"]], lr=train_cfg.lr)
+        opt = Muon([g for g in groups if g["params"]], lr=train_cfg.lr,
+                   scale=train_cfg.muon_scale)
     elif train_cfg.decay_norm_bias:
         opt = torch.optim.AdamW(model.parameters(), lr=train_cfg.lr)
     else:
@@ -1114,7 +1158,18 @@ def main(argv: list[str] | None = None) -> None:
         type=float,
         default=None,
         help="base learning rate of Muon's matrix groups under --optimizer muon (the AdamW "
-        "side keeps --lr); defaults to the config's train.muon_lr, 0.02",
+        "side keeps --lr); defaults to the config's train.muon_lr, null, which means --lr "
+        "under --muon-scale rms_match and 0.02 under keller",
+    )
+    p.add_argument(
+        "--muon-scale",
+        type=str,
+        default=None,
+        choices=["rms_match", "keller"],
+        help="Muon's update scaling under --optimizer muon (design review DR1.7): "
+        "'rms_match' (0.2*sqrt(max(n, m)), per-element RMS 0.2, sharing AdamW's lr) or "
+        "'keller' (sqrt(max(1, n/m)), for lr 0.02); defaults to the config's "
+        "train.muon_scale, rms_match",
     )
     p.add_argument(
         "--benchmark-steps",
@@ -1509,7 +1564,8 @@ def main(argv: list[str] | None = None) -> None:
         default="adamw",
         choices=list(OPTIMIZERS),
         help="'adamw' (default, cosine-annealed), 'muon' (audit AU5.17: Muon on the "
-        "attention and feed-forward matrices at --muon-lr, AdamW at --lr on the rest, same "
+        "attention and feed-forward matrices at --muon-lr and --muon-scale, AdamW at --lr "
+        "on the rest, same "
         "cosine schedule) or 'schedulefree' (task 48.9, needs the "
         "schedulefree extra: uv sync --extra schedulefree); the latter carries no external "
         "LR curve, so a run under it can be resumed past its original --steps. --lr's "
@@ -1638,6 +1694,7 @@ def main(argv: list[str] | None = None) -> None:
         ),
         amp=cfg.train.amp if args.amp is None else args.amp,
         muon_lr=cfg.train.muon_lr if args.muon_lr is None else args.muon_lr,
+        muon_scale=cfg.train.muon_scale if args.muon_scale is None else args.muon_scale,
     )
     print(f"config: {cfg.provenance()}")
     if args.benchmark_steps is not None:
