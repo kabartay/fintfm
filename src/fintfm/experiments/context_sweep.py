@@ -133,19 +133,21 @@ def run(
                     met = evaluate_binary(truth[m, k], curve[m, k])
                     aucs.append(met.roc_auc)
                     eces.append(met.ece)
-                # for retrieval, _ctx_rate is the whole pool's rate and says nothing about
-                # what was actually retrieved; report the pooled context rate instead
+                # for retrieval, the stored context is the whole pool and its rate says
+                # nothing about what was actually retrieved; report the pooled rate instead
+                summary = clf.context_summary_
                 if strategy == "retrieval":
-                    rate = clf.pooled_context_rate_
+                    assert summary.pooled_context_rate is not None
+                    rate = summary.pooled_context_rate
                     n_pos = round(rate * max_context)
                 else:
-                    rate, n_pos = clf._ctx_rate, int(clf._ctx_y.sum())
+                    rate, n_pos = summary.context_rate, summary.n_positive
                 cell = SweepCell(
                     strategy=strategy,
                     max_context=max_context,
                     seed=seed,
                     context_rate=rate,
-                    population_rate=clf._full_rate,
+                    population_rate=summary.population_rate,
                     n_context_positive=n_pos,
                     mean_auc=float(np.mean(aucs)),
                     mean_ece=float(np.mean(eces)),

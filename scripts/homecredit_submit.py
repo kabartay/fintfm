@@ -84,7 +84,8 @@ def main() -> None:
         args.model, max_context=args.max_context, context_strategy=args.strategy
     )
     clf.fit(X_train[fit_idx], y[fit_idx])
-    print(f"context: {clf._ctx_X.shape[0]} rows, {int(clf._ctx_y.sum())} defaults")
+    summary = clf.context_summary_
+    print(f"context: {summary.n_context} rows, {summary.n_positive} defaults")
 
     # local estimate first: a submission whose score we cannot anticipate teaches less
     local = evaluate_binary(y[hold], clf.predict_proba(X_train[hold])[:, 1])

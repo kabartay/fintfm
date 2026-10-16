@@ -195,6 +195,51 @@ def _make_bayes_task(
     return X.astype(np.float32), y
 
 
+def _probe_positive_proba(
+    model: FinancialTFM, X: np.ndarray, y: np.ndarray, n_ctx: int, n_ensemble: int
+) -> np.ndarray:
+    """Positive-class probability for the query rows, averaged over column-identity draws.
+
+    The one place the binary probes below score the model, through its inference entry point
+    :meth:`~fintfm.modeling.model.FinancialTFM.predict_context` (DR1.4), not through the
+    classifier: no feature conditioning, no context subsampling, no base-rate correction, and
+    the probe's own width unpadded (``pad_features=False``). That is how every probe number in
+    ``docs/results/FINDINGS.md`` was taken -- the raw probe features, as the prior hands its
+    raw features to training -- and the column identities depend on the width, so padding
+    would move them all.
+
+    Args:
+        model: A loaded :class:`~fintfm.modeling.model.FinancialTFM`, trained for
+            classification.
+        X: ``(n, f)`` probe rows, context first.
+        y: ``(n,)`` binary labels; only the first ``n_ctx`` reach the model.
+        n_ctx: Context rows.
+        n_ensemble: Column-identity draws averaged, seeds ``0 .. n_ensemble - 1`` (D12).
+
+    Returns:
+        ``(n - n_ctx,)`` mean probability of class 1.
+    """
+    import torch
+
+    ps = [
+        torch.softmax(
+            model.predict_context(
+                X[:n_ctx],
+                y[:n_ctx],
+                X[n_ctx:],
+                n_classes=2,
+                column_id_seed=k,
+                pad_features=False,
+            ).float(),
+            -1,
+        )[:, 1]
+        .cpu()
+        .numpy()
+        for k in range(n_ensemble)
+    ]
+    return np.mean(ps, 0)
+
+
 def bayes_ceiling_probe(
     model: FinancialTFM,
     targets: tuple[float, ...] = BAYES_AUC_TARGETS,
@@ -213,8 +258,10 @@ def bayes_ceiling_probe(
     `openspec/changes/cell-attention-and-task-inference` is the architecture-side experiment
     this probe exists to score.
 
-    Uses the model directly (not :class:`~fintfm.inference.classifier.FinancialTFMClassifier`)
-    with the context split via ``n_ctx`` and column-identity draws averaged over
+    Uses the model's own inference entry point (not
+    :class:`~fintfm.inference.classifier.FinancialTFMClassifier`; see
+    :func:`_probe_positive_proba`) with the context split via ``n_ctx`` and column-identity
+    draws averaged over
     ``n_ensemble``, matching exactly how §74's original measurement was taken -- so numbers
     from this function are comparable to every value already recorded in ``docs/results/FINDINGS.md``.
 
@@ -231,7 +278,6 @@ def bayes_ceiling_probe(
         (task 39.18) -- the number that makes "0.70 achieved" legible as excellent at a 0.71
         ceiling and terrible at a 0.995 one, which the raw AUC alone does not.
     """
-    import torch
     from sklearn.metrics import roc_auc_score
 
     nc = n // 2
@@ -242,16 +288,8 @@ def bayes_ceiling_probe(
         for s in range(seeds):
             rng = np.random.default_rng(s)
             X, y = _make_bayes_task(rng, n, mu)
-            Xt = torch.tensor(X)[None]
-            yt = torch.tensor(y)[None]
-            with torch.no_grad():
-                ps = [
-                    torch.softmax(
-                        model(Xt, yt, nc, torch.tensor([2]), column_id_seed=k).float(), -1
-                    )[0, nc:, 1].numpy()
-                    for k in range(n_ensemble)
-                ]
-            achieved.append(roc_auc_score(y[nc:], np.mean(ps, 0)))
+            p = _probe_positive_proba(model, X, y, nc, n_ensemble)
+            achieved.append(roc_auc_score(y[nc:], p))
         mean_achieved = float(np.mean(achieved))
         out[target] = (mean_achieved, target - mean_achieved)
     return out
@@ -280,7 +318,7 @@ def interaction_order_probe(
     target across every `k` so the curve reads purely as a function of interaction depth, not of
     difficulty drifting alongside it.
 
-    Calls the model directly rather than through `FinancialTFMClassifier`, matching
+    Scores through :func:`_probe_positive_proba`, not `FinancialTFMClassifier`, matching
     :func:`bayes_ceiling_probe`'s convention exactly (column-identity draws averaged over
     `n_ensemble`, per D12), so numbers from this probe are comparable to every value already
     recorded against that one.
@@ -299,7 +337,6 @@ def interaction_order_probe(
         `{k: (achieved_auc_mean, regret)}` where `regret = target_auc - achieved_mean`, matching
         :func:`bayes_ceiling_probe`'s convention.
     """
-    import torch
     from sklearn.metrics import roc_auc_score
 
     from fintfm.prior.task_families import sample_interaction_order_task
@@ -314,16 +351,8 @@ def interaction_order_probe(
                 rng, n, n_features=n_features, k=k, target_auc=target_auc
             )
             X, y = t.X, t.y
-            Xt = torch.tensor(X)[None]
-            yt = torch.tensor(y)[None]
-            with torch.no_grad():
-                ps = [
-                    torch.softmax(
-                        model(Xt, yt, nc, torch.tensor([2]), column_id_seed=j).float(), -1
-                    )[0, nc:, 1].numpy()
-                    for j in range(n_ensemble)
-                ]
-            achieved.append(roc_auc_score(y[nc:], np.mean(ps, 0)))
+            p = _probe_positive_proba(model, X, y, nc, n_ensemble)
+            achieved.append(roc_auc_score(y[nc:], p))
         mean_achieved = float(np.mean(achieved))
         out[k] = (mean_achieved, target_auc - mean_achieved)
     return out
@@ -348,7 +377,7 @@ def composition_probe(
     `composed` share the exact same feature distribution and differ only in which label is
     exposed, so the three AUCs are comparable without a distribution shift confounding them.
 
-    Calls the model directly, matching :func:`bayes_ceiling_probe` and
+    Scores through :func:`_probe_positive_proba`, matching :func:`bayes_ceiling_probe` and
     :func:`interaction_order_probe`'s convention exactly.
 
     Args:
@@ -362,7 +391,6 @@ def composition_probe(
     Returns:
         `{"component_a": auc, "component_b": auc, "composed": auc}`, each averaged over `seeds`.
     """
-    import torch
     from sklearn.metrics import roc_auc_score
 
     from fintfm.prior.task_families import sample_composition_task
@@ -377,16 +405,8 @@ def composition_probe(
                 rng, n, n_features=n_features, target_component_auc=target_component_auc, mode=mode
             )
             X, y = t.X, t.y
-            Xt = torch.tensor(X)[None]
-            yt = torch.tensor(y)[None]
-            with torch.no_grad():
-                ps = [
-                    torch.softmax(
-                        model(Xt, yt, nc, torch.tensor([2]), column_id_seed=j).float(), -1
-                    )[0, nc:, 1].numpy()
-                    for j in range(n_ensemble)
-                ]
-            achieved.append(roc_auc_score(y[nc:], np.mean(ps, 0)))
+            p = _probe_positive_proba(model, X, y, nc, n_ensemble)
+            achieved.append(roc_auc_score(y[nc:], p))
         out[mode] = float(np.mean(achieved))
     return out
 
@@ -419,7 +439,8 @@ def confound_reliance_probe(
     number `intervened` should approach if the model fully recovers to using only what remains
     valid, rather than partially, once the confound is broken.
 
-    Calls the model directly, matching every other probe in this module's convention exactly.
+    Scores through :func:`_probe_positive_proba`, matching every other probe in this module's
+    convention exactly.
 
     Args:
         model: A loaded :class:`~fintfm.modeling.model.FinancialTFM`, trained for classification.
@@ -436,7 +457,6 @@ def confound_reliance_probe(
     Returns:
         `{"observed": auc, "intervened": auc, "cause_only": auc}`, each averaged over `seeds`.
     """
-    import torch
     from sklearn.metrics import roc_auc_score
 
     from fintfm.prior.task_families import sample_confound_collider_pair
@@ -464,16 +484,8 @@ def confound_reliance_probe(
                 X = X_obs.copy()
                 proxy_col = int(active[0])
                 X[:, proxy_col] = np.random.default_rng(s + 10_000).normal(size=X.shape[0])
-            Xt = torch.tensor(X)[None]
-            yt = torch.tensor(y)[None]
-            with torch.no_grad():
-                ps = [
-                    torch.softmax(
-                        model(Xt, yt, nc, torch.tensor([2]), column_id_seed=j).float(), -1
-                    )[0, nc:, 1].numpy()
-                    for j in range(n_ensemble)
-                ]
-            achieved.append(roc_auc_score(y[nc:], np.mean(ps, 0)))
+            p = _probe_positive_proba(model, X, y, nc, n_ensemble)
+            achieved.append(roc_auc_score(y[nc:], p))
         out[condition] = float(np.mean(achieved))
     return out
 

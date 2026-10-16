@@ -1290,3 +1290,94 @@ def test_checkpoint_records_provenance_and_load_ignores_it(tmp_path):
         loaded = FinancialTFM.load(str(path))
         assert not hasattr(loaded, "provenance")
         torch.testing.assert_close(_p5_run(loaded, X, y), reference, rtol=0, atol=0)
+
+
+# --- DR1.4: one inference entry point -----------------------------------------------------
+
+
+def _context_model(**extra) -> FinancialTFM:
+    """A tiny seeded eval-mode model for the predict_context tests."""
+    torch.manual_seed(0)
+    cfg = ModelConfig(max_features=8, max_classes=3, d_cell=8, d_model=16, n_heads=2,
+                      n_col_layers=1, n_layers=2, d_ff=32, column_id_dim=4, **extra)
+    return FinancialTFM(cfg).eval()
+
+
+def _context_task(n_ctx: int = 30, n_q: int = 7, f: int = 5):
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(n_ctx + n_q, f)).astype(np.float32)
+    y = rng.integers(0, 2, size=n_ctx + n_q).astype(np.int64)
+    return X[:n_ctx], y[:n_ctx], X[n_ctx:]
+
+
+def test_pack_context_pads_features_and_leaves_query_placeholders():
+    from fintfm.modeling.hazard import CENSORED
+    from fintfm.modeling.model import pack_context
+
+    Xc, yc, Xq = _context_task()
+    X, y, period = pack_context(Xc, yc, Xq, 8, np.int64, period=np.arange(30) % 3)
+    assert X.shape == (1, 37, 8) and X.dtype == np.float32
+    assert np.isnan(X[0, :, 5:]).all()
+    np.testing.assert_array_equal(X[0, :30, :5], Xc)
+    np.testing.assert_array_equal(X[0, 30:, :5], Xq)
+    assert y.dtype == np.int64 and (y[0, 30:] == 0).all()
+    assert period is not None and (period[0, 30:] == CENSORED).all()
+    assert pack_context(Xc, yc, Xq, 8, np.float32)[2] is None
+
+
+@pytest.mark.parametrize("pad", [True, False])
+def test_predict_context_is_forward_on_the_packed_task(pad):
+    """The entry point adds nothing to forward: same logits, padded or at the caller's width.
+
+    ``pad=False`` is the capability probes' path, which must reproduce their historical
+    ``model(torch.tensor(X)[None], ...)`` call bit for bit.
+    """
+    model = _context_model(n_cell_blocks=1, cell_labels=True)
+    Xc, yc, Xq = _context_task()
+    width = 8 if pad else 5
+    X = torch.full((1, 37, width), float("nan"))
+    X[0, :, :5] = torch.from_numpy(np.concatenate([Xc, Xq]))
+    # the probes passed the query labels too; the model must never read them
+    y = torch.from_numpy(np.concatenate([yc, np.ones(7, dtype=np.int64)]))[None]
+    with torch.no_grad():
+        expected = model(X, y, 30, torch.tensor([2]), column_id_seed=5)[0, 30:]
+    got = model.predict_context(Xc, yc, Xq, n_classes=2, column_id_seed=5, pad_features=pad)
+    assert torch.equal(got, expected)
+
+
+def test_predict_context_representation_is_what_the_head_reads():
+    model = _context_model()
+    Xc, yc, Xq = _context_task()
+    logits = model.predict_context(Xc, yc, Xq, column_id_seed=2)
+    pre_head = model.predict_context(
+        Xc, yc, Xq, column_id_seed=2, output="representation", stage="pre_head"
+    )
+    torch.testing.assert_close(model.head(pre_head), logits, rtol=1e-5, atol=1e-6)
+    for stage in ("encode_rows", "encoder_mid"):
+        h = model.predict_context(Xc, yc, Xq, output="representation", stage=stage)
+        assert h.shape == (7, 16)
+
+
+def test_predict_context_term_structure_takes_the_column_seed():
+    model = _context_model(n_horizons=3)
+    Xc, yc, Xq = _context_task()
+    a = model.predict_context(Xc, yc, Xq, column_id_seed=0, output="term_structure")
+    b = model.predict_context(Xc, yc, Xq, column_id_seed=4, output="term_structure")
+    default = model.predict_context(Xc, yc, Xq, output="term_structure")
+    assert a.shape == (7, 3)
+    assert torch.equal(a, default)  # None in eval mode is seed 0, every earlier caller's draw
+    assert not torch.equal(a, b)
+
+
+def test_predict_context_refuses_what_it_cannot_score():
+    model = _context_model()
+    Xc, yc, Xq = _context_task(f=9)
+    with pytest.raises(ValueError, match="at most 8 features"):
+        model.predict_context(Xc, yc, Xq)
+    Xc, yc, Xq = _context_task()
+    with pytest.raises(ValueError, match="stage"):
+        model.predict_context(Xc, yc, Xq, output="representation")
+    with pytest.raises(ValueError, match="stage"):
+        model.predict_context(Xc, yc, Xq, stage="pre_head")
+    with pytest.raises(ValueError, match="unknown output"):
+        model.predict_context(Xc, yc, Xq, output="proba")  # type: ignore[arg-type]

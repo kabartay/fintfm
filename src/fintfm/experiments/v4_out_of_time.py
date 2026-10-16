@@ -235,13 +235,15 @@ def run(
                 random_state=seed,
             ).fit(ds.X[tr], ds.y[tr], periods=ds.period[tr])
             curve = clf.predict_term_structure(ds.X[te])
+            summary = clf.context_summary_
             rate = (
-                clf.pooled_context_rate_
+                summary.pooled_context_rate
                 if arm.strategy == "retrieval"
-                else clf._ctx_rate
+                else summary.context_rate
             )
             print(
-                f"  {arm.name}: context at {rate:.3%} vs population {clf._full_rate:.3%}"
+                f"  {arm.name}: context at {rate:.3%} vs population "
+                f"{summary.population_rate:.3%}"
             )
             arms.append(
                 score_curve(

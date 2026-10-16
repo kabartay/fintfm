@@ -215,17 +215,12 @@ class FinancialTFMQuantileRegressor(BaseEstimator, RegressorMixin):
         Returns:
             ``(n, n_quantiles)`` raw (normalised-space) quantile predictions.
         """
-        n_ctx = self._ctx_X.shape[0]
-        cfg = self.model.cfg
-        Xp = np.full((1, n_ctx + X.shape[0], cfg.max_features), np.nan, dtype=np.float32)
-        Xp[0, :n_ctx, : self._ctx_X.shape[1]] = self._ctx_X
-        Xp[0, n_ctx:, : X.shape[1]] = X
-        yp = np.zeros((1, n_ctx + X.shape[0]), dtype=np.float32)
-        yp[0, :n_ctx] = self._ctx_y
-        Xt = torch.from_numpy(Xp).to(self.device)
-        yt = torch.from_numpy(yp).to(self.device)
-        out = self.model(Xt, yt, n_ctx, column_id_seed=int(self.random_state))
-        return out[0, n_ctx:].cpu().numpy()
+        # the model's one inference entry point, which packs the normalised target as float32
+        # for a quantile head
+        out = self.model.predict_context(
+            self._ctx_X, self._ctx_y, X, column_id_seed=int(self.random_state)
+        )
+        return out.cpu().numpy()
 
     def predict_quantile_grid(self, X: np.ndarray) -> np.ndarray:
         """Every predicted quantile level, de-normalised to the target's own units.
