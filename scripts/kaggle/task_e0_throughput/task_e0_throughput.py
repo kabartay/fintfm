@@ -25,18 +25,18 @@ RECIPE_URL = (f"https://raw.githubusercontent.com/kabartay/fintfm/{COMMIT}/"
 OUT = Path("/kaggle/working/e0")
 
 ARMS = [
-    ("fp32_masked_mixed", []),
-    ("fp16_masked_mixed", ["--amp", "fp16"]),
-    ("fp32_split_mixed", ["--attn-impl", "split"]),
-    ("fp16_split_mixed", ["--amp", "fp16", "--attn-impl", "split"]),
-    ("fp32_masked_1024", ["--n-rows-choices", "1024"]),
-    ("fp16_split_1024", ["--amp", "fp16", "--attn-impl", "split", "--n-rows-choices", "1024"]),
-    ("fp16_split_mixed_batchwidth", ["--amp", "fp16", "--attn-impl", "split",
-                                     "--pad-to-batch-width"]),
-    ("fp16_split_mixed_stream_w0", ["--amp", "fp16", "--attn-impl", "split",
-                                    "--loader", "stream", "--loader-workers", "0"]),
-    ("fp16_split_mixed_stream_w2", ["--amp", "fp16", "--attn-impl", "split",
-                                    "--loader", "stream", "--loader-workers", "2"]),
+    # v2 (MEASURED): fp32 masked 1.93 s/step, fp32 split 1.59 s/step at batch 8; every fp16 arm
+    # ran out of memory even at feature_chunk 4. v3 compares precision at batch 4, where both
+    # fit, and moves the loader and width arms onto fp32 split.
+    ("fp32_masked_b4", ["--batch-size", "4"]),
+    ("fp32_split_b4", ["--attn-impl", "split", "--batch-size", "4"]),
+    ("fp16_masked_b4", ["--amp", "fp16", "--batch-size", "4"]),
+    ("fp16_split_b4", ["--amp", "fp16", "--attn-impl", "split", "--batch-size", "4"]),
+    ("fp32_split_mixed_batchwidth", ["--attn-impl", "split", "--pad-to-batch-width"]),
+    ("fp32_split_mixed_stream_w0", ["--attn-impl", "split", "--loader", "stream",
+                                    "--loader-workers", "0"]),
+    ("fp32_split_mixed_stream_w2", ["--attn-impl", "split", "--loader", "stream",
+                                    "--loader-workers", "2"]),
 ]
 
 
@@ -127,8 +127,8 @@ def main() -> None:
     if len(names) >= 2:
         ddp = [sys.executable, "-m", "torch.distributed.run", "--standalone", "--nproc-per-node",
                "2", "-m", "fintfm.modeling.train", "--config", str(recipe), "--device", "cuda",
-               "--amp", "fp16", "--attn-impl", "split", "--loader", "stream",
-               "--loader-workers", "1", "--ddp", "--feature-chunk", "4",
+               "--attn-impl", "split", "--loader", "stream",
+               "--loader-workers", "1", "--ddp",
                "--steps", "20", "--log-every", "5",
                "--eval-every", "1000", "--checkpoint-every", "10",
                "--out", str(OUT / "ddp_smoke.pt")]
