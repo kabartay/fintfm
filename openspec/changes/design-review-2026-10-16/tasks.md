@@ -166,7 +166,19 @@
       datasets.
       Verify: a test that the SUITE shares no OpenML id, name or row hash with TabArena-v0.1 or
       BeyondArena.
-- [ ] DR4.2 **Partly done (2026-10-16), left open.** Built, not run:
+- [ ] DR4.2 **Partly done (2026-10-16), licences verified at source, left open.** Owner
+      decision 2026-10-16: OpenML's `Public` does not admit a task; each of the 77 candidates
+      left by the overlap filters was traced to its original source and that page's licence
+      recorded with URL, text as stated, date, verdict and reason (`SOURCE_LICENCES`). 53 pass
+      (49 UCI pages stating CC BY 4.0, pc1 on Zenodo CC BY 4.0, numerai28.6 and kings_county on
+      Kaggle CC0, Fashion-MNIST MIT); 24 are excluded (no licence stated or page unreachable,
+      Delve and socmob non-commercial, an R package's GPL, Kaggle CC0 over data scraped from
+      sofifa.com and baseball-reference.com). Suite: 18 binary / 8 multiclass / 9 regression
+      (35), of which 16 / 7 / 9 (32) are within the 136-feature cap; five of the eight
+      multiclass tasks are views of UCI Multiple Features. `tests/test_proxy_suite.py` checks
+      every suite task has an included source entry and no rejected one is eligible. Open: the
+      row hash, the runner, the sign test and the Spearman Verify.
+      Earlier the same day: built, not run:
       `fintfm.evaluation.proxy_suite` records all 107 CC18/CTR23 tasks with OpenML licences
       (re-fetched, 0 changed) and excludes by TabArena id, name against both arenas, a
       same-source list and licence; `--dry-run` prints every exclusion, `tests/test_proxy_suite.py`
