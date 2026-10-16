@@ -1096,17 +1096,17 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
                 dim=1,
             )
             h = h + y_emb
-            mask = self.model_._row_mask(N, n_ctx, Xt.device)
+            # through the model's own row stage, so attn_impl and attn_length_scale apply here
+            # as they do in forward
             if stage == "pre_head":
-                h = self.model_.encoder(h, mask=mask)
+                h = self.model_._row_attention(h, n_ctx)
                 h = self.model_.norm(h)
             else:
                 # Half the row-to-row stack, rounded up -- partway through, not before or
                 # after all of it. No final `self.norm`: that normalisation is shaped for
                 # `self.head`'s input, not for a linear probe reading an intermediate layer.
                 n_half = (len(self.model_.encoder.layers) + 1) // 2
-                for layer in self.model_.encoder.layers[:n_half]:
-                    h = layer(h, src_mask=mask)
+                h = self.model_._row_attention(h, n_ctx, n_layers=n_half)
         return h[0, n_ctx:].cpu().numpy()
 
     @torch.no_grad()

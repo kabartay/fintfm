@@ -18,8 +18,9 @@ import numpy as np
 import torch
 
 from fintfm.config import load_config
-from fintfm.modeling.model import FinancialTFM, ModelConfig
+from fintfm.modeling.model import ATTN_IMPLS, FinancialTFM, ModelConfig
 from fintfm.prior import PriorConfig
+from fintfm.prior.base import TaskBatch
 from fintfm.prior.dump import open_task_dump
 from fintfm.prior.levers import add_prior_lever_arguments, prior_lever_values
 from fintfm.prior.mixture import sample_batch
@@ -125,7 +126,7 @@ AMP_MODES = ("none", "bf16", "fp16")
 #: :class:`fintfm.config.ModelConfigDefaults` (``tests/test_config.py`` checks both ways).
 _MODEL_CONFIG_KNOBS = (
     "n_heads", "n_cell_heads", "n_summary_tokens", "value_embedding", "value_basis_size",
-    "value_basis_learnable", "value_ecdf", "attn_length_scale", "attn_length_ref",
+    "value_basis_learnable", "value_ecdf", "attn_length_scale", "attn_length_ref", "attn_impl",
     "hazard_period_context",
 )
 
@@ -888,8 +889,11 @@ def benchmark(
     are measured as they would train. ``warmup`` untimed steps go first (allocator growth,
     kernel selection); then ``n_steps`` timed ones. Prior sampling and the device step are
     timed separately, because a faster kernel cannot speed up a run whose step is waiting on
-    the CPU-side prior. Nothing is saved and no evaluation runs; ``resume``, ``init_from``
-    and ``run_steps`` are ignored, since throughput does not depend on the weights.
+    the CPU-side prior. With ``train_cfg.task_dump`` the batches are read from the dump, as
+    :func:`train` reads them, so the "sample" share is then the dump's read time; the dump
+    must hold ``warmup + n_steps`` batches. Nothing is saved and no evaluation runs;
+    ``resume``, ``init_from`` and ``run_steps`` are ignored, since throughput does not depend
+    on the weights.
 
     One task is one ``(context, query)`` problem, so tasks per step is the batch size --
     the unit ``CLAUDE.md`` asks training volume to be counted in.
@@ -897,8 +901,8 @@ def benchmark(
     Args:
         model_cfg: Architecture to measure.
         prior_cfg: Prior to sample from; its cost is part of the step.
-        train_cfg: Read for ``batch_size``, ``device``, ``seed``, ``amp``, the optimiser and
-            ``feature_chunk``.
+        train_cfg: Read for ``batch_size``, ``device``, ``seed``, ``amp``, the optimiser,
+            ``feature_chunk`` and ``task_dump``.
         n_steps: Timed steps.
         warmup: Untimed steps before timing starts.
 
@@ -907,10 +911,21 @@ def benchmark(
         ``sample_seconds``/``step_seconds`` split, ``peak_memory_bytes`` (CUDA's peak
         allocated by tensors during the timed steps, else ``None``), ``peak_rss_bytes`` (the
         process's lifetime peak resident set, where the platform reports one), and the
-        settings that produced the numbers.
+        settings that produced the numbers, ``task_dump`` among them.
+
+    Raises:
+        ValueError: If ``n_steps < 1``, or if the dump does not match the run's prior and
+            batch size or is shorter than ``warmup + n_steps`` batches.
     """
     if n_steps < 1:
         raise ValueError(f"n_steps must be at least 1, got {n_steps}")
+    dump = (
+        None
+        if train_cfg.task_dump is None
+        else open_task_dump(
+            train_cfg.task_dump, prior_cfg, train_cfg.batch_size, warmup + n_steps
+        )
+    )
     rng = np.random.default_rng(train_cfg.seed)
     torch.manual_seed(train_cfg.seed)
     model = FinancialTFM(model_cfg).to(train_cfg.device)
@@ -922,16 +937,23 @@ def benchmark(
     objectives: set[str] = set()
     _set_optimizer_mode(opt, train_cfg.optimizer, "train")
     model.train()
-    for _ in range(warmup):
-        batch = sample_batch(rng, prior_cfg, train_cfg.batch_size).to(device)
+
+    def next_batch(step: int) -> TaskBatch:
+        """Batch ``step``: from the dump when there is one, else sampled live."""
+        if dump is not None:
+            return dump.batch(step)
+        return sample_batch(rng, prior_cfg, train_cfg.batch_size)
+
+    for step in range(warmup):
+        batch = next_batch(step).to(device)
         _training_step(model, batch, opt, sched, train_cfg.amp, objectives, scaler).item()
     _synchronize(device)
     if device.type == "cuda":
         torch.cuda.reset_peak_memory_stats(device)
     sample_s = step_s = 0.0
-    for _ in range(n_steps):
+    for step in range(warmup, warmup + n_steps):
         t0 = time.perf_counter()
-        batch = sample_batch(rng, prior_cfg, train_cfg.batch_size).to(device)
+        batch = next_batch(step).to(device)
         _synchronize(device)
         t1 = time.perf_counter()
         _training_step(model, batch, opt, sched, train_cfg.amp, objectives, scaler).item()
@@ -955,6 +977,7 @@ def benchmark(
         "amp": train_cfg.amp,
         "optimizer": train_cfg.optimizer,
         "batch_size": train_cfg.batch_size,
+        "task_dump": train_cfg.task_dump,
         "parameters": model.num_parameters(),
         "warmup_steps": warmup,
         "steps": n_steps,
@@ -1346,6 +1369,16 @@ def main(argv: list[str] | None = None) -> None:
         default=None,
         help="context length at which --attn-length-scale is the identity (config default "
         "512)",
+    )
+    p.add_argument(
+        "--attn-impl",
+        type=str,
+        default=None,
+        choices=ATTN_IMPLS,
+        help="how the context-plus-self row attention is computed (audit AU5.2): 'masked', "
+        "the config default, is today's boolean-masked encoder; 'split' gives the same "
+        "outputs with no attention mask, so CUDA's flash kernel is eligible. Same weights "
+        "either way",
     )
     p.add_argument(
         "--hazard-period-context",

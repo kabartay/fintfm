@@ -45,6 +45,9 @@ from fintfm.modeling.hazard import CENSORED, HazardHead
 # eval mode. Its value is arbitrary; that it is *fixed* is the point (see _column_ids).
 _DEFAULT_COLUMN_ID_SEED = 0
 
+#: Accepted values of :attr:`ModelConfig.attn_impl`.
+ATTN_IMPLS: tuple[str, ...] = ("masked", "split")
+
 
 @dataclass
 class ModelConfig:
@@ -205,6 +208,17 @@ class ModelConfig:
             Set near the pretraining context so training is a small perturbation of the
             unscaled model there; longer inference contexts then get sharper logits rather
             than flatter attention. Ignored unless ``attn_length_scale``.
+        attn_impl: How the context-plus-self row attention is computed (AU5.2), in the row
+            encoder and, with ``n_cell_blocks > 0``, the row-within-feature stage. Both give
+            the same outputs to float tolerance and use the same weights, so a checkpoint
+            trained under either loads and runs under either. ``"masked"`` (default) is the
+            stock encoder with :meth:`FinancialTFM._row_mask` as a boolean mask, which no
+            fused kernel accepts. ``"split"`` (:func:`split_row_attention`) runs the context
+            rows' attention with no mask at all and the query rows' attention over the
+            context keys plus one appended key that carries each query's own key and value,
+            again with no mask, so both calls are eligible for CUDA's flash and
+            memory-efficient kernels. The speed difference is a property of the device and
+            must be measured there.
         hazard_period_context: Context rows of a hazard model carry their default period, or
             a censored token, in the label embedding as well as the binary label (AU5.9).
             Without it the context says only *whether* a firm defaulted, so the term
@@ -239,6 +253,7 @@ class ModelConfig:
     value_ecdf: bool = False
     attn_length_scale: bool = False
     attn_length_ref: int = 512
+    attn_impl: str = "masked"
     hazard_period_context: bool = False
 
     def __post_init__(self) -> None:
@@ -249,7 +264,8 @@ class ModelConfig:
                 quantile head is combined with a hazard head -- a combination nothing in this
                 codebase builds, scores, or has a designed loss for. Also for an unknown
                 ``value_embedding``, a non-positive size, summary tokens combined with
-                attention pooling, or ``hazard_period_context`` without a hazard head.
+                attention pooling, ``hazard_period_context`` without a hazard head, or an
+                unknown ``attn_impl``.
         """
         if self.value_embedding not in ("mlp", "rbf", "fourier"):
             raise ValueError(
@@ -269,6 +285,8 @@ class ModelConfig:
             raise ValueError(f"n_cell_heads must be >= 1, got {self.n_cell_heads}")
         if self.attn_length_ref < 2:
             raise ValueError(f"attn_length_ref must be >= 2, got {self.attn_length_ref}")
+        if self.attn_impl not in ATTN_IMPLS:
+            raise ValueError(f"attn_impl must be one of {ATTN_IMPLS}, got {self.attn_impl!r}")
         if self.hazard_period_context and self.n_horizons is None:
             raise ValueError("hazard_period_context requires n_horizons (a hazard head)")
         if self.head_type not in ("binned", "quantile"):
@@ -387,6 +405,77 @@ def length_scale(n_keys: int, n_ref: int) -> float:
         The multiplier.
     """
     return math.log(max(n_keys, 2)) / math.log(n_ref)
+
+
+def split_row_attention(
+    q: torch.Tensor,
+    k: torch.Tensor,
+    v: torch.Tensor,
+    n_ctx: int,
+    scale: float,
+    dropout_p: float = 0.0,
+) -> torch.Tensor:
+    """Context-plus-self row attention without an attention mask (AU5.2).
+
+    Computes what :func:`~torch.nn.functional.scaled_dot_product_attention` computes under
+    :meth:`FinancialTFM._row_mask`: a context row attends to every context row, a query row
+    to every context row and to itself, and to nothing else. That mask is what keeps CUDA's
+    fused kernels out, since the flash kernel takes no mask at all. Here neither call has one:
+
+    * **Context rows:** plain self-attention over the first ``n_ctx`` rows.
+    * **Query rows:** one call against the ``n_ctx`` context keys plus a single appended
+      *sentinel* key, after widening the head dimension by ``e`` channels (``e >= 1``,
+      chosen so the width stays a multiple of 8, which the flash kernel requires). Every
+      context key gets zeros in the new channels, the sentinel is zero except a 1 in the
+      first new channel, and each query carries its own ``q_i . k_i`` there. So query ``i``'s
+      logit against context row ``j`` is still ``q_i . k_j``, and against the sentinel it is
+      ``q_i . k_i``: the self logit, per query, through a key shared by all of them. The
+      values are widened the same way, the sentinel's value being the indicator of the first
+      new channel, so that channel of the output is the softmax weight the query put on
+      itself, ``p_self``, and the original channels hold the context part already weighted
+      by ``1 - p_self``. Adding ``p_self * v_i`` completes the attention over
+      ``[context, self]``. Every step is differentiable, so training uses it unchanged.
+
+    Exact up to floating-point summation order: the softmax runs over the same logits in a
+    different arrangement. Dropout, when on, drops the self weight with the same probability
+    as any other attention weight, as the masked path does; the two draw different masks.
+
+    Args:
+        q: ``(B, H, N, d)`` queries, rows ordered context first.
+        k: ``(B, H, N, d)`` keys.
+        v: ``(B, H, N, d)`` values.
+        n_ctx: Number of context rows, ``0 <= n_ctx <= N``.
+        scale: Logit scale, ``1 / sqrt(d)`` for the stock attention.
+        dropout_p: Attention dropout probability.
+
+    Returns:
+        ``(B, H, N, d)``.
+    """
+    d = q.shape[-1]
+    parts = []
+    if n_ctx > 0:
+        k_ctx, v_ctx = k[..., :n_ctx, :], v[..., :n_ctx, :]
+        parts.append(
+            F.scaled_dot_product_attention(
+                q[..., :n_ctx, :], k_ctx, v_ctx, dropout_p=dropout_p, scale=scale
+            )
+        )
+    else:
+        k_ctx, v_ctx = k[..., :0, :], v[..., :0, :]
+    if n_ctx < q.shape[-2]:
+        q_qry, k_qry, v_qry = q[..., n_ctx:, :], k[..., n_ctx:, :], v[..., n_ctx:, :]
+        extra = 8 - d % 8  # at least one channel, and a width the flash kernel accepts
+        self_logit = (q_qry * k_qry).sum(dim=-1, keepdim=True)
+        q_aug = torch.cat([q_qry, F.pad(self_logit, (0, extra - 1))], dim=-1)
+        sentinel = torch.zeros(*k.shape[:-2], 1, d + extra, dtype=k.dtype, device=k.device)
+        sentinel[..., d] = 1.0
+        k_aug = torch.cat([F.pad(k_ctx, (0, extra)), sentinel], dim=-2)
+        v_aug = torch.cat([F.pad(v_ctx, (0, extra)), sentinel.to(v.dtype)], dim=-2)
+        out = F.scaled_dot_product_attention(
+            q_aug, k_aug, v_aug, dropout_p=dropout_p, scale=scale
+        )
+        parts.append(out[..., :d] + out[..., d : d + 1] * v_qry)
+    return torch.cat(parts, dim=-2)
 
 
 class ValueBasis(nn.Module):
@@ -646,7 +735,12 @@ class FinancialTFM(nn.Module):
         return mask
 
     def _row_within_feature(
-        self, by_feature: torch.Tensor, row_mask: torch.Tensor, B: int, Fdim: int
+        self,
+        by_feature: torch.Tensor,
+        row_mask: torch.Tensor | None,
+        B: int,
+        Fdim: int,
+        n_ctx: int | None = None,
     ) -> torch.Tensor:
         """Run row-attention-within-feature, optionally in chunks over the feature axis.
 
@@ -667,16 +761,26 @@ class FinancialTFM(nn.Module):
 
         Args:
             by_feature: ``(B*F, N, d_cell)``, features varying slowest.
-            row_mask: ``(N, N)`` boolean attention mask, True = blocked.
+            row_mask: ``(N, N)`` boolean attention mask, True = blocked; ``None`` under
+                ``attn_impl="split"``, which needs no mask.
             B: Batch size, used only to validate the chunking arithmetic.
             Fdim: Feature count, used only to validate the chunking arithmetic.
+            n_ctx: Context/query split; read only when ``row_mask`` is ``None``.
 
         Returns:
             ``(B*F, N, d_cell)``, the encoder applied to every feature.
         """
+        def encode(x: torch.Tensor) -> torch.Tensor:
+            if row_mask is not None:
+                return self.row_within_feature_encoder(x, mask=row_mask)
+            assert n_ctx is not None
+            return self._prenorm_stack(
+                self.row_within_feature_encoder.layers, x, n_ctx, None, 1.0
+            )
+
         chunk = self.feature_chunk
         if chunk is None or chunk >= Fdim:
-            return self.row_within_feature_encoder(by_feature, mask=row_mask)
+            return encode(by_feature)
         if chunk < 1:
             raise ValueError(f"feature_chunk must be >= 1, got {chunk}")
         # Chunk in whole features so each group stays a set of independent problems. The
@@ -688,9 +792,7 @@ class FinancialTFM(nn.Module):
         for start in range(0, Fdim, chunk):
             stop = min(start + chunk, Fdim)
             group = view[:, start:stop].reshape(-1, *by_feature.shape[1:])
-            out[:, start:stop] = self.row_within_feature_encoder(
-                group, mask=row_mask
-            ).reshape(B, stop - start, *by_feature.shape[1:])
+            out[:, start:stop] = encode(group).reshape(B, stop - start, *by_feature.shape[1:])
         return out.reshape_as(by_feature)
 
     def _column_ids(
@@ -791,7 +893,10 @@ class FinancialTFM(nn.Module):
                     dim=1,
                 )  # (B, N, d_cell)
                 cells = cells + cell_y[:, :, None, :]
-            row_mask = self._row_mask(N, n_ctx, X.device)
+            # attn_impl="split" needs no mask (AU5.2); "masked" builds the one it always has
+            row_mask = (
+                None if self.cfg.attn_impl == "split" else self._row_mask(N, n_ctx, X.device)
+            )
             for _ in range(self.cfg.n_cell_blocks):
                 # Row attention within one feature: a cell attends to the same feature's
                 # cells in every other row -- a data-derived column identity, computed from
@@ -799,7 +904,7 @@ class FinancialTFM(nn.Module):
                 # mask, which does not depend on which feature, applies identically to all
                 # B*F independent attention problems.
                 by_feature = cells.permute(0, 2, 1, 3).reshape(B * Fdim, N, self.cfg.d_cell)
-                by_feature = self._row_within_feature(by_feature, row_mask, B, Fdim)
+                by_feature = self._row_within_feature(by_feature, row_mask, B, Fdim, n_ctx)
                 cells = by_feature.reshape(B, Fdim, N, self.cfg.d_cell).permute(0, 2, 1, 3)
                 # Column attention within one row: the existing mechanism, reused per block.
                 flat = cells.reshape(B * N, Fdim, self.cfg.d_cell)
@@ -896,35 +1001,82 @@ class FinancialTFM(nn.Module):
             )
         return torch.cat([ctx_emb, self.query_token.expand(B, N - n_ctx, -1)], dim=1)
 
-    def _row_attention(self, h: torch.Tensor, n_ctx: int) -> torch.Tensor:
+    def _row_attention(
+        self, h: torch.Tensor, n_ctx: int, n_layers: int | None = None
+    ) -> torch.Tensor:
         """Run the row (in-context) encoder, length-scaled when ``cfg.attn_length_scale``.
+
+        The one place the row stage runs, for every path through the model and for the
+        classifier's representation probe, so ``attn_length_scale`` and ``attn_impl`` reach
+        all of them.
 
         Args:
             h: ``(B, N, d_model)`` row representations with label embeddings added.
             n_ctx: Context/query split.
+            n_layers: Run only the first ``n_layers`` layers (an intermediate representation);
+                ``None`` runs the whole stack.
 
         Returns:
             ``(B, N, d_model)``.
         """
+        layers = self.encoder.layers if n_layers is None else self.encoder.layers[:n_layers]
+        factor = (
+            length_scale(n_ctx, self.cfg.attn_length_ref) if self.cfg.attn_length_scale else 1.0
+        )
+        if self.cfg.attn_impl == "split":
+            return self._prenorm_stack(layers, h, n_ctx, None, factor)
         mask = self._row_mask(h.shape[1], n_ctx, h.device)
         if not self.cfg.attn_length_scale:
-            return self.encoder(h, mask=mask)
-        factor = length_scale(n_ctx, self.cfg.attn_length_ref)
-        allowed = ~mask
-        # The same pre-norm layer as nn.TransformerEncoderLayer(norm_first=True), written
-        # out so the attention logits can carry the length factor. It reads the stock
-        # layer's own parameters, so the flag adds no weight and a checkpoint trained
-        # either way loads either way.
-        for layer in self.encoder.layers:
+            if n_layers is None:
+                return self.encoder(h, mask=mask)
+            for layer in layers:
+                h = layer(h, src_mask=mask)
+            return h
+        return self._prenorm_stack(layers, h, n_ctx, ~mask, factor)
+
+    def _prenorm_stack(
+        self,
+        layers: nn.ModuleList,
+        h: torch.Tensor,
+        n_ctx: int,
+        allowed: torch.Tensor | None,
+        factor: float,
+    ) -> torch.Tensor:
+        """Run encoder layers with the attention computed here rather than by the module.
+
+        The same pre-norm layer as ``nn.TransformerEncoderLayer(norm_first=True)``, written
+        out so the attention logits can carry the length factor (AU5.17) or the attention can
+        run unmasked (AU5.2). It reads the stock layers' own parameters, so neither flag adds
+        a weight and a checkpoint trained either way loads either way.
+
+        Args:
+            layers: The ``nn.TransformerEncoderLayer`` modules to run, in order.
+            h: ``(B, N, D)`` inputs.
+            n_ctx: Context/query split.
+            allowed: ``(N, N)`` boolean mask, True = may attend, for the masked path; ``None``
+                for :func:`split_row_attention`.
+            factor: Multiplier on ``q.k / sqrt(d_head)``.
+
+        Returns:
+            ``(B, N, D)``.
+        """
+        for layer in layers:
             h = h + layer.dropout1(
-                self._scaled_self_attention(layer.self_attn, layer.norm1(h), allowed, factor)
+                self._scaled_self_attention(
+                    layer.self_attn, layer.norm1(h), allowed, factor, n_ctx=n_ctx
+                )
             )
             ff = layer.linear2(layer.dropout(layer.activation(layer.linear1(layer.norm2(h)))))
             h = h + layer.dropout2(ff)
         return h
 
     def _scaled_self_attention(
-        self, mha: nn.MultiheadAttention, x: torch.Tensor, allowed: torch.Tensor, factor: float
+        self,
+        mha: nn.MultiheadAttention,
+        x: torch.Tensor,
+        allowed: torch.Tensor | None,
+        factor: float,
+        n_ctx: int | None = None,
     ) -> torch.Tensor:
         """Self-attention through ``mha``'s weights with logits multiplied by ``factor``.
 
@@ -933,7 +1085,10 @@ class FinancialTFM(nn.Module):
             x: ``(B, N, D)`` normalised inputs.
             allowed: ``(N, N)`` boolean mask, True = may attend (the inverse of
                 :meth:`_row_mask`'s convention, as ``scaled_dot_product_attention`` expects).
+                ``None`` computes the same context-plus-self attention through
+                :func:`split_row_attention`, which needs ``n_ctx``.
             factor: Multiplier on ``q.k / sqrt(d_head)``; 1 reproduces ``mha``.
+            n_ctx: Context/query split; read only when ``allowed`` is ``None``.
 
         Returns:
             ``(B, N, D)``.
@@ -943,14 +1098,19 @@ class FinancialTFM(nn.Module):
         dh = D // H
         q, k, v = F.linear(x, mha.in_proj_weight, mha.in_proj_bias).chunk(3, dim=-1)
         q, k, v = (t.reshape(B, N, H, dh).transpose(1, 2) for t in (q, k, v))
-        out = F.scaled_dot_product_attention(
-            q,
-            k,
-            v,
-            attn_mask=allowed,
-            dropout_p=mha.dropout if self.training else 0.0,
-            scale=factor / math.sqrt(dh),
-        )
+        dropout_p = mha.dropout if self.training else 0.0
+        if allowed is None:
+            assert n_ctx is not None
+            out = split_row_attention(q, k, v, n_ctx, factor / math.sqrt(dh), dropout_p)
+        else:
+            out = F.scaled_dot_product_attention(
+                q,
+                k,
+                v,
+                attn_mask=allowed,
+                dropout_p=dropout_p,
+                scale=factor / math.sqrt(dh),
+            )
         return mha.out_proj(out.transpose(1, 2).reshape(B, N, D))
 
     def forward(

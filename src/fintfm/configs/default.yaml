@@ -125,7 +125,7 @@ train:
   amp: "none"              # "none" (float32), "bf16" or "fp16" autocast; quoted, YAML reads off as false
   muon_lr: 0.02            # Muon's matrix-group rate; read only under --optimizer muon
 
-# Architecture knobs read by fintfm-train (audit AU5.3, AU5.9, AU5.16, AU5.17). These MIRROR
+# Architecture knobs read by fintfm-train (audit AU5.2, AU5.3, AU5.9, AU5.16, AU5.17). These MIRROR
 # ModelConfig's literal defaults in modeling/model.py, which stay authoritative because a
 # checkpoint rebuilds its model without reading a file; tests/test_config.py is the drift guard.
 # Every value here builds the architecture as it was before the knob existed.
@@ -139,4 +139,5 @@ model:
   value_ecdf: false             # context-only ECDF-rank channel per cell (AU5.16)
   attn_length_scale: false      # row-attention logits times log(n_ctx)/log(attn_length_ref) (AU5.17)
   attn_length_ref: 512          # context length at which the length scale is 1
+  attn_impl: masked             # masked, or split: the same row attention without a mask (AU5.2)
   hazard_period_context: false  # hazard context rows embed their default period (AU5.9)
