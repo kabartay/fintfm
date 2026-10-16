@@ -296,3 +296,20 @@ through:
 4. **Cheap gap diagnostics (AU4)** in the next GPU session after §164: boosting rounds, context
    composition, context length past the trained range.
 5. **Strength levers (AU5)** only after those, each under §159's pre-registered rule.
+
+## Design review of 2026-10-16 — the order after the audit
+
+[`docs/design/DESIGN_REVIEW_2026-10-16.md`](../design/DESIGN_REVIEW_2026-10-16.md) and
+[`openspec/changes/design-review-2026-10-16/`](../../openspec/changes/design-review-2026-10-16/)
+set the order from here, ahead of the audit's Phase 4 and 5 measurements:
+
+1. **DR1, integrity** (CPU, no output changes): fingerprint test, provenance in every
+   checkpoint, one configuration source, one inference path, lever validation. Blocks every new
+   GPU checkpoint.
+2. **DR3 and DR4, cheap measurements and a clean evaluation loop**: partitioned contexts and
+   8 members on V4FinBench; NaN handling and ensemble axes on TabArena-Lite; a proxy suite with no
+   TabArena overlap.
+3. **DR5, throughput then a volume test** (48,000 against 480,000 tasks, two seeds,
+   pre-registered).
+4. **DR2 and DR6, prior v2 and architecture v2**, each at matched tasks.
+5. **DR7**: the resubmission bar is about 1,010 Elo (RF default parity), not 936.

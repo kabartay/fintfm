@@ -474,7 +474,7 @@
 - [ ] AU5.17 **fintfm-train flags `--attn-length-scale` and `--attn-length-ref` wired (2026-10-16, 6ec5534); measurement open.**
       **Implemented behind flags (2026-10-16); measurement open.** Attention half:
       `attn_length_scale` (0a3b8c8; fixed log-length scale, no learned per-query factor).
-      Optimiser half: `--optimizer muon` (9c3b615). Early target inclusion not done.
+      Optimiser half: `--optimizer muon` (9c3b615). Early target inclusion already exists as `cell_labels` (task 39.2; design review 2026-10-16).
       **Optimiser and attention scaling from TabICLv2**: Muon, QASSMax (length-aware
       softmax scaling), early target inclusion; also the fix for AU4.3 if context length is the
       problem.

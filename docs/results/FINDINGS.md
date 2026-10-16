@@ -8030,6 +8030,11 @@ worth its existence, and for MITRA's framing that the lever is prior design rath
 
 ## §116 — The tree prior helps on general tabular data and harms credit, which is the case that decides it
 
+> **Confounded, 2026-10-16 (§166).** The tree arm also cut the financial share from 0.70 to 0.49,
+> because the prior draws the tree source first. At a matched financial share (`scm50`) the tree
+> arm is +0.0119 mean AP on 4 of 5 folds. Read this section's credit result as the financial
+> share's effect, not the tree prior's.
+
 **How these numbers were produced.** MEASURED. `fintfm-v4protocol --no-boosting --device mps`
 on V4FinBench horizon 0 under its **published** five-fold protocol: 1,000,087 company-years,
 130 features, **3,587 positives (0.359%)**, released fold indices, thresholds calibrated on the
@@ -11363,6 +11368,32 @@ also needs its mean ΔAP to exceed twice the device gap**, measured as §163's e
 (seed 0) re-run on the same GPU kernel against §163's CPU arm. Until that re-run exists, a GPU
 arm's verdict is reported as **provisional (device-confounded)**, never as better or worse.
 
+### §164 result, arm S1 (MEASURED, 2026-10-16)
+
+`runs/ft2/S1`, CPU, `finetune_seed: 1`, otherwise §163's setting; §163's arm is
+`runs/ft/B_lr1e5` (folds 1-4) with fold 0 from `runs/ft/A_lr1e5` (same setting); zero-shot is
+`runs/task48-6-kaggle/control_rescore.json`. Identical test rows on every fold.
+
+| fold | zero-shot AP | seed 0 (§163) | seed 1 (S1) | S1 − seed 0 | S1 − zero-shot |
+| --- | --- | --- | --- | --- | --- |
+| 0 | 0.2113 | 0.2181 | 0.2185 | +0.0004 | +0.0072 |
+| 1 | 0.2050 | 0.2068 | 0.2055 | −0.0013 | +0.0005 |
+| 2 | 0.1786 | 0.1901 | 0.1898 | −0.0003 | +0.0112 |
+| 3 | 0.1810 | 0.1955 | 0.1942 | −0.0013 | +0.0131 |
+| 4 | 0.2172 | 0.2205 | 0.2205 | −0.0000 | +0.0033 |
+| **mean** | 0.1986 | 0.2062 | 0.2057 | −0.0005 | **+0.0071** |
+
+- **Seed noise (Rule 1):** mean absolute per-fold difference 0.0007, SD of the per-fold
+  difference 0.0008, gap of the means 0.0005.
+- **Does §163 replicate (Rule 2)? No, by the rule as written:** S1 against zero-shot is +0.0071
+  mean AP with 5 of 5 folds positive, and the rule needs the mean above +0.0073. It misses by
+  0.0002. The pre-registered verdict stands as **not replicated**. Read beside it: the seed
+  noise just measured is about a tenth of the bar, and §160 showed the bar itself is mostly a
+  head-size effect, not noise (audit AU2.9), so the effect is consistent across seeds; what
+  failed is the size threshold.
+- **Bar for EN and L600 (Rule 3):** the larger of 0.0073 and twice the seed gap of the means
+  (0.0010), so 0.0073, plus the device amendment above.
+
 ## §165 — The published checkpoint is close to label-symmetric on synthetic tasks, and least so on Polish
 
 **MEASURED, 2026-10-16.** `scripts/label_symmetry_probe.py` on `runs/v4-cellattn-labels.pt`, CPU,
@@ -11388,3 +11419,36 @@ inversion. Polish 3-year is clearly the least symmetric of the four sources.
 model that is roughly symmetric and errs in both directions; it would blur one that reads the
 class index. On this evidence the axis is worth scoring, with Polish the case to watch. No
 accuracy effect is measured here.
+
+## §166 — §116's tree-prior loss on credit is confounded with the financial share
+
+**MEASURED, 2026-10-16**, from saved predictions; no new run. `prior/mixture.py` draws a task's
+source in a fixed order, tree first and financial only on what is left, then SCM as the
+remainder. §116's tree arm (`p_tree 0.3, p_financial 0.7`) therefore trained on financial 0.49,
+SCM 0.21 and tree 0.30, while its control (`p_financial 0.7`) trained on financial 0.70 and SCM
+0.30. §116 described them as "identical except for the prior mixture" and read the whole
+difference as the tree prior's.
+
+`scm50` (`p_financial 0.5`: financial 0.50, SCM 0.50) matches the tree arm's financial share.
+Against it, `scripts/compare_v4_scores.py --control runs/v4proto-scm50
+tree=runs/v4proto-treeclean --n-boot 500`, row bootstrap, Holm across folds:
+
+| fold | `scm50` AP | tree arm AP | difference | 95% CI | Holm p |
+| --- | --- | --- | --- | --- | --- |
+| 0 | 0.1408 | 0.1381 | −0.0028 | [−0.0078, +0.0023] | 0.288 |
+| 1 | 0.1384 | 0.1575 | +0.0191 | [+0.0128, +0.0278] | 0.010 |
+| 2 | 0.1168 | 0.1301 | +0.0133 | [+0.0073, +0.0210] | 0.010 |
+| 3 | 0.1227 | 0.1434 | +0.0207 | [+0.0131, +0.0284] | 0.010 |
+| 4 | 0.1520 | 0.1609 | +0.0089 | [+0.0037, +0.0145] | 0.010 |
+
+**At a matched financial share the tree prior is +0.0119 mean AP, 4 of 5 folds positive.** One
+seed per arm, a row bootstrap (company-level would be wider, AU2.1), and 500 resamples, so the
+smallest reachable p is about 0.002 before Holm. It is not a verdict that the tree prior helps
+credit; it removes the evidence that it hurts.
+
+**What it changes.** §116, §118 and §141 share one shape: moving 0.2-0.3 of the financial share
+to anything else costs 0.022-0.034 AP. The cost tracks the financial share, not the source that
+replaces it. The README's "the tree prior ships off because it hurts credit" and every mixed
+recipe's weights since then need reading as conditional shares. Task DR2.1 replaces the
+sequential draw with normalised weights recorded in each checkpoint, and DR2.4 re-tests the tree
+prior at a matched financial share and two seeds.
