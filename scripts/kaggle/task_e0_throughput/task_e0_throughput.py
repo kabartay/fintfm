@@ -44,7 +44,9 @@ def sh(cmd: list[str], log: Path) -> int:
     """Run a command, streaming its output to the kernel log and a file."""
     print("$ " + " ".join(cmd), flush=True)
     with log.open("w") as fh:
-        proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        proc = subprocess.run(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, check=False
+        )
         fh.write(proc.stdout)
     print(proc.stdout[-4000:], flush=True)
     return proc.returncode
@@ -102,7 +104,7 @@ def main() -> None:
     summary = {"commit": COMMIT, "gpus": names, "cpus": os.cpu_count()}
     try:
         summary["agreement_max_abs_logit_diff"] = agreement(recipe)
-    except Exception as exc:  # report and carry on to the timings
+    except Exception as exc:  # noqa: BLE001 -- report and carry on to the timings
         summary["agreement_error"] = repr(exc)
     print(json.dumps(summary, indent=2), flush=True)
 
