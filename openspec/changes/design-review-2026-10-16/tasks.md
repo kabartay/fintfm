@@ -2,7 +2,11 @@
 
 ## Phase DR1 — integrity, no output may change
 
-- [ ] DR1.1 **Golden-output fingerprint of the published checkpoint.** A test that scores
+- [x] DR1.1 **Done (2026-10-16).** `tests/test_golden_outputs.py` against
+      `tests/fixtures/golden_v4cellattn.npz` (SHA-256 per output, 7 outputs, term structure
+      asserted refused) and `golden_random_init.npz` (9 CI outputs); 1-ulp perturbation
+      asserted to fail every one; `scripts/regen_golden.py` rebaselines, `scripts/pre-push`
+      runs it. **Golden-output fingerprint of the published checkpoint.** A test that scores
       `runs/v4-cellattn-labels.pt` (SHA-256 d231b062...) on a seeded 2,000 x 136 prior table plus
       512 queries for: default; `n_ensemble` 2 with label swap; retrieval; 3 fine-tuning steps on
       CPU; the three `transform_representation` stages; `predict_term_structure`. Exact equality,

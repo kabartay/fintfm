@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# Local checks before a push: the golden-output fingerprint of the published checkpoint (DR1.1).
+#
+# tests/test_golden_outputs.py scores runs/v4-cellattn-labels.pt and asserts its outputs are
+# bit-for-bit the recorded ones. CI cannot run that part, because the weights are gitignored
+# and never leave this machine, so this hook is where it runs. Only when the pushed commits
+# touch something that can move an output (src/, the golden harness or fixtures, the
+# dependency lock); a docs-only push costs nothing. The test skips, with its reason printed,
+# when the checkpoint is absent or torch/numpy/platform differ from the recording.
+#
+# Enabling it:
+#   * On a machine whose global core.hooksPath hook hands off to a repository's
+#     scripts/pre-push when it is executable, nothing more is needed.
+#   * Otherwise, per clone: `ln -s ../../scripts/pre-push .git/hooks/pre-push`, or
+#     `git config core.hooksPath scripts` (which also disables any other .git/hooks).
+#
+# Skip deliberately with `git push --no-verify`. Try it without pushing by feeding git's
+# stdin line yourself, for example the last three commits as if the remote were at HEAD~3:
+#   echo "refs/heads/main $(git rev-parse HEAD) refs/heads/main $(git rev-parse HEAD~3)" \
+#     | scripts/pre-push
+set -euo pipefail
+
+repo=$(git rev-parse --show-toplevel)
+cd "$repo"
+zero=0000000000000000000000000000000000000000
+
+changed=""
+while read -r _local_ref local_sha _remote_ref remote_sha; do
+  [ "$local_sha" = "$zero" ] && continue          # deleting a branch: nothing to test
+  if [ "$remote_sha" = "$zero" ]; then
+    base=$(git merge-base "$local_sha" origin/main 2>/dev/null || echo "")
+  else
+    base=$remote_sha
+  fi
+  if [ -n "$base" ]; then
+    changed+=$(git diff --name-only "$base" "$local_sha")$'\n'
+  else
+    changed+="src/unknown-base"$'\n'               # no common base: test rather than guess
+  fi
+done
+
+if ! grep -qE '^(src/|scripts/regen_golden\.py|tests/test_golden_outputs\.py|tests/fixtures/golden_|pyproject\.toml|uv\.lock)' <<<"$changed"; then
+  exit 0
+fi
+
+echo "pre-push: golden-output fingerprints (tests/test_golden_outputs.py)"
+exec uv run pytest -q -rs tests/test_golden_outputs.py
