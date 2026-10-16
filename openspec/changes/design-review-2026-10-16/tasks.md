@@ -78,7 +78,10 @@
       Verify: per-dataset paired differences recorded in `docs/results/TABARENA.md`.
 - [ ] DR3.6 **Score the TabArena imbalanced subset** from results already held (minutes).
       Verify: the subset Elo in `docs/results/TABARENA.md` with its date.
-- [ ] DR3.7 **Disclose the V4 data facts** in the benchmark section of FINDINGS: the insolvency
+- [x] DR3.7 **Done (2026-10-16).** FINDINGS §168 states each fact with its recomputed count,
+      with pointers from §35 and §147; the review's 8,171 cross-company rows (6 positives) did
+      not reproduce (1,081 rows, 0 positives on the harness's 130 features) and §168 says so.
+      **Disclose the V4 data facts** in the benchmark section of FINDINGS: the insolvency
       gate, positives only in final rows, base-rate drift by year, the 8,171 cross-company
       identical rows, the 130 (not 136) features after the silent bool drop, and that the harness
       imputes so the missingness mask is never exercised (correct §147's reading).
