@@ -889,8 +889,19 @@ class FinancialTFM(nn.Module):
 
         Returns:
             ``(B, N, d_model)`` row representations.
+
+        Raises:
+            ValueError: If ``X`` is wider than ``cfg.max_features`` (design review DR1.5).
+                Nothing in the weights depends on the width, so a wider table used to run
+                and return numbers the model was never built or trained to produce.
         """
         B, N, Fdim = X.shape
+        if Fdim > self.cfg.max_features:
+            raise ValueError(
+                f"the input table is {Fdim} features wide and ModelConfig.max_features is "
+                f"{self.cfg.max_features}; the model never saw a wider table, so it refuses "
+                "one rather than scoring it"
+            )
         Z, missing, pad = normalize_features(X, n_ctx)
         if self.value_basis is None and not self.cfg.value_ecdf:
             # The original value channel, kept as its own branch so the default path is the

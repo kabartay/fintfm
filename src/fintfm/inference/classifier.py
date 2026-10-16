@@ -33,6 +33,7 @@ property it deliberately trades away.
 from __future__ import annotations
 
 import contextlib
+import warnings
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, fields
 from typing import TYPE_CHECKING, Any, Literal, get_args
@@ -373,9 +374,11 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             prediction tied to which class occupies which output slot. **``False`` (the
             default) shifts nothing.** On a binary task this is label swap on every other
             member at no extra cost, where ``ensemble_label_swap`` doubles each member
-            instead; the two compose. Through :class:`FinancialTFMRegressor` the classes are
-            ordinal bins, so a shifted member sees a scrambled bin order: legal, but a
-            different experiment from the one this axis was written for.
+            instead, so the two are refused together on a binary task, where every member
+            would compute the same average (DR1.5); on more classes they compose. Through
+            :class:`FinancialTFMRegressor` the classes are ordinal bins, so a shifted member
+            sees a scrambled bin order; the regressor refuses that unless the checkpoint was
+            pretrained with ``permute_classes``.
         max_features_strategy: What :meth:`fit` does with a table wider than the checkpoint's
             ``max_features`` (audit AU5.7). **``"raise"`` (the default) raises**, as before.
             ``"subsample"`` scores the table with an ensemble whose members each see a
@@ -558,7 +561,8 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
                 meaningless score; with ``max_features_strategy="subsample"`` a wide table
                 is accepted instead (and fine-tuning on it rejected). Also if ``groups``
                 does not have one entry per row, for the ensemble settings
-                :meth:`_check_ensemble_settings` rejects, and for the fine-tuning settings
+                :meth:`_check_ensemble_settings` rejects, for the lever combinations
+                :meth:`_validate_combination` refuses, and for the fine-tuning settings
                 :meth:`_finetune` rejects. Also if ``periods`` does not have one entry per row,
                 or, for a ``hazard_period_context`` checkpoint, is missing, not integer, or
                 outside ``[CENSORED, n_horizons - 1]``.
@@ -599,6 +603,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
                 f"fine-tuning needs every feature in one forward pass, and this table has "
                 f"{X.shape[1]} against the model's {self.model.cfg.max_features}"
             )
+        self._validate_combination(len(self.classes_), X.shape[1])
         # None unless the table is wide: then each member's columns, planned once per fit
         self._member_columns = self._plan_member_columns(X.shape[1]) if wide else None
         self.n_members_ = (
@@ -758,8 +763,8 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         pretraining did, on the target's rows. Query groups are disjoint from context groups
         within a task (``finetune_query_group_frac``). The context draw is uniform, matching
         the inference default; the stored context is drawn afterwards, independently. With any
-        other ``context_strategy``, or with ``ensemble_label_swap``, inference reads a context
-        distribution the tuned weights never saw, and a ``UserWarning`` says so.
+        other ``context_strategy``, or any ensemble member axis, inference reads a context
+        distribution the tuned weights never saw, and :meth:`_validate_combination` warns.
 
         Args:
             X: ``(n, n_features)`` conditioned training rows (the whole pool).
@@ -773,19 +778,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
                 context side and a query side.
         """
         import copy
-        import warnings
 
-        if self.context_strategy != "uniform" or self.ensemble_label_swap:
-            # a warning rather than an error: the combination may be what an experiment wants
-            # to measure, but it is not what §163 measured, and the result should say so
-            warnings.warn(
-                f"fine-tuning draws a uniform context, but inference will read one chosen by "
-                f"context_strategy={self.context_strategy!r}"
-                + (" and label-swapped ensemble members" if self.ensemble_label_swap else "")
-                + "; the tuned weights never saw that distribution",
-                UserWarning,
-                stacklevel=3,
-            )
         if self.finetune_context is not None and self.finetune_context < 1:
             raise ValueError(
                 f"finetune_context must be None (use max_context) or >= 1, "
@@ -1055,6 +1048,121 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             )
         if self.ensemble_svd_components > 0 and self.context_strategy == "retrieval":
             raise ValueError("ensemble_svd_components is not supported with retrieval contexts")
+
+    def _validate_combination(
+        self, n_classes: int | None = None, n_features: int | None = None, warn: bool = True
+    ) -> None:
+        """Refuse lever combinations that run but misbehave, and warn on doubtful ones (DR1.5).
+
+        Each lever is checked on its own by :meth:`_check_ensemble_settings`; this checks
+        pairs, against the checkpoint and the task. Every message names both levers.
+        :meth:`fit` calls it once the task's class count and width are known. Without them
+        only the checks that need neither run, which is how the large-n wrappers refuse a
+        combination before fitting a tree or a round.
+
+        Args:
+            n_classes: Classes in the training labels; ``None`` skips the checks that need it.
+            n_features: Conditioned training width; ``None`` skips the SVD check.
+            warn: Emit the fine-tuning warning. A wrapper validating ahead of its inner
+                estimators passes False, so the warning is issued once, by them.
+
+        Raises:
+            ValueError: For ``finetune_steps > 0`` on a checkpoint with no trained
+                classification head (``head_type="quantile"``, recorded objectives without
+                classification, or a hazard checkpoint (``n_horizons``) with no
+                classification objective recorded): fine-tuning takes cross-entropy through
+                that head, so its gradients would flow from a random head into the shared
+                encoder. For ``ensemble_class_shift`` with ``ensemble_label_swap`` on a
+                binary task, where they cancel. For ``ensemble_svd_components > 0`` where
+                every member is already as wide as the checkpoint's ``max_features`` (a wide
+                table under ``max_features_strategy="subsample"``, or a table exactly that
+                wide), so no member would carry a projection.
+
+        Warns:
+            UserWarning: When fine-tuning is combined with a non-uniform ``context_strategy``
+                or any ensemble member axis (``ensemble_label_swap``,
+                ``ensemble_class_shift``, ``ensemble_transforms``,
+                ``ensemble_svd_components``, ``ensemble_feature_frac``): fine-tuning draws one
+                plain uniform context per task, so inference would read a distribution the
+                tuned weights never saw. A warning rather than an error, since the
+                combination may be what an experiment wants to measure, but it is not what
+                §163 measured, and the result should say so.
+        """
+        cfg = self.model.cfg
+        if self.finetune_steps > 0:
+            objectives = getattr(self.model, "trained_objectives", ())
+            if cfg.head_type != "binned":
+                raise ValueError(
+                    f"finetune_steps={self.finetune_steps} takes cross-entropy through the "
+                    f"classification head, and this checkpoint has head_type="
+                    f"{cfg.head_type!r}, which has none"
+                )
+            if objectives and "classification" not in objectives:
+                raise ValueError(
+                    f"finetune_steps={self.finetune_steps} takes cross-entropy through the "
+                    f"classification head, and this checkpoint's trained_objectives are "
+                    f"{sorted(objectives)}: the head is at its random initialisation"
+                )
+            if cfg.n_horizons is not None and "classification" not in objectives:
+                raise ValueError(
+                    f"finetune_steps={self.finetune_steps} takes cross-entropy through the "
+                    f"classification head, and this checkpoint has a hazard head "
+                    f"(n_horizons={cfg.n_horizons}) with no classification training recorded: "
+                    "the head is at its random initialisation, and its gradients would reach "
+                    "the encoder the term structure reads"
+                )
+        binary = n_classes == 2
+        if binary and self.ensemble_class_shift and self.ensemble_label_swap:
+            raise ValueError(
+                "ensemble_class_shift and ensemble_label_swap cancel on a binary task: the "
+                "shift swaps the labels of every odd member, and the label swap then averages "
+                "each member with its swapped twin, so every member computes the same "
+                "average and ensemble_class_shift adds nothing; use one of them"
+            )
+        if n_features is not None and self.ensemble_svd_components > 0:
+            cap = cfg.max_features
+            wide = n_features > cap
+            # a member's width, as _plan_member_columns and _member_proba draw it
+            width = (
+                min(cap, max(1, round(n_features * self.ensemble_feature_frac)))
+                if wide or self.ensemble_feature_frac < 1.0
+                else n_features
+            )
+            if width >= cap:
+                raise ValueError(
+                    f"ensemble_svd_components={self.ensemble_svd_components} appends "
+                    "projections only where a member is narrower than the checkpoint's "
+                    f"max_features={cap}, and every member here is {width} features wide"
+                    + (" under max_features_strategy='subsample'" if wide else "")
+                    + ", so none would carry one; lower ensemble_feature_frac or drop "
+                    "ensemble_svd_components"
+                )
+        if warn and n_classes is not None and self.finetune_steps > 0:
+            unseen = []
+            if self.context_strategy != "uniform":
+                unseen.append(f"a context chosen by context_strategy={self.context_strategy!r}")
+            if self.ensemble_label_swap:
+                unseen.append("label-swapped members (ensemble_label_swap)")
+            if self.ensemble_class_shift:
+                unseen.append(
+                    "label-swapped members (ensemble_class_shift, a label swap on a binary task)"
+                    if binary
+                    else "class-shifted members (ensemble_class_shift)"
+                )
+            if self.ensemble_transforms is not None:
+                unseen.append("per-member conditioning (ensemble_transforms)")
+            if self.ensemble_svd_components > 0:
+                unseen.append("SVD-augmented members (ensemble_svd_components)")
+            if self.ensemble_feature_frac < 1.0:
+                unseen.append("feature-subset members (ensemble_feature_frac)")
+            if unseen:
+                warnings.warn(
+                    f"fine-tuning (finetune_steps={self.finetune_steps}) draws a plain uniform "
+                    f"context, but inference will read {' and '.join(unseen)}; the tuned "
+                    "weights never saw that distribution",
+                    UserWarning,
+                    stacklevel=3,
+                )
 
     def _plan_member_columns(self, n_features: int) -> list[np.ndarray]:
         """Balanced round-robin column subsets covering a table wider than the model.

@@ -383,10 +383,11 @@ def test_attention_pooling_keeps_padding_width_invariance():
     """Padding a table wider must not change its predictions."""
     m = _pool_model("attention", column_id_dim=0)
     torch.manual_seed(2)
-    narrow = torch.randn(2, 24, 40)
-    narrow[:, :, 20:] = float("nan")  # only 20 real columns
+    narrow = torch.randn(2, 24, 20)  # 20 real columns
     y = torch.randint(0, 2, (2, 24))
-    wider = narrow.clone()
+    # NaN-padded to the model's 24 features; it used to pad to 40, past the model's width,
+    # and compare against an identical clone (DR1.5 refuses a table wider than the model)
+    wider = torch.cat([narrow, torch.full((2, 24, 4), float("nan"))], dim=-1)
     a = m(narrow, y, 12)
     b = m(wider, y, 12)
     torch.testing.assert_close(a, b, atol=1e-6, rtol=1e-5)

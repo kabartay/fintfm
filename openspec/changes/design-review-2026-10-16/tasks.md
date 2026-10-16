@@ -66,7 +66,17 @@
       `_ctx_y`/`_ctx_rate` reads.
       Verify: DR1.1's fingerprints unchanged except `predict_term_structure` at
       `random_state != 0`, which now matches `predict_proba`'s seed, recorded as a deliberate fix.
-- [ ] DR1.5 **Lever-combination validator and covering tests.** Refuse fine-tuning on a
+- [x] DR1.5 **Done (2026-10-16).** `FinancialTFMClassifier._validate_combination` (at
+      `fit`) refuses fine-tuning a quantile or hazard checkpoint, class shift with label
+      swap on a binary task, and SVD members with no width left; it warns on fine-tuning
+      beside any ensemble axis (binary class shift named as a label swap). The binned
+      regressor refuses class shift over more than two bins unless the checkpoint's
+      recorded prior had `permute_classes`; the large-n wrappers validate before fitting;
+      `train()`/`benchmark()` call `check_model_matches_prior`; `encode_rows` refuses a
+      table wider than `max_features`. `tests/test_lever_combinations.py`: every refusal
+      names both levers, and greedy pairwise covers of 15 model and 20 classifier rows
+      (complete over every valid pair) pass; golden fingerprints unchanged.
+      **Lever-combination validator and covering tests.** Refuse fine-tuning on a
       non-classification checkpoint; warn on any ensemble member axis during fine-tuning (class
       shift on a binary task is a label swap); raise on SVD with zero components after
       subsampling; cross-check `ModelConfig` against `PriorConfig` in `train()`. A pairwise

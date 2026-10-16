@@ -789,6 +789,55 @@ def _training_provenance(
     }
 
 
+def check_model_matches_prior(model_cfg: ModelConfig, prior_cfg: PriorConfig) -> None:
+    """Refuse a model that cannot be trained on the tasks its prior generates (DR1.5).
+
+    ``fintfm-train`` builds both configurations from one set of values
+    (:func:`build_prior_config` takes the shape fields from the ``model`` section), so this
+    never fires there; it guards every other caller of :func:`train`, where the two used to
+    disagree without an error. A prior narrower than the model, or with fewer classes, is
+    legitimate (the padding is masked); every other mismatch trains something other than
+    what either configuration says.
+
+    Args:
+        model_cfg: The architecture.
+        prior_cfg: The pretraining prior.
+
+    Raises:
+        ValueError: Naming the field on both sides, when the prior's tables are wider than
+            ``ModelConfig.max_features``, its tasks have more classes than
+            ``ModelConfig.max_classes``, the two ``head_type`` values differ (the loss would
+            not be the objective the prior was built for), or the two ``n_horizons``
+            differ (a hazard head trained without periods, or periods drawn for a model
+            with no hazard head to read them).
+    """
+    if prior_cfg.max_features > model_cfg.max_features:
+        raise ValueError(
+            f"PriorConfig.max_features={prior_cfg.max_features} exceeds "
+            f"ModelConfig.max_features={model_cfg.max_features}: the prior would generate "
+            "tables wider than the model accepts"
+        )
+    if prior_cfg.max_classes > model_cfg.max_classes:
+        raise ValueError(
+            f"PriorConfig.max_classes={prior_cfg.max_classes} exceeds "
+            f"ModelConfig.max_classes={model_cfg.max_classes}: the prior would emit labels "
+            "the classification head has no logit for"
+        )
+    if prior_cfg.head_type != model_cfg.head_type:
+        raise ValueError(
+            f"PriorConfig.head_type={prior_cfg.head_type!r} differs from "
+            f"ModelConfig.head_type={model_cfg.head_type!r}: the prior builds its tasks for "
+            "one objective and the model would train the other"
+        )
+    if prior_cfg.n_horizons != model_cfg.n_horizons:
+        raise ValueError(
+            f"PriorConfig.n_horizons={prior_cfg.n_horizons} differs from "
+            f"ModelConfig.n_horizons={model_cfg.n_horizons}: a hazard head needs the prior "
+            "to draw a period per row over the same horizons, and periods for a model "
+            "without one are never read"
+        )
+
+
 def train(
     model_cfg: ModelConfig, prior_cfg: PriorConfig, train_cfg: TrainConfig, out_path: str
 ) -> FinancialTFM:
@@ -796,7 +845,12 @@ def train(
 
     Every checkpoint written, partial or final, carries a provenance record
     (:func:`_training_provenance`), which :meth:`FinancialTFM.load` ignores.
+
+    Raises:
+        ValueError: From :func:`check_model_matches_prior`, before any step, when the model
+            and the prior disagree on the table's shape or the objective.
     """
+    check_model_matches_prior(model_cfg, prior_cfg)
     rng = np.random.default_rng(train_cfg.seed)
     # Held-out evaluation draws from its own stream (audit AU1.18). Sharing ``rng`` made every
     # training batch after the first evaluation depend on ``eval_every``, so two runs that
@@ -1033,11 +1087,13 @@ def benchmark(
         settings that produced the numbers, ``task_dump`` among them.
 
     Raises:
-        ValueError: If ``n_steps < 1``, or if the dump does not match the run's prior and
-            batch size or is shorter than ``warmup + n_steps`` batches.
+        ValueError: If ``n_steps < 1``, if the model and the prior disagree
+            (:func:`check_model_matches_prior`), or if the dump does not match the run's
+            prior and batch size or is shorter than ``warmup + n_steps`` batches.
     """
     if n_steps < 1:
         raise ValueError(f"n_steps must be at least 1, got {n_steps}")
+    check_model_matches_prior(model_cfg, prior_cfg)
     dump = (
         None
         if train_cfg.task_dump is None

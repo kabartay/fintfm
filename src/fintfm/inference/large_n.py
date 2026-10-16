@@ -148,6 +148,25 @@ class PartitionedTFMClassifier(BaseEstimator, ClassifierMixin):
         if not 0.0 < self.bag_frac <= 1.0:
             raise ValueError(f"bag_frac must lie in (0, 1], got {self.bag_frac}")
 
+    def _validate_combination(self, n_classes: int, n_features: int) -> None:
+        """Refuse the inner estimator's lever combinations before anything is fitted (DR1.5).
+
+        Every inner estimator would refuse them at its own ``fit``; checked here once, so a
+        bad combination fails before a tree is grown. The inner
+        estimators still issue the fine-tuning warning themselves.
+
+        Args:
+            n_classes: Classes in the training labels.
+            n_features: Training width.
+
+        Raises:
+            ValueError: From
+                :meth:`fintfm.inference.classifier.FinancialTFMClassifier._check_ensemble_settings`
+                or :meth:`~fintfm.inference.classifier.FinancialTFMClassifier._validate_combination`.
+        """
+        self.estimator._check_ensemble_settings()
+        self.estimator._validate_combination(n_classes, n_features, warn=False)
+
     def _leaf_is_usable(self, y_leaf: np.ndarray) -> bool:
         """Whether a leaf's rows can carry a context of their own.
 
@@ -176,6 +195,10 @@ class PartitionedTFMClassifier(BaseEstimator, ClassifierMixin):
 
         Returns:
             self.
+
+        Raises:
+            ValueError: For settings out of range, or a lever combination the inner
+                estimator refuses (:meth:`_validate_combination`).
         """
         from sklearn.tree import DecisionTreeClassifier
 
@@ -185,6 +208,7 @@ class PartitionedTFMClassifier(BaseEstimator, ClassifierMixin):
         groups = None if groups is None else np.asarray(groups)
         self.classes_ = np.unique(y)
         self.n_features_in_ = X.shape[1]
+        self._validate_combination(len(self.classes_), X.shape[1])
         rng = np.random.default_rng(self.random_state)
         base_seed = int(self.estimator.random_state)
         self.global_estimator_ = _inner(self.estimator, random_state=base_seed).fit(
@@ -331,6 +355,25 @@ class BoostedTFMClassifier(BaseEstimator, ClassifierMixin):
         self.pool_rows = pool_rows
         self.random_state = random_state
 
+    def _validate_combination(self, n_classes: int, n_features: int) -> None:
+        """Refuse the inner estimator's lever combinations before anything is fitted (DR1.5).
+
+        Every inner estimator would refuse them at its own ``fit``; checked here once, so a
+        bad combination fails before a round is drawn. The inner
+        estimators still issue the fine-tuning warning themselves.
+
+        Args:
+            n_classes: Classes in the training labels.
+            n_features: Training width.
+
+        Raises:
+            ValueError: From
+                :meth:`fintfm.inference.classifier.FinancialTFMClassifier._check_ensemble_settings`
+                or :meth:`~fintfm.inference.classifier.FinancialTFMClassifier._validate_combination`.
+        """
+        self.estimator._check_ensemble_settings()
+        self.estimator._validate_combination(n_classes, n_features, warn=False)
+
     def sampling_weights(self, residual: np.ndarray) -> np.ndarray:
         """Normalised context-sampling probabilities from residuals.
 
@@ -419,8 +462,9 @@ class BoostedTFMClassifier(BaseEstimator, ClassifierMixin):
             self.
 
         Raises:
-            ValueError: If ``y`` does not have exactly two classes, or a setting is out of
-                range.
+            ValueError: If ``y`` does not have exactly two classes, a setting is out of
+                range, or the inner estimator refuses a lever combination
+                (:meth:`_validate_combination`).
         """
         X = np.asarray(X, dtype=np.float32)
         y = np.asarray(y)
@@ -432,6 +476,7 @@ class BoostedTFMClassifier(BaseEstimator, ClassifierMixin):
         if self.n_rounds < 1 or self.context_rows < 2 or self.learning_rate <= 0:
             raise ValueError("n_rounds >= 1, context_rows >= 2 and learning_rate > 0 required")
         self.n_features_in_ = X.shape[1]
+        self._validate_combination(2, X.shape[1])
         yc = (y == self.classes_[1]).astype(np.float64)
         rng = np.random.default_rng(self.random_state)
         n = len(y)

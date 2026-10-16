@@ -52,6 +52,30 @@ from fintfm.inference.classifier import FinancialTFMClassifier
 from fintfm.modeling.model import FinancialTFM
 
 
+def _pretrained_with_permuted_classes(model: FinancialTFM | str) -> bool:
+    """Whether a checkpoint's provenance says its prior permuted class labels.
+
+    Read from the file, since :meth:`FinancialTFM.load` deliberately ignores the record
+    (design review DR1.2). An in-memory model has no file, so it is read from a
+    ``provenance`` attribute when a caller attached one (the mapping
+    :func:`fintfm.provenance.read_checkpoint_provenance` returns).
+
+    Args:
+        model: A checkpoint path, or a model.
+
+    Returns:
+        ``PriorConfig.permute_classes`` as recorded, ``False`` when nothing is recorded.
+    """
+    from fintfm.provenance import read_checkpoint_provenance
+
+    record = (
+        read_checkpoint_provenance(model)
+        if isinstance(model, str)
+        else getattr(model, "provenance", None)
+    ) or {}
+    return bool((record.get("prior_config") or {}).get("permute_classes", False))
+
+
 class FinancialTFMRegressor(BaseEstimator, RegressorMixin):
     """In-context tabular regressor: quantile-bin the target, classify, de-bin.
 
@@ -113,8 +137,9 @@ class FinancialTFMRegressor(BaseEstimator, RegressorMixin):
             self.
 
         Raises:
-            ValueError: If ``n_bins`` exceeds the checkpoint's ``max_classes``, or if ``y``
-                holds a NaN or an infinity.
+            ValueError: If ``n_bins`` exceeds the checkpoint's ``max_classes``, if ``y``
+                holds a NaN or an infinity, or for a combination
+                :meth:`_validate_combination` refuses.
         """
         y = np.asarray(y, dtype=np.float64).ravel()
         # np.digitize puts NaN and +inf in the top bin and -inf in bin 0, so a non-finite
@@ -135,8 +160,39 @@ class FinancialTFMRegressor(BaseEstimator, RegressorMixin):
         # predicted, so letting them set the edges would leak the answer into the grid the
         # answer is read off -- the same reason `prior/base.py` bins on context rows alone.
         self.binner_ = QuantileBinner(self.n_bins).fit(y)
+        self._validate_combination(clf, self.binner_.n_bins_)
         self.classifier_ = clf.fit(X, self.binner_.transform(y))
         return self
+
+    def _validate_combination(self, clf: FinancialTFMClassifier, n_bins: int) -> None:
+        """Refuse classifier levers that misread ordinal bins as classes (design review DR1.5).
+
+        The wrapped classifier validates its own combinations at its ``fit``; this adds the
+        one that only the regressor can see, because only it knows the classes are bins.
+
+        Args:
+            clf: The unfitted classifier about to be fitted on the bin indices.
+            n_bins: Bins the binner produced, which can be fewer than ``n_bins`` asked.
+
+        Raises:
+            ValueError: For ``ensemble_class_shift`` over more than two bins on a checkpoint
+                not pretrained with ``permute_classes``. A shifted member relabels bin ``j``
+                as bin ``j + i`` modulo the count, so the top bin lands beside the bottom
+                one, and a model that never saw permuted labels reads the order of its
+                classes (``PriorConfig.permute_classes``, audit AU5.5). Two bins are a label
+                swap, which is allowed. A checkpoint with no provenance record, or a model
+                in memory without a ``provenance`` attribute, counts as not permuted.
+        """
+        if not clf.ensemble_class_shift or n_bins <= 2:
+            return
+        if _pretrained_with_permuted_classes(self.model):
+            return
+        raise ValueError(
+            f"ensemble_class_shift relabels the {n_bins} ordinal bins by a cyclic shift, and "
+            "this checkpoint was not pretrained with permute_classes, so it reads the bin "
+            "order a shifted member scrambles; drop ensemble_class_shift, or use a "
+            "checkpoint pretrained with permute_classes"
+        )
 
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
         """Predicted distribution over bins.
