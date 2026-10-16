@@ -177,6 +177,19 @@ train:
   # rms_match (0.2*sqrt(max(n, m)) scaling, sized to share AdamW's rate), 0.02 under keller.
   muon_lr: null            # Muon's matrix-group rate
   muon_scale: "rms_match"  # "rms_match" or "keller"
+  # Batch source (design review DR5.2). sync = one sequential generator on this process, every
+  # checkpoint's stream; stream = batch i from default_rng([seed, i]) in worker processes.
+  loader: sync
+  loader_workers: 0        # stream only; the stream is the same at any count
+  loader_prefetch: 2       # batches each stream worker keeps ready
+  ddp: false               # torchrun data parallel over stream ranks; needs loader: stream
+  # Schedule (DR5.4). cosine = warmup then cosine to zero over steps; wsd = warmup, constant,
+  # then linear decay to lr_min over the last decay_frac of steps (extendable from its stable phase).
+  schedule: cosine
+  decay_frac: 0.1          # wsd only
+  lr_min: 0.0              # wsd only
+  eval_set_seed: null      # a seed = the same held-out tasks at every evaluation; null = fresh
+  eval_batches: 5          # held-out batches per evaluation
 
 # Every ModelConfig field, read by fintfm-train (DR1.3; the levers of audit AU5.2, AU5.3, AU5.9,
 # AU5.16 and AU5.17 among them). These MIRROR ModelConfig's literal defaults in

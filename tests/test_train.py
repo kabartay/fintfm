@@ -234,6 +234,10 @@ def test_default_training_matches_the_pre_lever_loop(tmp_path):
     assert (cfg.optimizer, cfg.amp, cfg.decay_norm_bias, cfg.warmup_steps) == (
         "adamw", "none", True, 500,
     )
+    # DR5.2/DR5.4: the sync loader, one process, the cosine schedule and fresh evaluation
+    assert (cfg.loader, cfg.ddp, cfg.schedule, cfg.eval_set_seed, cfg.eval_batches) == (
+        "sync", False, "cosine", None, 5,
+    )
     model_cfg = ModelConfig(**_TINY_RICH)
     prior_cfg = PriorConfig(max_features=8, max_classes=2, n_rows=32)
     steps, seed = 5, 7
@@ -577,6 +581,166 @@ def test_warmup_steps_sets_the_schedule():
     assert [_lr_schedule(s, cfg) for s in range(4)] == [0.25, 0.5, 0.75, 1.0]
     assert _lr_schedule(4, cfg) == pytest.approx(1.0)
     assert _lr_schedule(9, cfg) < 0.1
+
+
+# --- Design review DR5.4: the warmup-stable-decay schedule and the fixed evaluation set.
+
+_TINY_WSD = {
+    "steps": 12, "batch_size": 2, "eval_every": 1000, "log_every": 1000, "seed": 3,
+    "warmup_steps": 2, "schedule": "wsd", "decay_frac": 0.25, "lr_min": 3e-5,
+}
+
+
+def test_cosine_multiplier_is_unchanged_by_the_schedule_option():
+    """The default schedule is the formula every checkpoint trained under, value for value."""
+    import numpy as np
+
+    from fintfm.modeling.train import TrainConfig, _lr_schedule
+
+    cfg = TrainConfig(steps=40, warmup_steps=5)
+    for s in range(40):
+        want = (s + 1) / 5 if s < 5 else 0.5 * (1 + np.cos(np.pi * ((s - 5) / 35)))
+        assert _lr_schedule(s, cfg) == want
+
+
+def test_wsd_warms_up_holds_then_decays_linearly_to_lr_min():
+    from fintfm.modeling.train import TrainConfig, _decay_start, _lr_schedule
+
+    cfg = TrainConfig(**_TINY_WSD)
+    assert _decay_start(cfg) == 9
+    got = [_lr_schedule(s, cfg) for s in range(12)]
+    assert got[:2] == [0.5, 1.0] and got[2:9] == [1.0] * 7
+    floor = 3e-5 / 3e-4
+    assert got[9:] == pytest.approx([1 - (1 - floor) / 3, 1 - 2 * (1 - floor) / 3, floor])
+    # the stable phase does not depend on the horizon: a longer run agrees step for step
+    longer = TrainConfig(**{**_TINY_WSD, "steps": 20})
+    assert [_lr_schedule(s, longer) for s in range(9)] == got[:9]
+
+
+@pytest.mark.parametrize("loader", ["sync", "stream"])
+def test_wsd_stable_state_resumes_with_a_longer_horizon_to_the_uninterrupted_weights(
+    tmp_path, loader
+):
+    """DR5.4's Verify: a 12-step wsd run keeps its last stable step's state; resuming it
+    with ``steps=20`` gives exactly the weights of a run planned at 20 steps from the start.
+    The resumed run's first step uses the 20-step schedule's rate, not the 12-step run's
+    first decay rate that the optimiser restored."""
+    from fintfm.modeling.train import TrainConfig, train
+
+    model_cfg = ModelConfig(**_TINY_RICH)
+    prior_cfg = PriorConfig(max_features=8, max_classes=2, n_rows=32)
+    short = tmp_path / "short.pt"
+    train(model_cfg, prior_cfg, TrainConfig(**_TINY_WSD, loader=loader), str(short))
+    stable = torch.load(f"{short}.stable.state", weights_only=False)
+    assert stable["step"] == 9 and stable["schedule"]["name"] == "wsd"
+    longer = {**_TINY_WSD, "steps": 20, "loader": loader}
+    whole = train(model_cfg, prior_cfg, TrainConfig(**longer), str(tmp_path / "whole.pt"))
+    resumed = train(
+        model_cfg, prior_cfg,
+        TrainConfig(**longer, resume=f"{short}.stable.state"),
+        str(tmp_path / "resumed.pt"),
+    )
+    for (name, a), (_, b) in zip(whole.state_dict().items(), resumed.state_dict().items()):
+        assert torch.equal(a, b), name
+
+
+def test_wsd_refuses_a_new_horizon_once_the_decay_has_started(tmp_path):
+    """A state taken inside the decay trained at rates the longer horizon never uses."""
+    from fintfm.modeling.train import TrainConfig, train
+
+    model_cfg = ModelConfig(**_TINY_RICH)
+    prior_cfg = PriorConfig(max_features=8, max_classes=2, n_rows=32)
+    out = tmp_path / "m.pt"
+    train(model_cfg, prior_cfg, TrainConfig(**{**_TINY_WSD, "steps": 12}), str(out))
+    with pytest.raises(ValueError, match="schedule"):
+        train(model_cfg, prior_cfg,
+              TrainConfig(**{**_TINY_WSD, "steps": 20}, resume=f"{out}.state"),
+              str(tmp_path / "x.pt"))
+    with pytest.raises(ValueError, match="--schedule wsd"):  # a cosine run resuming it
+        train(model_cfg, prior_cfg,
+              TrainConfig(**{**_TINY_WSD, "schedule": "cosine"}, resume=f"{out}.state"),
+              str(tmp_path / "y.pt"))
+
+
+@pytest.mark.parametrize(
+    "kw, match",
+    [
+        ({"schedule": "wsd", "optimizer": "schedulefree"}, "no effect under the schedulefree"),
+        ({"schedule": "wsd", "steps": 10, "warmup_steps": 8, "decay_frac": 0.5}, "inside"),
+        ({"schedule": "wsd", "lr_min": 1.0}, "lr_min"),
+        ({"schedule": "linear"}, "schedule must be one of"),
+        ({"eval_batches": 0}, "eval_batches"),
+    ],
+    ids=["schedulefree", "decay-in-warmup", "lr-min", "unknown", "eval-batches"],
+)
+def test_schedule_settings_that_would_misbehave_are_refused(kw, match):
+    from fintfm.modeling.train import TrainConfig, _check_train_config
+
+    with pytest.raises(ValueError, match=match):
+        _check_train_config(TrainConfig(**kw))
+
+
+def test_eval_set_seed_scores_the_same_tasks_at_every_evaluation(tmp_path, monkeypatch):
+    """DR5.4: with ``eval_set_seed`` every evaluation scores the same batches, a function of
+    the seed alone; without it each evaluation draws fresh ones, as before. Neither changes
+    the training batches, and the checkpoint records the set (DR1.2)."""
+    import importlib
+
+    from fintfm.modeling.train import TrainConfig, fixed_eval_set, train
+    from fintfm.provenance import read_checkpoint_provenance
+
+    train_mod = importlib.import_module("fintfm.modeling.train")
+    real = train_mod._eval_quality
+    seen: list[list[torch.Tensor]] = []
+
+    def recording(model, prior_cfg, rng, **kw):
+        batches = kw.get("batches")
+        if batches is None:  # fresh: draw them here, from the same rng, as real() would
+            import copy
+
+            probe = copy.deepcopy(rng)
+            batches = [train_mod.sample_batch(probe, prior_cfg, kw["batch_size"])
+                       for _ in range(kw["n_batches"])]
+        seen.append([b.y for b in batches])
+        return real(model, prior_cfg, rng, **kw)
+
+    monkeypatch.setattr(train_mod, "_eval_quality", recording)
+    model_cfg = ModelConfig(**_TINY_RICH)
+    prior_cfg = PriorConfig(max_features=8, max_classes=2, n_rows=32)
+    common = {"steps": 3, "batch_size": 2, "eval_every": 1, "log_every": 1000, "seed": 0}
+
+    fixed = train(model_cfg, prior_cfg, TrainConfig(**common, eval_set_seed=11, eval_batches=2),
+                  str(tmp_path / "f.pt"))
+    assert len(seen) == 3 and all(len(s) == 2 for s in seen)
+    for later in seen[1:]:
+        assert all(torch.equal(a, b) for a, b in zip(seen[0], later))
+    want = fixed_eval_set(prior_cfg, 2, 2, 11)
+    assert all(torch.equal(a, b.y) for a, b in zip(seen[0], want))
+    rec = read_checkpoint_provenance(tmp_path / "f.pt")
+    assert rec["eval_set"] == {"seed": 11, "batches": 2, "tasks": 4}
+
+    seen.clear()
+    fresh = train(model_cfg, prior_cfg, TrainConfig(**common), str(tmp_path / "n.pt"))
+    assert len(seen) == 3 and len(seen[0]) == 5  # the default five fresh batches
+    assert not all(torch.equal(a, b) for a, b in zip(seen[0], seen[1]))
+    assert read_checkpoint_provenance(tmp_path / "n.pt")["eval_set"] is None
+    for (name, a), (_, b) in zip(fixed.state_dict().items(), fresh.state_dict().items()):
+        assert torch.equal(a, b), name
+
+
+def test_cli_passes_the_schedule_and_eval_set_flags(tmp_path, monkeypatch):
+    base = ["--steps", "1", "--out", str(tmp_path / "x.pt")]
+    cfg = _captured_train_cfg(monkeypatch, base)
+    assert (cfg.schedule, cfg.decay_frac, cfg.lr_min, cfg.eval_set_seed, cfg.eval_batches) == (
+        "cosine", 0.1, 0.0, None, 5,
+    )
+    cfg = _captured_train_cfg(monkeypatch, [
+        *base, "--schedule", "wsd", "--decay-frac", "0.2", "--lr-min", "1e-5",
+        "--eval-set-seed", "7", "--eval-batches", "64",
+    ])
+    assert (cfg.schedule, cfg.decay_frac, cfg.lr_min, cfg.eval_set_seed, cfg.eval_batches) == (
+        "wsd", 0.2, 1e-5, 7, 64,
+    )
 
 
 def _captured_configs(monkeypatch, argv, with_prior=False):

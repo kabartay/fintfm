@@ -420,6 +420,14 @@ def test_every_train_flag_defaults_to_none_and_names_a_config_field():
         ("train:\n  muon_lr: 0\n", "muon_lr"),
         ("train:\n  muon_scale: spectral\n", "muon_scale"),
         ("train:\n  decay_norm_bias: maybe\n", "decay_norm_bias"),
+        ("train:\n  loader: bulk\n", "train.loader"),
+        ("train:\n  loader_workers: -1\n", "loader_workers"),
+        ("train:\n  loader_prefetch: 0\n", "loader_prefetch"),
+        ("train:\n  ddp: yes please\n", "train.ddp"),
+        ("train:\n  schedule: linear\n", "train.schedule"),
+        ("train:\n  decay_frac: 1.5\n", "decay_frac"),
+        ("train:\n  lr_min: -1.0\n", "lr_min"),
+        ("train:\n  eval_batches: 0\n", "eval_batches"),
     ],
 )
 def test_train_section_values_are_validated(tmp_path, body, match):
