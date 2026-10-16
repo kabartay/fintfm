@@ -79,6 +79,7 @@ class InferenceConfig:
     ensemble_svd_components: int = 0
     ensemble_class_shift: bool = False
     max_features_strategy: str = "raise"
+    retrieval_per_class: int | None = None
 
 
 @dataclass(frozen=True)
@@ -178,6 +179,31 @@ class ModelConfigDefaults:
 
 
 @dataclass(frozen=True)
+class LargeNConfig:
+    """The large-table wrapper ``fintfm-v4protocol`` puts around its fintfm arm (audit AU5.8).
+
+    The ``partition_*`` and ``boost_*`` fields mirror the literal defaults of
+    :class:`~fintfm.inference.large_n.PartitionedTFMClassifier` and
+    :class:`~fintfm.inference.large_n.BoostedTFMClassifier`, with the prefix dropped;
+    ``tests/test_config.py`` is the drift guard. ``method="none"`` wraps nothing.
+    """
+
+    method: str = "none"
+    partition_max_depth: int = 2
+    partition_min_samples_leaf: float = 0.05  # an int is a row count, as in sklearn
+    partition_n_bags: int = 1
+    partition_bag_frac: float = 0.6
+    partition_min_leaf_rows: int = 200
+    partition_min_class_rows: int = 2
+    boost_n_rounds: int = 8
+    boost_context_rows: int = 512
+    boost_learning_rate: float = 0.5
+    boost_weighting: str = "abs"
+    boost_max_step: float = 4.0
+    boost_pool_rows: int | None = None
+
+
+@dataclass(frozen=True)
 class Config:
     """The whole configuration, with the path it was loaded from for the run record."""
 
@@ -188,6 +214,7 @@ class Config:
     prior: PriorConfigDefaults = field(default_factory=PriorConfigDefaults)
     train: TrainConfigDefaults = field(default_factory=TrainConfigDefaults)
     model: ModelConfigDefaults = field(default_factory=ModelConfigDefaults)
+    large_n: LargeNConfig = field(default_factory=LargeNConfig)
     sources: tuple[str, ...] = ()
 
     def provenance(self) -> str:
@@ -330,8 +357,20 @@ def _validate(cfg: Config) -> None:
             "inference.max_features_strategy must be 'raise' or 'subsample', got "
             f"{cfg.inference.max_features_strategy!r}"
         )
+    if cfg.inference.retrieval_per_class is not None and cfg.inference.retrieval_per_class < 1:
+        raise ConfigError("inference.retrieval_per_class must be null or at least 1")
     if cfg.inference.ensemble_svd_components < 0:
         raise ConfigError("inference.ensemble_svd_components must be at least 0")
+    if cfg.large_n.method not in ("none", "partition", "boost"):
+        raise ConfigError(
+            f"large_n.method must be 'none', 'partition' or 'boost', got {cfg.large_n.method!r}"
+        )
+    if cfg.large_n.boost_weighting not in ("abs", "exp"):
+        raise ConfigError(
+            f"large_n.boost_weighting must be 'abs' or 'exp', got {cfg.large_n.boost_weighting!r}"
+        )
+    if not 1 <= cfg.large_n.partition_max_depth <= 3:
+        raise ConfigError("large_n.partition_max_depth must lie in [1, 3]")
     if any(n < 1 for n in cfg.context_sweep.context_sizes):
         raise ConfigError("context_sweep.context_sizes must all be at least 1")
     if not cfg.context_sweep.seeds:
@@ -384,6 +423,7 @@ _SECTIONS: dict[str, type] = {
     "prior": PriorConfigDefaults,
     "train": TrainConfigDefaults,
     "model": ModelConfigDefaults,
+    "large_n": LargeNConfig,
 }
 
 

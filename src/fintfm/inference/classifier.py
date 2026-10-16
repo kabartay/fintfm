@@ -48,6 +48,7 @@ from fintfm.inference.retrieval import (
     normalise_for_distance,
     prototype_context,
     retrieve,
+    retrieve_per_class,
 )
 from fintfm.modeling.hazard import base_rate_shift, shift_cumulative_pd
 from fintfm.modeling.model import FinancialTFM
@@ -274,6 +275,16 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             nearest-neighbour draw at a 0.19% default rate can return **zero** defaults, and
             a context with no positives says nothing about default. Deliberately a floor and
             not class balancing, which §29 measured as costing 10-12 AUC points.
+        retrieval_per_class: Per-class neighbours for ``context_strategy="retrieval"``
+            (audit AU5.8, LoCalPFN-style, arXiv:2406.05207). **``None`` (the default) keeps
+            the single neighbourhood with the ``retrieval_min_positive`` floor**, unchanged.
+            An integer ``k_pos`` instead retrieves the ``k_pos`` nearest positives plus the
+            ``max_context - k_pos`` nearest negatives of each query group (see
+            :func:`fintfm.inference.retrieval.retrieve_per_class`), and
+            ``retrieval_min_positive`` is then unused. That fixes the context's class share,
+            which the pooled base-rate correction undoes at the level; nothing here has
+            measured its effect on ranking yet. Must lie in ``[1, max_context]``, and is
+            refused with any other ``context_strategy``.
         finetune_steps: Gradient steps of dataset-specific fine-tuning taken in :meth:`fit`
             before the context is stored. **0 (the default) takes none**, and the classifier is
             then byte-identical to one without these arguments: the in-context model as
@@ -382,6 +393,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         ensemble_svd_components: int = 0,
         ensemble_class_shift: bool = False,
         max_features_strategy: MaxFeaturesStrategy = "raise",
+        retrieval_per_class: int | None = None,
     ) -> None:
         """Configure the classifier. See the class docstring — every argument is documented
         there with the measurement that set its default."""
@@ -415,6 +427,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         self.ensemble_svd_components = ensemble_svd_components
         self.ensemble_class_shift = ensemble_class_shift
         self.max_features_strategy = max_features_strategy
+        self.retrieval_per_class = retrieval_per_class
         # Placement, eval mode and feature_chunk are applied in fit, not here: applied at
         # construction, a later set_params(device=...) moved nothing and the first forward
         # pass mixed devices. A checkpoint path is still loaded here, so model.cfg is readable
@@ -775,6 +788,14 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
                         target,
                         self.max_context,
                         self.retrieval_min_positive,
+                    )
+                    if self.retrieval_per_class is None
+                    else retrieve_per_class(
+                        self._pool_Z,
+                        self._pool_y,
+                        target,
+                        self.retrieval_per_class,
+                        self.max_context - self.retrieval_per_class,
                     ),
                 )
             )
@@ -807,14 +828,26 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         return out
 
     def _check_ensemble_settings(self) -> None:
-        """Reject AU5.7/AU5.12 settings that would otherwise be silently ignored or misread.
+        """Reject AU5.7/AU5.8/AU5.12 settings that would otherwise be silently ignored or misread.
 
         Raises:
             ValueError: For an unknown ``max_features_strategy``, an empty or unknown entry in
                 ``ensemble_transforms``, a negative ``ensemble_svd_components``, or SVD
                 components that no member would carry (``n_ensemble < 2``) or that the
-                retrieval path cannot score.
+                retrieval path cannot score; and for a ``retrieval_per_class`` outside
+                ``[1, max_context]`` or set without ``context_strategy="retrieval"``.
         """
+        if self.retrieval_per_class is not None:
+            if self.context_strategy != "retrieval":
+                raise ValueError(
+                    "retrieval_per_class applies only to context_strategy='retrieval', got "
+                    f"{self.context_strategy!r}"
+                )
+            if not 1 <= self.retrieval_per_class <= self.max_context:
+                raise ValueError(
+                    f"retrieval_per_class must lie in [1, max_context={self.max_context}], "
+                    f"got {self.retrieval_per_class}"
+                )
         if self.max_features_strategy not in get_args(MaxFeaturesStrategy):
             raise ValueError(
                 f"max_features_strategy must be one of {get_args(MaxFeaturesStrategy)}, "
@@ -997,6 +1030,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             query_chunk=self.query_chunk,
             retrieval_groups=self.retrieval_groups,
             retrieval_min_positive=self.retrieval_min_positive,
+            retrieval_per_class=self.retrieval_per_class,
             feature_transform=(
                 self.feature_transform if feature_transform is None else feature_transform
             ),

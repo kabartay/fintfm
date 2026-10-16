@@ -174,6 +174,53 @@ def retrieve(
     return np.sort(picked)
 
 
+def retrieve_per_class(
+    Zt: np.ndarray, yt: np.ndarray, target: np.ndarray, k_pos: int, k_neg: int
+) -> np.ndarray:
+    """The ``k_pos`` nearest positives plus the ``k_neg`` nearest negatives of a target point.
+
+    Per-class neighbours (audit AU5.8), implemented from the description of local-context
+    PFN retrieval in LoCalPFN (arXiv:2406.05207); that work's code carries no licence
+    file, and none of it is used here. Where :func:`retrieve` takes one neighbourhood and
+    tops up a floor of positives, this fixes the context's class make-up outright: each class
+    contributes its own nearest rows, so the context is local *within* each class and its
+    positive share is ``k_pos / (k_pos + k_neg)`` whatever the local default rate is.
+
+    **That share is a resampling of the classes**, so the context base rate is no longer the
+    population's. The classifier's retrieval path already corrects the level from the pooled
+    context rate (``FinancialTFMClassifier._pooled_context_rate``), and that correction is
+    what makes a fixed share safe to use; the ranking is the open question this lever exists
+    to measure.
+
+    Args:
+        Zt: ``(n_train, F)`` normalised training features.
+        yt: ``(n_train,)`` coded training labels; the largest code is the positive class and
+            every other code counts as negative.
+        target: ``(F,)`` normalised point to retrieve around.
+        k_pos: Positive rows to take. Fewer are returned when fewer exist.
+        k_neg: Negative rows to take. Fewer are returned when fewer exist.
+
+    Returns:
+        Sorted indices into ``Zt``, of length ``min(k_pos, n_pos) + min(k_neg, n_neg)``.
+    """
+    d = np.linalg.norm(Zt - target, axis=1)
+    pos_class = int(yt.max())
+    picked = []
+    for members, k in (
+        (np.flatnonzero(yt == pos_class), k_pos),
+        (np.flatnonzero(yt != pos_class), k_neg),
+    ):
+        k = min(k, members.size)
+        if k <= 0:
+            continue
+        if k < members.size:
+            members = members[np.argpartition(d[members], k - 1)[:k]]
+        picked.append(members)
+    if not picked:
+        return np.empty(0, dtype=np.int64)
+    return np.sort(np.concatenate(picked)).astype(np.int64)
+
+
 def prototype_context(
     Zt: np.ndarray,
     yt: np.ndarray,

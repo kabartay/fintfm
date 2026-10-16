@@ -53,6 +53,7 @@ inference:
   ensemble_svd_components: 0       # SVD projections appended in odd-indexed members
   ensemble_class_shift: false      # cyclic class relabelling per member, mapped back
   max_features_strategy: raise     # or "subsample": round-robin column subsets per member
+  retrieval_per_class: null        # AU5.8: k_pos nearest positives + rest nearest negatives
 
 # Thresholds used when scoring. Changing these changes what counts as a result, so they are
 # recorded in every run's output alongside the numbers they produced.
@@ -140,3 +141,22 @@ model:
   attn_length_scale: false      # row-attention logits times log(n_ctx)/log(attn_length_ref) (AU5.17)
   attn_length_ref: 512          # context length at which the length scale is 1
   hazard_period_context: false  # hazard context rows embed their default period (AU5.9)
+
+# Large-table wrappers for the fintfm arm of fintfm-v4protocol (audit AU5.8). The partition_*
+# and boost_* keys MIRROR the literal defaults of PartitionedTFMClassifier and
+# BoostedTFMClassifier in inference/large_n.py; tests/test_config.py is the drift guard.
+# method "none" scores the plain classifier, exactly as before this section existed.
+large_n:
+  method: none                     # none, partition or boost; --large-n overrides
+  partition_max_depth: 2           # at most 2**depth leaves; capped at 3
+  partition_min_samples_leaf: 0.05 # tree leaf floor, rows or a fraction of the bag
+  partition_n_bags: 1              # >1: forest of trees on random bag_frac subsets, averaged
+  partition_bag_frac: 0.6
+  partition_min_leaf_rows: 200     # smaller leaves use the global context
+  partition_min_class_rows: 2      # leaves with fewer rows of any class use the global context
+  boost_n_rounds: 8
+  boost_context_rows: 512          # context rows per boosting round
+  boost_learning_rate: 0.5
+  boost_weighting: abs             # abs or exp: residual -> context sampling weight
+  boost_max_step: 4.0              # upper bound of each round's line search
+  boost_pool_rows: null            # residual pool cap; null tracks every training row

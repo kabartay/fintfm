@@ -40,7 +40,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -48,8 +48,11 @@ import numpy as np
 
 from fintfm.config import Config, load_config
 
-if TYPE_CHECKING:  # sklearn is imported lazily below; this keeps the annotation free
+if TYPE_CHECKING:  # sklearn and torch are imported lazily below; annotations stay free
     from sklearn.base import ClassifierMixin
+
+    from fintfm.inference.classifier import FinancialTFMClassifier
+    from fintfm.modeling.model import FinancialTFM
 
 #: Paper horizon to Kaggle file, from their ``docs/benchmark_protocol.md``. The off-by-one is
 #: theirs and is a trap: ``h=0`` is ``company_years_h1.parquet``.
@@ -411,6 +414,52 @@ def selection_scores(
     return (ap if metric == "ap" else auc), ap, auc
 
 
+def fintfm_classifier(
+    model: FinancialTFM, cfg: Config, device: str = "cpu", random_state: int = 0
+) -> FinancialTFMClassifier:
+    """The fintfm arm's unfitted classifier, every setting read from ``cfg.inference``.
+
+    One constructor for every harness that scores the fintfm arm under this protocol (this
+    module and :mod:`fintfm.experiments.hybrid_catboost`), so a setting added here reaches
+    all of them; a second hand-written copy would be bypassed by the next caller.
+
+    Args:
+        model: The loaded checkpoint.
+        cfg: Configuration; its ``inference`` section supplies every classifier setting.
+        device: Torch device.
+        random_state: The classifier's seed; the protocol passes the fold index.
+
+    Returns:
+        An unfitted :class:`~fintfm.inference.classifier.FinancialTFMClassifier`.
+    """
+    from fintfm.inference.classifier import FinancialTFMClassifier
+
+    return FinancialTFMClassifier(
+        model,
+        max_context=cfg.inference.max_context,
+        context_strategy=cfg.inference.context_strategy,
+        feature_transform=cfg.inference.feature_transform,
+        n_ensemble=cfg.inference.n_ensemble,
+        query_chunk=cfg.inference.query_chunk,
+        feature_chunk=cfg.inference.feature_chunk,
+        finetune_steps=cfg.inference.finetune_steps,
+        finetune_lr=cfg.inference.finetune_lr,
+        finetune_batch=cfg.inference.finetune_batch,
+        finetune_query=cfg.inference.finetune_query,
+        finetune_context=cfg.inference.finetune_context,
+        finetune_query_group_frac=cfg.inference.finetune_query_group_frac,
+        finetune_query_pos_frac=cfg.inference.finetune_query_pos_frac,
+        finetune_seed=cfg.inference.finetune_seed,
+        ensemble_transforms=cfg.inference.ensemble_transforms,
+        ensemble_svd_components=cfg.inference.ensemble_svd_components,
+        ensemble_class_shift=cfg.inference.ensemble_class_shift,
+        max_features_strategy=cfg.inference.max_features_strategy,
+        retrieval_per_class=cfg.inference.retrieval_per_class,
+        device=device,
+        random_state=random_state,
+    )
+
+
 def run(
     model_path: str | None,
     out_dir: Path,
@@ -482,7 +531,7 @@ def run(
 
     from fintfm.evaluation.boosting import available_boosting, fit_predict_boosting
     from fintfm.evaluation.datasets import CACHE_DIR
-    from fintfm.inference.classifier import FinancialTFMClassifier
+    from fintfm.inference.large_n import wrap_large_n
     from fintfm.modeling.model import FinancialTFM
 
     cfg = cfg or load_config()
@@ -538,30 +587,11 @@ def run(
         if model is None:
             pass  # baselines only
         elif model.cfg.max_features >= Xtr.shape[1]:
-            clf = FinancialTFMClassifier(
-                model,
-                max_context=cfg.inference.max_context,
-                context_strategy=cfg.inference.context_strategy,
-                feature_transform=cfg.inference.feature_transform,
-                n_ensemble=cfg.inference.n_ensemble,
-                query_chunk=cfg.inference.query_chunk,
-                feature_chunk=cfg.inference.feature_chunk,
-                finetune_steps=cfg.inference.finetune_steps,
-                finetune_lr=cfg.inference.finetune_lr,
-                finetune_batch=cfg.inference.finetune_batch,
-                finetune_query=cfg.inference.finetune_query,
-                finetune_context=cfg.inference.finetune_context,
-                finetune_query_group_frac=cfg.inference.finetune_query_group_frac,
-                finetune_query_pos_frac=cfg.inference.finetune_query_pos_frac,
-                finetune_seed=cfg.inference.finetune_seed,
-                ensemble_transforms=cfg.inference.ensemble_transforms,
-                ensemble_svd_components=cfg.inference.ensemble_svd_components,
-                ensemble_class_shift=cfg.inference.ensemble_class_shift,
-                max_features_strategy=cfg.inference.max_features_strategy,
-                device=device,
-                random_state=fold,
-            ).fit(Xtr.astype(np.float32), y[tr], groups=company[tr])
-            if cfg.inference.finetune_steps:
+            base = fintfm_classifier(model, cfg, device=device, random_state=fold)
+            # AU5.8: "none" (the default) returns `base` itself, so the arm is unchanged
+            clf = wrap_large_n(base, cfg.large_n)
+            clf.fit(Xtr.astype(np.float32), y[tr], groups=company[tr])
+            if cfg.inference.finetune_steps and clf is base:
                 fl = clf.finetune_losses_
                 k = max(1, len(fl) // 10)
                 print(f"  fine-tuned {len(fl)} steps: loss first-10% {np.mean(fl[:k]):.4f}, "
@@ -703,6 +733,8 @@ def run(
             "ensemble_svd_components": cfg.inference.ensemble_svd_components,
             "ensemble_class_shift": cfg.inference.ensemble_class_shift,
             "max_features_strategy": cfg.inference.max_features_strategy,
+            "retrieval_per_class": cfg.inference.retrieval_per_class,
+            "large_n": asdict(cfg.large_n),
             "config_sources": list(cfg.sources),
         },
         "arms": [asdict(s) for s in summaries],
@@ -760,6 +792,11 @@ def summarise(record: dict) -> str:
         *(
             ["", f"*** ABLATION: dropped beyond their drop list: {c['drop_columns']}. ***"]
             if c.get("drop_columns") else []
+        ),
+        *(
+            ["", (f"*** THE FINTFM ARM IS WRAPPED: large_n.method={c['large_n']['method']} "
+                  "(audit AU5.8), not the plain classifier. ***")]
+            if (c.get("large_n") or {}).get("method", "none") != "none" else []
         ),
         "",
         "Their published reference at this horizon is in docs/results/FINDINGS.md §36.",
@@ -832,6 +869,13 @@ def main() -> None:
              "'name:' alone is that booster at library defaults (pair with --no-boosting). "
              "Arms are named name[k=v,...]; recorded in the run config",
     )
+    p.add_argument(
+        "--large-n", choices=("none", "partition", "boost"), default=None,
+        help="wrap the fintfm arm in a large-table method (audit AU5.8): a tree partition "
+             "with a context per leaf, or boosting rounds of small contexts. Overrides "
+             "large_n.method; the wrapper's other settings come from the large_n section. "
+             "Default: the config's value, 'none' in the packaged default",
+    )
     args = p.parse_args()
     try:
         booster_params = tuple(parse_booster_params(args.booster_params))
@@ -840,6 +884,8 @@ def main() -> None:
     if not args.no_fintfm and args.model is None:
         p.error("--model is required unless --no-fintfm")
     cfg = load_config(args.config)
+    if args.large_n is not None:
+        cfg = replace(cfg, large_n=replace(cfg.large_n, method=args.large_n))
     record = run(
         None if args.no_fintfm else args.model, Path(args.out), horizon=args.horizon,
         folds=tuple(int(v) for v in args.folds.split(",")),

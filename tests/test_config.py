@@ -41,6 +41,7 @@ def test_inference_section_matches_the_classifier_defaults():
         "finetune_batch", "finetune_query", "finetune_context", "finetune_query_group_frac",
         "finetune_query_pos_frac", "finetune_seed", "ensemble_transforms",
         "ensemble_svd_components", "ensemble_class_shift", "max_features_strategy",
+        "retrieval_per_class",
     ):
         assert sig.parameters[name].default == getattr(cfg, name), (
             f"{name}: classifier default {sig.parameters[name].default!r} disagrees with "
@@ -138,6 +139,10 @@ def test_overlapping_time_split_is_refused(tmp_path):
         ("evaluation:\n  bootstrap_resamples: 0\n", "bootstrap_resamples"),
         ("evaluation:\n  min_rows_per_horizon: 0\n", "min_rows_per_horizon"),
         ("inference:\n  winsor_quantile: 0.7\n", "winsor_quantile"),
+        ("inference:\n  retrieval_per_class: 0\n", "retrieval_per_class"),
+        ("large_n:\n  method: forest\n", "large_n.method"),
+        ("large_n:\n  boost_weighting: square\n", "large_n.boost_weighting"),
+        ("large_n:\n  partition_max_depth: 5\n", "large_n.partition_max_depth"),
         ("context_sweep:\n  context_sizes: [0]\n", "context_sizes"),
         ("context_sweep:\n  seeds: []\n", "seeds"),
         ("prior:\n  absolute_rate_floor: 0.9\n  rate_ceiling: 0.3\n", "prior rates"),
@@ -216,6 +221,33 @@ def test_train_section_matches_the_train_config_defaults():
             f"train.{f.name}: config {getattr(cfg, f.name)!r} disagrees with TrainConfig "
             f"{getattr(library, f.name)!r} — update fintfm/configs/default.yaml"
         )
+
+
+def test_large_n_section_matches_the_wrapper_defaults():
+    """Drift guard for the ``large_n`` section (audit AU5.8): every ``partition_*`` and
+    ``boost_*`` key mirrors the matching wrapper's literal default, every wrapper argument
+    other than the estimator and seed has a key, and the packaged method wraps nothing."""
+    from dataclasses import fields
+
+    from fintfm.config import LargeNConfig
+    from fintfm.inference.large_n import BoostedTFMClassifier, PartitionedTFMClassifier
+
+    cfg = load_config().large_n
+    assert cfg.method == "none"
+    names = {f.name for f in fields(LargeNConfig)} - {"method"}
+    for prefix, cls in (("partition_", PartitionedTFMClassifier),
+                        ("boost_", BoostedTFMClassifier)):
+        params = inspect.signature(cls.__init__).parameters
+        wanted = {f"{prefix}{p}" for p in params} - {
+            f"{prefix}self", f"{prefix}estimator", f"{prefix}random_state"
+        }
+        assert wanted == {n for n in names if n.startswith(prefix)}
+        for name in wanted:
+            default = params[name.removeprefix(prefix)].default
+            assert getattr(cfg, name) == default, (
+                f"large_n.{name}: config {getattr(cfg, name)!r} disagrees with "
+                f"{cls.__name__} {default!r} — update fintfm/configs/default.yaml"
+            )
 
 
 def test_model_section_matches_the_model_config_defaults():

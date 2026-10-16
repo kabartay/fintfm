@@ -18,6 +18,7 @@ from fintfm.inference.retrieval import (
     normalise_for_distance,
     prototype_context,
     retrieve,
+    retrieve_per_class,
 )
 from fintfm.modeling.model import FinancialTFM, ModelConfig
 
@@ -339,3 +340,105 @@ def test_prototype_strategy_keeps_batch_independence():
     whole = FinancialTFMClassifier(model, query_chunk=4096, **kw).fit(X, y)
     split = FinancialTFMClassifier(model, query_chunk=13, **kw).fit(X, y)
     np.testing.assert_allclose(whole.predict_proba(X), split.predict_proba(X), atol=1e-5)
+
+
+# --- per-class neighbours (audit AU5.8) ---------------------------------------------------
+
+
+def _per_class_pool(seed=0):
+    rng = np.random.default_rng(seed)
+    Z = rng.normal(size=(300, 3)).astype(np.float32)
+    y = (rng.random(300) < 0.1).astype(np.int64)
+    return Z, y
+
+
+def test_per_class_retrieval_takes_each_class_own_nearest_rows():
+    """Brute force: the k nearest of each class, and nothing else."""
+    Z, y = _per_class_pool()
+    target = np.array([0.5, -0.2, 0.1], dtype=np.float32)
+    picked = retrieve_per_class(Z, y, target, k_pos=5, k_neg=20)
+    d = np.linalg.norm(Z - target, axis=1)
+    pos, neg = np.flatnonzero(y == 1), np.flatnonzero(y == 0)
+    want = np.sort(np.concatenate([pos[np.argsort(d[pos])[:5]], neg[np.argsort(d[neg])[:20]]]))
+    np.testing.assert_array_equal(picked, want)
+    assert int(y[picked].sum()) == 5
+
+
+def test_per_class_retrieval_takes_every_row_of_a_short_class():
+    Z, y = _per_class_pool()
+    n_pos = int(y.sum())
+    picked = retrieve_per_class(Z, y, Z[0], k_pos=n_pos + 50, k_neg=10)
+    assert int(y[picked].sum()) == n_pos
+    assert picked.size == n_pos + 10
+    assert len(np.unique(picked)) == picked.size
+
+
+def _retrieval_data():
+    X, label = _clustered(n_per=60)
+    X = np.concatenate([X, X[:, :1] * 0.5, X[:, 1:] * -1], axis=1).astype(np.float32)
+    return X, (label == 2).astype(np.int64)
+
+
+def test_per_class_mode_fixes_every_context_class_count():
+    X, y = _retrieval_data()
+    clf = FinancialTFMClassifier(
+        _small_model(), max_context=40, context_strategy="retrieval",
+        retrieval_groups=4, retrieval_per_class=10,
+    ).fit(X, y)
+    for _, ctx in clf._retrieval_plan(X):
+        assert ctx.size == 40
+        assert int(y[ctx].sum()) == 10
+    p = clf.predict_proba(X)
+    assert p.shape == (len(X), 2) and np.isfinite(p).all()
+    np.testing.assert_allclose(p.sum(axis=1), 1.0, atol=1e-5)
+
+
+def test_per_class_mode_is_off_by_default_and_the_default_plan_is_unchanged():
+    """The default path is the pre-AU5.8 one, byte for byte: the same contexts as
+    ``retrieve`` gives, and the same predictions after the lever is turned on and off."""
+    import inspect
+
+    assert inspect.signature(FinancialTFMClassifier.__init__).parameters[
+        "retrieval_per_class"
+    ].default is None
+    X, y = _retrieval_data()
+    model = _small_model()
+    kw = {"max_context": 40, "context_strategy": "retrieval", "retrieval_groups": 4,
+          "retrieval_min_positive": 2}
+    clf = FinancialTFMClassifier(model, **kw).fit(X, y)
+    rng = np.random.default_rng(clf.random_state)
+    Zq = normalise_for_distance(X, clf._centre, clf._scale)
+    groups = group_queries(Zq, 4, clf.query_chunk, rng)
+    for (g, ctx), want_g in zip(clf._retrieval_plan(X), groups, strict=True):
+        np.testing.assert_array_equal(g, want_g)
+        np.testing.assert_array_equal(
+            ctx, retrieve(clf._pool_Z, clf._pool_y, Zq[g].mean(axis=0), 40, 2)
+        )
+    before = clf.predict_proba(X)
+    toggled = FinancialTFMClassifier(model, retrieval_per_class=10, **kw).fit(X, y)
+    assert toggled.predict_proba(X).tobytes() != before.tobytes()
+    toggled.set_params(retrieval_per_class=None).fit(X, y)
+    assert before.tobytes() == toggled.predict_proba(X).tobytes()
+
+
+@pytest.mark.parametrize(
+    "kw",
+    [
+        {"context_strategy": "uniform", "retrieval_per_class": 5},
+        {"context_strategy": "retrieval", "retrieval_per_class": 0},
+        {"context_strategy": "retrieval", "retrieval_per_class": 41},
+    ],
+)
+def test_per_class_mode_refuses_settings_it_would_ignore_or_overflow(kw):
+    X, y = _retrieval_data()
+    with pytest.raises(ValueError, match="retrieval_per_class"):
+        FinancialTFMClassifier(_small_model(), max_context=40, **kw).fit(X, y)
+
+
+def test_per_class_mode_reaches_ensemble_members():
+    X, y = _retrieval_data()
+    clf = FinancialTFMClassifier(
+        _small_model(), max_context=40, context_strategy="retrieval", retrieval_groups=4,
+        retrieval_per_class=7, n_ensemble=2,
+    ).fit(X, y)
+    assert clf._clone_with_seed(1).retrieval_per_class == 7
