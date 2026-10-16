@@ -418,6 +418,7 @@ def test_every_train_flag_defaults_to_none_and_names_a_config_field():
         ("model:\n  n_head: 2\n", "n_head"),
         ("train:\n  warmup_steps: -1\n", "warmup_steps"),
         ("train:\n  muon_lr: 0\n", "muon_lr"),
+        ("train:\n  muon_scale: spectral\n", "muon_scale"),
         ("train:\n  decay_norm_bias: maybe\n", "decay_norm_bias"),
     ],
 )

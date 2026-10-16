@@ -173,7 +173,10 @@ train:
   task_dump_allow_code_mismatch: false
   decay_norm_bias: true    # true = AdamW decays every parameter; false exempts norms/biases/embeddings
   amp: "none"              # "none" (float32), "bf16" or "fp16" autocast; quoted, YAML reads off as false
-  muon_lr: 0.02            # Muon's matrix-group rate; read only under optimizer muon
+  # Muon, read only under --optimizer muon (design review DR1.7). muon_lr null = --lr under
+  # rms_match (0.2*sqrt(max(n, m)) scaling, sized to share AdamW's rate), 0.02 under keller.
+  muon_lr: null            # Muon's matrix-group rate
+  muon_scale: "rms_match"  # "rms_match" or "keller"
 
 # Every ModelConfig field, read by fintfm-train (DR1.3; the levers of audit AU5.2, AU5.3, AU5.9,
 # AU5.16 and AU5.17 among them). These MIRROR ModelConfig's literal defaults in

@@ -61,7 +61,8 @@ train:
   task_dump_allow_code_mismatch: false
   decay_norm_bias: true
   amp: "none"
-  muon_lr: 0.02
+  muon_lr: null                 # Muon keys unused: the recipe is adamw
+  muon_scale: rms_match
 
 prior:
   sharpness_min: 0.3

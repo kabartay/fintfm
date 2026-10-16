@@ -2,7 +2,11 @@
 
 ## Phase DR1 — integrity, no output may change
 
-- [ ] DR1.1 **Golden-output fingerprint of the published checkpoint.** A test that scores
+- [x] DR1.1 **Done (2026-10-16).** `tests/test_golden_outputs.py` against
+      `tests/fixtures/golden_v4cellattn.npz` (SHA-256 per output, 7 outputs, term structure
+      asserted refused) and `golden_random_init.npz` (9 CI outputs); 1-ulp perturbation
+      asserted to fail every one; `scripts/regen_golden.py` rebaselines, `scripts/pre-push`
+      runs it. **Golden-output fingerprint of the published checkpoint.** A test that scores
       `runs/v4-cellattn-labels.pt` (SHA-256 d231b062...) on a seeded 2,000 x 136 prior table plus
       512 queries for: default; `n_ensemble` 2 with label swap; retrieval; 3 fine-tuning steps on
       CPU; the three `transform_representation` stages; `predict_term_structure`. Exact equality,
@@ -62,7 +66,8 @@
 - [ ] DR1.6 **Correct `CLAUDE.md`'s cost figure** (owner's file): about 66 T4-hours or about $28 of
       L4 time per million tasks at the current recipe (§86, §127), not $13.
       Verify: the owner has edited it, or declined.
-- [ ] DR1.7 **Muon at peer settings before any use.** 0.2·√max(n, m) update scaling, shared
+- [x] DR1.7 **Done (2026-10-16, f209e29).** rms_match scaling (0.2·√max(n, m)), lr shared with AdamW, weight decay 0.01, Q/K/V orthogonalised as separate blocks (Keller's write-up; nothing per head is described there), fp32 Newton-Schulz without native bf16. **Verify amended 2026-10-16:** the step-1 comparison was ill-posed, since AdamW's first step is lr·sign(g) (RMS exactly lr) while 0.2·√max(n, m) matches AdamW's steady state; the check is now update RMS within 2x of AdamW's steady-state RMS on full-rank gradients (`tests/test_muon.py`). Measured on the tiny model (SMOKE-TEST): full-rank updates 0.14-0.24·lr against AdamW's steady 0.229·lr.
+      **Muon at peer settings before any use.** 0.2·√max(n, m) update scaling, shared
       lr 8e-4 to 1e-3, weight decay 0.01, Newton-Schulz in fp32 on GPUs without bf16, and the fused
       QKV projection orthogonalised per head block, as TabICLv2, LightPFN and Mitra-v2 describe.
       Verify: per-element update RMS at step 1 within 2x of AdamW's on the same batch.

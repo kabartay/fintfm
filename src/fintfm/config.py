@@ -219,7 +219,8 @@ class TrainConfigDefaults:
     task_dump_allow_code_mismatch: bool = False
     amp: str = "none"
     decay_norm_bias: bool = True
-    muon_lr: float = 0.02
+    muon_lr: float | None = None
+    muon_scale: str = "rms_match"
 
 
 @dataclass(frozen=True)
@@ -495,8 +496,12 @@ def _validate(cfg: Config) -> None:
         raise ConfigError(f"train.warmup_steps must be at least 0, got {t.warmup_steps}")
     if not isinstance(t.decay_norm_bias, bool):
         raise ConfigError(f"train.decay_norm_bias must be true or false, got {t.decay_norm_bias!r}")
-    if t.muon_lr <= 0:
-        raise ConfigError(f"train.muon_lr must be positive, got {t.muon_lr}")
+    if t.muon_lr is not None and t.muon_lr <= 0:
+        raise ConfigError(f"train.muon_lr must be positive or null, got {t.muon_lr}")
+    if t.muon_scale not in ("rms_match", "keller"):
+        raise ConfigError(
+            f"train.muon_scale must be 'rms_match' or 'keller', got {t.muon_scale!r}"
+        )
     m = cfg.model
     # ModelConfig validates the rest when the run builds its model; these two are the ones a
     # hand-edited file most plausibly gets wrong, so they fail at load instead
