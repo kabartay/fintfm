@@ -230,9 +230,9 @@ def _compare_context_strategies(
         clf.fit(X_train, y_train)
         proba = clf.predict_proba(X_test)
         metrics = evaluate_binary(y_test, proba[:, 1])
-        kept = int(clf._ctx_y.sum())
+        summary = clf.context_summary_
         print(f"    [{ds.name}] fintfm context={strategy}: {metrics.summary()}")
-        print(f"        {kept} defaults in a {clf._ctx_X.shape[0]}-row context")
+        print(f"        {summary.n_positive} defaults in a {summary.n_context}-row context")
 
 
 def main() -> None:

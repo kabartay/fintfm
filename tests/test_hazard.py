@@ -332,7 +332,8 @@ def test_classifier_term_structure_applies_the_correction():
                                        correct_prior=True).fit(X, y)
     raw = FinancialTFMClassifier(model, max_context=200, context_strategy="balanced",
                                  correct_prior=False).fit(X, y)
-    assert corrected._ctx_rate > 5 * corrected._full_rate  # balancing really did distort
+    summary = corrected.context_summary_
+    assert summary.context_rate > 5 * summary.population_rate  # balancing really did distort
     c, r = corrected.predict_term_structure(X[:200]), raw.predict_term_structure(X[:200])
     assert c.mean() < r.mean()
     assert coherence_violations(torch.from_numpy(c)).item() == 0
@@ -546,3 +547,32 @@ def test_classifier_ignores_periods_on_a_flag_off_model(strategy):
     np.testing.assert_array_equal(given.predict_proba(X), plain.predict_proba(X))
     with pytest.raises(ValueError, match="periods has shape"):
         FinancialTFMClassifier(off, **kw).fit(X, y, periods=periods[:-1])
+
+
+def test_classifier_term_structure_draws_column_identities_at_random_state(monkeypatch):
+    """DR1.4: the term structure reads the column identities predict_proba reads.
+
+    Until DR1.4 the term-structure path passed no ``column_id_seed``, so at any
+    ``random_state`` it ran on seed 0's identities while ``predict_proba`` ran on
+    ``random_state``'s.
+    """
+    seeds: list[int | None] = []
+    real = FinancialTFM._column_ids
+
+    def spy(self, B, Fdim, device, dtype, seed):
+        seeds.append(seed)
+        return real(self, B, Fdim, device, dtype, seed)
+
+    monkeypatch.setattr(FinancialTFM, "_column_ids", spy)
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(120, 6)).astype(np.float32)
+    y = (rng.random(120) < 0.3).astype(np.int64)
+    torch.manual_seed(0)
+    model = FinancialTFM(ModelConfig(max_features=8, d_model=16, d_cell=8, n_layers=1,
+                                     n_col_layers=1, max_classes=2, n_horizons=3))
+    clf = FinancialTFMClassifier(model, random_state=3).fit(X[:100], y[:100])
+    clf.predict_proba(X[100:])
+    proba_seeds = set(seeds)
+    seeds.clear()
+    clf.predict_term_structure(X[100:])
+    assert proba_seeds == set(seeds) == {3}

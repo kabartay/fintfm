@@ -604,3 +604,83 @@ def test_subsample_refuses_paths_that_need_the_whole_row():
         ).fit(Xtr, ytr)
     with pytest.raises(ValueError, match="max_features_strategy"):
         FinancialTFMClassifier(_model(4), max_features_strategy="drop").fit(Xtr, ytr)
+
+
+# --- DR1.4: one inference path and a public context summary --------------------------------
+
+
+def test_every_inference_caller_goes_through_predict_context(monkeypatch):
+    """predict_proba, the term structure, the representation, the quantile regressor and the
+    capability probes all score through ``FinancialTFM.predict_context``, so a change there
+    reaches all of them (``CLAUDE.md``, "a correction that lives in one method")."""
+    from fintfm.experiments.capability import bayes_ceiling_probe
+    from fintfm.inference.quantile_regressor import FinancialTFMQuantileRegressor
+
+    calls: list[str] = []
+    real = FinancialTFM.predict_context
+
+    def spy(self, *args, **kwargs):
+        calls.append(kwargs.get("output", "logits"))
+        return real(self, *args, **kwargs)
+
+    monkeypatch.setattr(FinancialTFM, "predict_context", spy)
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(60, 4)).astype(np.float32)
+    y = (rng.random(60) < 0.4).astype(np.int64)
+    torch.manual_seed(0)
+    hz = FinancialTFM(ModelConfig(max_features=6, max_classes=2, d_model=16, n_heads=2,
+                                  n_layers=1, d_ff=32, n_horizons=3))
+    clf = FinancialTFMClassifier(hz).fit(X[:50], y[:50])
+    for method, expected in (
+        (lambda: clf.predict_proba(X[50:]), "logits"),
+        (lambda: clf.predict_term_structure(X[50:]), "term_structure"),
+        (lambda: clf.transform_representation(X[50:], stage="pre_head"), "representation"),
+        (lambda: bayes_ceiling_probe(hz, targets=(0.8,), seeds=1, n=40, n_ensemble=1),
+         "logits"),
+    ):
+        calls.clear()
+        method()
+        assert calls == [expected]
+    q = FinancialTFM(ModelConfig(max_features=6, max_classes=2, d_model=16, n_heads=2,
+                                 n_layers=1, d_ff=32, head_type="quantile", n_quantiles=5))
+    calls.clear()
+    FinancialTFMQuantileRegressor(q).fit(X[:50], X[:50, 0]).predict_quantile_grid(X[50:])
+    assert calls == ["logits"]
+
+
+def test_context_summary_states_the_context_beside_the_population():
+    from dataclasses import FrozenInstanceError
+
+    from sklearn.exceptions import NotFittedError
+
+    clf = FinancialTFMClassifier(_tiny_model(), max_context=100, context_strategy="balanced")
+    with pytest.raises(NotFittedError):
+        _ = clf.context_summary_
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(500, 4))
+    y = np.zeros(500, dtype=np.int64)
+    y[rng.choice(500, size=25, replace=False)] = 1
+    torch.manual_seed(0)
+    s = clf.fit(X, y).context_summary_
+    assert (s.n_context, s.n_positive) == (100, 25)
+    assert s.context_rate == pytest.approx(0.25) and s.population_rate == pytest.approx(0.05)
+    assert s.correct_prior and s.pooled_context_rate is None
+    np.testing.assert_allclose(
+        s.log_prior_shift, [np.log(0.95 / 0.75), np.log(0.05 / 0.25)], rtol=1e-12
+    )
+    with pytest.raises(FrozenInstanceError):
+        s.n_positive = 0  # type: ignore[misc]
+    with pytest.raises(AttributeError):
+        clf.context_summary_ = s  # type: ignore[misc]
+
+
+def test_context_summary_reports_what_retrieval_retrieved():
+    rng = np.random.default_rng(1)
+    X = rng.normal(size=(200, 4))
+    y = (rng.random(200) < 0.2).astype(np.int64)
+    torch.manual_seed(0)
+    clf = FinancialTFMClassifier(_tiny_model(), max_context=40, context_strategy="retrieval")
+    clf.fit(X[:150], y[:150])
+    assert clf.context_summary_.pooled_context_rate is None
+    clf.predict_proba(X[150:])
+    assert clf.context_summary_.pooled_context_rate == clf.pooled_context_rate_

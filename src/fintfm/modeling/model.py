@@ -35,8 +35,9 @@ from __future__ import annotations
 import math
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass
-from typing import Any
+from typing import Any, Literal
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 from torch import nn
@@ -49,6 +50,11 @@ _DEFAULT_COLUMN_ID_SEED = 0
 
 #: Accepted values of :attr:`ModelConfig.attn_impl`.
 ATTN_IMPLS: tuple[str, ...] = ("masked", "split")
+
+#: What :meth:`FinancialTFM.predict_context` returns for the query rows.
+ContextOutput = Literal["logits", "term_structure", "representation"]
+#: Depth :meth:`FinancialTFM.predict_context` reads a representation at.
+RepresentationStage = Literal["encode_rows", "encoder_mid", "pre_head"]
 
 
 @dataclass
@@ -339,6 +345,49 @@ def normalize_features(
     # no evidence to compare a query against, so treating it as padding loses nothing.
     pad = torch.isnan(ctx).all(dim=1)
     return Z, missing.to(Z.dtype), pad
+
+
+def pack_context(
+    Xc: np.ndarray,
+    yc: np.ndarray,
+    Xq: np.ndarray,
+    width: int,
+    y_dtype: type[np.generic],
+    period: np.ndarray | None = None,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray | None]:
+    """Lay one context and its query rows out as a single task, the model's input shape.
+
+    The one padding helper of DR1.4: every inference path used to copy these lines, and a
+    change to one copy (a dtype, a placeholder) would have reached one path and missed the
+    rest (``CLAUDE.md``, "a correction that lives in one method").
+
+    Args:
+        Xc: ``(n_ctx, f)`` context rows.
+        yc: ``(n_ctx,)`` context labels.
+        Xq: ``(n_q, f)`` query rows.
+        width: Feature axis of the task, ``>= f``; columns past ``f`` are NaN, which the
+            model reads as padding.
+        y_dtype: Label dtype: ``np.int64`` class indices, or ``np.float32`` for a quantile
+            head's continuous target.
+        period: Optional ``(n_ctx,)`` context default periods.
+
+    Returns:
+        ``(X, y, period)`` of shapes ``(1, N, width)`` float32, ``(1, N)`` and ``(1, N)``
+        int64 (or ``None`` without ``period``), ``N = n_ctx + n_q``. Query labels are 0 and
+        query periods ``CENSORED``: placeholders the model never reads, since only the first
+        ``n_ctx`` labels and periods are inputs.
+    """
+    n_ctx, n = Xc.shape[0], Xc.shape[0] + Xq.shape[0]
+    X = np.full((1, n, width), np.nan, dtype=np.float32)
+    X[0, :n_ctx, : Xc.shape[1]] = Xc
+    X[0, n_ctx:, : Xq.shape[1]] = Xq
+    y = np.zeros((1, n), dtype=y_dtype)
+    y[0, :n_ctx] = yc
+    if period is None:
+        return X, y, None
+    pp = np.full((1, n), CENSORED, dtype=np.int64)
+    pp[0, :n_ctx] = period
+    return X, y, pp
 
 
 def ecdf_rank(X: torch.Tensor, n_ctx: int) -> torch.Tensor:
@@ -1154,6 +1203,105 @@ class FinancialTFM(nn.Module):
             out = out.masked_fill(~valid, float("-inf"))
         return out
 
+    @torch.no_grad()
+    def predict_context(
+        self,
+        Xc: np.ndarray,
+        yc: np.ndarray,
+        Xq: np.ndarray,
+        *,
+        n_classes: int | None = None,
+        column_id_seed: int | None = None,
+        output: ContextOutput = "logits",
+        stage: RepresentationStage | None = None,
+        period: np.ndarray | None = None,
+        pad_features: bool = True,
+    ) -> torch.Tensor:
+        """Score query rows against one context: the single inference entry point (DR1.4).
+
+        Every inference caller -- the classifier's ``predict_proba``, ``predict_term_structure``
+        and ``transform_representation``, the quantile regressor and the capability probes --
+        comes through here, so the padding, the label dtype, the device and the column
+        identities are decided once. Before this, five copies did it, and the term-structure
+        copy never passed ``column_id_seed``: at ``random_state != 0`` its column identities
+        came from seed 0 while ``predict_proba``'s came from ``random_state``.
+
+        Inputs are taken as they are: no conditioning and no base-rate correction, which stay
+        with the estimators that own them.
+
+        Args:
+            Xc: ``(n_ctx, f)`` context rows, as the caller conditioned them.
+            yc: ``(n_ctx,)`` context labels: class indices, or the normalised continuous
+                target for ``head_type="quantile"``.
+            Xq: ``(n_q, f)`` query rows, conditioned as ``Xc`` was.
+            n_classes: Valid classes for ``output="logits"``; logits past it are ``-inf``.
+                ``None`` masks nothing (and a quantile head ignores it).
+            column_id_seed: Seed for the column identities; see :meth:`encode_rows`.
+            output: ``"logits"`` (:meth:`forward`'s output), ``"term_structure"``
+                (:meth:`term_structure`'s cumulative PD) or ``"representation"`` (a row
+                representation at ``stage``).
+            stage: For ``output="representation"`` only, and required there:
+                ``"encode_rows"`` (:meth:`encode_rows` alone), ``"encoder_mid"`` (plus the
+                label embedding and the first half of the row encoder's layers, rounded up,
+                with no final norm) or ``"pre_head"`` (everything :meth:`forward` runs short
+                of ``self.head``).
+            period: ``(n_ctx,)`` context default periods for ``output="term_structure"``;
+                required by a ``hazard_period_context`` checkpoint, ignored otherwise.
+            pad_features: NaN-pad the feature axis to ``cfg.max_features`` (True, what every
+                estimator does) or keep the width ``f`` the caller gave. The capability
+                probes pass False: they have always fed the model their raw, unpadded probe
+                features, and the column-identity draw depends on the width, so padding would
+                move every number they have recorded.
+
+        Returns:
+            Query rows only, on the model's device: ``(n_q, max_classes)`` logits or
+            ``(n_q, n_quantiles)`` quantiles, ``(n_q, n_horizons)`` cumulative PD, or
+            ``(n_q, d_model)`` representations.
+
+        Raises:
+            ValueError: If the rows are wider than ``cfg.max_features``, ``stage`` is missing
+                for or given without ``output="representation"``, or ``output`` is unknown.
+            RuntimeError: From :meth:`term_structure` without a hazard head.
+        """
+        if output not in ("logits", "term_structure", "representation"):
+            raise ValueError(f"unknown output {output!r}")
+        if (stage is None) != (output != "representation"):
+            raise ValueError("stage is required with output='representation' and only there")
+        if Xc.shape[1] > self.cfg.max_features or Xq.shape[1] > self.cfg.max_features:
+            raise ValueError(
+                f"model supports at most {self.cfg.max_features} features, got "
+                f"{max(Xc.shape[1], Xq.shape[1])}"
+            )
+        width = self.cfg.max_features if pad_features else Xc.shape[1]
+        y_dtype = np.float32 if self.cfg.head_type == "quantile" else np.int64
+        Xp, yp, pp = pack_context(
+            Xc, yc, Xq, width, y_dtype, period if output == "term_structure" else None
+        )
+        # derived from the model, not passed alongside it (CLAUDE.md, "two ways a long run
+        # lies about itself")
+        device = next(self.parameters()).device
+        X = torch.from_numpy(Xp).to(device)
+        y = torch.from_numpy(yp).to(device)
+        n_ctx = Xc.shape[0]
+        if output == "term_structure":
+            p = None if pp is None else torch.from_numpy(pp).to(device)
+            return self.term_structure(X, y, n_ctx, period=p, column_id_seed=column_id_seed)[0]
+        if output == "logits":
+            nc = None if n_classes is None else torch.tensor([n_classes], device=device)
+            return self(X, y, n_ctx, nc, column_id_seed=column_id_seed)[0, n_ctx:]
+        h = self.encode_rows(X, n_ctx, column_id_seed=column_id_seed, y=y)
+        if stage == "encoder_mid":
+            # Half the row-to-row stack, rounded up -- partway through, not before or after
+            # all of it. No final `self.norm`: that normalisation is shaped for `self.head`'s
+            # input, not for a linear probe reading an intermediate layer.
+            n_half = (len(self.encoder.layers) + 1) // 2
+            h = self._row_attention(h + self._label_embedding(y, n_ctx, h.dtype), n_ctx, n_half)
+        elif stage == "pre_head":
+            h = self.norm(self._row_attention(h + self._label_embedding(y, n_ctx, h.dtype), n_ctx))
+        elif stage != "encode_rows":
+            raise ValueError(f"unknown stage {stage!r}")
+        return h[0, n_ctx:]
+
     def loss(
         self,
         X: torch.Tensor,
@@ -1309,6 +1457,7 @@ class FinancialTFM(nn.Module):
         y: torch.Tensor,
         n_ctx: int,
         period: torch.Tensor | None = None,
+        column_id_seed: int | None = None,
     ) -> torch.Tensor:
         """Cumulative PD across horizons for the query rows, monotone by construction.
 
@@ -1319,6 +1468,8 @@ class FinancialTFM(nn.Module):
             period: ``(B, N)`` default periods, ``CENSORED`` for none; only the first
                 ``n_ctx`` are read. Required when ``cfg.hazard_period_context``, ignored
                 otherwise.
+            column_id_seed: Seed for the column identities, as in :meth:`encode_rows`.
+                ``None`` keeps the fixed eval-mode draw (seed 0) every earlier caller got.
 
         Returns:
             ``(B, N - n_ctx, n_horizons)`` cumulative default probability, non-decreasing in
@@ -1332,7 +1483,7 @@ class FinancialTFM(nn.Module):
             raise RuntimeError(
                 "this model has no hazard head; build it with ModelConfig(n_horizons=K)"
             )
-        rows = self.encode_rows(X, n_ctx, y=y)
+        rows = self.encode_rows(X, n_ctx, column_id_seed=column_id_seed, y=y)
         y_emb = self._label_embedding(y, n_ctx, rows.dtype, period=period, hazard=True)
         h = self._row_attention(rows + y_emb, n_ctx)
         return self.hazard.cumulative_pd(self.norm(h)[:, n_ctx:])

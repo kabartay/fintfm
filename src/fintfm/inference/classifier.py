@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import contextlib
 from collections.abc import Callable, Iterator
+from dataclasses import dataclass
 from typing import Literal, get_args
 
 import numpy as np
@@ -56,6 +57,39 @@ from fintfm.modeling.model import FinancialTFM
 ContextStrategy = Literal["balanced", "hybrid", "uniform", "retrieval", "prototype"]
 #: What :meth:`FinancialTFMClassifier.fit` does with a table wider than the checkpoint.
 MaxFeaturesStrategy = Literal["raise", "subsample"]
+
+
+@dataclass(frozen=True)
+class ContextSummary:
+    """What a fitted classifier's stored context holds, beside the population it came from.
+
+    Returned by :attr:`FinancialTFMClassifier.context_summary_`, so a harness printing the
+    context's base rate beside the population's (``CLAUDE.md``, "a level error is a context
+    problem before it is a prior problem") reads a public record rather than ``_ctx_y``.
+
+    Attributes:
+        n_context: Rows in the stored context. Under ``context_strategy="retrieval"`` this
+            is the whole pool, since the context is chosen per query group at predict time.
+        n_positive: Context rows of the positive (last) class.
+        context_rate: ``n_positive / n_context``.
+        population_rate: Positive-class rate of every row :meth:`FinancialTFMClassifier.fit`
+            received.
+        correct_prior: Whether predictions carry the base-rate correction.
+        log_prior_shift: ``(n_classes,)`` log-odds added to the logits by the correction,
+            ``log P_population(y) - log P_context(y)``; zero for a class absent from either
+            side, and computed whether or not ``correct_prior`` applies it.
+        pooled_context_rate: Under retrieval, the size-weighted positive rate of the contexts
+            the last prediction actually retrieved; ``None`` before one, and for every other
+            strategy.
+    """
+
+    n_context: int
+    n_positive: int
+    context_rate: float
+    population_rate: float
+    correct_prior: bool
+    log_prior_shift: tuple[float, ...]
+    pooled_context_rate: float | None
 
 
 def _finetune_rows(
@@ -361,6 +395,8 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             on a wide table under ``max_features_strategy="subsample"``.
         svd_components_: Projections this estimator appended to its own rows; 0 except on an
             ensemble member that ``ensemble_svd_components`` selected.
+        context_summary_: The stored context's size, positives and rate beside the
+            population's, and the base-rate correction; see :class:`ContextSummary`.
     """
 
     def __init__(
@@ -588,6 +624,33 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
                 0.0,
             )
         return self
+
+    @property
+    def context_summary_(self) -> ContextSummary:
+        """The stored context beside the population, read-only; see :class:`ContextSummary`.
+
+        Of this estimator's own fit: with ``n_ensemble > 1`` each member draws its own
+        context, and this is the draw at ``random_state``, the one member 0 repeats.
+
+        Raises:
+            sklearn.exceptions.NotFittedError: Before :meth:`fit`.
+        """
+        check_is_fitted(self, "_ctx_X")
+        pos = len(self.classes_) - 1
+        n_positive = int((self._ctx_y == pos).sum())
+        return ContextSummary(
+            n_context=int(self._ctx_X.shape[0]),
+            n_positive=n_positive,
+            context_rate=self._ctx_rate,
+            population_rate=self._full_rate,
+            correct_prior=bool(self.correct_prior),
+            log_prior_shift=tuple(float(v) for v in self._log_prior_shift),
+            pooled_context_rate=(
+                getattr(self, "pooled_context_rate_", None)
+                if self.context_strategy == "retrieval"
+                else None
+            ),
+        )
 
     def _check_periods(self, periods: np.ndarray | None, n_rows: int) -> np.ndarray | None:
         """Validate :meth:`fit`'s ``periods`` and return what the context should store.
@@ -1175,45 +1238,15 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         self, X: np.ndarray, stage: Literal["encode_rows", "encoder_mid", "pre_head"] = "encode_rows"
     ) -> np.ndarray:
         """One chunk of query rows, encoded but not classified. See :meth:`transform_representation`."""
-        ctx_X, ctx_y = self._ctx_X, self._ctx_y
-        n_ctx = ctx_X.shape[0]
-        cfg = self.model_.cfg
-        Xp = np.full((1, n_ctx + X.shape[0], cfg.max_features), np.nan, dtype=np.float32)
-        Xp[0, :n_ctx, : ctx_X.shape[1]] = ctx_X
-        Xp[0, n_ctx:, : X.shape[1]] = X
-        yp = np.zeros((1, n_ctx + X.shape[0]), dtype=np.int64)
-        yp[0, :n_ctx] = ctx_y
-        Xt = torch.from_numpy(Xp).to(self.device)
-        yt = torch.from_numpy(yp).to(self.device)
-        N = Xt.shape[1]
-        h = self.model_.encode_rows(Xt, n_ctx, column_id_seed=int(self.random_state), y=yt)
-        if stage in ("encoder_mid", "pre_head"):
-            import torch.nn.functional as Fnn
-
-            B = h.shape[0]
-            y_onehot = Fnn.one_hot(yt[:, :n_ctx].clamp(0, cfg.max_classes - 1), cfg.max_classes).to(
-                h.dtype
-            )
-            y_emb = torch.cat(
-                [
-                    self.model_.y_proj(y_onehot),
-                    self.model_.query_token.expand(B, N - n_ctx, -1),
-                ],
-                dim=1,
-            )
-            h = h + y_emb
-            # through the model's own row stage, so attn_impl and attn_length_scale apply here
-            # as they do in forward
-            if stage == "pre_head":
-                h = self.model_._row_attention(h, n_ctx)
-                h = self.model_.norm(h)
-            else:
-                # Half the row-to-row stack, rounded up -- partway through, not before or
-                # after all of it. No final `self.norm`: that normalisation is shaped for
-                # `self.head`'s input, not for a linear probe reading an intermediate layer.
-                n_half = (len(self.model_.encoder.layers) + 1) // 2
-                h = self.model_._row_attention(h, n_ctx, n_layers=n_half)
-        return h[0, n_ctx:].cpu().numpy()
+        h = self.model_.predict_context(
+            self._ctx_X,
+            self._ctx_y,
+            X,
+            column_id_seed=int(self.random_state),
+            output="representation",
+            stage=stage,
+        )
+        return h.cpu().numpy()
 
     @torch.no_grad()
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
@@ -1280,22 +1313,16 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             ``(n, n_classes)`` probabilities.
         """
         ctx_X, ctx_y = ctx if ctx is not None else (self._ctx_X, self._ctx_y)
-        n_ctx = ctx_X.shape[0]
-        cfg = self.model_.cfg
-        Xp = np.full((1, n_ctx + X.shape[0], cfg.max_features), np.nan, dtype=np.float32)
-        Xp[0, :n_ctx, : ctx_X.shape[1]] = ctx_X
-        Xp[0, n_ctx:, : X.shape[1]] = X
-        yp = np.zeros((1, n_ctx + X.shape[0]), dtype=np.int64)
-        yp[0, :n_ctx] = ctx_y
-        Xt = torch.from_numpy(Xp).to(self.device)
-        yt = torch.from_numpy(yp).to(self.device)
-        nc = torch.tensor([len(self.classes_)], device=self.device)
         # Each ensemble member draws its own column identities, keyed off its own seed, so
         # n_ensemble > 1 averages over them and recovers the column-order invariance that
         # decision D12 traded for expressiveness. A single member is still deterministic.
-        logits = self.model_(Xt, yt, n_ctx, nc, column_id_seed=int(self.random_state))[
-            0, n_ctx:, : len(self.classes_)
-        ]
+        logits = self.model_.predict_context(
+            ctx_X,
+            ctx_y,
+            X,
+            n_classes=len(self.classes_),
+            column_id_seed=int(self.random_state),
+        )[:, : len(self.classes_)]
         if self.correct_prior:
             prior = (
                 self._log_prior_shift
@@ -1317,7 +1344,10 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         12.8% default rate against a 0.47% truth and the error was misread as the synthetic
         prior being unable to reach low default rates (``docs/results/FINDINGS.md`` §28).
 
-        Chunked exactly, for the reason given on :meth:`predict_proba`.
+        Chunked exactly, for the reason given on :meth:`predict_proba`. Column identities are
+        drawn at ``random_state``, as :meth:`predict_proba` draws them; before DR1.4 this path
+        drew them at seed 0 whatever ``random_state`` was, so a term structure at another
+        seed moved when that was fixed (at ``random_state=0`` nothing changed).
 
         Args:
             X: ``(n, n_features)`` query rows, matching the width seen by :meth:`fit`.
@@ -1388,26 +1418,17 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             ctx_period = getattr(self, "_ctx_period", None)
         else:
             ctx_X, ctx_y = ctx
-        n_ctx = ctx_X.shape[0]
-        cfg = self.model_.cfg
-        Xp = np.full((1, n_ctx + X.shape[0], cfg.max_features), np.nan, dtype=np.float32)
-        Xp[0, :n_ctx, : ctx_X.shape[1]] = ctx_X
-        Xp[0, n_ctx:, : X.shape[1]] = X
-        yp = np.zeros((1, n_ctx + X.shape[0]), dtype=np.int64)
-        yp[0, :n_ctx] = ctx_y
-        period = None
-        if ctx_period is not None:
-            # query rows are CENSORED placeholders: the model reads only the first n_ctx
-            pp = np.full((1, n_ctx + X.shape[0]), CENSORED, dtype=np.int64)
-            pp[0, :n_ctx] = ctx_period
-            period = torch.from_numpy(pp).to(self.device)
-        out = self.model_.term_structure(
-            torch.from_numpy(Xp).to(self.device),
-            torch.from_numpy(yp).to(self.device),
-            n_ctx,
-            period=period,
+        # the same column identities as predict_proba, at random_state; until DR1.4 this
+        # path passed none and so read seed 0's whatever random_state was
+        out = self.model_.predict_context(
+            ctx_X,
+            ctx_y,
+            X,
+            column_id_seed=int(self.random_state),
+            output="term_structure",
+            period=ctx_period,
         )
-        return out[0].cpu().numpy()
+        return out.cpu().numpy()
 
     def predict(self, X: np.ndarray) -> np.ndarray:
         """Hard class labels, as the arg-max of :meth:`predict_proba`.

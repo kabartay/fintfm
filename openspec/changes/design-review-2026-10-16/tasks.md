@@ -37,7 +37,17 @@
       config keys; delete `winsor_quantile` and `transform_subsample` or give them a consumer.
       Verify: a test that sets every inference key to a non-default value and asserts the built
       classifier carries it; the published recipe reproduces from the YAML alone.
-- [ ] DR1.4 **One inference path.** `FinancialTFM.predict_context(...)` with one padding helper,
+- [x] DR1.4 **Done (2026-10-16).** `FinancialTFM.predict_context` (logits, term structure,
+      representation) over one `pack_context` helper, used by the classifier's three paths,
+      the quantile regressor and the capability probes (unpadded, `pad_features=False`, bit
+      for bit as before); `predict_term_structure` now draws column identities at
+      `random_state`; `context_summary_` replaces the `_ctx_y`/`_ctx_rate`/`_full_rate` reads
+      in context_sweep, v4_out_of_time, bench and homecredit_submit. Tests
+      `test_classifier.py::test_every_inference_caller_goes_through_predict_context`,
+      `test_hazard.py::test_classifier_term_structure_draws_column_identities_at_random_state`,
+      `test_model.py::test_predict_context_is_forward_on_the_packed_task`; golden fingerprints
+      unchanged (no `random_state != 0` term-structure entry exists, so none was rebaselined).
+      **One inference path.** `FinancialTFM.predict_context(...)` with one padding helper,
       used by `predict_proba`, `predict_term_structure`, `transform_representation`, the quantile
       regressor and the capability probes; `predict_term_structure` takes the same
       `column_id_seed` as `predict_proba`; a public `context_summary_` replaces the private
