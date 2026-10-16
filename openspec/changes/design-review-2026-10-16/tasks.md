@@ -229,7 +229,15 @@
 
 ## Phase DR6 — architecture v2
 
-- [ ] DR6.1 **Per-batch feature width** (pad to the batch's widest task, not 136), removing about
+- [ ] DR6.1 **Implemented behind `pad_to_batch_width` (2026-10-16, 2d22ba9); measurement open.**
+      Column ids are drawn at 136 and sliced when on, so a task's outputs match full padding
+      (max abs logit gap 3.6e-7, eval, fixed `column_id_seed`) and a widest-136 batch is byte
+      for byte the same. MEASURED on a 300-task sample of the reference recipe at batch 8: the
+      widest task averages 124.3 of 136 features, so it removes 8.3% of cell tokens (15.1% of
+      column-attention pairs), not half; 46.4% only at batch 1. CPU step time at load 33-72 on
+      16 cores, 3 steps per arm, two rounds: 28.6 s and 25.6 s full against 28.4 s and 21.5 s
+      narrow, a difference inside the noise (those steps were 4.2% narrower).
+      **Per-batch feature width** (pad to the batch's widest task, not 136), removing about
       half of all cell tokens from financial tasks.
       Verify: identical outputs on a fixed batch whose widest task is 136; step time measured.
 - [ ] DR6.2 **Inducing-point, context-only cell stage** behind a flag (gather from labelled
