@@ -281,6 +281,7 @@ def test_model_section_matches_the_model_config_defaults():
         ("model:\n  n_head: 2\n", "n_head"),
         ("train:\n  warmup_steps: -1\n", "warmup_steps"),
         ("train:\n  muon_lr: 0\n", "muon_lr"),
+        ("train:\n  muon_scale: spectral\n", "muon_scale"),
         ("train:\n  decay_norm_bias: maybe\n", "decay_norm_bias"),
     ],
 )

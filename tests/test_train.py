@@ -565,7 +565,7 @@ def test_cli_takes_the_new_knobs_from_config_and_flags(tmp_path, monkeypatch):
     base = ["--steps", "1", "--out", str(tmp_path / "x.pt")]
     cfg = _captured_train_cfg(monkeypatch, base)
     assert (cfg.warmup_steps, cfg.decay_norm_bias, cfg.amp, cfg.muon_lr, cfg.optimizer) == (
-        500, True, "none", 0.02, "adamw",
+        500, True, "none", None, "adamw",
     )
     override = tmp_path / "o.yaml"
     override.write_text("train:\n  warmup_steps: 9\n  decay_norm_bias: false\n")
@@ -659,21 +659,23 @@ def test_newton_schulz_orthogonalises_in_both_orientations():
 
 def test_muon_step_applies_an_orthogonalised_update():
     """One Muon step from zero momentum moves a matrix by ``lr`` times a near-orthogonal
-    update (aspect-ratio scaled), whatever the gradient's own scale; an AdamW-group parameter
-    beside it gets the plain Adam update."""
+    update (scaled by the shape rule: ``sqrt(24/8)`` under keller, ``0.2·sqrt(24)`` under
+    rms_match), whatever the gradient's own scale; an AdamW-group parameter beside it gets
+    the plain Adam update."""
     from fintfm.modeling.muon import Muon
 
-    torch.manual_seed(0)
-    w = torch.nn.Parameter(torch.randn(24, 8))
-    b = torch.nn.Parameter(torch.zeros(8))
-    opt = Muon([{"params": [w], "use_muon": True, "lr": 0.02},
-                {"params": [b], "use_muon": False, "lr": 0.001}])
-    w0 = w.detach().clone()
-    w.grad = 1000.0 * torch.randn(24, 8)
-    b.grad = torch.randn(8)
-    opt.step()
-    s = torch.linalg.svdvals((w0 - w.detach()) / (0.02 * (24 / 8) ** 0.5))
-    assert s.min() > 0.6 and s.max() < 1.25, s
+    for scale, factor in (("keller", (24 / 8) ** 0.5), ("rms_match", 0.2 * 24 ** 0.5)):
+        torch.manual_seed(0)
+        w = torch.nn.Parameter(torch.randn(24, 8))
+        b = torch.nn.Parameter(torch.zeros(8))
+        opt = Muon([{"params": [w], "use_muon": True, "lr": 0.02, "scale": scale},
+                    {"params": [b], "use_muon": False, "lr": 0.001}])
+        w0 = w.detach().clone()
+        w.grad = 1000.0 * torch.randn(24, 8)
+        b.grad = torch.randn(8)
+        opt.step()
+        s = torch.linalg.svdvals((w0 - w.detach()) / (0.02 * factor))
+        assert s.min() > 0.6 and s.max() < 1.25, (scale, s)
     # Adam's first step moves every coordinate by lr in the gradient's sign
     assert torch.allclose(b.detach(), -0.001 * torch.sign(b.grad), atol=1e-6)
     with pytest.raises(ValueError, match="2-D"):
