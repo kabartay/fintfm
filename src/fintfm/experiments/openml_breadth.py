@@ -31,18 +31,17 @@ import numpy as np
 #: Binary-classification OpenML tasks spanning prevalence, all within the 136-feature cap the
 #: current checkpoints carry. Chosen for prevalence spread rather than for difficulty, so the
 #: suite deliberately includes tasks a booster solves trivially.
+#:
+#: No TabArena-v0.1 or BeyondArena dataset may appear here (design review task DR4.1): arms are
+#: chosen on this suite, so an overlap biases the eventual TabArena number. bank-marketing,
+#: churn, blood-transfusion-service-center, credit-g, qsar-biodeg and diabetes were removed on
+#: 2026-10-16 for that reason; ``tests/test_openml_breadth_overlap.py`` keeps them out.
 SUITE: tuple[tuple[str, int], ...] = (
     ("mammography", 1),
     ("wilt", 1),
     ("ozone-level-8hr", 1),
     ("pc4", 1),
-    ("bank-marketing", 1),
     ("kc1", 1),
-    ("churn", 1),
-    ("blood-transfusion-service-center", 1),
-    ("credit-g", 1),
-    ("qsar-biodeg", 1),
-    ("diabetes", 1),
     ("MagicTelescope", 1),
     ("phoneme", 1),
     ("spambase", 1),

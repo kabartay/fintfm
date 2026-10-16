@@ -11415,6 +11415,12 @@ arm's verdict is reported as **provisional (device-confounded)**, never as bette
 
 ## §165 — The published checkpoint is close to label-symmetric on synthetic tasks, and least so on Polish
 
+> **Measured on TabArena datasets (note added 2026-10-16, task DR4.1).** Polish bankruptcy and
+> Taiwanese bankruptcy are TabArena-v0.1 datasets (`polish_companies_bankruptcy`,
+> `taiwanese_bankruptcy_prediction`). This is evaluation, not training, so decision D2 is
+> intact, but a choice of arm made on these rows, such as whether to score
+> `ensemble_class_shift`, is a choice made on TabArena data and biases a later TabArena number.
+
 **MEASURED, 2026-10-16.** `scripts/label_symmetry_probe.py` on `runs/v4-cellattn-labels.pt`, CPU,
 210 s, 1.9 GB peak, through the public `FinancialTFMClassifier` wrapper. For each task the binary
 labels in the context are swapped and the prediction `p_swapped(y=1)` compared with the

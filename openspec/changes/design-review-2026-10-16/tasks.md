@@ -113,7 +113,12 @@
 
 ## Phase DR4 — an evaluation loop that does not overlap TabArena
 
-- [ ] DR4.1 **Remove the TabArena overlap from the decision loop.** Drop bank-marketing, churn,
+- [ ] DR4.1 **Partly done (2026-10-16), left open.** The six datasets are out of `SUITE`;
+      `tests/test_openml_breadth_overlap.py` checks OpenML id and name against TabArena-v0.1 and
+      name against BeyondArena (which lists no ids); §165 carries a dated note. Open: the row-hash
+      comparison the Verify names, which needs the datasets' contents, and a rule against choosing
+      arms on the Polish and Taiwanese panels.
+      **Remove the TabArena overlap from the decision loop.** Drop bank-marketing, churn,
       blood-transfusion, credit-g, qsar-biodeg and diabetes from `openml_breadth.py`'s SUITE, and
       stop choosing arms on the Polish and Taiwanese panels; mark §165 as measured on TabArena
       datasets.

@@ -41,6 +41,12 @@ not paste one into the other. See `CLAUDE.md`.
   ROC-AUC (audit AU2.2); `--select-metric auc` reproduces earlier runs, and the choice is
   recorded. The untuned banner names the booster defaults (CatBoost 1,000 iterations, LightGBM
   and XGBoost 100 trees).
+- **The OpenML breadth suite no longer overlaps TabArena** (task DR4.1).
+  `experiments/openml_breadth.py`'s `SUITE` drops bank-marketing, churn,
+  blood-transfusion-service-center, credit-g, qsar-biodeg and diabetes, all TabArena-v0.1
+  datasets, leaving 9 of 15. `tests/test_openml_breadth_overlap.py` refuses any SUITE entry that
+  shares an OpenML id or a name with TabArena-v0.1 or BeyondArena. Breadth results from before
+  this change are not comparable with later ones.
 - **Booster figures re-baselined on Section 167** (task DR3.9). On V4FinBench's published
   features, which keep `operational_status`, the field is about 0.39-0.40 mean AP: CatBoost
   defaults (1,000 iterations) 0.4005, LightGBM at 1,000 trees and learning rate 0.05 0.3908. The
