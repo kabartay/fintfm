@@ -197,7 +197,12 @@
       workers. Adopt a setting only if outputs agree on a fixed batch and tasks per GPU-hour rise
       by 1.3x or more.
       Verify: a FINDINGS entry with tasks per GPU-hour for each setting and host.
-- [ ] DR5.2 **A streaming loader:** batch i drawn from `default_rng([seed, i])` in an
+- [ ] DR5.2 **Implemented behind `--loader stream` and `--ddp` (2026-10-16, 96c1e39); measurement open.**
+      `src/fintfm/modeling/loader.py`; the Verify tests pass (`tests/test_loader.py`: stream
+      batch i equals a `per_shard`, `shard_size=1` dump's batch i; one and two workers give
+      the same stream; a two-process gloo run averages the ranks' gradients and resumes
+      exactly). Open: a CUDA/NCCL run on a Kaggle T4x2, which nothing here has exercised.
+      **A streaming loader:** batch i drawn from `default_rng([seed, i])` in an
       IterableDataset with workers and prefetch, so resume needs no RNG state and DDP ranks take
       disjoint indices; dumps kept only for byte-identity checks. Use both GPUs of a Kaggle T4x2.
       Verify: a test that the loader's batch i equals the dump's batch i, and that two workers
@@ -209,7 +214,12 @@
       Secondary: DR4.2 proxy and a fixed 512-task synthetic set. Pre-register the outcome actions
       (2M run, mixed-prior 2M run, or neither) before launching.
       Verify: the pre-registration committed before the first arm trains; the verdict in FINDINGS.
-- [ ] DR5.4 **An extensible schedule:** warmup-stable-decay with decay branches, so a 2M-task
+- [ ] DR5.4 **Implemented behind `--schedule wsd` and `--eval-set-seed` (2026-10-16, 96c1e39); measurement open.**
+      A wsd run keeps `<out>.stable.state` at its last stable step; the Verify test passes
+      (`tests/test_train.py::test_wsd_stable_state_resumes_with_a_longer_horizon_to_the_
+      uninterrupted_weights`, 12 -> 20 steps, equal weights). Open: a 2M-task run branched
+      to a longer horizon.
+      **An extensible schedule:** warmup-stable-decay with decay branches, so a 2M-task
       run can continue to 10M; a fixed held-out synthetic set for in-training evaluation instead
       of fresh tasks per evaluation.
       Verify: a test that resuming a stable-phase checkpoint with a longer horizon reproduces the

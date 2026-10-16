@@ -223,6 +223,15 @@ class TrainConfigDefaults:
     decay_norm_bias: bool = True
     muon_lr: float | None = None
     muon_scale: str = "rms_match"
+    loader: str = "sync"
+    loader_workers: int = 0
+    loader_prefetch: int = 2
+    ddp: bool = False
+    schedule: str = "cosine"
+    decay_frac: float = 0.1
+    lr_min: float = 0.0
+    eval_set_seed: int | None = None
+    eval_batches: int = 5
 
 
 @dataclass(frozen=True)
@@ -526,6 +535,22 @@ def _validate(cfg: Config) -> None:
         raise ConfigError(
             f"train.muon_scale must be 'rms_match' or 'keller', got {t.muon_scale!r}"
         )
+    if t.loader not in ("sync", "stream"):
+        raise ConfigError(f"train.loader must be 'sync' or 'stream', got {t.loader!r}")
+    if t.loader_workers < 0:
+        raise ConfigError(f"train.loader_workers must be at least 0, got {t.loader_workers}")
+    if t.loader_prefetch < 1:
+        raise ConfigError(f"train.loader_prefetch must be at least 1, got {t.loader_prefetch}")
+    if not isinstance(t.ddp, bool):
+        raise ConfigError(f"train.ddp must be true or false, got {t.ddp!r}")
+    if t.schedule not in ("cosine", "wsd"):
+        raise ConfigError(f"train.schedule must be 'cosine' or 'wsd', got {t.schedule!r}")
+    if not 0.0 <= t.decay_frac <= 1.0:
+        raise ConfigError(f"train.decay_frac must be in [0, 1], got {t.decay_frac}")
+    if t.lr_min < 0:
+        raise ConfigError(f"train.lr_min must be at least 0, got {t.lr_min}")
+    if t.eval_batches < 1:
+        raise ConfigError(f"train.eval_batches must be at least 1, got {t.eval_batches}")
     m = cfg.model
     # ModelConfig validates the rest when the run builds its model; these two are the ones a
     # hand-edited file most plausibly gets wrong, so they fail at load instead

@@ -63,6 +63,15 @@ train:
   amp: "none"
   muon_lr: null                 # Muon keys unused: the recipe is adamw
   muon_scale: rms_match
+  loader: sync                  # DR5.2/DR5.4 keys: the recipe predates them
+  loader_workers: 0
+  loader_prefetch: 2
+  ddp: false
+  schedule: cosine
+  decay_frac: 0.1               # unused under cosine
+  lr_min: 0.0                   # unused under cosine
+  eval_set_seed: null
+  eval_batches: 5
 
 prior:
   sharpness_min: 0.3
