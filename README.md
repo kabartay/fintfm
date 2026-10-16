@@ -54,7 +54,7 @@ financial tables, and to say honestly where it currently is not.
 | | |
 | --- | --- |
 | **External benchmark** | [TabArena](https://tabarena.ai), 27 binary datasets against 94 other methods: **rank 94 of 95**, integration confirmed correct by a maintainer and the entry declined on competitiveness (§122) |
-| **On real credit panels** | calibration consistently among the best measured; discrimination consistently loses to gradient boosting — on V4FinBench's full panel, untuned CatBoost scores 0.40 mean AP against FinTFM's 0.20 (§163) |
+| **On real credit panels** | calibration consistently among the best measured; discrimination consistently loses to gradient boosting — on V4FinBench's full panel, untuned CatBoost scores 0.40 mean AP against FinTFM's 0.20 (§163). (§167, 2026-10-16: on V4FinBench's published features, which keep `operational_status`; LightGBM at 1,000 trees scores 0.3908, so the field is about 0.39-0.40 mean AP and the lead is boosting rounds, not one library.) |
 | **Fine-tuning** | opt-in per-dataset fine-tuning (`finetune_steps`, 0.7.0) lifts V4FinBench AP on 5 of 5 folds, 0.1986 → 0.2062 — the first lever to move it, closing 3.8% of the gap to CatBoost (§163) |
 | **Licence** | Apache-2.0, **code and weights** — chosen separately, not inherited (see [Licensing](#licensing--provenance)) |
 | **Checkpoint** | [kabartay/fintfm-binary](https://huggingface.co/kabartay/fintfm-binary) — 885K, binary, ≤136 features |
@@ -361,7 +361,11 @@ Stated so the project is falsifiable rather than open-ended. Two deficits are me
 separately. On TabArena, FinTFM trails tuned logistic regression by ~0.035 mean ROC-AUC over 27
 datasets (§101). On V4FinBench's full panel, untuned CatBoost (library defaults, 1,000
 iterations) leads it by about 0.19 mean average precision over five folds (0.4005 against 0.2062
-fine-tuned, §163).
+fine-tuned, §163). (§167, 2026-10-16: both figures use V4FinBench's published features, which
+keep `operational_status`. On the same features LightGBM at 1,000 trees and learning rate 0.05
+scores 0.3908, so a booster given enough rounds reaches about 0.39-0.40 mean AP; the 100-tree
+LightGBM (0.2666) and XGBoost (0.2229) defaults are under-trained and are not the field. Without
+`operational_status`, CatBoost's defaults score 0.3662.)
 
 One lever has moved V4FinBench: opt-in fine-tuning on each fold's training rows, +0.0076 mean AP,
 positive on 5 of 5 folds (0.1986 to 0.2062, §163). That closes 3.8% of the gap to CatBoost, and

@@ -97,7 +97,11 @@
       Verify: `grep -rn "§116" README.md docs/paper docs/design` shows the §166 qualifier at each
       hit that cites it as a credit result.
 
-- [ ] DR3.9 **Re-baseline every quoted booster figure on §167.** The field on V4FinBench is
+- [x] DR3.9 **Done (2026-10-16).** README, CLAIMS (Claim 6 update and Claim 16's table, now
+      with the 1,000-tree LightGBM row), LIMITATIONS and CHANGELOG [Unreleased] quote §167 with
+      the feature set (published features, with `operational_status`); the older tuned-booster
+      figures from §69-§82 are left as historical, a different protocol.
+      **Re-baseline every quoted booster figure on §167.** The field on V4FinBench is
       about 0.39-0.40 mean AP (CatBoost defaults 0.4005, LightGBM at 1,000 trees 0.3908); the
       100-tree LightGBM and XGBoost defaults are under-trained and must not be quoted as the
       field. State the feature set (with or without `operational_status`) beside every booster

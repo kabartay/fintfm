@@ -33,6 +33,8 @@ XGBoost by 0.204 to 0.236 AP. These AP values are not comparable with §69-§71'
 development cap, 0.1658 against 0.1442 AP on fold 0. On the full 1,000,087-row panel, five
 folds, FinTFM zero-shot scores 0.1986 mean AP against untuned logistic regression's 0.1614, ahead
 on every fold, and untuned CatBoost scores 0.4005. See "The gap to an untuned CatBoost" below.)
+(§167, 2026-10-16: on V4FinBench's published features, which keep `operational_status`;
+LightGBM at 1,000 trees scores 0.3908 on the same features.)
 
 ## The comparison to the published benchmark does not exist yet
 
@@ -488,7 +490,13 @@ fine-tuned FinTFM's AP. Fine-tuning closes 3.8% of the zero-shot gap to it.
 These boosters are untuned, and the comparison is not the published protocol's: that protocol
 tunes them, but its `--tune` grid caps CatBoost at 200 iterations, so tuning under it could lower
 CatBoost (§163, corrected 2026-10-16). Why CatBoost leads by this much is unmeasured; whether it is
-boosting rounds is audit task AU4.1, not yet run.
+boosting rounds is audit task AU4.1, not yet run. (§167, 2026-10-16: AU4.1 has run. Every figure
+here uses V4FinBench's published features, which keep `operational_status`. LightGBM at 1,000
+trees and learning rate 0.05 scores 0.3908 mean AP, +0.1242 over its 100-tree default and within
+0.0097 of CatBoost, and CatBoost at 100 iterations falls to 0.3746. The lead is boosting rounds,
+the field is about 0.39-0.40 mean AP, and the 100-tree LightGBM 0.2666 and XGBoost 0.2229 are
+under-trained defaults, not the field. Without `operational_status`, CatBoost's defaults score
+0.3662, 0.0343 lower; FinTFM's sensitivity to the column is unmeasured, task DR3.10.)
 
 ## Real-data pretraining (FinTFM-R) has not helped at the one recipe tried
 

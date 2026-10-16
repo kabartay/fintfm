@@ -41,6 +41,12 @@ not paste one into the other. See `CLAUDE.md`.
   ROC-AUC (audit AU2.2); `--select-metric auc` reproduces earlier runs, and the choice is
   recorded. The untuned banner names the booster defaults (CatBoost 1,000 iterations, LightGBM
   and XGBoost 100 trees).
+- **Booster figures re-baselined on Section 167** (task DR3.9). On V4FinBench's published
+  features, which keep `operational_status`, the field is about 0.39-0.40 mean AP: CatBoost
+  defaults (1,000 iterations) 0.4005, LightGBM at 1,000 trees and learning rate 0.05 0.3908. The
+  100-tree LightGBM 0.2666 and XGBoost 0.2229 defaults are under-trained and are no longer
+  quoted as the field. Without `operational_status`, CatBoost's defaults score 0.3662. README,
+  CLAIMS and LIMITATIONS state the feature set beside each figure.
 - **`FinancialTFMClassifier.fit` no longer replaces `model`** (audit AU1.6). The fine-tuned copy
   is `model_`; code that read `clf.model` for tuned weights must read `clf.model_`. Refitting
   or cloning now starts from the model passed in. Device placement moved from `__init__` to
