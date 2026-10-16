@@ -38,8 +38,10 @@ positives (ESTIMATED). Every V4FinBench report should add AP within the flagged 
 headline AP, since the headline is in effect a ranking inside that 10.6%.
 
 Related data facts (MEASURED): every positive is its company's final row; the base rate drifts
-from 0.05% (2006) to 0.66% (2019); 8,171 rows share an identical financial vector with a row
-under another company id (6 positives), a likely cross-fold duplicate entity worth disclosing.
+from 0.05% (2006) to 0.66% (2019). The review's further figure of 8,171 rows sharing an
+identical financial vector with another company's row (6 positives) did not reproduce: on the
+harness's 130 features it is 1,081 rows and 0 positives, and 1,081 to 4,933 rows with 0 or 1
+positive across eleven column sets (§168). Do not quote 8,171.
 
 ### 1.2 §116's tree-prior loss is confounded with the financial share (MEASURED)
 
