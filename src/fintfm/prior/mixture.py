@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 
@@ -304,6 +305,37 @@ class PriorConfig:
     the row encoder's cost is paid on context plus query. This caps the query so a long
     context costs what its context costs. ``None`` (default) keeps every row and consumes no
     draw, reproducing every existing checkpoint's batches byte for byte."""
+    source_weights: dict[str, float] | None = None
+    """Draw each task's source from one categorical over these weights, normalised to sum to
+    1, instead of the sequential chain (design review DR2.1). The chain tries each ``p_*`` in
+    turn on what the earlier ones left, so every ``p_*`` is a *conditional* share: at
+    ``p_tree`` 0.3 and ``p_financial`` 0.7 the financial share is 0.49, not 0.7
+    (``docs/results/FINDINGS.md`` §166). Here a weight is the share. Keys are
+    :data:`SOURCE_NAMES` or ``"real_panel:<path>"``; an unknown name, a negative or
+    non-finite weight, or an all-zero mapping is refused. Every task costs exactly one
+    ``rng.random()``. While it is set the ``p_*`` fields and :attr:`real_panels` are not
+    read, so a non-default value in any of them is refused rather than left silently inert,
+    and with :attr:`n_horizons` only ``financial``, ``trivial`` and ``crossed`` may carry
+    weight. ``None`` (default) keeps the sequential chain and its random stream byte for
+    byte."""
+
+
+#: Every source :attr:`PriorConfig.source_weights` may name besides a real panel, in the order
+#: the weighted draw lays them out: the sequential chain's order, then ``financial`` and
+#: ``scm``. A real panel is named ``"real_panel:<path>"`` and sits before ``financial``, in
+#: path order, so two equal mappings written in different orders draw the same stream.
+SOURCE_NAMES: tuple[str, ...] = (
+    "tree", "regression", "trivial", "crossed", "task_family", "real_edgar", "real_mortgage",
+    "real_lendingclub", "financial", "scm",
+)
+
+#: Prefix of a real panel's key in :attr:`PriorConfig.source_weights`.
+REAL_PANEL_PREFIX = "real_panel:"
+
+#: The sources a weighted draw may give weight to when :attr:`PriorConfig.n_horizons` is set:
+#: exactly the ones the sequential chain can reach at its required ``p_financial`` 1.0 and
+#: :func:`_sample_from_source` does not refuse under ``n_horizons``.
+_HORIZON_SOURCES: frozenset[str] = frozenset({"financial", "trivial", "crossed"})
 
 
 #: The names :attr:`PriorConfig.feature_transforms` accepts -- the values of
@@ -323,9 +355,12 @@ def _check_levers(cfg: PriorConfig) -> None:
         cfg: Prior configuration.
 
     Raises:
-        ValueError: On an unknown transform name, a non-positive ``max_query_rows``, or
-            ``permute_classes`` combined with ``n_horizons`` or ``head_type="quantile"``.
+        ValueError: On an unknown transform name, a non-positive ``max_query_rows``,
+            ``permute_classes`` combined with ``n_horizons`` or ``head_type="quantile"``, or
+            any ``source_weights`` refusal of :func:`_weighted_shares`.
     """
+    if cfg.source_weights is not None:
+        _weighted_shares(cfg)
     unknown = [k for k in cfg.feature_transforms if k not in FEATURE_TRANSFORMS]
     if unknown:
         raise ValueError(
@@ -369,29 +404,142 @@ def _sequential_sources(cfg: PriorConfig) -> tuple[tuple[str, float], ...]:
     )
 
 
-def source_shares(cfg: PriorConfig) -> dict[str, dict[str, float]]:
+def parse_source_weights(spec: str) -> dict[str, float] | None:
+    """Parse a ``--source-weights`` value, ``"tree=0.25,scm=0.4,financial=0.35"``.
+
+    Only the syntax is checked here; names and weights are checked by :func:`_weighted_shares`
+    when the prior is used, so a file and a flag are refused by the same code.
+
+    Args:
+        spec: Comma-separated ``source=weight`` entries. A real panel's key is
+            ``real_panel:<path>``, split at its last ``=``.
+
+    Returns:
+        The mapping in the order written, or ``None`` for an empty spec, which keeps the
+        sequential draw.
+
+    Raises:
+        ValueError: On an entry without ``=``, a weight that is not a number, or a source
+            named twice.
+    """
+    out: dict[str, float] = {}
+    for raw in spec.split(","):
+        entry = raw.strip()
+        if not entry:
+            continue
+        name, sep, value = entry.rpartition("=")
+        name = name.strip()
+        if not sep or not name:
+            raise ValueError(f"source_weights entry {entry!r} is not of the form source=weight")
+        try:
+            weight = float(value)
+        except ValueError:
+            raise ValueError(
+                f"source_weights weight for {name!r} is not a number: {value!r}"
+            ) from None
+        if name in out:
+            raise ValueError(f"source_weights names {name!r} twice")
+        out[name] = weight
+    return out or None
+
+
+def _weighted_shares(cfg: PriorConfig) -> tuple[dict[str, float], dict[str, float]]:
+    """Validate :attr:`PriorConfig.source_weights` and normalise it, in draw order.
+
+    Args:
+        cfg: Prior configuration with ``source_weights`` set.
+
+    Returns:
+        ``(configured, realised)``: the weights as given and the normalised shares, both keyed
+        in :data:`SOURCE_NAMES` order with real panels, by path, before ``financial``. Zero
+        weights are kept, so the record states every source the run named.
+
+    Raises:
+        ValueError: On an empty mapping, an unknown source name, a ``real_panel:`` key with no
+            path, a negative or non-finite weight, weights summing to zero, a non-default
+            ``p_*`` field or non-empty ``real_panels`` (neither is read in this mode), or
+            ``n_horizons`` set with weight on a source that has no time axis.
+    """
+    weights = cfg.source_weights
+    if not weights:
+        raise ValueError("source_weights is empty; give it at least one source, or None")
+    unknown = [
+        k for k in weights
+        if k not in SOURCE_NAMES
+        and not (k.startswith(REAL_PANEL_PREFIX) and k[len(REAL_PANEL_PREFIX):].strip())
+    ]
+    if unknown:
+        raise ValueError(
+            f"unknown source_weights source(s) {unknown}; valid names are {list(SOURCE_NAMES)} "
+            f"or '{REAL_PANEL_PREFIX}<path>'"
+        )
+    bad = {k: w for k, w in weights.items() if not (math.isfinite(float(w)) and float(w) >= 0)}
+    if bad:
+        raise ValueError(f"source_weights must be finite and non-negative, got {bad}")
+    total = math.fsum(float(w) for w in weights.values())
+    if total <= 0:
+        raise ValueError("source_weights sum to zero, so no source could ever be drawn")
+    defaults = PriorConfig()
+    inert = [
+        f for f in ("p_tree", "p_regression", "p_trivial", "p_crossed", "p_task_family",
+                    "p_real_edgar", "p_real_mortgage", "p_real_lendingclub", "p_financial")
+        if getattr(cfg, f) != getattr(defaults, f)
+    ]
+    if cfg.real_panels:
+        inert.append("real_panels")
+    if inert:
+        raise ValueError(
+            f"{inert} would be silently ignored: source_weights replaces the sequential draw "
+            "that reads them. Give each source its weight in source_weights and leave these "
+            "at their defaults"
+        )
+    if cfg.n_horizons is not None:
+        timeless = [k for k, w in weights.items() if float(w) > 0 and k not in _HORIZON_SOURCES]
+        if timeless:
+            raise ValueError(
+                f"n_horizons requires every weighted source to carry a survival label; "
+                f"{timeless} have no time axis (allowed: {sorted(_HORIZON_SOURCES)})"
+            )
+    panels = sorted(k for k in weights if k.startswith(REAL_PANEL_PREFIX))
+    order = [*(k for k in SOURCE_NAMES[:-2] if k in weights), *panels,
+             *(k for k in SOURCE_NAMES[-2:] if k in weights)]
+    configured = {k: float(weights[k]) for k in order}
+    return configured, {k: w / total for k, w in configured.items()}
+
+
+def source_shares(cfg: PriorConfig) -> dict[str, Any]:
     """The configured source weights and the shares :func:`_draw_source` actually produces.
 
-    The draw is sequential: each source in turn takes its weight of whatever the earlier ones
-    left, ``financial`` takes its weight of the rest, and ``scm`` takes the remainder. So a
-    weight is a *conditional* probability, not a share. At ``p_tree`` 0.3 and ``p_financial``
-    0.7 the financial share is 0.7 x 0.7 = 0.49, not 0.7, and the SCM share is 0.21 -- the
-    confound ``docs/results/FINDINGS.md`` §166 found behind §116's tree-prior loss on credit.
-    Recorded in every checkpoint (design review DR1.2) so a run states the mixture it saw.
+    By default the draw is sequential: each source in turn takes its weight of whatever the
+    earlier ones left, ``financial`` takes its weight of the rest, and ``scm`` takes the
+    remainder. So a weight is a *conditional* probability, not a share. At ``p_tree`` 0.3 and
+    ``p_financial`` 0.7 the financial share is 0.7 x 0.7 = 0.49, not 0.7, and the SCM share
+    is 0.21 -- the confound ``docs/results/FINDINGS.md`` §166 found behind §116's tree-prior
+    loss on credit. With :attr:`PriorConfig.source_weights` set (design review DR2.1) the draw
+    is one categorical and the realised shares are the normalised weights. Recorded in every
+    checkpoint (design review DR1.2) so a run states the mixture it saw.
 
     Computed analytically from the weights in draw order, so it costs nothing and consumes
-    no random draw. A weight is clipped to ``[0, 1]`` exactly as ``rng.random() < p`` clips
-    it. The shares are per source draw: :attr:`PriorConfig.p_learnability_filter` resamples
-    rejected tasks, which can move the shares of *accepted* tasks away from these.
+    no random draw. A sequential weight is clipped to ``[0, 1]`` exactly as
+    ``rng.random() < p`` clips it. The shares are per source draw:
+    :attr:`PriorConfig.p_learnability_filter` resamples rejected tasks, which can move the
+    shares of *accepted* tasks away from these.
 
     Args:
         cfg: Prior configuration.
 
     Returns:
-        ``{"configured": weights, "realised": shares}``, each keyed by source name in draw
-        order (a real panel as ``"real_panel:<path>"``). ``configured`` has no ``scm`` entry,
-        since SCM has no weight of its own; ``realised`` sums to 1.
+        ``{"mode": "sequential" | "weighted", "configured": weights, "realised": shares}``,
+        weights and shares keyed by source name in draw order (a real panel as
+        ``"real_panel:<path>"``). In sequential mode ``configured`` has no ``scm`` entry,
+        since SCM has no weight of its own there; ``realised`` sums to 1 in both modes.
+
+    Raises:
+        ValueError: If ``source_weights`` is set and invalid (:func:`_weighted_shares`).
     """
+    if cfg.source_weights is not None:
+        configured, realised = _weighted_shares(cfg)
+        return {"mode": "weighted", "configured": configured, "realised": realised}
     weighted = [
         *_sequential_sources(cfg),
         *((f"real_panel:{path}", p) for path, p in parse_real_panels(cfg.real_panels)),
@@ -404,7 +552,11 @@ def source_shares(cfg: PriorConfig) -> dict[str, dict[str, float]]:
         realised[name] = share
         remaining -= share
     realised["scm"] = remaining
-    return {"configured": {name: float(p) for name, p in weighted}, "realised": realised}
+    return {
+        "mode": "sequential",
+        "configured": {name: float(p) for name, p in weighted},
+        "realised": realised,
+    }
 
 
 def _draw_source(rng: np.random.Generator, cfg: PriorConfig) -> tuple[str, str | None]:
@@ -421,6 +573,11 @@ def _draw_source(rng: np.random.Generator, cfg: PriorConfig) -> tuple[str, str |
     weight of zero still consumes no draw, so ``sample_task`` reproduces its pre-split random
     stream byte for byte.
 
+    With :attr:`PriorConfig.source_weights` set (design review DR2.1) the chain is replaced by
+    one categorical draw over the normalised weights: exactly one ``rng.random()``, mapped
+    onto the cumulative shares in :func:`_weighted_shares`' order. Zero-weight sources are
+    left out of that table, so none can be drawn through rounding at the top of it.
+
     Args:
         rng: NumPy random generator.
         cfg: Prior configuration.
@@ -434,8 +591,17 @@ def _draw_source(rng: np.random.Generator, cfg: PriorConfig) -> tuple[str, str |
 
     Raises:
         ValueError: If ``n_horizons`` is set with ``p_financial < 1``, checked before any
-            draw exactly as :func:`sample_task` always did.
+            draw exactly as :func:`sample_task` always did, or if ``source_weights`` is set
+            and invalid (:func:`_weighted_shares`).
     """
+    if cfg.source_weights is not None:
+        _, realised = _weighted_shares(cfg)
+        names = [k for k, w in realised.items() if w > 0]
+        cdf = np.cumsum([realised[k] for k in names])
+        i = min(int(np.searchsorted(cdf, rng.random(), side="right")), len(names) - 1)
+        if names[i].startswith(REAL_PANEL_PREFIX):
+            return "real_panel", names[i][len(REAL_PANEL_PREFIX):]
+        return names[i], None
     if cfg.n_horizons is not None and cfg.p_financial < 1.0:
         raise ValueError(
             "n_horizons requires p_financial=1.0; the SCM prior has no time axis and a "
@@ -565,8 +731,10 @@ def sample_task(rng: np.random.Generator, cfg: PriorConfig, n_rows: int | None =
     """Draw one task from the mixture prior.
 
     Raises:
-        ValueError: If ``n_horizons`` is set with ``p_financial < 1``, which would produce
-            batches mixing survival and binary-only tasks.
+        ValueError: If ``n_horizons`` is set with ``p_financial < 1`` (or, with
+            ``source_weights``, with weight on a source that has no time axis), which would
+            produce batches mixing survival and binary-only tasks; or if ``source_weights``
+            is invalid.
     """
     n = cfg.n_rows if n_rows is None else n_rows
     source, panel_path = _draw_source(rng, cfg)
@@ -583,7 +751,9 @@ def _sample_tasks_reusing_graphs(
     filled, ``scm_reuse_graph`` at a time from one shared graph; every other source is sampled
     one task at a time, since the financial and tree priors have no shared-graph structure to
     amortise. So the batch's source mix follows the configured mixture whatever the reuse
-    value, and reuse changes only which SCM tasks share a graph.
+    value, and reuse changes only which SCM tasks share a graph. That holds in both source
+    modes, sequential and :attr:`PriorConfig.source_weights`, since both go through
+    :func:`_draw_source`.
 
     Before AU1.13 this function decided whether a *slot* was SCM, left ``p_trivial``,
     ``p_crossed`` and ``p_task_family`` out of that check, drew the source a second time inside

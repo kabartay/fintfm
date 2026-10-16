@@ -23,7 +23,7 @@ from fintfm.prior import PriorConfig
 from fintfm.prior.base import TaskBatch
 from fintfm.prior.dump import TaskDump, open_task_dump
 from fintfm.prior.levers import add_prior_lever_arguments, prior_lever_values
-from fintfm.prior.mixture import sample_batch, source_shares
+from fintfm.prior.mixture import parse_source_weights, sample_batch, source_shares
 from fintfm.provenance import json_safe, sha256_file
 
 #: Second element of the evaluation generator's seed, ``[seed, _EVAL_STREAM]``, so held-out
@@ -148,7 +148,7 @@ _PRIOR_CONFIG_KNOBS = (
     "identity_shuffle", "discretize_frac", "n_noise_features", "n_correlated_block_features",
     "label_noise_rate", "min_ctx_per_class", "p_real_edgar", "real_edgar_panel_path",
     "p_real_mortgage", "real_mortgage_panel_path", "p_real_lendingclub",
-    "real_lendingclub_panel_path", "real_panels",
+    "real_lendingclub_panel_path", "real_panels", "source_weights",
 )
 
 #: Accepted values of :attr:`TrainConfig.optimizer`.
@@ -1373,6 +1373,17 @@ def build_parser() -> argparse.ArgumentParser:
         "opens no file",
     )
     p.add_argument(
+        "--source-weights",
+        type=str,
+        default=None,
+        help="draw each task's source from one categorical over these weights, normalised "
+        "(design review DR2.1), e.g. 'tree=0.25,financial=0.35,scm=0.4'; a real panel is "
+        "'real_panel:<path>=w'. Replaces the sequential --p-* chain, whose weights are "
+        "conditional shares (docs/results/FINDINGS.md §166), so the --p-* flags and "
+        "--real-panels must stay at their defaults. Defaults to the config's "
+        "prior.source_weights, null, the sequential draw; '' forces it",
+    )
+    p.add_argument(
         "--identity-shuffle",
         action=argparse.BooleanOptionalAction,
         default=None,
@@ -1701,9 +1712,15 @@ def build_prior_config(args: argparse.Namespace, cfg: Config) -> PriorConfig:
     choices = getattr(args, "n_rows_choices", None)
     if choices is not None:  # a flag is a comma-separated string, the config a list
         values["n_rows_choices"] = tuple(int(v) for v in choices.split(",")) if choices else None
+    weights = getattr(args, "source_weights", None)
+    if weights is not None:  # a flag is a 'source=weight,...' string, the config a mapping
+        values["source_weights"] = parse_source_weights(weights)
+    elif values["source_weights"] is not None:
+        values["source_weights"] = dict(values["source_weights"])
     n_horizons = _flag_or_config(args, cfg.model, "n_horizons")
-    if n_horizons:
-        # the survival objective needs every task to carry a period
+    if n_horizons and values["source_weights"] is None:
+        # the survival objective needs every task to carry a period; a weighted draw is
+        # refused instead if it gives weight to a source without one
         values["p_financial"] = 1.0
     return PriorConfig(
         # taken from the model section, so the prior and the model agree on the table's shape

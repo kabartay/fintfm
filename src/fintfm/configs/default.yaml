@@ -147,6 +147,12 @@ prior:
   p_real_lendingclub: 0.0
   real_lendingclub_panel_path: data/lendingclub/panel.parquet
   real_panels: ""                 # further sources as "path=prob,path=prob"
+  # DR2.1: one categorical source draw over these weights, normalised, in place of the
+  # sequential chain above, whose p_* are conditional shares (FINDINGS §166). A mapping such
+  # as {tree: 0.25, financial: 0.35, scm: 0.4}; a real panel is "real_panel:<path>". While set,
+  # the p_* keys and real_panels must stay at their defaults. null keeps the sequential draw
+  # and every existing checkpoint's batches byte for byte.
+  source_weights: null
 
 # Every TrainConfig field, read by fintfm-train (DR1.3; the knobs of audit AU5.2, AU5.10 and
 # AU5.17 among them). These MIRROR the literal defaults of TrainConfig in modeling/train.py, as

@@ -838,6 +838,53 @@ def test_two_step_checkpoint_states_its_normalised_source_shares(tmp_path):
     assert read_checkpoint_provenance(f"{out}.step1")["tasks_seen"] == 3
 
 
+def test_source_weights_flag_trains_and_the_checkpoint_states_the_weighted_shares(
+    tmp_path, monkeypatch
+):
+    """DR2.1: ``--source-weights`` reaches the prior, two steps train with graph reuse on,
+    and the checkpoint records the weighted mode with the normalised weights as its realised
+    shares. Pipeline only; says nothing of quality."""
+    import importlib
+
+    from fintfm.provenance import read_checkpoint_provenance
+
+    train_mod = importlib.import_module("fintfm.modeling.train")
+    monkeypatch.delenv("FINTFM_CONFIG", raising=False)
+    out = tmp_path / "m.pt"
+    train_mod.main([*_TINY_CLI, "--source-weights", "tree=1,financial=1,scm=2",
+                    "--scm-reuse-graph", "2", "--out", str(out)])
+    rec = read_checkpoint_provenance(out)
+    assert rec["prior_config"]["source_weights"] == {"tree": 1.0, "financial": 1.0, "scm": 2.0}
+    assert rec["source_shares"] == {
+        "mode": "weighted",
+        "configured": {"tree": 1.0, "financial": 1.0, "scm": 2.0},
+        "realised": {"tree": 0.25, "financial": 0.25, "scm": 0.5},
+    }
+
+
+def test_source_weights_resolve_flag_over_config(tmp_path):
+    """The config's mapping is used when no flag is given, a flag replaces it, ``''`` forces
+    the sequential draw, and ``n_horizons`` forces ``p_financial`` only in sequential mode
+    (a weighted draw is refused instead if it weights a source with no time axis)."""
+    from fintfm.config import load_config
+    from fintfm.modeling.train import build_parser, build_prior_config
+
+    f = tmp_path / "c.yaml"
+    f.write_text("prior:\n  source_weights: {financial: 3, trivial: 1}\n")
+    cfg = load_config(f)
+
+    def prior(*flags: str) -> PriorConfig:
+        return build_prior_config(build_parser().parse_args(["--out", "x", *flags]), cfg)
+
+    assert prior().source_weights == {"financial": 3, "trivial": 1}
+    assert prior("--source-weights", "scm=1").source_weights == {"scm": 1.0}
+    assert prior("--source-weights", "").source_weights is None
+    assert prior("--n-horizons", "3").p_financial == 0.7
+    assert prior("--n-horizons", "3", "--source-weights", "").p_financial == 1.0
+    default = build_prior_config(build_parser().parse_args(["--out", "x"]), load_config())
+    assert default.source_weights is None
+
+
 def test_init_from_records_the_starting_checkpoint(tmp_path):
     """Continued pretraining records which weights it started from and their own task count,
     since ``tasks_seen`` counts this run's steps only."""
