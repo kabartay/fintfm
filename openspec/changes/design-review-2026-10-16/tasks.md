@@ -209,12 +209,20 @@
 
 ## Phase DR5 — throughput, then a volume test
 
-- [ ] DR5.1 **E0 throughput.** `fintfm-train --benchmark-steps 50` at the reference recipe on a
+- [x] DR5.1 **Done (2026-10-17, §170).** No single-GPU setting clears 1.3x (split 1.21x, split plus batch width 1.29x); DDP on a T4x2 is about 1.9x; fp16 runs out of memory at batch 4 where fp32 needs 6.2 GB (DR5.5).
+      **E0 throughput.** `fintfm-train --benchmark-steps 50` at the reference recipe on a
       Kaggle T4 (fp32, `--amp fp16`, `--attn-impl split`) and an HF L4 (fp32, `--amp bf16`, split),
       with rows pinned at 1,024 and mixed; prior generation on each host's CPUs at 1 and 2
       workers. Adopt a setting only if outputs agree on a fixed batch and tasks per GPU-hour rise
       by 1.3x or more.
       Verify: a FINDINGS entry with tasks per GPU-hour for each setting and host.
+- [ ] DR5.5 **Fix fp16's attention memory.** Under `--amp fp16` every arm ran out of memory
+      in `multi_head_attention_forward`, even at batch 4 where fp32 peaks at 6.2 GB (§170).
+      Find which call falls back to the math kernel (mask dtype or form under autocast,
+      `need_weights`, or the split path's padded head dimension), fix it, and re-run E0's fp16
+      arms.
+      Verify: a CUDA test asserting fp16 peak memory at or below fp32's on a fixed batch, and
+      fp16 tasks per hour measured on a T4 against §170's fp32 rows.
 - [ ] DR5.2 **Implemented behind `--loader stream` and `--ddp` (2026-10-16, 96c1e39); measurement open.**
       `src/fintfm/modeling/loader.py`; the Verify tests pass (`tests/test_loader.py`: stream
       batch i equals a `per_shard`, `shard_size=1` dump's batch i; one and two workers give

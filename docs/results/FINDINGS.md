@@ -11670,3 +11670,45 @@ fine-tuning did (+0.0076, §163), and closes 19% of the gap to CatBoost (0.4005,
 zero-shot: no weights changed and no training rows were fitted beyond the tree's split.
 Untested so far: bagging over trees, depth 1 or 3, combining with fine-tuning or with 8
 members, and TabArena (where a partition must also not lose).
+
+## §170 — E0: on a Kaggle T4, split attention gains 1.21x, DDP on two T4s about 1.9x, and fp16 is broken
+
+**MEASURED, 2026-10-16/17** (design review DR5.1). `scripts/kaggle/task_e0_throughput` v2 and v3
+on a Kaggle T4x2 session (14.56 GB per GPU, 4 vCPUs), fintfm at b2b836e, the published recipe
+(`configs/published/v4-cellattn-labels.yaml`), `fintfm-train --benchmark-steps 50` after 3
+untimed steps, rows {256, 512, 1024} unless stated. Logs in `runs/kaggle-e0/` and
+`runs/kaggle-e0v3/`.
+
+| setting | s/step | tasks/hour | vs fp32 masked | peak GPU memory |
+| --- | --- | --- | --- | --- |
+| fp32, masked attention, batch 8 | 1.93 | 14,172 | 1.00x | 12.3 GB |
+| fp32, split attention, batch 8 | 1.59 | 17,101 | 1.21x | 13.3 GB |
+| fp32, split, padded to batch width | 1.48 | 18,256 | 1.29x | 13.2 GB |
+| fp32, split, streaming loader, 0 workers | 1.69 | 16,093 | 1.14x | 13.3 GB |
+| fp32, split, streaming loader, 2 workers | 1.70 | 16,974 | 1.20x | 13.3 GB |
+| fp32, masked, rows pinned at 1,024 | 4.11 | 6,825 | 0.48x | 12.3 GB |
+| fp32, masked, batch 4 | 0.93 | 14,750 | 1.04x | 6.2 GB |
+| fp32, split, batch 4 | 0.80 | 17,070 | 1.20x | 6.7 GB |
+| fp16, masked or split, batch 8 or 4, chunk 8 or 4 | out of memory | | | over 14 GB |
+
+The fp32 masked baseline reproduces §86's 1.90 s/step on a T4. CPU task generation is about 5%
+of a step (4.9 of 101.6 s), so the streaming loader buys nothing here.
+
+**Agreement on one fixed batch** (max absolute difference in query logits against fp32 masked):
+fp32 split 1.2e-4, fp16 masked 9.9e-4, fp16 split 9.8e-4. Float rounding, not a behaviour
+change.
+
+**DDP on both T4s** (`torch.distributed.run --nproc-per-node 2`, `--loader stream --ddp`, fp32
+split): 20 steps of 16 tasks completed with checkpoints at steps 10 and 20; steps 5 to 20 took 32
+s, about 2.1 s per 16-task step, so about 27,000 tasks per hour (ESTIMATED from the step log,
+not a benchmark arm). This is the first run of the NCCL path.
+
+**Verdict under DR5.1's rule** (adopt only if outputs agree and tasks per GPU-hour rise 1.3x or
+more): **no single-GPU setting is adopted**; split attention is 1.21x, and with batch-width
+padding 1.29x. DDP is not a numerics change and roughly doubles a T4x2 session's throughput.
+
+**fp16 is broken, not slow.** At batch 4 fp32 needs 6.2 GB, while fp16 runs out above 14 GB
+inside `torch.nn.functional.multi_head_attention_forward`. More than double the memory at half
+the precision points at the attention kernel: the likely cause is the row mask's dtype or form
+under autocast forcing the math fallback, which materialises the full attention matrix. Task
+DR5.5 fixes and tests it; a working fp16 is the largest unmeasured throughput lever on a T4.
