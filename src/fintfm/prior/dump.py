@@ -37,6 +37,9 @@ One ``.npz`` per shard holding each batch's arrays under ``b<k>_X``, ``b<k>_y``,
 ``b<k>_n_classes``, ``b<k>_n_ctx`` and, for survival batches, ``b<k>_period``. ``X`` is stored
 cropped to the batch's widest column that holds any value; the columns cut are NaN in every
 task of the batch (feature padding), and loading re-pads them with NaN to ``max_features``.
+Under ``PriorConfig.pad_to_batch_width`` (design review DR6.1) the batch is already only as
+wide as its widest task, so it is stored and returned at that width, uncropped, and a dump
+still reproduces the live batch exactly.
 """
 
 from __future__ import annotations
@@ -118,8 +121,12 @@ def _shard_batches(
     for k in range(n):
         batch = sample_batch(rng, cfg, batch_size)
         X = batch.X.numpy()
-        filled = np.flatnonzero(~np.isnan(X).all(axis=(0, 1)))
-        width = int(filled[-1]) + 1 if len(filled) else 0
+        if cfg.pad_to_batch_width:
+            # already at the widest task's width; cropping further would lose that width
+            width = X.shape[2]
+        else:
+            filled = np.flatnonzero(~np.isnan(X).all(axis=(0, 1)))
+            width = int(filled[-1]) + 1 if len(filled) else 0
         arrays[f"b{k}_X"] = np.ascontiguousarray(X[:, :, :width])
         arrays[f"b{k}_y"] = batch.y.numpy()
         arrays[f"b{k}_n_classes"] = batch.n_classes.numpy()
@@ -321,7 +328,8 @@ class TaskDump:
             index: Zero-based batch number, ``0 <= index < len(self)``.
 
         Returns:
-            The batch, with ``X`` re-padded to ``max_features``.
+            The batch, with ``X`` re-padded to ``max_features``, or at its stored width for
+            a dump written under ``pad_to_batch_width``.
 
         Raises:
             IndexError: If ``index`` is out of range -- a run longer than its dump fails
@@ -338,8 +346,11 @@ class TaskDump:
             self._open = (shard, f)
         X_stored = f[f"b{k}_X"]
         B, N, width = X_stored.shape
-        X = np.full((B, N, self.max_features), np.nan, dtype=np.float32)
-        X[:, :, :width] = X_stored
+        if self.manifest["prior"].get("pad_to_batch_width", False):
+            X = np.array(X_stored, dtype=np.float32)  # stored at the batch's width (DR6.1)
+        else:
+            X = np.full((B, N, self.max_features), np.nan, dtype=np.float32)
+            X[:, :, :width] = X_stored
         period_key = f"b{k}_period"
         return TaskBatch(
             torch.from_numpy(X),

@@ -608,6 +608,17 @@ class FinancialTFM(nn.Module):
 
     Args:
         cfg: :class:`ModelConfig`.
+
+    Attributes:
+        column_ids_full_width: Draw the random column identities at ``cfg.max_features``
+            columns and keep the first ``F`` of them, rather than drawing at the input's
+            width ``F`` (design review DR6.1). Set by ``fintfm-train`` from
+            ``PriorConfig.pad_to_batch_width``, so a batch padded only to its widest task
+            sees the identities, and the global RNG stream, it would see padded to
+            ``max_features``. Runtime-only like :attr:`feature_chunk`: it changes no weight,
+            and for an input already ``max_features`` wide, every training batch and every
+            ``predict_context`` call by default, it changes no output. ``False`` (default)
+            keeps the original width-``F`` draw.
     """
 
     def __init__(self, cfg: ModelConfig) -> None:
@@ -624,6 +635,8 @@ class FinancialTFM(nn.Module):
         # output, so it must not enter a checkpoint or require a load-time backfill. See
         # :attr:`feature_chunk`.
         self.feature_chunk: int | None = None
+        # Runtime-only for the same reason as feature_chunk: see :attr:`column_ids_full_width`.
+        self.column_ids_full_width: bool = False
         # AU5.16: optional basis expansion and ECDF channel ahead of the cell MLP. With both
         # off the MLP's input is the scalar value alone, exactly as before these existed.
         self.value_basis = (
@@ -860,12 +873,24 @@ class FinancialTFM(nn.Module):
 
         Generated on the CPU and moved, so the stream does not depend on the accelerator and
         a seeded prediction reproduces across CPU, Metal and CUDA alike.
+
+        **The draw depends on the padded width** ``Fdim``: task ``b``'s ids are the
+        ``b``-th block of one ``(B, Fdim, d)`` draw, so the same task padded to two widths
+        gets different identities, and the global RNG advances by a different amount. With
+        :attr:`column_ids_full_width` set (design review DR6.1, for batches padded only to
+        their widest task) the draw is always ``(B, cfg.max_features, d)`` and the first
+        ``Fdim`` columns are kept, which is exactly the full-padding draw restricted to the
+        columns present; off (default), the draw is ``(B, Fdim, d)`` as it always was, so
+        a probe fed unpadded features keeps its numbers.
         """
+        width = self.cfg.max_features if self.column_ids_full_width else Fdim
         if seed is None and self.training:
-            ids = torch.randn(B, Fdim, self.col_id_dim, dtype=torch.float32)
+            ids = torch.randn(B, width, self.col_id_dim, dtype=torch.float32)
         else:
             g = torch.Generator().manual_seed(_DEFAULT_COLUMN_ID_SEED if seed is None else seed)
-            ids = torch.randn(B, Fdim, self.col_id_dim, generator=g, dtype=torch.float32)
+            ids = torch.randn(B, width, self.col_id_dim, generator=g, dtype=torch.float32)
+        if width != Fdim:
+            ids = ids[:, :Fdim]
         return ids.to(device=device, dtype=dtype)
 
     def encode_rows(

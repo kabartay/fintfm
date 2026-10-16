@@ -1,4 +1,4 @@
-"""Command-line wiring for the audit Phase 5 pretraining levers (AU5.4-AU5.6, AU5.15).
+"""Command-line wiring for the pretraining levers (audit AU5.4-AU5.6, AU5.15; review DR6.1).
 
 Kept beside the prior rather than inlined into ``fintfm-train`` so the training entry point
 and ``scripts/dump_prior_tasks.py`` build the same :class:`~fintfm.prior.mixture.PriorConfig`
@@ -46,6 +46,15 @@ def add_prior_lever_arguments(p: argparse.ArgumentParser) -> None:
         "config's prior.max_query_rows, null, which keeps every row",
     )
     p.add_argument(
+        "--pad-to-batch-width",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="pad each batch's feature axis to its widest task instead of --max-features "
+        "(design review DR6.1); the padding is masked and column identities are drawn at "
+        "full width, so outputs match full padding while the cell stages skip the padded "
+        "columns. Defaults to the config's prior.pad_to_batch_width, false",
+    )
+    p.add_argument(
         "--task-dump",
         type=str,
         default=None,
@@ -87,5 +96,10 @@ def prior_lever_values(args: argparse.Namespace, prior: PriorConfigDefaults) -> 
         "feature_transforms": tuple(transforms),
         "max_query_rows": (
             prior.max_query_rows if args.max_query_rows is None else args.max_query_rows
+        ),
+        "pad_to_batch_width": (
+            prior.pad_to_batch_width
+            if args.pad_to_batch_width is None
+            else args.pad_to_batch_width
         ),
     }

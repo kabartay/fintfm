@@ -861,6 +861,7 @@ def train(
     torch.manual_seed(train_cfg.seed)
     model = FinancialTFM(model_cfg).to(train_cfg.device)
     model.feature_chunk = train_cfg.feature_chunk
+    model.column_ids_full_width = prior_cfg.pad_to_batch_width  # DR6.1
     print(f"model parameters: {model.num_parameters():,}")
     opt, sched = _build_optimizer(model, train_cfg)
     _autocast(model, train_cfg.amp)  # refuse an unsupported precision before any step
@@ -1109,6 +1110,7 @@ def benchmark(
     torch.manual_seed(train_cfg.seed)
     model = FinancialTFM(model_cfg).to(train_cfg.device)
     model.feature_chunk = train_cfg.feature_chunk
+    model.column_ids_full_width = prior_cfg.pad_to_batch_width  # DR6.1
     opt, sched = _build_optimizer(model, train_cfg)
     _autocast(model, train_cfg.amp)
     scaler = _grad_scaler(train_cfg.amp)

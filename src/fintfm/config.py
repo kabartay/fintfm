@@ -164,6 +164,7 @@ class PriorConfigDefaults:
     permute_classes: bool = False
     feature_transforms: tuple[str, ...] = ()
     max_query_rows: int | None = None
+    pad_to_batch_width: bool = False
     n_rows: int = 256
     n_rows_choices: tuple[int, ...] | None = None
     p_financial: float = 0.7
