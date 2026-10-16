@@ -533,6 +533,7 @@ def run(
     from fintfm.evaluation.datasets import CACHE_DIR
     from fintfm.inference.large_n import wrap_large_n
     from fintfm.modeling.model import FinancialTFM
+    from fintfm.provenance import environment_record, estimator_params, sha256_file
 
     cfg = cfg or load_config()
     root = root or (CACHE_DIR / "v4finbench")
@@ -549,6 +550,11 @@ def run(
     codes = company_codes(company)
 
     model = FinancialTFM.load(model_path) if model_path is not None else None
+    # DR1.2: the run names the exact weights and the exact classifier settings it scored, so
+    # a number can be traced to a file and a configuration rather than to a path that may
+    # since have been overwritten
+    checkpoint_sha256 = sha256_file(model_path) if model_path is not None else None
+    classifier_params: dict[str, dict] = {}
     # §25: every gradient-boosting comparison in this project once used sklearn's weakest
     # implementation because the strong ones were silently absent. available_boosting()
     # announces what is missing rather than skipping it quietly.
@@ -590,6 +596,7 @@ def run(
             base = fintfm_classifier(model, cfg, device=device, random_state=fold)
             # AU5.8: "none" (the default) returns `base` itself, so the arm is unchanged
             clf = wrap_large_n(base, cfg.large_n)
+            classifier_params[str(fold)] = estimator_params(clf)
             clf.fit(Xtr.astype(np.float32), y[tr], groups=company[tr])
             if cfg.inference.finetune_steps and clf is base:
                 fl = clf.finetune_losses_
@@ -738,6 +745,13 @@ def run(
             "config_sources": list(cfg.sources),
         },
         "arms": [asdict(s) for s in summaries],
+        # commit, dirty flag, fintfm and torch versions, the checkpoint's hash, and the
+        # fintfm arm's full get_params() per fold (its random_state is the fold index)
+        "provenance": {
+            **environment_record(),
+            "checkpoint_sha256": checkpoint_sha256,
+            "classifier_params": classifier_params,
+        },
     }
     (out_dir / "v4_protocol.json").write_text(json.dumps(record, indent=2))
     return record

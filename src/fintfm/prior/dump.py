@@ -24,6 +24,13 @@ The prior configuration, batch size, seed and stream are written to ``manifest.j
 run consuming it -- a dump generated under one mixture and trained under another would
 otherwise report the other mixture's name on every result.
 
+An equal configuration is not an equal prior once the code has changed: an edit to
+``prior/*.py`` or to the preprocessing the prior applies can change every batch under the same
+field values. So the manifest also carries a :func:`code_fingerprint` of that code (design
+review DR1.2), and a dump whose fingerprint differs from the running code's is refused too,
+unless the caller passes ``allow_code_mismatch`` -- which exists for one purpose, training on
+an old dump deliberately to check whether a code edit changed the batches.
+
 Storage
 -------
 One ``.npz`` per shard holding each batch's arrays under ``b<k>_X``, ``b<k>_y``,
@@ -34,6 +41,7 @@ task of the batch (feature padding), and loading re-pads them with NaN to ``max_
 
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -50,6 +58,34 @@ DUMP_FORMAT = 1
 
 #: Streams :func:`write_task_dump` can write; see the module docstring.
 STREAMS: tuple[str, ...] = ("sequential", "per_shard")
+
+#: The ``fintfm`` package directory, against which :func:`code_fingerprint` resolves its files.
+_PACKAGE_ROOT = Path(__file__).resolve().parents[1]
+
+
+def code_fingerprint(package_root: str | Path | None = None) -> str:
+    """SHA-256 over the code that decides what a dumped batch holds.
+
+    Covers every ``prior/*.py`` file and ``inference/preprocess.py``, whose transforms the
+    prior applies to task features. Files are taken in sorted order of their path relative to
+    the package, and each contributes its relative path and its bytes, so renaming a file
+    changes the fingerprint as well as editing one. A comment-only edit changes it too; the
+    fingerprint cannot tell a harmless edit from a harmful one, which is why the refusal it
+    drives has an explicit override.
+
+    Args:
+        package_root: The ``fintfm`` package directory. Defaults to the running package's.
+
+    Returns:
+        The lowercase hexadecimal digest.
+    """
+    root = _PACKAGE_ROOT if package_root is None else Path(package_root)
+    files = [*(root / "prior").glob("*.py"), root / "inference" / "preprocess.py"]
+    digest = hashlib.sha256()
+    for path in sorted(files, key=lambda f: f.relative_to(root).as_posix()):
+        digest.update(path.relative_to(root).as_posix().encode() + b"\0")
+        digest.update(path.read_bytes() + b"\0")
+    return digest.hexdigest()
 
 
 def _prior_record(cfg: PriorConfig) -> dict[str, Any]:
@@ -200,6 +236,7 @@ def write_task_dump(
         "compressed": compress,
         "shards": names,
         "prior": _prior_record(cfg),
+        "code_fingerprint": code_fingerprint(),
     }
     (out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     return out
@@ -249,6 +286,30 @@ class TaskDump:
         return int(self.manifest["n_batches"])
 
     @property
+    def manifest_sha256(self) -> str:
+        """SHA-256 of ``manifest.json``'s bytes: the dump's identity in a checkpoint record.
+
+        The manifest names every shard and records the prior, seed, stream and code
+        fingerprint, so two dumps with the same manifest hash were generated alike.
+        """
+        return hashlib.sha256((self.path / "manifest.json").read_bytes()).hexdigest()
+
+    def record(self) -> dict[str, Any]:
+        """What a checkpoint records about the dump it trained from (design review DR1.2).
+
+        Returns:
+            The dump's path, manifest hash, code fingerprint, stream, seed and length.
+        """
+        return {
+            "path": str(self.path),
+            "manifest_sha256": self.manifest_sha256,
+            "code_fingerprint": self.manifest.get("code_fingerprint"),
+            "stream": self.manifest.get("stream"),
+            "seed": self.manifest.get("seed"),
+            "n_batches": len(self),
+        }
+
+    @property
     def max_features(self) -> int:
         """Feature width every batch is re-padded to: the prior's ``max_features``."""
         return int(self.manifest["prior"]["max_features"])
@@ -295,15 +356,21 @@ class TaskDump:
             f.close()
         self._open = (-1, None)
 
-    def check_matches(self, cfg: PriorConfig, batch_size: int) -> None:
-        """Refuse a dump generated under a different prior or batch size than a run's.
+    def check_matches(
+        self, cfg: PriorConfig, batch_size: int, allow_code_mismatch: bool = False
+    ) -> None:
+        """Refuse a dump generated under a different prior, batch size or prior code.
 
         Args:
             cfg: The consuming run's prior configuration.
             batch_size: The consuming run's batch size.
+            allow_code_mismatch: Accept a dump whose :func:`code_fingerprint` differs from the
+                running code's, or which records none (written before DR1.2), with a printed
+                warning. For checking byte identity across a code edit, and nothing else.
 
         Raises:
-            ValueError: Naming every differing prior field, or the batch-size mismatch.
+            ValueError: Naming every differing prior field, the batch-size mismatch, or the
+                two code fingerprints.
         """
         if int(self.manifest["batch_size"]) != batch_size:
             raise ValueError(
@@ -318,9 +385,31 @@ class TaskDump:
             raise ValueError(
                 f"{self.path} was generated under a different prior (dump, this run): {diff}"
             )
+        have_code, want_code = self.manifest.get("code_fingerprint"), code_fingerprint()
+        if have_code != want_code:
+            what = (
+                "records no code fingerprint (written before DR1.2)"
+                if have_code is None
+                else f"was written by different prior code (dump {have_code[:12]}, running "
+                f"code {want_code[:12]})"
+            )
+            if not allow_code_mismatch:
+                raise ValueError(
+                    f"{self.path} {what}, so its batches may not be what this code samples "
+                    "under the same configuration. Regenerate the dump, or pass "
+                    "--task-dump-allow-code-mismatch (allow_code_mismatch=True) only to check "
+                    "byte identity across the code change."
+                )
+            print(f"warning: {self.path} {what}; used anyway (allow_code_mismatch)")
 
 
-def open_task_dump(path: str | Path, cfg: PriorConfig, batch_size: int, steps: int) -> TaskDump:
+def open_task_dump(
+    path: str | Path,
+    cfg: PriorConfig,
+    batch_size: int,
+    steps: int,
+    allow_code_mismatch: bool = False,
+) -> TaskDump:
     """Open a dump for a training run, checking it can serve every step.
 
     Args:
@@ -328,15 +417,17 @@ def open_task_dump(path: str | Path, cfg: PriorConfig, batch_size: int, steps: i
         cfg: The run's prior configuration; must equal the dump's.
         batch_size: The run's batch size; must equal the dump's.
         steps: The run's total step count; the dump must hold at least this many batches.
+        allow_code_mismatch: See :meth:`TaskDump.check_matches`.
 
     Returns:
         The reader.
 
     Raises:
-        ValueError: On a prior or batch-size mismatch, or a dump shorter than ``steps``.
+        ValueError: On a prior, batch-size or code-fingerprint mismatch, or a dump shorter
+            than ``steps``.
     """
     dump = TaskDump.open(path)
-    dump.check_matches(cfg, batch_size)
+    dump.check_matches(cfg, batch_size, allow_code_mismatch=allow_code_mismatch)
     if len(dump) < steps:
         raise ValueError(f"{path} holds {len(dump)} batches, fewer than --steps {steps}")
     return dump

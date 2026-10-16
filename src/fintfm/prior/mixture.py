@@ -345,6 +345,68 @@ def _check_levers(cfg: PriorConfig) -> None:
         )
 
 
+def _sequential_sources(cfg: PriorConfig) -> tuple[tuple[str, float], ...]:
+    """The named sources :func:`_draw_source` tries first, in its draw order, with weights.
+
+    One list for the draw and for :func:`source_shares`, so the realised shares a checkpoint
+    records cannot drift from the order the draw actually uses.
+
+    Args:
+        cfg: Prior configuration.
+
+    Returns:
+        ``(source, weight)`` pairs, before the real panels, ``financial`` and ``scm``.
+    """
+    return (
+        ("tree", cfg.p_tree),
+        ("regression", cfg.p_regression),
+        ("trivial", cfg.p_trivial),
+        ("crossed", cfg.p_crossed),
+        ("task_family", cfg.p_task_family),
+        ("real_edgar", cfg.p_real_edgar),
+        ("real_mortgage", cfg.p_real_mortgage),
+        ("real_lendingclub", cfg.p_real_lendingclub),
+    )
+
+
+def source_shares(cfg: PriorConfig) -> dict[str, dict[str, float]]:
+    """The configured source weights and the shares :func:`_draw_source` actually produces.
+
+    The draw is sequential: each source in turn takes its weight of whatever the earlier ones
+    left, ``financial`` takes its weight of the rest, and ``scm`` takes the remainder. So a
+    weight is a *conditional* probability, not a share. At ``p_tree`` 0.3 and ``p_financial``
+    0.7 the financial share is 0.7 x 0.7 = 0.49, not 0.7, and the SCM share is 0.21 -- the
+    confound ``docs/results/FINDINGS.md`` §166 found behind §116's tree-prior loss on credit.
+    Recorded in every checkpoint (design review DR1.2) so a run states the mixture it saw.
+
+    Computed analytically from the weights in draw order, so it costs nothing and consumes
+    no random draw. A weight is clipped to ``[0, 1]`` exactly as ``rng.random() < p`` clips
+    it. The shares are per source draw: :attr:`PriorConfig.p_learnability_filter` resamples
+    rejected tasks, which can move the shares of *accepted* tasks away from these.
+
+    Args:
+        cfg: Prior configuration.
+
+    Returns:
+        ``{"configured": weights, "realised": shares}``, each keyed by source name in draw
+        order (a real panel as ``"real_panel:<path>"``). ``configured`` has no ``scm`` entry,
+        since SCM has no weight of its own; ``realised`` sums to 1.
+    """
+    weighted = [
+        *_sequential_sources(cfg),
+        *((f"real_panel:{path}", p) for path, p in parse_real_panels(cfg.real_panels)),
+        ("financial", cfg.p_financial),
+    ]
+    remaining = 1.0
+    realised: dict[str, float] = {}
+    for name, p in weighted:
+        share = remaining * (min(float(p), 1.0) if p > 0 else 0.0)
+        realised[name] = share
+        remaining -= share
+    realised["scm"] = remaining
+    return {"configured": {name: float(p) for name, p in weighted}, "realised": realised}
+
+
 def _draw_source(rng: np.random.Generator, cfg: PriorConfig) -> tuple[str, str | None]:
     """Decide which prior the next task comes from, consuming only the source draws.
 
@@ -379,16 +441,7 @@ def _draw_source(rng: np.random.Generator, cfg: PriorConfig) -> tuple[str, str |
             "n_horizons requires p_financial=1.0; the SCM prior has no time axis and a "
             "mixed batch cannot carry a coherent survival likelihood"
         )
-    for name, p in (
-        ("tree", cfg.p_tree),
-        ("regression", cfg.p_regression),
-        ("trivial", cfg.p_trivial),
-        ("crossed", cfg.p_crossed),
-        ("task_family", cfg.p_task_family),
-        ("real_edgar", cfg.p_real_edgar),
-        ("real_mortgage", cfg.p_real_mortgage),
-        ("real_lendingclub", cfg.p_real_lendingclub),
-    ):
+    for name, p in _sequential_sources(cfg):
         if p and rng.random() < p:
             return name, None
     for path, p in parse_real_panels(cfg.real_panels):

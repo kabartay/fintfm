@@ -375,6 +375,91 @@ def test_training_from_a_sequential_dump_matches_live_sampling(tmp_path):
         assert torch.equal(a, b), f"{name} differs between live and dumped batches"
 
 
+def test_dump_written_before_a_prior_edit_is_refused_after_it(tmp_path, monkeypatch, capsys):
+    """DR1.2: the manifest records a fingerprint of the prior's code, and a dump whose
+    fingerprint differs from the running code's is refused -- an edit to ``prior/*.py`` can
+    change every batch under an unchanged configuration. The override accepts it with a
+    warning, for byte-identity checks; a manifest with no fingerprint is refused too."""
+    import json
+
+    from fintfm.prior import dump as dump_mod
+
+    write_task_dump(tmp_path / "d", _DUMP_CFG, seed=0, batch_size=2, n_batches=3)
+    manifest = json.loads((tmp_path / "d" / "manifest.json").read_text())
+    assert manifest["code_fingerprint"] == dump_mod.code_fingerprint()
+    open_task_dump(tmp_path / "d", _DUMP_CFG, batch_size=2, steps=3)
+
+    # the prior is edited after the dump was written
+    monkeypatch.setattr(dump_mod, "code_fingerprint", lambda package_root=None: "f" * 64)
+    with pytest.raises(ValueError, match="different prior code.*allow-code-mismatch"):
+        open_task_dump(tmp_path / "d", _DUMP_CFG, batch_size=2, steps=3)
+    dump = open_task_dump(tmp_path / "d", _DUMP_CFG, 2, 3, allow_code_mismatch=True)
+    assert "used anyway" in capsys.readouterr().out
+    assert dump.record()["code_fingerprint"] == manifest["code_fingerprint"]
+
+    del manifest["code_fingerprint"]
+    (tmp_path / "d" / "manifest.json").write_text(json.dumps(manifest))
+    monkeypatch.undo()
+    with pytest.raises(ValueError, match="no code fingerprint"):
+        open_task_dump(tmp_path / "d", _DUMP_CFG, batch_size=2, steps=3)
+
+
+def test_code_fingerprint_covers_the_prior_and_preprocessing_files(tmp_path):
+    """The fingerprint changes when any ``prior/*.py`` file or ``inference/preprocess.py``
+    changes, and not when another module does."""
+    import shutil
+
+    from fintfm.prior import dump as dump_mod
+
+    root = tmp_path / "fintfm"
+    shutil.copytree(dump_mod._PACKAGE_ROOT / "prior", root / "prior",
+                    ignore=shutil.ignore_patterns("__pycache__"))
+    (root / "inference").mkdir()
+    shutil.copy(dump_mod._PACKAGE_ROOT / "inference" / "preprocess.py", root / "inference")
+    (root / "inference" / "classifier.py").write_text("x = 1\n")
+    base = dump_mod.code_fingerprint(root)
+    assert base == dump_mod.code_fingerprint()  # the copy is the running code
+    (root / "inference" / "classifier.py").write_text("x = 2\n")
+    assert dump_mod.code_fingerprint(root) == base
+    for edited in ("prior/tree.py", "inference/preprocess.py"):
+        path = root / edited
+        original = path.read_text()
+        path.write_text(original + "# edited\n")
+        assert dump_mod.code_fingerprint(root) != base, edited
+        path.write_text(original)
+    assert dump_mod.code_fingerprint(root) == base
+
+
+def test_training_from_a_dump_records_its_manifest_and_honours_the_override(
+    tmp_path, monkeypatch
+):
+    """A run from a dump records the dump's manifest hash; after a prior edit the run is
+    refused unless ``task_dump_allow_code_mismatch`` is set."""
+    import hashlib
+
+    from fintfm.modeling.model import ModelConfig
+    from fintfm.modeling.train import TrainConfig, train
+    from fintfm.prior import dump as dump_mod
+    from fintfm.provenance import read_checkpoint_provenance
+
+    model_cfg = ModelConfig(max_features=8, max_classes=2, d_cell=8, d_model=16, n_layers=1,
+                            n_col_layers=1, n_heads=2)
+    prior_cfg = PriorConfig(max_features=8, max_classes=2, n_rows=32)
+    common = {"steps": 2, "batch_size": 2, "eval_every": 1000, "log_every": 1000, "seed": 3,
+              "task_dump": str(tmp_path / "d")}
+    write_task_dump(tmp_path / "d", prior_cfg, seed=3, batch_size=2, n_batches=2)
+    monkeypatch.setattr(dump_mod, "code_fingerprint", lambda package_root=None: "f" * 64)
+    with pytest.raises(ValueError, match="different prior code"):
+        train(model_cfg, prior_cfg, TrainConfig(**common), str(tmp_path / "x.pt"))
+    train(model_cfg, prior_cfg, TrainConfig(**common, task_dump_allow_code_mismatch=True),
+          str(tmp_path / "m.pt"))
+    rec = read_checkpoint_provenance(tmp_path / "m.pt")
+    want = hashlib.sha256((tmp_path / "d" / "manifest.json").read_bytes()).hexdigest()
+    assert rec["task_dump"]["manifest_sha256"] == want
+    assert rec["task_dump"]["path"] == str(tmp_path / "d")
+    assert rec["train_config"]["task_dump_allow_code_mismatch"] is True
+
+
 def test_lever_flags_resolve_over_the_config_section():
     from fintfm.config import PriorConfigDefaults
     from fintfm.prior.levers import add_prior_lever_arguments, prior_lever_values

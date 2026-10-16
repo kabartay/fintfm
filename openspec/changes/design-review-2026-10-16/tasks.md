@@ -10,7 +10,13 @@
       from a local pre-push hook. Random-initialisation fingerprints of the classifier, quantile
       regressor and term structure run in CI.
       Verify: the test fails when any one of those outputs is perturbed by 1 ulp.
-- [ ] DR1.2 **Provenance in every artefact.** `FinancialTFM.save` writes the prior, training and
+- [x] DR1.2 **Done (2026-10-16).** Checkpoints carry a `provenance` record (`fintfm.provenance`,
+      configured and realised shares from `prior.mixture.source_shares`), `v4_protocol.json` a
+      `provenance` block, dump manifests a `code_fingerprint` (override
+      `--task-dump-allow-code-mismatch`); `runs/MANIFEST.json` by `scripts/runs_manifest.py`.
+      Tests `test_train.py::test_two_step_checkpoint_states_its_normalised_source_shares` and
+      `test_prior_levers.py::test_dump_written_before_a_prior_edit_is_refused_after_it`.
+      **Provenance in every artefact.** `FinancialTFM.save` writes the prior, training and
       model configs, git SHA and dirty flag, package and torch versions, tasks seen
       (steps x batch) and the task-dump id; `load` ignores the key so outputs are unchanged. Run
       JSONs record the checkpoint SHA-256, commit and `clf.get_params()`. Task-dump manifests carry

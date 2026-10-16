@@ -724,3 +724,59 @@ def test_muon_run_resumes_to_the_same_weights_as_an_uninterrupted_one(tmp_path):
         train(model_cfg, prior_cfg, TrainConfig(**{**common, "steps": 9},
                                                 resume=f"{part}.state"),
               str(tmp_path / "x.pt"))
+
+
+def test_two_step_checkpoint_states_its_normalised_source_shares(tmp_path):
+    """DR1.2: a checkpoint records the prior, the training settings, the tasks it saw and the
+    shares the sequential source draw actually produced. At ``p_tree`` 0.3 and ``p_financial``
+    0.7 the realised financial share is 0.7 x 0.7 = 0.49, not 0.7 (FINDINGS §166)."""
+    from fintfm.modeling.train import TrainConfig, train
+    from fintfm.provenance import read_checkpoint_provenance
+
+    prior_cfg = PriorConfig(max_features=8, max_classes=2, n_rows=32, p_tree=0.3,
+                            p_financial=0.7)
+    out = tmp_path / "m.pt"
+    train(ModelConfig(**_TINY_RICH), prior_cfg,
+          TrainConfig(steps=2, batch_size=3, eval_every=1000, log_every=1000,
+                      checkpoint_every=1, seed=0),
+          str(out))
+    rec = read_checkpoint_provenance(out)
+    shares = rec["source_shares"]
+    assert shares["configured"]["tree"] == 0.3 and shares["configured"]["financial"] == 0.7
+    assert shares["realised"]["tree"] == pytest.approx(0.3)
+    assert shares["realised"]["financial"] == pytest.approx(0.49)
+    assert shares["realised"]["scm"] == pytest.approx(0.21)
+    assert sum(shares["realised"].values()) == pytest.approx(1.0)
+    assert (rec["steps_completed"], rec["batch_size"], rec["tasks_seen"]) == (2, 3, 6)
+    assert rec["prior_config"]["p_tree"] == 0.3 and rec["train_config"]["steps"] == 2
+    assert rec["model_config"]["d_model"] == 16
+    assert rec["task_dump"] is None and rec["init_from"] is None
+    # a partial checkpoint counts the tasks seen when it was written
+    assert read_checkpoint_provenance(f"{out}.step1")["tasks_seen"] == 3
+
+
+def test_init_from_records_the_starting_checkpoint(tmp_path):
+    """Continued pretraining records which weights it started from and their own task count,
+    since ``tasks_seen`` counts this run's steps only."""
+    from fintfm.modeling.train import TrainConfig, train
+    from fintfm.provenance import read_checkpoint_provenance, sha256_file
+
+    model_cfg = ModelConfig(**_TINY_RICH)
+    prior_cfg = PriorConfig(max_features=8, max_classes=2, n_rows=32)
+    common = {"steps": 2, "batch_size": 2, "eval_every": 1000, "log_every": 1000}
+    first = tmp_path / "a.pt"
+    train(model_cfg, prior_cfg, TrainConfig(**common), str(first))
+    train(model_cfg, prior_cfg, TrainConfig(**common, init_from=str(first)),
+          str(tmp_path / "b.pt"))
+    rec = read_checkpoint_provenance(tmp_path / "b.pt")
+    assert rec["init_from"] == {"path": str(first), "sha256": sha256_file(first),
+                                "tasks_seen": 4}
+    assert rec["tasks_seen"] == 4
+
+
+def test_cli_passes_the_task_dump_code_override(tmp_path, monkeypatch):
+    """``--task-dump-allow-code-mismatch`` reaches TrainConfig; it is off without the flag."""
+    argv = [*_TINY_CLI, "--out", str(tmp_path / "x.pt")]
+    assert _captured_train_cfg(monkeypatch, argv).task_dump_allow_code_mismatch is False
+    cfg = _captured_train_cfg(monkeypatch, [*argv, "--task-dump-allow-code-mismatch"])
+    assert cfg.task_dump_allow_code_mismatch is True

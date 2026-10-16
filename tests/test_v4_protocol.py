@@ -343,3 +343,36 @@ def test_predictions_carry_the_company_of_every_row(tmp_path):
         np.testing.assert_array_equal(saved["y_true"], df["main_label"].to_numpy()[te])
     # equal codes are the same company and nothing else
     assert len(np.unique(codes)) == df["company"].nunique()
+
+
+def test_run_json_records_the_checkpoint_hash_commit_and_classifier_params(tmp_path):
+    """DR1.2: ``v4_protocol.json`` names the exact weights (SHA-256), the commit, the package
+    version and the fintfm arm's full ``get_params()`` per fold, without the model object."""
+    import json
+
+    import torch
+
+    from fintfm.config import load_config
+    from fintfm.experiments.v4_protocol import run
+    from fintfm.modeling.model import FinancialTFM, ModelConfig
+    from fintfm.provenance import sha256_file
+
+    _write_horizon(tmp_path)
+    torch.manual_seed(0)
+    ckpt = tmp_path / "m.pt"
+    FinancialTFM(ModelConfig(max_features=8, max_classes=2, d_cell=8, d_model=16, n_layers=1,
+                             n_col_layers=1, n_heads=2)).save(str(ckpt))
+    run(str(ckpt), tmp_path / "out", root=tmp_path, with_boosting=False, classical=(),
+        folds=(0, 1))
+    prov = json.loads((tmp_path / "out" / "v4_protocol.json").read_text())["provenance"]
+    assert prov["checkpoint_sha256"] == sha256_file(ckpt)
+    assert "commit" in prov and "dirty" in prov and prov["versions"]["fintfm"]
+    params = prov["classifier_params"]
+    assert sorted(params) == ["0", "1"]
+    assert "model" not in params["0"]
+    assert params["0"]["random_state"] == 0 and params["1"]["random_state"] == 1
+    assert params["0"]["max_context"] == load_config().inference.max_context
+
+    baselines = run(None, tmp_path / "b", root=tmp_path, with_boosting=False, folds=(0,))
+    assert baselines["provenance"]["checkpoint_sha256"] is None
+    assert baselines["provenance"]["classifier_params"] == {}

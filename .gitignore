@@ -3,7 +3,10 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .ruff_cache/
-runs/
+# `runs/*`, not `runs/`: git cannot re-include a file inside an excluded directory, so the
+# negation below only works against the directory's contents (design review DR1.2).
+runs/*
+!runs/MANIFEST.json
 data/cache/
 # Real training data (FinTFM-R, D17): never enters git, same convention as trained weights.
 data/edgar/

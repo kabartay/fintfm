@@ -1,0 +1,326 @@
+{
+  "findings_sha256": "66d47271590973aa871a56f5356df80fac2a0baa16aade0225caaf5f0a3930f4",
+  "checkpoints": [
+    {
+      "path": "runs/cellattn-s1-kaggle/v4-cellattn-labels-s1.pt",
+      "size": 3595783,
+      "sha256": "c9749ff5b441a7527951914d23bb64a7d7b62896785e812cdd9caa621cc89f41",
+      "cited_as": [
+        "runs/cellattn-s1-kaggle/v4-cellattn-labels-s1.pt"
+      ],
+      "sections": [
+        "§158"
+      ]
+    },
+    {
+      "path": "runs/dl/v4-cellattn-fin00.pt",
+      "size": 3584819,
+      "sha256": "682a0cecd312ef620d3b325e260b4ef4a9e467268a5d067a4c2b2e0268ab65d1",
+      "cited_as": [
+        "runs/dl/v4-cellattn-fin00.pt"
+      ],
+      "sections": [
+        "§137"
+      ]
+    },
+    {
+      "path": "runs/dl/v4-cellattn-fin10.pt",
+      "size": 3584819,
+      "sha256": "a6d7002aa2d3a89729992b17f138cffcb21dbef7339d5869a4da55c485b87277",
+      "cited_as": [
+        "runs/dl/v4-cellattn-fin10.pt"
+      ],
+      "sections": [
+        "§79",
+        "§81",
+        "§85",
+        "§137"
+      ]
+    },
+    {
+      "path": "runs/dl/v4-colid-fin07.pt",
+      "size": 3421793,
+      "sha256": "6cf37020472ef3fa51f13011afef24c6e38e3aaf2589e73bdc02324c8f6e29d0",
+      "cited_as": [
+        "runs/dl/v4-colid-fin07.pt"
+      ],
+      "sections": [
+        "§83",
+        "§85"
+      ]
+    },
+    {
+      "path": "runs/dl/v4-scale5x.pt",
+      "size": 3584768,
+      "sha256": "2b1d924e2f11a4bdcc3544c16ff809ce1e508f082031ac515de006366ad832ba",
+      "cited_as": [
+        "v4-scale5x.pt"
+      ],
+      "sections": [
+        "§92",
+        "§93"
+      ]
+    },
+    {
+      "path": "runs/lrsweep/lrsweep-3e4.pt",
+      "size": 3584885,
+      "sha256": "f1d59811f5b9a11c6fc8bc7d600e03623f00ba17b3fc4308532eeb3a8dad540b",
+      "cited_as": [
+        "runs/lrsweep/lrsweep-3e4.pt"
+      ],
+      "sections": [
+        "§136"
+      ]
+    },
+    {
+      "path": "runs/phase1-5k/financial.pt",
+      "size": 8739403,
+      "sha256": "26010fe861c4dacb97c785f0084b179d5f1385904696ffc636f7e4f79f670dd5",
+      "cited_as": [
+        "runs/phase1-5k/financial.pt"
+      ],
+      "sections": [
+        "§11"
+      ]
+    },
+    {
+      "path": "runs/task48-10-kaggle/v4-cellattn-maskembed48_10.pt",
+      "size": 3597025,
+      "sha256": "68dad3dc672070f6e1dc02cdce42788fd2934aefc4fabedbcfc22b58dd4ce386",
+      "cited_as": [
+        "runs/task48-10-kaggle/v4-cellattn-maskembed48_10.pt"
+      ],
+      "sections": [
+        "§147"
+      ]
+    },
+    {
+      "path": "runs/task48-3-kaggle/v4-binned48_3-control.pt",
+      "size": 3595783,
+      "sha256": "31d5b3ef49e89bbe405fc85ab1d746a9fd6c3a1c5282e1770111902cc4af526c",
+      "cited_as": [
+        "runs/task48-3-kaggle/v4-binned48_3-control.pt"
+      ],
+      "sections": [
+        "§148"
+      ]
+    },
+    {
+      "path": "runs/task48-3-kaggle/v4-quantile48_3.pt",
+      "size": 3635471,
+      "sha256": "6397c686c57aa74448a14310ecd029b549554f8b7c9665a0184f58121c629da5",
+      "cited_as": [
+        "runs/task48-3-kaggle/v4-quantile48_3.pt"
+      ],
+      "sections": [
+        "§148"
+      ]
+    },
+    {
+      "path": "runs/task48-5-kaggle/v4-cellattn-learnfilter48_5.pt",
+      "size": 3596549,
+      "sha256": "a5bff6331ea7695f8e0dbfb3ee788f69047dbc048af090270a01aa706678ad20",
+      "cited_as": [
+        "runs/task48-5-kaggle/v4-cellattn-learnfilter48_5.pt"
+      ],
+      "sections": [
+        "§145"
+      ]
+    },
+    {
+      "path": "runs/task48-6-kaggle/v4-cellattn-realism48_6.pt",
+      "size": 3596081,
+      "sha256": "1a1298204a67dd288996736451ab6d0d596787bec5d50c33e094f039c83034e9",
+      "cited_as": [
+        "runs/task48-6-kaggle/v4-cellattn-realism48_6.pt"
+      ],
+      "sections": [
+        "§144"
+      ]
+    },
+    {
+      "path": "runs/task48-9-kaggle/v4-cellattn-schedulefree48_9.pt",
+      "size": 3596730,
+      "sha256": "ef08fbde203637c1c7b8bb4f32221c0423eee6c610024336d35f90951edd96c7",
+      "cited_as": [
+        "runs/task48-9-kaggle/v4-cellattn-schedulefree48_9.pt"
+      ],
+      "sections": [
+        "§146"
+      ]
+    },
+    {
+      "path": "runs/taskfamily/v4-taskfamily-mix.pt",
+      "size": 3595315,
+      "sha256": "77ab0c073b1bc3fede0cf9365928f8d424bc18a4ac50beeb99446d884a11ff0f",
+      "cited_as": [
+        "runs/taskfamily/v4-taskfamily-mix.pt"
+      ],
+      "sections": [
+        "§141"
+      ]
+    },
+    {
+      "path": "runs/v4-1m-step10k.pt",
+      "size": 3418497,
+      "sha256": "3be0028096d0982df651362c2c37c9d59bf356ad5191e60de0a5134cadca13bb",
+      "cited_as": [
+        "v4-1m-step10k.pt"
+      ],
+      "sections": [
+        "§158"
+      ]
+    },
+    {
+      "path": "runs/v4-480k.pt",
+      "size": 3418497,
+      "sha256": "ac2e408d6623d61ea46ff89994a41dee723acc414e1a6cc478fc035ee67a6b5b",
+      "cited_as": [
+        "v4-480k.pt"
+      ],
+      "sections": [
+        "§158"
+      ]
+    },
+    {
+      "path": "runs/v4-attnpool.pt",
+      "size": 3482836,
+      "sha256": "3ce40f4ae513affcf560cc61e524fdccfe81c26a68c284c6f9d27c52e8c3cb97",
+      "cited_as": [
+        "v4-attnpool.pt"
+      ],
+      "sections": [
+        "§102",
+        "§103"
+      ]
+    },
+    {
+      "path": "runs/v4-cellattn-labels.pt",
+      "size": 3585704,
+      "sha256": "d231b062483c9261aae4c503ad5359db295fc7206fa0183f51763e4953c518d2",
+      "cited_as": [
+        "/tmp/v4-cellattn-labels.pt",
+        "runs/v4-cellattn-labels.pt",
+        "v4-cellattn-labels.pt"
+      ],
+      "sections": [
+        "§90",
+        "§93",
+        "§101",
+        "§103",
+        "§105",
+        "§125",
+        "§128",
+        "§129",
+        "§130",
+        "§134",
+        "§135",
+        "§136",
+        "§141",
+        "§144",
+        "§158",
+        "§157",
+        "§162",
+        "§163",
+        "§164",
+        "§165"
+      ]
+    },
+    {
+      "path": "runs/v4-clf-small.pt",
+      "size": 3418857,
+      "sha256": "17ea8534322d76368ba114c317cd4bed714c74c25d72fedc9c3285a3b1803c29",
+      "cited_as": [
+        "runs/v4-clf-small.pt"
+      ],
+      "sections": [
+        "§39",
+        "§40",
+        "§45"
+      ]
+    },
+    {
+      "path": "runs/v4-hazard-136f.pt",
+      "size": 3421541,
+      "sha256": "d2bd4f709e21e0ed27a60095fcd117b9de768915e5ec2c5b2d9740d8c3a3451f",
+      "cited_as": [
+        "runs/v4-hazard-136f.pt"
+      ],
+      "sections": [
+        "§26"
+      ]
+    },
+    {
+      "path": "runs/v4-hazard-ldp.pt",
+      "size": 3421449,
+      "sha256": "db4696b866cefb987f7751e82effd084c396d3cc4cff15d673c921b611534e8d",
+      "cited_as": [
+        "runs/v4-hazard-ldp.pt"
+      ],
+      "sections": [
+        "§28",
+        "§29",
+        "§32",
+        "§33",
+        "§37"
+      ]
+    },
+    {
+      "path": "runs/v4-medium-cellattn.pt",
+      "size": 19980824,
+      "sha256": "d556d67213f55817a01798f3ed320f59d36e086c7091f918e35c7bad5ac37403",
+      "cited_as": [
+        "v4-medium-cellattn.pt"
+      ],
+      "sections": [
+        "§158"
+      ]
+    },
+    {
+      "path": "runs/v4-multiclass.pt",
+      "size": 3594847,
+      "sha256": "f0ac5bdaf8f21342392c26263a31b4399e5bd919f0f380f413327a9e776a1a69",
+      "cited_as": [
+        "v4-multiclass.pt"
+      ],
+      "sections": [
+        "§99",
+        "§105",
+        "§121"
+      ]
+    },
+    {
+      "path": "runs/v4-priorctl.pt",
+      "size": 3584885,
+      "sha256": "eaf728751e6f14476bdf4c70764ef01eeaae50b95b194bd3a954a732b05d67bc",
+      "cited_as": [
+        "v4-priorctl.pt"
+      ],
+      "sections": [
+        "§119",
+        "§120"
+      ]
+    },
+    {
+      "path": "runs/v4-regression.pt",
+      "size": 3594847,
+      "sha256": "8e4ce26e1948b6068d088e62667665d092a34b87fde4d915181aa1ac280d4fdf",
+      "cited_as": [
+        "v4-regression.pt"
+      ],
+      "sections": [
+        "§106",
+        "§121",
+        "§148"
+      ]
+    }
+  ],
+  "missing": [
+    {
+      "cited_as": "runs/credit-smoke.pt",
+      "sections": [
+        "§5"
+      ]
+    }
+  ]
+}

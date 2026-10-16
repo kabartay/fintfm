@@ -54,6 +54,15 @@ def add_prior_lever_arguments(p: argparse.ArgumentParser) -> None:
         "this run's; a 'sequential' dump written with this run's --seed reproduces the live "
         "batches exactly",
     )
+    p.add_argument(
+        "--task-dump-allow-code-mismatch",
+        action="store_true",
+        default=None,
+        help="accept a --task-dump written by different prior code (its manifest's code "
+        "fingerprint differs from this checkout's, or it has none), with a warning (design "
+        "review DR1.2). Only for checking whether a code edit changed the batches; a run "
+        "that trains on such a dump is not a run of this code's prior",
+    )
 
 
 def prior_lever_values(args: argparse.Namespace, prior: PriorConfigDefaults) -> dict[str, Any]:

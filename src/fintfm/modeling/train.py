@@ -21,9 +21,10 @@ from fintfm.config import load_config
 from fintfm.modeling.model import ATTN_IMPLS, FinancialTFM, ModelConfig
 from fintfm.prior import PriorConfig
 from fintfm.prior.base import TaskBatch
-from fintfm.prior.dump import open_task_dump
+from fintfm.prior.dump import TaskDump, open_task_dump
 from fintfm.prior.levers import add_prior_lever_arguments, prior_lever_values
-from fintfm.prior.mixture import sample_batch
+from fintfm.prior.mixture import sample_batch, source_shares
+from fintfm.provenance import json_safe, sha256_file
 
 #: Second element of the evaluation generator's seed, ``[seed, _EVAL_STREAM]``, so held-out
 #: evaluation has a stream of its own that no training draw touches (audit AU1.18).
@@ -94,6 +95,11 @@ class TrainConfig:
     #: Pre-generated batches to train from instead of sampling (audit AU5.15); see
     #: :mod:`fintfm.prior.dump`. ``None`` samples live, as every run before it did.
     task_dump: str | None = None
+    #: Accept a :attr:`task_dump` whose code fingerprint differs from the running code's
+    #: (design review DR1.2), with a warning. Off by default: an edit to the prior's code can
+    #: change every batch under an unchanged configuration. On only to check byte identity
+    #: across such an edit.
+    task_dump_allow_code_mismatch: bool = False
     #: Mixed precision for the training forward pass (audit AU5.2). ``"none"`` (default) is
     #: plain float32, what every checkpoint trained with. ``"bf16"`` wraps the forward and the
     #: loss in ``torch.autocast(dtype=torch.bfloat16)`` on CUDA (Ampere or newer) or CPU;
@@ -696,10 +702,52 @@ def _save_training_state(
     torch.save(state, path)
 
 
+def _training_provenance(
+    prior_cfg: PriorConfig,
+    train_cfg: TrainConfig,
+    steps_done: int,
+    dump: TaskDump | None,
+    init_from: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """The part of a checkpoint's provenance only the training loop knows (design review DR1.2).
+
+    :meth:`FinancialTFM.save` adds the model configuration, commit, dirty flag and versions.
+
+    Args:
+        prior_cfg: The run's prior configuration.
+        train_cfg: The run's training configuration.
+        steps_done: Steps completed when this checkpoint is written, counted from the start
+            of the run, so a resumed run counts the steps of its earlier chunks too.
+        dump: The task dump batches came from, or ``None`` when they were sampled live.
+        init_from: The :attr:`TrainConfig.init_from` checkpoint's path, SHA-256 and recorded
+            tasks seen, or ``None``.
+
+    Returns:
+        The full prior and training configurations, the configured and realised source
+        shares (:func:`fintfm.prior.mixture.source_shares`), steps, batch size, tasks seen
+        (steps x batch, this run's only; an ``init_from`` checkpoint's own count is under
+        ``init_from``), and the dump's record.
+    """
+    return {
+        "prior_config": json_safe(asdict(prior_cfg)),
+        "train_config": json_safe(asdict(train_cfg)),
+        "source_shares": source_shares(prior_cfg),
+        "steps_completed": steps_done,
+        "batch_size": train_cfg.batch_size,
+        "tasks_seen": steps_done * train_cfg.batch_size,
+        "task_dump": None if dump is None else dump.record(),
+        "init_from": init_from,
+    }
+
+
 def train(
     model_cfg: ModelConfig, prior_cfg: PriorConfig, train_cfg: TrainConfig, out_path: str
 ) -> FinancialTFM:
-    """Run pretraining and save the final checkpoint to ``out_path``."""
+    """Run pretraining and save the final checkpoint to ``out_path``.
+
+    Every checkpoint written, partial or final, carries a provenance record
+    (:func:`_training_provenance`), which :meth:`FinancialTFM.load` ignores.
+    """
     rng = np.random.default_rng(train_cfg.seed)
     # Held-out evaluation draws from its own stream (audit AU1.18). Sharing ``rng`` made every
     # training batch after the first evaluation depend on ``eval_every``, so two runs that
@@ -726,6 +774,7 @@ def train(
     objectives: set[str] = set()
 
     start_step = 0
+    init_record: dict[str, Any] | None = None
     if train_cfg.init_from is not None:
         if train_cfg.resume is not None:
             raise ValueError("init_from and resume are mutually exclusive")
@@ -744,6 +793,11 @@ def train(
             )
         model.load_state_dict(init["state_dict"])
         objectives = set(init.get("trained_objectives", []))
+        init_record = {
+            "path": train_cfg.init_from,
+            "sha256": sha256_file(train_cfg.init_from),
+            "tasks_seen": (init.get("provenance") or {}).get("tasks_seen"),
+        }
         print(f"initialised weights from {train_cfg.init_from} (fresh optimiser and schedule)")
     if train_cfg.resume is not None:
         state = torch.load(train_cfg.resume, map_location=train_cfg.device, weights_only=False)
@@ -788,7 +842,13 @@ def train(
     dump = (
         None
         if train_cfg.task_dump is None
-        else open_task_dump(train_cfg.task_dump, prior_cfg, train_cfg.batch_size, train_cfg.steps)
+        else open_task_dump(
+            train_cfg.task_dump,
+            prior_cfg,
+            train_cfg.batch_size,
+            train_cfg.steps,
+            allow_code_mismatch=train_cfg.task_dump_allow_code_mismatch,
+        )
     )
     for step in range(start_step, stop_step):
         batch = (
@@ -808,7 +868,13 @@ def train(
             # otherwise leave a truncated file where the final checkpoint belongs
             _set_optimizer_mode(opt, train_cfg.optimizer, "eval")
             partial = f"{out_path}.step{step + 1}"
-            model.save(partial, trained_objectives=tuple(sorted(objectives)))
+            model.save(
+                partial,
+                trained_objectives=tuple(sorted(objectives)),
+                provenance=_training_provenance(
+                    prior_cfg, train_cfg, step + 1, dump, init_record
+                ),
+            )
             _save_training_state(
                 f"{out_path}.state",
                 model,
@@ -840,7 +906,11 @@ def train(
                 )
             _set_optimizer_mode(opt, train_cfg.optimizer, "train")
     _set_optimizer_mode(opt, train_cfg.optimizer, "eval")
-    model.save(out_path, trained_objectives=tuple(sorted(objectives)))
+    model.save(
+        out_path,
+        trained_objectives=tuple(sorted(objectives)),
+        provenance=_training_provenance(prior_cfg, train_cfg, stop_step, dump, init_record),
+    )
     _save_training_state(
         f"{out_path}.state",
         model,
@@ -923,7 +993,11 @@ def benchmark(
         None
         if train_cfg.task_dump is None
         else open_task_dump(
-            train_cfg.task_dump, prior_cfg, train_cfg.batch_size, warmup + n_steps
+            train_cfg.task_dump,
+            prior_cfg,
+            train_cfg.batch_size,
+            warmup + n_steps,
+            allow_code_mismatch=train_cfg.task_dump_allow_code_mismatch,
         )
     )
     rng = np.random.default_rng(train_cfg.seed)
@@ -1557,6 +1631,7 @@ def main(argv: list[str] | None = None) -> None:
         init_from=args.init_from,
         optimizer=args.optimizer,
         task_dump=args.task_dump,
+        task_dump_allow_code_mismatch=bool(args.task_dump_allow_code_mismatch),
         warmup_steps=cfg.train.warmup_steps if args.warmup_steps is None else args.warmup_steps,
         decay_norm_bias=(
             cfg.train.decay_norm_bias if args.decay_norm_bias is None else args.decay_norm_bias

@@ -1257,3 +1257,36 @@ def test_masked_checkpoint_loads_and_runs_under_split(tmp_path):
     split.load_state_dict(loaded.state_dict())
     X, y = _p5_inputs(3)
     torch.testing.assert_close(_p5_run(split, X, y), _p5_run(model, X, y), rtol=1e-5, atol=1e-5)
+
+
+def test_checkpoint_records_provenance_and_load_ignores_it(tmp_path):
+    """DR1.2: every save writes a provenance record, and ``load`` never reads it. The same
+    weights saved with the record and with the key deleted (a pre-DR1.2 checkpoint) must
+    give outputs identical to each other and to the model that wrote them."""
+    import re
+    from dataclasses import asdict
+
+    from fintfm.provenance import json_safe, read_checkpoint_provenance
+
+    torch.manual_seed(0)
+    model = FinancialTFM(ModelConfig(**_P5_BASE)).eval()
+    new, old = tmp_path / "new.pt", tmp_path / "old.pt"
+    model.save(str(new), provenance={"tasks_seen": 16, "note": ("a", 1)})
+    rec = read_checkpoint_provenance(new)
+    assert rec["model_config"] == json_safe(asdict(model.cfg))
+    assert rec["tasks_seen"] == 16 and rec["note"] == ["a", 1]  # tuples stored as lists
+    assert rec["versions"]["torch"] == torch.__version__ and "fintfm" in rec["versions"]
+    # best effort: a SHA inside a checkout, None from an installed package
+    assert rec["commit"] is None or re.fullmatch(r"[0-9a-f]{40}", rec["commit"])
+    assert rec["dirty"] in (None, True, False)
+
+    ckpt = torch.load(str(new), weights_only=True)
+    del ckpt["provenance"]
+    torch.save(ckpt, str(old))
+    assert read_checkpoint_provenance(old) is None
+    X, y = _p5_inputs(3)
+    reference = _p5_run(model, X, y)
+    for path in (new, old):
+        loaded = FinancialTFM.load(str(path))
+        assert not hasattr(loaded, "provenance")
+        torch.testing.assert_close(_p5_run(loaded, X, y), reference, rtol=0, atol=0)

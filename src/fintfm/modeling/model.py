@@ -33,7 +33,9 @@ smoke tests only and none were kept.
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
+from typing import Any
 
 import torch
 import torch.nn.functional as F
@@ -1210,7 +1212,12 @@ class FinancialTFM(nn.Module):
         """
         return sum(p.numel() for p in self.parameters())
 
-    def save(self, path: str, trained_objectives: tuple[str, ...] = ()) -> None:
+    def save(
+        self,
+        path: str,
+        trained_objectives: tuple[str, ...] = (),
+        provenance: Mapping[str, Any] | None = None,
+    ) -> None:
         """Write the checkpoint, recording which objectives were actually optimised.
 
         Args:
@@ -1224,12 +1231,28 @@ class FinancialTFM(nn.Module):
                 no error at all (mean predicted 0.69 against a 4.7% base rate, AUC 0.37).
                 An empty tuple means the checkpoint predates this field and nothing can be
                 assumed about it.
+            provenance: What produced the weights (design review DR1.2): the training loop
+                passes the prior and training configurations, the realised source shares,
+                the tasks seen and the task dump used. Written under the checkpoint's
+                ``provenance`` key together with the model configuration, the commit, the
+                dirty flag and the ``fintfm`` and ``torch`` versions, which are recorded on
+                every save, so even a checkpoint saved outside the training loop says which
+                code wrote it. :meth:`load` never reads the key, so it changes no output;
+                :func:`fintfm.provenance.read_checkpoint_provenance` reads it back.
         """
+        from fintfm.provenance import environment_record, json_safe
+
+        record = {
+            **environment_record(),
+            "model_config": json_safe(asdict(self.cfg)),
+            **json_safe(dict(provenance or {})),
+        }
         torch.save(
             {
                 "config": asdict(self.cfg),
                 "state_dict": self.state_dict(),
                 "trained_objectives": list(trained_objectives),
+                "provenance": record,
             },
             path,
         )
@@ -1244,7 +1267,9 @@ class FinancialTFM(nn.Module):
 
         Returns:
             The model, in ``eval()`` mode, carrying ``trained_objectives`` so
-            :meth:`assert_trained_for` can refuse a head that was never optimised.
+            :meth:`assert_trained_for` can refuse a head that was never optimised. The
+            checkpoint's ``provenance`` record, if any, is deliberately not read: it
+            describes the weights and must never change what they compute.
         """
         ckpt = torch.load(path, map_location=map_location, weights_only=True)
         cfg = dict(ckpt["config"])
