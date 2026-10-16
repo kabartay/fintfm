@@ -85,6 +85,16 @@
       Verify: `grep -rn "§116" README.md docs/paper docs/design` shows the §166 qualifier at each
       hit that cites it as a credit result.
 
+- [ ] DR3.9 **Re-baseline every quoted booster figure on §167.** The field on V4FinBench is
+      about 0.39-0.40 mean AP (CatBoost defaults 0.4005, LightGBM at 1,000 trees 0.3908); the
+      100-tree LightGBM and XGBoost defaults are under-trained and must not be quoted as the
+      field. State the feature set (with or without `operational_status`) beside every booster
+      number.
+      Verify: README, CLAIMS, LIMITATIONS and CHANGELOG quote §167's figures with feature set.
+- [ ] DR3.10 **FinTFM without `operational_status`** (zero-shot and fine-tuned arms), paired
+      against the published-feature runs, so both models' dependence on the column is known.
+      Verify: per-fold AP for both arms in FINDINGS beside §167.
+
 ## Phase DR4 — an evaluation loop that does not overlap TabArena
 
 - [ ] DR4.1 **Remove the TabArena overlap from the decision loop.** Drop bank-marketing, churn,

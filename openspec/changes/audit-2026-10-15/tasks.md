@@ -196,7 +196,8 @@
       Validation predictions (`y_val`, `val_<arm>`) are already saved: switch the pilot to them,
       and note in §157/§162 that fold 0 selected the arm.
       Verify: `pilot_compare.py --split val` exists and is the default.
-- [ ] AU2.5 **Partly done (2026-10-16).** Upstream checked: their drop list
+- [ ] AU2.5 **Booster ablation done (2026-10-16, §167):** without `operational_status` CatBoost loses 0.0343 mean AP (5 of 5 folds), LightGBM 0.0210, LR 0.0064. FinTFM's own ablation is still open.
+      **Partly done (2026-10-16).** Upstream checked: their drop list
       (`docs/benchmark_protocol.md`, `preprocessing.py` at 59d33ea) equals ours and keeps both
       `operational_status` and `Insolvency_flag` as features; the paper lists the latter as
       "Total_liab > Total_assets". `--drop-columns` added (`test_drop_columns_*`). Still open:
@@ -317,7 +318,8 @@
 
 ## Phase 4 — cheap diagnostics of the CatBoost gap (hours, CPU or one Kaggle session)
 
-- [ ] AU4.1 **Prepared (2026-10-16), not launched.** `--booster-params` adds fixed-parameter
+- [x] AU4.1 **Done (2026-10-16, §167).** Yes, it is rounds: LightGBM at 1,000 trees reaches 0.3908 mean AP against 0.2666 at its 100-tree default (5 of 5 folds up), CatBoost at 100 iterations falls to 0.3746 from 0.4005.
+      **Prepared (2026-10-16), not launched.** `--booster-params` adds fixed-parameter
       booster arms (`test_booster_params_*`); CPU kernel
       `scripts/kaggle/task_au41_boost_rounds/`, commit pin still a placeholder.
       **Is the gap boosting rounds?** LightGBM at 1,000 trees and lr 0.05, CatBoost at

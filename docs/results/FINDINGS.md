@@ -11452,3 +11452,48 @@ replaces it. The README's "the tree prior ships off because it hurts credit" and
 recipe's weights since then need reading as conditional shares. Task DR2.1 replaces the
 sequential draw with normalised weights recorded in each checkpoint, and DR2.4 re-tests the tree
 prior at a matched financial share and two seeds.
+
+## §167 — The booster lead is boosting rounds, and `operational_status` is worth 0.034 AP to CatBoost
+
+**MEASURED, 2026-10-16.** Two baselines-only runs of `fintfm-v4protocol --no-fintfm` on
+V4FinBench horizon 0, the five full-panel folds (1,000,087 rows, 130 features, 3,587 positives),
+untuned except where an arm fixes its settings (`--booster-params`, audit AU4.1), and one with
+`--drop-columns operational_status` (audit AU2.5). `runs/au41/run`, `runs/au25/run`. Mean of the
+five per-fold APs.
+
+| arm | fold 0 | 1 | 2 | 3 | 4 | **mean AP** |
+| --- | --- | --- | --- | --- | --- | --- |
+| CatBoost, defaults (1,000 iterations) | 0.4097 | 0.3807 | 0.4231 | 0.3896 | 0.3992 | **0.4005** |
+| CatBoost, 100 iterations | 0.4051 | 0.3749 | 0.3765 | 0.3589 | 0.3574 | 0.3746 |
+| LightGBM, defaults (100 trees) | 0.2638 | 0.2497 | 0.2620 | 0.2803 | 0.2769 | 0.2666 |
+| LightGBM, 1,000 trees at lr 0.05 | 0.4008 | 0.3582 | 0.4033 | 0.3807 | 0.4108 | **0.3908** |
+| XGBoost, defaults (100 trees) | 0.2077 | 0.2274 | 0.2044 | 0.2642 | 0.2107 | 0.2229 |
+| logistic regression | 0.1671 | 0.1522 | 0.1382 | 0.1715 | 0.1779 | 0.1614 |
+
+**Boosting rounds, not CatBoost, make the lead.** LightGBM at 1,000 trees gains +0.1242 mean AP
+over its 100-tree default, positive on all five folds, and comes within 0.0097 of CatBoost.
+CatBoost at 100 iterations falls 0.0259 below its 1,000-iteration default. No categorical
+features are passed (`cat_features` is unset; the industry columns are dropped), so CatBoost's
+ordered target statistics play no part. "LightGBM 0.2666" and "XGBoost 0.2229" were under-trained
+defaults, not the field: a gradient-boosted tree given enough rounds reaches about 0.39-0.40 mean
+AP here. The fine-tuned FinTFM's 0.2062 (§163) is about 0.19 below that, the same gap as before,
+now against two boosters rather than one.
+
+| arm, without `operational_status` | fold 0 | 1 | 2 | 3 | 4 | **mean AP** | change |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| CatBoost, defaults | 0.3797 | 0.3533 | 0.3598 | 0.3744 | 0.3636 | 0.3662 | −0.0343 |
+| LightGBM, defaults | 0.2605 | 0.2556 | 0.2576 | 0.2181 | 0.2363 | 0.2456 | −0.0210 |
+| XGBoost, defaults | 0.2178 | 0.1946 | 0.2074 | 0.2187 | 0.1942 | 0.2065 | −0.0164 |
+| logistic regression | 0.1559 | 0.1482 | 0.1377 | 0.1618 | 0.1716 | 0.1550 | −0.0064 |
+
+**`operational_status` is worth 0.034 mean AP to CatBoost**, lower on all five folds without it.
+The column is constant within 99.9% of companies and tracks a company's last year in the file
+(audit AU2.5), so it behaves like a status read at collection time; V4FinBench's own drop list
+keeps it, so it is a feature of the benchmark, not a leak this harness introduced. FinTFM's
+sensitivity to it is unmeasured. Any comparison quoted against these boosters should say which
+feature set it used.
+
+**What it changes.** The gap is model capacity on a gated label (§166's sibling finding in
+`docs/design/DESIGN_REVIEW_2026-10-16.md` §1.1: 3,586 of 3,587 positives have
+`Insolvency_flag = 1`), learnt by many rounds of trees, not a quirk of one library. It is the
+case for partitioned contexts (DR3.1) and for a gated prior (DR2.2).
