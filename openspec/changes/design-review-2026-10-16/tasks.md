@@ -204,7 +204,10 @@
 
 ## Phase DR7 — TabArena
 
-- [ ] DR7.1 **Correct the resubmission bar** in `docs/roadmap/ROADMAP.md` and
+- [x] DR7.1 **Done (2026-10-16).** ROADMAP Phase E and TABARENA_BAR set the bar at about
+      1,010 Elo with the pool's baseline rows, each verified in the fork's
+      `fintfm_lite_tafintfm/tabarena_leaderboard.csv` (FinTFM 764.6 there).
+      **Correct the resubmission bar** in `docs/roadmap/ROADMAP.md` and
       `docs/roadmap/TABARENA_BAR.md`: about 1,010 Elo in the §122 pool (RF (default) parity), not
       Linear (default) at 936.
       Verify: both files state the new bar with the pool's baseline rows.

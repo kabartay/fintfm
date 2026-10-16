@@ -42,8 +42,20 @@ the run in §122:
 | --- | --- | --- |
 | KNN (tuned) | 859 | **+94** |
 | Linear (default) | 936 | +171 |
+| Linear (tuned), added 2026-10-16 | 966 | +201 |
+| Linear (tuned + ensembled), added 2026-10-16 | 984 | +219 |
 | RandomForest (default) | 1000 | +235 |
+| KNN (tuned + ensembled), added 2026-10-16 | 1008 | +243 |
 | ExtraTrees (tuned + ensembled) | 1154 | **+389** |
+
+**The resubmission bar is about 1,010 Elo (corrected 2026-10-16, task DR7.1).** This file and
+the roadmap set it at `Linear (default)`, 936, which would still leave `Linear (tuned)`,
+`Linear (tuned + ensembled)`, `RF (default)` and `KNN (tuned + ensembled)` above. The
+defensible bar is parity with `RF (default)`, at 1000.0 by construction, which with
+`KNN (tuned + ensembled)` at 1008.5 means about 1,010. The added rows come from the run that
+scored FinTFM at 764.6, the TabArena fork's `eval/fintfm_lite_tafintfm/tabarena_leaderboard.csv`
+(one decimal there: 966.5, 983.6, 1008.5; Linear is `LR` in that file). Their Elo intervals
+in that file (`elo+` plus `elo-`) run 154 to 262 Elo wide, so a pass is decided on paired per-dataset differences.
 
 **These Elo values are not the ones on the public leaderboard, and the two must not be mixed.**
 Elo is relative to the set of methods and tasks it was computed over. This run covers **27
@@ -113,7 +125,8 @@ So:
    and the one axis never varied here.
 2. If it moves, **then** the architecture and objective axes, in that order.
 3. Only once something clears `Linear (default)` at Elo 936 does the coverage work become worth
-   its compute.
+   its compute. (Corrected 2026-10-16, DR7.1: the bar is about 1,010, `RF (default)` parity; see
+   Requirement 2.)
 4. Resubmit with all 51 datasets from the start, as promised in the PR thread.
 
 A resubmission that arrives with full coverage and the same rank would waste the reviewer's time
