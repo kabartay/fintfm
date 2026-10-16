@@ -74,7 +74,7 @@ def agreement(recipe: Path) -> dict:
         torch.manual_seed(0)
         cfg = type(model_cfg)(**{**model_cfg.__dict__, "attn_impl": impl})
         model = FinancialTFM(cfg).cuda().eval()
-        model.feature_chunk = 8
+        model.feature_chunk = 4
         for amp in ("fp32", "fp16"):
             with torch.no_grad(), torch.autocast("cuda", dtype=torch.float16, enabled=amp == "fp16"):
                 logits = model(X, y, batch.n_ctx, nc, column_id_seed=0).float()
@@ -87,14 +87,13 @@ def agreement(recipe: Path) -> dict:
 
 
 def main() -> None:
-    import torch
-
     OUT.mkdir(parents=True, exist_ok=True)
-    print(f"torch {torch.__version__}, CUDA {torch.cuda.is_available()}, "
-          f"devices {torch.cuda.device_count()}", flush=True)
-    if not torch.cuda.is_available():
+    # ask nvidia-smi, not torch: initialising CUDA here would hold GPU 0 memory for the run
+    smi = subprocess.run(["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+                         capture_output=True, text=True, check=False)
+    names = [n.strip() for n in smi.stdout.splitlines() if n.strip()]
+    if smi.returncode != 0 or not names:
         sys.exit("no GPU in this session (quota exhausted?) -- refusing a CPU run")
-    names = [torch.cuda.get_device_name(i) for i in range(torch.cuda.device_count())]
     print(f"GPUs: {names}; CPUs: {os.cpu_count()}", flush=True)
     subprocess.run([sys.executable, "-m", "pip", "install", "--quiet",
                     f"fintfm @ git+https://github.com/kabartay/fintfm.git@{COMMIT}"], check=True)
@@ -102,11 +101,10 @@ def main() -> None:
     urllib.request.urlretrieve(RECIPE_URL, recipe)
 
     summary = {"commit": COMMIT, "gpus": names, "cpus": os.cpu_count()}
-    try:
-        summary["agreement_max_abs_logit_diff"] = agreement(recipe)
-    except Exception as exc:  # noqa: BLE001 -- report and carry on to the timings
-        summary["agreement_error"] = repr(exc)
-    print(json.dumps(summary, indent=2), flush=True)
+    # v1 ran the agreement check in this process first; its 1.3 GB of CUDA memory then sat on
+    # GPU 0 through every timed arm and they all ran out of memory. Nothing here touches CUDA
+    # until the arms are done, and the check runs last in its own process.
+    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
     base = [sys.executable, "-m", "fintfm.modeling.train", "--config", str(recipe),
             "--device", "cuda", "--benchmark-steps", "50", "--out", str(OUT / "unused.pt")]
@@ -114,19 +112,33 @@ def main() -> None:
     for name, extra in ARMS:
         log = OUT / f"{name}.log"
         rc = sh(base + extra, log)
+        chunk = 8
+        if rc != 0 and "OutOfMemoryError" in log.read_text():
+            # the recipe at batch 8 only just fits a 14.56 GB Kaggle T4 (v1 ran out at
+            # 14.2 GB on the GPU no other process touched); feature_chunk 4 is
+            # identity-preserving and lowers the within-feature attention peak
+            chunk = 4
+            rc = sh(base + extra + ["--feature-chunk", "4"], log)
         lines = [ln for ln in log.read_text().splitlines() if ln.startswith("{")]
-        results[name] = {"exit": rc, "result": json.loads(lines[-1]) if lines else None}
+        results[name] = {"exit": rc, "feature_chunk": chunk,
+                         "result": json.loads(lines[-1]) if lines else None}
     summary["arms"] = results
 
-    if torch.cuda.device_count() >= 2:
+    if len(names) >= 2:
         ddp = [sys.executable, "-m", "torch.distributed.run", "--standalone", "--nproc-per-node",
                "2", "-m", "fintfm.modeling.train", "--config", str(recipe), "--device", "cuda",
                "--amp", "fp16", "--attn-impl", "split", "--loader", "stream",
-               "--loader-workers", "1", "--ddp", "--steps", "20", "--log-every", "5",
+               "--loader-workers", "1", "--ddp", "--feature-chunk", "4",
+               "--steps", "20", "--log-every", "5",
                "--eval-every", "1000", "--checkpoint-every", "10",
                "--out", str(OUT / "ddp_smoke.pt")]
         summary["ddp_smoke_exit"] = sh(ddp, OUT / "ddp_smoke.log")
 
+    check = OUT / "agreement.json"
+    rc = sh([sys.executable, __file__, "--agreement", str(recipe), str(check)], OUT / "agreement.log")
+    summary["agreement_exit"] = rc
+    if check.exists():
+        summary["agreement_max_abs_logit_diff"] = json.loads(check.read_text())
     (OUT / "summary.json").write_text(json.dumps(summary, indent=2))
     print(json.dumps(summary, indent=2), flush=True)
     for p in OUT.glob("*.pt*"):
@@ -135,4 +147,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) == 4 and sys.argv[1] == "--agreement":
+        Path(sys.argv[3]).write_text(json.dumps(agreement(Path(sys.argv[2]))))
+    else:
+        main()
