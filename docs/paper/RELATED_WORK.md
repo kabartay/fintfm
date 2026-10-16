@@ -118,6 +118,8 @@ future draft or conversation:
    led by 48.13 (tree prior) and 48.14 (score our own mixture against MITRA's criteria).
    (Updated 2026-10-15: 48.14 was measured in §111/§112, and 48.13's tree prior in §115/§116,
    +0.0094 mean ROC-AUC on TabArena and −0.0221 AP on V4FinBench, so it is not shipped.)
+   (§166, 2026-10-16: the V4FinBench figure is confounded with a lower financial share, 0.49
+   against 0.70; at a matched share the tree arm is +0.0119 mean AP, one seed.)
 
 Also recorded as a process lesson: the synthetic-vs-real conclusion above was **rewritten three
 times in one session**, once per arriving abstract, before anyone checked the rank ordering
@@ -249,7 +251,9 @@ is a tree ensemble, real tabular data is full of threshold structure, and our pr
 none of it. `mechanism-diverse-prior` asked this question; MITRA answers it with a measurement.
 (Superseded 2026-10-15: `prior/tree.py` now exists, task 48.13, behind `p_tree`, which
 defaults to 0.0. §115/§116 measured it at +0.0094 mean ROC-AUC on TabArena at two seeds and
-−0.0221 AP on V4FinBench, so it is not shipped.)
+−0.0221 AP on V4FinBench, so it is not shipped.) (§166, 2026-10-16: the V4FinBench figure is
+confounded with a lower financial share, 0.49 against 0.70; at a matched share the tree arm is
++0.0119 mean AP, 4 of 5 folds, one seed.)
 
 **And their priors are model-agnostic** — the same mixture improves both 1D row attention and 2D
 element-based attention. So this is a prior-side gain that needs no change to the architecture

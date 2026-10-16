@@ -325,7 +325,10 @@ rows, a training pool of ~106k rows). On the full 1,000,087-row panel, five fold
 checkpoint zero-shot scores 0.1986 mean AP against untuned logistic regression's 0.1614, ahead
 on every fold (§163's table). Against untuned boosters on the same five folds (library
 defaults): CatBoost at 1,000 iterations 0.4005, LightGBM 0.2666 and XGBoost 0.2229 at 100 trees
-each. CatBoost wins every fold. Claim 6 stays RETRACTED.
+each. CatBoost wins every fold. Claim 6 stays RETRACTED. (§167, 2026-10-16: all on V4FinBench's
+published features, which keep `operational_status`. LightGBM at 1,000 trees and learning rate
+0.05 scores 0.3908 on the same features, so the field is about 0.39-0.40 mean AP; the 100-tree
+LightGBM and XGBoost figures are under-trained defaults and must not be quoted as the field.)
 
 ---
 
@@ -635,7 +638,12 @@ per-row assignment (Spearman 0.658 against the control's 0.055) carries it.
 **Status: OPEN**, with one component **RETRACTED** and the headline result **bounded to
 general tabular data**. §116 measures the tree prior at **−0.0221 AP on V4FinBench** — the
 low-default credit panel this project exists to serve — against +0.0094 on TabArena. Both hold.
-`p_tree` stays 0.0 by default and the prior is not shipped. What survives is the *instrument*:
+`p_tree` stays 0.0 by default and the prior is not shipped. (§166, 2026-10-16: the −0.0221 is
+not a measurement of the tree prior. Because the prior draws the tree source first, §116's tree
+arm trained on financial 0.49 against its control's 0.70; against `scm50`, a control at the same
+financial share, the tree arm is +0.0119 mean AP, 4 of 5 folds positive, one seed per arm and a
+row bootstrap. The credit result is open, pending task DR2.4's re-test at a matched share and
+two seeds.) What survives is the *instrument*:
 §112 predicted a general-tabular gain from a distinctiveness statistic and §115 confirmed it at
 two seeds, which is the first prior-side prediction this project has had confirmed.
 **Distinctiveness predicts breadth, not fit** — a criterion taken from a general-tabular paper
@@ -678,7 +686,9 @@ structure to be learnable in context, not a sufficient one. §93 measured a 5× 
 increase as inert, and a distinctive prior can be inert the same way. Only the paired arms —
 `p_tree` against the current mixture at matched tasks, on V4FinBench and TabArena — decide it.
 (Superseded 2026-10-15: those arms were run in §115/§116: +0.0094 mean ROC-AUC on TabArena,
-−0.0221 AP on V4FinBench, so the tree prior is not shipped.)
+−0.0221 AP on V4FinBench, so the tree prior is not shipped.) (§166, 2026-10-16: the V4FinBench
+arm was not matched; it also lowered the financial share from 0.70 to 0.49. At a matched share
+the tree arm is +0.0119 mean AP, one seed, so these arms did not decide the credit question.)
 
 **The methodological failure is part of the claim, not a footnote.** The first version of this
 instrument reported the financial prior as the *most* tree-favourable member (+0.0754), which
@@ -737,8 +747,9 @@ library defaults).**
 | model | setting | mean AP, 5 folds |
 | --- | --- | --- |
 | CatBoost | 1,000 iterations | **0.4005** |
-| LightGBM | 100 trees | 0.2666 |
-| XGBoost | 100 trees | 0.2229 |
+| LightGBM | 1,000 trees at lr 0.05 (§167, added 2026-10-16) | **0.3908** |
+| LightGBM | 100 trees, under-trained (§167) | 0.2666 |
+| XGBoost | 100 trees, under-trained (§167) | 0.2229 |
 | FinTFM, fine-tuned | 200 steps | 0.2062 |
 | FinTFM, zero-shot | | 0.1986 |
 | logistic regression | untuned | 0.1614 |
@@ -747,7 +758,12 @@ Untuned CatBoost wins every fold, at 1.94× fine-tuned FinTFM's AP (a 0.194 AP g
 closes 3.8% of the zero-shot gap to CatBoost.** Fine-tuned FinTFM is within 0.017 AP of untuned
 XGBoost and 0.060 of untuned LightGBM. The published protocol tunes the boosters, but its
 `--tune` grid caps CatBoost at 200 iterations, so tuning under that grid could lower CatBoost
-rather than widen the gap (§163, corrected 2026-10-16).
+rather than widen the gap (§163, corrected 2026-10-16). (§167, 2026-10-16: every row uses
+V4FinBench's published features, which keep `operational_status`. LightGBM at 1,000 trees comes
+within 0.0097 of CatBoost, so the lead is boosting rounds; "within 0.017 AP of XGBoost and 0.060
+of LightGBM" compares with under-trained 100-tree defaults and is not a distance to the field,
+which is about 0.39-0.40 mean AP. Without `operational_status`, CatBoost's defaults score
+0.3662; FinTFM's dependence on the column is unmeasured, task DR3.10.)
 
 **Pending: §164, pre-registered 2026-10-15.** Three arms, each one change from §163's setting:
 `S1` (`finetune_seed: 1`; fine-tuning's seed noise, and whether §163 replicates), `EN`

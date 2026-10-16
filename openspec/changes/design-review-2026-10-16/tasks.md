@@ -83,20 +83,30 @@
       Verify: per-dataset paired differences recorded in `docs/results/TABARENA.md`.
 - [ ] DR3.6 **Score the TabArena imbalanced subset** from results already held (minutes).
       Verify: the subset Elo in `docs/results/TABARENA.md` with its date.
-- [ ] DR3.7 **Disclose the V4 data facts** in the benchmark section of FINDINGS: the insolvency
+- [x] DR3.7 **Done (2026-10-16).** FINDINGS §168 states each fact with its recomputed count,
+      with pointers from §35 and §147; the review's 8,171 cross-company rows (6 positives) did
+      not reproduce (1,081 rows, 0 positives on the harness's 130 features) and §168 says so.
+      **Disclose the V4 data facts** in the benchmark section of FINDINGS: the insolvency
       gate, positives only in final rows, base-rate drift by year, the 8,171 cross-company
       identical rows, the 130 (not 136) features after the silent bool drop, and that the harness
       imputes so the missingness mask is never exercised (correct §147's reading).
       Verify: each fact stated with its MEASURED count and a pointer from §35 and §147.
 
-- [ ] DR3.8 **Carry §166 into the documents.** Add pointers to §118 and §141; correct the
+- [x] DR3.8 **Done (2026-10-16).** Pointers in FINDINGS §118 and §141; dated §166 qualifiers
+      at every §116 credit citation in README.md, CLAIMS.md, LIMITATIONS.md and RELATED_WORK.md,
+      on D16's §141 row in DECISIONS.md, and on the roadmap's tree-prior lines.
+      **Carry §166 into the documents.** Add pointers to §118 and §141; correct the
       README's "the tree prior ships off because it hurts credit", `docs/paper/CLAIMS.md` and
       `docs/paper/LIMITATIONS.md` wherever §116 is cited as a credit loss; mark D-entries that rest
       on it.
       Verify: `grep -rn "§116" README.md docs/paper docs/design` shows the §166 qualifier at each
       hit that cites it as a credit result.
 
-- [ ] DR3.9 **Re-baseline every quoted booster figure on §167.** The field on V4FinBench is
+- [x] DR3.9 **Done (2026-10-16).** README, CLAIMS (Claim 6 update and Claim 16's table, now
+      with the 1,000-tree LightGBM row), LIMITATIONS and CHANGELOG [Unreleased] quote §167 with
+      the feature set (published features, with `operational_status`); the older tuned-booster
+      figures from §69-§82 are left as historical, a different protocol.
+      **Re-baseline every quoted booster figure on §167.** The field on V4FinBench is
       about 0.39-0.40 mean AP (CatBoost defaults 0.4005, LightGBM at 1,000 trees 0.3908); the
       100-tree LightGBM and XGBoost defaults are under-trained and must not be quoted as the
       field. State the feature set (with or without `operational_status`) beside every booster
@@ -108,7 +118,12 @@
 
 ## Phase DR4 — an evaluation loop that does not overlap TabArena
 
-- [ ] DR4.1 **Remove the TabArena overlap from the decision loop.** Drop bank-marketing, churn,
+- [ ] DR4.1 **Partly done (2026-10-16), left open.** The six datasets are out of `SUITE`;
+      `tests/test_openml_breadth_overlap.py` checks OpenML id and name against TabArena-v0.1 and
+      name against BeyondArena (which lists no ids); §165 carries a dated note. Open: the row-hash
+      comparison the Verify names, which needs the datasets' contents, and a rule against choosing
+      arms on the Polish and Taiwanese panels.
+      **Remove the TabArena overlap from the decision loop.** Drop bank-marketing, churn,
       blood-transfusion, credit-g, qsar-biodeg and diabetes from `openml_breadth.py`'s SUITE, and
       stop choosing arms on the Polish and Taiwanese panels; mark §165 as measured on TabArena
       datasets.
@@ -199,7 +214,10 @@
 
 ## Phase DR7 — TabArena
 
-- [ ] DR7.1 **Correct the resubmission bar** in `docs/roadmap/ROADMAP.md` and
+- [x] DR7.1 **Done (2026-10-16).** ROADMAP Phase E and TABARENA_BAR set the bar at about
+      1,010 Elo with the pool's baseline rows, each verified in the fork's
+      `fintfm_lite_tafintfm/tabarena_leaderboard.csv` (FinTFM 764.6 there).
+      **Correct the resubmission bar** in `docs/roadmap/ROADMAP.md` and
       `docs/roadmap/TABARENA_BAR.md`: about 1,010 Elo in the §122 pool (RF (default) parity), not
       Linear (default) at 936.
       Verify: both files state the new bar with the pool's baseline rows.

@@ -58,7 +58,9 @@ Measured closed. Reopening any of them needs a new reason, stated first.
 - **The binning head**, rank is flat against the axis it controls (§121).
 - **Inference-time knobs**: context nearly flat (§83/§84), retrieval harmful at low prevalence
   (§70).
-- **The tree prior for credit**: −0.0221 AP, 0 of 5 folds (§118).
+- **The tree prior for credit**: −0.0221 AP, 0 of 5 folds (§118). (§166, 2026-10-16: the
+  figure is §116's, and it is confounded with a financial share cut from 0.70 to 0.49; at a
+  matched share the tree arm is +0.0119 mean AP, 4 of 5 folds, one seed. Not closed.)
 - **Categorical preprocessing**: already harvested, +0.018 and no rank move (§101).
 - **Larger query chunks**: 10.7× slower (§120).
 
@@ -104,7 +106,8 @@ checkpoint) is now closed too (§136); Phase A' is done and the next real lever 
    training run.
 5. ~~**Check whether this transfers to TabArena's Lite protocol.**~~ **Done (§132): it does.**
    +145 Elo, 93rd of 95 against 94th, 26 of 27 datasets used the linear probe cleanly. Still
-   below every real method -- 910 sits a whisker under `Linear (default)` at 936, the next
+   below every real method -- 910 sits a whisker under `Linear (default)` at 936 (the
+   resubmission bar is about 1,010, corrected 2026-10-16; see Phase E), the next
    milestone this file already named. Timed one dataset first (249s), confirming the discipline
    `docs/results/POSTMORTEM.md`'s second chapter records paying for in the other direction.
 
@@ -243,6 +246,22 @@ pretraining run on an entry that still cannot be listed.
 29. **Resubmit with all 51 datasets from the start**, as promised in the PR thread, and only
     when something clears `Linear (default)`. A resubmission arriving with full coverage and the
     same rank wastes the reviewer's time as well as ours.
+    (Corrected 2026-10-16, task DR7.1: the bar is **about 1,010 Elo in the §122 pool**, parity
+    with `RF (default)`, not `Linear (default)` at 936. Clearing 936 would still leave three
+    simple baselines above. The pool's baseline rows, from the TabArena fork's
+    `eval/fintfm_lite_tafintfm/tabarena_leaderboard.csv`, the run that scored FinTFM at 764.6:
+
+    | baseline | Elo | interval |
+    | --- | --- | --- |
+    | KNN (tuned) | 859.1 | +56.9 / −97.3 |
+    | Linear (default) | 936.2 | +106.3 / −121.1 |
+    | Linear (tuned) | 966.5 | +130.9 / −130.3 |
+    | Linear (tuned + ensembled) | 983.6 | +130.3 / −131.9 |
+    | RF (default) | 1000.0 | +95.1 / −146.4 |
+    | KNN (tuned + ensembled) | 1008.5 | +66.8 / −94.5 |
+
+    Those intervals are 154 to 262 Elo wide, so clearing the bar is decided on paired
+    per-dataset differences, not on one Elo reading.)
 
 ---
 

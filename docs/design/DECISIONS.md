@@ -559,7 +559,10 @@ against that base rate rather than against hope.
 claims to be. Two measured levers are missing from it. §80, two-way cell attention, is a win:
 +0.049 AP on V4FinBench, 5 of 5 folds. §141, mixing in the nine task families at weight 0.3,
 is a loss: −0.0261 mean AP. So the record reads one win and eight nulls or losses, not zero
-wins in seven. The §80 win carries a caveat of its own: its two arms may also differ in prior
+wins in seven. (§166, 2026-10-16: the §141 arm also cut the financial share from 1.0 to 0.7,
+because the prior draws task families first, and §166 finds such cuts cost 0.022-0.034 AP
+whatever replaces the financial share. Read the §141 row as confounded, like §116's tree-prior
+result, until DR2.4 re-tests at a matched share.) The §80 win carries a caveat of its own: its two arms may also differ in prior
 mix (`p_financial` 1.0 against 0.7) and training recipe, so the architecture-only effect may
 be unmeasured (audit task AU2.8, `openspec/changes/audit-2026-10-15/tasks.md`). The §108 row
 was also replaced by §114 on the same date: §108 was a TabArena ROC-AUC result at half the

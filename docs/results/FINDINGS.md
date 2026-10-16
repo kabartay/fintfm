@@ -2331,6 +2331,10 @@ should not be reachable.**
 
 > **Later evidence, 2026-10-15 note:** §56 lists this section among results measured through the §54 encoder ceiling; re-measure before quoting.
 
+> **Feature count, 2026-10-16 (§168).** The V4 harness passes 130 features to every model, not
+> 136: `select_dtypes` drops the boolean `has_multiple_industries`. This table's denominator of
+> 136 is not reconciled with that loader.
+
 `normalize_features` standardises each feature by its **context mean and standard deviation**,
 then clips to ±10. That is the standard PFN treatment, and on this data it is close to
 useless. Measured on the V4FinBench training rows:
@@ -8189,6 +8193,11 @@ question it previously could not — not that its answers are established.
 
 ## §118 — The prior scorer's credit arm predicted the wrong direction, and the ranking is inverted
 
+> **Read with §166 (pointer added 2026-10-16).** This arm moved 0.2 of the financial share to
+> SCM (0.7 to 0.5) and lost 0.0339 AP. §166 finds the same shape in §116 and §141: the cost
+> tracks the financial share given up, not the source that receives it. Its comparison with
+> "the tree prior's −0.0221" below is between two financial-share cuts, not two priors.
+
 **How these numbers were produced.** MEASURED. `fintfm-v4protocol --no-boosting`, horizon 0,
 published five-fold protocol, 1,000,087 rows at 0.359% positive. One checkpoint at
 `p_financial=0.5` (so the SCM prior takes 0.5) against §116's `p_financial=0.7` control, matched
@@ -9777,6 +9786,11 @@ on 40.2-40.6 each validating individually -- which, as of this entry, they now h
 
 ## §141 — Mixing in the nine task families at weight 0.3 makes V4FinBench worse, not better
 
+> **Read with §166 (pointer added 2026-10-16).** `--p-task-family 0.3` against `--p-financial
+> 1.0` also cut the financial share by 0.3, because the prior draws task families before the
+> financial source. §166 finds that such cuts cost 0.022-0.034 AP whatever replaces the financial
+> share, so this loss is not yet evidence against the task families themselves.
+
 **How these numbers were produced.** MEASURED. Task 40.7 (`mechanism-diverse-prior`), Phase C
 item 24: a checkpoint (`runs/taskfamily/v4-taskfamily-mix.pt`) trained with the exact reference
 recipe that produced the §127/§136 control (`v4-cellattn-labels.pt` -- `--batch-size 8
@@ -10173,6 +10187,11 @@ describing what the package is *capable of*, not what this run used. (Code locat
 > **Re-adjudicated by §158 and §160 (pointer added 2026-10-15).** The control here differs in
 > head size. Against the matched `max_classes 10` control (§160) the loss stands: −0.0230 mean
 > AP, 5 of 5 folds negative.
+
+> **Missingness reading corrected, 2026-10-16 (§168).** The V4 harness median-imputes every
+> feature before FinTFM sees it, so no V4FinBench data cell reaches the model flagged as
+> missing. The loss below is measured; the reading that the joint embedding learns a
+> value-and-missingness interaction has no support from this benchmark.
 
 **How these numbers were produced.** MEASURED. Task 48.10 (`learn-from-peers`): a checkpoint
 (`runs/task48-10-kaggle/v4-cellattn-maskembed48_10.pt`) trained at the identical §127
@@ -11396,6 +11415,12 @@ arm's verdict is reported as **provisional (device-confounded)**, never as bette
 
 ## §165 — The published checkpoint is close to label-symmetric on synthetic tasks, and least so on Polish
 
+> **Measured on TabArena datasets (note added 2026-10-16, task DR4.1).** Polish bankruptcy and
+> Taiwanese bankruptcy are TabArena-v0.1 datasets (`polish_companies_bankruptcy`,
+> `taiwanese_bankruptcy_prediction`). This is evaluation, not training, so decision D2 is
+> intact, but a choice of arm made on these rows, such as whether to score
+> `ensemble_class_shift`, is a choice made on TabArena data and biases a later TabArena number.
+
 **MEASURED, 2026-10-16.** `scripts/label_symmetry_probe.py` on `runs/v4-cellattn-labels.pt`, CPU,
 210 s, 1.9 GB peak, through the public `FinancialTFMClassifier` wrapper. For each task the binary
 labels in the context are swapped and the prediction `p_swapped(y=1)` compared with the
@@ -11497,3 +11522,92 @@ feature set it used.
 `docs/design/DESIGN_REVIEW_2026-10-16.md` §1.1: 3,586 of 3,587 positives have
 `Insolvency_flag = 1`), learnt by many rounds of trees, not a quirk of one library. It is the
 case for partitioned contexts (DR3.1) and for a gated prior (DR2.2).
+
+## §168: V4FinBench's data facts that every result should be read against
+
+**MEASURED, 2026-10-16**, task DR3.7, from the data alone; no model is scored. One read-only
+pass over `data/cache/v4finbench/company_years_h1.parquet` (horizon 0: 1,000,087 rows, 3,587
+positives, 188,058 company ids), reading only the target, `company` and the columns the harness
+keeps, through the harness's own `DROP_COLUMNS` and `TARGET` (`src/fintfm/experiments/v4_protocol.py`).
+The counts below hold for the full panel; each fold's rows inherit them.
+
+**The label is gated by `Insolvency_flag`.** 3,586 of the 3,587 positives have
+`Insolvency_flag = 1`. The flag is set on 105,687 rows (10.57% of the panel), where the default
+rate is 3.39% (3,586 of 105,687). On the other 894,400 rows the rate is 1 in 894,400: one
+positive. A headline AP is in effect a ranking inside the flagged tenth of the panel, and a
+tree finds the gate with one split.
+
+**Every positive is its company's final row.** All 3,587 positives sit in the latest year their
+company has in the file; 3,587 companies carry exactly one positive each, and none carries two.
+No positive falls in a duplicated company-year pair (below).
+
+**The base rate drifts by year.** Positives over rows per `year`, 2006 to 2020:
+
+| year | rows | positives | rate |
+| --- | --- | --- | --- |
+| 2006 | 25,809 | 12 | 0.05% |
+| 2007 | 38,014 | 21 | 0.06% |
+| 2008 | 49,853 | 57 | 0.11% |
+| 2009 | 55,041 | 89 | 0.16% |
+| 2010 | 56,778 | 162 | 0.29% |
+| 2011 | 61,290 | 172 | 0.28% |
+| 2012 | 65,125 | 216 | 0.33% |
+| 2013 | 66,206 | 206 | 0.31% |
+| 2014 | 69,003 | 249 | 0.36% |
+| 2015 | 69,627 | 304 | 0.44% |
+| 2016 | 50,366 | 189 | 0.38% |
+| 2017 | 100,938 | 219 | 0.22% |
+| 2018 | 92,698 | 559 | 0.60% |
+| 2019 | 104,136 | 683 | 0.66% |
+| 2020 | 95,203 | 449 | 0.47% |
+
+The rate runs from 0.05% (2006) to 0.66% (2019). `year` is one of the features every model sees,
+so a model can learn the drift directly.
+
+**Identical feature vectors recur under different company ids.** Method: each row's values over
+a stated column set are hashed with `pandas.util.hash_pandas_object` (NaN equal to NaN), a row is
+counted when the same vector occurs under two or more distinct `company` values. For the
+130-feature set every counted row was also confirmed to have an exact duplicate (pandas
+`duplicated`), so that count is not a hash collision.
+
+| column set | columns | rows counted | distinct vectors | positives among them |
+| --- | --- | --- | --- | --- |
+| the harness's features (what every model sees) | 130 | 1,081 | 282 | 0 |
+| firm-level ratio columns: the 122 float columns less `state`, `number_of_employees`, `legal_form`, `operational_status`, `incorporation_date_1`, `incorporation_date_2`, `sector_1` and the 17 `_Sector` medians | 98 | 4,737 | 582 | 1 |
+
+The design review's figure of 8,171 rows with 6 positives
+(`docs/design/DESIGN_REVIEW_2026-10-16.md` §1.1) is **not reproduced** under these two
+definitions or nine others tried: the 130 features less `year`; the 122 float columns in float64
+and float32, and less `operational_status`; the 98 ratio columns in float32, plus `year`, and
+less their 8 growth columns; and the 72-column classic ratio block keyed on `company` and on
+`emis_id`. Every count fell between 1,081 and 4,933 rows, with 0 or 1 positive. Its method is not recorded, so its count should not
+be quoted. Folds are assigned by company, so these rows can land on both sides of a split. None is positive under the harness's view; the
+effect on AP is not measured.
+
+**943 company-year pairs are surplus.** The panel has 999,144 distinct (`company`, `year`) pairs
+for its 1,000,087 rows: 1,498 rows fall in 555 pairs that occur more than once. None of those
+rows is positive.
+
+**The models see 130 features, not 136.** After `DROP_COLUMNS` and the target, 131 columns
+remain; `_load_horizon`'s `features.select_dtypes(include=[np.number])`
+(`v4_protocol.py:390`) drops the one boolean, `has_multiple_industries`, without a message. The
+130 include eight integer columns that are codes or flags rather than quantities (`country`,
+`year`, `Insolvency_flag`, `Loss_flag`, `naics_2digit`, `naics_3digit`,
+`primary_naics_encoded`, `secondary_naics_encoded`), which enter as numbers.
+
+**The harness imputes and standardises before FinTFM, so the missingness mask is never
+exercised on this benchmark.** The raw feature matrix has 10,300,644 missing cells of
+130,011,310 (7.92%), in 115 of the 130 columns and in 986,362 of the 1,000,087 rows. Each fold
+fits `SimpleImputer(strategy="median")` and then `StandardScaler` on its training split and
+applies both to training, validation and test (`v4_protocol.py:572-574`); FinTFM is fitted on
+and predicts from those imputed matrices (`v4_protocol.py:600`, `606-609`). The model derives
+its `missing` flag from NaN (`modeling/model.py:332`), so by construction no V4FinBench data cell
+reaches FinTFM flagged as missing. §147's reading that the joint `[value, missing]` embedding
+learns a value-and-missingness interaction therefore has no support from this benchmark; its
+measured loss stands, but whatever the mask embedding changed, it was not the treatment of
+missing cells here.
+
+**What it changes.** Read every V4FinBench number in this log against these facts: AP is
+dominated by ranking within the flagged 10.57%, the label sits at each defaulting company's
+last year, the rate varies by year, and FinTFM is scored on imputed, standardised, 130-column
+data. DR3.1 adds AP within the flagged rows beside the headline.
