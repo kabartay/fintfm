@@ -1,5 +1,8 @@
 """Training-loop tests: the properties that a loss curve cannot reveal."""
 
+from dataclasses import fields
+from pathlib import Path
+
 import pytest
 import torch
 
@@ -255,15 +258,17 @@ def test_default_training_matches_the_pre_lever_loop(tmp_path):
         opt.step()
         sched.step()
 
-    # The run under test passes every model lever explicitly at the packaged config's value
-    # (n_heads aside, which this tiny model sets itself), so the levers' defaults are held to
-    # the same byte-for-byte standard as the training ones.
-    from fintfm.config import load_config
-    from fintfm.modeling.train import _MODEL_CONFIG_KNOBS
+    # The run under test passes every other model key explicitly at the packaged config's
+    # value (the tiny model's own keys aside, and d_ff, which the config leaves to the CLI's
+    # 4 x d_model), so the levers' defaults are held to the same byte-for-byte standard as the
+    # training ones.
+    from fintfm.config import ModelConfigDefaults, load_config
 
     model_section = load_config().model
     levers_at_default = ModelConfig(**_TINY_RICH, **{
-        k: getattr(model_section, k) for k in _MODEL_CONFIG_KNOBS if k != "n_heads"
+        f.name: getattr(model_section, f.name)
+        for f in fields(ModelConfigDefaults)
+        if f.name not in _TINY_RICH and f.name != "d_ff"
     })
     got = train(
         levers_at_default, prior_cfg,
@@ -289,6 +294,82 @@ def test_cli_without_model_lever_flags_builds_the_pre_lever_architecture(tmp_pat
     )
     assert asdict(model_cfg) == asdict(before)
     assert model_cfg.n_heads == 4
+
+
+def test_cli_without_flags_builds_the_pre_dr13_prior_and_training_configs(tmp_path, monkeypatch):
+    """DR1.3 moved every flag's default into configuration; with no flag the run must be the
+    one the literal defaults built: ``PriorConfig()`` and ``TrainConfig()`` field for field,
+    which is the prior and loop of ``test_default_training_matches_the_pre_lever_loop``."""
+    from dataclasses import asdict
+
+    from fintfm.modeling.train import TrainConfig
+
+    _, train_cfg, prior_cfg = _captured_configs(
+        monkeypatch, ["--out", str(tmp_path / "x.pt")], with_prior=True
+    )
+    assert asdict(prior_cfg) == asdict(PriorConfig())
+    assert asdict(train_cfg) == asdict(TrainConfig())
+
+
+#: ``runs/v4-cellattn-labels.pt``'s stored ``ModelConfig``, read from the checkpoint on
+#: 2026-10-16 (SHA-256 d231b062...); keys it predates load at their defaults.
+_PUBLISHED_STORED_CONFIG = {
+    "max_features": 136, "max_classes": 2, "d_cell": 48, "d_model": 128, "n_heads": 4,
+    "n_col_layers": 2, "n_layers": 4, "d_ff": 512, "dropout": 0.0, "pooling": "meanmax",
+    "column_id_dim": 16, "n_horizons": None, "n_cell_blocks": 1, "cell_labels": True,
+}
+_PUBLISHED_YAML = Path(__file__).resolve().parents[1] / "configs/published/v4-cellattn-labels.yaml"
+
+
+def test_published_recipe_builds_the_published_checkpoints_model(tmp_path, monkeypatch):
+    """DR1.3: ``fintfm-train --config configs/published/v4-cellattn-labels.yaml`` alone
+    builds the published checkpoint's ``ModelConfig`` and FINDINGS §127/§141's recipe (6,000
+    steps x batch 8, seed 0, contexts 256/512/1024, financial prior only). No step is taken:
+    ``train`` is stubbed out."""
+    from dataclasses import asdict
+
+    model_cfg, train_cfg, prior_cfg = _captured_configs(
+        monkeypatch, ["--config", str(_PUBLISHED_YAML), "--out", str(tmp_path / "x.pt")],
+        with_prior=True,
+    )
+    assert asdict(model_cfg) == asdict(ModelConfig(**_PUBLISHED_STORED_CONFIG))
+    assert (train_cfg.steps, train_cfg.batch_size, train_cfg.lr, train_cfg.seed) == (
+        6000, 8, 3e-4, 0,
+    )
+    assert train_cfg.feature_chunk == 8 and train_cfg.optimizer == "adamw"
+    assert prior_cfg.n_rows_choices == (256, 512, 1024) and prior_cfg.p_financial == 1.0
+    assert (prior_cfg.max_features, prior_cfg.max_classes) == (136, 2)
+
+
+def test_published_recipe_pins_every_key_fintfm_train_reads():
+    """A recipe that inherits a key from the packaged default moves when that default does;
+    this file must state every model, prior and train key, the per-invocation ones aside."""
+    import yaml
+
+    from fintfm.config import ModelConfigDefaults, PriorConfigDefaults, TrainConfigDefaults
+
+    data = yaml.safe_load(_PUBLISHED_YAML.read_text())
+    per_invocation = {"device", "run_steps", "resume", "init_from"}
+    assert set(data["model"]) == {f.name for f in fields(ModelConfigDefaults)}
+    assert set(data["prior"]) == {f.name for f in fields(PriorConfigDefaults)}
+    assert set(data["train"]) == {f.name for f in fields(TrainConfigDefaults)} - per_invocation
+
+
+def test_published_recipe_matches_the_checkpoint_itself():
+    """The same comparison against the checkpoint file, where it exists (it is not in git)."""
+    ckpt = Path(__file__).resolve().parents[1] / "runs" / "v4-cellattn-labels.pt"
+    if not ckpt.exists():
+        pytest.skip(f"{ckpt} absent")
+    from dataclasses import asdict
+
+    from fintfm.config import load_config
+    from fintfm.modeling.train import build_configs, build_parser
+
+    stored = torch.load(ckpt, map_location="cpu", weights_only=False)["config"]
+    assert stored == _PUBLISHED_STORED_CONFIG
+    args = build_parser().parse_args(["--config", str(_PUBLISHED_YAML)])
+    model_cfg = build_configs(args, load_config(args.config))[0]
+    assert asdict(model_cfg) == asdict(ModelConfig(**stored))
 
 
 def test_bf16_autocast_runs_the_forward_in_bf16_and_keeps_loss_and_weights_float32(tmp_path):
@@ -498,17 +579,17 @@ def test_warmup_steps_sets_the_schedule():
     assert _lr_schedule(9, cfg) < 0.1
 
 
-def _captured_configs(monkeypatch, argv):
+def _captured_configs(monkeypatch, argv, with_prior=False):
     """Run ``fintfm-train``'s ``main`` with ``train`` stubbed out; return (ModelConfig,
-    TrainConfig) as the CLI built them."""
+    TrainConfig) as the CLI built them, and the PriorConfig third when ``with_prior``."""
     import importlib
 
     train_mod = importlib.import_module("fintfm.modeling.train")
     seen = {}
-    monkeypatch.setattr(train_mod, "train", lambda m, p, t, out: seen.update(m=m, t=t))
+    monkeypatch.setattr(train_mod, "train", lambda m, p, t, out: seen.update(m=m, p=p, t=t))
     monkeypatch.delenv("FINTFM_CONFIG", raising=False)
     train_mod.main(argv)
-    return seen["m"], seen["t"]
+    return (seen["m"], seen["t"], seen["p"]) if with_prior else (seen["m"], seen["t"])
 
 
 def _captured_train_cfg(monkeypatch, argv):

@@ -420,8 +420,11 @@ def fintfm_classifier(
     """The fintfm arm's unfitted classifier, every setting read from ``cfg.inference``.
 
     One constructor for every harness that scores the fintfm arm under this protocol (this
-    module and :mod:`fintfm.experiments.hybrid_catboost`), so a setting added here reaches
-    all of them; a second hand-written copy would be bypassed by the next caller.
+    module and :mod:`fintfm.experiments.hybrid_catboost`), built by
+    :meth:`~fintfm.inference.classifier.FinancialTFMClassifier.from_config`, which passes
+    every field of the section. The hand-written keyword list it replaced dropped
+    ``correct_prior``, ``retrieval_groups``, ``retrieval_min_positive`` and
+    ``prototype_minority_ratio``, which then loaded and were never used (design review DR1.3).
 
     Args:
         model: The loaded checkpoint.
@@ -434,29 +437,8 @@ def fintfm_classifier(
     """
     from fintfm.inference.classifier import FinancialTFMClassifier
 
-    return FinancialTFMClassifier(
-        model,
-        max_context=cfg.inference.max_context,
-        context_strategy=cfg.inference.context_strategy,
-        feature_transform=cfg.inference.feature_transform,
-        n_ensemble=cfg.inference.n_ensemble,
-        query_chunk=cfg.inference.query_chunk,
-        feature_chunk=cfg.inference.feature_chunk,
-        finetune_steps=cfg.inference.finetune_steps,
-        finetune_lr=cfg.inference.finetune_lr,
-        finetune_batch=cfg.inference.finetune_batch,
-        finetune_query=cfg.inference.finetune_query,
-        finetune_context=cfg.inference.finetune_context,
-        finetune_query_group_frac=cfg.inference.finetune_query_group_frac,
-        finetune_query_pos_frac=cfg.inference.finetune_query_pos_frac,
-        finetune_seed=cfg.inference.finetune_seed,
-        ensemble_transforms=cfg.inference.ensemble_transforms,
-        ensemble_svd_components=cfg.inference.ensemble_svd_components,
-        ensemble_class_shift=cfg.inference.ensemble_class_shift,
-        max_features_strategy=cfg.inference.max_features_strategy,
-        retrieval_per_class=cfg.inference.retrieval_per_class,
-        device=device,
-        random_state=random_state,
+    return FinancialTFMClassifier.from_config(
+        model, cfg.inference, device=device, random_state=random_state
     )
 
 

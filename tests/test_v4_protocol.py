@@ -376,3 +376,62 @@ def test_run_json_records_the_checkpoint_hash_commit_and_classifier_params(tmp_p
     baselines = run(None, tmp_path / "b", root=tmp_path, with_boosting=False, folds=(0,))
     assert baselines["provenance"]["checkpoint_sha256"] is None
     assert baselines["provenance"]["classifier_params"] == {}
+
+
+def _pre_dr13_fintfm_classifier(model, cfg, device="cpu", random_state=0):
+    """The fintfm arm's constructor as it stood before DR1.3, a hand-copied keyword list,
+    kept verbatim as the byte-identity reference for :func:`fintfm_classifier`."""
+    from fintfm.inference.classifier import FinancialTFMClassifier
+
+    return FinancialTFMClassifier(
+        model,
+        max_context=cfg.inference.max_context,
+        context_strategy=cfg.inference.context_strategy,
+        feature_transform=cfg.inference.feature_transform,
+        n_ensemble=cfg.inference.n_ensemble,
+        query_chunk=cfg.inference.query_chunk,
+        feature_chunk=cfg.inference.feature_chunk,
+        finetune_steps=cfg.inference.finetune_steps,
+        finetune_lr=cfg.inference.finetune_lr,
+        finetune_batch=cfg.inference.finetune_batch,
+        finetune_query=cfg.inference.finetune_query,
+        finetune_context=cfg.inference.finetune_context,
+        finetune_query_group_frac=cfg.inference.finetune_query_group_frac,
+        finetune_query_pos_frac=cfg.inference.finetune_query_pos_frac,
+        finetune_seed=cfg.inference.finetune_seed,
+        ensemble_transforms=cfg.inference.ensemble_transforms,
+        ensemble_svd_components=cfg.inference.ensemble_svd_components,
+        ensemble_class_shift=cfg.inference.ensemble_class_shift,
+        max_features_strategy=cfg.inference.max_features_strategy,
+        retrieval_per_class=cfg.inference.retrieval_per_class,
+        device=device,
+        random_state=random_state,
+    )
+
+
+@pytest.mark.parametrize("config_body", ["", "inference:\n  n_ensemble: 3\n  max_context: 40\n"])
+def test_from_config_scores_exactly_as_the_old_explicit_construction(tmp_path, config_body):
+    """DR1.3's byte-identity check: at the packaged configuration, and at one that sets only
+    keys the old list carried, ``fintfm_classifier`` (now ``from_config``) has the old
+    constructor's parameters and returns bit-identical probabilities."""
+    import torch
+
+    from fintfm.config import load_config
+    from fintfm.experiments.v4_protocol import fintfm_classifier
+    from fintfm.modeling.model import FinancialTFM, ModelConfig
+
+    f = tmp_path / "c.yaml"
+    f.write_text(config_body)
+    cfg = load_config(f)
+    torch.manual_seed(0)
+    model = FinancialTFM(ModelConfig(max_features=8, max_classes=2, d_cell=8, d_model=16,
+                                     n_layers=1, n_col_layers=1, n_heads=2, d_ff=32))
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(120, 6)).astype(np.float32)
+    y = (X[:, 0] + rng.normal(scale=0.5, size=120) > 0.8).astype(np.int64)
+    new = fintfm_classifier(model, cfg, random_state=2)
+    old = _pre_dr13_fintfm_classifier(model, cfg, random_state=2)
+    assert new.get_params(deep=False) == old.get_params(deep=False)
+    p_new = new.fit(X[:80], y[:80]).predict_proba(X[80:])
+    p_old = old.fit(X[:80], y[:80]).predict_proba(X[80:])
+    assert np.array_equal(p_new, p_old)

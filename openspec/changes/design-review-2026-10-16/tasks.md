@@ -28,7 +28,19 @@
       the checkpoints FINDINGS cites.
       Verify: a 2-step training run's checkpoint states its normalised source shares, and a dump
       written before a prior edit is refused after it.
-- [ ] DR1.3 **Configuration from one source.** `FinancialTFMClassifier.from_config`; generate
+- [x] DR1.3 **Done (2026-10-16).** `FinancialTFMClassifier.from_config` passes every
+      `inference` field; the V4 protocol, out-of-time, context-sweep and retrieval-grouping
+      harnesses use it, so the four ignored keys arrive. New keys `ensemble_label_swap`,
+      `ensemble_feature_frac`, `finetune_clip`; `winsor_quantile` and `transform_subsample`
+      became classifier arguments feeding `FeatureConditioner`. The `model` and `train`
+      sections carry every `ModelConfig`/`TrainConfig` field (`d_ff: null` = 4 x `d_model`),
+      the `prior` section every prior flag, and every `fintfm-train` flag but `--out` defaults
+      to `None`. The sections are mirrored, not generated, with drift tests iterating
+      `inspect.signature`, `fields()` and the parser's actions. Tests
+      `test_config.py::test_every_inference_key_reaches_the_classifier`,
+      `test_train.py::test_published_recipe_builds_the_published_checkpoints_model` and
+      `test_v4_protocol.py::test_from_config_scores_exactly_as_the_old_explicit_construction`.
+      **Configuration from one source.** `FinancialTFMClassifier.from_config`; generate
       `InferenceConfig`, `ModelConfigDefaults` and the `fintfm-train` flags from dataclass fields;
       drift tests iterate `inspect.signature` and `fields()`; every `fintfm-train` flag defaults to
       `None`; commit `configs/published/v4-cellattn-labels.yaml`. Fix the silently ignored keys:

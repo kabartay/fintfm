@@ -139,15 +139,15 @@ def run(
         Returns:
             The fitted estimator.
         """
-        return FinancialTFMClassifier(
+        # every setting the comparison does not vary comes from cfg.inference (DR1.3)
+        return FinancialTFMClassifier.from_config(
             model_path,
+            cfg.inference,
             max_context=cfg.v4finbench.max_context,
             context_strategy="retrieval",
             correct_prior=True,
             random_state=seed,
             retrieval_groups=groups,
-            retrieval_min_positive=cfg.inference.retrieval_min_positive,
-            feature_transform=cfg.inference.feature_transform,
         ).fit(ds.X[tr], ds.y[tr], periods=ds.period[tr])
 
     started = time.perf_counter()

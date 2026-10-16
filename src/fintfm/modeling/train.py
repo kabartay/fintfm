@@ -11,13 +11,13 @@ import contextlib
 import json
 import sys
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, fields
 from typing import Any
 
 import numpy as np
 import torch
 
-from fintfm.config import load_config
+from fintfm.config import Config, load_config
 from fintfm.modeling.model import ATTN_IMPLS, FinancialTFM, ModelConfig
 from fintfm.prior import PriorConfig
 from fintfm.prior.base import TaskBatch
@@ -137,13 +137,18 @@ _KELLER_MUON_LR = 0.02
 #: Accepted values of :attr:`TrainConfig.amp`.
 AMP_MODES = ("none", "bf16", "fp16")
 
-#: ``ModelConfig`` fields ``fintfm-train`` takes from the config's ``model`` section unless a
-#: flag of the same name is given. Each is also a field of
-#: :class:`fintfm.config.ModelConfigDefaults` (``tests/test_config.py`` checks both ways).
-_MODEL_CONFIG_KNOBS = (
-    "n_heads", "n_cell_heads", "n_summary_tokens", "value_embedding", "value_basis_size",
-    "value_basis_learnable", "value_ecdf", "attn_length_scale", "attn_length_ref", "attn_impl",
-    "hazard_period_context",
+#: ``PriorConfig`` fields ``fintfm-train`` takes from the config's ``prior`` section unless a
+#: flag of the same name is given (design review DR1.3). Every ``ModelConfig`` and
+#: ``TrainConfig`` field is resolved the same way, from the ``model`` and ``train`` sections,
+#: and needs no list because all of them are taken. ``tests/test_config.py`` checks that each
+#: name is a field of both ``PriorConfig`` and :class:`fintfm.config.PriorConfigDefaults`.
+_PRIOR_CONFIG_KNOBS = (
+    "n_rows", "n_rows_choices", "p_financial", "p_tree", "p_trivial", "p_crossed",
+    "p_task_family", "p_regression", "p_learnability_filter", "scm_legacy", "scm_reuse_graph",
+    "identity_shuffle", "discretize_frac", "n_noise_features", "n_correlated_block_features",
+    "label_noise_rate", "min_ctx_per_class", "p_real_edgar", "real_edgar_panel_path",
+    "p_real_mortgage", "real_mortgage_panel_path", "p_real_lendingclub",
+    "real_lendingclub_panel_path", "real_panels",
 )
 
 #: Accepted values of :attr:`TrainConfig.optimizer`.
@@ -1112,21 +1117,21 @@ def benchmark(
     }
 
 
-def main(argv: list[str] | None = None) -> None:
-    """Pretrain a checkpoint on synthetic tasks.
+def build_parser() -> argparse.ArgumentParser:
+    """The ``fintfm-train`` command line.
 
-    Entry point for the ``train`` console script; see
-    ``--help`` for the flags. Writes its record as JSON under ``--out``. With
-    ``--benchmark-steps N`` it instead measures throughput and prints one JSON line, saving
-    nothing.
+    Every flag but ``--out`` defaults to ``None``, so an omitted flag takes the configuration's
+    value and a given one wins (``CLAUDE.md``, "Configuration, not constants"; design review
+    DR1.3). ``tests/test_config.py`` iterates these actions, so a flag added with a literal
+    default, or one that names no configuration field, fails the suite.
 
-    Args:
-        argv: Arguments to parse; ``None`` reads ``sys.argv``, as the console script does.
+    Returns:
+        The parser; :func:`main` parses with it and :func:`build_configs` resolves the result.
     """
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--steps", type=int, default=20_000)
-    p.add_argument("--batch-size", type=int, default=64)
-    p.add_argument("--lr", type=float, default=3e-4)
+    p.add_argument("--steps", type=int, default=None)
+    p.add_argument("--batch-size", type=int, default=None)
+    p.add_argument("--lr", type=float, default=None)
     p.add_argument(
         "--warmup-steps",
         type=int,
@@ -1180,7 +1185,7 @@ def main(argv: list[str] | None = None) -> None:
         "prior-sampling vs device-step split, peak CUDA memory). Saves nothing; --out, "
         "--resume and evaluation are ignored",
     )
-    p.add_argument("--n-rows", type=int, default=256)
+    p.add_argument("--n-rows", type=int, default=None)
     p.add_argument(
         "--n-rows-choices",
         type=str,
@@ -1189,18 +1194,18 @@ def main(argv: list[str] | None = None) -> None:
         "base-rate floor scales with task size, so a fixed small value caps how "
         "imbalanced any task can be (docs/results/FINDINGS.md #26)",
     )
-    p.add_argument("--max-features", type=int, default=24)
+    p.add_argument("--max-features", type=int, default=None)
     p.add_argument(
         "--p-trivial",
         type=float,
-        default=0.0,
+        default=None,
         help="probability of a deliberately trivial task (docs/results/FINDINGS.md §53): the control "
         "that separates 'our prior is too hard' from 'the model cannot learn'",
     )
     p.add_argument(
         "--p-regression",
         type=float,
-        default=0.0,
+        default=None,
         help="probability of drawing a regression task: the SCM prior's continuous latent "
         "kept rather than thresholded, binned on context quantiles. Bins share the "
         "classification head, so this needs no architecture change (see "
@@ -1208,7 +1213,8 @@ def main(argv: list[str] | None = None) -> None:
     )
     p.add_argument(
         "--scm-legacy",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
+        default=None,
         help="draw SCM tasks from the pre-48.17/48.19 prior (uniform edge sparsity, five "
         "activations); the control arm for the widened prior. Inert at --p-financial 1.0",
     )
@@ -1243,7 +1249,7 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument(
         "--p-crossed",
         type=float,
-        default=0.0,
+        default=None,
         help="probability of a crossed-design task (docs/results/FINDINGS.md §66, prior/crossed.py): "
         "SCM features under the financial prior's label mechanism, isolating whether the "
         "financial prior's teaching failure tracks its features or its label function",
@@ -1251,7 +1257,7 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument(
         "--p-task-family",
         type=float,
-        default=0.0,
+        default=None,
         help="probability of drawing one of prior/task_families.py's task 40.2-40.4 "
         "constructions instead (uniformly over the nine named families plus the "
         "AND-composition, Bayes-AUC target drawn per task); task 40.7, scoped only after "
@@ -1260,7 +1266,7 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument(
         "--p-real-edgar",
         type=float,
-        default=0.0,
+        default=None,
         help="probability of drawing a task from a real SEC EDGAR firm-quarter panel instead "
         "of a synthetic one (FinTFM-R, task A2/A3); requires --real-edgar-panel-path and the "
         "'real' extra (uv sync --extra real). 0.0 (default) never opens the panel file",
@@ -1275,7 +1281,7 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument(
         "--p-real-mortgage",
         type=float,
-        default=0.0,
+        default=None,
         help="probability of drawing a task from a real Freddie Mac loan-level panel instead "
         "of a synthetic one (FinTFM-R, task B3/B4); requires --real-mortgage-panel-path and "
         "the 'real' extra (uv sync --extra real). 0.0 (default) never opens the panel file",
@@ -1290,7 +1296,7 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument(
         "--p-real-lendingclub",
         type=float,
-        default=0.0,
+        default=None,
         help="probability of drawing a task from a real LendingClub panel instead of a "
         "synthetic one (D17's third real source); requires --real-lendingclub-panel-path and "
         "the 'real' extra (uv sync --extra real). 0.0 (default) never opens the panel file",
@@ -1305,14 +1311,15 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument(
         "--real-panels",
         type=str,
-        default="",
+        default=None,
         help="further real sources as 'path=prob,path=prob' (panels from "
         "scripts/candidates/build_panels.py); each an independent draw. Empty (default) "
         "opens no file",
     )
     p.add_argument(
         "--identity-shuffle",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
+        default=None,
         help="expose financial-task columns from independently-per-account-permuted accounts "
         "(docs/results/FINDINGS.md §67-§71, task 38.11): breaks cross-account identities while "
         "leaving the label and each column's marginal untouched",
@@ -1320,28 +1327,28 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument(
         "--discretize-frac",
         type=float,
-        default=0.0,
+        default=None,
         help="fraction of a financial task's exposed columns to replace with their own "
         "5-quantile-bin means (task 48.6, Nori's 'discretized features')",
     )
     p.add_argument(
         "--n-noise-features",
         type=int,
-        default=0,
+        default=None,
         help="pure-Gaussian columns appended to every financial task, beyond the prior's "
         "existing unconditional 0-4 (task 48.6, Nori's 'noise features')",
     )
     p.add_argument(
         "--n-correlated-block-features",
         type=int,
-        default=0,
+        default=None,
         help="near-duplicate columns of one shared source appended to every financial task "
         "(task 48.6, Nori's 'correlated blocks')",
     )
     p.add_argument(
         "--label-noise-rate",
         type=float,
-        default=0.0,
+        default=None,
         help="fraction of labels flipped after being finalised, on every financial task "
         "(task 48.6, Nori's 'label noise')",
     )
@@ -1352,19 +1359,19 @@ def main(argv: list[str] | None = None) -> None:
         help="probability of drawing a financial rather than a generic SCM task; the "
         "survival objective forces 1.0 regardless (docs/results/FINDINGS.md §14)",
     )
-    p.add_argument("--max-classes", type=int, default=10)
+    p.add_argument("--max-classes", type=int, default=None)
     p.add_argument(
         "--n-horizons",
         type=int,
         default=None,
         help="train a monotone PD term structure over K periods (requires p_financial=1.0)",
     )
-    p.add_argument("--d-model", type=int, default=192)
-    p.add_argument("--d-cell", type=int, default=64)
+    p.add_argument("--d-model", type=int, default=None)
+    p.add_argument("--d-cell", type=int, default=None)
     p.add_argument(
         "--pooling",
         type=str,
-        default="meanmax",
+        default=None,
         choices=("meanmax", "attention"),
         help="how feature tokens become a row vector; 'attention' can weight features "
         "where a mean cannot (docs/results/FINDINGS.md §50)",
@@ -1381,7 +1388,7 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument(
         "--n-cell-blocks",
         type=int,
-        default=0,
+        default=None,
         help="alternating two-way cell-attention blocks before pooling; 0 (default) "
         "reproduces every checkpoint trained before this existed. Task 39.1, testing "
         "whether §74's capacity cap is architectural (docs/results/FINDINGS.md §74, §76)",
@@ -1423,13 +1430,15 @@ def main(argv: list[str] | None = None) -> None:
     )
     p.add_argument(
         "--cell-labels",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
+        default=None,
         help="inject labels per-cell before the cell-attention blocks, not only after "
         "pooling; ignored unless --n-cell-blocks > 0 (task 39.2)",
     )
     p.add_argument(
         "--mask-embedding",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
+        default=None,
         help="dedicated missingness embedding (nn.Embedding(2, d_cell), added to a "
         "value-only embedding) instead of the default joint [value, missing] cell MLP "
         "(task 48.10)",
@@ -1521,7 +1530,7 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument(
         "--head-type",
         type=str,
-        default="binned",
+        default=None,
         choices=["binned", "quantile"],
         help="'binned' (default): classify a target binned into --max-classes quantile "
         "bins. 'quantile' (task 48.3): a genuine pinball-loss head over --n-quantiles "
@@ -1531,7 +1540,7 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument(
         "--n-quantiles",
         type=int,
-        default=99,
+        default=None,
         help="output width of a --head-type quantile head; ignored for 'binned'",
     )
     p.add_argument(
@@ -1542,9 +1551,9 @@ def main(argv: list[str] | None = None) -> None:
         "Leaving it pinned while d_model grows makes the FFN a bottleneck and distorts "
         "any scaling comparison (docs/infra/HF_JOBS.md)",
     )
-    p.add_argument("--n-layers", type=int, default=6, help="row-attention layers")
-    p.add_argument("--n-col-layers", type=int, default=2, help="column-attention layers")
-    p.add_argument("--device", type=str, default="cpu")
+    p.add_argument("--n-layers", type=int, default=None, help="row-attention layers")
+    p.add_argument("--n-col-layers", type=int, default=None, help="column-attention layers")
+    p.add_argument("--device", type=str, default=None)
     p.add_argument(
         "--threads",
         type=int,
@@ -1554,14 +1563,14 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument(
         "--checkpoint-every",
         type=int,
-        default=0,
+        default=None,
         help="save every N steps as well as at the end; 0 disables. Essential for any run "
         "long enough that losing it would hurt",
     )
     p.add_argument(
         "--optimizer",
         type=str,
-        default="adamw",
+        default=None,
         choices=list(OPTIMIZERS),
         help="'adamw' (default, cosine-annealed), 'muon' (audit AU5.17: Muon on the "
         "attention and feed-forward matrices at --muon-lr and --muon-scale, AdamW at --lr "
@@ -1574,91 +1583,78 @@ def main(argv: list[str] | None = None) -> None:
         "explicitly for a schedulefree run rather than inheriting AdamW's tuning "
         "(section 146's addendum measured a negative result at the untuned default)",
     )
-    p.add_argument("--seed", type=int, default=0)
-    p.add_argument("--out", type=str, default="runs/v0.pt")
-    p.add_argument("--config", type=str, default=None, help="YAML overriding the defaults")
-    add_prior_lever_arguments(p)
-    args = p.parse_args(argv)
-    cfg = load_config(args.config)
-    if args.threads is not None:
-        torch.set_num_threads(args.threads)
-
-    model_cfg = ModelConfig(
-        pooling=args.pooling,
-        column_id_dim=args.column_id_dim,
-        n_cell_blocks=args.n_cell_blocks,
-        cell_labels=args.cell_labels,
-        mask_embedding=args.mask_embedding,
-        head_type=args.head_type,
-        n_quantiles=args.n_quantiles,
-        d_ff=args.d_ff if args.d_ff is not None else 4 * args.d_model,
-        max_features=args.max_features,
-        max_classes=args.max_classes,
-        d_cell=args.d_cell,
-        d_model=args.d_model,
-        n_col_layers=args.n_col_layers,
-        n_layers=args.n_layers,
-        n_horizons=args.n_horizons,
-        # the Phase 5 architecture levers and n_heads: an explicit flag wins over the
-        # config's model section, whose defaults build today's architecture
-        **{
-            name: getattr(cfg.model, name) if getattr(args, name) is None else getattr(args, name)
-            for name in _MODEL_CONFIG_KNOBS
-        },
+    p.add_argument("--seed", type=int, default=None)
+    p.add_argument(
+        "--log-every", type=int, default=None, help="steps between training-loss log lines"
     )
-    prior_cfg = PriorConfig(
-        max_features=args.max_features,
-        max_classes=args.max_classes,
-        n_rows=args.n_rows,
-        n_rows_choices=(
-            tuple(int(v) for v in args.n_rows_choices.split(",")) if args.n_rows_choices else None
-        ),
+    p.add_argument(
+        "--eval-every",
+        type=int,
+        default=None,
+        help="steps between held-out evaluations, on a stream of their own (audit AU1.18)",
+    )
+    p.add_argument(
+        "--dropout",
+        type=float,
+        default=None,
+        help="dropout probability; the config default 0.0 is every checkpoint's value",
+    )
+    # an output path, not an experiment number: the one flag with a literal default
+    p.add_argument("--out", type=str, default="runs/v0.pt")
+    p.add_argument(
+        "--config",
+        type=str,
+        default=None,
+        help="YAML overriding the packaged defaults; every flag here that is omitted takes "
+        "its value from the config's model, train or prior section, and a flag given wins",
+    )
+    add_prior_lever_arguments(p)
+    return p
+
+
+def _flag_or_config(args: argparse.Namespace, section: object, name: str) -> Any:
+    """An explicit flag's value, or the configuration section's when the flag was omitted.
+
+    Args:
+        args: Parsed arguments; a namespace without ``name`` counts as the flag omitted, so a
+            parser exposing only some flags (``scripts/dump_prior_tasks.py``) still resolves.
+        section: The configuration section carrying ``name``.
+        name: Field name, equal to the flag's ``dest``.
+
+    Returns:
+        The resolved value.
+    """
+    value = getattr(args, name, None)
+    return getattr(section, name) if value is None else value
+
+
+def build_prior_config(args: argparse.Namespace, cfg: Config) -> PriorConfig:
+    """The pretraining prior a run trains on, flags over the ``prior`` and ``model`` sections.
+
+    Shared by :func:`build_configs` and ``scripts/dump_prior_tasks.py``, so a task dump and the
+    run reading it build one prior from one set of inputs.
+
+    Args:
+        args: Parsed arguments.
+        cfg: The loaded configuration.
+
+    Returns:
+        The prior configuration.
+    """
+    values = {name: _flag_or_config(args, cfg.prior, name) for name in _PRIOR_CONFIG_KNOBS}
+    choices = getattr(args, "n_rows_choices", None)
+    if choices is not None:  # a flag is a comma-separated string, the config a list
+        values["n_rows_choices"] = tuple(int(v) for v in choices.split(",")) if choices else None
+    n_horizons = _flag_or_config(args, cfg.model, "n_horizons")
+    if n_horizons:
         # the survival objective needs every task to carry a period
-        scm_legacy=args.scm_legacy,
-        scm_reuse_graph=(
-            PriorConfig.scm_reuse_graph if args.scm_reuse_graph is None else args.scm_reuse_graph
-        ),
-        p_tree=(PriorConfig.p_tree if args.p_tree is None else args.p_tree),
-        p_learnability_filter=(
-            PriorConfig.p_learnability_filter
-            if args.p_learnability_filter is None
-            else args.p_learnability_filter
-        ),
-        p_financial=(
-            1.0
-            if args.n_horizons
-            else (PriorConfig.p_financial if args.p_financial is None else args.p_financial)
-        ),
-        n_horizons=args.n_horizons,
-        p_trivial=args.p_trivial,
-        p_crossed=args.p_crossed,
-        p_task_family=args.p_task_family,
-        p_regression=args.p_regression,
-        identity_shuffle=args.identity_shuffle,
-        discretize_frac=args.discretize_frac,
-        n_noise_features=args.n_noise_features,
-        n_correlated_block_features=args.n_correlated_block_features,
-        label_noise_rate=args.label_noise_rate,
-        head_type=args.head_type,
-        p_real_edgar=args.p_real_edgar,
-        p_real_mortgage=args.p_real_mortgage,
-        p_real_lendingclub=args.p_real_lendingclub,
-        real_panels=args.real_panels,
-        real_edgar_panel_path=(
-            PriorConfig.real_edgar_panel_path
-            if args.real_edgar_panel_path is None
-            else args.real_edgar_panel_path
-        ),
-        real_mortgage_panel_path=(
-            PriorConfig.real_mortgage_panel_path
-            if args.real_mortgage_panel_path is None
-            else args.real_mortgage_panel_path
-        ),
-        real_lendingclub_panel_path=(
-            PriorConfig.real_lendingclub_panel_path
-            if args.real_lendingclub_panel_path is None
-            else args.real_lendingclub_panel_path
-        ),
+        values["p_financial"] = 1.0
+    return PriorConfig(
+        # taken from the model section, so the prior and the model agree on the table's shape
+        max_features=_flag_or_config(args, cfg.model, "max_features"),
+        max_classes=_flag_or_config(args, cfg.model, "max_classes"),
+        head_type=_flag_or_config(args, cfg.model, "head_type"),
+        n_horizons=n_horizons,
         # the default-rate envelope comes from configuration, because a prior that cannot
         # generate the regime being evaluated is the defect behind docs/results/FINDINGS.md §26
         sharpness_min=cfg.prior.sharpness_min,
@@ -1667,35 +1663,54 @@ def main(argv: list[str] | None = None) -> None:
         absolute_rate_floor=cfg.prior.absolute_rate_floor,
         rate_ceiling=cfg.prior.rate_ceiling,
         n_sectors_max=cfg.prior.n_sectors,
-        min_ctx_per_class=(
-            cfg.prior.min_ctx_per_class
-            if args.min_ctx_per_class is None
-            else args.min_ctx_per_class
-        ),
+        **values,
         **prior_lever_values(args, cfg.prior),
     )
+
+
+def build_configs(
+    args: argparse.Namespace, cfg: Config
+) -> tuple[ModelConfig, PriorConfig, TrainConfig]:
+    """Resolve parsed flags against the configuration into the three configs a run needs.
+
+    Every ``ModelConfig`` and ``TrainConfig`` field is taken from the flag of the same name
+    when given and from the ``model`` or ``train`` section otherwise, so a recipe stated in a
+    file (``configs/published/``) needs no command line beyond ``--config``.
+
+    Args:
+        args: Parsed arguments from :func:`build_parser`.
+        cfg: The loaded configuration.
+
+    Returns:
+        ``(model_cfg, prior_cfg, train_cfg)``.
+    """
+    model_values = {f.name: _flag_or_config(args, cfg.model, f.name) for f in fields(ModelConfig)}
+    if model_values["d_ff"] is None:
+        # the transformer convention; a d_ff pinned while d_model grows makes the FFN a
+        # bottleneck and distorts any scaling comparison (docs/infra/HF_JOBS.md)
+        model_values["d_ff"] = 4 * model_values["d_model"]
     train_cfg = TrainConfig(
-        steps=args.steps,
-        batch_size=args.batch_size,
-        lr=args.lr,
-        device=args.device,
-        seed=args.seed,
-        checkpoint_every=args.checkpoint_every,
-        feature_chunk=args.feature_chunk,
-        run_steps=args.run_steps,
-        resume=args.resume,
-        init_from=args.init_from,
-        optimizer=args.optimizer,
-        task_dump=args.task_dump,
-        task_dump_allow_code_mismatch=bool(args.task_dump_allow_code_mismatch),
-        warmup_steps=cfg.train.warmup_steps if args.warmup_steps is None else args.warmup_steps,
-        decay_norm_bias=(
-            cfg.train.decay_norm_bias if args.decay_norm_bias is None else args.decay_norm_bias
-        ),
-        amp=cfg.train.amp if args.amp is None else args.amp,
-        muon_lr=cfg.train.muon_lr if args.muon_lr is None else args.muon_lr,
-        muon_scale=cfg.train.muon_scale if args.muon_scale is None else args.muon_scale,
+        **{f.name: _flag_or_config(args, cfg.train, f.name) for f in fields(TrainConfig)}
     )
+    return ModelConfig(**model_values), build_prior_config(args, cfg), train_cfg
+
+
+def main(argv: list[str] | None = None) -> None:
+    """Pretrain a checkpoint on synthetic tasks.
+
+    Entry point for the ``train`` console script; see
+    ``--help`` for the flags. Writes its record as JSON under ``--out``. With
+    ``--benchmark-steps N`` it instead measures throughput and prints one JSON line, saving
+    nothing.
+
+    Args:
+        argv: Arguments to parse; ``None`` reads ``sys.argv``, as the console script does.
+    """
+    args = build_parser().parse_args(argv)
+    cfg = load_config(args.config)
+    if args.threads is not None:
+        torch.set_num_threads(args.threads)
+    model_cfg, prior_cfg, train_cfg = build_configs(args, cfg)
     print(f"config: {cfg.provenance()}")
     if args.benchmark_steps is not None:
         record = benchmark(model_cfg, prior_cfg, train_cfg, args.benchmark_steps)

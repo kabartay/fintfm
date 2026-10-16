@@ -110,14 +110,15 @@ def run(
         for strategy in cfg.context_sweep.strategies:
             for seed in seeds:
                 started = time.perf_counter()
-                clf = FinancialTFMClassifier(
+                # every setting the sweep does not vary comes from cfg.inference (DR1.3)
+                clf = FinancialTFMClassifier.from_config(
                     model_path,
+                    cfg.inference,
                     max_context=max_context,
                     context_strategy=strategy,
                     correct_prior=True,  # never off; see the module docstring
                     random_state=seed,
                     retrieval_groups=retrieval_groups,
-                    feature_transform=cfg.inference.feature_transform,
                 ).fit(ds.X[tr], ds.y[tr], periods=ds.period[tr])
                 curve = clf.predict_term_structure(ds.X[te])
                 elapsed = time.perf_counter() - started

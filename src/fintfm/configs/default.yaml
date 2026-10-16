@@ -25,20 +25,23 @@
 # inference/classifier.py rather than replacing them: a library should behave identically
 # without reading a file from disk, so the code keeps its own defaults and
 # tests/test_config.py asserts the two agree. That test is the drift guard -- if you change
-# one, it fails until you change the other.
+# one, it fails until you change the other. Every constructor argument but model, device and
+# random_state has a key, and FinancialTFMClassifier.from_config passes every key (DR1.3).
 inference:
   max_context: 2000
   context_strategy: uniform      # docs/design/DECISIONS.md D10; was "balanced" before 2026-09-09
   feature_transform: rank        # docs/results/FINDINGS.md §35
   n_ensemble: 1                  # D12's stated mitigation for the column-order invariance
+  ensemble_label_swap: false     # average each member with its label-swapped twin (§45)
+  ensemble_feature_frac: 1.0     # features each member sees; below 1.0 a diversity axis (§45)
   correct_prior: true
   query_chunk: 2048
   feature_chunk: 16              # identity-preserving memory knob; docs/results/FINDINGS.md §81
   retrieval_groups: 64
   retrieval_min_positive: 8
   prototype_minority_ratio: 0.3   # Kostrzewa et al.'s value; docs/results/FINDINGS.md §38
-  winsor_quantile: 0.01
-  transform_subsample: 20000
+  winsor_quantile: 0.01          # tail clipped at each end by feature_transform "winsor"
+  transform_subsample: 20000     # rows sampled to fit the conditioning's quantiles
   # §163: dataset-specific fine-tuning in fit(); 0 steps = the zero-shot model, unchanged
   finetune_steps: 0
   finetune_lr: 1.0e-5
@@ -48,6 +51,7 @@ inference:
   finetune_query_group_frac: 0.3
   finetune_query_pos_frac: null   # §164: e.g. 0.1, importance-weighted
   finetune_seed: 0
+  finetune_clip: null             # gradient-norm clip per step; null = none, as §163/§164 ran
   # Audit AU5.12/AU5.7 experiment levers; these defaults reproduce the classifier as it was
   ensemble_transforms: null        # e.g. [rank, power, squash], cycled over members
   ensemble_svd_components: 0       # SVD projections appended in odd-indexed members
@@ -115,13 +119,58 @@ prior:
   # AU5.4: cap query rows per task so a long context does not bring a long query with it.
   # null keeps every row.
   max_query_rows: null
+  # The task mixture and its size, one key per fintfm-train prior flag (DR1.3), so a recipe
+  # is a file rather than a command line. Each mirrors the PriorConfig field of the same name
+  # (tests/test_config.py); an explicit flag still wins. The prior takes max_features,
+  # max_classes, n_horizons and head_type from the model section.
+  n_rows: 256                     # rows per task when n_rows_choices is null
+  n_rows_choices: null            # e.g. [256, 512, 1024], drawn per batch (§26)
+  p_financial: 0.7                # forced to 1.0 when model.n_horizons is set (§14)
+  p_tree: 0.0                     # tree-structured tasks (§111)
+  p_trivial: 0.0                  # deliberately trivial control tasks (§53)
+  p_crossed: 0.0                  # SCM features under the financial label (§66)
+  p_task_family: 0.0              # task 40.2-40.6's families (§137-§141)
+  p_regression: 0.0               # SCM latent kept continuous and binned
+  p_learnability_filter: 0.0      # ExtraTrees accept/resample judge (§125, §129)
+  scm_legacy: false               # the pre-48.17/48.19 SCM prior
+  scm_reuse_graph: 1              # tasks drawn per SCM graph (task 48.12)
+  identity_shuffle: false         # per-account column permutation (§67-§71)
+  discretize_frac: 0.0            # task 48.6's realism augmentations, all off
+  n_noise_features: 0
+  n_correlated_block_features: 0
+  label_noise_rate: 0.0
+  # FinTFM-R's real sources (D17); 0.0 never opens a panel file
+  p_real_edgar: 0.0
+  real_edgar_panel_path: data/edgar/panel.parquet
+  p_real_mortgage: 0.0
+  real_mortgage_panel_path: data/mortgage/panel.parquet
+  p_real_lendingclub: 0.0
+  real_lendingclub_panel_path: data/lendingclub/panel.parquet
+  real_panels: ""                 # further sources as "path=prob,path=prob"
 
-# Pretraining knobs read by fintfm-train (audit AU5.2, AU5.10, AU5.17). These MIRROR the literal
-# defaults of TrainConfig in modeling/train.py, as the inference section mirrors the classifier,
-# so train() behaves the same without reading a file; tests/test_config.py is the drift guard.
-# Every value here reproduces pretraining as it ran before the knob existed.
+# Every TrainConfig field, read by fintfm-train (DR1.3; the knobs of audit AU5.2, AU5.10 and
+# AU5.17 among them). These MIRROR the literal defaults of TrainConfig in modeling/train.py, as
+# the inference section mirrors the classifier, so train() behaves the same without reading a
+# file; tests/test_config.py is the drift guard. Each key is also a flag defaulting to None, so
+# an explicit flag wins. Every value here reproduces pretraining as it ran before the knob
+# existed.
 train:
+  steps: 20000             # the cosine schedule spans this many steps
+  batch_size: 64           # tasks per step; tasks seen = steps x batch_size
+  lr: 3.0e-4               # AdamW's tuned value at the reference recipe (§127)
   warmup_steps: 500        # linear warmup before the cosine decay
+  log_every: 50
+  eval_every: 500          # held-out evaluation on a stream of its own (AU1.18)
+  checkpoint_every: 0      # 0 saves only at the end; every HF Jobs launch sets it (CLAUDE.md)
+  seed: 0
+  device: cpu
+  run_steps: null          # steps in THIS invocation; null runs to steps
+  resume: null             # a <out>.state file to continue from
+  init_from: null          # a model checkpoint to start from, fresh optimiser and schedule
+  feature_chunk: null      # identity-preserving memory knob for n_cell_blocks > 0 (§81)
+  optimizer: adamw         # adamw, muon or schedulefree
+  task_dump: null          # pre-generated batches (AU5.15); null samples live
+  task_dump_allow_code_mismatch: false
   decay_norm_bias: true    # true = AdamW decays every parameter; false exempts norms/biases/embeddings
   amp: "none"              # "none" (float32), "bf16" or "fp16" autocast; quoted, YAML reads off as false
   # Muon, read only under --optimizer muon (design review DR1.7). muon_lr null = --lr under
@@ -129,12 +178,29 @@ train:
   muon_lr: null            # Muon's matrix-group rate
   muon_scale: "rms_match"  # "rms_match" or "keller"
 
-# Architecture knobs read by fintfm-train (audit AU5.2, AU5.3, AU5.9, AU5.16, AU5.17). These MIRROR
-# ModelConfig's literal defaults in modeling/model.py, which stay authoritative because a
-# checkpoint rebuilds its model without reading a file; tests/test_config.py is the drift guard.
-# Every value here builds the architecture as it was before the knob existed.
+# Every ModelConfig field, read by fintfm-train (DR1.3; the levers of audit AU5.2, AU5.3, AU5.9,
+# AU5.16 and AU5.17 among them). These MIRROR ModelConfig's literal defaults in
+# modeling/model.py, which stay authoritative because a checkpoint rebuilds its model without
+# reading a file; tests/test_config.py is the drift guard. The one exception is d_ff, below.
+# Every value here builds the architecture fintfm-train built before the key existed.
 model:
+  max_features: 24              # widest table; narrower ones are padded and masked
+  max_classes: 10               # head width; the published checkpoint is 2 (§158)
+  d_cell: 64
+  d_model: 192
   n_heads: 4                    # attention heads; must divide d_cell and d_model
+  n_col_layers: 2               # column-attention layers
+  n_layers: 6                   # row-attention layers
+  d_ff: null                    # null = 4 x d_model, fintfm-train's convention (ModelConfig's own is 512)
+  dropout: 0.0
+  pooling: meanmax              # or attention (§50)
+  column_id_dim: null           # null = d_cell // 4; 0 is the pre-§54 architecture
+  n_horizons: null              # K-period hazard head; forces prior p_financial 1.0
+  n_cell_blocks: 0              # two-way cell-attention blocks (task 39.1)
+  cell_labels: false            # per-cell labels before those blocks (task 39.2)
+  mask_embedding: false         # dedicated missingness embedding (task 48.10)
+  head_type: binned             # or quantile (task 48.3)
+  n_quantiles: 99               # quantile head width; unused when binned
   n_cell_heads: null            # heads in the cell-width stages; null shares n_heads (AU5.3)
   n_summary_tokens: 1           # >1: K learned summary tokens per row replace mean+max (AU5.3)
   value_embedding: mlp          # mlp, rbf or fourier basis on the cell value (AU5.16)

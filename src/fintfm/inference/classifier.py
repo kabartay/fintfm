@@ -34,7 +34,8 @@ from __future__ import annotations
 
 import contextlib
 from collections.abc import Callable, Iterator
-from typing import Literal, get_args
+from dataclasses import fields
+from typing import TYPE_CHECKING, Any, Literal, get_args
 
 import numpy as np
 import torch
@@ -52,6 +53,9 @@ from fintfm.inference.retrieval import (
 )
 from fintfm.modeling.hazard import CENSORED, base_rate_shift, shift_cumulative_pd
 from fintfm.modeling.model import FinancialTFM
+
+if TYPE_CHECKING:  # the config module is only needed for the annotation
+    from fintfm.config import InferenceConfig
 
 ContextStrategy = Literal["balanced", "hybrid", "uniform", "retrieval", "prototype"]
 #: What :meth:`FinancialTFMClassifier.fit` does with a table wider than the checkpoint.
@@ -352,6 +356,15 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             Only :meth:`predict_proba` (and :meth:`predict`) can score a wide table; fine-
             tuning, :meth:`predict_term_structure` and :meth:`transform_representation`
             need the whole row in one forward pass and raise.
+        winsor_quantile: Tail fraction clipped at each end when the conditioning is
+            ``"winsor"``; unused by the other transforms. Passed to
+            :class:`~fintfm.inference.preprocess.FeatureConditioner` as ``quantile``, whose
+            default it equals.
+        transform_subsample: Training rows sampled (at ``random_state``) to fit the
+            conditioning's quantiles, bounding its cost on a large panel. Passed to
+            :class:`~fintfm.inference.preprocess.FeatureConditioner` as ``subsample``, whose
+            default it equals. Both were configuration keys before they were arguments, and
+            reached nothing (design review DR1.3).
 
     Attributes:
         model_: The network predictions run through: ``model`` itself, placed on ``device``
@@ -394,6 +407,8 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         ensemble_class_shift: bool = False,
         max_features_strategy: MaxFeaturesStrategy = "raise",
         retrieval_per_class: int | None = None,
+        winsor_quantile: float = 0.01,
+        transform_subsample: int = 20_000,
     ) -> None:
         """Configure the classifier. See the class docstring — every argument is documented
         there with the measurement that set its default."""
@@ -428,10 +443,44 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         self.ensemble_class_shift = ensemble_class_shift
         self.max_features_strategy = max_features_strategy
         self.retrieval_per_class = retrieval_per_class
+        self.winsor_quantile = winsor_quantile
+        self.transform_subsample = transform_subsample
         # Placement, eval mode and feature_chunk are applied in fit, not here: applied at
         # construction, a later set_params(device=...) moved nothing and the first forward
         # pass mixed devices. A checkpoint path is still loaded here, so model.cfg is readable
         # before fit (FinancialTFMRegressor reads max_classes from it).
+
+    @classmethod
+    def from_config(
+        cls,
+        model: FinancialTFM | str,
+        inference_cfg: InferenceConfig,
+        **overrides: Any,
+    ) -> FinancialTFMClassifier:
+        """A classifier taking every setting from a configuration's ``inference`` section.
+
+        The one way a harness builds its classifier from configuration (design review
+        DR1.3). Every field of ``inference_cfg`` is passed, so a key set in a file reaches the
+        classifier; a hand-copied keyword list silently dropped four of them from the
+        V4FinBench protocol. At the packaged configuration this builds exactly the
+        estimator ``cls(model)`` builds, because the section mirrors the constructor's
+        defaults (``tests/test_config.py``).
+
+        Args:
+            model: A pretrained :class:`FinancialTFM`, or a path to a checkpoint.
+            inference_cfg: The configuration's ``inference`` section.
+            **overrides: Constructor arguments that replace the section's value or supply
+                one it does not carry (``device``, ``random_state``), e.g. a harness's
+                per-fold seed or an arm's context strategy.
+
+        Returns:
+            An unfitted classifier.
+
+        Raises:
+            TypeError: If an override names no constructor argument.
+        """
+        params = {f.name: getattr(inference_cfg, f.name) for f in fields(inference_cfg)}
+        return cls(model, **{**params, **overrides})
 
     def fit(
         self,
@@ -493,7 +542,10 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         self._raw_X, self._raw_y = X, y
         # fitted on training rows only, so a query never influences its own conditioning
         self._conditioner = FeatureConditioner(
-            self.feature_transform, random_state=self.random_state
+            self.feature_transform,
+            quantile=self.winsor_quantile,
+            subsample=self.transform_subsample,
+            random_state=self.random_state,
         ).fit(X)
         X = self._conditioner.transform(X)
         self.classes_ = np.unique(y)
@@ -1103,6 +1155,8 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             prototype_minority_ratio=self.prototype_minority_ratio,
             n_ensemble=1,
             feature_chunk=self.feature_chunk,
+            winsor_quantile=self.winsor_quantile,
+            transform_subsample=self.transform_subsample,
         )
         # private, not a constructor argument: a member's SVD is the parent's decision, and a
         # public single-model knob would be a second way to ask for the same thing
