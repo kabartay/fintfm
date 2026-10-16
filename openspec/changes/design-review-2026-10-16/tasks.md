@@ -103,7 +103,12 @@
       "squash")`, then `max_context` 500 and 750 against 1,000. Paired per-dataset differences,
       not Elo, decide.
       Verify: per-dataset paired differences recorded in `docs/results/TABARENA.md`.
-- [ ] DR3.6 **Score the TabArena imbalanced subset** from results already held (minutes).
+- [x] DR3.6 **Done (2026-10-16).** `docs/results/TABARENA.md` "The imbalanced subset": Elo
+      914.1 (+127.3/-343.6), 87th of 95, over the 7 of 15 subset datasets FinTFM ran (8 are
+      multiclass, regression or over 136 features), re-scored from §122's held Lite frame with
+      `scripts/tabarena_subset_elo.py` (no fits; all 27 reproduce §122's 764.6); results predate
+      AU1.19 (NaN filled with 0).
+      **Score the TabArena imbalanced subset** from results already held (minutes).
       Verify: the subset Elo in `docs/results/TABARENA.md` with its date.
 - [x] DR3.7 **Done (2026-10-16).** FINDINGS §168 states each fact with its recomputed count,
       with pointers from §35 and §147; the review's 8,171 cross-company rows (6 positives) did
