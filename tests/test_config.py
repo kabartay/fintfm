@@ -397,7 +397,7 @@ def test_prior_section_mirrors_every_prior_flag_default():
         assert getattr(cfg, name) == section[name] == getattr(library, name), name
     envelope = {"sharpness_min", "sharpness_max", "min_expected_positives",
                 "absolute_rate_floor", "rate_ceiling", "n_sectors"}
-    levers = {"permute_classes", "feature_transforms", "max_query_rows"}
+    levers = {"permute_classes", "feature_transforms", "max_query_rows", "pad_to_batch_width"}
     assert set(section) == set(_PRIOR_CONFIG_KNOBS) | envelope | levers
 
 
@@ -414,7 +414,7 @@ def test_every_train_flag_defaults_to_none_and_names_a_config_field():
     assert literal == {"out"}, f"flags with a literal default: {sorted(literal - {'out'})}"
     model = {f.name for f in fields(ModelConfig)}
     train = {f.name for f in fields(TrainConfig)}
-    levers = {"permute_classes", "feature_transforms", "max_query_rows"}
+    levers = {"permute_classes", "feature_transforms", "max_query_rows", "pad_to_batch_width"}
     invocation = {"config", "out", "threads", "benchmark_steps"}
     consumed = model | train | set(_PRIOR_CONFIG_KNOBS) | levers | invocation
     assert set(actions) - consumed == set(), f"flags nothing reads: {set(actions) - consumed}"

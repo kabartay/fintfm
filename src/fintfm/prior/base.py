@@ -280,7 +280,11 @@ def truncate_query(task: Task, n_ctx: int, max_query_rows: int) -> Task:
 
 
 def collate(
-    tasks: list[Task], n_ctx: int, max_features: int, head_type: str = "binned"
+    tasks: list[Task],
+    n_ctx: int,
+    max_features: int,
+    head_type: str = "binned",
+    pad_to_batch_width: bool = False,
 ) -> TaskBatch:
     """Pad a list of equal-length tasks into a :class:`TaskBatch`.
 
@@ -296,6 +300,14 @@ def collate(
             ``TaskBatch.y`` carries the normalised continuous target directly rather than a
             bin index -- the model's pinball-loss head is trained and evaluated in that
             normalised space, and a caller inverts with the same mean/std at inference.
+        pad_to_batch_width: Pad to the widest task in ``tasks`` instead of ``max_features``
+            (design review DR6.1). Financial tasks draw 4-136 features, so padding every task
+            to 136 makes about half of all cell tokens padding, and the cell stages attend
+            over them. The padded columns are NaN in every row, which the model masks out
+            everywhere, so a task's outputs do not depend on the padded width once its column
+            identities are drawn at full width too
+            (:attr:`fintfm.modeling.model.FinancialTFM.column_ids_full_width`). ``False``
+            (default) pads to ``max_features``, as every checkpoint trained.
 
     Raises:
         ValueError: If ``head_type`` is unknown, or if ``head_type="quantile"`` meets a task
@@ -304,7 +316,8 @@ def collate(
     if head_type not in ("binned", "quantile"):
         raise ValueError(f"head_type must be 'binned' or 'quantile', got {head_type!r}")
     n_rows = tasks[0].n_rows
-    X = np.full((len(tasks), n_rows, max_features), np.nan, dtype=np.float32)
+    width = max(t.n_features for t in tasks) if pad_to_batch_width else max_features
+    X = np.full((len(tasks), n_rows, width), np.nan, dtype=np.float32)
     y = np.zeros((len(tasks), n_rows), dtype=np.float32 if head_type == "quantile" else np.int64)
     n_classes = np.zeros(len(tasks), dtype=np.int64)
     with_period = [t.period is not None for t in tasks]

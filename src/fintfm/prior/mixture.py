@@ -318,6 +318,16 @@ class PriorConfig:
     and with :attr:`n_horizons` only ``financial``, ``trivial`` and ``crossed`` may carry
     weight. ``None`` (default) keeps the sequential chain and its random stream byte for
     byte."""
+    pad_to_batch_width: bool = False
+    """Pad each batch's feature axis to its widest task rather than to :attr:`max_features`
+    (design review DR6.1; :func:`fintfm.prior.base.collate`). The financial prior draws 4-136
+    features per task, so at ``max_features=136`` about half of all cell tokens are padding,
+    and the row-within-feature and column attention stages run on them. Padding is masked
+    everywhere in the model, and ``fintfm-train`` also sets
+    :attr:`fintfm.modeling.model.FinancialTFM.column_ids_full_width` so column identities are
+    drawn as at full width; a task's outputs are then the same at either width (to float
+    rounding). It saves compute, not tasks: the batch's tasks and random stream are
+    unchanged. ``False`` (default) pads to ``max_features``, byte for byte as before."""
 
 
 #: Every source :attr:`PriorConfig.source_weights` may name besides a real panel, in the order
@@ -860,4 +870,10 @@ def sample_batch(rng: np.random.Generator, cfg: PriorConfig, batch_size: int) ->
         ]
     if cfg.permute_classes:
         tasks = [permute_task_classes(rng, t) for t in tasks]
-    return collate(tasks, n_ctx=n_ctx, max_features=cfg.max_features, head_type=cfg.head_type)
+    return collate(
+        tasks,
+        n_ctx=n_ctx,
+        max_features=cfg.max_features,
+        head_type=cfg.head_type,
+        pad_to_batch_width=cfg.pad_to_batch_width,
+    )

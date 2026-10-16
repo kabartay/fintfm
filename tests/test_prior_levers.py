@@ -1,4 +1,4 @@
-"""Audit Phase 5 pretraining levers (AU5.4-AU5.6) and the task dump (AU5.15 prerequisite).
+"""Pretraining levers (audit AU5.4-AU5.6, review DR6.1) and the task dump (AU5.15 prerequisite).
 
 Two kinds of test per lever. **Off is invisible**: with every lever at its default, the random
 stream and the batches are what they were before the levers existed, because a knob that
@@ -17,10 +17,12 @@ import torch
 
 from fintfm.inference.preprocess import FeatureConditioner
 from fintfm.modeling.hazard import CENSORED
+from fintfm.modeling.model import FinancialTFM, ModelConfig
 from fintfm.prior import mixture
 from fintfm.prior.base import (
     Task,
     TaskBatch,
+    collate,
     condition_task_features,
     permute_task_classes,
     truncate_query,
@@ -66,7 +68,8 @@ def test_default_stream_is_pinned_and_explicitly_off_levers_change_nothing():
     assert rng.random() == 0.21560154636155637
 
     for off in (
-        replace(_MIX, permute_classes=False, feature_transforms=(), max_query_rows=None),
+        replace(_MIX, permute_classes=False, feature_transforms=(), max_query_rows=None,
+                pad_to_batch_width=False),
         replace(_MIX, feature_transforms=("none",)),
     ):
         rng = np.random.default_rng(2026)
@@ -467,12 +470,166 @@ def test_lever_flags_resolve_over_the_config_section():
     p = argparse.ArgumentParser()
     add_prior_lever_arguments(p)
     section = PriorConfigDefaults(permute_classes=True, feature_transforms=("rank",),
-                                  max_query_rows=7)
+                                  max_query_rows=7, pad_to_batch_width=True)
     assert prior_lever_values(p.parse_args([]), section) == {
         "permute_classes": True, "feature_transforms": ("rank",), "max_query_rows": 7,
+        "pad_to_batch_width": True,
     }
     args = p.parse_args(["--no-permute-classes", "--feature-transforms", "none, power",
-                         "--max-query-rows", "3"])
+                         "--max-query-rows", "3", "--no-pad-to-batch-width"])
     assert prior_lever_values(args, section) == {
         "permute_classes": False, "feature_transforms": ("none", "power"), "max_query_rows": 3,
+        "pad_to_batch_width": False,
     }
+
+
+# --- DR6.1: pad each batch to its widest task ----------------------------------------------
+
+
+def _task(n_rows: int, n_features: int, seed: int) -> Task:
+    """A small binary task with a few missing cells, for the padding tests."""
+    rng = np.random.default_rng(seed)
+    X = rng.normal(size=(n_rows, n_features)).astype(np.float32)
+    X[rng.random(X.shape) < 0.1] = np.nan
+    return Task(X=X, y=rng.integers(0, 2, n_rows), n_classes=2,
+                is_categorical=np.zeros(n_features, dtype=bool))
+
+
+def test_collate_pads_to_the_widest_task_only_when_asked():
+    tasks = [_task(10, 3, 0), _task(10, 5, 1)]
+    full = collate(tasks, n_ctx=6, max_features=8)
+    narrow = collate(tasks, n_ctx=6, max_features=8, pad_to_batch_width=True)
+    assert full.X.shape == (2, 10, 8) and narrow.X.shape == (2, 10, 5)
+    np.testing.assert_array_equal(full.X[:, :, :5].numpy(), narrow.X.numpy())
+    assert torch.isnan(full.X[:, :, 5:]).all() and torch.isnan(narrow.X[0, :, 3:]).all()
+    assert torch.equal(full.y, narrow.y) and torch.equal(full.n_classes, narrow.n_classes)
+
+
+def test_pad_to_batch_width_removes_only_padding_and_draws_nothing():
+    # Same tasks, same split, same random stream; only all-NaN padding columns are dropped.
+    cfg = replace(_MIX, pad_to_batch_width=True)
+    a_rng, b_rng = np.random.default_rng(11), np.random.default_rng(11)
+    widths = set()
+    for _ in range(6):
+        full, narrow = sample_batch(a_rng, _MIX, 4), sample_batch(b_rng, cfg, 4)
+        w = narrow.X.shape[2]
+        widths.add(w)
+        _assert_batches_equal(
+            TaskBatch(full.X[:, :, :w], full.y, full.n_ctx, full.n_classes, full.period), narrow
+        )
+        assert torch.isnan(full.X[:, :, w:]).all()
+    assert a_rng.random() == b_rng.random()
+    assert min(widths) < _MIX.max_features  # the lever actually narrowed some batch
+
+
+def test_sequential_dump_replays_a_batch_width_prior_exactly(tmp_path):
+    cfg = replace(_DUMP_CFG, pad_to_batch_width=True)
+    write_task_dump(tmp_path / "d", cfg, seed=5, batch_size=3, n_batches=4, shard_size=2)
+    dump = TaskDump.open(tmp_path / "d")
+    rng = np.random.default_rng(5)
+    for i in range(4):
+        _assert_batches_equal(dump.batch(i), sample_batch(rng, cfg, 3))
+
+
+#: Every architecture branch that reads the padding mask: plain pooling, the cell-attention
+#: block with cell labels, attention pooling, summary tokens, the basis/ECDF/mask-embedding
+#: value channel, and the split row attention.
+_WIDTH_ARCHS = {
+    "pooled": {},
+    "cell_blocks": {"n_cell_blocks": 1, "cell_labels": True},
+    "attention_pool": {"pooling": "attention"},
+    "summary_tokens": {"n_summary_tokens": 2},
+    "basis_ecdf": {"value_embedding": "rbf", "value_ecdf": True, "mask_embedding": True},
+    "split_attention": {"n_cell_blocks": 1, "attn_impl": "split"},
+}
+
+
+def _width_model(**arch: object) -> FinancialTFM:
+    """A seeded tiny model at ``max_features=12`` in eval mode."""
+    torch.manual_seed(0)
+    cfg = ModelConfig(max_features=12, max_classes=5, d_cell=16, d_model=32, n_heads=2,
+                      n_layers=1, n_col_layers=1, d_ff=64, column_id_dim=4, **arch)
+    return FinancialTFM(cfg).eval()
+
+
+@pytest.mark.parametrize("arch", list(_WIDTH_ARCHS))
+def test_outputs_do_not_depend_on_the_padded_width(arch):
+    """A task's logits are the same padded to its batch's width or to max_features, at a
+    fixed column_id_seed, once column identities are drawn at full width; the old
+    width-dependent draw is why the model flag is needed."""
+    model = _width_model(**_WIDTH_ARCHS[arch])
+    tasks = [_task(30, 4, 0), _task(30, 9, 1), _task(30, 6, 2)]
+    full = collate(tasks, n_ctx=20, max_features=12)
+    narrow = collate(tasks, n_ctx=20, max_features=12, pad_to_batch_width=True)
+    assert narrow.X.shape[2] == 9
+    with torch.no_grad():
+        want = model(full.X, full.y, full.n_ctx, full.n_classes, column_id_seed=7)
+        old = model(narrow.X, narrow.y, narrow.n_ctx, narrow.n_classes, column_id_seed=7)
+        model.column_ids_full_width = True
+        got = model(narrow.X, narrow.y, narrow.n_ctx, narrow.n_classes, column_id_seed=7)
+        again = model(full.X, full.y, full.n_ctx, full.n_classes, column_id_seed=7)
+    torch.testing.assert_close(got, want, rtol=0, atol=1e-5)
+    assert torch.equal(again, want)  # at full width the flag changes nothing, byte for byte
+    assert (old - want)[..., :2].abs().max() > 1e-3  # classes 2-4 are masked to -inf
+
+
+def test_a_batch_whose_widest_task_is_max_features_is_byte_identical():
+    # DR6.1's stated check: at full width the narrow batch *is* the full batch.
+    model = _width_model(n_cell_blocks=1, cell_labels=True)
+    tasks = [_task(30, 12, 0), _task(30, 5, 1)]
+    full = collate(tasks, n_ctx=20, max_features=12)
+    narrow = collate(tasks, n_ctx=20, max_features=12, pad_to_batch_width=True)
+    _assert_batches_equal(full, narrow)
+    with torch.no_grad():
+        want = model(full.X, full.y, full.n_ctx, full.n_classes, column_id_seed=3)
+        model.column_ids_full_width = True
+        got = model(narrow.X, narrow.y, narrow.n_ctx, narrow.n_classes, column_id_seed=3)
+    assert torch.equal(got, want)
+
+
+@pytest.mark.parametrize("full_width_ids", [True, False])
+def test_a_training_step_at_batch_width_matches_full_width(full_width_ids):
+    """In training mode (fresh column ids from the global RNG, no seed) the loss and every
+    gradient match full padding, and the global RNG ends where it would, so no later draw
+    shifts. Without the full-width draw neither holds, which is why fintfm-train sets it."""
+    model = _width_model(n_cell_blocks=1, cell_labels=True).train()
+    tasks = [_task(30, 4, 0), _task(30, 9, 1), _task(30, 6, 2)]
+    full = collate(tasks, n_ctx=20, max_features=12)
+    narrow = collate(tasks, n_ctx=20, max_features=12, pad_to_batch_width=True)
+
+    def step(batch: TaskBatch, full_width: bool) -> tuple[torch.Tensor, list, torch.Tensor]:
+        """Loss, gradients and the RNG state after one forward/backward from seed 9."""
+        model.column_ids_full_width = full_width
+        model.zero_grad(set_to_none=True)
+        torch.manual_seed(9)
+        loss = model.loss(batch.X, batch.y, batch.n_ctx, batch.n_classes)
+        loss.backward()
+        grads = [p.grad.clone() for p in model.parameters() if p.grad is not None]
+        return loss.detach(), grads, torch.get_rng_state()
+
+    want_loss, want_grads, want_rng = step(full, False)
+    loss, grads, rng = step(narrow, full_width_ids)
+    if full_width_ids:
+        torch.testing.assert_close(loss, want_loss, rtol=0, atol=1e-6)
+        for g, w in zip(grads, want_grads, strict=True):
+            torch.testing.assert_close(g, w, rtol=1e-4, atol=1e-6)
+        assert torch.equal(rng, want_rng)
+    else:
+        assert not torch.equal(rng, want_rng)
+        assert abs(loss.item() - want_loss.item()) > 1e-4
+
+
+def test_fintfm_train_sets_the_full_width_draw_from_the_prior(tmp_path):
+    from fintfm.modeling.train import TrainConfig, benchmark, train
+
+    model_cfg = ModelConfig(max_features=12, max_classes=5, d_cell=8, d_model=16, n_layers=1,
+                            n_col_layers=1, n_heads=2, d_ff=32, n_cell_blocks=1,
+                            cell_labels=True)
+    common = {"steps": 2, "batch_size": 3, "eval_every": 1, "log_every": 1000,
+              "device": "cpu", "seed": 4}
+    narrow_cfg = replace(_MIX, pad_to_batch_width=True)
+    assert not train(model_cfg, _MIX, TrainConfig(**common),
+                     str(tmp_path / "f.pt")).column_ids_full_width
+    assert train(model_cfg, narrow_cfg, TrainConfig(**common),
+                 str(tmp_path / "n.pt")).column_ids_full_width
+    assert benchmark(model_cfg, narrow_cfg, TrainConfig(**common), n_steps=1, warmup=0)["steps"]

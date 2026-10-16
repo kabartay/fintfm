@@ -75,6 +75,7 @@ prior:
   permute_classes: false
   feature_transforms: []
   max_query_rows: null
+  pad_to_batch_width: false
   n_rows: 256                   # unused: n_rows_choices is set
   n_rows_choices: [256, 512, 1024]
   p_financial: 1.0

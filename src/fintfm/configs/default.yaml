@@ -119,6 +119,9 @@ prior:
   # AU5.4: cap query rows per task so a long context does not bring a long query with it.
   # null keeps every row.
   max_query_rows: null
+  # DR6.1: pad each batch's features to its widest task, not to model.max_features. The
+  # padding is masked, so outputs match full padding; false pads to max_features, as today.
+  pad_to_batch_width: false
   # The task mixture and its size, one key per fintfm-train prior flag (DR1.3), so a recipe
   # is a file rather than a command line. Each mirrors the PriorConfig field of the same name
   # (tests/test_config.py); an explicit flag still wins. The prior takes max_features,
