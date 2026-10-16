@@ -50,7 +50,7 @@ from fintfm.inference.retrieval import (
     retrieve,
     retrieve_per_class,
 )
-from fintfm.modeling.hazard import base_rate_shift, shift_cumulative_pd
+from fintfm.modeling.hazard import CENSORED, base_rate_shift, shift_cumulative_pd
 from fintfm.modeling.model import FinancialTFM
 
 ContextStrategy = Literal["balanced", "hybrid", "uniform", "retrieval", "prototype"]
@@ -434,7 +434,11 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         # before fit (FinancialTFMRegressor reads max_classes from it).
 
     def fit(
-        self, X: np.ndarray, y: np.ndarray, groups: np.ndarray | None = None
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        groups: np.ndarray | None = None,
+        periods: np.ndarray | None = None,
     ) -> FinancialTFMClassifier:
         """Store the table as in-context evidence. **No gradient steps are taken** unless
         ``finetune_steps > 0`` (see :meth:`_finetune`).
@@ -451,9 +455,18 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
                 checkpoint's ``max_classes``.
             groups: Optional ``(n,)`` group labels (e.g. company), used only by fine-tuning
                 to keep a task's query groups out of its context.
-
-        Returns:
-            self.
+            periods: Optional ``(n,)`` zero-based default period per row, aligned with ``y``,
+                :data:`fintfm.modeling.hazard.CENSORED` (-1) for none: the encoding of
+                ``SurvivalDataset.period`` and of the prior's ``Task.period``, so ``y`` is
+                expected to be ``periods != CENSORED`` as in training. **Required for a
+                checkpoint built with ``hazard_period_context=True``** (audit AU5.9), whose
+                term structure reads each context row's period; the stored context keeps the
+                periods of exactly the rows it keeps, under every ``context_strategy`` and in
+                every ensemble member. **Ignored for any other checkpoint**, after a length
+                check: the model's own contract is "ignored otherwise", and a harness holding
+                periods can then pass them for every checkpoint without changing a flag-off
+                prediction. Query rows never carry a period, so none is asked for at predict
+                time.
 
         Raises:
             ValueError: If the task exceeds the checkpoint's class or feature capacity. It
@@ -462,13 +475,19 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
                 is accepted instead (and fine-tuning on it rejected). Also if ``groups``
                 does not have one entry per row, for the ensemble settings
                 :meth:`_check_ensemble_settings` rejects, and for the fine-tuning settings
-                :meth:`_finetune` rejects.
+                :meth:`_finetune` rejects. Also if ``periods`` does not have one entry per row,
+                or, for a ``hazard_period_context`` checkpoint, is missing, not integer, or
+                outside ``[CENSORED, n_horizons - 1]``.
         """
         self._check_ensemble_settings()
         X = np.asarray(X, dtype=np.float32)
         y = np.asarray(y)
         if groups is not None and len(groups) != len(y):
             raise ValueError(f"groups has {len(groups)} entries for {len(y)} rows")
+        periods = self._check_periods(periods, len(y))
+        # None unless the checkpoint reads context periods; aligned with _raw_y, so an
+        # ensemble member redrawing its own context takes the periods of its own rows
+        self._raw_period = periods
         # kept unconditioned so an ensemble member can redraw its own context and refit the
         # conditioner from scratch, rather than inheriting this instance's draw
         self._raw_X, self._raw_y = X, y
@@ -504,6 +523,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             # keep the whole pool; the context is chosen per query group at predict time
             self._centre, self._scale = distance_stats(X)
             self._pool_X, self._pool_y = X, y_coded
+            self._pool_period = periods
             self._pool_Z = normalise_for_distance(X, self._centre, self._scale)
             idx = np.arange(len(y_coded))
         elif self.context_strategy == "prototype":
@@ -551,6 +571,8 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         ctx_prior = np.bincount(y_coded, minlength=n_classes) / len(y_coded)
         self._ctx_X = X
         self._ctx_y = y_coded
+        # the same indices as the stored rows, so a context row keeps its own period
+        self._ctx_period = None if periods is None else periods[idx]
         # positive-class rates, kept for the term-structure correction, which needs a
         # scalar log-odds shift rather than the per-class vector below
         pos = n_classes - 1
@@ -566,6 +588,50 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
                 0.0,
             )
         return self
+
+    def _check_periods(self, periods: np.ndarray | None, n_rows: int) -> np.ndarray | None:
+        """Validate :meth:`fit`'s ``periods`` and return what the context should store.
+
+        Args:
+            periods: The ``periods`` argument of :meth:`fit`.
+            n_rows: Training rows, which ``periods`` must match one for one.
+
+        Returns:
+            ``(n_rows,)`` int64 periods when the checkpoint reads context periods
+            (``hazard_period_context``), else ``None``: a flag-off checkpoint stores none, so
+            its every prediction is exactly what it was before this argument existed.
+
+        Raises:
+            ValueError: If ``periods`` has the wrong length, or the checkpoint reads context
+                periods and they are missing, not integers, or outside
+                ``[CENSORED, n_horizons - 1]``. Out-of-range values raise rather than being
+                clamped: the model would fold them into its last period with no error.
+        """
+        if periods is not None:
+            periods = np.asarray(periods)
+            if periods.shape != (n_rows,):
+                raise ValueError(
+                    f"periods has shape {periods.shape} for {n_rows} rows; pass one period "
+                    "per training row, aligned with y"
+                )
+        if not self.model.cfg.hazard_period_context:
+            return None
+        if periods is None:
+            raise ValueError(
+                "this checkpoint was built with hazard_period_context=True, so its context "
+                "rows need their default period: pass fit(X, y, periods=...) with one "
+                f"zero-based period per row, {CENSORED} for none"
+            )
+        if not np.issubdtype(periods.dtype, np.integer):
+            raise ValueError(f"periods must be integers, got dtype {periods.dtype}")
+        n_horizons = self.model.cfg.n_horizons
+        assert n_horizons is not None  # hazard_period_context requires it (ModelConfig)
+        if periods.size and (periods.min() < CENSORED or periods.max() >= n_horizons):
+            raise ValueError(
+                f"periods must lie in [{CENSORED}, {n_horizons - 1}] for this checkpoint's "
+                f"{n_horizons} horizons, got [{periods.min()}, {periods.max()}]"
+            )
+        return periods.astype(np.int64)
 
     def _finetune(
         self, X: np.ndarray, y: np.ndarray, groups: np.ndarray | None, n_classes: int
@@ -1041,7 +1107,13 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         # private, not a constructor argument: a member's SVD is the parent's decision, and a
         # public single-model knob would be a second way to ask for the same thing
         twin._member_svd = svd_components
-        return twin.fit(self._raw_X if X is None else X, self._raw_y if y is None else y)
+        # every member keeps its rows' periods; X and y change columns and label names, never
+        # which rows there are, so the parent's periods stay aligned
+        return twin.fit(
+            self._raw_X if X is None else X,
+            self._raw_y if y is None else y,
+            periods=getattr(self, "_raw_period", None),
+        )
 
     @torch.no_grad()
     def transform_representation(
@@ -1270,11 +1342,13 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         if self.context_strategy == "retrieval":
             plan = self._retrieval_plan(X)
             out = np.empty((X.shape[0], self.model_.hazard.n_horizons), dtype=np.float32)
+            pool_period = getattr(self, "_pool_period", None)
             for q_idx, c_idx in plan:
                 ctx = (self._pool_X[c_idx], self._pool_y[c_idx])
+                ctx_period = None if pool_period is None else pool_period[c_idx]
                 for start in range(0, q_idx.size, self.query_chunk):
                     block = q_idx[start : start + self.query_chunk]
-                    out[block] = self._term_structure_chunk(X[block], ctx)
+                    out[block] = self._term_structure_chunk(X[block], ctx, ctx_period)
             rate = self._pooled_context_rate(plan)
             if self.correct_prior and 0.0 < rate < 1.0 and 0.0 < self._full_rate < 1.0:
                 out = shift_cumulative_pd(
@@ -1292,10 +1366,28 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
 
     @torch.no_grad()
     def _term_structure_chunk(
-        self, X: np.ndarray, ctx: tuple[np.ndarray, np.ndarray] | None = None
+        self,
+        X: np.ndarray,
+        ctx: tuple[np.ndarray, np.ndarray] | None = None,
+        ctx_period: np.ndarray | None = None,
     ) -> np.ndarray:
-        """Uncorrected cumulative PD for one chunk of queries."""
-        ctx_X, ctx_y = ctx if ctx is not None else (self._ctx_X, self._ctx_y)
+        """Uncorrected cumulative PD for one chunk of queries.
+
+        Args:
+            X: ``(n, n_features)`` conditioned query rows.
+            ctx: Optional ``(context_X, context_y)`` override, used by the retrieval path.
+                Defaults to the context stored at fit time.
+            ctx_period: The override context's periods; read only with ``ctx``. Without
+                ``ctx`` the stored context's own periods are used.
+
+        Returns:
+            ``(n, n_horizons)`` cumulative PD before any base-rate correction.
+        """
+        if ctx is None:
+            ctx_X, ctx_y = self._ctx_X, self._ctx_y
+            ctx_period = getattr(self, "_ctx_period", None)
+        else:
+            ctx_X, ctx_y = ctx
         n_ctx = ctx_X.shape[0]
         cfg = self.model_.cfg
         Xp = np.full((1, n_ctx + X.shape[0], cfg.max_features), np.nan, dtype=np.float32)
@@ -1303,8 +1395,17 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         Xp[0, n_ctx:, : X.shape[1]] = X
         yp = np.zeros((1, n_ctx + X.shape[0]), dtype=np.int64)
         yp[0, :n_ctx] = ctx_y
+        period = None
+        if ctx_period is not None:
+            # query rows are CENSORED placeholders: the model reads only the first n_ctx
+            pp = np.full((1, n_ctx + X.shape[0]), CENSORED, dtype=np.int64)
+            pp[0, :n_ctx] = ctx_period
+            period = torch.from_numpy(pp).to(self.device)
         out = self.model_.term_structure(
-            torch.from_numpy(Xp).to(self.device), torch.from_numpy(yp).to(self.device), n_ctx
+            torch.from_numpy(Xp).to(self.device),
+            torch.from_numpy(yp).to(self.device),
+            n_ctx,
+            period=period,
         )
         return out[0].cpu().numpy()
 

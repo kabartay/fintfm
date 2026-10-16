@@ -163,7 +163,7 @@ def evaluate(
             ]
             pd_curve = torch.stack(cols, dim=-1)
         else:
-            pd_curve = models.term_structure(bb.X, bb.y, bb.n_ctx)
+            pd_curve = models.term_structure(bb.X, bb.y, bb.n_ctx, period=bb.period)
         curves.append(pd_curve.reshape(-1, n_horizons).cpu().numpy())
         p = bb.period[:, bb.n_ctx:].reshape(-1).cpu().numpy()
         truths.append(np.stack([((p >= 0) & (p <= k)).astype(int) for k in range(n_horizons)], 1))

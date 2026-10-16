@@ -148,7 +148,7 @@ def run(
             retrieval_groups=groups,
             retrieval_min_positive=cfg.inference.retrieval_min_positive,
             feature_transform=cfg.inference.feature_transform,
-        ).fit(ds.X[tr], ds.y[tr])
+        ).fit(ds.X[tr], ds.y[tr], periods=ds.period[tr])
 
     started = time.perf_counter()
     reference = fitted(0).predict_term_structure(ds.X[keep])  # groups=0 -> one query each

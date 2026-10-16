@@ -1386,8 +1386,8 @@ def main(argv: list[str] | None = None) -> None:
         default=None,
         help="context rows of a hazard model embed their default period, or a censored "
         "token, beside the label (audit AU5.9); requires --n-horizons; config default "
-        "false. Such a checkpoint cannot yet be served: the classifier's term-structure "
-        "path passes no context periods",
+        "false. Serving such a checkpoint needs FinancialTFMClassifier.fit(X, y, "
+        "periods=...), which the V4FinBench harnesses pass",
     )
     p.add_argument(
         "--head-type",

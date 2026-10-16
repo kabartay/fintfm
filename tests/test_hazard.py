@@ -411,3 +411,138 @@ def test_hazard_period_context_reads_context_periods_and_never_query_periods():
     loss.backward()
     assert torch.isfinite(loss)
     assert on.period_embed.weight.grad.abs().sum() > 0
+
+
+# --- AU5.9 at inference: the classifier carries context periods to the hazard path ---
+
+
+def _period_table(n: int = 80, seed: int = 2) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Rows whose column 0 is the row index, so a stored context row names its source row.
+
+    ``feature_transform="none"`` keeps that column exact through fit, which is what lets the
+    tests check that a stored period belongs to the stored row, not merely that one exists.
+    """
+    g = np.random.default_rng(seed)
+    X = g.normal(size=(n, 6)).astype(np.float32)
+    X[:, 0] = np.arange(n)
+    y = (g.random(n) < 0.35).astype(np.int64)
+    periods = np.where(y == 1, g.integers(0, 4, n), CENSORED).astype(np.int64)
+    return X, y, periods
+
+
+def _trained_period_model() -> FinancialTFM:
+    """The flag-on model of :func:`_period_models`, its period table moved off zero."""
+    _off, on, *_ = _period_models()
+    with torch.no_grad():
+        on.period_embed.weight.normal_()  # as if trained: the periods now carry signal
+    return on
+
+
+def _moved(periods: np.ndarray, rows: np.ndarray) -> np.ndarray:
+    """``periods`` with every default among ``rows`` moved one period later, cyclically."""
+    out = periods.copy()
+    rows = rows[out[rows] != CENSORED]
+    assert rows.size, "the test table needs defaults among these rows"
+    out[rows] = (out[rows] + 1) % 4
+    return out
+
+
+def test_classifier_fit_refuses_a_period_context_model_without_valid_periods():
+    on = _trained_period_model()
+    X, y, periods = _period_table()
+    clf = FinancialTFMClassifier(on, max_context=30, feature_transform="none")
+    with pytest.raises(ValueError, match="hazard_period_context=True"):
+        clf.fit(X, y)
+    with pytest.raises(ValueError, match="periods has shape"):
+        clf.fit(X, y, periods=periods[:-1])
+    with pytest.raises(ValueError, match="integers"):
+        clf.fit(X, y, periods=periods.astype(np.float32))
+    with pytest.raises(ValueError, match=r"must lie in \[-1, 3\]"):
+        clf.fit(X, y, periods=np.where(y == 1, 4, CENSORED))
+
+
+@pytest.mark.parametrize("strategy", ["uniform", "balanced", "hybrid", "prototype"])
+def test_classifier_term_structure_reads_the_stored_context_periods(strategy):
+    """Context periods move the curve; periods of rows outside the context and other query
+    rows do not, so the stored periods are exactly those of the stored rows."""
+    on = _trained_period_model()
+    X, y, periods = _period_table()
+    tr, Xq = np.arange(60), X[60:]
+    kw = {"max_context": 30, "context_strategy": strategy, "feature_transform": "none"}
+    clf = FinancialTFMClassifier(on, **kw).fit(X[tr], y[tr], periods=periods[tr])
+    idx = clf._ctx_X[:, 0].astype(np.int64)
+    np.testing.assert_array_equal(clf._ctx_period, periods[idx])
+    base = clf.predict_term_structure(Xq)
+
+    outside = np.setdiff1d(tr, idx)
+    p_out = _moved(periods, outside)
+    again = FinancialTFMClassifier(on, **kw).fit(X[tr], y[tr], periods=p_out[tr])
+    np.testing.assert_array_equal(again.predict_term_structure(Xq), base)
+
+    p_in = _moved(periods, idx)
+    moved = FinancialTFMClassifier(on, **kw).fit(X[tr], y[tr], periods=p_in[tr])
+    assert not np.allclose(moved.predict_term_structure(Xq), base)
+
+    # a query's curve depends on the context and itself, never on the other queries
+    np.testing.assert_allclose(clf.predict_term_structure(Xq[:5]), base[:5], atol=1e-5)
+    chunked = FinancialTFMClassifier(on, query_chunk=3, **kw).fit(
+        X[tr], y[tr], periods=periods[tr]
+    )
+    np.testing.assert_allclose(chunked.predict_term_structure(Xq), base, atol=1e-5)
+
+
+def test_classifier_retrieval_term_structure_reads_the_retrieved_periods():
+    on = _trained_period_model()
+    X, y, periods = _period_table()
+    tr, Xq = np.arange(60), X[60:]
+    kw = {"max_context": 30, "context_strategy": "retrieval", "retrieval_groups": 2,
+          "retrieval_min_positive": 2, "feature_transform": "none"}
+    clf = FinancialTFMClassifier(on, **kw).fit(X[tr], y[tr], periods=periods[tr])
+    np.testing.assert_array_equal(
+        clf._pool_period, periods[clf._pool_X[:, 0].astype(np.int64)]
+    )
+    base = clf.predict_term_structure(Xq)
+    moved = FinancialTFMClassifier(on, **kw).fit(X[tr], y[tr], periods=_moved(periods, tr)[tr])
+    assert not np.allclose(moved.predict_term_structure(Xq), base)
+
+
+def test_classifier_ensemble_members_keep_their_own_rows_periods():
+    on = _trained_period_model()
+    X, y, periods = _period_table()
+    clf = FinancialTFMClassifier(on, max_context=30, n_ensemble=3, ensemble_label_swap=True,
+                                 feature_transform="none").fit(X, y, periods=periods)
+    for seed in (1, 2):
+        twin = clf._clone_with_seed(seed, y=clf._flip(y))
+        np.testing.assert_array_equal(
+            twin._ctx_period, periods[twin._ctx_X[:, 0].astype(np.int64)]
+        )
+    assert clf.predict_proba(X[:5]).shape == (5, 2)  # members fit without raising
+
+
+def test_classifier_zero_period_table_matches_the_flag_off_model():
+    """Zero-initialised, the flag-on model through the classifier is the flag-off one."""
+    off, on, *_ = _period_models()
+    X, y, periods = _period_table()
+    kw = {"max_context": 30, "feature_transform": "none"}
+    np.testing.assert_array_equal(
+        FinancialTFMClassifier(on, **kw).fit(X, y, periods=periods).predict_term_structure(X),
+        FinancialTFMClassifier(off, **kw).fit(X, y).predict_term_structure(X),
+    )
+
+
+@pytest.mark.parametrize("strategy", ["uniform", "retrieval"])
+def test_classifier_ignores_periods_on_a_flag_off_model(strategy):
+    """A flag-off checkpoint is byte-identical with or without periods, and stores none."""
+    off, *_ = _period_models()
+    X, y, periods = _period_table()
+    kw = {"max_context": 30, "context_strategy": strategy, "retrieval_groups": 2,
+          "retrieval_min_positive": 2}
+    plain = FinancialTFMClassifier(off, **kw).fit(X, y)
+    given = FinancialTFMClassifier(off, **kw).fit(X, y, periods=periods)
+    assert given._ctx_period is None and given._raw_period is None
+    np.testing.assert_array_equal(
+        given.predict_term_structure(X), plain.predict_term_structure(X)
+    )
+    np.testing.assert_array_equal(given.predict_proba(X), plain.predict_proba(X))
+    with pytest.raises(ValueError, match="periods has shape"):
+        FinancialTFMClassifier(off, **kw).fit(X, y, periods=periods[:-1])

@@ -118,7 +118,7 @@ def run(
                     random_state=seed,
                     retrieval_groups=retrieval_groups,
                     feature_transform=cfg.inference.feature_transform,
-                ).fit(ds.X[tr], ds.y[tr])
+                ).fit(ds.X[tr], ds.y[tr], periods=ds.period[tr])
                 curve = clf.predict_term_structure(ds.X[te])
                 elapsed = time.perf_counter() - started
                 aucs, eces = [], []
