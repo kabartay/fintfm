@@ -142,6 +142,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     args = p.parse_args(argv)
     if args.task_dump is not None:
         p.error("--task-dump reads a dump; this script writes one with --out")
+    if args.workers < 1:
+        p.error(f"--workers must be at least 1, got {args.workers}")
+    if args.workers > 1 and args.stream != "per_shard":
+        p.error("--workers > 1 needs --stream per_shard: the sequential stream is one generator")
     return args
 
 
