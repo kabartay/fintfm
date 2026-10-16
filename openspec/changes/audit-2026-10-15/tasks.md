@@ -348,7 +348,14 @@
       16). Arms: lr {1e-5, 3e-5, 1e-4}, up to 3,000 steps, early stopping on inner-validation
       companies. Depends on §164.
       Verify: five-fold AP against §163's arm under §159's rule, inner-validation selection only.
-- [ ] AU5.2 **`--amp fp16` with loss scaling added for GPUs without native bf16 (T4, P100) (2026-10-16, 6ec5534); measurement open.**
+- [ ] AU5.2 **Implemented behind `--attn-impl split` (2026-10-16, e18d122); measurement open.**
+      Exact unmasked route (context attention plus a sentinel key carrying each query's own
+      key, no mask in either call), in the row encoder and the row-within-feature stage;
+      equal to `masked` within 1e-5 fp32 (tests/test_model.py `*attn_impl_split*`). This
+      supersedes the "not implemented" note below. CPU timing at load 200-350 on 16 cores
+      showed no difference beyond noise; the flash benefit must be measured on CUDA.
+      `--benchmark-steps` now reads `--task-dump` (e18d122).
+      **`--amp fp16` with loss scaling added for GPUs without native bf16 (T4, P100) (2026-10-16, 6ec5534); measurement open.**
       **Implemented behind `--amp bf16` and `--benchmark-steps` (2026-10-16, 9c3b615); measurement open.**
       Flash attention not implemented: CUDA's flash kernel takes no attention mask at all, and
       `MultiheadAttention` already turns the bool mask into an additive float one, so a float
@@ -446,7 +453,12 @@
 - [ ] AU5.14 **TabArena context size**: TabArena-Lite at `max_context` 500 and 750 against 1000
       (trained range ends ~921 rows).
       Verify: TabArena-Lite Elo at 500, 750 and 1,000 recorded.
-- [ ] AU5.15 **Task-dump prerequisite implemented behind `--task-dump` and
+- [ ] AU5.15 **Implemented behind `scripts/dump_prior_tasks.py --stream per_shard --workers K`
+      (2026-10-16, 3705a71); measurement open.** K=2 writes the K=1 dump array for array,
+      compressed or not (tests/test_prior_levers.py). Throughput at load 514-521 on 16 cores,
+      128 batches of the reference recipe: K=1 4.94 batches/s, K=4 3.43 (compressed 2.36), so
+      no speed-up on a saturated machine; repeat on an idle one.
+      **Task-dump prerequisite implemented behind `--task-dump` and
       `scripts/dump_prior_tasks.py` (2026-10-16, b1084ce); measurement open.**
       **Pretraining volume first: 48k tasks → at least 2M.** The strongest evidence in
       the 2026-10-15 sweep (LightPFN's 256k → 7.68M draws, +1.66 AUC points; LimiX-2 and Kumo

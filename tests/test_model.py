@@ -922,7 +922,7 @@ _P5_FINGERPRINT = {
 }
 _P5_KEYS = ("n_cell_heads", "n_summary_tokens", "value_embedding", "value_basis_size",
             "value_basis_learnable", "value_ecdf", "attn_length_scale", "attn_length_ref",
-            "hazard_period_context")
+            "attn_impl", "hazard_period_context")
 
 
 def _p5_inputs(max_classes):
@@ -979,6 +979,7 @@ def test_checkpoint_without_phase5_keys_loads_with_identical_outputs(case, tmp_p
         ({"n_cell_heads": 0}, "n_cell_heads"),
         ({"attn_length_ref": 1}, "attn_length_ref"),
         ({"hazard_period_context": True}, "requires n_horizons"),
+        ({"attn_impl": "flash"}, "attn_impl"),
     ],
 )
 def test_phase5_config_refuses_nonsense(bad, match):
@@ -1130,3 +1131,129 @@ def test_summary_tokens_replace_pooling_and_keep_column_order_invariance():
     model.train()
     model.loss(X, y, 9, torch.tensor([3, 3])).backward()
     assert model.summary_queries.grad.abs().sum() > 0
+
+
+# --- AU5.2: the split row attention, an exact unmasked route to the masked one ---------
+
+
+def _masked_reference(q, k, v, n_ctx, scale):
+    """The masked row attention through SDPA, the definition split_row_attention matches."""
+    allowed = ~FinancialTFM._row_mask(q.shape[-2], n_ctx, q.device)
+    return torch.nn.functional.scaled_dot_product_attention(
+        q, k, v, attn_mask=allowed, scale=scale
+    )
+
+
+@pytest.mark.parametrize(
+    "n_rows, n_ctx, d", [(7, 4, 16), (13, 13, 8), (5, 0, 12), (40, 9, 3), (64, 63, 32)]
+)
+def test_split_row_attention_equals_the_masked_attention(n_rows, n_ctx, d):
+    from fintfm.modeling.model import split_row_attention
+
+    g = torch.Generator().manual_seed(n_rows * 100 + n_ctx)
+    q, k, v = (torch.randn(2, 3, n_rows, d, generator=g) * 2 for _ in range(3))
+    for scale in (1 / d**0.5, 2.7 / d**0.5):
+        torch.testing.assert_close(
+            split_row_attention(q, k, v, n_ctx, scale), _masked_reference(q, k, v, n_ctx, scale),
+            rtol=1e-5, atol=1e-5,
+        )
+
+
+def test_split_row_attention_gradients_equal_the_masked_ones():
+    from fintfm.modeling.model import split_row_attention
+
+    g = torch.Generator().manual_seed(3)
+    base = [torch.randn(2, 2, 11, 8, generator=g) for _ in range(3)]
+    grads = []
+    for fn in (split_row_attention, _masked_reference):
+        qkv = [t.clone().requires_grad_(True) for t in base]
+        (fn(*qkv, 6, 0.35) * torch.linspace(-1, 1, 8)).sum().backward()
+        grads.append([t.grad for t in qkv])
+    for a, b in zip(*grads):
+        torch.testing.assert_close(a, b, rtol=1e-5, atol=1e-5)
+
+
+_SPLIT_CASES = {
+    "meanmax": {},
+    "attention": {"pooling": "attention"},
+    "cellblocks": {"n_cell_blocks": 2, "cell_labels": True},
+    "cellblocks_chunked": {"n_cell_blocks": 1},
+    "lengthscale": {"attn_length_scale": True, "attn_length_ref": 4},
+    "summary": {"n_summary_tokens": 3, "n_cell_blocks": 1, "attn_length_scale": True},
+    "heads": {"n_heads": 4, "n_cell_heads": 1, "n_cell_blocks": 1},
+    "hazard": {"max_classes": 2, "n_horizons": 4},
+}
+
+
+@pytest.mark.parametrize("case", sorted(_SPLIT_CASES))
+@pytest.mark.parametrize("n_ctx", [9, 3, 14])
+def test_attn_impl_split_matches_masked_on_the_whole_model(case, n_ctx):
+    """Same weights, both implementations: fp32 outputs equal within 1e-5, padding included
+    (a missing cell and an all-NaN column in ``_p5_inputs``)."""
+    torch.manual_seed(0)
+    extra = _SPLIT_CASES[case]
+    masked = FinancialTFM(ModelConfig(**{**_P5_BASE, **extra})).eval()
+    split = FinancialTFM(ModelConfig(**{**_P5_BASE, **extra, "attn_impl": "split"})).eval()
+    split.load_state_dict(masked.state_dict())  # the flag adds no parameter
+    if case == "cellblocks_chunked":
+        masked.feature_chunk = split.feature_chunk = 2
+    X, y = _p5_inputs(masked.cfg.max_classes)
+    torch.testing.assert_close(
+        _p5_run(split, X, y, n_ctx), _p5_run(masked, X, y, n_ctx), rtol=1e-5, atol=1e-5
+    )
+
+
+def test_attn_impl_split_matches_masked_partway_through_the_row_stack():
+    """The classifier's ``encoder_mid`` probe runs the first layers only, through the same
+    ``_row_attention``; the two implementations agree there too."""
+    torch.manual_seed(0)
+    masked = FinancialTFM(ModelConfig(**_P5_BASE)).eval()
+    split = FinancialTFM(ModelConfig(**_P5_BASE, attn_impl="split")).eval()
+    split.load_state_dict(masked.state_dict())
+    h = torch.randn(2, 14, 32)
+    with torch.no_grad():
+        for n_layers in (None, 1):
+            torch.testing.assert_close(
+                split._row_attention(h, 9, n_layers=n_layers),
+                masked._row_attention(h, 9, n_layers=n_layers),
+                rtol=1e-5, atol=1e-5,
+            )
+        one = masked._row_attention(h, 9, n_layers=1)
+        assert not torch.allclose(one, masked._row_attention(h, 9))
+
+
+def test_attn_impl_split_trains_to_the_masked_gradients():
+    torch.manual_seed(0)
+    extra = {"n_cell_blocks": 1, "cell_labels": True, "attn_length_scale": True}
+    masked = FinancialTFM(ModelConfig(**{**_P5_BASE, **extra}))
+    split = FinancialTFM(ModelConfig(**{**_P5_BASE, **extra, "attn_impl": "split"}))
+    split.load_state_dict(masked.state_dict())
+    X, y = _p5_inputs(3)
+    for m in (masked, split):
+        m.train()
+        torch.manual_seed(5)  # training draws fresh column identities; draw the same ones
+        m.loss(X, y, 9, torch.tensor([3, 3])).backward()
+    for (name, a), (_, b) in zip(masked.named_parameters(), split.named_parameters()):
+        if a.grad is None:
+            assert b.grad is None, name
+            continue
+        torch.testing.assert_close(b.grad, a.grad, rtol=1e-4, atol=1e-5, msg=name)
+
+
+def test_masked_checkpoint_loads_and_runs_under_split(tmp_path):
+    """attn_impl changes no weight: an old checkpoint (no attn_impl key) runs either way."""
+    from dataclasses import replace
+
+    torch.manual_seed(0)
+    model = FinancialTFM(ModelConfig(**_P5_BASE, n_cell_blocks=1)).eval()
+    path = tmp_path / "old.pt"
+    model.save(str(path))
+    ckpt = torch.load(str(path), weights_only=True)
+    del ckpt["config"]["attn_impl"]
+    torch.save(ckpt, str(path))
+    loaded = FinancialTFM.load(str(path))
+    assert loaded.cfg.attn_impl == "masked"
+    split = FinancialTFM(replace(loaded.cfg, attn_impl="split")).eval()
+    split.load_state_dict(loaded.state_dict())
+    X, y = _p5_inputs(3)
+    torch.testing.assert_close(_p5_run(split, X, y), _p5_run(model, X, y), rtol=1e-5, atol=1e-5)

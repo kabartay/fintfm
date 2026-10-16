@@ -274,6 +274,63 @@ def test_per_shard_dump_draws_each_shard_from_its_own_generator(tmp_path):
             _assert_batches_equal(dump.batch(i), sample_batch(rng, _DUMP_CFG, 2))
 
 
+def _assert_dumps_equal(a_dir, b_dir) -> None:
+    """Fail unless two dumps hold the same manifest and the same batches, array for array."""
+    import json
+
+    a, b = TaskDump.open(a_dir), TaskDump.open(b_dir)
+    assert a.manifest == b.manifest
+    for i in range(len(a)):
+        _assert_batches_equal(a.batch(i), b.batch(i))
+    for name in a.manifest["shards"]:
+        with np.load(a.path / name) as fa, np.load(b.path / name) as fb:
+            assert sorted(fa.files) == sorted(fb.files)
+            for key in fa.files:
+                np.testing.assert_array_equal(fa[key], fb[key])
+    assert json.loads((a.path / "manifest.json").read_text())["shards"] == [
+        f"shard_{s:06d}.npz" for s in range(len(a.manifest["shards"]))
+    ]
+
+
+@pytest.mark.parametrize("compress", [False, True])
+def test_per_shard_dump_is_the_same_whatever_the_worker_count(tmp_path, compress):
+    """AU5.15: each shard draws from ``default_rng([seed, shard])`` whichever process writes
+    it, so two workers write exactly what one does (and compression is lossless)."""
+    kw = {"seed": 4, "batch_size": 2, "n_batches": 5, "shard_size": 2, "stream": "per_shard",
+          "compress": compress}
+    write_task_dump(tmp_path / "k1", _DUMP_CFG, workers=1, **kw)
+    write_task_dump(tmp_path / "k2", _DUMP_CFG, workers=2, **kw)
+    _assert_dumps_equal(tmp_path / "k1", tmp_path / "k2")
+    if compress:
+        write_task_dump(tmp_path / "raw", _DUMP_CFG, workers=1, **{**kw, "compress": False})
+        dump, raw = TaskDump.open(tmp_path / "k1"), TaskDump.open(tmp_path / "raw")
+        for i in range(len(dump)):
+            _assert_batches_equal(dump.batch(i), raw.batch(i))
+
+
+def test_dump_script_workers_flag_writes_the_single_process_dump(tmp_path, capsys):
+    """``scripts/dump_prior_tasks.py --stream per_shard --workers 2 --compress`` gives the same
+    dump as ``--workers 1``; the script's own report names the workers and the load."""
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[1] / "scripts" / "dump_prior_tasks.py"
+    spec = importlib.util.spec_from_file_location("dump_prior_tasks", path)
+    script = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(script)
+    common = ["--n-batches", "5", "--shard-size", "2", "--seed", "7", "--batch-size", "2",
+              "--n-rows", "24", "--max-features", "8", "--max-classes", "3",
+              "--stream", "per_shard", "--compress"]
+    script.main(["--out", str(tmp_path / "k1"), "--workers", "1", *common])
+    script.main(["--out", str(tmp_path / "k2"), "--workers", "2", *common])
+    out = capsys.readouterr().out
+    assert "workers 2, compress True" in out and "load average" in out
+    _assert_dumps_equal(tmp_path / "k1", tmp_path / "k2")
+    with pytest.raises(SystemExit):  # the sequential stream is one generator
+        script.main(["--out", str(tmp_path / "s"), "--workers", "2", "--n-batches", "2",
+                     "--stream", "sequential"])
+
+
 def test_survival_dump_carries_periods(tmp_path):
     cfg = PriorConfig(max_features=8, max_classes=2, n_rows=24, p_financial=1.0, n_horizons=3)
     write_task_dump(tmp_path / "d", cfg, seed=0, batch_size=2, n_batches=2)

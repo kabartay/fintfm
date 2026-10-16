@@ -601,6 +601,44 @@ def test_benchmark_reports_throughput_and_saves_nothing(tmp_path, monkeypatch, c
     assert list(tmp_path.iterdir()) == []
 
 
+def test_benchmark_reads_the_task_dump_instead_of_sampling(tmp_path, monkeypatch, capsys):
+    """``--benchmark-steps`` with ``--task-dump`` reads its batches from the dump, as training
+    does, so the measured rate is the dump-fed one; a dump too short for warmup plus the
+    timed steps is refused rather than sampled past."""
+    import importlib
+    import json
+
+    from fintfm.prior.dump import TaskDump, write_task_dump
+
+    train_mod = importlib.import_module("fintfm.modeling.train")
+    monkeypatch.delenv("FINTFM_CONFIG", raising=False)
+    args = [
+        "--batch-size", "2", "--max-features", "8", "--max-classes", "2", "--d-model", "16",
+        "--d-cell", "8", "--n-layers", "1", "--n-col-layers", "1", "--n-rows", "32",
+        "--out", str(tmp_path / "x.pt"), "--task-dump", str(tmp_path / "d"),
+    ]
+    prior = train_mod.PriorConfig(max_features=8, max_classes=2, n_rows=32)
+    write_task_dump(tmp_path / "d", prior, seed=0, batch_size=2, n_batches=5)
+    read: list[int] = []
+    real_batch = TaskDump.batch
+
+    def counting(self, index):
+        read.append(index)
+        return real_batch(self, index)
+
+    def no_live_sampling(*a, **k):
+        raise AssertionError("sampled live despite --task-dump")
+
+    monkeypatch.setattr(TaskDump, "batch", counting)
+    monkeypatch.setattr(train_mod, "sample_batch", no_live_sampling)
+    train_mod.main(["--benchmark-steps", "2", *args])
+    record = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert record["task_dump"] == str(tmp_path / "d") and record["tasks"] == 4
+    assert read == [0, 1, 2, 3, 4]  # 3 warmup + 2 timed, in order
+    with pytest.raises(ValueError, match="fewer than --steps"):
+        train_mod.main(["--benchmark-steps", "3", *args])
+
+
 def test_newton_schulz_orthogonalises_in_both_orientations():
     """Muon's core: the update's singular values land near one (the write-up's iteration is
     tuned for roughly [0.7, 1.2], not exact convergence) and its direction stays U V^T."""

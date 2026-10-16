@@ -157,7 +157,7 @@ class TrainConfigDefaults:
 
 @dataclass(frozen=True)
 class ModelConfigDefaults:
-    """Architecture knobs ``fintfm-train`` reads from configuration (audit AU5.3/5.9/5.16/5.17).
+    """Architecture knobs ``fintfm-train`` reads from configuration (audit AU5.2/5.3/5.9/5.16/5.17).
 
     Mirrors the matching fields of :class:`~fintfm.modeling.model.ModelConfig`, whose own
     literal defaults stay authoritative because a checkpoint rebuilds its model from them
@@ -175,6 +175,7 @@ class ModelConfigDefaults:
     value_ecdf: bool = False
     attn_length_scale: bool = False
     attn_length_ref: int = 512
+    attn_impl: str = "masked"
     hazard_period_context: bool = False
 
 
@@ -410,6 +411,8 @@ def _validate(cfg: Config) -> None:
         )
     if m.n_heads < 1:
         raise ConfigError(f"model.n_heads must be at least 1, got {m.n_heads}")
+    if m.attn_impl not in ("masked", "split"):
+        raise ConfigError(f"model.attn_impl must be 'masked' or 'split', got {m.attn_impl!r}")
 
 
 #: Section name to dataclass. Declared explicitly rather than read off ``Config``'s
