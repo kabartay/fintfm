@@ -98,3 +98,4 @@ prior:
   p_real_lendingclub: 0.0
   real_lendingclub_panel_path: data/lendingclub/panel.parquet
   real_panels: ""
+  source_weights: null            # the sequential source draw; DR2.1's weighted draw came later

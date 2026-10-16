@@ -47,6 +47,22 @@ def test_shares_clip_weights_as_the_draw_does_and_name_each_panel():
     assert panels["financial"] == pytest.approx(0.125)
 
 
+def test_weighted_shares_are_the_normalised_weights_in_draw_order():
+    """DR2.1: with ``source_weights`` the record states the weights as given and their
+    normalised shares, every named source included (a zero weight too), panels by path."""
+    shares = source_shares(PriorConfig(source_weights={
+        "scm": 2.0, "real_panel:b.parquet": 1.0, "real_panel:a.parquet": 1.0, "tree": 0.0,
+    }))
+    assert shares["mode"] == "weighted"
+    assert list(shares["configured"]) == ["tree", "real_panel:a.parquet",
+                                          "real_panel:b.parquet", "scm"]
+    assert shares["configured"]["scm"] == 2.0
+    assert shares["realised"] == {"tree": 0.0, "real_panel:a.parquet": 0.25,
+                                  "real_panel:b.parquet": 0.25, "scm": 0.5}
+    assert source_shares(PriorConfig())["mode"] == "sequential"
+    json.dumps(shares)
+
+
 def test_git_state_is_none_outside_a_repository(tmp_path):
     assert git_state(tmp_path) == {"commit": None, "dirty": None}
 

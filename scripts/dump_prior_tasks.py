@@ -95,6 +95,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--n-noise-features", type=int, default=None)
     p.add_argument("--n-correlated-block-features", type=int, default=None)
     p.add_argument("--label-noise-rate", type=float, default=None)
+    p.add_argument("--source-weights", type=str, default=None)
     add_prior_lever_arguments(p)
     args = p.parse_args(argv)
     if args.task_dump is not None:

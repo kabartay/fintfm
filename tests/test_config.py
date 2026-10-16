@@ -178,6 +178,16 @@ def test_prior_section_mirrors_the_phase5_lever_defaults():
     assert cfg.permute_classes is PriorConfig.permute_classes is False
     assert cfg.feature_transforms == PriorConfig.feature_transforms == ()
     assert cfg.max_query_rows is PriorConfig.max_query_rows is None
+    # DR2.1: no weights means the sequential source draw every checkpoint was trained on
+    assert cfg.source_weights is PriorConfig.source_weights is None
+
+
+def test_source_weights_load_as_a_mapping(tmp_path):
+    f = tmp_path / "o.yaml"
+    f.write_text('prior:\n  source_weights: {tree: 0.25, "real_panel:p.parquet": 1, scm: 0.4}\n')
+    assert load_config(f).prior.source_weights == {
+        "tree": 0.25, "real_panel:p.parquet": 1, "scm": 0.4,
+    }
 
 
 def test_shipped_example_configs_all_load():
@@ -244,6 +254,9 @@ def test_overlapping_time_split_is_refused(tmp_path):
         ("prior:\n  absolute_rate_floor: 0.9\n  rate_ceiling: 0.3\n", "prior rates"),
         ("prior:\n  feature_transforms: [rank, quantile]\n", "feature_transforms"),
         ("prior:\n  max_query_rows: 0\n", "max_query_rows"),
+        ("prior:\n  source_weights: {trees: 1.0}\n", "source_weights"),
+        ("prior:\n  source_weights: [tree]\n", "source_weights"),
+        ("prior:\n  source_weights: {tree: high}\n", "source_weights"),
     ],
 )
 def test_out_of_range_values_are_refused(tmp_path, body, match):

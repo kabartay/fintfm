@@ -217,7 +217,16 @@
 
 ## Phase DR2 — prior v2
 
-- [ ] DR2.1 **Normalised source weights.** Replace the sequential source draw with one
+- [x] DR2.1 **Done (2026-10-16).** `PriorConfig.source_weights` (`prior.source_weights`,
+      `fintfm-train --source-weights tree=0.25,scm=0.4,...`): one `rng.random()` per task over
+      the normalised weights, unknown names, inert `p_*`/`real_panels` and timeless sources
+      under `n_horizons` refused; `None` (default) keeps the sequential stream.
+      `source_shares` records `mode` with configured and realised shares. Tests
+      `test_mixture.py::test_weighted_draw_realises_the_normalised_weights_at_10000_draws`,
+      `::test_weighted_shares_agree_at_reuse_one_and_four`, the stored fingerprints in
+      `test_mixture.py` and `test_prior_levers.py`, and
+      `test_train.py::test_source_weights_flag_trains_and_the_checkpoint_states_the_weighted_shares`.
+      **Normalised source weights.** Replace the sequential source draw with one
       categorical draw over normalised weights, behind a flag that keeps today's stream when
       off; record the realised shares in every checkpoint (DR1.2).
       Verify: realised shares within binomial error of the weights at 10,000 draws; default

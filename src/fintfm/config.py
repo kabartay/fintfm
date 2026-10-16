@@ -187,6 +187,7 @@ class PriorConfigDefaults:
     p_real_lendingclub: float = 0.0
     real_lendingclub_panel_path: str = "data/lendingclub/panel.parquet"
     real_panels: str = ""
+    source_weights: dict[str, float] | None = None
 
 
 @dataclass(frozen=True)
@@ -487,6 +488,28 @@ def _validate(cfg: Config) -> None:
         )
     if p.max_query_rows is not None and p.max_query_rows < 1:
         raise ConfigError(f"prior.max_query_rows must be at least 1, got {p.max_query_rows}")
+    if p.source_weights is not None:
+        # names and weights are checked by the prior itself, so a file and a flag are refused
+        # by the same code; imported here because it pulls in every prior module
+        from fintfm.prior.mixture import REAL_PANEL_PREFIX, SOURCE_NAMES
+
+        if not isinstance(p.source_weights, dict) or not all(
+            isinstance(k, str) and isinstance(w, (int, float)) and not isinstance(w, bool)
+            for k, w in p.source_weights.items()
+        ):
+            raise ConfigError(
+                "prior.source_weights must be null or a mapping of source name to weight, "
+                f"got {p.source_weights!r}"
+            )
+        unknown = [
+            k for k in p.source_weights
+            if k not in SOURCE_NAMES and not k.startswith(REAL_PANEL_PREFIX)
+        ]
+        if unknown:
+            raise ConfigError(
+                f"prior.source_weights has unknown source(s) {unknown}; valid names are "
+                f"{list(SOURCE_NAMES)} or '{REAL_PANEL_PREFIX}<path>'"
+            )
     t = cfg.train
     if t.amp not in ("none", "bf16", "fp16"):
         # YAML reads a bare `off`/`no` as False, which would otherwise surface as a confusing
