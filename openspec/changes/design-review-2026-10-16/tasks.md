@@ -216,7 +216,17 @@
       workers. Adopt a setting only if outputs agree on a fixed batch and tasks per GPU-hour rise
       by 1.3x or more.
       Verify: a FINDINGS entry with tasks per GPU-hour for each setting and host.
-- [ ] DR5.5 **Fix fp16's attention memory.** Under `--amp fp16` every arm ran out of memory
+- [ ] DR5.5 **Partly done (2026-10-17): fix landed; GPU measurement open.** The cell
+      stages' heads are 12 wide (`d_cell` 48 over 4 heads). On a T4 the memory-efficient
+      kernel needs a multiple of 8 in fp16 but not in fp32, and the masks keep flash out, so
+      fp16 ran on the math kernel, which upcasts to fp32 and stores every score matrix: the
+      1.13 GiB is the column encoder's (4,096 x 4, 136, 136) fp32 scores, the 256 MiB the
+      row-within-feature stage's (4 x 4 x 4, 1,024, 1,024). `aligned_attention` zero-pads
+      half-precision heads to 8 and the cell stages run through `_prenorm_stack` in fp16 or
+      bf16; fp32 is untouched (`tests/test_golden_outputs.py` identical). Tests in
+      `tests/test_model.py`; the CUDA one, `test_fp16_peak_memory_is_at_most_fp32s_on_cuda`,
+      skips here. Open: E0 v4 (`scripts/kaggle/task_e0_throughput`, `COMMIT` placeholder)
+      on a T4. **Fix fp16's attention memory.** Under `--amp fp16` every arm ran out of memory
       in `multi_head_attention_forward`, even at batch 4 where fp32 peaks at 6.2 GB (§170).
       Find which call falls back to the math kernel (mask dtype or form under autocast,
       `need_weights`, or the split path's padded head dimension), fix it, and re-run E0's fp16

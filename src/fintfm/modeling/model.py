@@ -458,6 +458,85 @@ def length_scale(n_keys: int, n_ref: int) -> float:
     return math.log(max(n_keys, 2)) / math.log(n_ref)
 
 
+#: Head width, in channels, that CUDA's fused attention kernels need in fp16/bf16 (DR5.5).
+#: The memory-efficient kernel needs the head width divisible by 128 bits' worth of
+#: elements on tensor-core GPUs: 8 in half precision, but 1 (T4) or 4 (A100, L4) in fp32.
+#: The flash kernel needs a multiple of 8 at any precision.
+HALF_PRECISION_HEAD_ALIGN = 8
+
+_HALF_DTYPES = (torch.float16, torch.bfloat16)
+
+
+def attention_in_half_precision(x: torch.Tensor) -> bool:
+    """Whether attention over ``x`` runs in fp16 or bf16 (design review DR5.5).
+
+    True when ``x`` is itself 16-bit, or when autocast is on for ``x``'s device with a 16-bit
+    dtype, in which case the query/key/value projections come out 16-bit even though a
+    LayerNorm's float32 output went in.
+
+    Args:
+        x: The attention input.
+
+    Returns:
+        Whether the attention's query, key and value will be fp16 or bf16.
+    """
+    if x.dtype in _HALF_DTYPES:
+        return True
+    device = x.device.type
+    return torch.is_autocast_enabled(device) and torch.get_autocast_dtype(device) in _HALF_DTYPES
+
+
+def aligned_attention(
+    q: torch.Tensor,
+    k: torch.Tensor,
+    v: torch.Tensor,
+    attn_mask: torch.Tensor | None = None,
+    dropout_p: float = 0.0,
+    scale: float | None = None,
+) -> torch.Tensor:
+    """``scaled_dot_product_attention`` with half-precision heads zero-padded to a fused width.
+
+    **Why (DR5.5).** At the published recipe the cell stages have 12-channel heads
+    (``d_cell=48``, four heads). In fp32 on a T4 the memory-efficient kernel accepts that
+    width; in fp16 it needs a multiple of 8 (:data:`HALF_PRECISION_HEAD_ALIGN`), the flash
+    kernel takes no mask, and the call falls back to the math kernel, which upcasts fp16 to
+    fp32 and materialises every ``(heads, L, S)`` score matrix. Under ``--amp fp16`` that was
+    the out-of-memory error of ``docs/results/FINDINGS.md`` §170.
+
+    **Exact.** Zero channels add nothing to ``q . k``, the scale stays ``1/sqrt(d)`` of the
+    true width, and the zero value channels are sliced off the output, so the result is the
+    unpadded attention up to the kernel's floating-point summation order. Inputs that are not
+    16-bit, or already aligned, pass straight through to
+    :func:`~torch.nn.functional.scaled_dot_product_attention` unchanged, so no fp32 path
+    computes anything different.
+
+    Args:
+        q: ``(..., L, d)`` queries.
+        k: ``(..., S, d)`` keys.
+        v: ``(..., S, d)`` values.
+        attn_mask: Optional mask, as ``scaled_dot_product_attention`` takes it; a boolean one
+            (True = may attend) is converted by the kernel to the query's dtype.
+        dropout_p: Attention dropout probability.
+        scale: Logit scale; ``None`` is ``1 / sqrt(d)`` of the unpadded width.
+
+    Returns:
+        ``(..., L, d)``.
+    """
+    d = q.shape[-1]
+    if q.dtype not in _HALF_DTYPES or d % HALF_PRECISION_HEAD_ALIGN == 0:
+        return F.scaled_dot_product_attention(
+            q, k, v, attn_mask=attn_mask, dropout_p=dropout_p, scale=scale
+        )
+    pad = (0, HALF_PRECISION_HEAD_ALIGN - d % HALF_PRECISION_HEAD_ALIGN)
+    out = F.scaled_dot_product_attention(
+        F.pad(q, pad), F.pad(k, pad), F.pad(v, pad),
+        attn_mask=attn_mask,
+        dropout_p=dropout_p,
+        scale=1.0 / math.sqrt(d) if scale is None else scale,
+    )
+    return out[..., :d]
+
+
 def split_row_attention(
     q: torch.Tensor,
     k: torch.Tensor,
@@ -506,10 +585,9 @@ def split_row_attention(
     parts = []
     if n_ctx > 0:
         k_ctx, v_ctx = k[..., :n_ctx, :], v[..., :n_ctx, :]
+        # aligned: the context call carries the stock head width, which fp16 may not accept
         parts.append(
-            F.scaled_dot_product_attention(
-                q[..., :n_ctx, :], k_ctx, v_ctx, dropout_p=dropout_p, scale=scale
-            )
+            aligned_attention(q[..., :n_ctx, :], k_ctx, v_ctx, dropout_p=dropout_p, scale=scale)
         )
     else:
         k_ctx, v_ctx = k[..., :0, :], v[..., :0, :]
@@ -834,13 +912,15 @@ class FinancialTFM(nn.Module):
         Returns:
             ``(B*F, N, d_cell)``, the encoder applied to every feature.
         """
+        layers = self.row_within_feature_encoder.layers
+
         def encode(x: torch.Tensor) -> torch.Tensor:
             if row_mask is not None:
-                return self.row_within_feature_encoder(x, mask=row_mask)
+                if not self._needs_aligned_heads(layers[0].self_attn, x):
+                    return self.row_within_feature_encoder(x, mask=row_mask)
+                return self._prenorm_stack(layers, x, None, ~row_mask, 1.0)  # DR5.5
             assert n_ctx is not None
-            return self._prenorm_stack(
-                self.row_within_feature_encoder.layers, x, n_ctx, None, 1.0
-            )
+            return self._prenorm_stack(layers, x, n_ctx, None, 1.0)
 
         chunk = self.feature_chunk
         if chunk is None or chunk >= Fdim:
@@ -858,6 +938,44 @@ class FinancialTFM(nn.Module):
             group = view[:, start:stop].reshape(-1, *by_feature.shape[1:])
             out[:, start:stop] = encode(group).reshape(B, stop - start, *by_feature.shape[1:])
         return out.reshape_as(by_feature)
+
+    @staticmethod
+    def _needs_aligned_heads(mha: nn.MultiheadAttention, x: torch.Tensor) -> bool:
+        """Whether a stock encoder over ``x`` must run through :meth:`_prenorm_stack` (DR5.5).
+
+        ``nn.MultiheadAttention`` hands its heads to the kernel at their own width and turns
+        a boolean mask into a float one of the *input's* dtype, which under autocast is the
+        float32 of a LayerNorm's output. With heads whose width is not a multiple of
+        :data:`HALF_PRECISION_HEAD_ALIGN`, a half-precision call therefore cannot reach a
+        fused CUDA kernel and runs on the math fallback (FINDINGS §170).
+        :meth:`_prenorm_stack` runs the same layers through :func:`aligned_attention`
+        instead. Off half precision, or with aligned heads, the stock module runs as before.
+
+        Args:
+            mha: The encoder's attention module (every layer has the same head width).
+            x: The encoder's input.
+
+        Returns:
+            True to route the encoder through :meth:`_prenorm_stack`.
+        """
+        return mha.head_dim % HALF_PRECISION_HEAD_ALIGN != 0 and attention_in_half_precision(x)
+
+    def _column_attention(self, flat: torch.Tensor, safe_pad: torch.Tensor) -> torch.Tensor:
+        """Run the column encoder: cells within a row attend to each other, padding masked.
+
+        Args:
+            flat: ``(B*N, F, d_cell)`` cells, one row per batch entry.
+            safe_pad: ``(B*N, F)`` boolean, True = a padded column the row may not attend to.
+
+        Returns:
+            ``(B*N, F, d_cell)``.
+        """
+        layers = self.column_encoder.layers
+        if not self._needs_aligned_heads(layers[0].self_attn, flat):
+            return self.column_encoder(flat, src_key_padding_mask=safe_pad)
+        # DR5.5: a (B*N, 1, 1, F) boolean mask broadcast over heads and queries, where the
+        # stock module materialises a float32 (B*N*heads, 1, F) copy
+        return self._prenorm_stack(layers, flat, None, ~safe_pad[:, None, None, :], 1.0)
 
     def _column_ids(
         self, B: int, Fdim: int, device: torch.device, dtype: torch.dtype, seed: int | None
@@ -995,11 +1113,11 @@ class FinancialTFM(nn.Module):
                 cells = by_feature.reshape(B, Fdim, N, self.cfg.d_cell).permute(0, 2, 1, 3)
                 # Column attention within one row: the existing mechanism, reused per block.
                 flat = cells.reshape(B * N, Fdim, self.cfg.d_cell)
-                flat = self.column_encoder(flat, src_key_padding_mask=safe_pad)
+                flat = self._column_attention(flat, safe_pad)
                 cells = flat.reshape(B, N, Fdim, self.cfg.d_cell)
         else:
             flat = cells.reshape(B * N, Fdim, self.cfg.d_cell)
-            flat = self.column_encoder(flat, src_key_padding_mask=safe_pad)
+            flat = self._column_attention(flat, safe_pad)
             cells = flat.reshape(B, N, Fdim, self.cfg.d_cell)
 
         if self.cfg.n_summary_tokens > 1:
@@ -1113,7 +1231,9 @@ class FinancialTFM(nn.Module):
         if self.cfg.attn_impl == "split":
             return self._prenorm_stack(layers, h, n_ctx, None, factor)
         mask = self._row_mask(h.shape[1], n_ctx, h.device)
-        if not self.cfg.attn_length_scale:
+        if not self.cfg.attn_length_scale and not self._needs_aligned_heads(
+            layers[0].self_attn, h
+        ):
             if n_layers is None:
                 return self.encoder(h, mask=mask)
             for layer in layers:
@@ -1125,23 +1245,25 @@ class FinancialTFM(nn.Module):
         self,
         layers: nn.ModuleList,
         h: torch.Tensor,
-        n_ctx: int,
+        n_ctx: int | None,
         allowed: torch.Tensor | None,
         factor: float,
     ) -> torch.Tensor:
         """Run encoder layers with the attention computed here rather than by the module.
 
         The same pre-norm layer as ``nn.TransformerEncoderLayer(norm_first=True)``, written
-        out so the attention logits can carry the length factor (AU5.17) or the attention can
-        run unmasked (AU5.2). It reads the stock layers' own parameters, so neither flag adds
-        a weight and a checkpoint trained either way loads either way.
+        out so the attention logits can carry the length factor (AU5.17), the attention can
+        run unmasked (AU5.2), or half-precision heads can be padded to a width the fused
+        kernels accept (DR5.5). It reads the stock layers' own parameters, so no flag adds a
+        weight and a checkpoint trained either way loads either way.
 
         Args:
             layers: The ``nn.TransformerEncoderLayer`` modules to run, in order.
             h: ``(B, N, D)`` inputs.
-            n_ctx: Context/query split.
-            allowed: ``(N, N)`` boolean mask, True = may attend, for the masked path; ``None``
-                for :func:`split_row_attention`.
+            n_ctx: Context/query split; read only when ``allowed`` is ``None``.
+            allowed: Boolean mask, True = may attend, broadcastable to ``(B, heads, N, N)``:
+                ``(N, N)`` for the masked row attention, ``(B, 1, 1, N)`` for the column
+                attention's padding. ``None`` for :func:`split_row_attention`.
             factor: Multiplier on ``q.k / sqrt(d_head)``.
 
         Returns:
@@ -1170,10 +1292,10 @@ class FinancialTFM(nn.Module):
         Args:
             mha: The stock attention module whose projections are used.
             x: ``(B, N, D)`` normalised inputs.
-            allowed: ``(N, N)`` boolean mask, True = may attend (the inverse of
-                :meth:`_row_mask`'s convention, as ``scaled_dot_product_attention`` expects).
-                ``None`` computes the same context-plus-self attention through
-                :func:`split_row_attention`, which needs ``n_ctx``.
+            allowed: Boolean mask, True = may attend (the inverse of :meth:`_row_mask`'s
+                convention, as ``scaled_dot_product_attention`` expects), broadcastable to
+                ``(B, heads, N, N)``. ``None`` computes the same context-plus-self attention
+                through :func:`split_row_attention`, which needs ``n_ctx``.
             factor: Multiplier on ``q.k / sqrt(d_head)``; 1 reproduces ``mha``.
             n_ctx: Context/query split; read only when ``allowed`` is ``None``.
 
@@ -1190,7 +1312,7 @@ class FinancialTFM(nn.Module):
             assert n_ctx is not None
             out = split_row_attention(q, k, v, n_ctx, factor / math.sqrt(dh), dropout_p)
         else:
-            out = F.scaled_dot_product_attention(
+            out = aligned_attention(
                 q,
                 k,
                 v,

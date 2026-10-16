@@ -10,6 +10,9 @@ it checks the settings agree on one fixed batch, because E0 adopts a setting onl
 agree and tasks per GPU-hour rise by 1.3x or more. If the session has two GPUs it also runs a
 20-step DDP smoke test, the NCCL path that has only run on CPU gloo so far. Nothing is
 trained to keep; no data is read. Results land in /kaggle/working/e0/.
+
+v4 (design review DR5.5) re-checks fp16 after its attention fix: fp32 against fp16 at batch 8
+and 4, masked and split, with the agreement check covering both precisions.
 """
 
 import json
@@ -19,24 +22,26 @@ import sys
 import urllib.request
 from pathlib import Path
 
-COMMIT = "b2b836e"
+# v4: pin to the DR5.5 fix (fp16 cell-stage heads padded to a fused-kernel width) once it is
+# pushed; v1-v3 ran b2b836e. The placeholder refuses to run rather than install a wrong ref.
+COMMIT = "<COMMIT>"
 RECIPE_URL = (f"https://raw.githubusercontent.com/kabartay/fintfm/{COMMIT}/"
               "configs/published/v4-cellattn-labels.yaml")
 OUT = Path("/kaggle/working/e0")
 
 ARMS = [
-    # v2 (MEASURED): fp32 masked 1.93 s/step, fp32 split 1.59 s/step at batch 8; every fp16 arm
-    # ran out of memory even at feature_chunk 4. v3 compares precision at batch 4, where both
-    # fit, and moves the loader and width arms onto fp32 split.
+    # v2/v3 (MEASURED, FINDINGS §170): fp32 masked 1.93 s/step at batch 8 and 0.93 at batch 4,
+    # fp32 split 1.59 and 0.80; every fp16 arm ran out of memory in the cell stages' attention
+    # (12-wide heads sent fp16 to the math kernel). v4 re-runs precision at both batch sizes
+    # after the DR5.5 fix; the loader and batch-width arms were measured in v3 and are dropped.
+    ("fp32_masked_b8", ["--batch-size", "8"]),
+    ("fp16_masked_b8", ["--amp", "fp16", "--batch-size", "8"]),
+    ("fp32_split_b8", ["--attn-impl", "split", "--batch-size", "8"]),
+    ("fp16_split_b8", ["--amp", "fp16", "--attn-impl", "split", "--batch-size", "8"]),
     ("fp32_masked_b4", ["--batch-size", "4"]),
-    ("fp32_split_b4", ["--attn-impl", "split", "--batch-size", "4"]),
     ("fp16_masked_b4", ["--amp", "fp16", "--batch-size", "4"]),
+    ("fp32_split_b4", ["--attn-impl", "split", "--batch-size", "4"]),
     ("fp16_split_b4", ["--amp", "fp16", "--attn-impl", "split", "--batch-size", "4"]),
-    ("fp32_split_mixed_batchwidth", ["--attn-impl", "split", "--pad-to-batch-width"]),
-    ("fp32_split_mixed_stream_w0", ["--attn-impl", "split", "--loader", "stream",
-                                    "--loader-workers", "0"]),
-    ("fp32_split_mixed_stream_w2", ["--attn-impl", "split", "--loader", "stream",
-                                    "--loader-workers", "2"]),
 ]
 
 
@@ -95,6 +100,8 @@ def main() -> None:
     if smi.returncode != 0 or not names:
         sys.exit("no GPU in this session (quota exhausted?) -- refusing a CPU run")
     print(f"GPUs: {names}; CPUs: {os.cpu_count()}", flush=True)
+    if COMMIT.startswith("<"):
+        sys.exit("COMMIT is still a placeholder: pin it to the pushed DR5.5 fix first")
     subprocess.run([sys.executable, "-m", "pip", "install", "--quiet",
                     f"fintfm @ git+https://github.com/kabartay/fintfm.git@{COMMIT}"], check=True)
     recipe = OUT / "v4-cellattn-labels.yaml"

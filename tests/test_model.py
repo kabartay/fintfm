@@ -1260,6 +1260,160 @@ def test_masked_checkpoint_loads_and_runs_under_split(tmp_path):
     torch.testing.assert_close(_p5_run(split, X, y), _p5_run(model, X, y), rtol=1e-5, atol=1e-5)
 
 
+# --- DR5.5: half-precision attention keeps a head width the fused kernels accept --------
+
+# Cell heads 24 / 2 = 12 channels wide, as at the published recipe (48 / 4); the row heads
+# (32 / 2 = 16) are already aligned.
+_DR55_BASE = {**_P5_BASE, "d_cell": 24, "n_cell_blocks": 1, "cell_labels": True}
+
+
+def _record_attention_calls(monkeypatch):
+    """Record (dtype, q/k/v widths, mask dtype and shape) of every SDPA call, stock or ours.
+
+    ``nn.MultiheadAttention`` reaches the kernel through ``torch.nn.functional``'s module
+    global, and ``model.py`` through ``F.``, so patching the attribute catches both.
+    """
+    calls = []
+    real = torch.nn.functional.scaled_dot_product_attention
+
+    def recording(q, k, v, attn_mask=None, *args, **kwargs):
+        mask = None if attn_mask is None else (attn_mask.dtype, tuple(attn_mask.shape))
+        calls.append((q.dtype, q.shape[-1], k.shape[-1], v.shape[-1], mask))
+        return real(q, k, v, attn_mask, *args, **kwargs)
+
+    monkeypatch.setattr(torch.nn.functional, "scaled_dot_product_attention", recording)
+    return calls
+
+
+@pytest.mark.parametrize("attn_impl", ["masked", "split"])
+@pytest.mark.parametrize("chunk", [None, 2])
+def test_half_precision_attention_gets_fused_head_widths_and_head_broadcast_masks(
+    monkeypatch, attn_impl, chunk
+):
+    """DR5.5's invariant, checked on CPU under bf16 autocast (the dispatch it protects is
+    CUDA's): every attention call of a training step gets 16-bit q, k and v whose width is a
+    multiple of 8, and a mask broadcast over heads rather than the per-head copy
+    ``nn.MultiheadAttention`` builds from a key-padding mask. In fp32 the stock 12-wide calls
+    are still made, so the default path is the one it always was."""
+    from fintfm.modeling.model import HALF_PRECISION_HEAD_ALIGN
+
+    torch.manual_seed(0)
+    model = FinancialTFM(ModelConfig(**_DR55_BASE, attn_impl=attn_impl)).train()
+    model.feature_chunk = chunk
+    X, y = _p5_inputs(3)
+    calls = _record_attention_calls(monkeypatch)
+    with torch.autocast("cpu", dtype=torch.bfloat16):
+        model.loss(X, y, 9, torch.tensor([3, 3])).backward()
+    assert calls
+    for dtype, dq, dk, dv, mask in calls:
+        assert dtype == torch.bfloat16
+        assert dq % HALF_PRECISION_HEAD_ALIGN == dk % HALF_PRECISION_HEAD_ALIGN == 0
+        assert dv % HALF_PRECISION_HEAD_ALIGN == 0
+        if mask is not None:
+            assert len(mask[1]) == 2 or mask[1][1] == 1, mask
+
+    calls.clear()
+    model.loss(X, y, 9, torch.tensor([3, 3])).backward()
+    assert all(c[0] == torch.float32 for c in calls)
+    assert any(c[1] == 12 for c in calls)  # fp32 is not padded
+
+
+@pytest.mark.parametrize("shape", ["none", "rows", "keys"])
+def test_head_padding_leaves_attention_and_its_gradients_unchanged(shape):
+    """The padding :func:`aligned_attention` adds is exact: in fp32, attention over q, k, v
+    padded with zero channels (scale kept at the true width) and sliced back equals the
+    unpadded one, values and gradients, under each mask the model passes."""
+    from fintfm.modeling import model as model_mod
+
+    g = torch.Generator().manual_seed(7)
+    base = [torch.randn(3, 2, 10, 12, generator=g) for _ in range(3)]
+    mask = {
+        "none": None,
+        "rows": ~FinancialTFM._row_mask(10, 6, torch.device("cpu")),
+        "keys": torch.tensor([True] * 7 + [False] * 3).expand(3, 1, 1, 10),
+    }[shape]
+    sdpa = torch.nn.functional.scaled_dot_product_attention
+    results = []
+    for padded in (False, True):
+        qkv = [t.clone().requires_grad_(True) for t in base]
+        if padded:
+            pad = (0, model_mod.HALF_PRECISION_HEAD_ALIGN - 12 % model_mod.HALF_PRECISION_HEAD_ALIGN)
+            q, k, v = (torch.nn.functional.pad(t, pad) for t in qkv)
+            out = sdpa(q, k, v, attn_mask=mask, scale=12**-0.5)[..., :12]
+        else:
+            out = sdpa(*qkv, attn_mask=mask)
+        (out * torch.linspace(-1, 1, 12)).sum().backward()
+        results.append([out, *(t.grad for t in qkv)])
+    for a, b in zip(*results):
+        torch.testing.assert_close(a, b, rtol=1e-5, atol=1e-6)
+    # and fp32 input passes through aligned_attention untouched: same call, same bits
+    torch.testing.assert_close(
+        model_mod.aligned_attention(*base, attn_mask=mask), sdpa(*base, attn_mask=mask),
+        rtol=0, atol=0,
+    )
+
+
+@pytest.mark.parametrize("attn_impl", ["masked", "split"])
+@pytest.mark.parametrize("chunk", [None, 2])
+def test_half_precision_route_matches_the_stock_encoders_in_float32(
+    monkeypatch, attn_impl, chunk
+):
+    """The cell stages' half-precision route (the encoder layers run by ``_prenorm_stack``
+    with boolean masks) computes what the stock ``nn.TransformerEncoder`` computes: forced
+    on in fp32, outputs and gradients equal the stock path's within 1e-5."""
+    from fintfm.modeling import model as model_mod
+
+    torch.manual_seed(0)
+    model = FinancialTFM(ModelConfig(**_DR55_BASE, attn_impl=attn_impl)).train()
+    model.feature_chunk = chunk
+    X, y = _p5_inputs(3)
+    results = []
+    for forced in (False, True):
+        if forced:
+            monkeypatch.setattr(model_mod, "attention_in_half_precision", lambda x: True)
+        model.zero_grad()
+        torch.manual_seed(5)  # training draws fresh column identities; draw the same ones
+        loss = model.loss(X, y, 9, torch.tensor([3, 3]))
+        loss.backward()
+        results.append([loss.detach(), *(p.grad.clone() for p in model.parameters()
+                                          if p.grad is not None)])
+    assert len(results[0]) == len(results[1])
+    for a, b in zip(*results):
+        torch.testing.assert_close(b, a, rtol=1e-5, atol=1e-5)
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="the fused-kernel dispatch is CUDA's")
+@pytest.mark.parametrize("attn_impl", ["masked", "split"])
+def test_fp16_peak_memory_is_at_most_fp32s_on_cuda(attn_impl):
+    """DR5.5's Verify: at the recipe's cell width (48 channels, four 12-wide heads), one
+    fp16-autocast training step on a fixed batch peaks at no more CUDA memory than the same
+    step in fp32. Before the fix fp16 fell back to the math kernel and ran out of memory on
+    a T4 where fp32 needed 6.2 GB (FINDINGS §170)."""
+    torch.manual_seed(0)
+    cfg = ModelConfig(max_features=64, max_classes=2, d_cell=48, d_model=128, n_heads=4,
+                      n_col_layers=2, n_layers=2, d_ff=512, n_cell_blocks=1, cell_labels=True,
+                      column_id_dim=16, attn_impl=attn_impl)
+    model = FinancialTFM(cfg).cuda().train()
+    g = torch.Generator().manual_seed(0)
+    X = torch.randn(2, 512, 64, generator=g).cuda()
+    y = torch.randint(0, 2, (2, 512), generator=g).cuda()
+    n_classes = torch.tensor([2, 2]).cuda()
+    peaks = {}
+    for amp in ("fp32", "fp16"):
+        model.zero_grad(set_to_none=True)
+        torch.cuda.synchronize()
+        torch.cuda.empty_cache()
+        torch.cuda.reset_peak_memory_stats()
+        base = torch.cuda.memory_allocated()
+        with torch.autocast("cuda", dtype=torch.float16, enabled=amp == "fp16"):
+            loss = model.loss(X, y, 384, n_classes)
+        loss.backward()
+        torch.cuda.synchronize()
+        peaks[amp] = torch.cuda.max_memory_allocated() - base
+        assert torch.isfinite(loss)
+    assert peaks["fp16"] <= peaks["fp32"], peaks
+
+
 def test_checkpoint_records_provenance_and_load_ignores_it(tmp_path):
     """DR1.2: every save writes a provenance record, and ``load`` never reads it. The same
     weights saved with the record and with the key deleted (a pre-DR1.2 checkpoint) must
