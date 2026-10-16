@@ -397,7 +397,8 @@
       reimplement); a tree partition or forest of PFNs (tabpfn-extensions `rf_pfn`,
       Apache-2.0); BoostPFN (arXiv 2503.01256, MIT).
       Verify: each arm's five-fold AP against §163's arm under §159's rule.
-- [ ] AU5.9 **fintfm-train flag `--hazard-period-context` wired (2026-10-16, 6ec5534); measurement open; inference gap unchanged.**
+- [ ] AU5.9 **Implemented behind `hazard_period_context` at inference (2026-10-16, f69f5a4): `FinancialTFMClassifier.fit(X, y, periods=...)` stores context periods and `predict_term_structure` passes them; required on a flag-on checkpoint, ignored on a flag-off one; the V4FinBench harnesses pass `ds.period`; measurement open.**
+      **fintfm-train flag `--hazard-period-context` wired (2026-10-16, 6ec5534); measurement open; inference gap unchanged.**
       **Implemented behind `hazard_period_context` (2026-10-16, 0a3b8c8); measurement open; the classifier cannot yet pass context periods at inference.** **Hazard context carries only the binary label** (`model.py:751-759,787-797`): embed
       the default period and a censored token for context rows.
       Verify: a hazard test where the term structure is learnable only from context periods.
