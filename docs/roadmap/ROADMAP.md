@@ -58,7 +58,9 @@ Measured closed. Reopening any of them needs a new reason, stated first.
 - **The binning head**, rank is flat against the axis it controls (§121).
 - **Inference-time knobs**: context nearly flat (§83/§84), retrieval harmful at low prevalence
   (§70).
-- **The tree prior for credit**: −0.0221 AP, 0 of 5 folds (§118).
+- **The tree prior for credit**: −0.0221 AP, 0 of 5 folds (§118). (§166, 2026-10-16: the
+  figure is §116's, and it is confounded with a financial share cut from 0.70 to 0.49; at a
+  matched share the tree arm is +0.0119 mean AP, 4 of 5 folds, one seed. Not closed.)
 - **Categorical preprocessing**: already harvested, +0.018 and no rank move (§101).
 - **Larger query chunks**: 10.7× slower (§120).
 

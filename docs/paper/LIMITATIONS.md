@@ -391,7 +391,11 @@ property of the domain.
 (Superseded 2026-10-15: §111/§112 scored the mixture on MITRA's three criteria with
 `fintfm-priorscore`, and §115/§116 trained and scored a tree prior: +0.0094 mean ROC-AUC on
 TabArena at two seeds, −0.0221 AP on V4FinBench, so `p_tree` stays 0.0 by default. See the
-last section of this file and CLAIMS.md, Claim 15.)
+last section of this file and CLAIMS.md, Claim 15.) (§166, 2026-10-16: the V4FinBench figure is
+confounded. §116's tree arm trained on financial 0.49 against its control's 0.70, because the
+prior draws the tree source first; at a matched financial share the tree arm is +0.0119 mean
+AP, 4 of 5 folds, one seed per arm. Whether a tree prior helps credit is not settled until the
+matched two-seed re-test, task DR2.4.)
 
 **Decision D2's cost is therefore smaller than two earlier drafts of this section claimed,
 and the drafting itself is the limitation worth reporting.** This entry was rewritten three

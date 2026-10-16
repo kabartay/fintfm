@@ -8193,6 +8193,11 @@ question it previously could not — not that its answers are established.
 
 ## §118 — The prior scorer's credit arm predicted the wrong direction, and the ranking is inverted
 
+> **Read with §166 (pointer added 2026-10-16).** This arm moved 0.2 of the financial share to
+> SCM (0.7 to 0.5) and lost 0.0339 AP. §166 finds the same shape in §116 and §141: the cost
+> tracks the financial share given up, not the source that receives it. Its comparison with
+> "the tree prior's −0.0221" below is between two financial-share cuts, not two priors.
+
 **How these numbers were produced.** MEASURED. `fintfm-v4protocol --no-boosting`, horizon 0,
 published five-fold protocol, 1,000,087 rows at 0.359% positive. One checkpoint at
 `p_financial=0.5` (so the SCM prior takes 0.5) against §116's `p_financial=0.7` control, matched
@@ -9780,6 +9785,11 @@ list) is next in the queue; item 24 (task 40.7, scoping a pretraining run mixing
 on 40.2-40.6 each validating individually -- which, as of this entry, they now have.
 
 ## §141 — Mixing in the nine task families at weight 0.3 makes V4FinBench worse, not better
+
+> **Read with §166 (pointer added 2026-10-16).** `--p-task-family 0.3` against `--p-financial
+> 1.0` also cut the financial share by 0.3, because the prior draws task families before the
+> financial source. §166 finds that such cuts cost 0.022-0.034 AP whatever replaces the financial
+> share, so this loss is not yet evidence against the task families themselves.
 
 **How these numbers were produced.** MEASURED. Task 40.7 (`mechanism-diverse-prior`), Phase C
 item 24: a checkpoint (`runs/taskfamily/v4-taskfamily-mix.pt`) trained with the exact reference

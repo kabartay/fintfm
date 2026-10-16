@@ -635,7 +635,12 @@ per-row assignment (Spearman 0.658 against the control's 0.055) carries it.
 **Status: OPEN**, with one component **RETRACTED** and the headline result **bounded to
 general tabular data**. §116 measures the tree prior at **−0.0221 AP on V4FinBench** — the
 low-default credit panel this project exists to serve — against +0.0094 on TabArena. Both hold.
-`p_tree` stays 0.0 by default and the prior is not shipped. What survives is the *instrument*:
+`p_tree` stays 0.0 by default and the prior is not shipped. (§166, 2026-10-16: the −0.0221 is
+not a measurement of the tree prior. Because the prior draws the tree source first, §116's tree
+arm trained on financial 0.49 against its control's 0.70; against `scm50`, a control at the same
+financial share, the tree arm is +0.0119 mean AP, 4 of 5 folds positive, one seed per arm and a
+row bootstrap. The credit result is open, pending task DR2.4's re-test at a matched share and
+two seeds.) What survives is the *instrument*:
 §112 predicted a general-tabular gain from a distinctiveness statistic and §115 confirmed it at
 two seeds, which is the first prior-side prediction this project has had confirmed.
 **Distinctiveness predicts breadth, not fit** — a criterion taken from a general-tabular paper
@@ -678,7 +683,9 @@ structure to be learnable in context, not a sufficient one. §93 measured a 5× 
 increase as inert, and a distinctive prior can be inert the same way. Only the paired arms —
 `p_tree` against the current mixture at matched tasks, on V4FinBench and TabArena — decide it.
 (Superseded 2026-10-15: those arms were run in §115/§116: +0.0094 mean ROC-AUC on TabArena,
-−0.0221 AP on V4FinBench, so the tree prior is not shipped.)
+−0.0221 AP on V4FinBench, so the tree prior is not shipped.) (§166, 2026-10-16: the V4FinBench
+arm was not matched; it also lowered the financial share from 0.70 to 0.49. At a matched share
+the tree arm is +0.0119 mean AP, one seed, so these arms did not decide the credit question.)
 
 **The methodological failure is part of the claim, not a footnote.** The first version of this
 instrument reported the financial prior as the *most* tree-favourable member (+0.0754), which

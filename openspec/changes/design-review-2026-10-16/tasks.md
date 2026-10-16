@@ -87,7 +87,10 @@
       imputes so the missingness mask is never exercised (correct §147's reading).
       Verify: each fact stated with its MEASURED count and a pointer from §35 and §147.
 
-- [ ] DR3.8 **Carry §166 into the documents.** Add pointers to §118 and §141; correct the
+- [x] DR3.8 **Done (2026-10-16).** Pointers in FINDINGS §118 and §141; dated §166 qualifiers
+      at every §116 credit citation in README.md, CLAIMS.md, LIMITATIONS.md and RELATED_WORK.md,
+      on D16's §141 row in DECISIONS.md, and on the roadmap's tree-prior lines.
+      **Carry §166 into the documents.** Add pointers to §118 and §141; correct the
       README's "the tree prior ships off because it hurts credit", `docs/paper/CLAIMS.md` and
       `docs/paper/LIMITATIONS.md` wherever §116 is cited as a credit loss; mark D-entries that rest
       on it.

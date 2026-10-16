@@ -93,6 +93,11 @@ cache (§150). The move from 93 to 94 is the board changing, not the model.
 architecture.** The tree prior adds a further +0.0094 here and replicates across two
 seeds — but costs **−0.0221 average precision on credit data** (§116), negative on 5 of 5 folds
 with three surviving multiple-comparison correction at p < 0.001, so it ships off by default.
+(§166, 2026-10-16: that comparison is confounded. The prior draws the tree source first, so
+the tree arm also cut the financial share from 0.70 to 0.49. Against a control at the same
+financial share the tree arm is +0.0119 mean AP, 4 of 5 folds positive, one seed per arm. The
+evidence that the tree prior hurts credit is gone; it still ships off, now pending a re-test at
+a matched share and two seeds, task DR2.4.)
 
 The full table, including an unpublished exploratory variant (a linear probe on the model's
 representation, §132) measured at 910 Elo, is published at
@@ -381,7 +386,7 @@ reason the list above is short:
 | depth over width | on TabArena it could not be scored: the harness's per-dataset time limit stopped it after 8 of 27 datasets (§114). On V4FinBench, 16 layers against 4 at width 128 is null: +0.0010 mean AP over five folds at a matched learning rate (§124, §126). |
 | `column_id_dim` | peaks at the value chosen by accident; all four non-peak arms below it on all five folds (§104). |
 | a widened structural-causal prior | **p = 1.000** against its own matched control. |
-| a tree-structured prior | +0.0094 on general tabular data, replicated across two seeds (§115) — and **−0.0221 average precision on credit** (§116). Ships off by default. |
+| a tree-structured prior | +0.0094 on general tabular data, replicated across two seeds (§115) — and **−0.0221 average precision on credit** (§116). Ships off by default. (§166, 2026-10-16: §116's arms differed in financial share, 0.49 against 0.70; at a matched share the tree arm is +0.0119 mean AP, 4 of 5 folds, one seed, so the credit loss is not the tree prior's.) |
 
 **The prior-scoring instrument is half-confirmed and half-falsified.** It predicted the
 general-tabular gain above before it was measured (§112 → §115). A second arm, added to ask the
@@ -492,7 +497,7 @@ retracted stay in place rather than being edited away.
   | idea | from | what happened |
   | --- | --- | --- |
   | three criteria for scoring a prior: performance, diversity, distinctiveness | MITRA | built into `fintfm-priorscore`; §112 then measured this prior's distinctiveness as weak |
-  | a tree-structured prior | TabICLv2, reimplemented from its appendix | **+0.0094** on general tabular data, **−0.0221 AP** on credit; ships off (§116) |
+  | a tree-structured prior | TabICLv2, reimplemented from its appendix | **+0.0094** on general tabular data, **−0.0221 AP** on credit; ships off (§116). (§166, 2026-10-16: the credit loss is confounded with a lower financial share; matched, the tree arm is +0.0119 mean AP, one seed.) |
   | published scaling curve | Nori | capped a scale hypothesis GPU budget was being spent on, before more was spent (§114) |
   | rejecting unlearnable synthetic tasks | Nori | measured: would reject 35% of this prior, and discards signal the model uses (§125) |
   | narrow-and-deep shape, 16 layers at width 128 | Nori | measured: null here, +0.0010 AP (§124, §126) |

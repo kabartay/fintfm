@@ -70,7 +70,9 @@ should be revisited without a new reason:
   is ~1 day and $1.40 for an expected rank change of approximately zero.
 - **Inference-time knobs.** Context size is nearly flat (§83/§84), retrieval harms at low
   prevalence (§70). This is why the search space is empty.
-- **The tree prior for credit.** §118 measured -0.0221 AP, 0 of 5 folds.
+- **The tree prior for credit.** §118 measured -0.0221 AP, 0 of 5 folds. (§166, 2026-10-16:
+  the figure is §116's, and it is confounded with a financial share cut from 0.70 to 0.49; at a
+  matched share the tree arm is +0.0119 mean AP, 4 of 5 folds, one seed. Not closed.)
 - **Categorical preprocessing.** §101 already harvested it: +0.018 mean ROC-AUC, **rank
   unchanged**.
 
