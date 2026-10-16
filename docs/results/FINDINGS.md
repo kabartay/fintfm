@@ -11413,6 +11413,30 @@ arm's verdict is reported as **provisional (device-confounded)**, never as bette
 - **Bar for EN and L600 (Rule 3):** the larger of 0.0073 and twice the seed gap of the means
   (0.0010), so 0.0073, plus the device amendment above.
 
+### §164 result, arm EN (MEASURED, 2026-10-16)
+
+`scripts/kaggle/task_164_en` on a Kaggle GPU, fintfm pinned at 5273275, `finetune_query_pos_frac:
+0.1` with importance weights, otherwise §163's setting; output in
+`runs/kaggle-fintfm-task-164-en/EN`. Identical test rows to §163's arm on every fold.
+
+| fold | §163 arm (CPU) | EN (GPU) | EN − §163 |
+| --- | --- | --- | --- |
+| 0 | 0.2181 | 0.2187 | +0.0006 |
+| 1 | 0.2068 | 0.2051 | −0.0017 |
+| 2 | 0.1901 | 0.1937 | +0.0036 |
+| 3 | 0.1955 | 0.1993 | +0.0038 |
+| 4 | 0.2205 | 0.2186 | −0.0019 |
+| **mean** | 0.2062 | 0.2071 | **+0.0009** |
+
+**Verdict under Rule 3: no different.** +0.0009 mean AP on 3 of 5 folds positive, against a bar of
+0.0073. About 27 times more default labels per step did not move AP. Per the amendment above,
+this is a GPU arm against a CPU control with no device re-run yet, so it is **provisional
+(device-confounded)**; a null below the bar cannot become "better" or "worse" from that, but its
+size includes an unmeasured device term. The logistic-regression baseline also differs between
+the two runs on the same rows (fold 0: 0.1691 on Kaggle, 0.1671 locally), from library versions
+on the Kaggle image; FinTFM's inputs pass through the same imputer and scaler. EN ran about 13 h
+on the GPU (estimated 2 h), so L600 at three times the steps did not fit the quota.
+
 ## §165 — The published checkpoint is close to label-symmetric on synthetic tasks, and least so on Polish
 
 > **Measured on TabArena datasets (note added 2026-10-16, task DR4.1).** Polish bankruptcy and
