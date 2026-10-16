@@ -334,7 +334,8 @@
       (`prior/mixture.py:446` with the shipped `n_rows` choices; verify from the checkpoint
       config), inference uses 2,000. Score `max_context` 900 with `n_ensemble` 3 against 2,000.
       Verify: the checkpoint's recorded `n_rows` choices quoted, and five-fold AP for both arms.
-- [ ] AU4.4 **Hybrid ceiling.** Out-of-fold FinTFM logits (inner company-grouped K-fold) as a
+- [ ] AU4.4 **Implemented behind `python -m fintfm.experiments.hybrid_catboost` (2026-10-16, a3865e0); measurement open.**
+      **Hybrid ceiling.** Out-of-fold FinTFM logits (inner company-grouped K-fold) as a
       CatBoost `baseline` and as a feature; compare against CatBoost alone. Measures a system,
       not FinTFM, and is reported as such.
       Verify: five-fold AP for CatBoost alone and CatBoost plus FinTFM, with no outer-test rows in the inner folds (asserted).
@@ -392,7 +393,8 @@
       add feature-shuffle and transform members, and feature-subset ensembling to lift the
       `max_features` hard limit (`classifier.py:373`).
       Verify: TabArena-Lite and V4FinBench scores against `n_ensemble` 1 and the current 8.
-- [ ] AU5.8 **Large-n methods from the literature**, each its own arm: TabPFN-kNN/LoCalPFN-style
+- [ ] AU5.8 **Implemented behind `--large-n partition|boost` and `inference.retrieval_per_class` (2026-10-16, b53ee51); measurement open.**
+      **Large-n methods from the literature**, each its own arm: TabPFN-kNN/LoCalPFN-style
       retrieval with per-class neighbours (arXiv 2406.05207; code has no licence file, so
       reimplement); a tree partition or forest of PFNs (tabpfn-extensions `rf_pfn`,
       Apache-2.0); BoostPFN (arXiv 2503.01256, MIT).
