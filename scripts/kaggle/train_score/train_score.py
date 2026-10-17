@@ -18,7 +18,7 @@ from pathlib import Path
 
 COMMIT = "__COMMIT__"
 ARM = "__ARM__"
-ARM_FLAGS: list[str] = __FLAGS__
+ARM_FLAGS: list[str] = []  # __FLAGS__
 RECIPE_URL = (f"https://raw.githubusercontent.com/kabartay/fintfm/{COMMIT}/"
               "configs/published/v4-cellattn-labels.yaml")
 

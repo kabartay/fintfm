@@ -19,7 +19,7 @@ for arm, flags in ARMS.items():
     d = HERE.parent / f"ts_{arm.replace('-', '_')}"
     d.mkdir(exist_ok=True)
     code = (TEMPLATE.replace("__COMMIT__", COMMIT).replace("__ARM__", arm)
-            .replace("__FLAGS__", json.dumps(flags)))
+            .replace("[]  # __FLAGS__", json.dumps(flags)))
     (d / "kernel.py").write_text(code)
     (d / "kernel-metadata.json").write_text(json.dumps({
         "id": f"muhakabartay/fintfm-ts-{arm}", "title": f"fintfm-ts-{arm}",
