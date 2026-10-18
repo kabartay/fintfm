@@ -202,7 +202,7 @@ _PRIOR_CONFIG_KNOBS = (
     "label_noise_rate", "min_ctx_per_class", "p_real_edgar", "real_edgar_panel_path",
     "p_real_mortgage", "real_mortgage_panel_path", "p_real_lendingclub",
     "real_lendingclub_panel_path", "real_panels", "source_weights", "financial_gate_prob",
-    "feature_ratio_bands", "p_binary", "imbalance_draws", "categorical_mode", "missing_mode",
+    "financial_sign_flip_prob", "feature_ratio_bands", "p_binary", "imbalance_draws", "categorical_mode", "missing_mode",
     "tie_column_prob", "irrelevant_frac_max", "duplicate_frac_max", "label_flip_max",
 )
 
@@ -1896,6 +1896,15 @@ def build_parser() -> argparse.ArgumentParser:
         "equity, negative working capital, coverage < 1 or a random ratio threshold holds "
         "nearly every default, ranked by the driver score inside, with a small leakage "
         "outside. Defaults to the config's prior.financial_gate_prob, 0.0",
+    )
+    p.add_argument(
+        "--financial-sign-flip-prob",
+        type=float,
+        default=None,
+        help="probability each exposed ratio column of a financial task is multiplied by -1, "
+        "per task and per column (design review DR2.2), so no ratio points the same way "
+        "across tasks; the label, gate and missingness are unchanged. Defaults to the "
+        "config's prior.financial_sign_flip_prob, 0.0",
     )
     p.add_argument(
         "--feature-ratio-bands",

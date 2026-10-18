@@ -108,13 +108,41 @@ _GATE_LEAK_RANGE: tuple[float, float] = (0.002, 0.05)
 #: ``equity/total_assets`` at 81%; a thin-equity tail for the inverted equity test put
 #: ``equity/total_assets`` at 83%. A gate on the equity axis moves ``equity/total_assets`` and
 #: ``long_term_debt/equity`` together whichever tail it takes, so no choice of tail balances
-#: both; that residual is open (design review DR2.2).
+#: both. The residual is removed by ``sign_flip_prob`` instead (a per-task sign on each ratio):
+#: at 0.5 the worst column is 61.5% over 96 tasks, measured the same way.
 _GATE_ECONOMIC_PROB = 0.5
 
 #: A natural threshold (working capital < 0, coverage < 1) is used only when the share of rows
 #: it gates lies in this band; outside it the gate falls back to a drawn quantile of the same
 #: ratio, so a task never carries an empty gate or one holding nearly every row.
 _GATE_NATURAL_SHARE_BAND: tuple[float, float] = (0.01, 0.6)
+
+#: The named candidate columns that are ratios, and so take part in the per-task sign flip
+#: (``sign_flip_prob``, design review DR2.2) alongside every ratio-family column (named
+#: ``num/den``) and the gated ratio. Levels (assets, debt, equity ...), the sector code and
+#: pure-noise columns are never flipped.
+_NAMED_RATIOS: frozenset[str] = frozenset(
+    {"margin", "leverage", "cash_ratio", "current_ratio", "coverage", "turnover",
+     "debt_to_ebitda"}
+)
+
+
+def _is_ratio_column(name: str) -> bool:
+    """Whether an exposed column, by its ``meta["columns"]`` name, is a financial ratio.
+
+    A ``redundant:`` or ``block:`` copy is a ratio when its source is, and ``gate:<ratio>``
+    is always one.
+
+    Args:
+        name: The column's name as :func:`sample_financial_task` records it.
+
+    Returns:
+        True for a ratio-family column, a named ratio, the gated ratio, or a copy of one.
+    """
+    for prefix in ("gate:", "redundant:", "block:"):
+        while name.startswith(prefix):
+            name = name[len(prefix):]
+    return "/" in name or name in _NAMED_RATIOS
 
 
 def _sigmoid(z: np.ndarray) -> np.ndarray:
@@ -492,6 +520,7 @@ def sample_financial_task(
     gate_economic_prob: float = _GATE_ECONOMIC_PROB,
     gate_share_range: tuple[float, float] = _GATE_SHARE_RANGE,
     gate_leak_range: tuple[float, float] = _GATE_LEAK_RANGE,
+    sign_flip_prob: float = 0.0,
 ) -> Task:
     """Sample one synthetic corporate-default classification task.
 
@@ -569,6 +598,18 @@ def sample_financial_task(
         gate_economic_prob / gate_share_range / gate_leak_range: The gate's side, share and
             leakage distributions; see :data:`_GATE_ECONOMIC_PROB`, :data:`_GATE_SHARE_RANGE`
             and :data:`_GATE_LEAK_RANGE` for why each is what it is.
+        sign_flip_prob: Probability each exposed **ratio** column (see
+            :func:`_is_ratio_column`) is multiplied by -1 in this task, independently per
+            column (design review DR2.2). A gate on the equity axis makes
+            ``long_term_debt/equity`` extreme at both ends, since negative equity flips its
+            sign, so it pointed the same way in 87.3% of the tasks where it was significant;
+            a per-task sign removes any global direction, the ``docs/results/FINDINGS.md`` §47
+            lesson applied to the columns rather than to the driver weights. The label, the
+            gate and every NaN are those of the unflipped task: the flip is drawn last, one
+            uniform per exposed column, and negation commutes with the missingness mask and
+            the column permutation, so the task is exactly the ``0.0`` task with some
+            columns negated. ``0.0`` (default) consumes no draw and reproduces every
+            checkpoint's tasks; any other value attaches ``meta`` with a ``flipped`` mask.
 
     Returns:
         A binary :class:`Task` whose columns are a random subset of financial quantities with
@@ -917,16 +958,27 @@ def sample_financial_task(
         mask |= (rng.random(X.shape) < 0.3 * p_default[:, None]) & mnar_cols[None, :]
     X[mask] = np.nan
     perm = rng.permutation(X.shape[1])
+    X = X[:, perm]
+    names_out = [col_names[i] for i in perm]
+    meta: dict | None = (
+        {"gate": gate_info, "columns": names_out}
+        if gate_prob > 0.0 or sign_flip_prob > 0.0 else None
+    )
+    if sign_flip_prob > 0.0:
+        # DR2.2: a per-task sign on each ratio, drawn after everything else so the label,
+        # gate and NaN pattern are the unflipped task's; see ``sign_flip_prob`` above
+        is_ratio = np.array([_is_ratio_column(n) for n in names_out], dtype=bool)
+        flip = (rng.random(X.shape[1]) < sign_flip_prob) & is_ratio
+        X[:, flip] = -X[:, flip]
+        assert meta is not None
+        meta["flipped"] = flip.tolist()
     return Task(
-        X=X[:, perm].astype(np.float32),
+        X=X.astype(np.float32),
         y=y,
         n_classes=2,
         is_categorical=np.array(cats)[perm],
         source="financial",
         period=period,
         n_horizons=n_horizons,
-        meta=(
-            {"gate": gate_info, "columns": [col_names[i] for i in perm]}
-            if gate_prob > 0.0 else None
-        ),
+        meta=meta,
     )

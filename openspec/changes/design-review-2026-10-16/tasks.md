@@ -277,7 +277,25 @@
       off; record the realised shares in every checkpoint (DR1.2).
       Verify: realised shares within binomial error of the weights at 10,000 draws; default
       stream byte-identical.
-- [ ] DR2.2 **Partly done (2026-10-18).** Source `"gated"` (`prior/gated.py`, via
+- [x] DR2.2 **Done (2026-10-18).** `PriorConfig.financial_sign_flip_prob`
+      (`prior.financial_sign_flip_prob`, `--financial-sign-flip-prob`, default 0.0, pinned at
+      0.0 in the published recipe): per task each exposed ratio column (ratio family, named
+      ratios, the gated ratio and copies of them) is negated with this probability, drawn
+      last, so the label, gate and NaN pattern are the unflipped task's. MEASURED
+      (`scripts/prior_stats.py --checks`' financial_gated checks, 300 tasks, gate probability
+      1, flip 0.5): worst column `net_profit/revenue` at 61.5% same-direction over 96
+      significant tasks (`long_term_debt/equity` 58.5% over 65), so every column with >= 50
+      significant tasks is at or below 75%; tree AP 0.6052 against rank-logistic 0.5017
+      (+0.1035, tree wins 64.8% of 264 scorable tasks). The flip shifts the stream of later
+      tasks, so that is a different 300-task draw; on the recorded draw (which reproduces
+      87.3% and 0.6304/0.4647 at flip 0) negating the ratios post hoc gives worst 60.7%
+      (`margin`, 56 tasks) and tree 0.6334 against 0.4651 (+0.1683). The inference `rank`
+      conditioner is odd under negation to within 3.4e-4 on ratio columns (float32 rounding
+      in the normal tail; up to 0.0093 on tied non-ratio columns such as `sector`), with
+      identical NaNs, and the model's context z-score is exactly odd; `power` (Yeo-Johnson)
+      is not symmetric, up to 1.0 on a few cells. Default stream byte-identical (SHA-256 of
+      the default and gated financial streams unchanged; `test_prior_v2.py`).
+      **Partly done (2026-10-18).** Source `"gated"` (`prior/gated.py`, via
       `source_weights` only) and `PriorConfig.financial_gate_prob` (`prior.financial_gate_prob`,
       `--financial-gate-prob`, default 0.0): gate drawn from negative equity, negative working
       capital, coverage < 1 or a random ratio threshold, economic side on a coin, driver score

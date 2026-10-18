@@ -27,7 +27,8 @@ Statistics, per mixture, over ``--n-tasks`` tasks drawn with :func:`sample_task`
   least 20 finite, non-constant values.
 
 **Design review DR2.2/DR2.3 checks** (``--checks``): ``--n-tasks`` tasks *per source* (SCM,
-tree, task families, regression, the gated prior, the financial prior gated and ungated),
+tree, task families, regression, the gated prior, the financial prior gated, with each
+ratio's sign a per-task coin, and ungated),
 drawn under :data:`V2_KNOBS`, each knob distribution compared with its target and printed as
 PASS or FAIL; the gated financial source's tree-versus-rank-logistic average precision; the
 "no column points the same way in more than 75% of tasks" check (``CLAUDE.md``, §47); and
@@ -82,7 +83,8 @@ V2_KNOBS: dict[str, Any] = {
 #: is the published checkpoint's ``--p-financial 1.0`` (FINDINGS §127's recipe); "broader" is
 #: AU5.11's proposed arm, SCM + tree + task families with ``p_financial`` at most 0.3. "v2" is
 #: the design review's prior v2 shape (DR2): normalised weights over a general trunk plus the
-#: gated and financial sources, half the financial labels gated, under :data:`V2_KNOBS`.
+#: gated and financial sources, half the financial labels gated and each financial ratio's
+#: sign a per-task coin, under :data:`V2_KNOBS`.
 MIXTURES: dict[str, dict[str, Any]] = {
     "default": {},
     "shipped": {"p_financial": 1.0},
@@ -91,6 +93,7 @@ MIXTURES: dict[str, dict[str, Any]] = {
         "source_weights": {"scm": 0.3, "tree": 0.2, "task_family": 0.1, "gated": 0.1,
                            "financial": 0.3},
         "financial_gate_prob": 0.5,
+        "financial_sign_flip_prob": 0.5,
         **V2_KNOBS,
     },
 }
@@ -102,7 +105,10 @@ CHECK_SOURCES: dict[str, dict[str, Any]] = {
     "task_family": {"source_weights": {"task_family": 1.0}},
     "regression": {"source_weights": {"regression": 1.0}},
     "gated": {"source_weights": {"gated": 1.0}},
-    "financial_gated": {"source_weights": {"financial": 1.0}, "financial_gate_prob": 1.0},
+    # the ratio sign flip is on with the gate: without it long_term_debt/equity points the
+    # same way in 87.3% of the tasks where it is significant (DR2.2)
+    "financial_gated": {"source_weights": {"financial": 1.0}, "financial_gate_prob": 1.0,
+                        "financial_sign_flip_prob": 0.5},
     "financial": {"source_weights": {"financial": 1.0}},
 }
 

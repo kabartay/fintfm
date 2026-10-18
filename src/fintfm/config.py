@@ -190,6 +190,7 @@ class PriorConfigDefaults:
     real_panels: str = ""
     source_weights: dict[str, float] | None = None
     financial_gate_prob: float = 0.0
+    financial_sign_flip_prob: float = 0.0
     feature_ratio_bands: tuple[tuple[float, float, float], ...] = ()
     p_binary: float | None = None
     imbalance_draws: bool = False
@@ -548,6 +549,7 @@ def _validate(cfg: Config) -> None:
         )
     unit = {
         "financial_gate_prob": p.financial_gate_prob,
+        "financial_sign_flip_prob": p.financial_sign_flip_prob,
         "p_binary": 0.0 if p.p_binary is None else p.p_binary,
         "tie_column_prob": p.tie_column_prob,
         "irrelevant_frac_max": p.irrelevant_frac_max,

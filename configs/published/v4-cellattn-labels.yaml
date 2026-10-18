@@ -115,6 +115,7 @@ prior:
   real_panels: ""
   source_weights: null            # the sequential source draw; DR2.1's weighted draw came later
   financial_gate_prob: 0.0      # design review DR2.2; the published run had no gated labels
+  financial_sign_flip_prob: 0.0 # DR2.2's ratio sign flip; the published run had none
   feature_ratio_bands: []       # DR2.3 knobs, all at their pre-knob behaviour
   p_binary: null
   imbalance_draws: false

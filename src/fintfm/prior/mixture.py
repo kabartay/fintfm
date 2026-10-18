@@ -347,6 +347,15 @@ class PriorConfig:
     §1.1, §1.5). Refused with :attr:`n_horizons`. ``0.0`` (default) consumes no draw and
     reproduces every checkpoint's batches byte for byte. The generic gated prior is a source
     of its own, ``"gated"``, reached through :attr:`source_weights` only."""
+    financial_sign_flip_prob: float = 0.0
+    """Probability each exposed ratio column of a financial task is multiplied by -1, drawn
+    per task and per column (design review DR2.2;
+    :func:`fintfm.prior.financial.sample_financial_task`'s ``sign_flip_prob``). With the
+    gate on, ``long_term_debt/equity`` pointed the same way in 87.3% of the tasks where it
+    was significant, a global rule of the kind ``docs/results/FINDINGS.md`` §47 found a
+    model memorises; a per-task sign removes it. The label, gate and NaN pattern are those
+    of the unflipped task. ``0.0`` (default) consumes no draw and reproduces every
+    checkpoint's batches byte for byte."""
     feature_ratio_bands: tuple[tuple[float, float, float], ...] = ()
     """``(weight, lo, hi)`` bands of features per row (design review DR2.3,
     :mod:`fintfm.prior.knobs`). Each SCM, regression, tree, task-family, gated and financial
@@ -438,8 +447,9 @@ def _check_levers(cfg: PriorConfig) -> None:
         ValueError: On an unknown transform name, a non-positive ``max_query_rows``,
             ``permute_classes`` combined with ``n_horizons`` or ``head_type="quantile"``, any
             ``source_weights`` refusal of :func:`_weighted_shares`, a malformed DR2.3 knob
-            (:func:`fintfm.prior.knobs.check_knobs`), or ``financial_gate_prob`` outside
-            ``[0, 1]`` or combined with ``n_horizons``.
+            (:func:`fintfm.prior.knobs.check_knobs`), ``financial_gate_prob`` outside
+            ``[0, 1]`` or combined with ``n_horizons``, or ``financial_sign_flip_prob``
+            outside ``[0, 1]``.
     """
     if cfg.source_weights is not None:
         _weighted_shares(cfg)
@@ -448,6 +458,12 @@ def _check_levers(cfg: PriorConfig) -> None:
         check_knobs(knobs)
     if not (math.isfinite(cfg.financial_gate_prob) and 0.0 <= cfg.financial_gate_prob <= 1.0):
         raise ValueError(f"financial_gate_prob must lie in [0, 1], got {cfg.financial_gate_prob}")
+    if not (
+        math.isfinite(cfg.financial_sign_flip_prob) and 0.0 <= cfg.financial_sign_flip_prob <= 1.0
+    ):
+        raise ValueError(
+            f"financial_sign_flip_prob must lie in [0, 1], got {cfg.financial_sign_flip_prob}"
+        )
     if cfg.financial_gate_prob > 0 and cfg.n_horizons is not None:
         raise ValueError(
             "financial_gate_prob cannot be combined with n_horizons: the gated label has no "
@@ -873,6 +889,7 @@ def _dispatch_source(
             sharpness_max=cfg.sharpness_max,
             n_features=width,
             gate_prob=cfg.financial_gate_prob,
+            sign_flip_prob=cfg.financial_sign_flip_prob,
         )
     if source == "scm":
         return sample_scm_task(
