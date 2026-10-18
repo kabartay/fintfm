@@ -19,6 +19,8 @@ from pathlib import Path
 COMMIT = "__COMMIT__"
 ARM = "__ARM__"
 ARM_FLAGS: list[str] = []  # __FLAGS__
+DDP = False  # __DDP__
+SCORE_PARTITION = False  # __PART__
 RECIPE_URL = (f"https://raw.githubusercontent.com/kabartay/fintfm/{COMMIT}/"
               "configs/published/v4-cellattn-labels.yaml")
 
@@ -40,19 +42,36 @@ def main() -> None:
     recipe = out / "recipe.yaml"
     urllib.request.urlretrieve(RECIPE_URL, recipe)
     ckpt = out / f"{ARM}.pt"
-    train = [sys.executable, "-u", "-m", "fintfm.modeling.train", "--config", str(recipe),
-             "--device", "cuda", "--checkpoint-every", "1000", "--out", str(ckpt), *ARM_FLAGS]
+    launcher = [sys.executable, "-u", "-m", "fintfm.modeling.train"]
+    if DDP:
+        launcher = [sys.executable, "-u", "-m", "torch.distributed.run", "--standalone",
+                    "--nproc-per-node", "2", "-m", "fintfm.modeling.train"]
+    train = [*launcher, "--config", str(recipe), "--device", "cuda",
+             "--checkpoint-every", "1000", "--out", str(ckpt), *ARM_FLAGS]
     print("$ " + " ".join(train), flush=True)
     with (out / "train.log").open("w") as log:
         rc = subprocess.run(train, stdout=log, stderr=subprocess.STDOUT, check=False).returncode
     print((out / "train.log").read_text()[-3000:], flush=True)
     if rc != 0:
         sys.exit(f"training failed with exit {rc}")
+    from fintfm.config import load_config
     from fintfm.experiments.v4_protocol import run, summarise
 
+    # the cell-attention arms ran out of memory scoring at the default chunks on a 14.56 GB T4
+    # (2026-10-18); these chunks are identity-preserving, so no score changes
+    score_cfg = out / "score.yaml"
+    score_cfg.write_text("inference:\n  query_chunk: 512\n  feature_chunk: 8\n")
+    cfg = load_config(score_cfg)
     record = run(str(ckpt), out / "score", horizon=0, folds=(0, 1, 2, 3, 4), root=root,
-                 with_boosting=False, classical=("logistic_regression",), device="cuda")
+                 with_boosting=False, classical=("logistic_regression",), cfg=cfg, device="cuda")
     print(summarise(record), flush=True)
+    if SCORE_PARTITION:
+        part_cfg = out / "score_partition.yaml"
+        part_cfg.write_text(score_cfg.read_text() + "large_n:\n  method: partition\n")
+        record = run(str(ckpt), out / "score_partition", horizon=0, folds=(0, 1, 2, 3, 4),
+                     root=root, with_boosting=False, classical=("logistic_regression",),
+                     cfg=load_config(part_cfg), device="cuda")
+        print(summarise(record), flush=True)
     for p in out.glob(f"{ARM}.pt.step*"):
         p.unlink()  # keep the final checkpoint only
     print("done")

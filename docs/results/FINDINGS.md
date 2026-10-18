@@ -11761,3 +11761,44 @@ mean AP **0.2347** at depth 1, **0.2361** at depth 2, **0.2357** at depth 3 (per
 0.2261, 0.2258, 0.2382, 0.2356, 0.2480; depth 3: 0.2243, 0.2262, 0.2411, 0.2370, 0.2501). One split
 does nearly all the work, consistent with the label sitting behind one gate (§168).
 
+
+## §171 — E1: does pretraining volume help? (pre-registered)
+
+**Status: PRE-REGISTERED 2026-10-18, before any arm trains** (design review DR5.3).
+
+**Why.** Every checkpoint here has seen 48,000 tasks; LightPFN, the peer at this compute, saw 7.68M
+and measured +1.66 AUC points from 256k to 7.68M draws (RELATED_WORK, peer sweep checked
+2026-10-16). §93's 5x volume test was one seed at a fold spread of ±0.013, so it cannot settle
+it. E0 (§170) makes a 10x arm affordable: fp16 at about 2.4x and DDP at about 1.9x on a T4x2.
+
+**Arms** (all at one pinned commit, the published recipe `configs/published/v4-cellattn-labels.yaml`
+with `--amp fp16 --attn-impl split`, DDP on two T4s at `--batch-size 4` per rank so the global
+batch stays 8, lr, warmup and cosine schedule as published over each arm's own steps):
+
+| arm | steps | tasks | seeds |
+| --- | --- | --- | --- |
+| `V48` | 6,000 | 48,000 | 0, 1 |
+| `V480` | 60,000 | 480,000 | 0, 1 |
+
+The 48k arms are retrained under the same commit and settings rather than reusing the published
+checkpoint (§158). Each checkpoint is scored zero-shot on V4FinBench's five full-panel folds with
+the packaged default inference settings (uniform context, `query_chunk` 512 and `feature_chunk` 8,
+which change no output), and, as a secondary arm, with partitioned contexts (§169).
+
+**Rule.** With Δ_s = five-fold mean AP of `V480` minus `V48` at seed s (uniform context):
+- **Volume helps** if Δ_0 > 0 and Δ_1 > 0 and their mean exceeds the larger of 0.0073 and the
+  pretraining yardstick of DR4.4 (t(0.975, df)·σ from matched replicates), with at least 4 of 5
+  folds positive at each seed.
+- **Volume hurts** under the mirror condition.
+- **Otherwise null.**
+
+Secondary, reported but not decisive: the same comparison under partitioned contexts, and the
+DR4.2 proxy suite once validated.
+
+**Pre-declared actions.** Helps: run the 2M-task arm (`V2M`, about 29 h on a T4x2 at the
+estimated rate), then re-test the architecture verdicts listed in
+`docs/design/DESIGN_REVIEW_2026-10-16.md` §1.3. Null on V4FinBench but positive on the proxy at
+both seeds: run 2M on the prior v2 trunk (DR2) instead of the financial-only prior. Null on both:
+fund neither 2M nor 10M at this model size; move to architecture v2 (DR6).
+
+**Prediction:** null on V4FinBench (§93 at 5x), positive on the proxy.
