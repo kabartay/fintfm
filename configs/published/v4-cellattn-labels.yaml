@@ -114,3 +114,13 @@ prior:
   real_lendingclub_panel_path: data/lendingclub/panel.parquet
   real_panels: ""
   source_weights: null            # the sequential source draw; DR2.1's weighted draw came later
+  financial_gate_prob: 0.0      # design review DR2.2; the published run had no gated labels
+  feature_ratio_bands: []       # DR2.3 knobs, all at their pre-knob behaviour
+  p_binary: null
+  imbalance_draws: false
+  categorical_mode: ordered
+  missing_mode: mcar
+  tie_column_prob: 0.0
+  irrelevant_frac_max: 0.0
+  duplicate_frac_max: 0.0
+  label_flip_max: 0.0
