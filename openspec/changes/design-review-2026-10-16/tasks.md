@@ -308,11 +308,31 @@
       **Per-batch feature width** (pad to the batch's widest task, not 136), removing about
       half of all cell tokens from financial tasks.
       Verify: identical outputs on a fixed batch whose widest task is 136; step time measured.
-- [ ] DR6.2 **Inducing-point, context-only cell stage** behind a flag (gather from labelled
+- [ ] DR6.2 **Implemented behind `cell_row_attn: induced` (2026-10-18, 6916a89); measurement open.**
+      `n_inducing` (default 64) learned vectors per layer attend to each feature's context
+      cells only, then every cell attends to the k summaries (Set Transformer ISAB, context-only);
+      default `full` is today's stage, unchanged (Phase 5 fingerprint, golden outputs incl. the
+      published checkpoint). Tests: no query reaches another row, query and feature chunking
+      exact, no cell-width call is rows x rows, padded columns ignored, fp16 head widths.
+      MEASURED on CPU (4 threads, load 135-385 on 16 cores, batch 1, 136 features, recipe
+      widths, 3/4 context, mean of 2 steps after a warm-up), forward+backward s and peak RSS GB
+      for induced / full split / full masked: N 512: 1.74 / 2.01 / 2.19 s, 1.31 / 1.34 / 1.24 GB;
+      N 1,024: 2.75 / 4.94 / 5.06 s, 2.12 / 2.29 / 2.01 GB; N 2,048: 5.145 / 10.05 / 13.015 s,
+      3.66 / 3.98 / 3.76 GB. CPU's fused attention never materialises the N x N scores, so peak
+      memory is linear in N for all three here; the quadratic memory of §79 is the CUDA math
+      path and needs measuring there. 929,714 parameters against 885,650.
+      **Inducing-point, context-only cell stage** behind a flag (gather from labelled
       context cells through k inducing points), linear in rows.
       Verify: at matched N up to 1,024 it is within the yardstick of full attention; memory at
       N = 4,096 measured.
-- [ ] DR6.3 **Readout tokens that take part in feature attention** (re-specify AU5.3), feeding a
+- [ ] DR6.3 **Implemented behind `readout: cls` and `head_mlp` (2026-10-18, 6916a89); measurement
+      open.** `n_readout` (default 4) learned tokens join each row's column attention: tokens
+      and unpadded cells attend to each other, padded cells stay masked as keys, the tokens skip
+      the row-within-feature stage and carry their state between blocks, and their concatenated
+      outputs are the row vector. `head_mlp` is d_model -> d_ff -> out. Defaults `pool` and
+      false are today's model. Parameters at the recipe: 885,650 pool; 898,130 cls K=4; 922,898
+      cls K=8; 952,466 pool + head_mlp; 964,946 cls K=4 + head_mlp.
+      **Readout tokens that take part in feature attention** (re-specify AU5.3), feeding a
       2-layer head.
       Verify: §137's parity probe at k = 2 rises above 0.60 AUC (chance today).
 - [ ] DR6.4 **v2 bundle against v1** at matched 240,000 tasks, two seeds: adopt if five-fold mean
