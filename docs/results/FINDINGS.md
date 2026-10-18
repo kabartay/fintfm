@@ -11437,6 +11437,30 @@ the two runs on the same rows (fold 0: 0.1691 on Kaggle, 0.1671 locally), from l
 on the Kaggle image; FinTFM's inputs pass through the same imputer and scaler. EN ran about 13 h
 on the GPU (estimated 2 h), so L600 at three times the steps did not fit the quota.
 
+### §164 result, arms L600 and the device re-run; §164 closed (MEASURED, 2026-10-17)
+
+`scripts/kaggle/task_164_l600` and `scripts/kaggle/task_164_dev` on Kaggle GPUs, fintfm pinned at
+5273275 like EN. The device re-run is §163's setting unchanged (seed 0), the run the amendment
+above requires. Identical test rows on every fold.
+
+| fold | §163 arm (CPU) | device re-run (GPU) | EN (GPU) | L600 (GPU) |
+| --- | --- | --- | --- | --- |
+| 0 | 0.2181 | 0.2185 | 0.2187 | 0.2205 |
+| 1 | 0.2068 | 0.2069 | 0.2051 | 0.2044 |
+| 2 | 0.1901 | 0.1901 | 0.1937 | 0.1966 |
+| 3 | 0.1955 | 0.1957 | 0.1993 | 0.2032 |
+| 4 | 0.2205 | 0.2202 | 0.2186 | 0.2182 |
+| **mean** | 0.2062 | 0.2063 | 0.2071 | 0.2086 |
+
+**Device gap:** +0.0001 mean AP (largest per-fold +0.0004), so twice the device gap is 0.0002 and
+the bar for EN and L600 stays 0.0073. EN's verdict is no longer provisional.
+
+**Verdicts under Rule 3:** **EN: no different** (+0.0009, 3 of 5 folds positive). **L600: no
+different** (+0.0024, 3 of 5 folds positive). With S1 (not replicated by 0.0002, seed noise SD
+0.0008), §164's three predictions all failed: on this checkpoint, 200 steps at lr 1e-5 is not
+improved by a second seed's luck, by 27 times more default labels per step, or by three times
+the steps. The lever that did move V4FinBench is the context, not the fine-tuning (§169).
+
 ## §165 — The published checkpoint is close to label-symmetric on synthetic tasks, and least so on Polish
 
 > **Measured on TabArena datasets (note added 2026-10-16, task DR4.1).** Polish bankruptcy and
@@ -11712,3 +11736,28 @@ inside `torch.nn.functional.multi_head_attention_forward`. More than double the 
 the precision points at the attention kernel: the likely cause is the row mask's dtype or form
 under autocast forcing the math fallback, which materialises the full attention matrix. Task
 DR5.5 fixes and tests it; a working fp16 is the largest unmeasured throughput lever on a T4.
+
+### §170 addendum: fp16 after the DR5.5 fix (MEASURED, 2026-10-17)
+
+E0 v4 (`runs/kaggle-e0v4/`), Kaggle T4, fintfm at 49f415c, published recipe, 50 timed steps:
+
+| setting | batch 8: s/step | tasks/hour | vs fp32 masked | peak memory | batch 4: tasks/hour |
+| --- | --- | --- | --- | --- | --- |
+| fp32, masked | 1.91 | 14,256 | 1.00x | 12.3 GB | 14,623 |
+| fp32, split | 1.54 | 17,534 | 1.23x | 13.3 GB | 18,442 |
+| **fp16, masked** | **0.74** | **33,959** | **2.38x** | **8.5 GB** | 34,435 |
+| **fp16, split** | **0.66** | **37,367** | **2.62x** | **9.5 GB** | 38,150 |
+
+Agreement on one fixed batch against fp32 masked: fp16 masked 8.5e-4, fp16 split 9.4e-4 in
+query logits. **Verdict under DR5.1's rule: fp16 is adopted** (outputs agree, 2.38x and 2.62x
+clear 1.3x) and uses less memory than fp32, as half precision should once the 12-wide cell heads
+reach a fused kernel. With DDP on a T4x2 (about 1.9x, above) a session should reach about
+65,000-70,000 tasks per hour (ESTIMATED, not measured together).
+
+### §169 addendum: tree depth does not matter (MEASURED, 2026-10-17)
+
+Same protocol as §169, `partition_max_depth` 1 and 3 (`runs/dr31/depth1`, `runs/dr31/depth3`):
+mean AP **0.2347** at depth 1, **0.2361** at depth 2, **0.2357** at depth 3 (per fold, depth 1:
+0.2261, 0.2258, 0.2382, 0.2356, 0.2480; depth 3: 0.2243, 0.2262, 0.2411, 0.2370, 0.2501). One split
+does nearly all the work, consistent with the label sitting behind one gate (§168).
+

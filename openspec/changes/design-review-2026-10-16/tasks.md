@@ -154,7 +154,7 @@
       against the published-feature runs, so both models' dependence on the column is known.
       Verify: per-fold AP for both arms in FINDINGS beside §167.
 
-- [ ] DR3.11 **Follow up §169.** Partitioned contexts with fine-tuning per leaf; with 8 members;
+- [ ] DR3.11 **Depth done (2026-10-17, §169 addendum):** depth 1, 2, 3 give 0.2347, 0.2361, 0.2357. **Follow up §169.** Partitioned contexts with fine-tuning per leaf; with 8 members;
       depth 1 and 3; bagging over 4-8 trees; and on TabArena-Lite (must not lose on numeric-only
       datasets). Each against §169's arm under §163's rule.
       Verify: per-fold AP for each arm in FINDINGS.
@@ -216,7 +216,7 @@
       workers. Adopt a setting only if outputs agree on a fixed batch and tasks per GPU-hour rise
       by 1.3x or more.
       Verify: a FINDINGS entry with tasks per GPU-hour for each setting and host.
-- [ ] DR5.5 **Partly done (2026-10-17): fix landed; GPU measurement open.** The cell
+- [x] DR5.5 **Done (2026-10-17, §170 addendum).** fp16 masked 2.38x and split 2.62x over fp32 on a T4, at lower memory; logits agree within 9.4e-4. **Partly done (2026-10-17): fix landed; GPU measurement open.** The cell
       stages' heads are 12 wide (`d_cell` 48 over 4 heads). On a T4 the memory-efficient
       kernel needs a multiple of 8 in fp16 but not in fp32, and the masks keep flash out, so
       fp16 ran on the math kernel, which upcasts to fp32 and stores every score matrix: the
