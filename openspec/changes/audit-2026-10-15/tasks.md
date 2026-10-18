@@ -219,7 +219,7 @@
       2026-10-15; results appended here when the check reports).
       Verify: every §159-§163 figure is listed beside its recomputed value.
 
-- [ ] AU2.8 **Confirmed 2026-10-16, still open.** No checkpoint records its prior config, but the
+- [x] AU2.8 **Done (2026-10-18, §172).** At a matched prior and protocol the cell-attention block is worth +0.0520 mean AP, 5 of 5 folds significant; the confound did not inflate §80. **Confirmed 2026-10-16, still open.** No checkpoint records its prior config, but the
       arm names and §78/§84 settle it: the cell arm is `v4-cellattn-fin10` (`p_financial` 1.0, batch 4,
       `n_rows` 256/512) and the old arm `v4-colid-fin07` (`p_financial` 0.7); no `colid-fin10` or
       `cellattn-fin07` was ever trained. The matched pair needs one training run (old architecture at

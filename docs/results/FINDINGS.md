@@ -11802,3 +11802,38 @@ both seeds: run 2M on the prior v2 trunk (DR2) instead of the financial-only pri
 fund neither 2M nor 10M at this model size; move to architecture v2 (DR6).
 
 **Prediction:** null on V4FinBench (§93 at 5x), positive on the proxy.
+
+## §172 — AU2.8 settled: at a matched prior, cell attention is worth +0.052 mean AP
+
+**MEASURED, 2026-10-18.** Two arms of the published recipe trained on Kaggle T4s at fintfm 49f415c,
+48,000 tasks, fp32, single GPU, seed 0, `p_financial` 1.0 for both: `pub-s0` as published, and
+`nocell-s0` with `--n-cell-blocks 0 --no-cell-labels` (`scripts/kaggle/ts_*`). Scored zero-shot on
+V4FinBench's five full-panel folds with the packaged default inference settings (`pub-s0` on this
+Mac's CPU, because the cell-attention model ran out of memory scoring at the default chunks on a
+14.56 GB T4; `nocell-s0` on the GPU; identical test rows). Company-level bootstrap, 500 resamples,
+Holm across folds.
+
+| fold | with cell attention | without | difference | 95% CI, companies | Holm p |
+| --- | --- | --- | --- | --- | --- |
+| 0 | 0.2026 | 0.1400 | −0.0625 | [−0.0774, −0.0455] | 0.010 |
+| 1 | 0.2044 | 0.1467 | −0.0577 | [−0.0725, −0.0440] | 0.010 |
+| 2 | 0.1773 | 0.1180 | −0.0593 | [−0.0744, −0.0478] | 0.010 |
+| 3 | 0.1740 | 0.1549 | −0.0191 | [−0.0320, −0.0049] | 0.012 |
+| 4 | 0.2154 | 0.1541 | −0.0613 | [−0.0776, −0.0472] | 0.010 |
+| **mean** | **0.1947** | **0.1428** | **−0.0520** | | |
+
+**The cell-attention block and its labels are worth +0.0520 mean AP at a matched prior and
+protocol, on 5 of 5 folds.** §80 and §91 compared arms whose prior mix also differed (100% against
+70% financial tasks); that confound is now measured out, and the architecture-only effect is
+slightly larger than §80's +0.049. The 4-to-3 smallest gain on fold 3 is the only fold under 0.05.
+
+The re-trained `pub-s0` scores 0.1947 against the published checkpoint's 0.1986: not a failed
+reproduction, since AU1.18 gave evaluation its own random stream, so a re-train at the same seed
+now draws different training tasks. It is a fresh replicate for the DR4.4 yardstick.
+
+### §171 progress: the 48,000-task arms (MEASURED, 2026-10-18)
+
+`scripts/kaggle/ts_e1_v48_s{0,1}` at d05ea19, fp16, split attention, DDP on a T4x2, global batch 8:
+6,000 steps in 3,150 s (0.525 s per 8-task step, about 55,000 tasks per hour). Zero-shot mean AP:
+seed 0 **0.1975** (0.2071, 0.2031, 0.1821, 0.1734, 0.2215), seed 1 **0.1878** (0.1945, 0.1850,
+0.1778, 0.1716, 0.2104). The 480,000-task arms run after the weekly quota resets.
