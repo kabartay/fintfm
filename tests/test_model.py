@@ -924,6 +924,9 @@ _P5_FINGERPRINT = {
 _P5_KEYS = ("n_cell_heads", "n_summary_tokens", "value_embedding", "value_basis_size",
             "value_basis_learnable", "value_ecdf", "attn_length_scale", "attn_length_ref",
             "attn_impl", "hazard_period_context")
+#: The design review DR6 levers (DR6.2, DR6.3), deleted alongside: a checkpoint saved before
+#: them lacks their keys too.
+_DR6_KEYS = ("cell_row_attn", "n_inducing", "readout", "n_readout", "head_mlp")
 
 
 def _p5_inputs(max_classes):
@@ -962,7 +965,7 @@ def test_checkpoint_without_phase5_keys_loads_with_identical_outputs(case, tmp_p
     path = tmp_path / "old.pt"
     model.save(str(path))
     ckpt = torch.load(str(path), weights_only=True)
-    for key in _P5_KEYS:
+    for key in (*_P5_KEYS, *_DR6_KEYS):
         del ckpt["config"][key]
     torch.save(ckpt, str(path))
     loaded = FinancialTFM.load(str(path))
@@ -981,6 +984,13 @@ def test_checkpoint_without_phase5_keys_loads_with_identical_outputs(case, tmp_p
         ({"attn_length_ref": 1}, "attn_length_ref"),
         ({"hazard_period_context": True}, "requires n_horizons"),
         ({"attn_impl": "flash"}, "attn_impl"),
+        ({"cell_row_attn": "sparse", "n_cell_blocks": 1}, "cell_row_attn"),
+        ({"cell_row_attn": "induced"}, "requires n_cell_blocks"),
+        ({"cell_row_attn": "induced", "n_cell_blocks": 1, "n_inducing": 0}, "n_inducing"),
+        ({"readout": "summary"}, "readout"),
+        ({"readout": "cls", "n_readout": 0}, "n_readout"),
+        ({"readout": "cls", "n_summary_tokens": 2}, "replaces the pooling step"),
+        ({"readout": "cls", "pooling": "attention"}, "replaces the pooling step"),
     ],
 )
 def test_phase5_config_refuses_nonsense(bad, match):
@@ -1536,3 +1546,192 @@ def test_predict_context_refuses_what_it_cannot_score():
         model.predict_context(Xc, yc, Xq, stage="pre_head")
     with pytest.raises(ValueError, match="unknown output"):
         model.predict_context(Xc, yc, Xq, output="proba")  # type: ignore[arg-type]
+
+
+# --- Design review DR6 levers: DR6.2 induced cell stage, DR6.3 readout tokens and MLP head ---
+#
+# Defaults: test_phase5_defaults_reproduce_the_pre_phase5_fingerprint above was recorded before
+# these fields existed and still passes, and tests/test_golden_outputs.py fingerprints every
+# inference output; the test below adds that no default builds a DR6 module.
+
+_DR6_INDUCED = {"n_cell_blocks": 1, "cell_labels": True, "cell_row_attn": "induced",
+                "n_inducing": 4}
+_DR6_CLS = {"readout": "cls", "n_readout": 4}
+_DR6_CASES = {
+    "induced": _DR6_INDUCED,
+    "cls": _DR6_CLS,
+    "induced+cls": {**_DR6_INDUCED, **_DR6_CLS, "n_cell_blocks": 2},
+}
+
+
+def _dr6_model(**extra):
+    """A seeded tiny model on ``_P5_BASE`` plus ``extra``, in eval mode."""
+    torch.manual_seed(0)
+    return FinancialTFM(ModelConfig(**{**_P5_BASE, **extra})).eval()
+
+
+def _record_attention_shapes(monkeypatch):
+    """Record ``(head width, query length, key length)`` of every SDPA call."""
+    calls = []
+    real = torch.nn.functional.scaled_dot_product_attention
+
+    def recording(q, k, v, *args, **kwargs):
+        calls.append((q.shape[-1], q.shape[-2], k.shape[-2]))
+        return real(q, k, v, *args, **kwargs)
+
+    monkeypatch.setattr(torch.nn.functional, "scaled_dot_product_attention", recording)
+    return calls
+
+
+def test_dr6_defaults_build_no_dr6_module():
+    model = _dr6_model(n_cell_blocks=1)
+    names = {n for n, _ in model.named_parameters()}
+    assert not any(n.startswith(("induced_", "inducing_points", "readout_tokens")) for n in names)
+    assert isinstance(model.head, torch.nn.Linear)
+    assert hasattr(model, "row_within_feature_encoder")
+    explicit = _dr6_model(n_cell_blocks=1, cell_row_attn="full", readout="pool", head_mlp=False)
+    X, y = _p5_inputs(3)
+    torch.testing.assert_close(_p5_run(explicit, X, y), _p5_run(model, X, y), rtol=0, atol=0)
+
+
+@pytest.mark.parametrize("case", ["induced", "induced+cls"])
+@pytest.mark.parametrize("attn_impl", ["masked", "split"])
+def test_induced_stage_lets_no_query_reach_another_row(case, attn_impl):
+    """DR6.2: query cells are never gathered from, so changing one query row's values (and
+    every query label, which no input reads) leaves every other row's logits unchanged."""
+    model = _dr6_model(**_DR6_CASES[case], attn_impl=attn_impl)
+    X, y = _p5_inputs(3)
+    n_ctx, row = 9, 12
+    X2, y2 = X.clone(), y.clone()
+    X2[:, row, :5] = 5.0 * torch.randn(2, 5, generator=torch.Generator().manual_seed(4))
+    y2[:, n_ctx:] = (y2[:, n_ctx:] + 1) % 3
+    base, moved = _p5_run(model, X, y, n_ctx), _p5_run(model, X2, y2, n_ctx)
+    others = [r for r in range(X.shape[1]) if r != row]
+    torch.testing.assert_close(moved[:, others], base[:, others], rtol=0, atol=1e-6)
+    assert not torch.allclose(moved[:, row], base[:, row])  # the query itself does move
+
+
+@pytest.mark.parametrize("case", sorted(_DR6_CASES))
+def test_dr6_levers_score_in_query_and_feature_chunks_exactly(case):
+    """Queries scored two at a time, and the cell stage run two features at a time, give the
+    one-pass logits."""
+    model = _dr6_model(**_DR6_CASES[case])
+    X, y = _p5_inputs(3)
+    Xc, yc, Xq = X[0, :9].numpy(), y[0, :9].numpy(), X[0, 9:].numpy()
+    whole = model.predict_context(Xc, yc, Xq, n_classes=3, pad_features=False)
+    chunked = torch.cat([
+        model.predict_context(Xc, yc, Xq[i : i + 2], n_classes=3, pad_features=False)
+        for i in range(0, len(Xq), 2)
+    ])
+    torch.testing.assert_close(chunked, whole, rtol=1e-5, atol=1e-6)
+    model.feature_chunk = 2
+    torch.testing.assert_close(
+        model.predict_context(Xc, yc, Xq, n_classes=3, pad_features=False), whole,
+        rtol=1e-5, atol=1e-6,
+    )
+
+
+def test_induced_stage_is_linear_in_rows(monkeypatch):
+    """DR6.2: no cell-width attention is rows x rows. The cell stage's calls are k inducing
+    vectors over the 9 context cells, the 14 rows over k summaries, and the 6-feature column
+    attention; only the row encoder (16-wide heads) still attends 14 x 14."""
+    model = _dr6_model(**_DR6_INDUCED).train()  # train: the stock layers' fast path skips SDPA
+    calls = _record_attention_shapes(monkeypatch)
+    X, y = _p5_inputs(3)
+    model.loss(X, y, 9, torch.tensor([3, 3])).backward()
+    cell = {(lq, lk) for width, lq, lk in calls if width == 8}
+    row = {(lq, lk) for width, lq, lk in calls if width == 16}
+    assert cell == {(4, 9), (14, 4), (6, 6)}, cell
+    assert row == {(14, 14)}, row
+    assert model.inducing_points.grad is not None and model.inducing_points.grad.abs().sum() > 0
+
+
+@pytest.mark.parametrize("case", sorted(_DR6_CASES))
+def test_dr6_levers_ignore_padded_columns(case):
+    """A padded (all-NaN) column changes nothing: without column identities, a table with one
+    gives the logits of the same table without it. The readout tokens never see its cells."""
+    model = _dr6_model(**_DR6_CASES[case], column_id_dim=0)
+    X, y = _p5_inputs(3)  # column 5 is padding
+    torch.testing.assert_close(
+        _p5_run(model, X[:, :, :5], y), _p5_run(model, X, y), rtol=1e-5, atol=1e-6
+    )
+
+
+@pytest.mark.parametrize("case", sorted(_DR6_CASES))
+def test_dr6_levers_keep_column_order_invariance(case):
+    """D4: readout tokens carry no position, so permuting columns permutes nothing out."""
+    model = _dr6_model(**_DR6_CASES[case], column_id_dim=0)
+    X, y = _p5_inputs(3)
+    perm = torch.tensor([3, 0, 4, 1, 2, 5])
+    torch.testing.assert_close(
+        _p5_run(model, X[:, :, perm], y), _p5_run(model, X, y), rtol=1e-5, atol=1e-6
+    )
+
+
+def test_readout_tokens_join_column_attention(monkeypatch):
+    """DR6.3: the column attention runs over the 6 cells plus 4 readout tokens, the row vector
+    is their 4 x d_cell outputs, and gradients reach the tokens."""
+    model = _dr6_model(**_DR6_CLS).train()
+    calls = _record_attention_shapes(monkeypatch)
+    X, y = _p5_inputs(3)
+    model.loss(X, y, 9, torch.tensor([3, 3])).backward()
+    assert {(lq, lk) for width, lq, lk in calls if width == 8} == {(10, 10)}
+    assert model.readout_tokens.shape == (1, 4, 16)
+    assert model.row_proj.in_features == 4 * 16
+    assert model.readout_tokens.grad is not None and model.readout_tokens.grad.abs().sum() > 0
+    assert not hasattr(model, "summary_queries") and not hasattr(model, "pool_query")
+
+
+@pytest.mark.parametrize("head_type", ["binned", "quantile"])
+def test_head_mlp_is_two_layers_at_d_ff(head_type):
+    """DR6.3's head: d_model -> d_ff -> out with a GELU, for either head type."""
+    extra = {"head_type": head_type, "n_quantiles": 5} if head_type == "quantile" else {}
+    linear, mlp = _dr6_model(**extra), _dr6_model(**extra, head_mlp=True)
+    out = 5 if head_type == "quantile" else 3
+    assert [type(m) for m in mlp.head] == [torch.nn.Linear, torch.nn.GELU, torch.nn.Linear]
+    assert (mlp.head[0].in_features, mlp.head[0].out_features) == (32, 64)
+    assert mlp.head[2].out_features == out
+    added = (32 * 64 + 64) + (64 * out + out) - (32 * out + out)
+    assert mlp.num_parameters() - linear.num_parameters() == added
+    X, y = _p5_inputs(3)
+    y = y.float() if head_type == "quantile" else y
+    assert _p5_run(mlp, X, y).shape == (2, 14, out)
+
+
+@pytest.mark.parametrize("attn_impl", ["masked", "split"])
+@pytest.mark.parametrize("chunk", [None, 2])
+def test_dr6_levers_get_fused_head_widths_in_half_precision(monkeypatch, attn_impl, chunk):
+    """DR5.5's invariant holds on the new stages: at 12-wide cell heads, every attention call
+    of a bf16-autocast training step gets 16-bit q, k, v at a multiple of 8 channels."""
+    from fintfm.modeling.model import HALF_PRECISION_HEAD_ALIGN
+
+    torch.manual_seed(0)
+    model = FinancialTFM(ModelConfig(
+        **{**_DR55_BASE, **_DR6_INDUCED, **_DR6_CLS, "attn_impl": attn_impl}
+    )).train()
+    model.feature_chunk = chunk
+    X, y = _p5_inputs(3)
+    calls = _record_attention_calls(monkeypatch)
+    with torch.autocast("cpu", dtype=torch.bfloat16):
+        loss = model.loss(X, y, 9, torch.tensor([3, 3]))
+    loss.backward()
+    assert torch.isfinite(loss) and calls
+    for dtype, dq, dk, dv, _mask in calls:
+        assert dtype == torch.bfloat16
+        assert dq % HALF_PRECISION_HEAD_ALIGN == dk % HALF_PRECISION_HEAD_ALIGN == 0
+        assert dv % HALF_PRECISION_HEAD_ALIGN == 0
+
+
+def test_dr6_levers_agree_across_attn_impl():
+    """``attn_impl`` changes only how the row encoder computes the same attention."""
+    extra = {**_DR6_INDUCED, **_DR6_CLS}
+    X, y = _p5_inputs(3)
+    masked, split = _dr6_model(**extra), _dr6_model(**extra, attn_impl="split")
+    torch.testing.assert_close(_p5_run(split, X, y), _p5_run(masked, X, y), rtol=1e-5, atol=1e-5)
+
+
+def test_induced_stage_refuses_an_empty_context():
+    model = _dr6_model(**_DR6_INDUCED)
+    X, y = _p5_inputs(3)
+    with pytest.raises(ValueError, match="at least one context row"):
+        model(X, y, 0)

@@ -201,10 +201,11 @@ train:
   eval_batches: 5          # held-out batches per evaluation
 
 # Every ModelConfig field, read by fintfm-train (DR1.3; the levers of audit AU5.2, AU5.3, AU5.9,
-# AU5.16 and AU5.17 among them). These MIRROR ModelConfig's literal defaults in
-# modeling/model.py, which stay authoritative because a checkpoint rebuilds its model without
-# reading a file; tests/test_config.py is the drift guard. The one exception is d_ff, below.
-# Every value here builds the architecture fintfm-train built before the key existed.
+# AU5.16 and AU5.17 and of design review DR6.2 and DR6.3 among them). These MIRROR
+# ModelConfig's literal defaults in modeling/model.py, which stay authoritative because a
+# checkpoint rebuilds its model without reading a file; tests/test_config.py is the drift
+# guard. The one exception is d_ff, below. Every value here builds the architecture
+# fintfm-train built before the key existed.
 model:
   max_features: 24              # widest table; narrower ones are padded and masked
   max_classes: 10               # head width; the published checkpoint is 2 (§158)
@@ -233,6 +234,11 @@ model:
   attn_length_ref: 512          # context length at which the length scale is 1
   attn_impl: masked             # masked, or split: the same row attention without a mask (AU5.2)
   hazard_period_context: false  # hazard context rows embed their default period (AU5.9)
+  cell_row_attn: full           # or induced: context-only inducing points, linear in N (DR6.2)
+  n_inducing: 64                # inducing vectors per induced layer; unused for full
+  readout: pool                 # or cls: readout tokens inside column attention (DR6.3)
+  n_readout: 4                  # readout tokens per row; unused for pool
+  head_mlp: false               # two-layer MLP output head instead of a linear one (DR6.3)
 
 # Large-table wrappers for the fintfm arm of fintfm-v4protocol (audit AU5.8). The partition_*
 # and boost_* keys MIRROR the literal defaults of PartitionedTFMClassifier and

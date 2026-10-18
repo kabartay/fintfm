@@ -428,6 +428,8 @@ def test_every_train_flag_defaults_to_none_and_names_a_config_field():
         ("train:\n  amp: fp8\n", "train.amp"),
         ("model:\n  value_embedding: spline\n", "model.value_embedding"),
         ("model:\n  n_heads: 0\n", "model.n_heads"),
+        ("model:\n  cell_row_attn: sparse\n", "model.cell_row_attn"),
+        ("model:\n  readout: summary\n", "model.readout"),
         ("model:\n  n_head: 2\n", "n_head"),
         ("train:\n  warmup_steps: -1\n", "warmup_steps"),
         ("train:\n  muon_lr: 0\n", "muon_lr"),

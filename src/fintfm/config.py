@@ -275,6 +275,11 @@ class ModelConfigDefaults:
     attn_length_ref: int = 512
     attn_impl: str = "masked"
     hazard_period_context: bool = False
+    cell_row_attn: str = "full"
+    n_inducing: int = 64
+    readout: str = "pool"
+    n_readout: int = 4
+    head_mlp: bool = False
 
 
 @dataclass(frozen=True)
@@ -562,6 +567,12 @@ def _validate(cfg: Config) -> None:
         raise ConfigError(f"model.n_heads must be at least 1, got {m.n_heads}")
     if m.attn_impl not in ("masked", "split"):
         raise ConfigError(f"model.attn_impl must be 'masked' or 'split', got {m.attn_impl!r}")
+    if m.cell_row_attn not in ("full", "induced"):
+        raise ConfigError(
+            f"model.cell_row_attn must be 'full' or 'induced', got {m.cell_row_attn!r}"
+        )
+    if m.readout not in ("pool", "cls"):
+        raise ConfigError(f"model.readout must be 'pool' or 'cls', got {m.readout!r}")
 
 
 #: Section name to dataclass. Declared explicitly rather than read off ``Config``'s

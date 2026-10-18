@@ -50,6 +50,10 @@ _DEFAULT_COLUMN_ID_SEED = 0
 
 #: Accepted values of :attr:`ModelConfig.attn_impl`.
 ATTN_IMPLS: tuple[str, ...] = ("masked", "split")
+#: Accepted values of :attr:`ModelConfig.cell_row_attn` (design review DR6.2).
+CELL_ROW_ATTNS: tuple[str, ...] = ("full", "induced")
+#: Accepted values of :attr:`ModelConfig.readout` (design review DR6.3).
+READOUTS: tuple[str, ...] = ("pool", "cls")
 
 #: What :meth:`FinancialTFM.predict_context` returns for the query rows.
 ContextOutput = Literal["logits", "term_structure", "representation"]
@@ -234,6 +238,40 @@ class ModelConfig:
             :meth:`term_structure` and :meth:`survival_loss` only, which then require
             ``period``; :meth:`forward` (the classification path) is unchanged. Requires
             ``n_horizons``.
+
+        **Design review DR6 levers** (``openspec/changes/design-review-2026-10-16``, §1.4 of
+        ``docs/design/DESIGN_REVIEW_2026-10-16.md``). Same contract as the Phase 5 levers: the
+        defaults build exactly the model that existed before these fields, and a checkpoint
+        without the keys loads with those defaults. No measured effect yet.
+
+        cell_row_attn: How the row-within-feature stage of each cell block mixes rows (DR6.2).
+            ``"full"`` (default) is the existing ``N x N`` attention under
+            :meth:`FinancialTFM._row_mask`, whose scores cost ``B * F * N**2`` (§79).
+            ``"induced"`` replaces it with an inducing-point stage, linear in rows: for every
+            feature, ``n_inducing`` learned vectors attend to that feature's **context** cells
+            only (labelled, with ``cell_labels``), then every cell, context or query, attends to
+            those summaries. See :meth:`FinancialTFM._induced_rows`. Query cells are never keys
+            of the gathering step, so a query cannot affect any other row and chunked prediction
+            stays exact. Requires ``n_cell_blocks >= 1``. ``attn_impl`` does not apply to this
+            stage, which needs no mask, and still selects the row encoder's attention.
+        n_inducing: Inducing vectors per layer of the ``"induced"`` stage. Peers use 64 to 256
+            (design review §1.4). Ignored for ``"full"``.
+        readout: How a row's cell tokens become the row vector (DR6.3). ``"pool"`` (default)
+            is the pooling path above, ``pooling`` and ``n_summary_tokens`` included.
+            ``"cls"`` appends ``n_readout`` learned readout tokens to every row's cell sequence
+            in the column-attention layers: readout tokens and cells attend to one another over
+            the ``F + K`` sequence, with padded cells masked out as keys for both, so cell to
+            cell attention is unchanged except that each cell can also attend to the ``K``
+            readout tokens. The readout tokens skip the row-within-feature stage (they are not
+            features) and carry their state from one cell block's column attention to the
+            next. Their final outputs are concatenated (``K * d_cell``) and projected to
+            ``d_model``. No position is added, so column-order invariance (D4) holds.
+            Incompatible with ``pooling="attention"`` and ``n_summary_tokens > 1``, which are
+            the other readouts.
+        n_readout: Readout tokens per row for ``readout="cls"``; ignored for ``"pool"``.
+        head_mlp: Replace the linear output head with a two-layer MLP (``d_model -> d_ff ->
+            out``, GELU) (DR6.3). Applies to the binned and quantile heads; the hazard head is
+            unchanged. ``False`` (default) keeps the linear head.
     """
 
     max_features: int = 24
@@ -263,18 +301,43 @@ class ModelConfig:
     attn_length_ref: int = 512
     attn_impl: str = "masked"
     hazard_period_context: bool = False
+    cell_row_attn: str = "full"
+    n_inducing: int = 64
+    readout: str = "pool"
+    n_readout: int = 4
+    head_mlp: bool = False
 
     def __post_init__(self) -> None:
-        """Validate ``head_type``, the Phase 5 levers, and their interactions.
+        """Validate ``head_type``, the Phase 5 and DR6 levers, and their interactions.
 
         Raises:
             ValueError: If ``head_type`` is not one of the two supported values, or if a
                 quantile head is combined with a hazard head -- a combination nothing in this
                 codebase builds, scores, or has a designed loss for. Also for an unknown
                 ``value_embedding``, a non-positive size, summary tokens combined with
-                attention pooling, ``hazard_period_context`` without a hazard head, or an
-                unknown ``attn_impl``.
+                attention pooling, ``hazard_period_context`` without a hazard head, an
+                unknown ``attn_impl``, ``cell_row_attn`` or ``readout``, an induced stage
+                without cell blocks, or readout tokens combined with another readout.
         """
+        if self.cell_row_attn not in CELL_ROW_ATTNS:
+            raise ValueError(
+                f"cell_row_attn must be one of {CELL_ROW_ATTNS}, got {self.cell_row_attn!r}"
+            )
+        if self.n_inducing < 1:
+            raise ValueError(f"n_inducing must be >= 1, got {self.n_inducing}")
+        if self.cell_row_attn == "induced" and self.n_cell_blocks < 1:
+            # a silent no-op otherwise: with no cell blocks there is no row-within-feature
+            # stage for the flag to change
+            raise ValueError("cell_row_attn='induced' requires n_cell_blocks >= 1")
+        if self.readout not in READOUTS:
+            raise ValueError(f"readout must be one of {READOUTS}, got {self.readout!r}")
+        if self.n_readout < 1:
+            raise ValueError(f"n_readout must be >= 1, got {self.n_readout}")
+        if self.readout == "cls" and (self.n_summary_tokens > 1 or self.pooling == "attention"):
+            raise ValueError(
+                "readout='cls' replaces the pooling step, so it cannot be combined with "
+                "n_summary_tokens > 1 or pooling='attention'"
+            )
         if self.value_embedding not in ("mlp", "rbf", "fourier"):
             raise ValueError(
                 "value_embedding must be 'mlp', 'rbf' or 'fourier', "
@@ -779,9 +842,33 @@ class FinancialTFM(nn.Module):
                 batch_first=True,
                 norm_first=True,
             )
-            self.row_within_feature_encoder = nn.TransformerEncoder(
-                row_within_feature_layer, num_layers=cfg.n_col_layers, enable_nested_tensor=False
-            )
+            if cfg.cell_row_attn == "full":
+                self.row_within_feature_encoder = nn.TransformerEncoder(
+                    row_within_feature_layer,
+                    num_layers=cfg.n_col_layers,
+                    enable_nested_tensor=False,
+                )
+            else:
+                # DR6.2: per layer, a gathering half (inducing vectors attend to the context
+                # cells) and a broadcasting half (every cell attends to the summaries), each a
+                # pre-norm attention-plus-feed-forward block with the stock layer's shape. The
+                # stock layers serve as parameter containers only (_induced_rows runs them),
+                # so the optimiser groups them exactly as it groups the full stage's layers.
+                # The inducing vectors are registered on the model itself, as the other free
+                # tokens are, so weight-decay exemption treats them alike.
+                self.induced_gather = nn.TransformerEncoder(
+                    row_within_feature_layer,
+                    num_layers=cfg.n_col_layers,
+                    enable_nested_tensor=False,
+                )
+                self.induced_broadcast = nn.TransformerEncoder(
+                    row_within_feature_layer,
+                    num_layers=cfg.n_col_layers,
+                    enable_nested_tensor=False,
+                )
+                self.inducing_points = nn.Parameter(
+                    torch.randn(cfg.n_col_layers, cfg.n_inducing, cfg.d_cell) * 0.02
+                )
             if cfg.cell_labels:
                 # Broadcast across every feature of a context row (task 39.2); query rows get
                 # a learned mask token instead of a real label, matching the row-level
@@ -797,7 +884,12 @@ class FinancialTFM(nn.Module):
             raise ValueError(
                 f"pooling must be 'meanmax' or 'attention', got {cfg.pooling!r}"
             )
-        if cfg.n_summary_tokens > 1:
+        if cfg.readout == "cls":
+            # DR6.3: K learned readout tokens join every row's column attention; their outputs,
+            # concatenated, are the row vector. Same small init as the other learned tokens.
+            self.readout_tokens = nn.Parameter(torch.randn(1, cfg.n_readout, cfg.d_cell) * 0.02)
+            self.row_proj = nn.Linear(cfg.n_readout * cfg.d_cell, cfg.d_model)
+        elif cfg.n_summary_tokens > 1:
             # AU5.3: K learned queries cross-attend over a row's feature tokens and their
             # outputs are concatenated, replacing mean+max. Same small init as pool_query.
             self.summary_queries = nn.Parameter(
@@ -838,8 +930,15 @@ class FinancialTFM(nn.Module):
             row_layer, num_layers=cfg.n_layers, enable_nested_tensor=False
         )
         self.norm = nn.LayerNorm(cfg.d_model)
+        head_out = cfg.n_quantiles if cfg.head_type == "quantile" else cfg.max_classes
+        if cfg.head_mlp:
+            # DR6.3: a two-layer head at the row stage's feed-forward width
+            self.head: nn.Module = nn.Sequential(
+                nn.Linear(cfg.d_model, cfg.d_ff), nn.GELU(), nn.Linear(cfg.d_ff, head_out)
+            )
+        else:
+            self.head = nn.Linear(cfg.d_model, head_out)
         if cfg.head_type == "quantile":
-            self.head = nn.Linear(cfg.d_model, cfg.n_quantiles)
             # Evenly spaced, strictly inside (0, 1): the two endpoints are undefined
             # quantiles (an infinite tail), so they are excluded rather than clamped.
             # Registered as a buffer so it moves with .to(device) and round-trips through
@@ -847,8 +946,6 @@ class FinancialTFM(nn.Module):
             self.register_buffer(
                 "quantile_taus", torch.linspace(0.0, 1.0, cfg.n_quantiles + 2)[1:-1]
             )
-        else:
-            self.head = nn.Linear(cfg.d_model, cfg.max_classes)
         self.hazard = (
             HazardHead(cfg.d_model, cfg.n_horizons) if cfg.n_horizons is not None else None
         )
@@ -904,7 +1001,7 @@ class FinancialTFM(nn.Module):
         Args:
             by_feature: ``(B*F, N, d_cell)``, features varying slowest.
             row_mask: ``(N, N)`` boolean attention mask, True = blocked; ``None`` under
-                ``attn_impl="split"``, which needs no mask.
+                ``attn_impl="split"`` and ``cell_row_attn="induced"``, which need no mask.
             B: Batch size, used only to validate the chunking arithmetic.
             Fdim: Feature count, used only to validate the chunking arithmetic.
             n_ctx: Context/query split; read only when ``row_mask`` is ``None``.
@@ -912,9 +1009,14 @@ class FinancialTFM(nn.Module):
         Returns:
             ``(B*F, N, d_cell)``, the encoder applied to every feature.
         """
-        layers = self.row_within_feature_encoder.layers
+        induced = self.cfg.cell_row_attn == "induced"
+        layers = None if induced else self.row_within_feature_encoder.layers
 
         def encode(x: torch.Tensor) -> torch.Tensor:
+            if induced:
+                assert n_ctx is not None
+                return self._induced_rows(x, n_ctx)  # DR6.2
+            assert layers is not None
             if row_mask is not None:
                 if not self._needs_aligned_heads(layers[0].self_attn, x):
                     return self.row_within_feature_encoder(x, mask=row_mask)
@@ -938,6 +1040,94 @@ class FinancialTFM(nn.Module):
             group = view[:, start:stop].reshape(-1, *by_feature.shape[1:])
             out[:, start:stop] = encode(group).reshape(B, stop - start, *by_feature.shape[1:])
         return out.reshape_as(by_feature)
+
+    def _induced_rows(self, x: torch.Tensor, n_ctx: int) -> torch.Tensor:
+        """Inducing-point row-within-feature attention, linear in rows (DR6.2).
+
+        The induced set attention of the Set Transformer (Lee et al. 2019, ISAB), restricted
+        so only context cells are gathered from, as the TabICLv2, TabFM and LightPFN papers
+        describe for their cell stages. An independent implementation from those papers'
+        descriptions; no code from any of them. Each layer, for each of the ``P = B * F``
+        feature problems in ``x``:
+
+        1. **Gather.** ``k = n_inducing`` learned vectors ``I`` attend to the feature's
+           ``n_ctx`` context cells: ``S = I + Attn(norm(I), norm(x_ctx))``, then
+           ``S = S + FF(norm(S))``. Query cells are never keys here.
+        2. **Broadcast.** Every cell attends to the ``k`` summaries:
+           ``x = x + Attn(norm(x), norm(S))``, then ``x = x + FF(norm(x))``.
+
+        So a context cell's output depends on the context alone and a query cell's on the
+        context and itself: no query affects another row, and splitting the queries into
+        chunks changes nothing. Scores are ``(P, heads, k, n_ctx)`` and ``(P, heads, N, k)``,
+        so memory and time grow linearly in rows where the full stage's ``(P, heads, N, N)``
+        grows quadratically. Each half's query and key share that half's first LayerNorm.
+
+        Every attention call goes through :func:`aligned_attention`, so half-precision heads
+        are padded to a fused-kernel width (DR5.5), and none takes a mask, since context
+        rows are never padding.
+
+        Args:
+            x: ``(P, N, d_cell)`` cells, rows ordered context first.
+            n_ctx: Context/query split, ``1 <= n_ctx <= N``.
+
+        Returns:
+            ``(P, N, d_cell)``.
+
+        Raises:
+            ValueError: If ``n_ctx < 1``: with no context there is nothing to gather.
+        """
+        if n_ctx < 1:
+            raise ValueError("cell_row_attn='induced' needs at least one context row")
+        for i, (gather, bcast) in enumerate(
+            zip(self.induced_gather.layers, self.induced_broadcast.layers, strict=True)
+        ):
+            ind = self.inducing_points[i].unsqueeze(0)  # (1, k, d)
+            attn = self._cross_attention(
+                gather.self_attn, gather.norm1(ind), gather.norm1(x[:, :n_ctx])
+            )
+            s = ind + gather.dropout1(attn)  # (P, k, d)
+            s = s + gather.dropout2(
+                gather.linear2(gather.dropout(gather.activation(gather.linear1(gather.norm2(s)))))
+            )
+            attn = self._cross_attention(bcast.self_attn, bcast.norm1(x), bcast.norm1(s))
+            x = x + bcast.dropout1(attn)
+            x = x + bcast.dropout2(
+                bcast.linear2(bcast.dropout(bcast.activation(bcast.linear1(bcast.norm2(x)))))
+            )
+        return x
+
+    def _cross_attention(
+        self, mha: nn.MultiheadAttention, xq: torch.Tensor, xkv: torch.Tensor
+    ) -> torch.Tensor:
+        """Multi-head attention of ``xq`` over ``xkv`` through ``mha``'s weights, unmasked.
+
+        Projects with ``mha``'s packed input projection, as ``nn.MultiheadAttention`` does,
+        and runs the kernel through :func:`aligned_attention` (DR5.5).
+
+        Args:
+            mha: The attention module whose projections are used.
+            xq: ``(Pq, Lq, D)`` normalised queries; ``Pq`` is 1 or the batch of ``xkv``, and a
+                batch of 1 is broadcast (the inducing vectors are shared by every problem).
+            xkv: ``(P, Lk, D)`` normalised keys and values.
+
+        Returns:
+            ``(P, Lq, D)``.
+        """
+        P, Lk, D = xkv.shape
+        Lq = xq.shape[1]
+        H = mha.num_heads
+        dh = D // H
+        w, b = mha.in_proj_weight, mha.in_proj_bias
+        q = F.linear(xq, w[:D], b[:D]).reshape(xq.shape[0], Lq, H, dh).transpose(1, 2)
+        k = F.linear(xkv, w[D : 2 * D], b[D : 2 * D]).reshape(P, Lk, H, dh).transpose(1, 2)
+        v = F.linear(xkv, w[2 * D :], b[2 * D :]).reshape(P, Lk, H, dh).transpose(1, 2)
+        if q.shape[0] != P:
+            # materialised rather than a stride-0 view, which not every fused kernel accepts;
+            # (P, heads, k, dh) is small beside the (P, N, d) cells
+            q = q.expand(P, -1, -1, -1).contiguous()
+        dropout_p = mha.dropout if self.training else 0.0
+        out = aligned_attention(q, k, v, dropout_p=dropout_p)
+        return mha.out_proj(out.transpose(1, 2).reshape(P, Lq, D))
 
     @staticmethod
     def _needs_aligned_heads(mha: nn.MultiheadAttention, x: torch.Tensor) -> bool:
@@ -976,6 +1166,31 @@ class FinancialTFM(nn.Module):
         # DR5.5: a (B*N, 1, 1, F) boolean mask broadcast over heads and queries, where the
         # stock module materialises a float32 (B*N*heads, 1, F) copy
         return self._prenorm_stack(layers, flat, None, ~safe_pad[:, None, None, :], 1.0)
+
+    def _column_attention_with_readout(
+        self, flat: torch.Tensor, safe_pad: torch.Tensor, readout: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Column attention over a row's cells plus its readout tokens (DR6.3).
+
+        The readout tokens are appended after the cells and never masked, so every token,
+        cell or readout, may attend to every unpadded cell and to every readout token, and
+        padded cells stay invisible as keys exactly as in :meth:`_column_attention`. The
+        same layers run, so a cell's attention differs from the pooled model's only by the
+        ``K`` extra keys. A row whose cells are all padding still has ``K`` valid keys.
+
+        Args:
+            flat: ``(B*N, F, d_cell)`` cells.
+            safe_pad: ``(B*N, F)`` boolean, True = a padded column.
+            readout: ``(B*N, K, d_cell)`` readout-token states.
+
+        Returns:
+            ``(cells, readout)``: ``(B*N, F, d_cell)`` and ``(B*N, K, d_cell)``.
+        """
+        Fdim, K = flat.shape[1], readout.shape[1]
+        seq = torch.cat([flat, readout.to(flat.dtype)], dim=1)
+        mask = torch.cat([safe_pad, safe_pad.new_zeros(safe_pad.shape[0], K)], dim=1)
+        out = self._column_attention(seq, mask)
+        return out[:, :Fdim], out[:, Fdim:]
 
     def _column_ids(
         self, B: int, Fdim: int, device: torch.device, dtype: torch.dtype, seed: int | None
@@ -1076,6 +1291,12 @@ class FinancialTFM(nn.Module):
         # A row of all-padding would make softmax produce NaN over a fully masked sequence;
         # such a task is degenerate, but guard rather than emit NaN silently.
         safe_pad = pad_rows & ~pad_rows.all(dim=1, keepdim=True)
+        # DR6.3: the readout tokens' running state, carried from one column stage to the next
+        readout = (
+            self.readout_tokens.expand(B * N, -1, -1).to(cells.dtype)
+            if self.cfg.readout == "cls"
+            else None
+        )
 
         if self.cfg.n_cell_blocks > 0:
             if self.cfg.cell_labels and y is not None:
@@ -1098,9 +1319,12 @@ class FinancialTFM(nn.Module):
                     dim=1,
                 )  # (B, N, d_cell)
                 cells = cells + cell_y[:, :, None, :]
-            # attn_impl="split" needs no mask (AU5.2); "masked" builds the one it always has
+            # attn_impl="split" needs no mask (AU5.2), nor does the induced stage (DR6.2);
+            # "masked" builds the one it always has
             row_mask = (
-                None if self.cfg.attn_impl == "split" else self._row_mask(N, n_ctx, X.device)
+                None
+                if self.cfg.attn_impl == "split" or self.cfg.cell_row_attn == "induced"
+                else self._row_mask(N, n_ctx, X.device)
             )
             for _ in range(self.cfg.n_cell_blocks):
                 # Row attention within one feature: a cell attends to the same feature's
@@ -1113,12 +1337,22 @@ class FinancialTFM(nn.Module):
                 cells = by_feature.reshape(B, Fdim, N, self.cfg.d_cell).permute(0, 2, 1, 3)
                 # Column attention within one row: the existing mechanism, reused per block.
                 flat = cells.reshape(B * N, Fdim, self.cfg.d_cell)
-                flat = self._column_attention(flat, safe_pad)
+                if readout is None:
+                    flat = self._column_attention(flat, safe_pad)
+                else:
+                    flat, readout = self._column_attention_with_readout(flat, safe_pad, readout)
                 cells = flat.reshape(B, N, Fdim, self.cfg.d_cell)
         else:
             flat = cells.reshape(B * N, Fdim, self.cfg.d_cell)
-            flat = self._column_attention(flat, safe_pad)
+            if readout is None:
+                flat = self._column_attention(flat, safe_pad)
+            else:
+                flat, readout = self._column_attention_with_readout(flat, safe_pad, readout)
             cells = flat.reshape(B, N, Fdim, self.cfg.d_cell)
+
+        if readout is not None:
+            # DR6.3: the K readout tokens' outputs, concatenated, are the row vector
+            return self.row_proj(readout.reshape(B, N, self.cfg.n_readout * self.cfg.d_cell))
 
         if self.cfg.n_summary_tokens > 1:
             # AU5.3: K summary tokens per row, concatenated, in place of mean+max.

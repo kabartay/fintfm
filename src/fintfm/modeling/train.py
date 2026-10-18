@@ -26,7 +26,7 @@ import torch
 
 from fintfm.config import Config, load_config
 from fintfm.modeling.loader import LOADERS, stream_batches
-from fintfm.modeling.model import ATTN_IMPLS, FinancialTFM, ModelConfig
+from fintfm.modeling.model import ATTN_IMPLS, CELL_ROW_ATTNS, READOUTS, FinancialTFM, ModelConfig
 from fintfm.prior import PriorConfig
 from fintfm.prior.base import TaskBatch
 from fintfm.prior.dump import TaskDump, open_task_dump
@@ -2086,6 +2086,45 @@ def build_parser() -> argparse.ArgumentParser:
         "the config default, is today's boolean-masked encoder; 'split' gives the same "
         "outputs with no attention mask, so CUDA's flash kernel is eligible. Same weights "
         "either way",
+    )
+    p.add_argument(
+        "--cell-row-attn",
+        type=str,
+        default=None,
+        choices=CELL_ROW_ATTNS,
+        help="row-within-feature stage of the cell blocks (design review DR6.2): 'full', the "
+        "config default, is today's N x N attention; 'induced' gathers each feature's "
+        "context cells through --n-inducing learned vectors and lets every cell read the "
+        "summaries, linear in rows. Requires --n-cell-blocks >= 1",
+    )
+    p.add_argument(
+        "--n-inducing",
+        type=int,
+        default=None,
+        help="inducing vectors per layer for --cell-row-attn induced (config default 64)",
+    )
+    p.add_argument(
+        "--readout",
+        type=str,
+        default=None,
+        choices=READOUTS,
+        help="how cell tokens become the row vector (design review DR6.3): 'pool', the "
+        "config default, is today's pooling (--pooling, --n-summary-tokens); 'cls' appends "
+        "--n-readout learned tokens to every row's column attention and concatenates their "
+        "outputs",
+    )
+    p.add_argument(
+        "--n-readout",
+        type=int,
+        default=None,
+        help="readout tokens per row for --readout cls (config default 4)",
+    )
+    p.add_argument(
+        "--head-mlp",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="two-layer MLP output head (d_model -> d_ff -> out) instead of a linear one "
+        "(design review DR6.3); config default false",
     )
     p.add_argument(
         "--hazard-period-context",

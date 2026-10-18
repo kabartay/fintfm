@@ -45,6 +45,11 @@ model:
   attn_length_ref: 512
   attn_impl: masked
   hazard_period_context: false
+  cell_row_attn: full
+  n_inducing: 64
+  readout: pool
+  n_readout: 4
+  head_mlp: false
 
 train:
   steps: 6000

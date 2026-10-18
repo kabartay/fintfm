@@ -356,12 +356,21 @@ _MODEL_LEVERS: dict[str, tuple[Any, ...]] = {
     "pooling": ("meanmax", "attention"),
     # none, a hazard head, or a hazard head whose context carries periods
     "hazard": ("none", "plain", "period"),
+    # design review DR6.2 and DR6.3
+    "cell_row_attn": ("full", "induced"),
+    "readout": ("pool", "cls"),
+    "head_mlp": (False, True),
 }
 
 
 def _model_valid(r: dict[str, Any]) -> bool:
     """ModelConfig's own refusals, so every row is one it builds."""
-    return not (r["n_summary_tokens"] > 1 and r["pooling"] == "attention")
+    other_readout = r["n_summary_tokens"] > 1 or r["pooling"] == "attention"
+    return not (
+        (r["n_summary_tokens"] > 1 and r["pooling"] == "attention")
+        or (r["cell_row_attn"] == "induced" and r["n_cell_blocks"] == 0)
+        or (r["readout"] == "cls" and other_readout)
+    )
 
 
 _MODEL_ROWS = pairwise_cover(_MODEL_LEVERS, _model_valid)
@@ -379,7 +388,7 @@ def _build_model(row: dict[str, Any]) -> FinancialTFM:
     return FinancialTFM(
         ModelConfig(
             max_features=6, max_classes=3, d_cell=8, d_model=16, n_heads=2, n_col_layers=1,
-            n_layers=2, d_ff=32, attn_length_ref=8,
+            n_layers=2, d_ff=32, attn_length_ref=8, n_inducing=3, n_readout=2,
             n_horizons=None if row["hazard"] == "none" else 3,
             hazard_period_context=row["hazard"] == "period", **levers,
         )
