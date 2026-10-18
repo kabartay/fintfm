@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import platform
+import sys
 from dataclasses import replace
 
 import numpy as np
@@ -191,7 +193,7 @@ def test_sign_flip_off_keeps_the_recorded_gated_financial_stream():
     # default mixture's stream is pinned by the first test in this file.
     cfg = PriorConfig(max_features=40, max_classes=5, n_rows_choices=(128, 256),
                       source_weights={"financial": 1.0}, financial_gate_prob=1.0)
-    for c in (cfg, replace(cfg, financial_sign_flip_prob=0.0)):
+    def digest(c: PriorConfig) -> tuple[str, float]:
         rng = np.random.default_rng(2026)
         h = hashlib.sha256()
         for _ in range(4):
@@ -200,8 +202,16 @@ def test_sign_flip_off_keeps_the_recorded_gated_financial_stream():
             h.update(b.y.numpy().tobytes())
             h.update(b.n_classes.numpy().tobytes())
             h.update(str(b.n_ctx).encode())
-        assert h.hexdigest() == "388ee2ea6327ba36e65e7b1af707f5bc9ef51beafcbaa40db7c0ef4c36337899"
-        assert rng.random() == 0.6906481870401622
+        return h.hexdigest(), rng.random()
+
+    unset, off = digest(cfg), digest(replace(cfg, financial_sign_flip_prob=0.0))
+    assert off == unset  # flip at 0.0 draws nothing and changes nothing, on any platform
+    # The recorded bytes hold only where they were recorded: the financial prior's
+    # transcendental functions round differently in Linux's libm (CI failed on 411d098).
+    if sys.platform == "darwin" and platform.machine() == "arm64":
+        assert unset == (
+            "388ee2ea6327ba36e65e7b1af707f5bc9ef51beafcbaa40db7c0ef4c36337899", 0.6906481870401622
+        )
 
 
 @pytest.mark.parametrize("gate_prob", [0.0, 1.0])
