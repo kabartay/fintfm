@@ -129,7 +129,9 @@ rather than the zero-shot one.
 started from reports context construction mattering more than model family on imbalanced
 credit data (Tanna et al., quoted in `docs/results/FINDINGS.md` §5). On the full V4FinBench
 panel the cell-attention gain measured 6-7 times any context effect (§84), though those arms
-may also differ in prior mix (audit task AU2.8).
+may also differ in prior mix (audit task AU2.8). Resolved 2026-10-18 (§172): at a matched prior
+the cell-attention gain is +0.0520 mean AP at the default context, 5 of 5 folds; §84's context
+sweep was not repeated.
 
 **Context strategy.** How the context is subsampled when the table exceeds `max_context`
 (default 2,000 rows): `uniform` (the default, D10), `balanced`, `hybrid`, `prototype` (§38) or

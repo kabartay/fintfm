@@ -564,7 +564,11 @@ because the prior draws task families first, and §166 finds such cuts cost 0.02
 whatever replaces the financial share. Read the §141 row as confounded, like §116's tree-prior
 result, until DR2.4 re-tests at a matched share.) The §80 win carries a caveat of its own: its two arms may also differ in prior
 mix (`p_financial` 1.0 against 0.7) and training recipe, so the architecture-only effect may
-be unmeasured (audit task AU2.8, `openspec/changes/audit-2026-10-15/tasks.md`). The §108 row
+be unmeasured (audit task AU2.8, `openspec/changes/audit-2026-10-15/tasks.md`). Resolved
+2026-10-18 (§172): with both arms re-trained at a matched prior and protocol (seed 0, 48,000
+tasks, `p_financial` 1.0), cell attention and its labels are worth +0.0520 mean AP (0.1947
+against 0.1428), lower without them on 5 of 5 folds, so the §80 row stands as an architecture
+win. The §108 row
 was also replaced by §114 on the same date: §108 was a TabArena ROC-AUC result at half the
 training tasks, not an AP result at matched tasks.
 

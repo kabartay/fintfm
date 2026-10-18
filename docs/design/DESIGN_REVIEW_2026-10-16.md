@@ -173,7 +173,8 @@ labels) and its checks are in task DR2.
   path; `capability.py` calls the model on raw features; three scripts read private
   `_ctx_y`/`_ctx_rate`.
 - **No provenance.** Checkpoints save only the model config: no prior config, training config,
-  git SHA or task count. That is why AU2.8 could not be settled from the checkpoint, and why 1.2
+  git SHA or task count. That is why AU2.8 could not be settled from the checkpoint (resolved
+  2026-10-18 by re-training both arms at a matched prior, §172: +0.0520 mean AP), and why 1.2
   went unnoticed. Run JSONs store the model path but no checksum or commit.
 - **Config keys accepted and ignored.** `fintfm-v4protocol` never passes `correct_prior`,
   `retrieval_groups`, `retrieval_min_positive` or `prototype_minority_ratio`;
@@ -196,7 +197,8 @@ labels) and its checks are in task DR2.
    published checkpoint; provenance in every checkpoint, dump and run JSON; config from one
    source with signature-driven drift tests; one inference path; a lever-combination validator.
    Nothing here changes a weight or an output, and the fingerprint test enforces that. Until
-   provenance exists, every new GPU checkpoint repeats AU2.8.
+   provenance exists, every new GPU checkpoint repeats AU2.8. (AU2.8 itself was resolved
+   2026-10-18 by a matched re-train, §172.)
 2. **Cheap measurements that need no pretraining** (DR3):
    - V4: partitioned contexts against uniform; 8 members against 1; a fixed positive count in
      the uniform context; the §130 probe fitted on the 2,000 context rows only; AP within

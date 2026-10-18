@@ -164,7 +164,8 @@ query group-mates). The project first adopted `balanced` from the literature (§
 V4FinBench out of time, uniform beat it by 10-12 AUC points (§29), and on the binary path the
 two are nearly tied (§35). §84 measured the cell-attention gain at 6-7 times any context
 effect on the full panel, so context is a second-order lever there (the architecture arms may
-also differ in prior mix; audit task AU2.8).
+also differ in prior mix; audit task AU2.8). Resolved 2026-10-18 (§172): at a matched prior the
+cell-attention gain is +0.0520 mean AP at the default context, 5 of 5 folds.
 
 **Base-rate correction.** Any strategy that rebalances the context *lies to the model about
 how common default is*, because an in-context learner reads the base rate out of its

@@ -122,8 +122,11 @@ capped discrimination regardless of true task difficulty, caught against an exac
 Bayes-optimal AUC. Its cause was isolated to the architecture rather than the prior after
 eliminating seven other candidates one at a time, then closed by a two-way cell-attention change
 worth +0.042 average precision on real data. That comparison also changed the prior mix
-(100% against 70% financial tasks; confirmed 2026-10-16, audit task AU2.8), so the effect of the
-architecture alone is unmeasured.
+(100% against 70% financial tasks; confirmed 2026-10-16, audit task AU2.8). Resolved
+2026-10-18 (§172): with both arms re-trained at a matched prior and protocol (seed 0, 48,000
+tasks, `p_financial` 1.0), the cell-attention block and its labels are worth +0.0520 mean
+average precision on V4FinBench (0.1947 against 0.1428), higher on 5 of 5 folds, each
+significant on a company-level bootstrap.
 
 **The record corrects itself in public.** This README has been wrong about its own results at
 least twice (§107, §112). Both are retracted in place, with the reasoning kept, and

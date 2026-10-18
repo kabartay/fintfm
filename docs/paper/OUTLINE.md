@@ -104,7 +104,9 @@ direction (§93/§97) — this project misread it once and the correction belong
 - **5.2 The fix, synthetic.** §78, both `p_financial` arms, two independent instruments.
 - **5.3 The fix, real.** §80/§84: +0.0486 AP matched-context, +0.0417 AP best-vs-best, 5/5
   folds, V4FinBench (the gain confounded with the prior mix, 100% against 70% financial
-  tasks; confirmed 2026-10-16, audit task AU2.8).
+  tasks; confirmed 2026-10-16, audit task AU2.8). Resolved 2026-10-18 (§172): at a matched
+  prior and protocol the block and its labels are worth +0.0520 mean AP (0.1947 against
+  0.1428), 5/5 folds, so 5.3 can quote that figure as the architecture effect.
 - **5.4 Where it still loses, externally.** §98 and §100 together — the placement *and* the
   decomposition. Presented as one result, because the placement without the decomposition
   overstates the architectural deficit by 2.8×.

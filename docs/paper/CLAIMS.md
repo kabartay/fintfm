@@ -385,7 +385,9 @@ V4FinBench numbers meet (§69, itself on a 10x subsample of 105,900 test rows, �
 ## Claim 10 — Two-way cell attention is a real, reproducible architectural fix for a severe capacity defect
 
 **Status: SURVIVES on synthetic data and on one real panel (V4FinBench), at matched
-context.** Evidence: §78 (synthetic), §80 (V4FinBench, five folds). §78 is one
+context.** Evidence: §78 (synthetic), §80 (V4FinBench, five folds). (Updated 2026-10-18,
+§172: the V4FinBench half now also holds at a matched prior and protocol, one training seed
+per arm.) §78 is one
 experiment (`n_cell_blocks=1`, `cell_labels=True`, both `p_financial` arms), confirmed by two
 independent instruments (a Bayes-ceiling probe with a closed-form, numerically-verified target,
 and the pre-existing antisymmetric probe).
@@ -394,6 +396,17 @@ and the pre-existing antisymmetric probe).
 differ in prior mix as well as architecture (`p_financial` 1.0 against 0.7, §80's confound
 note). Until a matched pair is trained, quote the V4FinBench gain as "cell attention plus a
 change of prior mix", not as an architecture effect. The synthetic half (§78) is unaffected.
+
+**Resolved 2026-10-18 (§172).** The matched pair has been trained: both arms re-trained at
+seed 0, 48,000 tasks, fp32, `p_financial` 1.0, differing only in `--n-cell-blocks 0
+--no-cell-labels`, scored zero-shot on the five full-panel folds at the packaged default
+inference settings. The cell-attention block and its labels are worth **+0.0520 mean AP**
+(0.1947 against 0.1428), lower without them on 5 of 5 folds, Holm p 0.010 to 0.012 on a
+500-resample company-level bootstrap. The V4FinBench gain can now be quoted as an architecture
+effect at the default context. Gaps: one training seed per arm; the two arms were scored on
+different devices (CPU and GPU) over identical test rows; §84's best-vs-best comparison has not
+been repeated at a matched prior. §80's +0.0486 and §84's +0.0417 below are kept as the
+mismatched-prior history.
 
 A checkpoint trained exclusively on the financial prior — the same prior that produced a
 severe, well-characterised capacity cap (§74: regret 0.234-0.277 at Bayes AUC 0.90-0.999,
@@ -425,7 +438,8 @@ p < 0.001** (possibly confounded with the prior mix, audit task AU2.8; **confirm
 2026-10-16**: the cell arm is `v4-cellattn-fin10`, `p_financial` 1.0, and the old arm
 `v4-colid-fin07`, `p_financial` 0.7, per §80's confound note, and no matched pair was ever
 trained, so the architecture-only effect is unmeasured; the same applies to §84's +0.0417 and
-§91's reference arm). The synthetic result
+§91's reference arm; **resolved 2026-10-18 (§172)**: a matched pair at `p_financial` 1.0 gives
++0.0520 mean AP, 5 of 5 folds, see above). The synthetic result
 did not dissociate on real data — the specific failure §47
 and §74 both exhibited and which this claim was explicitly held open against.
 

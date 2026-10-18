@@ -5598,6 +5598,12 @@ could previously select it.
 > §88 and §91 compare these two checkpoints. The architecture-only effect is unmeasured; it
 > will be filed as an audit task. Separately, the heading's "does not clear the project's own
 > best-ever score" was retracted by §82.
+>
+> **Resolved 2026-10-18 (§172):** a matched pair, both arms re-trained at seed 0, 48,000 tasks
+> and `p_financial` 1.0, puts the cell-attention block and its labels at +0.0520 mean AP
+> (0.1947 against 0.1428), lower without them on 5 of 5 folds, all significant on a
+> company-level bootstrap. The architecture-only effect is now measured, and it is slightly
+> larger than this section's +0.049.
 
 **Date:** 2026-09-15. **MEASURED**, two complete five-fold V4FinBench runs on the full
 1,000,087-row horizon-0 panel (3,587 positives, 0.359%), both under
@@ -6270,6 +6276,10 @@ step-500 evaluation, stands on the log and does not depend on the checkpoint.
 > `v4-colid-fin07` (`p_financial=0.7`), the confound recorded at the top of §80 (§97 row A, and
 > §83 naming `v4-colid-fin07` as the old arm). The architecture-only effect is unmeasured; it
 > will be filed as an audit task.
+>
+> **Resolved 2026-10-18 (§172):** at a matched prior and protocol the cell-attention block and
+> its labels are worth +0.0520 mean AP on V4FinBench, 5 of 5 folds. §172 does not re-measure
+> this section's `column_id_dim=12` Bayes-ceiling reference (+0.0337), which stays unmatched.
 
 **Date:** 2026-09-17. **MEASURED**, two 6,000-step T4 runs at §74's full protocol
 (`--batch-size 8 --n-rows-choices 256,512,1024 --feature-chunk 8 --column-id-dim 16

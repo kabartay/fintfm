@@ -166,8 +166,9 @@ panel has been scored with the new architecture, and this project has already le
 **Task 39.5 has since closed this (§80).** Two complete five-fold V4FinBench runs on the full
 1.0M-row panel, differing only in `n_cell_blocks`/`cell_labels`, give the new architecture
 +0.0486 mean AP, 5 folds of 5, every Holm-corrected p < 0.001 (possibly confounded with the
-prior mix, audit task AU2.8; confirmed 2026-10-16, see "Cell attention's real-data gain is
-confounded with the prior mix" below). The synthetic result did not dissociate.
+prior mix, audit task AU2.8; confirmed 2026-10-16, and resolved 2026-10-18 by §172, which
+measured +0.0520 mean AP at a matched prior, 5 of 5 folds; see the resolved entry at the end of
+this page). The synthetic result did not dissociate.
 
 **What survives is narrower and still limiting**: the fix is established at *matched context*,
 and §79's memory cost means the new architecture cannot be run at the context its predecessor
@@ -227,7 +228,8 @@ context, identical rows: cell attention leads by **+0.0417 AP, 5 folds of 5**. T
 effect is 6-7x the entire context effect. The concern that the architecture change might be a
 net real-data loss is closed, not merely unsupported. (Qualified 2026-10-16: the two arms also
 differ in prior mix, so "architecture effect" here means architecture plus prior mix; see the
-confound section below.)
+confound section below. Resolved 2026-10-18 (§172): at a matched prior the default-context gain
+is +0.0520 mean AP, 5 of 5 folds; this best-vs-best comparison itself was not repeated.)
 
 **Corrected 2026-09-16 (§82).** This section previously framed that open question as "whether
 cell attention clears the old architecture's best recorded score (0.2116, §71)". That framing
@@ -519,9 +521,19 @@ regression beating FinTFM (0.1658 against 0.1442 at the cap; FinTFM ahead on eve
 fold, §163). Context size is not what limits V4FinBench AP. §157's pilot ranking used the same
 cap and is not confirmed.
 
-## Cell attention's real-data gain is confounded with the prior mix
+## Resolved 2026-10-18: cell attention's real-data gain was confounded with the prior mix
 
-§80's +0.0486 mean AP and §84's +0.0417 compare `v4-cellattn-fin10` (`p_financial` 1.0) with
+**No longer a limitation (§172).** Both arms were re-trained at a matched prior and protocol
+(seed 0, 48,000 tasks, fp32, `p_financial` 1.0), differing only in `--n-cell-blocks 0
+--no-cell-labels`. Scored zero-shot on V4FinBench's five full-panel folds at the packaged
+default inference settings, the cell-attention block and its labels are worth **+0.0520 mean
+AP** (0.1947 against 0.1428), lower without them on 5 of 5 folds, each significant on a
+500-resample company-level bootstrap (Holm p 0.010 to 0.012). Fold 3's gain is 0.0191; the
+other four lie between 0.0577 and 0.0625. What remains open: one training seed per arm, the two
+arms scored on different devices (CPU and GPU) over identical test rows, and §84's best-vs-best
+context comparison not repeated at a matched prior. The original entry follows as history.
+
+(Original entry, 2026-10-16.) §80's +0.0486 mean AP and §84's +0.0417 compare `v4-cellattn-fin10` (`p_financial` 1.0) with
 `v4-colid-fin07` (`p_financial` 0.7), and §91's reference pair is the same two checkpoints (§80's
 confound note; confirmed 2026-10-16 in audit task AU2.8, which found no `colid-fin10` or
 `cellattn-fin07` was ever trained). The architecture-only effect on real data is unmeasured. A
