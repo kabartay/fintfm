@@ -277,14 +277,35 @@
       off; record the realised shares in every checkpoint (DR1.2).
       Verify: realised shares within binomial error of the weights at 10,000 draws; default
       stream byte-identical.
-- [ ] DR2.2 **A gated-label task source** (a threshold on 1-2 columns, then a score inside the
+- [ ] DR2.2 **Partly done (2026-10-18).** Source `"gated"` (`prior/gated.py`, via
+      `source_weights` only) and `PriorConfig.financial_gate_prob` (`prior.financial_gate_prob`,
+      `--financial-gate-prob`, default 0.0): gate drawn from negative equity, negative working
+      capital, coverage < 1 or a random ratio threshold, economic side on a coin, driver score
+      inside, LogU(0.002, 0.05) leak share outside; the gated ratio is always exposed. MEASURED
+      (`scripts/prior_stats.py --checks`, 300 tasks, gate probability 1): tree AP 0.6304 against
+      rank-logistic 0.4647 (+0.1657, tree wins 70.7% of 266 scorable tasks; ungated financial
+      -0.0339). **Open:** `long_term_debt/equity` points the same way in 87.3% of the 71 tasks
+      where it is significant (Spearman p < 0.01); every other column is at or below 63.9%. An
+      exclusion gate (81%, `equity/total_assets`) and a thin-equity tail (83%) were measured and
+      are worse; see `_GATE_ECONOMIC_PROB`. Needs an owner decision on the equity axis. Default
+      stream unchanged (`test_prior_v2.py`, `test_mixture.py`, `test_prior_levers.py`).
+      **A gated-label task source** (a threshold on 1-2 columns, then a score inside the
       gate) and a gated variant of the financial label (equity < 0, working capital < 0,
       coverage < 1 or a random ratio threshold, with a small leakage rate outside the gate),
       justified from balance-sheet insolvency tests and randomised so no global rule exists
       (§47).
       Verify: on 300 sampled tasks a tree beats rank-logistic regression on AP for the gated
       financial source, and no column points the same way in more than 75% of tasks.
-- [ ] DR2.3 **Knob distributions:** feature-to-row ratio bands, binary probability 0.7, explicit
+- [x] DR2.3 **Done (2026-10-18).** `prior/knobs.py`, each off by default (`prior.*` and the
+      `fintfm-train` flag of the same name): `feature_ratio_bands`, `p_binary`,
+      `imbalance_draws`, `categorical_mode=unordered`, `missing_mode=mixed`,
+      `tie_column_prob`, `irrelevant_frac_max`, `duplicate_frac_max`, `label_flip_max`, on
+      SCM, regression, tree, task families and gated (width bands on financial too).
+      MEASURED (`scripts/prior_stats.py --checks`, 300 tasks per source): every distribution
+      check passes; v2 generation 0.126 s per batch of 8 at 256/512/1024 rows and 136
+      features (default 0.094 s, load average 318). Default stream unchanged; tests in
+      `test_prior_v2.py`.
+      **Knob distributions:** feature-to-row ratio bands, binary probability 0.7, explicit
       imbalance draws, unordered and high-cardinality categoricals with Zipf frequencies,
       MCAR/MAR/MNAR missingness, ties and zero inflation, irrelevant and duplicated columns,
       label noise (the review's spec, §1.5 and DR2 in `DESIGN_REVIEW_2026-10-16.md`).

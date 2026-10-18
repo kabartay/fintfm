@@ -30,6 +30,7 @@ from fintfm.modeling.model import ATTN_IMPLS, FinancialTFM, ModelConfig
 from fintfm.prior import PriorConfig
 from fintfm.prior.base import TaskBatch
 from fintfm.prior.dump import TaskDump, open_task_dump
+from fintfm.prior.knobs import parse_feature_ratio_bands
 from fintfm.prior.levers import add_prior_lever_arguments, prior_lever_values
 from fintfm.prior.mixture import parse_source_weights, sample_batch, source_shares
 from fintfm.provenance import json_safe, sha256_file
@@ -200,7 +201,9 @@ _PRIOR_CONFIG_KNOBS = (
     "identity_shuffle", "discretize_frac", "n_noise_features", "n_correlated_block_features",
     "label_noise_rate", "min_ctx_per_class", "p_real_edgar", "real_edgar_panel_path",
     "p_real_mortgage", "real_mortgage_panel_path", "p_real_lendingclub",
-    "real_lendingclub_panel_path", "real_panels", "source_weights",
+    "real_lendingclub_panel_path", "real_panels", "source_weights", "financial_gate_prob",
+    "feature_ratio_bands", "p_binary", "imbalance_draws", "categorical_mode", "missing_mode",
+    "tie_column_prob", "irrelevant_frac_max", "duplicate_frac_max", "label_flip_max",
 )
 
 #: Accepted values of :attr:`TrainConfig.optimizer`.
@@ -1886,6 +1889,82 @@ def build_parser() -> argparse.ArgumentParser:
         "prior.source_weights, null, the sequential draw; '' forces it",
     )
     p.add_argument(
+        "--financial-gate-prob",
+        type=float,
+        default=None,
+        help="probability a financial task's label is gated (design review DR2.2): negative "
+        "equity, negative working capital, coverage < 1 or a random ratio threshold holds "
+        "nearly every default, ranked by the driver score inside, with a small leakage "
+        "outside. Defaults to the config's prior.financial_gate_prob, 0.0",
+    )
+    p.add_argument(
+        "--feature-ratio-bands",
+        type=str,
+        default=None,
+        help="features-per-row bands 'weight:lo:hi,...' for the SCM, tree, task-family, "
+        "gated and financial priors (design review DR2.3), e.g. "
+        "'0.5:0:0.05,0.35:0.05:0.2,0.15:0.2:0.5'; defaults to the config's "
+        "prior.feature_ratio_bands, empty, each prior's own uniform width; '' forces it",
+    )
+    p.add_argument(
+        "--p-binary",
+        type=float,
+        default=None,
+        help="probability an SCM or tree task is binary (DR2.3; the review proposes 0.7); "
+        "defaults to the config's prior.p_binary, null, a uniform class count",
+    )
+    p.add_argument(
+        "--imbalance-draws",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="draw SCM/tree class shares explicitly: binary minority LogU(4/N, 0.5), "
+        "multiclass Dirichlet over 4 rows per class (DR2.3); defaults to false",
+    )
+    p.add_argument(
+        "--categorical-mode",
+        type=str,
+        default=None,
+        choices=("ordered", "unordered"),
+        help="'unordered': permuted LogInt(2, 64)-level codes at Zipf frequencies in the "
+        "general priors (DR2.3); defaults to the config's prior.categorical_mode, 'ordered'",
+    )
+    p.add_argument(
+        "--missing-mode",
+        type=str,
+        default=None,
+        choices=("mcar", "mixed"),
+        help="'mixed': MCAR, MAR or MNAR per task at a LogU(0.01, 0.3) rate in the general "
+        "priors (DR2.3); defaults to the config's prior.missing_mode, 'mcar'",
+    )
+    p.add_argument(
+        "--tie-column-prob",
+        type=float,
+        default=None,
+        help="per numeric column probability of ties, a point mass or zero inflation in the "
+        "general priors (DR2.3); defaults to 0.0",
+    )
+    p.add_argument(
+        "--irrelevant-frac-max",
+        type=float,
+        default=None,
+        help="upper end of the share of a general task's width added as row-permuted, "
+        "irrelevant copies of its columns (DR2.3); defaults to 0.0",
+    )
+    p.add_argument(
+        "--duplicate-frac-max",
+        type=float,
+        default=None,
+        help="upper end of the share of a general task's width added as near-duplicate "
+        "columns (DR2.3); defaults to 0.0",
+    )
+    p.add_argument(
+        "--label-flip-max",
+        type=float,
+        default=None,
+        help="upper end of the per-task label flip rate in the general priors (DR2.3); the "
+        "financial prior keeps --label-noise-rate. Defaults to 0.0",
+    )
+    p.add_argument(
         "--identity-shuffle",
         action=argparse.BooleanOptionalAction,
         default=None,
@@ -2287,6 +2366,13 @@ def build_prior_config(args: argparse.Namespace, cfg: Config) -> PriorConfig:
         values["source_weights"] = parse_source_weights(weights)
     elif values["source_weights"] is not None:
         values["source_weights"] = dict(values["source_weights"])
+    bands = getattr(args, "feature_ratio_bands", None)
+    if bands is not None:  # a flag is a 'weight:lo:hi,...' string, the config a list of lists
+        values["feature_ratio_bands"] = parse_feature_ratio_bands(bands)
+    else:
+        values["feature_ratio_bands"] = tuple(
+            tuple(float(v) for v in b) for b in values["feature_ratio_bands"]
+        )
     n_horizons = _flag_or_config(args, cfg.model, "n_horizons")
     if n_horizons and values["source_weights"] is None:
         # the survival objective needs every task to carry a period; a weighted draw is

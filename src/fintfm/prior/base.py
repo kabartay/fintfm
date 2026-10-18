@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 import torch
@@ -32,6 +33,11 @@ class Task:
             task. When present, ``y`` is a placeholder and :func:`collate` overwrites it by
             binning this array on the **context rows' quantiles** -- see the note there for
             why binning cannot happen in the prior itself.
+        meta: Optional diagnostics a prior or the knob layer attaches (design review DR2.2,
+            DR2.3): a gated task's gate, the knob draws behind a task's columns.
+            ``scripts/prior_stats.py`` reads it to check each distribution against its target.
+            Never collated, so it cannot reach a batch or the model; ``None`` for every task
+            drawn with the knobs off.
     """
 
     X: np.ndarray
@@ -42,6 +48,7 @@ class Task:
     period: np.ndarray | None = None
     n_horizons: int | None = None
     y_continuous: np.ndarray | None = None
+    meta: dict[str, Any] | None = None
 
     @property
     def n_rows(self) -> int:

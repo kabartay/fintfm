@@ -17,6 +17,7 @@ from __future__ import annotations
 import numpy as np
 
 from fintfm.prior.base import Task
+from fintfm.prior.knobs import TaskKnobs, cut_classes
 
 
 def _rank_act(v: np.ndarray) -> np.ndarray:
@@ -126,6 +127,8 @@ def sample_scm_task_group(
     min_features: int = 2,
     max_classes: int = 10,
     legacy: bool = False,
+    knobs: TaskKnobs | None = None,
+    n_features: int | None = None,
 ) -> list[Task]:
     """Draw ``n_targets`` tasks that share one random graph, re-targeting a different node each.
 
@@ -150,6 +153,11 @@ def sample_scm_task_group(
         min_features: Lower bound on exposed features.
         max_classes: Upper bound on classes.
         legacy: Use the pre-48.17/48.19 prior.
+        knobs: Design review DR2.3's knobs (:mod:`fintfm.prior.knobs`), or ``None`` for
+            today's draws. Only the label cut and the skipping of the ordered categorical and
+            MCAR steps happen here; the column-side knobs are applied by the mixture.
+        n_features: Exposed width, drawn by the mixture from ``feature_ratio_bands``; ``None``
+            draws it uniformly here, as before.
 
     Returns:
         A list of ``n_targets`` tasks. Shorter only if the graph has too few nodes to supply
@@ -160,7 +168,8 @@ def sample_scm_task_group(
     """
     if n_targets < 1:
         raise ValueError(f"n_targets must be >= 1, got {n_targets}")
-    n_features = int(rng.integers(min_features, max_features + 1))
+    if n_features is None:
+        n_features = int(rng.integers(min_features, max_features + 1))
     pool = _sample_graph_pool(rng, n_rows, n_features, max_features, legacy)
     n_nodes = pool.shape[1]
     # Feature columns are shared; only the target node varies. Drawing the features once is
@@ -170,7 +179,7 @@ def sample_scm_task_group(
     feat_idx, target_idx = idx[:n_features], idx[n_features:]
     X_base = pool[:, feat_idx].astype(np.float64)
     return [
-        _finish_scm_task(rng, X_base.copy(), pool[:, j], n_features, max_classes)
+        _finish_scm_task(rng, X_base.copy(), pool[:, j], n_features, max_classes, knobs)
         for j in target_idx
     ]
 
@@ -183,6 +192,8 @@ def sample_scm_task(
     max_classes: int = 10,
     legacy: bool = False,
     _latent_out: list[np.ndarray] | None = None,
+    knobs: TaskKnobs | None = None,
+    n_features: int | None = None,
 ) -> Task:
     """Sample one classification task from a random structural causal model.
 
@@ -200,8 +211,12 @@ def sample_scm_task(
         _latent_out: Internal. When a list is passed, the continuous pre-threshold latent is
             appended to it, so :func:`sample_scm_regression_task` can reuse this exact
             generative process instead of approximating it.
+        knobs: Design review DR2.3's knobs, or ``None`` for today's draws; see
+            :func:`sample_scm_task_group`.
+        n_features: Exposed width from the mixture's band draw; ``None`` draws it here.
     """
-    n_features = int(rng.integers(min_features, max_features + 1))
+    if n_features is None:
+        n_features = int(rng.integers(min_features, max_features + 1))
     pool = _sample_graph_pool(rng, n_rows, n_features, max_features, legacy)
     idx = rng.choice(pool.shape[1], size=n_features + 1, replace=False)
     X = pool[:, idx[:-1]].astype(np.float64)
@@ -212,7 +227,7 @@ def sample_scm_task(
         # which is the property that makes a regression task drawn from it as hard as the
         # classification task drawn from the same node.
         _latent_out.append(t.copy())
-    return _finish_scm_task(rng, X, t, n_features, max_classes)
+    return _finish_scm_task(rng, X, t, n_features, max_classes, knobs)
 
 
 def _finish_scm_task(
@@ -221,6 +236,7 @@ def _finish_scm_task(
     t: np.ndarray,
     n_features: int,
     max_classes: int,
+    knobs: TaskKnobs | None = None,
 ) -> Task:
     """Turn a continuous target node and a feature block into a finished classification Task.
 
@@ -235,34 +251,29 @@ def _finish_scm_task(
         t: ``(n_rows,)`` continuous target node.
         n_features: Number of features in ``X``.
         max_classes: Upper bound on classes.
+        knobs: Design review DR2.3's knobs, or ``None``. The class cut follows ``p_binary``
+            and ``imbalance_draws`` (:func:`fintfm.prior.knobs.cut_classes`); under
+            ``categorical_mode="unordered"`` or ``missing_mode="mixed"`` the ordered coding or
+            the MCAR step below is skipped, without its draws, for the knob layer's own.
 
     Returns:
         A finished :class:`Task` with ``source="scm"``.
     """
-    n_rows = X.shape[0]
-    n_classes = int(rng.integers(2, max_classes + 1))
-    # discretise target either by quantiles (balanced) or random cut points (imbalanced)
-    if rng.random() < 0.5:
-        edges = np.quantile(t, np.linspace(0, 1, n_classes + 1)[1:-1])
+    y, n_present = cut_classes(rng, t, max_classes, knobs)
+    if knobs is not None and knobs.unordered:
+        is_cat = np.zeros(n_features, dtype=bool)
     else:
-        edges = np.sort(rng.uniform(t.min(), t.max(), size=n_classes - 1))
-    y = np.searchsorted(edges, t).astype(np.int64)
-    present = np.unique(y)
-    if len(present) < 2:
-        y[rng.choice(n_rows, size=max(1, n_rows // 20), replace=False)] = (y[0] + 1) % n_classes
-        present = np.unique(y)
-    # remap to a dense label space so n_classes reflects classes actually present
-    remap = {c: i for i, c in enumerate(present)}
-    y = np.vectorize(remap.get)(y).astype(np.int64)
-    # categorical columns: quantise a few features into integer codes
-    is_cat = rng.random(n_features) < rng.uniform(0.0, 0.4)
-    for j in np.flatnonzero(is_cat):
-        k = int(rng.integers(2, 8))
-        X[:, j] = np.searchsorted(np.quantile(X[:, j], np.linspace(0, 1, k + 1)[1:-1]), X[:, j])
-    if rng.random() < 0.5:
+        # categorical columns: quantise a few features into integer codes
+        is_cat = rng.random(n_features) < rng.uniform(0.0, 0.4)
+        for j in np.flatnonzero(is_cat):
+            k = int(rng.integers(2, 8))
+            X[:, j] = np.searchsorted(
+                np.quantile(X[:, j], np.linspace(0, 1, k + 1)[1:-1]), X[:, j]
+            )
+    if not (knobs is not None and knobs.mixed_missing) and rng.random() < 0.5:
         X[rng.random(X.shape) < rng.uniform(0, 0.2)] = np.nan
     return Task(
-        X=X.astype(np.float32), y=y, n_classes=len(present), is_categorical=is_cat, source="scm"
+        X=X.astype(np.float32), y=y, n_classes=n_present, is_categorical=is_cat, source="scm"
     )
 
 
@@ -299,6 +310,8 @@ def sample_scm_regression_task(
     max_features: int = 24,
     min_features: int = 2,
     n_bins: int = 10,
+    knobs: TaskKnobs | None = None,
+    n_features: int | None = None,
 ) -> Task:
     """Sample one **regression** task by keeping the SCM's latent instead of thresholding it.
 
@@ -327,6 +340,9 @@ def sample_scm_regression_task(
         max_features: Upper bound on exposed features.
         min_features: Lower bound on exposed features.
         n_bins: Bins the continuous target is discretised into.
+        knobs: Design review DR2.3's knobs, or ``None``; passed to the shared SCM draw so its
+            ordered categoricals and MCAR step give way to the knob layer's.
+        n_features: Exposed width from the mixture's band draw; ``None`` draws it here.
 
     Returns:
         A :class:`Task` with ``y_continuous`` set and ``source="scm-regression"``.
@@ -334,7 +350,7 @@ def sample_scm_regression_task(
     latent_out: list[np.ndarray] = []
     base = sample_scm_task(
         rng, n_rows, max_features=max_features, min_features=min_features,
-        max_classes=2, _latent_out=latent_out,
+        max_classes=2, _latent_out=latent_out, knobs=knobs, n_features=n_features,
     )
     latent = latent_out[0].astype(np.float64)
     # Log-uniform over [0.02, 3.0]: most tasks learnable, some dominated by noise. A linear

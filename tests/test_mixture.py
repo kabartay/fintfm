@@ -13,6 +13,7 @@ import torch
 
 from fintfm.prior.base import Task, TaskBatch, ensure_context_classes
 from fintfm.prior.mixture import (
+    _WEIGHTED_ONLY_SOURCES,
     SOURCE_NAMES,
     PriorConfig,
     _draw_source,
@@ -221,9 +222,11 @@ def test_weighted_shares_agree_at_reuse_one_and_four():
 
 
 def test_weighted_names_follow_the_sequential_chain():
-    """One list of names: the weighted draw's order is the chain's, then financial and scm."""
-    assert SOURCE_NAMES == (*(n for n, _ in _sequential_sources(PriorConfig())), "financial",
-                            "scm")
+    """One list of names: the weighted draw's order is the chain's, then the weighted-only
+    sources (DR2.2's ``gated``, which has no ``p_*`` field), then financial and scm."""
+    assert SOURCE_NAMES == (*(n for n, _ in _sequential_sources(PriorConfig())),
+                            *_WEIGHTED_ONLY_SOURCES, "financial", "scm")
+    assert _WEIGHTED_ONLY_SOURCES == ("gated",)
 
 
 @pytest.mark.parametrize(

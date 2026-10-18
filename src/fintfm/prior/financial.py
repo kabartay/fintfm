@@ -66,6 +66,56 @@ _RATE_CEILING = 0.30
 _SHARPNESS_MIN = 0.3
 _SHARPNESS_MAX = 12.0
 
+#: The insolvency tests the gated financial label (design review DR2.2) draws its gate from,
+#: uniformly. Each is a balance-sheet or cash-flow test a credit analyst or a court applies:
+#:
+#: * ``negative_equity`` -- the **balance-sheet test** of insolvency: liabilities exceed
+#:   assets (equity < 0). It is also V4FinBench's ``Insolvency_flag``, behind which 3,586 of
+#:   its 3,587 positives sit (``docs/design/DESIGN_REVIEW_2026-10-16.md`` §1.1).
+#: * ``negative_working_capital`` -- the **liquidity test**: current assets do not cover
+#:   short-term liabilities, the balance-sheet form of the cash-flow ("unable to pay debts as
+#:   they fall due") test.
+#: * ``coverage_below_one`` -- the **debt-service test**: EBITDA does not cover interest, so
+#:   the firm services its debt only by borrowing or selling assets.
+#: * ``ratio_threshold`` -- a random ratio from :data:`_RATIO_CLASSES` thresholded at a random
+#:   tail on a random side, so the gate is not always one of the three named tests.
+_GATE_KINDS: tuple[str, ...] = (
+    "negative_equity", "negative_working_capital", "coverage_below_one", "ratio_threshold",
+)
+
+#: Share of rows inside a gate when the share is drawn (a quantile gate, or the negative-equity
+#: share the accounts are built to): log-uniform over this range. V4FinBench's is 10.6%.
+_GATE_SHARE_RANGE: tuple[float, float] = (0.03, 0.3)
+
+#: Share of all defaults that fall outside the gate, log-uniform. V4FinBench's is 1 in 3,587;
+#: the range sits above it so the gate is near-necessary rather than a rule.
+_GATE_LEAK_RANGE: tuple[float, float] = (0.002, 0.05)
+
+#: Probability a named test gates on its **economic** side: the defaults live where the test
+#: fails (equity < 0, working capital < 0, coverage < 1). Otherwise they live in the opposite
+#: tail of the same ratio, at the same drawn share. Every one of the three tests reads "a
+#: weak balance sheet defaults", which is true and is exactly the universal feature-to-label
+#: rule ``docs/results/FINDINGS.md`` §47 found a model memorises instead of reading its
+#: context; the driver signs below are randomised for the same reason. 0.5 makes the side a
+#: coin, so a gate's direction is learnt from the context.
+#:
+#: Measured 2026-10-18 (``scripts/prior_stats.py --checks``, 300 tasks at gate probability 1,
+#: columns counted where Spearman p < 0.01): always taking the economic side put five columns
+#: above 89% same-direction; this coin leaves one, ``long_term_debt/equity``, at 87% of the
+#: 71 tasks where it is significant, since that ratio is low both for the healthiest firms and,
+#: through its sign, for insolvent ones. Two alternatives were measured and are worse: the
+#: other side of the same threshold (an exclusion gate) put eight columns above 75%, led by
+#: ``equity/total_assets`` at 81%; a thin-equity tail for the inverted equity test put
+#: ``equity/total_assets`` at 83%. A gate on the equity axis moves ``equity/total_assets`` and
+#: ``long_term_debt/equity`` together whichever tail it takes, so no choice of tail balances
+#: both; that residual is open (design review DR2.2).
+_GATE_ECONOMIC_PROB = 0.5
+
+#: A natural threshold (working capital < 0, coverage < 1) is used only when the share of rows
+#: it gates lies in this band; outside it the gate falls back to a drawn quantile of the same
+#: ratio, so a task never carries an empty gate or one holding nearly every row.
+_GATE_NATURAL_SHARE_BAND: tuple[float, float] = (0.01, 0.6)
+
 
 def _sigmoid(z: np.ndarray) -> np.ndarray:
     """Logistic function, mapping a latent to a per-period hazard.
@@ -92,7 +142,7 @@ def _solve_intercept(z: np.ndarray, target_rate: float) -> float:
 
 
 def _accounts(rng: np.random.Generator, n: int, macro: dict, sector_of: np.ndarray,
-              sector_par: dict) -> dict[str, np.ndarray]:
+              sector_par: dict, insolvent_share: float | None = None) -> dict[str, np.ndarray]:
     """Generate a balance sheet and P&L per firm, respecting accounting identities.
 
     Real credit datasets are wide because many ratios are computed over a few underlying
@@ -112,6 +162,11 @@ def _accounts(rng: np.random.Generator, n: int, macro: dict, sector_of: np.ndarr
         macro: Sampled macro regime (``rate``, ``cycle``).
         sector_of: Sector index per firm.
         sector_par: Sampled per-sector parameters.
+        insolvent_share: When set (the gated label's ``negative_equity`` test, DR2.2), this
+            share of the firms, the most leveraged, carry liabilities of 1.02-1.6 times their
+            assets, so their equity is negative. Leverage is otherwise capped at 0.98 and no
+            firm is insolvent. Applied before any account is derived from leverage, so every
+            identity still holds. ``None`` (default) consumes no draw.
 
     Returns:
         Mapping of account name to a length-``n`` array. All strictly level quantities;
@@ -124,6 +179,9 @@ def _accounts(rng: np.random.Generator, n: int, macro: dict, sector_of: np.ndarr
     leverage = np.clip(
         rng.beta(2, 3, size=n) * 0.6 + sector_par["leverage"][sector_of] * 0.6 - 0.15, 0.0, 0.98
     )
+    if insolvent_share is not None:
+        k = max(1, round(insolvent_share * n))
+        leverage[np.argsort(-leverage, kind="stable")[:k]] = 1.0 + rng.uniform(0.02, 0.6, size=k)
     total_liabilities = leverage * total_assets
     equity = total_assets - total_liabilities
     short_frac = np.clip(rng.beta(2, 2, size=n), 0.05, 0.95)
@@ -239,6 +297,106 @@ def _ratio_family(
     return cols, used
 
 
+def _floored_ratio(num: np.ndarray, den: np.ndarray) -> np.ndarray:
+    """``num / den`` with the denominator floored away from zero, as :func:`_ratio_family` does.
+
+    Args:
+        num: Numerator account.
+        den: Denominator account.
+
+    Returns:
+        The ratio, finite wherever the accounts are.
+    """
+    floor = np.maximum(np.abs(den), 1e-6 * (np.abs(den).mean() + 1e-12))
+    return num / np.where(den < 0, -floor, floor)
+
+
+def _draw_gate(
+    rng: np.random.Generator,
+    kind: str,
+    share: float,
+    economic: bool,
+    acc: dict[str, np.ndarray],
+) -> tuple[np.ndarray, np.ndarray, dict]:
+    """Build a gated label's gate from the true accounts (design review DR2.2).
+
+    Args:
+        rng: Random generator.
+        kind: One of :data:`_GATE_KINDS`.
+        share: Share of rows a drawn-quantile threshold cuts off; for ``negative_equity`` on
+            its economic side, the insolvent share the accounts were built to.
+        economic: Put the defaults where the test fails (equity < 0, working capital < 0,
+            coverage < 1); otherwise in the opposite tail of the same ratio, at ``share``
+            (:data:`_GATE_ECONOMIC_PROB`). Ignored by ``ratio_threshold``, whose side is
+            drawn here.
+        acc: The true accounts, from :func:`_accounts`.
+
+    Returns:
+        ``(gate, column, info)``: the boolean gate, the ratio it thresholds (exposed to the
+        model so the gate can be found), and a record of what was drawn: the ratio, the
+        ``side`` the gate holds ("low" is below ``cut``, "high" above it) and whether the
+        threshold is the test's own (``"economic"``) or a drawn quantile.
+    """
+    if kind == "ratio_threshold":
+        num, den = _RATIO_CLASSES[int(rng.integers(len(_RATIO_CLASSES)))]
+        side = float(rng.choice([-1.0, 1.0]))
+        q = _floored_ratio(acc[num], acc[den])
+        at = float(np.quantile(side * q, 1.0 - share))
+        return side * q > at, q, {"kind": kind, "ratio": f"{num}/{den}", "economic": None,
+                                  "side": "high" if side > 0 else "low", "threshold": "quantile",
+                                  "cut": side * at}
+    num, den, cut = {
+        "negative_equity": ("equity", "total_assets", 0.0),
+        "negative_working_capital": ("working_capital", "total_assets", 0.0),
+        "coverage_below_one": ("ebitda", "interest", 1.0),
+    }[kind]
+    q = _floored_ratio(acc[num], acc[den])
+    info: dict = {"kind": kind, "ratio": f"{num}/{den}", "economic": economic}
+    if not economic:
+        at = float(np.quantile(q, 1.0 - share))
+        info.update(side="high", threshold="quantile", cut=at)
+        return q > at, q, info
+    lo, hi = _GATE_NATURAL_SHARE_BAND
+    natural = q < cut
+    if lo <= natural.mean() <= hi:
+        info.update(side="low", threshold="economic", cut=cut)
+        return natural, q, info
+    at = float(np.quantile(q, share))
+    info.update(side="low", threshold="quantile", cut=at)
+    return q < at, q, info
+
+
+def _gated_default_probability(
+    rng: np.random.Generator,
+    distress: np.ndarray,
+    gate: np.ndarray,
+    base_rate: float,
+    leak_range: tuple[float, float],
+) -> tuple[np.ndarray, float]:
+    """Per-firm default probability for a gated label: the driver score inside, leakage outside.
+
+    Inside the gate the existing driver score ranks firms, with an intercept solved so the
+    in-gate rate carries the task's defaults; outside it a drawn share of the defaults falls
+    at random, so the gate is near-necessary rather than a hard rule.
+
+    Args:
+        rng: Random generator.
+        distress: ``(n,)`` scaled latent distress.
+        gate: ``(n,)`` boolean gate.
+        base_rate: The task's sampled default rate.
+        leak_range: Range of the share of defaults outside the gate, drawn log-uniformly.
+
+    Returns:
+        ``(p_default, leak)``.
+    """
+    leak = float(np.exp(rng.uniform(np.log(leak_range[0]), np.log(leak_range[1]))))
+    share = float(gate.mean())
+    in_rate = min(base_rate * (1.0 - leak) / max(share, 1e-12), 0.95)
+    b = _solve_intercept(distress[gate], in_rate)
+    out_rate = in_rate * share * leak / ((1.0 - leak) * max(1.0 - share, 1e-12))
+    return np.where(gate, _sigmoid(distress + b), min(out_rate, 1.0)), leak
+
+
 def _sample_survival(
     rng: np.random.Generator, distress: np.ndarray, target_rate: float, n_horizons: int
 ) -> tuple[np.ndarray, np.ndarray]:
@@ -329,6 +487,11 @@ def sample_financial_task(
     n_noise_features: int = 0,
     n_correlated_block_features: int = 0,
     label_noise_rate: float = 0.0,
+    n_features: int | None = None,
+    gate_prob: float = 0.0,
+    gate_economic_prob: float = _GATE_ECONOMIC_PROB,
+    gate_share_range: tuple[float, float] = _GATE_SHARE_RANGE,
+    gate_leak_range: tuple[float, float] = _GATE_LEAK_RANGE,
 ) -> Task:
     """Sample one synthetic corporate-default classification task.
 
@@ -389,10 +552,43 @@ def sample_financial_task(
             keeping ``period`` consistent with the flipped label by the same rule the
             single-class guarantee above already applies.
 
+        n_features: Exposed width before the redundant/noise columns, drawn by the mixture
+            from ``feature_ratio_bands`` (design review DR2.3); ``None`` draws it uniformly on
+            ``[min_features, max_features]`` here, as before.
+        gate_prob: Probability the label is **gated** (design review DR2.2): a gate drawn
+            from :data:`_GATE_KINDS` -- negative equity, negative working capital, interest
+            coverage below one, or a random ratio threshold -- holds nearly every default,
+            the existing driver score ranks firms inside it, and a small share of defaults
+            leaks outside it at random. That is V4FinBench's shape: a gate, then a ranking
+            (``docs/design/DESIGN_REVIEW_2026-10-16.md`` §1.1). The ratio the gate thresholds
+            is always exposed, computed from the true accounts even under
+            ``identity_shuffle``, since a gate the model cannot see is not a gate it can
+            learn. Refused with ``n_horizons``. ``0.0`` (default) consumes no draw and
+            reproduces every checkpoint's tasks; any other value attaches ``meta`` (the gate,
+            or ``None``, and each exposed column's name) to every task.
+        gate_economic_prob / gate_share_range / gate_leak_range: The gate's side, share and
+            leakage distributions; see :data:`_GATE_ECONOMIC_PROB`, :data:`_GATE_SHARE_RANGE`
+            and :data:`_GATE_LEAK_RANGE` for why each is what it is.
+
     Returns:
         A binary :class:`Task` whose columns are a random subset of financial quantities with
         random transforms and missingness, carrying ``period`` when ``n_horizons`` is set.
     """
+    # --- gated label (DR2.2): decided first, since negative equity shapes the accounts -------
+    gate_kind: str | None = None
+    gate_share, gate_economic = 0.0, True
+    if gate_prob > 0.0:
+        if n_horizons is not None:
+            raise ValueError(
+                "gate_prob cannot be combined with n_horizons: the gated label has no "
+                "survival form, and a task silently left ungated would misstate the mixture"
+            )
+        if rng.random() < gate_prob:
+            gate_kind = _GATE_KINDS[int(rng.integers(len(_GATE_KINDS)))]
+            gate_share = float(
+                np.exp(rng.uniform(np.log(gate_share_range[0]), np.log(gate_share_range[1])))
+            )
+            gate_economic = bool(rng.random() < gate_economic_prob)
     # --- macro regime --------------------------------------------------------
     macro = {"rate": rng.uniform(0.005, 0.12), "cycle": rng.normal(0.0, 1.0)}
     rate, cycle = macro["rate"], macro["cycle"]
@@ -407,7 +603,8 @@ def sample_financial_task(
     sector_hazard = rng.normal(0.0, 0.6, size=n_sectors)
     sector_cyclicality = sector_par["cyclicality"]
     # --- accounts, obeying accounting identities -----------------------------
-    acc = _accounts(rng, n_rows, macro, sector, sector_par)
+    insolvent = gate_share if gate_kind == "negative_equity" and gate_economic else None
+    acc = _accounts(rng, n_rows, macro, sector, sector_par, insolvent_share=insolvent)
     assets = acc["total_assets"]
     log_assets = np.log(assets)
     age = acc["age"]
@@ -526,13 +723,26 @@ def sample_financial_task(
     rate_floor = max(absolute_rate_floor, min_expected_positives / max(n_rows, 1))
     rate_ceiling = max(rate_floor * 2.0, rate_ceiling)
     base_rate = float(np.exp(rng.uniform(np.log(rate_floor), np.log(rate_ceiling))))
-    b = _solve_intercept(distress, base_rate)
-    p_default = _sigmoid(distress + b)
+    gate_info: dict | None = None
+    gate_col: np.ndarray | None = None
+    if gate_kind is None:
+        b = _solve_intercept(distress, base_rate)
+        p_default = _sigmoid(distress + b)
+    else:
+        gate, gate_col, gate_info = _draw_gate(rng, gate_kind, gate_share, gate_economic, acc)
+        p_default, gate_info["leak"] = _gated_default_probability(
+            rng, distress, gate, base_rate, gate_leak_range
+        )
+        gate_info["share"] = float(gate.mean())
     if n_horizons is not None:
         period, y = _sample_survival(rng, distress, base_rate, n_horizons)
     else:
         period = None
         y = (rng.random(n_rows) < p_default).astype(np.int64)
+    if gate_info is not None and y.max() == 0:
+        # a gated task's guaranteed default is its most likely in-gate firm, not a random row
+        # that would put the only positive outside the gate
+        y[int(np.argmax(p_default))] = 1
     if y.min() == y.max():  # guarantee both classes are present
         flip = rng.choice(n_rows, size=max(1, n_rows // 50), replace=False)
         y[flip] = 1 - y[flip]
@@ -598,11 +808,14 @@ def sample_financial_task(
     # Width: real panels carry 64-95 features because they compute many ratios over one
     # balance sheet (docs/results/FINDINGS.md §18). Expose a sampled mix of named quantities and
     # derived ratios up to max_features, rather than capping at the named set.
-    n_expose = int(rng.integers(min_features, max_features + 1))
+    n_expose = (
+        n_features if n_features is not None else int(rng.integers(min_features, max_features + 1))
+    )
     n_named = int(min(len(names), max(1, round(n_expose * rng.uniform(0.2, 0.6)))))
     chosen = rng.choice(len(names), size=n_named, replace=False)
     cols: list[np.ndarray] = []
     cats: list[bool] = []
+    col_names: list[str] = [names[j] for j in chosen]  # for ``meta`` only; no draw
     for j in chosen:
         v, is_cat = candidates[names[j]]
         v = v.astype(np.float64).copy()
@@ -628,15 +841,29 @@ def sample_financial_task(
         v = v + rng.normal(0, rng.uniform(0.0, 0.05) * (np.nanstd(v) + 1e-9), size=n_rows)
         cols.append(v)
         cats.append(False)
+    col_names.extend(_ratio_names)
+    if gate_col is not None and gate_info is not None:
+        # the gated ratio is always visible; it replaces a random column when there is no room
+        gate_name = f"gate:{gate_info['ratio']}"
+        if len(cols) < max_features:
+            cols.append(gate_col.astype(np.float64))
+            cats.append(False)
+            col_names.append(gate_name)
+        else:
+            j = int(rng.integers(len(cols)))
+            cols[j], cats[j], col_names[j] = gate_col.astype(np.float64), False, gate_name
     # redundant / pure-noise columns
     room = max_features - len(cols)
     n_extra = int(rng.integers(0, min(room, 4) + 1)) if room > 0 else 0
     for _ in range(n_extra):
         if rng.random() < 0.5 and cols:
-            src = cols[int(rng.integers(len(cols)))]
+            src_j = int(rng.integers(len(cols)))
+            src = cols[src_j]
             cols.append(src * rng.normal(1, 0.3) + rng.normal(0, 0.5 * (src.std() + 1e-9), n_rows))
+            col_names.append(f"redundant:{col_names[src_j]}")
         else:
             cols.append(rng.normal(0, 1, size=n_rows))
+            col_names.append("noise")
         cats.append(False)
     X = np.stack(cols, axis=1)
     # A ratio with a near-zero denominator is legitimate in a real filing but must not
@@ -665,10 +892,12 @@ def sample_financial_task(
     if n_noise_add > 0:
         X = np.concatenate([X, rng.normal(0, 1, size=(n_rows, n_noise_add))], axis=1)
         cats.extend([False] * n_noise_add)
+        col_names.extend(["noise"] * n_noise_add)
         room -= n_noise_add
     n_block_add = min(n_correlated_block_features, room)
     if n_block_add > 0:
-        src = X[:, int(rng.integers(X.shape[1]))]
+        src_j = int(rng.integers(X.shape[1]))
+        src = X[:, src_j]
         src_std = np.nanstd(src) + 1e-9
         block = np.stack(
             [
@@ -679,6 +908,7 @@ def sample_financial_task(
         )
         X = np.concatenate([X, block], axis=1)
         cats.extend([False] * n_block_add)
+        col_names.extend([f"block:{col_names[src_j]}"] * n_block_add)
     # missingness: MCAR everywhere plus MNAR concentrated on distressed firms
     mcar = rng.uniform(0.0, 0.15)
     mask = rng.random(X.shape) < mcar
@@ -695,4 +925,8 @@ def sample_financial_task(
         source="financial",
         period=period,
         n_horizons=n_horizons,
+        meta=(
+            {"gate": gate_info, "columns": [col_names[i] for i in perm]}
+            if gate_prob > 0.0 else None
+        ),
     )
