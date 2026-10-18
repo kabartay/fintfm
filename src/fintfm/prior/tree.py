@@ -49,6 +49,7 @@ from __future__ import annotations
 import numpy as np
 
 from fintfm.prior.base import Task
+from fintfm.prior.knobs import TaskKnobs, cut_classes
 
 #: Ceiling on trees per ensemble. Drawn log-uniformly, so most draws are far below this: a
 #: forest of one is a step function and a forest of many is nearly smooth, and the prior needs
@@ -103,6 +104,8 @@ def sample_tree_task(
     min_features: int = 2,
     max_classes: int = 10,
     _latent_out: list[np.ndarray] | None = None,
+    knobs: TaskKnobs | None = None,
+    n_features: int | None = None,
 ) -> Task:
     """Sample one classification task whose target is an oblivious-tree ensemble of the features.
 
@@ -120,11 +123,18 @@ def sample_tree_task(
         _latent_out: Internal. When a list is passed, the continuous pre-threshold target is
             appended to it, matching `scm.py`'s hook so a regression variant can reuse this
             exact generative process.
+        knobs: Design review DR2.3's knobs (:mod:`fintfm.prior.knobs`), or ``None`` for
+            today's draws. The class cut follows ``p_binary`` and ``imbalance_draws``; the
+            ordered categorical coding and the MCAR step give way to the knob layer's under
+            ``categorical_mode="unordered"`` and ``missing_mode="mixed"``. The column-side
+            knobs are applied by the mixture.
+        n_features: Width from the mixture's band draw; ``None`` draws it here.
 
     Returns:
         A :class:`fintfm.prior.base.Task` with ``source="tree"``.
     """
-    n_features = int(rng.integers(min_features, max_features + 1))
+    if n_features is None:
+        n_features = int(rng.integers(min_features, max_features + 1))
     # Correlated features, not independent Gaussians: real tabular columns are correlated, and
     # an axis-aligned boundary over independent features is a much easier problem than over
     # correlated ones.
@@ -143,27 +153,19 @@ def sample_tree_task(
     if _latent_out is not None:
         _latent_out.append(t.copy())
 
-    n_classes = int(rng.integers(2, max_classes + 1))
-    if rng.random() < 0.5:
-        edges = np.quantile(t, np.linspace(0, 1, n_classes + 1)[1:-1])
-    else:
-        edges = np.sort(rng.uniform(t.min(), t.max(), size=n_classes - 1))
-    y = np.searchsorted(edges, t).astype(np.int64)
-    present = np.unique(y)
-    if len(present) < 2:
-        y[rng.choice(n_rows, size=max(1, n_rows // 20), replace=False)] = (y[0] + 1) % n_classes
-        present = np.unique(y)
-    remap = {c: i for i, c in enumerate(present)}
-    y = np.vectorize(remap.get)(y).astype(np.int64)
+    y, n_present = cut_classes(rng, t, max_classes, knobs)
 
-    is_cat = rng.random(n_features) < rng.uniform(0.0, 0.4)
-    for j in np.flatnonzero(is_cat):
-        k = int(rng.integers(2, 8))
-        X[:, j] = np.searchsorted(
-            np.quantile(X[:, j], np.linspace(0, 1, k + 1)[1:-1]), X[:, j]
-        )
-    if rng.random() < 0.5:
+    if knobs is not None and knobs.unordered:
+        is_cat = np.zeros(n_features, dtype=bool)
+    else:
+        is_cat = rng.random(n_features) < rng.uniform(0.0, 0.4)
+        for j in np.flatnonzero(is_cat):
+            k = int(rng.integers(2, 8))
+            X[:, j] = np.searchsorted(
+                np.quantile(X[:, j], np.linspace(0, 1, k + 1)[1:-1]), X[:, j]
+            )
+    if not (knobs is not None and knobs.mixed_missing) and rng.random() < 0.5:
         X[rng.random(X.shape) < rng.uniform(0, 0.2)] = np.nan
     return Task(
-        X=X.astype(np.float32), y=y, n_classes=len(present), is_categorical=is_cat, source="tree"
+        X=X.astype(np.float32), y=y, n_classes=n_present, is_categorical=is_cat, source="tree"
     )

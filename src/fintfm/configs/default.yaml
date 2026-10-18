@@ -156,6 +156,23 @@ prior:
   # the p_* keys and real_panels must stay at their defaults. null keeps the sequential draw
   # and every existing checkpoint's batches byte for byte.
   source_weights: null
+  # DR2.2: probability a financial task's label is gated (negative equity, negative working
+  # capital, coverage < 1 or a random ratio threshold), ranked by the driver score inside the
+  # gate with a small leakage outside. The generic gated prior is the source "gated", reached
+  # through source_weights only. 0.0 keeps every financial label as today.
+  financial_gate_prob: 0.0
+  # DR2.3: knob distributions for the general priors (prior/knobs.py), each off by default so
+  # every existing checkpoint's batches are reproduced byte for byte. Each mirrors the
+  # PriorConfig field of the same name (tests/test_config.py).
+  feature_ratio_bands: []          # [[weight, lo, hi], ...] features per row; [] keeps U[2, max]
+  p_binary: null                   # P(binary) for SCM/tree; null keeps U[2, max_classes]
+  imbalance_draws: false           # binary minority LogU(4/N, 0.5), multiclass Dirichlet
+  categorical_mode: ordered        # unordered: permuted LogInt(2, 64)-level Zipf codes
+  missing_mode: mcar               # mixed: MCAR / MAR / MNAR at LogU(0.01, 0.3)
+  tie_column_prob: 0.0             # per numeric column: ties, point mass or zero inflation
+  irrelevant_frac_max: 0.0         # share of width as row-permuted copies, U(0, max)
+  duplicate_frac_max: 0.0          # share of width as near-duplicates, U(0, max)
+  label_flip_max: 0.0              # per-task label flip rate, U(0, max)
 
 # Every TrainConfig field, read by fintfm-train (DR1.3; the knobs of audit AU5.2, AU5.10 and
 # AU5.17 among them). These MIRROR the literal defaults of TrainConfig in modeling/train.py, as

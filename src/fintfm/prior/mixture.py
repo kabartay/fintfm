@@ -27,6 +27,15 @@ from fintfm.prior.financial import (
     MIN_EXPECTED_POSITIVES,
     sample_financial_task,
 )
+from fintfm.prior.gated import sample_gated_task
+from fintfm.prior.knobs import (
+    TaskKnobs,
+    apply_task_knobs,
+    check_knobs,
+    draw_extra_counts,
+    draw_width,
+    knobs_from,
+)
 from fintfm.prior.learnability import is_learnable
 from fintfm.prior.real_edgar import DEFAULT_PANEL_PATH, sample_real_edgar_task
 from fintfm.prior.real_lendingclub import DEFAULT_PANEL_PATH as DEFAULT_LENDINGCLUB_PANEL_PATH
@@ -328,6 +337,55 @@ class PriorConfig:
     drawn as at full width; a task's outputs are then the same at either width (to float
     rounding). It saves compute, not tasks: the batch's tasks and random stream are
     unchanged. ``False`` (default) pads to ``max_features``, byte for byte as before."""
+    financial_gate_prob: float = 0.0
+    """Probability a financial task's label is **gated** (design review DR2.2;
+    :func:`fintfm.prior.financial.sample_financial_task`'s ``gate_prob``): one of negative
+    equity, negative working capital, interest coverage below one, or a random ratio
+    threshold holds nearly every default, the existing driver score ranks firms inside it,
+    and a small share of defaults leaks outside. V4FinBench's label has that shape and the
+    financial prior's sigmoid label does not (``docs/design/DESIGN_REVIEW_2026-10-16.md``
+    §1.1, §1.5). Refused with :attr:`n_horizons`. ``0.0`` (default) consumes no draw and
+    reproduces every checkpoint's batches byte for byte. The generic gated prior is a source
+    of its own, ``"gated"``, reached through :attr:`source_weights` only."""
+    feature_ratio_bands: tuple[tuple[float, float, float], ...] = ()
+    """``(weight, lo, hi)`` bands of features per row (design review DR2.3,
+    :mod:`fintfm.prior.knobs`). Each SCM, regression, tree, task-family, gated and financial
+    task draws a band by weight, a ratio uniformly inside it, and takes that ratio times its
+    rows as its width, clipped to the source's limits. Today every width is uniform on
+    ``[2, max_features]`` at every row count, so a 256-row task reaches 0.53 features per row
+    while peers skew narrow (§1.5). ``()`` (default) keeps each source's own draw."""
+    p_binary: float | None = None
+    """Probability an SCM or tree task is binary, its class count otherwise uniform on
+    ``[3, max_classes]`` (DR2.3; the review proposes 0.7, against SCM's 11% today). ``None``
+    (default) keeps the uniform draw on ``[2, max_classes]``."""
+    imbalance_draws: bool = False
+    """Draw SCM and tree class shares explicitly (DR2.3): a binary minority share from
+    LogU(4/N, 0.5) on a random side, multiclass shares from a Dirichlet over a floor of 4 rows
+    per class, cut at the latent's quantiles. Today imbalance comes only from random cut
+    points, leaving a class with two rows or fewer in 5 of 20 SCM and 7 of 20 tree tasks
+    (§1.5, MEASURED). ``False`` (default) keeps the quantile-or-random-cut coin."""
+    categorical_mode: str = "ordered"
+    """``"unordered"`` replaces the SCM and tree priors' ordered 2-7-level quantile codes with
+    permuted codes of LogInt(2, 64) levels at Zipf frequencies, on a drawn share of columns,
+    and applies the same to task-family and gated tasks (DR2.3). ``"ordered"`` (default)
+    keeps each source's own coding."""
+    missing_mode: str = "mcar"
+    """``"mixed"`` replaces the general priors' MCAR step with one of MCAR, MAR or MNAR per
+    task at a LogU(0.01, 0.3) rate (DR2.3). ``"mcar"`` (default) keeps each source's own."""
+    tie_column_prob: float = 0.0
+    """Per numeric column probability, in the general priors, of ties, a point mass or zero
+    inflation (DR2.3) -- the structure that survives the rank transform, where heavy tails do
+    not (§1.5). ``0.0`` (default) touches no column."""
+    irrelevant_frac_max: float = 0.0
+    """Upper end of the share of a general task's width added as row-permuted copies of its
+    own columns, irrelevant to the label (DR2.3). ``0.0`` (default) adds none."""
+    duplicate_frac_max: float = 0.0
+    """Upper end of the share of a general task's width added as near-duplicate columns
+    (DR2.3). ``0.0`` (default) adds none."""
+    label_flip_max: float = 0.0
+    """Upper end of the per-task rate at which a general classification task's labels flip to
+    another class (DR2.3). The financial prior keeps its own :attr:`label_noise_rate`.
+    ``0.0`` (default) flips nothing."""
 
 
 #: Every source :attr:`PriorConfig.source_weights` may name besides a real panel, in the order
@@ -336,8 +394,20 @@ class PriorConfig:
 #: path order, so two equal mappings written in different orders draw the same stream.
 SOURCE_NAMES: tuple[str, ...] = (
     "tree", "regression", "trivial", "crossed", "task_family", "real_edgar", "real_mortgage",
-    "real_lendingclub", "financial", "scm",
+    "real_lendingclub", "gated", "financial", "scm",
 )
+
+#: Sources only :attr:`PriorConfig.source_weights` can reach: they have no ``p_*`` field, so
+#: the sequential chain never draws them.
+_WEIGHTED_ONLY_SOURCES: tuple[str, ...] = ("gated",)
+
+#: Sources the DR2.3 column- and label-side knobs apply to (:func:`apply_task_knobs`), and
+#: the narrowest width each supports, for the band draw. The financial prior takes the band
+#: width only; its observation model and label noise are its own.
+_KNOB_SOURCES: frozenset[str] = frozenset({"scm", "regression", "tree", "task_family", "gated"})
+_MIN_WIDTH: dict[str, int] = {
+    "scm": 2, "regression": 2, "tree": 2, "task_family": 2, "gated": 2, "financial": 4,
+}
 
 #: Prefix of a real panel's key in :attr:`PriorConfig.source_weights`.
 REAL_PANEL_PREFIX = "real_panel:"
@@ -366,11 +436,23 @@ def _check_levers(cfg: PriorConfig) -> None:
 
     Raises:
         ValueError: On an unknown transform name, a non-positive ``max_query_rows``,
-            ``permute_classes`` combined with ``n_horizons`` or ``head_type="quantile"``, or
-            any ``source_weights`` refusal of :func:`_weighted_shares`.
+            ``permute_classes`` combined with ``n_horizons`` or ``head_type="quantile"``, any
+            ``source_weights`` refusal of :func:`_weighted_shares`, a malformed DR2.3 knob
+            (:func:`fintfm.prior.knobs.check_knobs`), or ``financial_gate_prob`` outside
+            ``[0, 1]`` or combined with ``n_horizons``.
     """
     if cfg.source_weights is not None:
         _weighted_shares(cfg)
+    knobs = knobs_from(cfg)
+    if knobs is not None:
+        check_knobs(knobs)
+    if not (math.isfinite(cfg.financial_gate_prob) and 0.0 <= cfg.financial_gate_prob <= 1.0):
+        raise ValueError(f"financial_gate_prob must lie in [0, 1], got {cfg.financial_gate_prob}")
+    if cfg.financial_gate_prob > 0 and cfg.n_horizons is not None:
+        raise ValueError(
+            "financial_gate_prob cannot be combined with n_horizons: the gated label has no "
+            "survival form"
+        )
     unknown = [k for k in cfg.feature_transforms if k not in FEATURE_TRANSFORMS]
     if unknown:
         raise ValueError(
@@ -640,6 +722,11 @@ def _sample_from_source(
         panel_path: The panel for ``source="real_panel"``; ignored otherwise.
         n: Rows to generate.
 
+    With any DR2.3 knob on (:mod:`fintfm.prior.knobs`), a band width is drawn first for
+    the sources that take one, the prior is called with the knobs, and the column- and
+    label-side knobs are applied to the general sources' tasks. With every knob off, the
+    prior is called exactly as before the knobs existed and no extra draw is made.
+
     Returns:
         The task.
 
@@ -660,14 +747,71 @@ def _sample_from_source(
                 "n_horizons requires p_financial=1.0; real_lendingclub carries no horizon grid"
             ),
             "real_panel": "n_horizons requires p_financial=1.0; real panels carry no horizon grid",
+            "gated": "n_horizons requires a survival label; a gated task has no event time",
         }
         if source in reasons:
             raise ValueError(reasons[source])
+    knobs = knobs_from(cfg)
+    if knobs is None or source not in _MIN_WIDTH:
+        return _dispatch_source(rng, cfg, source, panel_path, n, None, None)
+    width: int | None = None
+    extra: tuple[int, int] | None = None
+    band: int | None = None
+    if knobs.feature_ratio_bands:
+        width, band = draw_width(rng, knobs, n, _MIN_WIDTH[source], cfg.max_features)
+        if source in _KNOB_SOURCES:
+            # irrelevant and duplicate columns are carved out of the band's width, not added
+            extra = draw_extra_counts(rng, knobs, width)
+            width = max(_MIN_WIDTH[source], width - sum(extra))
+    task = _dispatch_source(rng, cfg, source, panel_path, n, knobs, width)
+    if source in _KNOB_SOURCES:
+        task = apply_task_knobs(
+            rng, task, knobs, cfg.max_features, extra, label_knobs=source != "regression"
+        )
+    if band is not None:
+        task.meta = {**(task.meta or {}), "width_band": band}
+    return task
+
+
+def _dispatch_source(
+    rng: np.random.Generator,
+    cfg: PriorConfig,
+    source: str,
+    panel_path: str | None,
+    n: int,
+    knobs: TaskKnobs | None,
+    width: int | None,
+) -> Task:
+    """Call the prior for ``source``; :func:`_sample_from_source`'s dispatch table.
+
+    Args:
+        rng: NumPy random generator.
+        cfg: Prior configuration.
+        source: A source name returned by :func:`_draw_source`.
+        panel_path: The panel for ``source="real_panel"``; ignored otherwise.
+        n: Rows to generate.
+        knobs: DR2.3's knobs, or ``None``, which calls every prior exactly as before them.
+        width: A band-drawn width, or ``None`` for the prior's own draw.
+
+    Returns:
+        The task.
+
+    Raises:
+        ValueError: If ``source`` is unknown.
+    """
     if source == "tree":
-        return sample_tree_task(rng, n, max_features=cfg.max_features, max_classes=cfg.max_classes)
+        return sample_tree_task(
+            rng, n, max_features=cfg.max_features, max_classes=cfg.max_classes, knobs=knobs,
+            n_features=width,
+        )
     if source == "regression":
         return sample_scm_regression_task(
-            rng, n, max_features=cfg.max_features, n_bins=cfg.max_classes
+            rng, n, max_features=cfg.max_features, n_bins=cfg.max_classes, knobs=knobs,
+            n_features=width,
+        )
+    if source == "gated":
+        return sample_gated_task(
+            rng, n, max_features=cfg.max_features, knobs=knobs, n_features=width
         )
     if source == "trivial":
         return sample_trivial_task(rng, n, max_features=min(8, cfg.max_features))
@@ -683,7 +827,9 @@ def _sample_from_source(
             sharpness_max=cfg.sharpness_max,
         )
     if source == "task_family":
-        return _sample_task_family_mixture(rng, n, max_features=cfg.max_features)
+        return _sample_task_family_mixture(
+            rng, n, max_features=cfg.max_features if width is None else width
+        )
     # Every real source gets the synthetic financial prior's positive floor (audit AU1.14), met
     # with real positive rows, so a rare-label panel is enriched rather than relabelled.
     min_positives = math.ceil(cfg.min_expected_positives)
@@ -725,14 +871,13 @@ def _sample_from_source(
             n_sectors_max=cfg.n_sectors_max,
             sharpness_min=cfg.sharpness_min,
             sharpness_max=cfg.sharpness_max,
+            n_features=width,
+            gate_prob=cfg.financial_gate_prob,
         )
     if source == "scm":
         return sample_scm_task(
-            rng,
-            n,
-            max_features=cfg.max_features,
-            max_classes=cfg.max_classes,
-            legacy=cfg.scm_legacy,
+            rng, n, max_features=cfg.max_features, max_classes=cfg.max_classes,
+            legacy=cfg.scm_legacy, knobs=knobs, n_features=width,
         )
     raise ValueError(f"unknown prior source {source!r}")
 
@@ -781,6 +926,7 @@ def _sample_tasks_reusing_graphs(
         Exactly ``batch_size`` tasks, in draw order.
     """
     sources = [_draw_source(rng, cfg) for _ in range(batch_size)]
+    knobs = knobs_from(cfg)
     tasks: list[Task | None] = [None] * batch_size
     for i, (source, panel_path) in enumerate(sources):
         if source != "scm":
@@ -788,14 +934,31 @@ def _sample_tasks_reusing_graphs(
     scm_slots = [i for i, (source, _) in enumerate(sources) if source == "scm"]
     while scm_slots:
         want = min(cfg.scm_reuse_graph, len(scm_slots))
-        group = sample_scm_task_group(
-            rng,
-            n_rows,
-            n_targets=want,
-            max_features=cfg.max_features,
-            max_classes=cfg.max_classes,
-            legacy=cfg.scm_legacy,
-        )[:want]
+        if knobs is None:
+            group = sample_scm_task_group(
+                rng,
+                n_rows,
+                n_targets=want,
+                max_features=cfg.max_features,
+                max_classes=cfg.max_classes,
+                legacy=cfg.scm_legacy,
+            )[:want]
+        else:
+            # DR2.3: one band width per graph, since the group's tasks share their columns
+            width: int | None = None
+            extra: tuple[int, int] | None = None
+            if knobs.feature_ratio_bands:
+                width, _ = draw_width(rng, knobs, n_rows, _MIN_WIDTH["scm"], cfg.max_features)
+                extra = draw_extra_counts(rng, knobs, width)
+                width = max(_MIN_WIDTH["scm"], width - sum(extra))
+            group = [
+                apply_task_knobs(rng, t, knobs, cfg.max_features, extra)
+                for t in sample_scm_task_group(
+                    rng, n_rows, n_targets=want, max_features=cfg.max_features,
+                    max_classes=cfg.max_classes, legacy=cfg.scm_legacy, knobs=knobs,
+                    n_features=width,
+                )[:want]
+            ]
         # A group comes back short only if a graph has too few nodes for distinct targets;
         # the loop then draws another graph for the slots still empty.
         for task in group:

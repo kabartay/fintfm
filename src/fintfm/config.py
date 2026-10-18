@@ -189,6 +189,16 @@ class PriorConfigDefaults:
     real_lendingclub_panel_path: str = "data/lendingclub/panel.parquet"
     real_panels: str = ""
     source_weights: dict[str, float] | None = None
+    financial_gate_prob: float = 0.0
+    feature_ratio_bands: tuple[tuple[float, float, float], ...] = ()
+    p_binary: float | None = None
+    imbalance_draws: bool = False
+    categorical_mode: str = "ordered"
+    missing_mode: str = "mcar"
+    tie_column_prob: float = 0.0
+    irrelevant_frac_max: float = 0.0
+    duplicate_frac_max: float = 0.0
+    label_flip_max: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -525,6 +535,28 @@ def _validate(cfg: Config) -> None:
                 f"prior.source_weights has unknown source(s) {unknown}; valid names are "
                 f"{list(SOURCE_NAMES)} or '{REAL_PANEL_PREFIX}<path>'"
             )
+    if p.categorical_mode not in ("ordered", "unordered"):
+        raise ConfigError(
+            f"prior.categorical_mode must be 'ordered' or 'unordered', got {p.categorical_mode!r}"
+        )
+    if p.missing_mode not in ("mcar", "mixed"):
+        raise ConfigError(f"prior.missing_mode must be 'mcar' or 'mixed', got {p.missing_mode!r}")
+    if not all(isinstance(b, (list, tuple)) and len(b) == 3 for b in p.feature_ratio_bands):
+        raise ConfigError(
+            "prior.feature_ratio_bands must be a list of [weight, lo, hi] entries, got "
+            f"{p.feature_ratio_bands!r}"
+        )
+    unit = {
+        "financial_gate_prob": p.financial_gate_prob,
+        "p_binary": 0.0 if p.p_binary is None else p.p_binary,
+        "tie_column_prob": p.tie_column_prob,
+        "irrelevant_frac_max": p.irrelevant_frac_max,
+        "duplicate_frac_max": p.duplicate_frac_max,
+        "label_flip_max": p.label_flip_max,
+    }
+    off = [k for k, v in unit.items() if not 0.0 <= v <= 1.0]
+    if off:
+        raise ConfigError(f"prior.{off[0]} must lie in [0, 1], got {unit[off[0]]}")
     t = cfg.train
     if t.amp not in ("none", "bf16", "fp16"):
         # YAML reads a bare `off`/`no` as False, which would otherwise surface as a confusing
