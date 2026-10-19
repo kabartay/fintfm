@@ -29,6 +29,11 @@ Sources and why each label is shaped the way it is:
   the secondary-market flag are post-origination and dropped. Note the source spells
   paid-in-full as ``"P I F"``.
 
+**`ppdai`, `bondora` and `ulb_fraud` are evaluation-only since 2026-10-19** (design review DR4.3):
+they make up the credit suite in `fintfm.evaluation.credit_suite`, and
+`fintfm.prior.real_panel` refuses their panels, so their panels here serve the feasibility
+script and nothing that trains.
+
 These files hold real third-party data. Their outputs live under `data/real/`, which
 `.gitignore` covers, and must never be committed.
 
@@ -44,28 +49,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from fintfm.evaluation.credit_suite import bondora_frame, one_hot
+
 ROOT = Path(__file__).resolve().parents[2]
 REAL = ROOT / "data" / "real"
-
-
-def _one_hot(series: pd.Series, prefix: str, top: int) -> pd.DataFrame:
-    """One-hot the `top` most frequent values of a categorical column, as floats.
-
-    Args:
-        series: Raw categorical column.
-        prefix: Output column-name prefix.
-        top: How many of the most frequent values get their own column; the rest share none
-            (all-zero row), keeping the feature count bounded for high-cardinality fields.
-
-    Returns:
-        A float64 indicator frame; rows where `series` is missing are NaN throughout.
-    """
-    values = series.value_counts().index[:top]
-    out = pd.DataFrame(
-        {f"{prefix}_{v}": (series == v).astype(np.float64) for v in values}, index=series.index
-    )
-    out.loc[series.isna()] = np.nan
-    return out
 
 
 def build_ppdai() -> pd.DataFrame:
@@ -75,30 +62,11 @@ def build_ppdai() -> pd.DataFrame:
     return feats.assign(label=raw["label"].astype(np.int64))
 
 
-#: Bondora numeric fields known at origination.
-_BONDORA_NUMERIC = (
-    "Age", "AppliedAmount", "Amount", "Interest", "LoanDuration", "MonthlyPayment",
-    "NrOfDependants", "IncomeFromPrincipalEmployer", "IncomeFromPension",
-    "IncomeFromFamilyAllowance", "IncomeFromSocialWelfare", "IncomeFromLeavePay",
-    "IncomeFromChildSupport", "IncomeOther", "IncomeTotal", "ExistingLiabilities",
-    "LiabilitiesTotal", "RefinanceLiabilities", "DebtToIncome", "FreeCash",
-    "NoOfPreviousLoansBeforeLoan", "AmountOfPreviousLoansBeforeLoan",
-    "PreviousRepaymentsBeforeLoan", "PreviousEarlyRepaymentsBefoleLoan",
-    "PreviousEarlyRepaymentsCountBeforeLoan", "ApplicationSignedHour",
-    "ApplicationSignedWeekday", "BidsPortfolioManager", "BidsApi", "BidsManual",
-    "MonthlyPaymentDay",
-)
-
-#: Bondora coded fields known at origination, one-hot encoded (field, top-k values kept).
-_BONDORA_CATEGORICAL = (
-    ("Country", 4), ("VerificationType", 5), ("Gender", 3), ("UseOfLoan", 10),
-    ("Education", 6), ("MaritalStatus", 6), ("EmploymentStatus", 6), ("HomeOwnershipType", 10),
-    ("EmploymentDurationCurrentEmployer", 8), ("OccupationArea", 10),
-)
-
-
 def build_bondora(horizon_months: int = 12) -> pd.DataFrame:
     """Bondora panel with a fixed-horizon, uncensored default label.
+
+    The definition lives in :func:`fintfm.evaluation.credit_suite.bondora_frame`, shared with
+    the credit suite; the panel is that frame less its bookkeeping columns.
 
     Args:
         horizon_months: Default must occur within this many months of `LoanDate`; only loans
@@ -108,26 +76,7 @@ def build_bondora(horizon_months: int = 12) -> pd.DataFrame:
         The panel.
     """
     raw = pd.read_csv(REAL / "bondora" / "LoanData_Bondora.csv", low_memory=False)
-    snapshot = pd.to_datetime(raw["ReportAsOfEOD"]).max()
-    loan_date = pd.to_datetime(raw["LoanDate"])
-    keep = loan_date <= snapshot - pd.DateOffset(months=horizon_months)
-    raw, loan_date = raw[keep], loan_date[keep]
-    default_date = pd.to_datetime(raw["DefaultDate"])
-    label = (default_date.notna() & (default_date <= loan_date + pd.DateOffset(months=horizon_months)))
-    out = pd.DataFrame(index=raw.index)
-    for col in _BONDORA_NUMERIC:
-        # "10Plus" is Bondora's own top-coding of NrOfDependants; any *other* non-numeric value
-        # is unexpected and is reported rather than silently turned into missingness.
-        src = raw[col].replace({"10Plus": "10"})
-        out[col] = pd.to_numeric(src, errors="coerce")
-        lost = int((out[col].isna() & src.notna()).sum())
-        if lost:
-            print(f"  bondora: {lost} non-numeric value(s) in {col} coerced to NaN", flush=True)
-    out["NewCreditCustomer"] = (raw["NewCreditCustomer"].astype(str) == "True").astype(np.float64)
-    out["LoanYear"] = loan_date.dt.year.astype(np.float64)
-    for field, top in _BONDORA_CATEGORICAL:
-        out = out.join(_one_hot(raw[field].astype("string"), field, top))
-    return out.assign(label=label.astype(np.int64)).reset_index(drop=True)
+    return bondora_frame(raw, horizon_months).drop(columns=["_user", "_loan_date"])
 
 
 def build_ulb_fraud() -> pd.DataFrame:
@@ -175,9 +124,9 @@ def build_sba(horizon_months: int = 60) -> pd.DataFrame:
     out["HasCollateral"] = (raw["CollateralInd"] == "Y").astype(np.float64)
     out["IsFranchise"] = raw["FranchiseCode"].notna().astype(np.float64)
     naics = raw["NaicsCode"].astype("string").str[:2]
-    out = out.join(_one_hot(naics, "Naics2", 20))
+    out = out.join(one_hot(naics, "Naics2", 20))
     for field, top in (("BusinessType", 3), ("BusinessAge", 6), ("ProcessingMethod", 8)):
-        out = out.join(_one_hot(raw[field].astype("string"), field, top))
+        out = out.join(one_hot(raw[field].astype("string"), field, top))
     return out.assign(label=label.astype(np.int64)).reset_index(drop=True)
 
 

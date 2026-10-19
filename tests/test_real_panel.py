@@ -11,6 +11,7 @@ import pytest
 
 from fintfm.prior.mixture import PriorConfig, sample_batch, sample_task
 from fintfm.prior.real_panel import (
+    EVAL_ONLY_SOURCES,
     feature_columns,
     parse_real_panels,
     sample_real_panel_task,
@@ -145,6 +146,35 @@ def test_a_cik_panel_keeps_one_row_per_firm():
         assert len(np.unique(firms)) == len(firms)
 
 
+@pytest.mark.parametrize("source", sorted(EVAL_ONLY_SOURCES))
+def test_evaluation_only_sources_are_refused_at_parse_and_at_sampling(tmp_path, source):
+    # DR4.3: the credit suite scores on PPDai, Bondora and ULB fraud, so none may train FinTFM-R.
+    path = _write(tmp_path, source, _panel())
+    with pytest.raises(ValueError, match="evaluation-only"):
+        parse_real_panels(f"{path}=0.3")
+    with pytest.raises(ValueError, match="evaluation-only"):
+        sample_real_panel_task(np.random.default_rng(0), 50, panel_path=path, max_features=20)
+    with pytest.raises(ValueError, match="evaluation-only"):
+        sample_task(np.random.default_rng(0), PriorConfig(real_panels=f"{path}=1.0",
+                                                          max_features=20, n_rows=50), n_rows=50)
+
+
+def test_evaluation_only_sources_match_the_registry():
+    """The sampler's list and data_candidates.csv's EVAL_ONLY rows name the same sources."""
+    from pathlib import Path
+
+    registry = pd.read_csv(
+        Path(__file__).resolve().parents[1] / "docs" / "research" / "data_candidates.csv",
+        dtype=str, keep_default_na=False,
+    )
+    eval_only = registry[registry["verdict"] == "EVAL_ONLY"]
+    keys = {"ppdai": "ppdai", "bondora": "bondora", "ulb_fraud": "ulb"}
+    assert set(keys) == EVAL_ONLY_SOURCES
+    assert len(eval_only) == len(EVAL_ONLY_SOURCES)
+    for key, token in keys.items():
+        assert eval_only["name"].str.lower().str.contains(token).sum() == 1, key
+
+
 def test_empty_default_never_opens_a_file():
     cfg = PriorConfig()
     assert cfg.real_panels == ""
@@ -154,12 +184,12 @@ def test_empty_default_never_opens_a_file():
 
 
 def test_two_panels_both_fire_and_collate(tmp_path):
-    a = _write(tmp_path, "ppdai", _panel(n_features=6, seed=1))
+    a = _write(tmp_path, "lendingclub", _panel(n_features=6, seed=1))
     b = _write(tmp_path, "sba", _panel(n_features=12, seed=2))
     cfg = PriorConfig(real_panels=f"{a}=0.5,{b}=0.5", max_features=20, n_rows=40)
     rng = np.random.default_rng(6)
     sources = {sample_task(rng, cfg, n_rows=40).source for _ in range(200)}
-    assert {"real:ppdai", "real:sba"} <= sources
+    assert {"real:lendingclub", "real:sba"} <= sources
     batch = sample_batch(rng, cfg, batch_size=4)
     assert batch.X.shape == (4, 40, 20)
 

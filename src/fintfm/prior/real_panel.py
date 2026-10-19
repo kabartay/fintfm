@@ -41,6 +41,13 @@ from fintfm.prior.base import Task
 #: without it becoming a feature.
 _BOOKKEEPING = frozenset({"label", "loan_id", "cik", "period_end"})
 
+#: Sources kept for evaluation only: the credit suite of :mod:`fintfm.evaluation.credit_suite`
+#: (design review DR4.3). A source that scores an arm must never also train one, so a panel
+#: whose directory is one of these is refused at parse time and at sampling time. Keyed by
+#: directory name, the name :func:`source_name` stamps on a task; ``docs/research/
+#: data_candidates.csv`` marks the same sources ``EVAL_ONLY``.
+EVAL_ONLY_SOURCES = frozenset({"ppdai", "bondora", "ulb_fraud"})
+
 #: The column that identifies a firm in a panel with several rows per firm (EDGAR's filer id).
 #: When present, a task takes at most one row per firm; see :func:`draw_rows`.
 GROUP_COLUMN = "cik"
@@ -73,8 +80,9 @@ def parse_real_panels(spec: str) -> tuple[tuple[str, float], ...]:
         The entries, in spec order.
 
     Raises:
-        ValueError: On a malformed entry, a probability outside ``(0, 1]``, or a path listed
-            twice -- each a misconfiguration better caught at startup than mid-run.
+        ValueError: On a malformed entry, a probability outside ``(0, 1]``, a path listed
+            twice, or an evaluation-only source (:func:`refuse_eval_only`) -- each a
+            misconfiguration better caught at startup than mid-run.
     """
     entries: list[tuple[str, float]] = []
     for raw in filter(None, (s.strip() for s in spec.split(","))):
@@ -84,6 +92,7 @@ def parse_real_panels(spec: str) -> tuple[tuple[str, float], ...]:
         p = float(prob)
         if not 0.0 < p <= 1.0:
             raise ValueError(f"real_panels probability for {path!r} must be in (0, 1], got {p}")
+        refuse_eval_only(path)
         if any(path == seen for seen, _ in entries):
             raise ValueError(f"real_panels lists {path!r} twice")
         entries.append((path, p))
@@ -101,6 +110,23 @@ def feature_columns(panel: pd.DataFrame) -> list[str]:
         the same columns in the same positions.
     """
     return [c for c in panel.columns if c not in _BOOKKEEPING and not c.startswith("_")]
+
+
+def refuse_eval_only(path: str) -> None:
+    """Raise if ``path`` is a panel of an evaluation-only source.
+
+    Args:
+        path: A panel path, conventionally ``data/real/<source>/panel.parquet``.
+
+    Raises:
+        ValueError: If the panel's directory is in :data:`EVAL_ONLY_SOURCES`.
+    """
+    source = Path(path).parent.name
+    if source in EVAL_ONLY_SOURCES:
+        raise ValueError(
+            f"real panel {path!r} is {source!r}, an evaluation-only source (credit suite, "
+            "DR4.3); it may score a model but never train one"
+        )
 
 
 def source_name(path: str) -> str:
@@ -288,9 +314,10 @@ def sample_real_panel_task(
 
     Raises:
         ValueError: If the feature count is outside ``[min_features, max_features]``,
-            `n_rows` exceeds the panel's rows (or firms), or the panel cannot supply a real
-            row of each class.
+            `n_rows` exceeds the panel's rows (or firms), the panel cannot supply a real
+            row of each class, or `panel_path` is an evaluation-only source.
     """
+    refuse_eval_only(panel_path)
     df = panel if panel is not None else load_panel(panel_path)
     cols = feature_columns(df)
     if not (min_features <= len(cols) <= max_features):

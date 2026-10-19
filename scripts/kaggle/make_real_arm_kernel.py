@@ -31,7 +31,8 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 
 #: Sources that may be staged to a private Kaggle dataset (licences in data_candidates.csv).
-STAGEABLE = ("edgar", "sba", "ulb_fraud", "bondora", "ppdai", "lendingclub")
+#: PPDai, Bondora and ULB fraud are evaluation-only (credit suite, DR4.3) and never staged.
+STAGEABLE = ("edgar", "sba", "lendingclub")
 
 #: The `max_classes 10` no-change model each seed is compared against (§158).
 CONTROLS = {
