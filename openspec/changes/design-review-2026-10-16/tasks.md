@@ -211,7 +211,8 @@
       (default) = 1000, plus a paired sign test against a reference checkpoint.
       Verify: Spearman 0.8 or higher against Lite Elo across 6 or more existing checkpoints
       before the proxy is used to decide anything.
-- [ ] DR4.3 **A credit suite outside V4FinBench:** PPDai (CC BY 4.0), Bondora (CC0 mirror), ULB
+- [ ] DR4.3 **Partly done (2026-10-19, ebc8112, 40ad109): built, not run.** `fintfm.evaluation.credit_suite` has loaders, three fixed splits per dataset (PPDai out-of-time on `loan_time`; Bondora out-of-time on `LoanDate`, borrower-grouped, 366-day embargo; ULB stratified, its `Time` being seconds into a two-day capture), FinTFM, logistic regression and LightGBM, and one CSV row per dataset, split and model (`tests/test_credit_suite.py`). All three are `EVAL_ONLY` in `real_panel.py` and `data_candidates.csv`, so the FinTFM-R sampler refuses them. Blocked: re-read at source on 2026-10-19, no licence passes DR4.2's rule (PPDai's CC BY 4.0 is a researcher's figshare grant, not the platform's; Bondora's CC0 is a Kaggle uploader's, Bondora's own page states none; ULB is ODbL-1.0 plus DbCL-1.0, and ODbL's share-alike is outside the admitted list), so `run()` refuses all three until the owner sets `include=True`. Checkpoints from the §157 FinTFM-R pilot arms saw these panels and are not held out here. Open: the owner's licence decision, then the Verify run on the published checkpoint (estimated 3 to 7.5 hours of CPU, not measured end to end).
+      **A credit suite outside V4FinBench:** PPDai (CC BY 4.0), Bondora (CC0 mirror), ULB
       fraud (DbCL-1.0), three splits, evaluation only (which removes PPDai from FinTFM-R's training
       queue).
       Verify: the suite runs end to end on the published checkpoint with runtimes recorded.
