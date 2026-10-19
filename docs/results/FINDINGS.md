@@ -11847,3 +11847,36 @@ now draws different training tasks. It is a fresh replicate for the DR4.4 yardst
 6,000 steps in 3,150 s (0.525 s per 8-task step, about 55,000 tasks per hour). Zero-shot mean AP:
 seed 0 **0.1975** (0.2071, 0.2031, 0.1821, 0.1734, 0.2215), seed 1 **0.1878** (0.1945, 0.1850,
 0.1778, 0.1716, 0.2104). The 480,000-task arms run after the weekly quota resets.
+
+## §173 — The pretraining noise yardstick is 0.0117 mean AP, not 0.0073
+
+**MEASURED, 2026-10-19, recorded before any 480k-task arm of E1 (§171) has a result** (design
+review DR4.4; method agreed in audit AU2.9). Three replicates of the published recipe differing
+only in seed (fp32, single GPU, 48,000 tasks, fintfm 49f415c; trained on Kaggle T4s, scored zero-shot
+on this Mac's CPU, `runs/ts-score/pub-s{0,1,2}`), plus E1's pair of 48,000-task arms (fp16, split
+attention, DDP; §172's addendum).
+
+| replicate | fold 0 | 1 | 2 | 3 | 4 | mean AP |
+| --- | --- | --- | --- | --- | --- | --- |
+| seed 0 | 0.2026 | 0.2044 | 0.1773 | 0.1740 | 0.2154 | 0.1947 |
+| seed 1 | 0.2007 | 0.1727 | 0.1783 | 0.1720 | 0.2052 | 0.1858 |
+| seed 2 | 0.1924 | 0.1842 | 0.1611 | 0.1743 | 0.2106 | 0.1845 |
+
+**Method:** the within-fold between-seed variance, pooled over folds, gives a per-fold seed SD of
+0.0090 from the three fp32 replicates (10 degrees of freedom) and 0.0080 from E1's pair (5);
+pooled, 0.0087 (15). The SD of the difference of two single runs' five-fold means is
+√(2 × 0.0087² / 5) = 0.0055, and the yardstick is t(0.975, 15) × 0.0055 = **0.0117** (0.0127 from
+the fp32 replicates alone).
+
+**Caveat on the method.** It treats a seed's effect on each fold as independent. The three runs'
+means spread with an SD of 0.0055 directly (2 degrees of freedom), against the 0.0040 the per-fold
+model implies for one run's mean, so a seed's effect is partly shared across folds and 0.0117 may
+understate the noise. Rules that also require the same sign at two seeds (§159, §171) guard
+against that.
+
+**What it changes.**
+- **E1 (§171):** the bar is the larger of 0.0073 and 0.0117, so **0.0117**.
+- **Earlier pretraining-arm verdicts judged at 0.0073** read differently at 0.0117: §160's §146
+  (−0.0098 mean AP against the matched control) would be **no different**, not a loss; §147
+  (−0.0230) stays a loss; §144 and §145 stay null. Fine-tuning and inference arms on one checkpoint
+  are unaffected: their noise is the fine-tuning seed gap (SD 0.0008, §164) and the context draw.

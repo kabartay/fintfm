@@ -233,7 +233,7 @@
       "+0.042 AP from cell attention" in README.md needs the qualifier. Fix: confirm from the
       checkpoints, then score a matched pair (same prior, same budget) or restate the claim.
       Verify: the two checkpoints' recorded prior configs quoted in FINDINGS, then a matched pair or a restated claim.
-- [ ] AU2.9 **Update 2026-10-16: "the bar errs conservative" may not hold for pretraining arms.**
+- [x] AU2.9 **Done (2026-10-19, §173).** Re-derived yardstick 0.0117 for pretraining arms; `c5_verdict.py helps` landed earlier. **Update 2026-10-16: "the bar errs conservative" may not hold for pretraining arms.**
       From §160's one matched replicate pair (per-fold Δ +0.0145, −0.0113, +0.0075, −0.0066,
       +0.0003), SD 0.0104, so the noise of a five-fold mean is about 0.0047 and 1.96σ about 0.009
       (ESTIMATED from one pair), above 0.0073. Fine-tuning arms share one checkpoint, so their

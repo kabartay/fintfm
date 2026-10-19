@@ -203,7 +203,8 @@
       fraud (DbCL-1.0), three splits, evaluation only (which removes PPDai from FinTFM-R's training
       queue).
       Verify: the suite runs end to end on the published checkpoint with runtimes recorded.
-- [ ] DR4.4 **The noise yardstick from at least three matched replicates** (AU2.9's method), with
+- [x] DR4.4 **Done (2026-10-19, §173).** Pretraining yardstick 0.0117 mean AP (per-fold seed SD 0.0087, 15 df, three fp32 replicates plus E1's fp16 pair); fine-tuning noise SD 0.0008 (§164).
+      **The noise yardstick from at least three matched replicates** (AU2.9's method), with
       separate pretraining and fine-tuning values and Holm across arms.
       Verify: FINDINGS states both yardsticks with source runs and degrees of freedom.
 
