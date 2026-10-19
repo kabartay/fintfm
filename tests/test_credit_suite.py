@@ -91,7 +91,7 @@ def test_a_single_class_split_is_refused_not_scored():
 
 
 def test_an_unadmitted_licence_is_refused_before_any_file_is_read(tmp_path):
-    # The packaged entries all wait on an owner decision; nothing under root exists.
+    # PPDai and Bondora are not admitted (2026-10-19); nothing under root exists.
     with pytest.raises(ValueError, match="licence not admitted"):
         cs.run(tmp_path / "out.csv", None, datasets=("ppdai",), root=tmp_path / "missing")
     with pytest.raises(ValueError, match="unknown dataset"):
@@ -204,3 +204,10 @@ def test_bondora_frame_label_window_and_bookkeeping():
     assert frame["label"].tolist() == [1, 0, 0, 1, 1]
     assert frame["_user"].tolist() == ["a", "a", "b", "c", "e"]
     assert list(frame.columns[-3:]) == ["label", "_user", "_loan_date"]
+
+
+def test_only_ulb_is_admitted_and_its_scores_carry_the_odbl_notice():
+    # Owner decision 2026-10-19: ULB's grant is the collector's; PPDai's and Bondora's are not.
+    assert cs.admitted() == ("ulb_fraud",)
+    assert cs.DATASETS["ulb_fraud"].licence.licence == "ODbL-1.0 + DbCL-1.0"
+    assert "Open Database License" in cs.ODBL_NOTICE and "Bruxelles" in cs.ODBL_NOTICE

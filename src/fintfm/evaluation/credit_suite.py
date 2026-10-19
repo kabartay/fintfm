@@ -77,8 +77,8 @@ Three splits per dataset, fixed by :data:`SPLIT_SEED` and the data alone:
 * **stratified** (no date): ``StratifiedKFold(3, shuffle=True, random_state=SPLIT_SEED)``,
   or ``StratifiedGroupKFold`` when a borrower id exists. No dataset uses the grouped form today.
 
-Licence at the original source (read 2026-10-19), and why no dataset is admitted yet
--------------------------------------------------------------------------------------
+Licence at the original source (read 2026-10-19), and which datasets are admitted
+---------------------------------------------------------------------------------
 
 DR4.2's owner rule (2026-10-16) decides on the licence at the data's original source: CC BY,
 CC0, public domain or MIT pass; a permissive licence granted by someone other than the data's
@@ -106,9 +106,15 @@ copyleft term. Applied to the three datasets:
   "Produced Works" under ODbL, which need a notice when public. The MLG project page now
   returns 404, and its Wayback copy of 2025-04-05 states no licence.
 
-So each entry in :data:`DATASETS` carries ``include=False`` with the reason, and :func:`run`
-refuses an unadmitted dataset. Admitting one is an owner decision recorded by flipping its
-entry, not a flag.
+Owner decision (2026-10-19): ULB is admitted, PPDai and Bondora are not. ULB's grant comes
+from the data's collector, and the suite never redistributes the database or a derivative of
+it; its scores are Produced Works, which ODbL-1.0 section 4.3 allows with a notice, so the
+share-alike term does not apply. :data:`ODBL_NOTICE` is that notice: :func:`run` prints it and
+writes it beside the results, and any public text quoting ULB scores carries it. PPDai and
+Bondora keep ``include=False``: their permissive grants come from someone other than the data's
+owner over data whose source states no licence. :func:`run` refuses an unadmitted dataset, and
+the command line scores the admitted ones by default. Admitting one is an owner decision
+recorded by flipping its entry, not a flag.
 
 Overlap with TabArena-v0.1 and BeyondArena (checked 2026-10-19)
 --------------------------------------------------------------
@@ -173,6 +179,20 @@ OOT_CUTS = (1 / 2, 2 / 3, 5 / 6)
 #: LightGBM's settings: §167 measured LightGBM's 100-tree default 0.1242 mean AP below 1,000
 #: trees at learning rate 0.05 on V4FinBench, so the default is under-trained.
 LIGHTGBM_PARAMS = {"n_estimators": 1000, "learning_rate": 0.05}
+
+#: The notice ODbL-1.0 section 4.3 asks of a public Produced Work, for ULB scores.
+ODBL_NOTICE = (
+    "ULB fraud scores are a Produced Work from the Credit Card Fraud Detection database "
+    "(Machine Learning Group, Universite Libre de Bruxelles, with Worldline; "
+    "https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud), made available under the "
+    "Open Database License (https://opendatacommons.org/licenses/odbl/1-0/); its contents "
+    "under the Database Contents License (https://opendatacommons.org/licenses/dbcl/1-0/)."
+)
+
+def admitted() -> tuple[str, ...]:
+    """Keys of :data:`DATASETS` whose licence entry admits them, in suite order."""
+    return tuple(k for k, d in DATASETS.items() if d.licence.include)
+
 
 #: Date the licences and overlaps in the module docstring were checked.
 CHECKED = "2026-10-19"
@@ -405,10 +425,10 @@ DATASETS: dict[str, SuiteDataset] = {
         SourceLicence(
             "https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud",
             "Database: Open Database, Contents: Database Contents", "ODbL-1.0 + DbCL-1.0",
-            False,
-            "owner decision needed (DR4.2 rule): published by ULB's Machine Learning Group, "
-            "the data's collector, but ODbL-1.0 carries a share-alike term on publicly used "
-            "derivative databases, and DR4.2 admits only CC BY, CC0, public domain or MIT",
+            True,
+            "admitted by the owner (2026-10-19): published by ULB's Machine Learning Group, "
+            "the data's collector; scores are ODbL Produced Works, public with ODBL_NOTICE, "
+            "and the database is never redistributed, so the share-alike term does not apply",
             CHECKED,
         ),
     ),
@@ -541,7 +561,7 @@ def _write(rows: list[dict], out: Path) -> None:
 def run(
     out: Path,
     model_path: str | None,
-    datasets: Sequence[str] = tuple(DATASETS),
+    datasets: Sequence[str] | None = None,
     root: Path = DEFAULT_ROOT,
     config_path: str | None = None,
     device: str = "cpu",
@@ -552,7 +572,8 @@ def run(
     Args:
         out: CSV path; rewritten after every scored row.
         model_path: FinTFM checkpoint, or ``None`` for the baselines alone.
-        datasets: Keys of :data:`DATASETS`, scored in this order.
+        datasets: Keys of :data:`DATASETS`, scored in this order; ``None`` scores the
+            admitted ones (:func:`admitted`).
         root: Directory holding each dataset's raw files under ``<key>/``.
         config_path: Configuration override; its ``inference`` and ``large_n`` sections build
             the FinTFM arm, as in the V4FinBench protocol.
@@ -574,6 +595,7 @@ def run(
     from fintfm.modeling.model import FinancialTFM
     from fintfm.provenance import sha256_file
 
+    datasets = admitted() if datasets is None else tuple(datasets)
     unknown = [d for d in datasets if d not in DATASETS]
     if unknown:
         raise ValueError(f"unknown dataset(s) {unknown}; the suite is {list(DATASETS)}")
@@ -626,6 +648,10 @@ def run(
                 _write(rows, out)
                 _report(row)
     _summarise(rows)
+    if "ulb_fraud" in datasets:
+        # ODbL-1.0 section 4.3: a public Produced Work carries this notice
+        Path(out).with_suffix(".NOTICE.txt").write_text(ODBL_NOTICE + "\n")
+        print(ODBL_NOTICE, flush=True)
     return rows
 
 
@@ -701,8 +727,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     p.add_argument("--model", default=None,
                    help="FinTFM checkpoint; omit to score the baselines alone")
     p.add_argument("--out", required=True, type=Path, help="CSV to write")
-    p.add_argument("--datasets", default=",".join(DATASETS),
-                   help=f"comma-separated subset of {','.join(DATASETS)}")
+    p.add_argument("--datasets", default=",".join(admitted()),
+                   help=f"comma-separated subset of {','.join(DATASETS)} "
+                        f"(default: the admitted ones, {','.join(admitted())})")
     p.add_argument("--root", type=Path, default=DEFAULT_ROOT,
                    help="directory holding <dataset>/<raw file>")
     p.add_argument("--config", default=None, help="configuration override (inference section)")
