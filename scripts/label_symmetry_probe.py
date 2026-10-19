@@ -17,7 +17,11 @@ Two sources of tasks:
   generator (what the binary checkpoints were trained on, ``p_financial`` 1.0) and half from
   the SCM generator, each split once into context and query rows.
 - **real**: the Polish (3-year horizon) and Taiwanese bankruptcy panels, **only if already
-  cached** under ``--cache-dir``; nothing is downloaded. Several uniform context draws each.
+  cached** under ``--cache-dir`` and **only with** ``--allow-tabarena-for-reporting``; nothing
+  is downloaded. Several uniform context draws each. Both panels are TabArena-v0.1 datasets
+  and this probe's results feed arm choices, so without the flag they are skipped with a
+  printed reason (design review DR4.1, ``fintfm.evaluation.overlap.SELECTION_FORBIDDEN``);
+  with it the report carries ``reporting_only``.
 
 Reported per source: the pooled Pearson correlation of ``p`` with ``1 - p_swapped`` over every
 query, the median per-task correlation, the share of tasks below zero, and the mean absolute
@@ -42,6 +46,7 @@ import numpy as np
 import torch
 
 from fintfm.evaluation import datasets
+from fintfm.evaluation.overlap import REPORTING_FLAG, SelectionForbiddenError, guard_selection
 from fintfm.inference.classifier import FinancialTFMClassifier
 from fintfm.modeling.model import FinancialTFM
 from fintfm.prior import PriorConfig, sample_task
@@ -213,14 +218,19 @@ def probe_panel(
     return arm
 
 
-def _cached_panels(cache_dir: Path) -> list[tuple[str, np.ndarray, np.ndarray]]:
+def _cached_panels(
+    cache_dir: Path, allow_reporting: bool = False
+) -> list[tuple[str, np.ndarray, np.ndarray]]:
     """Load whichever bankruptcy panels are already cached, never downloading.
 
     Args:
         cache_dir: Directory holding ``polish_bankruptcy.zip`` and ``taiwan_bankruptcy.zip``.
+        allow_reporting: ``--allow-tabarena-for-reporting`` was passed. Without it no panel
+            is loaded: both are in ``SELECTION_FORBIDDEN``.
 
     Returns:
-        ``(name, X, y)`` for each panel found; an absent archive is reported and skipped.
+        ``(name, X, y)`` for each panel found; an absent or forbidden archive is reported and
+        skipped.
     """
     # the loaders read the module-level CACHE_DIR at call time and download on a miss, so
     # point it at the requested directory and only call a loader whose archive exists
@@ -230,6 +240,11 @@ def _cached_panels(cache_dir: Path) -> list[tuple[str, np.ndarray, np.ndarray]]:
         ("polish_bankruptcy.zip", lambda: datasets.load_polish_bankruptcy(3)),
         ("taiwan_bankruptcy.zip", datasets.load_taiwan_bankruptcy),
     ):
+        try:
+            guard_selection([archive], allow_reporting, "label_symmetry_probe")
+        except SelectionForbiddenError as exc:
+            print(f"skip {archive}: {exc}", flush=True)
+            continue
         if not (cache_dir / archive).exists():
             print(f"skip {archive}: not cached in {cache_dir}", flush=True)
             continue
@@ -259,6 +274,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--threads", type=int, default=4, help="torch CPU threads")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", type=Path, default=None, help="optional JSON output path")
+    ap.add_argument(REPORTING_FLAG, action="store_true",
+                    help="probe the Polish and Taiwanese panels too, for reporting only")
     args = ap.parse_args(argv)
 
     torch.set_num_threads(args.threads)
@@ -273,7 +290,8 @@ def main(argv: list[str] | None = None) -> int:
         probe_synthetic(model, 0.0, args.n_tasks // 2, args.n_rows, args.ctx_frac,
                         args.seed + 10_000),
     ]
-    for name, X, y in _cached_panels(args.cache_dir):
+    panels = _cached_panels(args.cache_dir, args.allow_tabarena_for_reporting)
+    for name, X, y in panels:
         arms.append(probe_panel(model, name, X, y, args.real_draws, args.real_context,
                                 args.real_queries, args.seed))
     # ru_maxrss is bytes on macOS and kilobytes on Linux
@@ -287,6 +305,8 @@ def main(argv: list[str] | None = None) -> int:
         "seconds": round(time.time() - t0, 1),
         "peak_rss_gb": round(peak_gb, 2),
         "sources": summaries,
+        # DR4.1: TabArena-v0.1 panels may be reported on, never used to choose an arm
+        "reporting_only": [name for name, _, _ in panels],
     }
     print(f"label-symmetry probe, MEASURED, {args.model}")
     print(f"{'source':<26}{'tasks':>6}{'queries':>9}{'pooled r':>10}{'median r':>10}"
