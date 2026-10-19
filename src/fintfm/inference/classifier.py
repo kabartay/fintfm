@@ -33,6 +33,7 @@ property it deliberately trades away.
 from __future__ import annotations
 
 import contextlib
+import copy
 import warnings
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, fields
@@ -710,13 +711,39 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             # on the full conditioned pool, before the stored context is cut from it
             self._finetune(X, y_coded, groups, n_classes)
         full_prior = np.bincount(y_coded, minlength=n_classes) / len(y_coded)
+        # the same indices as the stored rows, so a context row keeps its own period
+        self._store_context(
+            X[idx], y_coded[idx], None if periods is None else periods[idx], idx, full_prior
+        )
+        return self
+
+    def _store_context(
+        self,
+        X: np.ndarray,
+        y_coded: np.ndarray,
+        period: np.ndarray | None,
+        idx: np.ndarray,
+        full_prior: np.ndarray,
+    ) -> None:
+        """Keep a context and the base-rate correction it implies; :meth:`fit`'s last step.
+
+        Shared with :meth:`restrict_context`, so a restricted context is corrected exactly as
+        a fitted one is, by one piece of code (``CLAUDE.md``: a correction in one method is
+        bypassed by the next caller).
+
+        Args:
+            X: ``(m, f)`` context rows, conditioned (and SVD-augmented) as the model reads them.
+            y_coded: ``(m,)`` their label codes.
+            period: ``(m,)`` their periods, or ``None`` when the checkpoint reads none.
+            idx: ``(m,)`` their indices into :meth:`fit`'s rows.
+            full_prior: ``(n_classes,)`` class shares over every row :meth:`fit` received.
+        """
+        n_classes = len(full_prior)
         self.context_indices_ = np.asarray(idx, dtype=np.int64)
-        X, y_coded = X[idx], y_coded[idx]
         ctx_prior = np.bincount(y_coded, minlength=n_classes) / len(y_coded)
         self._ctx_X = X
         self._ctx_y = y_coded
-        # the same indices as the stored rows, so a context row keeps its own period
-        self._ctx_period = None if periods is None else periods[idx]
+        self._ctx_period = period
         # positive-class rates, kept for the term-structure correction, which needs a
         # scalar log-odds shift rather than the per-class vector below
         pos = n_classes - 1
@@ -731,7 +758,55 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
                 np.log(np.maximum(full_prior, 1e-12)) - np.log(np.maximum(ctx_prior, 1e-12)),
                 0.0,
             )
-        return self
+
+    def restrict_context(self, rows: np.ndarray) -> FinancialTFMClassifier:
+        """A copy of this fitted classifier whose context is exactly ``rows`` of :meth:`fit`'s.
+
+        Everything else is shared: the conditioner, the network, the column identities at
+        ``random_state``, and the population prior the base-rate correction aims at, which
+        is recomputed against the new context's own rate. Built for cross-fitting (design
+        review DR3.4): a row scored against a context that holds its own labelled copy can
+        read its label, so a representation or prediction for a context row is taken from a
+        restriction that leaves it out.
+
+        Args:
+            rows: Indices into the rows :meth:`fit` received, at least one; duplicates are
+                dropped and the context is stored in index order.
+
+        Returns:
+            A new fitted estimator; this one is unchanged.
+
+        Raises:
+            sklearn.exceptions.NotFittedError: Before :meth:`fit`.
+            ValueError: For an empty or out-of-range ``rows``, a retrieval context (chosen per
+                query, so there is no single context to restrict), or an estimator whose
+                :meth:`predict_proba` averages ensemble members (each draws its own context
+                and would ignore the restriction).
+        """
+        check_is_fitted(self, "_ctx_X")
+        if self.context_strategy == "retrieval":
+            raise ValueError("restrict_context has no single context to restrict under retrieval")
+        if self._uses_members():
+            raise ValueError(
+                "restrict_context restricts one stored context, and this estimator's "
+                "predict_proba averages ensemble members that each draw their own"
+            )
+        rows = np.unique(np.asarray(rows, dtype=np.int64))
+        if rows.size == 0 or rows[0] < 0 or rows[-1] >= len(self._raw_y):
+            raise ValueError(f"rows must index the {len(self._raw_y)} fitted rows, got {rows}")
+        label_map = {c: i for i, c in enumerate(self.classes_)}
+        y_coded = np.array([label_map[v] for v in self._raw_y[rows]], dtype=np.int64)
+        period = getattr(self, "_raw_period", None)
+        twin = copy.copy(self)
+        # conditioning is row-wise, so conditioning the subset equals subsetting fit's rows
+        twin._store_context(
+            self._condition(self._raw_X[rows]),
+            y_coded,
+            None if period is None else period[rows],
+            rows,
+            self._full_prior,
+        )
+        return twin
 
     @property
     def context_summary_(self) -> ContextSummary:

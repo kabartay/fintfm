@@ -39,10 +39,23 @@ not a better representation. ``probe_rows="context"`` fits the three downstream 
 classifier's own context rows (:attr:`FinancialTFMClassifier.context_indices_`) instead, so
 probe and head see the same labelled rows, and keeps the stratified-sample arms beside them
 under a ``_stratified`` suffix for reference. ``"stratified"``, the default, is §130's
-experiment, unchanged. One caveat the measurement has to carry: a context row scored as a
-query can attend to its own labelled copy in the context, so every probe row in the context
-arm is scored with its label in view, where the stratified arm has that only for the context
-rows its sample happens to include. Nothing here has measured the control yet.
+experiment, unchanged. Nothing here has measured the control yet.
+
+**Why the context arm is cross-fitted.** A context row scored as a query attends to its own
+labelled copy in the context -- through the row-to-row encoder at every stage past
+``encode_rows``, and through cell attention at ``encode_rows`` on a ``cell_labels``
+checkpoint -- so its representation can carry its label, and a probe fitted on such rows
+would be inflated. ``"context"`` therefore splits the context rows into
+:data:`CROSSFIT_FOLDS` folds and takes each fold's representations from the classifier
+restricted to the other folds (:meth:`FinancialTFMClassifier.restrict_context`), so no row
+is ever represented with its own label in view. The test rows are represented under each of
+the same restricted contexts and the probe's probabilities averaged over them, so training
+and test representations come from contexts of one size; the head is scored the same way
+(``own_head_crossfit``: the restricted heads' probabilities averaged), so probe and head read
+the same labels with no self-label in either. ``"context-leaky"`` fits on the context rows'
+representations under the full context, label in view: a diagnostic of the leak's size, not
+a result. The stratified sample has the same leak for the context rows it includes, which
+are few (all the context's positives, since the sample keeps every positive).
 """
 
 from __future__ import annotations
@@ -72,9 +85,13 @@ if TYPE_CHECKING:  # the model class is only needed for the annotation
 
 Arm = Literal["own_head", "representation", "raw_features", "mlp_head"]
 
-#: Which training rows the downstream arms are fitted on: §130's stratified sample, or the
-#: classifier's own context rows (DR3.4). See the module docstring.
-ProbeRows = Literal["stratified", "context"]
+#: Which training rows the downstream arms are fitted on: §130's stratified sample, the
+#: classifier's own context rows cross-fitted (DR3.4), or those rows with their labels in view,
+#: for diagnosis only. See the module docstring.
+ProbeRows = Literal["stratified", "context", "context-leaky"]
+
+#: Folds the context arm cross-fits over: each fold is represented against the other 4/5.
+CROSSFIT_FOLDS = 5
 
 Stage = Literal["encode_rows", "encoder_mid", "pre_head"]
 
@@ -126,33 +143,146 @@ def _downstream_arms(
         be fitted on, so the fold records a gap rather than the run raising.
     """
     if np.unique(y_fit).size < 2:
-        return {
-            name: np.full(len(X_test), np.nan)
-            for name in ("representation", "raw_features", "mlp_head")
-        }
+        return _gap(len(X_test))
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         rep_tr = clf.transform_representation(X_fit, stage=stage)
         rep_te = clf.transform_representation(X_test, stage=stage)
-        lr_rep = LogisticRegression(max_iter=1000).fit(rep_tr, y_fit)
-        p_representation = lr_rep.predict_proba(rep_te)[:, 1]
+        return _fit_arms(rep_tr, X_fit, y_fit, [rep_te], X_test, seed)
 
-        lr_raw = LogisticRegression(max_iter=1000).fit(X_fit, y_fit)
-        p_raw_features = lr_raw.predict_proba(X_test)[:, 1]
 
-        mlp_rep = MLPClassifier(
-            hidden_layer_sizes=(64,),
-            early_stopping=True,
-            n_iter_no_change=15,
-            max_iter=500,
-            random_state=seed,
-        ).fit(rep_tr, y_fit)
-        p_mlp_head = mlp_rep.predict_proba(rep_te)[:, 1]
+def _gap(n: int) -> dict[str, np.ndarray]:
+    """NaN for every downstream arm: the record of a probe set no classifier can fit."""
+    return {name: np.full(n, np.nan) for name in ("representation", "raw_features", "mlp_head")}
+
+
+def _fit_arms(
+    rep_fit: np.ndarray,
+    X_fit: np.ndarray,
+    y_fit: np.ndarray,
+    rep_tests: list[np.ndarray],
+    X_test: np.ndarray,
+    seed: int,
+) -> dict[str, np.ndarray]:
+    """Fit the probe, the raw-feature model and the MLP, and score the test rows.
+
+    Args:
+        rep_fit: ``(m, d)`` representations of the training rows.
+        X_fit: ``(m, F)`` the same rows' scaled features, for the raw-feature arm.
+        y_fit: ``(m,)`` their labels, 0/1, both classes present.
+        rep_tests: The test rows' representations, once per context they were taken under;
+            a probe's probabilities are averaged over them (one entry is used as it is).
+        X_test: ``(n, F)`` the test rows' scaled features.
+        seed: The MLP's ``random_state``.
+
+    Returns:
+        Test-row positive-class probabilities for the three arms.
+    """
+
+    def averaged(model: LogisticRegression | MLPClassifier) -> np.ndarray:
+        """The model's test probabilities, averaged over ``rep_tests``."""
+        if len(rep_tests) == 1:
+            return model.predict_proba(rep_tests[0])[:, 1]
+        return np.mean([model.predict_proba(r)[:, 1] for r in rep_tests], axis=0)
+
+    lr_rep = LogisticRegression(max_iter=1000).fit(rep_fit, y_fit)
+    p_representation = averaged(lr_rep)
+
+    lr_raw = LogisticRegression(max_iter=1000).fit(X_fit, y_fit)
+    p_raw_features = lr_raw.predict_proba(X_test)[:, 1]
+
+    mlp_rep = MLPClassifier(
+        hidden_layer_sizes=(64,),
+        early_stopping=True,
+        n_iter_no_change=15,
+        max_iter=500,
+        random_state=seed,
+    ).fit(rep_fit, y_fit)
+    p_mlp_head = averaged(mlp_rep)
     return {
         "representation": p_representation,
         "raw_features": p_raw_features,
         "mlp_head": p_mlp_head,
     }
+
+
+def crossfit_representations(
+    clf: FinancialTFMClassifier,
+    X_train: np.ndarray,
+    stage: Stage,
+    seed: int,
+    k: int = CROSSFIT_FOLDS,
+) -> tuple[np.ndarray, list[FinancialTFMClassifier]]:
+    """Represent each context row against a context that leaves it out.
+
+    The context rows are shuffled at ``seed`` and split into ``k`` folds; fold ``j``'s rows
+    are represented by ``clf`` restricted to the other folds, so none is scored with its own
+    label in view.
+
+    Args:
+        clf: The fitted classifier; its :attr:`~FinancialTFMClassifier.context_indices_` are
+            the rows cross-fitted.
+        X_train: The rows ``clf`` was fitted on, as passed to its ``fit``.
+        stage: The representation depth.
+        seed: Seed for the fold split.
+        k: Folds, at least 2.
+
+    Returns:
+        ``(m, d)`` representations of the context rows, in ``context_indices_`` order, and the
+        ``k`` restricted classifiers, each holding ``(k - 1)/k`` of the context.
+
+    Raises:
+        ValueError: If ``k < 2`` or the context has fewer than ``k`` rows.
+    """
+    ctx = clf.context_indices_
+    if k < 2 or ctx.size < k:
+        raise ValueError(f"cross-fitting needs k >= 2 and at least k context rows, got k={k}")
+    parts = np.array_split(np.random.default_rng(seed).permutation(ctx.size), k)
+    restricted = [clf.restrict_context(np.delete(ctx, part)) for part in parts]
+    rep: np.ndarray | None = None
+    for part, sub_clf in zip(parts, restricted, strict=True):
+        r = sub_clf.transform_representation(X_train[ctx[part]], stage=stage)
+        if rep is None:
+            rep = np.empty((ctx.size, r.shape[1]), dtype=r.dtype)
+        rep[part] = r
+    assert rep is not None
+    return rep, restricted
+
+
+def _crossfit_arms(
+    clf: FinancialTFMClassifier,
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+    X_test: np.ndarray,
+    stage: Stage,
+    seed: int,
+) -> dict[str, np.ndarray]:
+    """The context arm: cross-fitted probe, raw-feature model and MLP, and the head beside them.
+
+    Args:
+        clf: The fitted classifier.
+        X_train: The rows ``clf`` was fitted on.
+        y_train: Their labels.
+        X_test: The held-out rows.
+        stage: The representation depth.
+        seed: Seed for the fold split and the MLP.
+
+    Returns:
+        The three downstream arms (NaN when the context holds one class) and
+        ``"own_head_crossfit"``, the head's test probabilities averaged over the same
+        restricted contexts the probe's test representations were taken under.
+    """
+    ctx = clf.context_indices_
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        rep_fit, restricted = crossfit_representations(clf, X_train, stage, seed)
+        head = np.mean([c.predict_proba(X_test)[:, 1] for c in restricted], axis=0)
+        if np.unique(y_train[ctx]).size < 2:
+            arms = _gap(len(X_test))
+        else:
+            rep_tests = [c.transform_representation(X_test, stage=stage) for c in restricted]
+            arms = _fit_arms(rep_fit, X_train[ctx], y_train[ctx], rep_tests, X_test, seed)
+    return {**arms, "own_head_crossfit": head}
 
 
 def _scores(y: np.ndarray, p: np.ndarray) -> tuple[float, float]:
@@ -201,8 +331,10 @@ def run(
             (``docs/results/FINDINGS.md`` §60).
         probe_rows: ``"stratified"`` (the default, §130 unchanged) fits the downstream arms
             on the stratified sample; ``"context"`` fits them on the classifier's context
-            rows and records the stratified arms beside them with a ``_stratified`` suffix
-            (design review DR3.4).
+            rows, cross-fitted (see the module docstring), adds ``own_head_crossfit``, and
+            records the stratified arms beside them with a ``_stratified`` suffix (design
+            review DR3.4); ``"context-leaky"`` is the same without cross-fitting, every probe
+            row's label in view, for measuring the leak only.
         max_context: The classifier's context size; ``None`` keeps the classifier's default
             of 2,000, the size §130 ran at. A development knob for a small table.
 
@@ -212,8 +344,11 @@ def run(
     Raises:
         ValueError: For an unknown ``probe_rows``.
     """
-    if probe_rows not in ("stratified", "context"):
-        raise ValueError(f"probe_rows must be 'stratified' or 'context', got {probe_rows!r}")
+    if probe_rows not in ("stratified", "context", "context-leaky"):
+        raise ValueError(
+            "probe_rows must be 'stratified', 'context' or 'context-leaky', got "
+            f"{probe_rows!r}"
+        )
     clf_kwargs = {} if max_context is None else {"max_context": max_context}
     root = root or (CACHE_DIR / "v4finbench")
     if predictions_dir is not None:
@@ -255,13 +390,20 @@ def run(
             "n_train_sample": len(sub),
             "n_test": len(te),
         }
-        if probe_rows == "context":
+        if probe_rows != "stratified":
             # the rows the head conditions on, so the probe reads exactly as many labels
             ctx = clf.context_indices_
-            arms.update(_downstream_arms(clf, Xtr_full[ctx], ytr_full[ctx], Xte, stage, fold))
+            if probe_rows == "context":
+                arms.update(_crossfit_arms(clf, Xtr_full, ytr_full, Xte, stage, fold))
+            else:
+                arms.update(
+                    _downstream_arms(clf, Xtr_full[ctx], ytr_full[ctx], Xte, stage, fold)
+                )
             arms.update({f"{name}_stratified": p for name, p in stratified.items()})
             row["n_probe_rows"] = len(ctx)
             row["n_probe_positive"] = int(ytr_full[ctx].sum())
+            # the stratified arm's own leak: sample rows that are also context rows
+            row["n_sample_context_rows"] = int(np.isin(sub, ctx).sum())
         else:
             arms.update(stratified)
         for name, p in arms.items():
@@ -270,11 +412,15 @@ def run(
         probe_note = (
             f"probe on {row['n_probe_rows']:,} context rows, {row['n_probe_positive']} "
             "positive; "
-            if probe_rows == "context"
+            if probe_rows != "stratified"
             else ""
         )
         stratified_note = (
             f"  representation_stratified AP {row['representation_stratified_ap']:.4f}"
+            if probe_rows != "stratified"
+            else ""
+        ) + (
+            f"  own_head_crossfit AP {row['own_head_crossfit_ap']:.4f}"
             if probe_rows == "context"
             else ""
         )
@@ -326,10 +472,14 @@ def main() -> None:
         "--stage", choices=("encode_rows", "encoder_mid", "pre_head"), default="encode_rows"
     )
     p.add_argument(
-        "--probe-rows", choices=("stratified", "context"), default="stratified",
+        "--probe-rows", choices=("stratified", "context", "context-leaky"),
+        default="stratified",
         help="rows the downstream arms are fitted on: the stratified sample (default, as "
-             "§130 ran), or the classifier's own context rows, with the stratified arms kept "
-             "beside them under a _stratified suffix (design review DR3.4)",
+             "§130 ran); the classifier's own context rows, cross-fitted over 5 folds so no "
+             "row sees its own label, with the head scored the same way (own_head_crossfit) "
+             "and the stratified arms kept under a _stratified suffix (design review DR3.4); "
+             "or context-leaky, the context rows with their labels in view, a diagnostic of "
+             "the leak only",
     )
     args = p.parse_args()
     run(

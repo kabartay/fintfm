@@ -109,17 +109,20 @@ def test_default_probe_rows_is_the_harness_before_the_control(tmp_path, panel):
     ]
 
 
-def test_context_probe_is_fitted_on_the_heads_own_context_rows(tmp_path, panel):
-    """``probe_rows="context"`` fits the probe on exactly the rows the head conditions on,
-    reports how many labels that is, and keeps the stratified arms under a suffix."""
+def test_leaky_context_probe_is_fitted_on_the_heads_own_context_rows(tmp_path, panel):
+    """``probe_rows="context-leaky"`` fits the probe on exactly the rows the head conditions
+    on, represented under the full context (labels in view), reports how many labels that is,
+    and keeps the stratified arms under a suffix."""
     ref, clf, Xtr_full, ytr_full, Xte = _pre_dr34_arms(*panel[:4])
-    rec, preds, _ = _run(tmp_path, "context", probe_rows="context")
+    rec, preds, _ = _run(tmp_path, "leaky", probe_rows="context-leaky")
     row = rec["folds"][0]
-    assert rec["probe_rows"] == "context"
+    assert rec["probe_rows"] == "context-leaky"
     ctx = clf.context_indices_
     assert ctx.size == _CTX == row["n_probe_rows"]
     assert row["n_probe_positive"] == clf.context_summary_.n_positive == int(ytr_full[ctx].sum())
     assert 0 < row["n_probe_positive"] < row["n_train_sample"]
+    sub = rt._stratified_subsample(np.random.default_rng(0), ytr_full, _SAMPLE)
+    assert row["n_sample_context_rows"] == int(np.isin(sub, ctx).sum())
     # the context rows, conditioned, are the stored context: the probe reads the head's rows
     np.testing.assert_array_equal(clf._conditioner.transform(Xtr_full[ctx]), clf._ctx_X)
     with warnings.catch_warnings():
@@ -130,10 +133,73 @@ def test_context_probe_is_fitted_on_the_heads_own_context_rows(tmp_path, panel):
         want = probe.predict_proba(clf.transform_representation(Xte))[:, 1]
     assert preds["pred_representation"].tobytes() == want.tobytes()
     assert preds["pred_own_head"].tobytes() == ref["own_head"].tobytes()
+    assert "pred_own_head_crossfit" not in preds
     for arm in ("representation", "raw_features", "mlp_head"):
         assert preds[f"pred_{arm}_stratified"].tobytes() == ref[arm].tobytes()
         assert np.isfinite(row[f"{arm}_ap"]) and np.isfinite(row[f"{arm}_stratified_ap"])
+
+
+def test_context_probe_is_cross_fitted_and_the_head_scored_the_same_way(tmp_path, panel):
+    """``probe_rows="context"``: each context row is represented by the classifier restricted
+    to the other 4/5 of the context, the probe is fitted on all of them, test rows are
+    represented under each restriction and the probe averaged over them, and the head is the
+    average of the same restricted heads."""
+    ref, clf, Xtr_full, ytr_full, Xte = _pre_dr34_arms(*panel[:4])
+    rec, preds, _ = _run(tmp_path, "context", probe_rows="context")
+    row = rec["folds"][0]
+    assert rec["probe_rows"] == "context" and row["n_probe_rows"] == _CTX
+    ctx = clf.context_indices_
+    rep, restricted = rt.crossfit_representations(clf, Xtr_full, "encode_rows", 0)
+    assert len(restricted) == rt.CROSSFIT_FOLDS
+    for sub_clf in restricted:
+        held = np.setdiff1d(ctx, sub_clf.context_indices_)
+        assert held.size == _CTX // rt.CROSSFIT_FOLDS
+        assert sub_clf.context_indices_.size == _CTX - held.size
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        probe = LogisticRegression(max_iter=1000).fit(rep, ytr_full[ctx])
+        want = np.mean([
+            probe.predict_proba(c.transform_representation(Xte))[:, 1] for c in restricted
+        ], axis=0)
+        head = np.mean([c.predict_proba(Xte)[:, 1] for c in restricted], axis=0)
+    assert preds["pred_representation"].tobytes() == want.tobytes()
+    assert preds["pred_own_head_crossfit"].tobytes() == head.tobytes()
+    assert preds["pred_own_head"].tobytes() == ref["own_head"].tobytes()
+    assert not np.array_equal(head, ref["own_head"])
+    for arm in ("representation", "raw_features", "mlp_head", "own_head_crossfit"):
+        assert np.isfinite(row[f"{arm}_ap"])
+    for arm in ("representation", "raw_features", "mlp_head"):
+        assert preds[f"pred_{arm}_stratified"].tobytes() == ref[arm].tobytes()
     json.loads((tmp_path / "context" / "rt.json").read_text())
+
+
+@pytest.mark.parametrize("stage", ["encode_rows", "pre_head"])
+def test_a_context_rows_own_label_never_reaches_its_cross_fitted_representation(stage):
+    """Flip one context row's label and refit: its cross-fitted representation is unchanged
+    bit for bit, while under the full context (the leaky arm) it moves -- through cell
+    attention at ``encode_rows`` on a ``cell_labels`` checkpoint, the published checkpoint's
+    kind, and through the row-to-row encoder at ``pre_head``."""
+    X, y, *_ = _panel(n=600)
+    torch.manual_seed(0)
+    model = FinancialTFM(ModelConfig(max_features=6, max_classes=2, d_model=16, n_heads=2,
+                                     n_layers=1, d_ff=32, n_cell_blocks=1, cell_labels=True))
+    clf = FinancialTFMClassifier(model, max_context=100).fit(X, y)
+    ctx = clf.context_indices_
+    rep, _ = rt.crossfit_representations(clf, X, stage, seed=3)
+    for j in (0, 41, 99):
+        r = ctx[j]
+        y2 = y.copy()
+        y2[r] = 1 - y2[r]
+        clf2 = FinancialTFMClassifier(model, max_context=100).fit(X, y2)
+        np.testing.assert_array_equal(clf2.context_indices_, ctx)
+        rep2, _ = rt.crossfit_representations(clf2, X, stage, seed=3)
+        assert rep2[j].tobytes() == rep[j].tobytes()
+        # the row does reach others' representations, as a context row of their folds
+        assert not np.array_equal(rep2, rep)
+        # and the leak is real: under the full context the row's own label moves it
+        leaky = clf.transform_representation(X[r : r + 1], stage=stage)
+        leaky2 = clf2.transform_representation(X[r : r + 1], stage=stage)
+        assert not np.array_equal(leaky, leaky2)
 
 
 def test_a_single_class_probe_set_records_a_gap_not_a_crash():

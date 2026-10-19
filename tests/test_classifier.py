@@ -815,6 +815,50 @@ def test_context_positive_floor_refuses_what_it_cannot_mean(kw, match):
         clf.fit(rng.normal(size=(100, 4)), _rare(100, 10))
 
 
+def test_restrict_context_to_the_fitted_rows_is_the_fitted_classifier():
+    """Restricting to the stored context's own rows changes nothing, bit for bit; a smaller
+    restriction stores exactly those rows, corrects against the same population rate, and
+    leaves the original untouched (DR3.4's cross-fitting builds on this)."""
+    torch.manual_seed(0)
+    rng = np.random.default_rng(0)
+    X, Xq = rng.normal(size=(500, 4)), rng.normal(size=(25, 4))
+    y = _rare(500, 40)
+    clf = FinancialTFMClassifier(_tiny_model(), max_context=100).fit(X, y)
+    before = clf.predict_proba(Xq)
+    same = clf.restrict_context(clf.context_indices_)
+    assert same.predict_proba(Xq).tobytes() == before.tobytes()
+    assert same._ctx_X.tobytes() == clf._ctx_X.tobytes()
+    assert same._log_prior_shift.tobytes() == clf._log_prior_shift.tobytes()
+    rows = clf.context_indices_[::2]
+    half = clf.restrict_context(rows[::-1])  # order and duplicates do not matter
+    np.testing.assert_array_equal(half.context_indices_, rows)
+    assert half._ctx_X.shape[0] == rows.size
+    rate = y[rows].mean()
+    assert half.context_summary_.context_rate == pytest.approx(rate)
+    assert half.context_summary_.population_rate == pytest.approx(0.08)
+    np.testing.assert_allclose(half._log_prior_shift[1], np.log(0.08 / rate), rtol=1e-12)
+    assert not np.array_equal(half.predict_proba(Xq), before)
+    assert clf.predict_proba(Xq).tobytes() == before.tobytes()
+    assert half.transform_representation(Xq).shape == (25, 16)
+
+
+@pytest.mark.parametrize(
+    ("kw", "rows", "match"),
+    [
+        ({"context_strategy": "retrieval"}, [0, 1, 2], "retrieval"),
+        ({"n_ensemble": 2}, [0, 1, 2], "ensemble"),
+        ({}, [], "index"),
+        ({}, [0, 10_000], "index"),
+    ],
+)
+def test_restrict_context_refuses_what_it_cannot_restrict(kw, rows, match):
+    rng = np.random.default_rng(0)
+    clf = FinancialTFMClassifier(_tiny_model(), max_context=40, **kw)
+    clf.fit(rng.normal(size=(100, 4)), _rare(100, 10))
+    with pytest.raises(ValueError, match=match):
+        clf.restrict_context(np.array(rows, dtype=np.int64))
+
+
 def test_context_positive_floor_is_inert_when_the_pool_fits():
     y = _rare(300, 3)
     idx = _select_context(y, 2000, "uniform", np.random.default_rng(0), positive_floor=16)
