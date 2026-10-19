@@ -16,24 +16,56 @@ Arms are compared on fold 0's **validation** rows by default. Choosing an arm on
 rows and then reporting a five-fold mean that includes fold 0 selects the configuration on its
 own test fold (audit AU2.4); `--split test` reproduces the older behaviour, for runs written
 before validation predictions were saved.
+
+This chooses arms, so it refuses runs whose recorded `dataset` (any `*.json` in an arm's
+directory) is a Polish or Taiwanese bankruptcy panel, both TabArena-v0.1 datasets (design
+review DR4.1, `fintfm.evaluation.overlap.SELECTION_FORBIDDEN`).
+`--allow-tabarena-for-reporting` reads them anyway and marks the output as reporting only.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Sequence
 from pathlib import Path
 
 import numpy as np
 from sklearn.metrics import average_precision_score, roc_auc_score
 
 from fintfm.evaluation.metrics import holm_adjusted_p, paired_auc_difference
+from fintfm.evaluation.overlap import REPORTING_FLAG, SelectionForbiddenError, guard_selection
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def main() -> None:
-    """Entry point: print the comparison table and write it as JSON beside the runs."""
+def recorded_datasets(arm_dirs: Sequence[Path]) -> list[str]:
+    """The ``dataset`` field of every JSON record in the arms' directories.
+
+    Args:
+        arm_dirs: The arms' score directories.
+
+    Returns:
+        Each distinct dataset name recorded, sorted; empty when no record names one.
+    """
+    names: set[str] = set()
+    for d in arm_dirs:
+        for f in d.glob("*.json"):
+            try:
+                record = json.loads(f.read_text())
+            except (OSError, ValueError):
+                continue
+            if isinstance(record, dict) and isinstance(record.get("dataset"), str):
+                names.add(record["dataset"])
+    return sorted(names)
+
+
+def main(argv: Sequence[str] | None = None) -> None:
+    """Entry point: print the comparison table and write it as JSON beside the runs.
+
+    Args:
+        argv: Command-line arguments; ``sys.argv[1:]`` when omitted.
+    """
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--n-boot", type=int, default=2000)
     p.add_argument("--root", type=Path, default=ROOT / "runs" / "pilot")
@@ -41,14 +73,24 @@ def main() -> None:
     p.add_argument("--control", default="control", help="arm every other is compared against")
     p.add_argument("--split", choices=("val", "test"), default="val",
                    help="fold 0's validation rows (default) or its test rows")
-    args = p.parse_args()
+    p.add_argument(REPORTING_FLAG, action="store_true",
+                   help="read a Polish or Taiwanese bankruptcy run, for reporting only")
+    args = p.parse_args(argv)
     ctl = args.control
     y_key, pre = ("y_val", "val_") if args.split == "val" else ("y_true", "pred_")
 
+    arm_dirs = [d for d in sorted(args.root.glob(f"*{args.suffix}"))
+                if d.is_dir() and (d / "predictions_fold0.npz").exists()]
+    try:
+        reporting = guard_selection(recorded_datasets(arm_dirs),
+                                    args.allow_tabarena_for_reporting, "pilot_compare")
+    except SelectionForbiddenError as exc:
+        raise SystemExit(str(exc)) from exc
+    if reporting:
+        print(f"REPORTING ONLY ({', '.join(reporting)}): not for choosing an arm (DR4.1)")
     preds = {
         d.name.removesuffix(args.suffix) if args.suffix else d.name: np.load(d / "predictions_fold0.npz")
-        for d in sorted(args.root.glob(f"*{args.suffix}"))
-        if d.is_dir() and (d / "predictions_fold0.npz").exists()
+        for d in arm_dirs
     }
     if ctl not in preds:
         raise SystemExit(f"control arm {ctl!r} has not been scored yet")
@@ -84,6 +126,8 @@ def main() -> None:
         tail = (f"{r['d_ap']:+12.4f} [{r['lo']:+.4f}, {r['hi']:+.4f}] {r['p_holm']:7.3f}"
                 if "d_ap" in r else f"{'(control)':>12s}")
         print(f"{r['arm']:12s} {r['ap']:7.4f} {r['auc']:8.4f} {tail}")
+    if reporting:
+        rows = [{**r, "reporting_only": reporting} for r in rows]
     (args.root / f"comparison_{args.split}.json").write_text(json.dumps(rows, indent=2, default=float))
 
 

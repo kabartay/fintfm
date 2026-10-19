@@ -22,9 +22,13 @@ OpenML (predominantly CC-BY) and cached outside version control.
 
 from __future__ import annotations
 
+import argparse
 import os
 import warnings
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -196,19 +200,40 @@ def score_task(
     return out
 
 
-def run(model_path: str, max_rows: int = 20_000, seed: int = 0) -> list[DatasetResult]:
+def run(
+    model_path: str,
+    max_rows: int = 20_000,
+    seed: int = 0,
+    suite: Sequence[tuple[str, int]] | None = None,
+    allow_tabarena_for_reporting: bool = False,
+) -> list[DatasetResult]:
     """Score the suite and print a prevalence-ordered table.
 
     Args:
         model_path: fintfm checkpoint to evaluate.
         max_rows: Stratified subsample cap per dataset.
         seed: Split seed.
+        suite: ``(name, version)`` pairs; :data:`SUITE` when None.
+        allow_tabarena_for_reporting: Permit a dataset in
+            :data:`fintfm.evaluation.overlap.SELECTION_FORBIDDEN`, for reporting only; the
+            suite chooses arms, so without this such a dataset is refused (DR4.1).
 
     Returns:
         One :class:`DatasetResult` per dataset that loaded, ordered by prevalence.
+
+    Raises:
+        SelectionForbiddenError: If the suite holds a forbidden dataset and the override is
+            not given.
     """
+    from fintfm.evaluation.overlap import guard_selection
+
+    suite = SUITE if suite is None else suite
+    reporting = guard_selection([n for n, _ in suite], allow_tabarena_for_reporting,
+                                "openml_breadth")
+    if reporting:
+        print(f"REPORTING ONLY ({', '.join(reporting)}): not for choosing an arm (DR4.1)")
     results: list[DatasetResult] = []
-    for name, version in SUITE:
+    for name, version in suite:
         task = load_task(name, version, max_rows)
         if task is None:
             print(f"  {name:<34} SKIPPED (unavailable or not binary)", flush=True)
@@ -224,3 +249,79 @@ def run(model_path: str, max_rows: int = 20_000, seed: int = 0) -> list[DatasetR
             flush=True,
         )
     return sorted(results, key=lambda r: r.prevalence)
+
+
+def _row_hash(reference_dir: Path) -> int:
+    """Compare each SUITE dataset's contents with the cached TabArena-v0.1 datasets (DR4.1).
+
+    The same check, thresholds and reference cache as the proxy suite's ``--row-hash``
+    (:func:`fintfm.evaluation.overlap.content_fingerprint`); datasets come from
+    scikit-learn's default OpenML cache, where :func:`load_task` puts them.
+
+    Returns:
+        0 when every dataset is clean or the check was skipped (printed), 1 on an overlap.
+    """
+    from fintfm.evaluation.overlap import load_reference_fingerprints, row_hash_report
+    from fintfm.evaluation.proxy_suite import ensure_ca_bundle
+
+    references, notes = load_reference_fingerprints(reference_dir)
+    for note in notes:
+        print(note)
+    if not references:
+        print("SKIPPED: no TabArena-v0.1 dataset available locally; nothing was compared")
+        return 0
+
+    def loader(name: str, version: int) -> Callable[[], Any]:
+        """Features of one SUITE dataset, target dropped, or None on a fetch failure."""
+        def load() -> Any:
+            """Fetch (cached) and return the features."""
+            from sklearn.datasets import fetch_openml
+
+            ensure_ca_bundle()
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                try:
+                    return fetch_openml(name, version=version, as_frame=True, parser="auto").data
+                except (OSError, ValueError) as exc:
+                    print(f"  {name}: fetch failed ({type(exc).__name__}: {exc})")
+                    return None
+        return load
+
+    hits = row_hash_report([(n, loader(n, v)) for n, v in SUITE], references)
+    print(f"\n{len(hits)} of {len(SUITE)} SUITE datasets overlap a cached TabArena-v0.1 dataset"
+          + (f": {', '.join(hits)}" if hits else ""))
+    return 1 if hits else 0
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """Command line: score the suite, or check it against TabArena by contents.
+
+    Args:
+        argv: Command-line arguments; ``sys.argv[1:]`` when omitted.
+
+    Returns:
+        Process exit status.
+    """
+    from fintfm.evaluation.overlap import REPORTING_FLAG, TABARENA_OPENML_CACHE
+
+    p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    p.add_argument("--model", default=None, help="fintfm checkpoint to score")
+    p.add_argument("--max-rows", type=int, default=20_000)
+    p.add_argument("--seed", type=int, default=0)
+    p.add_argument(REPORTING_FLAG, action="store_true",
+                   help="permit a selection-forbidden dataset, for reporting only")
+    p.add_argument("--row-hash", action="store_true",
+                   help="compare SUITE's contents with the cached TabArena-v0.1 datasets")
+    p.add_argument("--tabarena-cache", type=Path, default=TABARENA_OPENML_CACHE)
+    args = p.parse_args(argv)
+    if args.row_hash:
+        return _row_hash(args.tabarena_cache)
+    if args.model is None:
+        p.error("--model is required unless --row-hash is given")
+    run(args.model, args.max_rows, args.seed,
+        allow_tabarena_for_reporting=args.allow_tabarena_for_reporting)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
