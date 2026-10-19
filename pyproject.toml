@@ -50,6 +50,17 @@ hf = [
     "huggingface_hub>=0.34",
 ]
 
+# The TabArena overlap report (design review DR4.1, `fintfm.evaluation.overlap --report
+# --fetch`): openml-python (BSD-3-Clause) fetches TabArena-v0.1's datasets into its own cache,
+# huggingface_hub (Apache-2.0) fetches BeyondArena's parquet files, and pyarrow reads both.
+# Evaluation hashing only; nothing fetched here trains anything. Each read dependency is
+# declared here as well as in its usual extra, for the reason the `bench` comment gives.
+overlap = [
+    "openml>=0.15",
+    "huggingface_hub>=0.34",
+    "pyarrow>=17",
+]
+
 # FinTFM-R (task A2/A3): the real EDGAR panel `scripts/edgar/build_panel.py` writes and
 # `prior/real_edgar.py` reads is parquet. Declared in its own extra rather than assumed from
 # `bench`/`kaggle` already having it -- CLAUDE.md's own lesson is that a dependency declared

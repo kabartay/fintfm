@@ -14,7 +14,23 @@ without the fork or a network:
   curated_tabarena_dataset_metadata.csv``, columns ``dataset_id`` and ``dataset_name`` (51
   datasets; the same names as ``sources/data/TabArena-v0.1_tasks_metadata.csv``).
 * BeyondArena: ``packages/tabarena/src/tabarena/benchmark/task/metadata/sources/data/
-  BeyondArena_tasks_metadata.csv``, column ``dataset_name`` (142 datasets; no OpenML ids).
+  BeyondArena_tasks_metadata.csv``, columns ``dataset_name``, ``target_name`` and
+  ``data_foundry_uri`` (142 datasets, one row per dataset of its 3,722 task rows; no OpenML
+  ids). Copied to ``beyondarena_datasets.csv`` beside this module, read into
+  :data:`BEYONDARENA_DATASETS`. Its ``parquet_bytes`` column is not from the fork: it is each
+  file's size in the Hugging Face listing of :data:`BEYONDARENA_REPO` at
+  :data:`BEYONDARENA_REVISION`, read on :data:`BEYONDARENA_LISTED` without downloading.
+
+**BeyondArena's files.** The data lives in the Hugging Face dataset repo
+:data:`BEYONDARENA_REPO` (873 files: 158 parquet, the rest JSON metadata and a few top-level
+files). Each ``data_foundry_uri`` is a container folder, ``<name>/<uuid>`` or
+``<name>/versions/<uuid>``, and in the listing at :data:`BEYONDARENA_REVISION` every one of the
+142 holds exactly one ``dataset.parquet``, which is the dataset (9.74 GB in all; the largest,
+``maps_router_eta``, is 3.5 GB, 1,250,000 rows by 989 columns). The other 16 parquet files are
+``tabarena_text_cache_*.parquet`` text embeddings, never read here. Beside each dataset sits
+``task_metadata.predictive-ml-task-mold-v1.json``, whose ``target_column_name``
+:func:`beyondarena_parquet` checks against the fork's ``target_name`` before the target is
+dropped, so a disagreement is reported rather than hashed as a feature.
 
 TabArena's ids are its curated re-uploads (46904 onwards), not the original OpenML uploads other
 suites fetch (bank-marketing is 1461 on OpenML-CC18 and 46910 in TabArena), so an id check alone
@@ -39,11 +55,25 @@ of the raw rows would miss them. Two signals survive all three:
   is the column share.
 
 A candidate overlaps a reference when either share reaches :data:`OVERLAP_SHARE` (columns:
-with at least :data:`MIN_SHARED_COLUMNS` shared). The references are whatever TabArena-v0.1
-datasets the local OpenML cache holds (:data:`TABARENA_OPENML_CACHE`, written by the fork's
-runs; read only), so the check covers only those and names the ones it lacked. BeyondArena
-lists no OpenML ids, so no local copy can be matched to it and it is not compared by contents.
-A dataset subsampled or with its numeric columns transformed on re-upload passes both signals.
+with at least :data:`MIN_SHARED_COLUMNS` shared). A dataset subsampled or with its numeric
+columns transformed on re-upload passes both signals.
+
+**References.** Candidates are fingerprinted in memory by :func:`content_fingerprint`; every
+reference goes through :func:`parquet_fingerprint`, which gives the same result from a parquet
+file read a column and then a batch of rows at a time, and can keep only the row hashes some
+candidate has, so a 3.5 GB reference never sits in memory. TabArena-v0.1's datasets are read
+from openml-python's cache (:data:`TABARENA_OPENML_CACHE`), where the fork's runs left 27 of
+the 51; :func:`fetch_tabarena` adds the rest through openml-python, and nothing else here writes
+to that cache. BeyondArena's parquet files come from the Hugging Face cache, filled by
+:func:`beyondarena_parquet` with ``fetch=True``. Two readers use these references:
+
+* the ``--row-hash`` checks of the two suites' command lines
+  (:func:`load_reference_fingerprints`), which compare against whichever TabArena-v0.1
+  datasets are already cached, BeyondArena not at all, and say what they lacked;
+* the full report (``python -m fintfm.evaluation.overlap --report``, module
+  :mod:`fintfm.evaluation.overlap_report`), which compares every suite dataset with all 51
+  TabArena-v0.1 and all 142 BeyondArena datasets and writes the result to a JSON file that
+  ``tests/test_overlap_report.py`` checks without a network.
 
 **Selection (DR4.1).** The Polish and Taiwanese bankruptcy panels are TabArena-v0.1 datasets
 (``polish_companies_bankruptcy``, ``taiwanese_bankruptcy_prediction``) as well as this
@@ -54,11 +84,14 @@ tool calls, overridden only by :data:`REPORTING_FLAG`.
 
 from __future__ import annotations
 
+import csv
 import hashlib
+import json
 import re
 import xml.etree.ElementTree as ET
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
+from importlib.resources import files
 from pathlib import Path
 
 import numpy as np
@@ -90,50 +123,66 @@ TABARENA_V0_1: tuple[tuple[int, str], ...] = (
     (46979, "jm1"), (46980, "MIC"),
 )
 
-#: BeyondArena's 142 dataset names, whitespace-separated. Source in the module docstring.
-_BEYONDARENA_TEXT = """
-5g_energy_consumption acquire_valued_shoppers_challenge airfoil_self_noise
-allstate_claims_severity amazon_employee_access amex_non_iid_1m anes_voting_2026 aps_failure
-asp_potassco_classification audiology_diagnosis bad_customer_detection bank_customer_churn
-bank_marketing biogeographical_ancestry_prediction biomechanical_orthopaedic_prediction
-bioresponse blood_tests_drink_prediction blood_transfusion body_density_prediction
-california_house_prices_2020 cardiotocography churn cirrhosis_patient_survival_prediction
-climate_model_weather_forecasting_1m clock_protein_toxicity coffee_rating_prediction coil_2000
-concrete_compressive_strength consumer_complaints_1m cooking_time_1m covertype credit_approval
-credit_card_clients_default credit_g customer_satisfaction_in_airline delivery_eta_1m
-dementia_prediction diabetes_130_us diamonds drug_induced_autoimmunity_prediction
-early_learning_predictors early_stage_diabetes_risk_prediction ecoli_proteins
-ecommerce_shipping electric_motor_temperature_prediction emscad eryhemato_squamous_disease
-fiat_500 fitness_club food_delivery_time forensic_glass_identification forest_fires
-gallstone_disease garments_worker_productivity ghanas_indigenous_intel give_me_some_credit
-hazelnut_spread_contaminant_detection healthcare_insurance_expenses heart_disease_cleveland
-heart_disease_hungary heart_disease_va_long_beach heart_failure_followup_survival heloc
-hepatitis_c_prediction hepatitis_survival_prediction hiva_agnostic home_credit_default_risk
-home_credit_default_stability_1m homeq_default_prediction homesite_quote_conversion
-horse_colic_survival hotel_booking_demand houses hr_analytics ieee_fraud_detection
-immoscout_german_house_prices in_vehicle_coupon_recommendation indian_liver_patient_dataset
-iranian_churn jm1 kdd_cup_09_appetency kick kickstarter labour_inspection_compliance
-lending_club_1m ljubljana_breast_cancer ljubljana_primary_tumor lung_cancer
-lung_cancer_epithelial_genexp maps_router_eta_1m marketing_campaign maternal_health_risk
-mercari_price_suggestion_1m mercedes_benz_greener_manufacturing miami_housing mic
-mice_protein_trisomy_discriminant micro_mass musk mutual_funds_india
-naticusdroid_android_permissions_dataset obesity_estimation
-online_shoppers_purchasing_intention_dataset otto_group_product_classification_challenge
-pancreatic_cancer_mouse_detection parkinsons_biomedical_voice_measurements
-physiochemical_protein polish_companies_bankruptcy porto_seguro
-predict_students_dropout_and_academic_success prostate_cancer_detection
-pva_revenue_prediction_kddcup98 qsar_aquatic_toxicity qsar_biodeg qsar_fish_toxicity
-qsar_tid_11 regensburg_pediatric_appendicitis rossmann_store_sales
-santander_customer_satisfaction santander_customer_transaction_prediction
-santander_transaction_value sat11_hand_algo_runtime sberbank_housing_market_forecasting sdss_17
-seismic_bumps sepsis_prediction_1m sepsis_survival_minimal_clinical_records sf_permit_time
-south_africa_coronary_heart_disease splice student_portuguese_performance superconductivity
-taiwanese_bankruptcy_prediction telemonitoring_parkinsons_biomedical_voice_measurements
-thyroid_discordant tour_travels_churn video_game_fps_prediction
-video_transcoding_time_prediction website_phishing wids_diabetes_mellitus wine_quality
-wine_world_cost
-"""
-BEYONDARENA: tuple[str, ...] = tuple(_BEYONDARENA_TEXT.split())
+#: Where BeyondArena's files live: a Hugging Face *dataset* repository.
+BEYONDARENA_REPO = "TabArena/BeyondArena"
+
+#: The commit of :data:`BEYONDARENA_REPO` every download is pinned to, so a later revision of
+#: the repository cannot change what the report compared against.
+BEYONDARENA_REVISION = "2ecfe882ccfb814fc27c4de10a64ceefd5d7655c"
+
+#: Date the file listing of :data:`BEYONDARENA_REPO` at :data:`BEYONDARENA_REVISION` was read.
+BEYONDARENA_LISTED = "2026-10-19"
+
+
+@dataclass(frozen=True)
+class BeyondArenaDataset:
+    """One BeyondArena dataset, as the fork's metadata and the Hugging Face listing give it.
+
+    Attributes:
+        name: The fork's ``dataset_name``, e.g. ``"credit_g"``.
+        target: The fork's ``target_name``, the column dropped before hashing.
+        uri: The fork's ``data_foundry_uri``: the container folder in
+            :data:`BEYONDARENA_REPO`, ``<name>/<uuid>`` or ``<name>/versions/<uuid>``.
+        parquet_bytes: Size of :attr:`parquet_file` in the listing at
+            :data:`BEYONDARENA_REVISION`.
+    """
+
+    name: str
+    target: str
+    uri: str
+    parquet_bytes: int
+
+    @property
+    def parquet_file(self) -> str:
+        """The dataset's parquet file within the repository."""
+        return f"{self.uri}/dataset.parquet"
+
+    @property
+    def task_metadata_file(self) -> str:
+        """The container's task metadata, which names the target column."""
+        return f"{self.uri}/task_metadata.predictive-ml-task-mold-v1.json"
+
+    @property
+    def label(self) -> str:
+        """The dataset's label in reports, e.g. ``"BeyondArena credit_g"``."""
+        return f"BeyondArena {self.name}"
+
+
+def _read_beyondarena() -> tuple[BeyondArenaDataset, ...]:
+    """The rows of ``beyondarena_datasets.csv``, in its order (sorted by name)."""
+    text = (files("fintfm.evaluation") / "beyondarena_datasets.csv").read_text(encoding="utf-8")
+    return tuple(
+        BeyondArenaDataset(r["dataset_name"], r["target_name"], r["data_foundry_uri"],
+                           int(r["parquet_bytes"]))
+        for r in csv.DictReader(text.splitlines())
+    )
+
+
+#: BeyondArena's 142 datasets. Source in the module docstring.
+BEYONDARENA_DATASETS: tuple[BeyondArenaDataset, ...] = _read_beyondarena()
+
+#: BeyondArena's 142 dataset names, sorted.
+BEYONDARENA: tuple[str, ...] = tuple(d.name for d in BEYONDARENA_DATASETS)
 
 #: Shortest normalised name for which containment, not only equality, counts as a match:
 #: BeyondArena's ``blood_transfusion`` is TabArena's ``blood-transfusion-service-center``, while
@@ -236,7 +285,8 @@ def guard_selection(names: Iterable[str], allow_reporting: bool, tool: str) -> l
 
 
 #: Where the TabArena fork's runs leave TabArena-v0.1's datasets: openml-python's default
-#: cache, ``<id>/dataset_<id>.pq`` beside ``description.xml``. Read only.
+#: cache, ``<id>/dataset_<id>.pq`` beside ``description.xml``. Only :func:`fetch_tabarena`
+#: writes to it; everything else reads.
 TABARENA_OPENML_CACHE = Path.home() / ".openml" / "org" / "openml" / "www" / "datasets"
 
 #: Significant figures numeric cells are rounded to before hashing, so a float32 copy of a
@@ -313,28 +363,143 @@ def content_fingerprint(features: pd.DataFrame) -> ContentFingerprint:
     numeric: list[np.ndarray] = []
     columns: set[str] = set()
     for name in features.columns:
-        col = features[name]
-        num = _numeric_view(col)
-        present = col.notna().to_numpy()
-        if present.any() and np.isfinite(num[present]).all():
+        num, fingerprint = _column_part(features[name])
+        if num is not None:
             numeric.append(num)
-            vals = np.sort(num[np.isfinite(num)])
-            if len(np.unique(vals)) >= MIN_DISTINCT_NUMERIC:
-                columns.add("n:" + _digest("\x1f".join(_rounded(vals))))
-        else:
-            counts = col.astype("object").value_counts(dropna=True)
-            if len(counts) >= MIN_DISTINCT_CATEGORIES:
-                columns.add("c:" + _digest(",".join(map(str, sorted(counts.tolist())))))
+        if fingerprint is not None:
+            columns.add(fingerprint)
+    rows = np.unique(np.asarray(_row_hashes(numeric), dtype=np.uint64))
+    return ContentFingerprint(len(features), rows, frozenset(columns))
+
+
+def _column_part(col: pd.Series) -> tuple[np.ndarray | None, str | None]:
+    """One column's contribution to a fingerprint, shared by both fingerprint functions.
+
+    Args:
+        col: The whole column, in pandas' reading of it.
+
+    Returns:
+        ``(numeric, fingerprint)``. ``numeric`` is the column as floats when every non-missing
+        cell parses as a finite number (it then feeds the row hashes), else None.
+        ``fingerprint`` is its ``n:`` or ``c:`` column fingerprint, or None when it has too few
+        distinct values or levels.
+    """
+    num = _numeric_view(col)
+    present = col.notna().to_numpy()
+    if present.any() and np.isfinite(num[present]).all():
+        vals = np.sort(num[np.isfinite(num)])
+        if len(np.unique(vals)) >= MIN_DISTINCT_NUMERIC:
+            return num, "n:" + _digest("\x1f".join(_rounded(vals)))
+        return num, None
+    counts = col.astype("object").value_counts(dropna=True)
+    if len(counts) >= MIN_DISTINCT_CATEGORIES:
+        return None, "c:" + _digest(",".join(map(str, sorted(counts.tolist()))))
+    return None, None
+
+
+def _row_hashes(numeric: list[np.ndarray]) -> list[int]:
+    """The row hash of each row with at least :data:`MIN_ROW_CELLS` finite cells.
+
+    Args:
+        numeric: The numeric columns' float views, all of one length (see
+            :func:`_column_part`); empty for a table with none.
+
+    Returns:
+        One 64-bit hash per qualifying row, in row order, duplicates kept.
+    """
     hashes: list[int] = []
     # in row chunks: a 70,000 x 784 table as one array of strings would need gigabytes
-    for start in range(0, len(features) if numeric else 0, 2048):
+    for start in range(0, len(numeric[0]) if numeric else 0, 2048):
         cells = np.column_stack([_rounded(v[start : start + 2048]) for v in numeric])
         for row in cells:
             kept = sorted(c for c in row if c)
             if len(kept) >= MIN_ROW_CELLS:
                 hashes.append(int(_digest("\x1f".join(kept))[:16], 16))
-    rows = np.unique(np.asarray(hashes, dtype=np.uint64))
-    return ContentFingerprint(len(features), rows, frozenset(columns))
+    return hashes
+
+
+#: Cells (rows times numeric columns) per row batch in :func:`parquet_fingerprint`; about
+#: 16 MB of float64, so a 989-column reference is read some 2,000 rows at a time.
+BATCH_CELLS = 2_000_000
+
+
+def _feature_names(path: Path, target: str | None) -> list[str]:
+    """A parquet file's feature columns: every column except ``target`` and pandas' index.
+
+    Raises:
+        ValueError: If ``target`` is given and is not a column of the file.
+    """
+    import pyarrow.parquet as pq
+
+    schema = pq.read_schema(path)
+    index = {c for c in (schema.pandas_metadata or {}).get("index_columns", [])
+             if isinstance(c, str)}
+    names = [n for n in schema.names if n not in index]
+    if target is not None and target not in names:
+        raise ValueError(f"{path}: no target column {target!r}")
+    return [n for n in names if n != target]
+
+
+def parquet_fingerprint(
+    path: Path, target: str | None, keep_rows: np.ndarray | None = None
+) -> ContentFingerprint:
+    """:func:`content_fingerprint` of a parquet file's features, read without loading the file.
+
+    Two passes over the file with pyarrow. The first reads one column at a time, converted to
+    pandas as :func:`pandas.read_parquet` would, to decide whether it is numeric and to build its
+    column fingerprint (:func:`_column_part`, the code :func:`content_fingerprint` runs). The
+    second reads only the numeric columns in row batches of about :data:`BATCH_CELLS` cells and
+    hashes each row (:func:`_row_hashes`). Peak memory is one column plus one batch, not the
+    file: the 3.5 GB BeyondArena ``maps_router_eta`` reads as 1.25 million rows of one column,
+    then about 2,000 rows of all 989.
+
+    With ``keep_rows`` None the result equals ``content_fingerprint`` of
+    ``pandas.read_parquet(path)`` with the target dropped (``tests/test_overlap_report.py``
+    holds that equality). A row share needs only the candidate hashes found in a reference, so
+    passing the union of every candidate's row hashes as ``keep_rows`` keeps the result small
+    without changing any :func:`content_match` against those candidates.
+
+    Args:
+        path: The parquet file.
+        target: The target column, left out like :func:`content_fingerprint`'s caller drops
+            it; None keeps every column.
+        keep_rows: Row hashes worth keeping (any order, uint64); None keeps them all.
+
+    Returns:
+        The file's :class:`ContentFingerprint`; ``n_rows`` always counts every row, and with
+        ``keep_rows`` given ``rows`` holds only the hashes in it.
+
+    Raises:
+        ValueError: If ``target`` is given and is not a column of the file.
+    """
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    names = _feature_names(path, target)
+    pf = pq.ParquetFile(path, buffer_size=1 << 20, pre_buffer=False)
+    numeric: list[str] = []
+    columns: set[str] = set()
+    for name in names:
+        col = pf.read(columns=[name]).to_pandas().iloc[:, 0]
+        num, fingerprint = _column_part(col)
+        del col
+        if num is not None:
+            numeric.append(name)
+        if fingerprint is not None:
+            columns.add(fingerprint)
+    keep = None if keep_rows is None else np.unique(np.asarray(keep_rows, dtype=np.uint64))
+    found: list[np.ndarray] = []
+    if numeric:
+        batch_rows = max(64, BATCH_CELLS // len(numeric))
+        for batch in pf.iter_batches(batch_size=batch_rows, columns=numeric):
+            frame = pa.Table.from_batches([batch]).to_pandas()
+            views = [_numeric_view(frame.iloc[:, i]) for i in range(frame.shape[1])]
+            hashes = np.asarray(_row_hashes(views), dtype=np.uint64)
+            if keep is not None:
+                hashes = hashes[np.isin(hashes, keep)]
+            found.append(np.unique(hashes))
+    rows = np.unique(np.concatenate(found)) if found else np.asarray([], dtype=np.uint64)
+    return ContentFingerprint(pf.metadata.num_rows, rows, frozenset(columns))
 
 
 @dataclass(frozen=True)
@@ -396,13 +561,137 @@ def _target_attribute(description: Path) -> str | None:
     return None
 
 
+class ReferenceUnavailable(RuntimeError):
+    """A reference dataset is not available locally, or could not be fetched; the message
+    says why, for the report's per-reference status."""
+
+
+def tabarena_label(dataset_id: int, name: str) -> str:
+    """A TabArena-v0.1 dataset's label in reports, e.g. ``"TabArena-v0.1 46918 credit-g"``."""
+    return f"TabArena-v0.1 {dataset_id} {name}"
+
+
+def fetch_tabarena(dataset_id: int, cache_dir: Path = TABARENA_OPENML_CACHE) -> Path:
+    """Download one TabArena-v0.1 dataset into openml-python's cache (network).
+
+    openml-python (the ``overlap`` extra) writes ``<id>/dataset_<id>.pq`` and
+    ``description.xml`` in the layout the fork's runs left, so a fetched dataset reads exactly
+    like one the fork cached. Data only; no task, split or quality files.
+
+    Args:
+        dataset_id: A TabArena-v0.1 OpenML dataset id (:data:`TABARENA_V0_1`).
+        cache_dir: openml-python's dataset cache, which must end in
+            ``org/openml/www/datasets`` (the layout for the default OpenML server).
+
+    Returns:
+        The dataset's parquet file.
+
+    Raises:
+        ReferenceUnavailable: If openml-python is not installed, the download fails, or the
+            server offered no parquet copy (openml-python then falls back to ARFF, which is not
+            read here).
+    """
+    if tuple(cache_dir.parts[-4:]) != ("org", "openml", "www", "datasets"):
+        raise ReferenceUnavailable(f"{cache_dir} is not an openml-python dataset cache "
+                                   "(<root>/org/openml/www/datasets)")
+    try:
+        import openml
+    except ImportError as exc:
+        raise ReferenceUnavailable("openml-python not installed (uv sync --extra overlap, with "
+                                   "the session's other extras)") from exc
+    openml.config.set_root_cache_directory(cache_dir.parents[3])
+    try:
+        openml.datasets.get_dataset(dataset_id, download_data=True, download_qualities=False,
+                                    download_features_meta_data=False)
+    except Exception as exc:  # any failure is one reference's status
+        raise ReferenceUnavailable(f"openml fetch failed ({type(exc).__name__}: {exc})") from exc
+    path = cache_dir / str(dataset_id) / f"dataset_{dataset_id}.pq"
+    if not path.exists():
+        raise ReferenceUnavailable("openml-python fetched no parquet copy (ARFF fallback)")
+    return path
+
+
+def tabarena_parquet(
+    dataset_id: int, cache_dir: Path = TABARENA_OPENML_CACHE, fetch: bool = False
+) -> tuple[Path, str]:
+    """One TabArena-v0.1 dataset's parquet file and target column.
+
+    Args:
+        dataset_id: The OpenML dataset id.
+        cache_dir: openml-python's dataset cache.
+        fetch: Download the dataset with :func:`fetch_tabarena` when it is not cached.
+
+    Returns:
+        ``(parquet, target)``, the target read from the cached ``description.xml``.
+
+    Raises:
+        ReferenceUnavailable: If the dataset is not cached (and ``fetch`` is false or fails)
+            or its description names no target.
+    """
+    path = cache_dir / str(dataset_id) / f"dataset_{dataset_id}.pq"
+    if not path.exists():
+        if not fetch:
+            raise ReferenceUnavailable(f"not in the OpenML cache {cache_dir}; pass --fetch")
+        path = fetch_tabarena(dataset_id, cache_dir)
+    target = _target_attribute(path.parent / "description.xml")
+    if target is None:
+        raise ReferenceUnavailable(f"{path.parent / 'description.xml'} names no target")
+    return path, target
+
+
+def beyondarena_parquet(dataset: BeyondArenaDataset, fetch: bool = False) -> Path:
+    """One BeyondArena dataset's parquet file, from the Hugging Face cache.
+
+    ``huggingface_hub.hf_hub_download`` at :data:`BEYONDARENA_REVISION`, one file at a time into
+    the normal Hugging Face cache, so only the dataset's own ``dataset.parquet`` and its task
+    metadata are fetched (never the text-embedding parquet files beside some of them). The task
+    metadata's ``target_column_name`` must equal the fork's ``target_name``.
+
+    Args:
+        dataset: The dataset, from :data:`BEYONDARENA_DATASETS`.
+        fetch: Download what the cache lacks (network); otherwise read the cache only.
+
+    Returns:
+        The local path of the dataset's parquet file.
+
+    Raises:
+        ReferenceUnavailable: If huggingface_hub is not installed, a file is not cached (and
+            ``fetch`` is false or the download fails), or the targets disagree.
+    """
+    try:
+        from huggingface_hub import hf_hub_download
+    except ImportError as exc:
+        raise ReferenceUnavailable("huggingface_hub not installed (uv sync --extra overlap, "
+                                   "with the session's other extras)") from exc
+
+    def get(filename: str) -> Path:
+        """One file of the repository at the pinned revision, from the cache or the Hub."""
+        try:
+            return Path(hf_hub_download(BEYONDARENA_REPO, filename, repo_type="dataset",
+                                        revision=BEYONDARENA_REVISION,
+                                        local_files_only=not fetch))
+        except Exception as exc:  # any failure is one reference's status
+            where = "fetch failed" if fetch else "not in the Hugging Face cache; pass --fetch"
+            raise ReferenceUnavailable(f"{filename}: {where} ({type(exc).__name__})") from exc
+
+    meta = json.loads(get(dataset.task_metadata_file).read_text(encoding="utf-8"))
+    if meta.get("target_column_name") != dataset.target:
+        raise ReferenceUnavailable(f"task metadata names target {meta.get('target_column_name')!r},"
+                                   f" the fork's metadata {dataset.target!r}")
+    return get(dataset.parquet_file)
+
+
 def load_reference_fingerprints(
-    cache_dir: Path = TABARENA_OPENML_CACHE,
+    cache_dir: Path = TABARENA_OPENML_CACHE, keep_rows: np.ndarray | None = None
 ) -> tuple[dict[str, ContentFingerprint], list[str]]:
     """Fingerprint every TabArena-v0.1 dataset the local OpenML cache holds (read only).
 
+    The ``--row-hash`` checks' references. The full comparison, BeyondArena included, is the
+    report in :mod:`fintfm.evaluation.overlap_report`.
+
     Args:
         cache_dir: openml-python's dataset cache.
+        keep_rows: Passed to :func:`parquet_fingerprint`; None keeps every row hash.
 
     Returns:
         ``(fingerprints, notes)``: fingerprints keyed by a label such as
@@ -410,8 +699,9 @@ def load_reference_fingerprints(
         not cached, BeyondArena, no parquet reader). An empty dict means the check is skipped,
         and the notes say why.
     """
-    beyond = ("BeyondArena: not compared by contents (it lists no OpenML ids, so no local copy "
-              "can be matched to it); its names are checked by name_clashes")
+    beyond = ("BeyondArena: not compared by contents here; the full report "
+              "(python -m fintfm.evaluation.overlap --report) compares it, and its names are "
+              "checked by name_clashes")
     if not cache_dir.is_dir():
         return {}, [f"TabArena-v0.1: no local cache at {cache_dir}; row-hash check skipped", beyond]
     try:
@@ -426,11 +716,10 @@ def load_reference_fingerprints(
         if not pq.exists():
             missing.append(f"{dataset_id} {name}")
             continue
-        frame = pd.read_parquet(pq)
         target = _target_attribute(cache_dir / str(dataset_id) / "description.xml")
-        if target in frame.columns:
-            frame = frame.drop(columns=[target])
-        out[f"TabArena-v0.1 {dataset_id} {name}"] = content_fingerprint(frame)
+        if target is not None and target not in _feature_names(pq, None):
+            target = None  # as before: a target the file lacks drops nothing
+        out[tabarena_label(dataset_id, name)] = parquet_fingerprint(pq, target, keep_rows)
     notes = [f"TabArena-v0.1: {len(out)} of {len(TABARENA_V0_1)} datasets read from {cache_dir}"]
     if missing:
         notes.append(f"TabArena-v0.1: not cached, so not compared by contents: "
@@ -483,3 +772,23 @@ def row_hash_report(
         if match.overlaps:
             hits.append(name)
     return hits
+
+
+#: The positive control every content check runs: OpenML's original credit-g (dataset 31),
+#: whose re-upload is TabArena-v0.1's 46918 (:data:`CONTROL_REFERENCE`). A check that does not
+#: flag it is not working, and nothing else it reports counts.
+CONTROL_DATASET_ID = 31
+
+#: The control's name in reports.
+CONTROL_NAME = "credit-g (OpenML 31)"
+
+#: The reference the control must overlap.
+CONTROL_REFERENCE = tabarena_label(46918, "credit-g")
+
+
+if __name__ == "__main__":
+    # The report lives in its own module, which imports this one by its package name; running
+    # it from here keeps the documented command short.
+    from fintfm.evaluation.overlap_report import main
+
+    raise SystemExit(main())

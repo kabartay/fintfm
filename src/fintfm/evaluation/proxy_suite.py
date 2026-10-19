@@ -117,6 +117,8 @@ import pandas as pd
 
 from fintfm.evaluation.datasets import CACHE_DIR
 from fintfm.evaluation.overlap import (
+    CONTROL_DATASET_ID,
+    CONTROL_NAME,
     REPORTING_FLAG,
     TABARENA_OPENML_CACHE,
     TABARENA_V0_1,
@@ -1491,6 +1493,32 @@ def compare_runs(a: Path, b: Path, anchor: str = ANCHOR, n_boot: int = 1000, see
             sign_test(combined, cand, ref, unit))
 
 
+def suite_features(
+    dataset_id: int, task_id: int | None, cache_dir: Path = PROXY_CACHE
+) -> pd.DataFrame | None:
+    """One dataset's features with its task's target dropped, for the content checks (DR4.1).
+
+    Through the runner's own cache (:func:`task_definition`, :func:`openml_frame`), so a
+    dataset scored is the one checked. The ``--row-hash`` check and the overlap report
+    (:mod:`fintfm.evaluation.overlap_report`) both read the suite and the control through this.
+
+    Args:
+        dataset_id: OpenML dataset id.
+        task_id: OpenML task id, whose target is dropped; None drops the dataset's default
+            target (the positive control has no task).
+        cache_dir: Runner cache root.
+
+    Returns:
+        The features, or None when they cannot be fetched (the reason is printed).
+    """
+    try:
+        target = task_definition(task_id, cache_dir)["target"] if task_id else None
+        return openml_frame(dataset_id, target, cache_dir / "openml")[0]
+    except Exception as exc:  # noqa: BLE001 -- one dataset's failure is one line
+        print(f"  data {dataset_id}: fetch failed ({type(exc).__name__}: {exc})")
+        return None
+
+
 def _row_hash(cache_dir: Path, reference_dir: Path, tasks: Sequence[Candidate]) -> int:
     """``--row-hash``: compare every suite dataset's contents with the cached TabArena ones.
 
@@ -1510,19 +1538,11 @@ def _row_hash(cache_dir: Path, reference_dir: Path, tasks: Sequence[Candidate]) 
         return 0
 
     def loader(dataset_id: int, task_id: int | None) -> Callable[[], pd.DataFrame | None]:
-        """Features of one dataset, target dropped, or None when it cannot be fetched."""
-        def load() -> pd.DataFrame | None:
-            """Fetch (cached) and return the features."""
-            try:
-                target = task_definition(task_id, cache_dir)["target"] if task_id else None
-                return openml_frame(dataset_id, target, cache_dir / "openml")[0]
-            except Exception as exc:  # noqa: BLE001 -- one dataset's failure is one line
-                print(f"  data {dataset_id}: fetch failed ({type(exc).__name__}: {exc})")
-                return None
-        return load
+        """Defer :func:`suite_features` for one dataset until the report reaches it."""
+        return lambda: suite_features(dataset_id, task_id, cache_dir)
 
     print("\npositive control (must read OVERLAP):")
-    control = row_hash_report([("credit-g (OpenML 31)", loader(31, None))], references)
+    control = row_hash_report([(CONTROL_NAME, loader(CONTROL_DATASET_ID, None))], references)
     if not control:
         print("CONTROL MISSED: the original of a TabArena dataset was not flagged; the check "
               "below cannot be trusted")

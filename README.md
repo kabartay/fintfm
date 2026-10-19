@@ -330,7 +330,9 @@ research/product context. Every third-party dataset or dependency's licence is c
 use, and a *weight* licence is checked separately from its *code* licence, every time — never
 assumed from a prior check. Direct dependencies are all permissive — numpy, pandas and
 scikit-learn BSD-3, scipy BSD-3, torch BSD-3, PyYAML MIT, and the optional benchmark extras
-lightgbm MIT, xgboost Apache-2.0, catboost Apache-2.0, pyarrow Apache-2.0 — and
+lightgbm MIT, xgboost Apache-2.0, catboost Apache-2.0, pyarrow Apache-2.0, and the `overlap`
+extra's openml BSD-3 and huggingface_hub Apache-2.0 (fetching TabArena-v0.1 and BeyondArena
+for the overlap report, evaluation hashing only) — and
 `scripts/check_licences.py` enforces that in CI rather than leaving it to this paragraph.
 
 **FinTFM-R's real-data sources, checked and dated.** SEC EDGAR's Financial Statement Data

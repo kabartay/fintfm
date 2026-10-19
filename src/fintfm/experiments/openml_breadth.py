@@ -251,6 +251,34 @@ def run(
     return sorted(results, key=lambda r: r.prevalence)
 
 
+def suite_features(name: str, version: int) -> Any:
+    """One SUITE dataset's features with the target dropped, for the content checks (DR4.1).
+
+    Through scikit-learn's default OpenML cache, where :func:`load_task` puts the same
+    datasets, so a dataset scored here is the one checked. The ``--row-hash`` check and the
+    overlap report (:mod:`fintfm.evaluation.overlap_report`) both read SUITE through this.
+
+    Args:
+        name: OpenML dataset name, as in SUITE.
+        version: Its pinned OpenML version.
+
+    Returns:
+        The features as a DataFrame, or None when the fetch fails (the reason is printed).
+    """
+    from sklearn.datasets import fetch_openml
+
+    from fintfm.evaluation.proxy_suite import ensure_ca_bundle
+
+    ensure_ca_bundle()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        try:
+            return fetch_openml(name, version=version, as_frame=True, parser="auto").data
+        except (OSError, ValueError) as exc:
+            print(f"  {name}: fetch failed ({type(exc).__name__}: {exc})")
+            return None
+
+
 def _row_hash(reference_dir: Path) -> int:
     """Compare each SUITE dataset's contents with the cached TabArena-v0.1 datasets (DR4.1).
 
@@ -262,7 +290,6 @@ def _row_hash(reference_dir: Path) -> int:
         0 when every dataset is clean or the check was skipped (printed), 1 on an overlap.
     """
     from fintfm.evaluation.overlap import load_reference_fingerprints, row_hash_report
-    from fintfm.evaluation.proxy_suite import ensure_ca_bundle
 
     references, notes = load_reference_fingerprints(reference_dir)
     for note in notes:
@@ -272,20 +299,8 @@ def _row_hash(reference_dir: Path) -> int:
         return 0
 
     def loader(name: str, version: int) -> Callable[[], Any]:
-        """Features of one SUITE dataset, target dropped, or None on a fetch failure."""
-        def load() -> Any:
-            """Fetch (cached) and return the features."""
-            from sklearn.datasets import fetch_openml
-
-            ensure_ca_bundle()
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                try:
-                    return fetch_openml(name, version=version, as_frame=True, parser="auto").data
-                except (OSError, ValueError) as exc:
-                    print(f"  {name}: fetch failed ({type(exc).__name__}: {exc})")
-                    return None
-        return load
+        """Defer :func:`suite_features` for one SUITE dataset until the report reaches it."""
+        return lambda: suite_features(name, version)
 
     hits = row_hash_report([(n, loader(n, v)) for n, v in SUITE], references)
     print(f"\n{len(hits)} of {len(SUITE)} SUITE datasets overlap a cached TabArena-v0.1 dataset"
