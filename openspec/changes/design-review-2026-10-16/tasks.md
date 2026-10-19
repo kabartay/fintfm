@@ -107,7 +107,7 @@
       **V4: a fixed positive count in the uniform context** (exactly round(n x rate), or a
       floor of 16, with the base-rate correction). Report the fold-to-fold SD beside the mean.
       Verify: per-fold AP and SD in FINDINGS.
-- [ ] DR3.4 **Implemented behind `--probe-rows context` (2026-10-16, 138e7c3); measurement open.** `representation_transfer` fits the probe, raw-feature and MLP arms on the classifier's `context_indices_` and keeps the 20k stratified arms under a `_stratified` suffix; default `stratified` is §130 bit for bit (`tests/test_representation_transfer.py`).
+- [ ] DR3.4 **Implemented behind `--probe-rows context` (2026-10-16, 138e7c3); measurement open.** `representation_transfer` fits the probe, raw-feature and MLP arms on the classifier's `context_indices_` and keeps the 20k stratified arms under a `_stratified` suffix; default `stratified` is §130 bit for bit (`tests/test_representation_transfer.py`). Cross-fitted since (2026-10-19, dccaa0a): a context row scored against a context holding its labelled copy reads its label, so `context` represents each of 5 folds against the other 4/5 (`restrict_context`) and scores the head the same way (`own_head_crossfit`); the leaky variant is `--probe-rows context-leaky`, diagnosis only. §130's own sample shared 53-75 of its 20,000 rows (0.27-0.38%) with the context, 4-13 of its 2,128-2,189 positives (0.19-0.61%) per fold, reconstructed from the code's seeds.
       **§130's probe fitted on the 2,000 context rows only.** If the probe's advantage over
       the head falls to 0.005 AP or less, §130-§136's reading is label count, not representation.
       Verify: the result and its consequence for §130-§136 written in FINDINGS.
