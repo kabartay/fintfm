@@ -58,6 +58,9 @@ inference:
   ensemble_class_shift: false      # cyclic class relabelling per member, mapped back
   max_features_strategy: raise     # or "subsample": round-robin column subsets per member
   retrieval_per_class: null        # AU5.8: k_pos nearest positives + rest nearest negatives
+  # DR3.3: uniform context with exactly max(floor, round(max_context x pool rate)) positives,
+  # the rest uniform from the negatives; null = today's uniform draw (count left to chance)
+  context_positive_floor: null
 
 # Thresholds used when scoring. Changing these changes what counts as a result, so they are
 # recorded in every run's output alongside the numbers they produced.

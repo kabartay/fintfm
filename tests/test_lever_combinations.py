@@ -449,6 +449,7 @@ _CLF_LEVERS: dict[str, tuple[Any, ...]] = {
     "width": ("narrow-raise", "narrow-subsample", "wide-subsample"),
     "finetune_steps": (0, 2),
     "retrieval_per_class": (None, 4),
+    "context_positive_floor": (None, 3),
     "large_n": ("none", "partition", "boost"),
     "n_classes": (2, 3),
 }
@@ -464,6 +465,8 @@ def _clf_valid(r: dict[str, Any]) -> bool:
     ):
         return False
     if r["retrieval_per_class"] is not None and r["context_strategy"] != "retrieval":
+        return False
+    if r["context_positive_floor"] is not None and r["context_strategy"] != "uniform":
         return False
     if wide and r["finetune_steps"]:
         return False

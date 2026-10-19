@@ -87,6 +87,7 @@ _NON_DEFAULT_INFERENCE = {
     "ensemble_class_shift": True,
     "max_features_strategy": "subsample",
     "retrieval_per_class": 3,
+    "context_positive_floor": 16,
 }
 
 
@@ -246,6 +247,7 @@ def test_overlapping_time_split_is_refused(tmp_path):
         ("evaluation:\n  min_rows_per_horizon: 0\n", "min_rows_per_horizon"),
         ("inference:\n  winsor_quantile: 0.7\n", "winsor_quantile"),
         ("inference:\n  retrieval_per_class: 0\n", "retrieval_per_class"),
+        ("inference:\n  context_positive_floor: -1\n", "context_positive_floor"),
         ("large_n:\n  method: forest\n", "large_n.method"),
         ("large_n:\n  boost_weighting: square\n", "large_n.boost_weighting"),
         ("large_n:\n  partition_max_depth: 5\n", "large_n.partition_max_depth"),

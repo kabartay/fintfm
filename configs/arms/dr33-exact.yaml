@@ -1,0 +1,14 @@
+# Design review DR3.3, arm "exact": a uniform context with a fixed positive count.
+#
+# NOT PRODUCTION. MEASUREMENT OPEN. Every other key inherits the packaged default (uniform,
+# max_context 2000, correct_prior on), so the zero-shot control is the same command without
+# --config. The context holds exactly round(2000 x the fold's training positive rate)
+# positives, drawn uniformly from the positives, and 2000 minus that from the negatives; the
+# D5 base-rate correction reads the context's actual rate. The question is whether removing
+# the fold-to-fold scatter in the positive count alone moves average precision or its SD.
+#
+#   uv run --frozen fintfm-v4protocol --model runs/v4-cellattn-labels.pt \
+#     --config configs/arms/dr33-exact.yaml --no-boosting --device cpu --out runs/dr33/exact
+
+inference:
+  context_positive_floor: 0

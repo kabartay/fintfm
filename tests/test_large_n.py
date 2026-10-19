@@ -118,6 +118,30 @@ def test_partition_bags_draw_distinct_subsets_and_average_them():
     np.testing.assert_allclose(clf.predict_proba(Xq), np.mean(per_bag, axis=0), atol=1e-6)
 
 
+def test_partition_leaf_contexts_carry_the_fixed_positive_count():
+    """DR3.3 through the partition: every leaf larger than ``max_context``, and the global
+    fallback, holds exactly ``max(floor, round(max_context x leaf rate))`` positives of its
+    own rows, and its base-rate correction reads that context against the leaf's own rate."""
+    X, y = _data(n=2000)
+    clf = PartitionedTFMClassifier(
+        _base(context_positive_floor=10), max_depth=2, min_samples_leaf=0.1, min_leaf_rows=20
+    ).fit(X, y)
+    inner = [clf.global_estimator_] + [e for e in clf.leaf_estimators_[0].values() if e]
+    checked = 0
+    for est in inner:
+        assert est.context_positive_floor == 10
+        n, pos = est._raw_y.size, int(est._raw_y.sum())
+        if n <= est.max_context:
+            continue
+        want = min(pos, max(10, round(est.max_context * pos / n)))
+        s = est.context_summary_
+        assert (s.n_context, s.n_positive) == (est.max_context, want)
+        assert s.population_rate == pytest.approx(pos / n)
+        checked += 1
+    assert checked >= 2  # the global context and at least one leaf
+    _valid(clf.predict_proba(X[:30]), 30)
+
+
 @pytest.mark.parametrize("kw", [{"max_depth": 4}, {"n_bags": 0}, {"bag_frac": 0.0}])
 def test_partition_refuses_out_of_range_settings(kw):
     X, y = _data(n=100)

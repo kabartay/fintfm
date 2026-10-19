@@ -723,6 +723,7 @@ def run(
             "ensemble_class_shift": cfg.inference.ensemble_class_shift,
             "max_features_strategy": cfg.inference.max_features_strategy,
             "retrieval_per_class": cfg.inference.retrieval_per_class,
+            "context_positive_floor": cfg.inference.context_positive_floor,
             "large_n": asdict(cfg.large_n),
             "config_sources": list(cfg.sources),
         },

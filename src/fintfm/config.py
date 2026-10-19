@@ -100,6 +100,7 @@ class InferenceConfig:
     ensemble_class_shift: bool = False
     max_features_strategy: str = "raise"
     retrieval_per_class: int | None = None
+    context_positive_floor: int | None = None
 
 
 @dataclass(frozen=True)
@@ -483,6 +484,11 @@ def _validate(cfg: Config) -> None:
         )
     if cfg.inference.retrieval_per_class is not None and cfg.inference.retrieval_per_class < 1:
         raise ConfigError("inference.retrieval_per_class must be null or at least 1")
+    if (
+        cfg.inference.context_positive_floor is not None
+        and cfg.inference.context_positive_floor < 0
+    ):
+        raise ConfigError("inference.context_positive_floor must be null or at least 0")
     if cfg.inference.ensemble_svd_components < 0:
         raise ConfigError("inference.ensemble_svd_components must be at least 0")
     if cfg.large_n.method not in ("none", "partition", "boost"):

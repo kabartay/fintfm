@@ -684,3 +684,138 @@ def test_context_summary_reports_what_retrieval_retrieved():
     assert clf.context_summary_.pooled_context_rate is None
     clf.predict_proba(X[150:])
     assert clf.context_summary_.pooled_context_rate == clf.pooled_context_rate_
+
+
+# --- a fixed positive count in the uniform context (design review DR3.3) ---------------------
+
+
+def _rare(n=10_000, n_pos=47, seed=0):
+    """Labels at a V4FinBench-like rate: ``n_pos`` positives among ``n`` rows."""
+    y = np.zeros(n, dtype=np.int64)
+    y[np.random.default_rng(seed).choice(n, size=n_pos, replace=False)] = 1
+    return y
+
+
+@pytest.mark.parametrize(("floor", "expected"), [(0, 9), (5, 9), (16, 16), (100, 47)])
+def test_context_positive_floor_holds_exactly_the_requested_positives(floor, expected):
+    """0.47% of 2,000 is 9.4: the exact arm takes 9, a floor of 16 lifts it, a floor above the
+    pool's 47 positives is capped at them, and every draw is a distinct-row uniform context
+    whose count no longer depends on the seed."""
+    y = _rare()
+    counts = set()
+    for seed in range(6):
+        idx = _select_context(y, 2000, "uniform", np.random.default_rng(seed), positive_floor=floor)
+        assert idx.shape == (2000,) and len(np.unique(idx)) == 2000
+        assert np.all(np.diff(idx) > 0)
+        counts.add(int(y[idx].sum()))
+    assert counts == {expected}
+    # the uniform draw it replaces leaves the count to chance
+    plain = {int(y[_select_context(y, 2000, "uniform", np.random.default_rng(s))].sum())
+             for s in range(6)}
+    assert len(plain) > 1
+
+
+def test_context_positive_floor_off_is_the_uniform_draw_byte_for_byte():
+    y = _rare()
+    for seed in range(3):
+        legacy = np.sort(np.random.default_rng(seed).choice(len(y), size=2000, replace=False))
+        got = _select_context(y, 2000, "uniform", np.random.default_rng(seed))
+        off = _select_context(
+            y, 2000, "uniform", np.random.default_rng(seed), positive_floor=None
+        )
+        assert got.tobytes() == legacy.tobytes() == off.tobytes()
+    torch.manual_seed(0)
+    model = _tiny_model()
+    rng = np.random.default_rng(0)
+    X, Xq = rng.normal(size=(400, 4)), rng.normal(size=(30, 4))
+    y = _rare(400, 12)
+    plain = FinancialTFMClassifier(model, max_context=100).fit(X, y)
+    off = FinancialTFMClassifier(model, max_context=100, context_positive_floor=None).fit(X, y)
+    assert plain._ctx_X.tobytes() == off._ctx_X.tobytes()
+    assert plain.predict_proba(Xq).tobytes() == off.predict_proba(Xq).tobytes()
+
+
+def test_context_positive_floor_reaches_the_stored_context_and_every_member():
+    """Through fit, the summary reports the fixed count; ensemble members, label-swapped ones
+    included, fix the count of the same rows under their own labels."""
+    torch.manual_seed(0)
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(2000, 4))
+    y = _rare(2000, 10)  # 0.5%: round(200 x 0.005) = 1, the floor lifts it to 6
+    clf = FinancialTFMClassifier(
+        _tiny_model(), max_context=200, context_positive_floor=6, n_ensemble=3,
+        ensemble_label_swap=True,
+    ).fit(X, y)
+    s = clf.context_summary_
+    assert (s.n_context, s.n_positive) == (200, 6)
+    assert s.context_rate == pytest.approx(0.03) and s.population_rate == pytest.approx(0.005)
+    for seed in (1, 2):
+        twin = clf._clone_with_seed(seed, clf._raw_X, clf._raw_y)
+        swapped = clf._clone_with_seed(seed, clf._raw_X, clf._flip(clf._raw_y))
+        assert twin.context_positive_floor == 6
+        assert (twin._ctx_y == 1).sum() == 6
+        # the swapped twin calls the defaults class 0; it still holds exactly 6 of them
+        assert (swapped._ctx_y == 0).sum() == 6
+    p = clf.predict_proba(rng.normal(size=(20, 4)))
+    assert p.shape == (20, 2) and np.isfinite(p).all()
+
+
+class _BaseRateReader(FinancialTFM):
+    """An ideal in-context reader of the base rate: every query gets the context's class
+    frequencies as its probabilities, whatever its features. What a calibrated in-context
+    model does on a featureless task, and exactly what the D5 correction is meant to undo."""
+
+    def predict_context(self, Xc, yc, Xq, *, n_classes=None, **kw):
+        """Log context class frequencies, one identical row per query."""
+        freq = np.bincount(np.asarray(yc), minlength=n_classes) / len(yc)
+        logits = np.log(np.maximum(freq, 1e-12))
+        return torch.tensor(np.tile(logits, (len(Xq), 1)), dtype=torch.float32)
+
+
+def test_context_positive_floor_stays_calibrated_with_correct_prior():
+    """A floor of 16 in a 400-row context over a 1% pool gives the context a 4% rate. The
+    reader predicts 4% before the correction, and the correction, which reads the context's
+    actual rate, brings the mean back to the pool's 1%."""
+    cfg = ModelConfig(max_features=6, max_classes=2, d_model=16, n_heads=2, n_layers=1, d_ff=32)
+    rng = np.random.default_rng(0)
+    X, Xq = rng.normal(size=(5000, 4)), rng.normal(size=(200, 4))
+    y = _rare(5000, 50)
+    kw = {"max_context": 400, "context_positive_floor": 16}
+    torch.manual_seed(0)
+    fixed = FinancialTFMClassifier(_BaseRateReader(cfg), **kw).fit(X, y)
+    raw = FinancialTFMClassifier(_BaseRateReader(cfg), correct_prior=False, **kw).fit(X, y)
+    assert fixed.context_summary_.n_positive == 16
+    assert raw.predict_proba(Xq)[:, 1].mean() == pytest.approx(16 / 400, rel=1e-5)
+    assert fixed.predict_proba(Xq)[:, 1].mean() == pytest.approx(50 / 5000, rel=1e-5)
+    # and on a real network the shift is the same log-ratio, leaving the ranking alone
+    torch.manual_seed(0)
+    model = _tiny_model()
+    net = FinancialTFMClassifier(model, **kw).fit(X, y)
+    net_raw = FinancialTFMClassifier(model, correct_prior=False, **kw).fit(X, y)
+    np.testing.assert_allclose(
+        net._log_prior_shift, [np.log(0.99 / 0.96), np.log(0.01 / 0.04)], rtol=1e-12
+    )
+    pc, pr = net.predict_proba(Xq)[:, 1], net_raw.predict_proba(Xq)[:, 1]
+    np.testing.assert_array_equal(np.argsort(pc, kind="stable"), np.argsort(pr, kind="stable"))
+    assert pc.mean() < pr.mean()
+
+
+@pytest.mark.parametrize(
+    ("kw", "match"),
+    [
+        ({"context_strategy": "balanced", "context_positive_floor": 0}, "uniform"),
+        ({"context_strategy": "retrieval", "context_positive_floor": 4}, "uniform"),
+        ({"context_positive_floor": -1}, ">= 0"),
+    ],
+)
+def test_context_positive_floor_refuses_what_it_cannot_mean(kw, match):
+    rng = np.random.default_rng(0)
+    clf = FinancialTFMClassifier(_tiny_model(), max_context=40, **kw)
+    with pytest.raises(ValueError, match=match):
+        clf.fit(rng.normal(size=(100, 4)), _rare(100, 10))
+
+
+def test_context_positive_floor_is_inert_when_the_pool_fits():
+    y = _rare(300, 3)
+    idx = _select_context(y, 2000, "uniform", np.random.default_rng(0), positive_floor=16)
+    np.testing.assert_array_equal(idx, np.arange(300))
