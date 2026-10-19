@@ -172,7 +172,16 @@
       datasets.
       Verify: a test that the SUITE shares no OpenML id, name or row hash with TabArena-v0.1 or
       BeyondArena.
-- [ ] DR4.2 **Partly done (2026-10-16), licences verified at source, left open.** Owner
+- [ ] DR4.2 **Partly done (2026-10-19): runner, Elo, sign test and row hash built, left open.**
+      `proxy_suite run` scores FinTFM (`from_config`) and cached RF/ExtraTrees/Linear/KNN/LightGBM
+      on OpenML's own splits (repeat 0, folds 0-2; 34 tasks are 1x10-fold CV, energy_efficiency
+      10x10) into a per-split CSV; `compare A B` gives Bradley-Terry Elo (RF = 1000, task
+      bootstrap) and a per-task sign test (`tests/test_proxy_suite_runner.py`). `--row-hash`:
+      0 of 35 suite datasets overlap the 27 TabArena-v0.1 datasets cached locally; the positive
+      control (OpenML credit-g 31 against TabArena 46918) reads row and column share 1.000.
+      SMOKE-TEST only: 2 tasks (breast-w, energy_efficiency) on `v4-cellattn-labels.pt`. Open:
+      the Spearman Verify, which needs full runs of 6 or more checkpoints.
+      **Partly done (2026-10-16), licences verified at source, left open.** Owner
       decision 2026-10-16: OpenML's `Public` does not admit a task; each of the 77 candidates
       left by the overlap filters was traced to its original source and that page's licence
       recorded with URL, text as stated, date, verdict and reason (`SOURCE_LICENCES`). 53 pass
