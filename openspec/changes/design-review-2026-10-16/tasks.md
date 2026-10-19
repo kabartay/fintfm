@@ -163,7 +163,7 @@
 
 ## Phase DR4 — an evaluation loop that does not overlap TabArena
 
-- [x] DR4.1 **Done (2026-10-19).** Row-hash check (`overlap.content_fingerprint`, `openml_breadth --row-hash`): 0 of 9 SUITE datasets overlap the 27 of 51 TabArena-v0.1 datasets cached locally (BeyondArena not comparable by contents, no ids); `SELECTION_FORBIDDEN` guard in pilot_compare, label_symmetry_probe, openml_breadth and the proxy runner (`tests/test_selection_guard.py`).
+- [ ] DR4.1 **Partly done (2026-10-19): reopened** because the row-hash check covers only the 27 of 51 TabArena-v0.1 datasets cached locally and no BeyondArena contents, and it is a network CLI check, not the test the Verify names; the selection guard is complete. Remaining: fetch the 24 uncached TabArena datasets and BeyondArena's contents and pin the overlap result in a test. Earlier the same day: Row-hash check (`overlap.content_fingerprint`, `openml_breadth --row-hash`): 0 of 9 SUITE datasets overlap the 27 of 51 TabArena-v0.1 datasets cached locally (BeyondArena not comparable by contents, no ids); `SELECTION_FORBIDDEN` guard in pilot_compare, label_symmetry_probe, openml_breadth and the proxy runner (`tests/test_selection_guard.py`).
       **Partly done (2026-10-16), left open.** The six datasets are out of `SUITE`;
       `tests/test_openml_breadth_overlap.py` checks OpenML id and name against TabArena-v0.1 and
       name against BeyondArena (which lists no ids); §165 carries a dated note. Open: the row-hash
