@@ -107,6 +107,16 @@ def _admit(monkeypatch, **loaders):
     })
 
 
+def test_a_tabarena_panel_is_refused_even_when_admitted(tmp_path, monkeypatch):
+    # DR4.1: the suite can steer arms, so it may never hold a TabArena bankruptcy panel.
+    from fintfm.evaluation.overlap import SelectionForbiddenError
+
+    _admit(monkeypatch, polish_companies_bankruptcy=lambda root: _panel())
+    with pytest.raises(SelectionForbiddenError):
+        cs.run(tmp_path / "out.csv", None, datasets=("polish_companies_bankruptcy",),
+               root=tmp_path)
+
+
 def test_end_to_end_run_writes_one_row_per_dataset_split_and_model(tmp_path, monkeypatch):
     import torch
 

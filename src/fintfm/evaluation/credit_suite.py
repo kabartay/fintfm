@@ -150,6 +150,7 @@ import numpy as np
 import pandas as pd
 
 from fintfm.evaluation.datasets import CACHE_DIR
+from fintfm.evaluation.overlap import guard_selection
 from fintfm.evaluation.proxy_suite import SourceLicence
 
 if TYPE_CHECKING:
@@ -583,6 +584,8 @@ def run(
                 f"{d}: {DATASETS[d].licence.reason}" for d in refused
             )
         )
+    # DR4.1's one selection rule: a suite that may choose arms never holds a TabArena panel
+    guard_selection(datasets, allow_reporting=False, tool="credit_suite")
     cfg = load_config(config_path)
     model = FinancialTFM.load(model_path) if model_path is not None else None
     sha = sha256_file(model_path) if model_path is not None else ""
