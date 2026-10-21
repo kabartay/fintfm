@@ -249,7 +249,7 @@
       arms.
       Verify: a CUDA test asserting fp16 peak memory at or below fp32's on a fixed batch, and
       fp16 tasks per hour measured on a T4 against §170's fp32 rows.
-- [ ] DR5.2 **Implemented behind `--loader stream` and `--ddp` (2026-10-16, 96c1e39); measurement open.**
+- [x] DR5.2 **Done (2026-10-21): the CUDA/NCCL run is E1 (§171).** All three finished E1 arms trained with `--loader stream --ddp` on a Kaggle T4x2 (`ddp: 2 processes, 8 tasks per step` in each `train.log`); `e1-v480-s0` ran 60,000 steps with all 60 step checkpoints written in about 31,870 s, about 0.53 s per step at global batch 8 in fp16, and scored to completion (kernel total 34,012 s). Earlier: **Implemented behind `--loader stream` and `--ddp` (2026-10-16, 96c1e39); measurement open.**
       `src/fintfm/modeling/loader.py`; the Verify tests pass (`tests/test_loader.py`: stream
       batch i equals a `per_shard`, `shard_size=1` dump's batch i; one and two workers give
       the same stream; a two-process gloo run averages the ranks' gradients and resumes
