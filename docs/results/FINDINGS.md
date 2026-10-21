@@ -11965,3 +11965,33 @@ are "null on V4FinBench but positive on the proxy at both seeds" (2M on the prio
 first, so **the proxy comparison at seed 0 is run before spending about 9.5 GPU-hours on seed 1**:
 if the proxy is not positive at seed 0, that branch is closed too and seed 1 decides nothing that
 §171 acts on. §171's prediction (null on V4FinBench) holds so far.
+
+## §177 — DR4.3 on SBA 7(a): FinTFM is far behind LightGBM and below logistic regression
+
+**MEASURED, 2026-10-21**, `python -m fintfm.evaluation.credit_suite --model
+runs/v4-cellattn-labels.pt --datasets sba --root data/real --out runs/credit_suite/sba_fintfm.csv`
+(log `runs/credit_suite/sba_fintfm.log`; baselines also in `runs/credit_suite/sba_baselines.csv`),
+the published checkpoint, the suite's default inference configuration, CPU. SBA 7(a) FY2010-2019,
+478,953 loans, 47 features, 60-month charge-off at 3.93%, three out-of-time splits on
+`ApprovalDate` with a 60-month embargo (no borrower id, so no grouping). Public domain (U.S.
+Government Works, from the SBA).
+
+| model | split 0 AP | split 1 AP | split 2 AP | mean AP | mean ROC-AUC | mean top-decile AP |
+| --- | --- | --- | --- | --- | --- | --- |
+| FinTFM | 0.0795 | 0.1314 | 0.1176 | **0.1095** | 0.7098 | 0.0575 |
+| logistic regression | 0.1342 | 0.1455 | 0.1087 | **0.1295** | 0.7584 | 0.0723 |
+| LightGBM, 1,000 trees, lr 0.05 | 0.4392 | 0.4320 | 0.2872 | **0.3861** | 0.9367 | 0.3294 |
+
+- **LightGBM is 3.5 times FinTFM's AP.** FinTFM's level is right (mean predicted 3.2% to 4.0%
+  against 3.9% to 4.4%), so this is ranking, not calibration. FinTFM beats logistic regression
+  on split 2 only.
+- **Why this differs from V4FinBench, as hypotheses, not findings:** SBA's signal sits in loan
+  terms and categorical structure (`TermInMonths` is the strongest single feature, §156; NAICS,
+  business type, revolver), which a tree model splits on directly, while FinTFM's prior
+  generates accounting-ratio panels. Its context is also capped at a few thousand rows of
+  23,763 to 138,004 training loans, which a booster uses in full.
+- **What it says.** With §174 (ULB, 0.6830 against logistic regression's 0.7489), FinTFM has
+  now been scored on two credit datasets outside V4FinBench and is below untuned logistic
+  regression on both. The "FinTFM transfers to credit outside V4FinBench" claim is **not
+  supported** by the suite as it stands.
+- **Cost:** 512 to 606 s of CPU per split for FinTFM, about 17 s for LightGBM.
