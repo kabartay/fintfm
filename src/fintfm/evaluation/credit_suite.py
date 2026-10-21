@@ -2,19 +2,21 @@
 
 V4FinBench is the benchmark this project's claims rest on, and every arm so far was chosen on
 it. A second credit suite, scored the same way, says whether a change helps on credit data the
-arm was not chosen on. The suite is three public consumer-credit and card-fraud tables, with a
-fixed split per dataset, logistic regression and LightGBM at 1,000 trees beside FinTFM, and one
-CSV row per dataset, split and model.
+arm was not chosen on. The suite is four public consumer-credit, card-fraud and small-business
+loan tables, with a fixed split per dataset, logistic regression and LightGBM at 1,000 trees
+beside FinTFM, and one CSV row per dataset, split and model.
 
-**Evaluation only, never training.** None of the three may feed pretraining or fine-tuning of
+**Evaluation only, never training.** None of the four may feed pretraining or fine-tuning of
 either family: :data:`fintfm.prior.real_panel.EVAL_ONLY_SOURCES` makes the FinTFM-R sampler
 refuse their panels, and ``docs/research/data_candidates.csv`` marks them ``EVAL_ONLY``. PPDai,
-Bondora and ULB fraud were FinTFM-R pilot arms before this suite existed
+Bondora, ULB fraud and SBA were FinTFM-R pilot arms before this suite existed
 (``docs/results/FINDINGS.md`` §157), so a checkpoint from those arms has seen one of them
-and its number here is not a held-out number. FinTFM (synthetic-only) never saw any of them.
+and its number here is not a held-out number. SBA was also the C5 decisive arm
+(``scripts/kaggle/fintfm_r_sba_s0`` and ``_s1``), so no checkpoint trained on ``real:sba`` is
+held out on SBA. FinTFM (synthetic-only) never saw any of them.
 
-Datasets (rows, positives and split sizes MEASURED from the raw files on 2026-10-19)
-----------------------------------------------------------------------------------
+Datasets (sizes MEASURED from the raw files: SBA on 2026-10-20, the others on 2026-10-19)
+-----------------------------------------------------------------------------------------
 
 =========  =======  =========  ========  ============================  ======================
 key        rows     positives  features  split                         test rows per split
@@ -24,18 +26,22 @@ bondora    148,783   43,117      100     out-of-time on ``LoanDate``,  24,791 / 
                                          borrower-disjoint
 ulb_fraud  284,807      492       30     stratified, 164 positives     94,936 / 94,936 / 94,935
                                          per test fold
+sba        478,953   18,826       47     out-of-time on                79,722 / 79,887 / 79,938
+                                         ``ApprovalDate``
 =========  =======  =========  ========  ============================  ======================
 
 Training rows per split: PPDai 27,315 / 36,263 / 45,570; Bondora 40,659 / 51,112 / 60,999
-(after the embargo and the borrower rule); ULB 189,871 / 189,871 / 189,872.
+(after the embargo and the borrower rule); ULB 189,871 / 189,871 / 189,872; SBA 23,763 /
+83,052 / 138,004 (after the embargo). SBA's test positives per split: 3,125 / 3,489 / 3,409.
 
 **Runtime, ESTIMATED (the suite has not been run end to end).** FinTFM's cost grows with the
 test rows it scores. A SMOKE-TEST of the published checkpoint (``kabartay/fintfm-binary``
 ``v4-cellattn-labels.pt``, sha256 ``d231b062...``) at the packaged ``inference`` section, CPU,
 split 0, took 27-70 ms per test row (PPDai 67.6 s for 1,000 rows and 279.5 s for 4,000;
 Bondora 27.3 s and 161.9 s) while the machine's load average stood at 200-216. At that rate the
-suite's 387,522 test rows take about 3 to 7.5 hours for FinTFM, ULB alone 2.4 to 5.5 hours; an
-unloaded machine should be faster, by an amount not measured. LightGBM at 1,000 trees and
+suite's 387,522 test rows take about 3 to 7.5 hours for FinTFM, ULB alone 2.4 to 5.5 hours, and
+SBA's 239,547 add about 1.8 to 4.7 hours; an unloaded machine should be faster, by an amount
+not measured. LightGBM at 1,000 trees and
 logistic regression are ESTIMATED at under a minute per split each, scaling §156's
 feasibility timings (``runs/feasibility/*.json``: 5-fold LightGBM at 300 trees took 6.0 s on
 PPDai, 12.6 s on Bondora, 15.1 s on a 200,000-row ULB sample). Fine-tuning
@@ -64,6 +70,32 @@ unchanged. ``Time`` is seconds since the first transaction of a two-day capture,
 would leave about 80 positives per test window. So the split is stratified, three folds, about
 164 positives each. There is no cardholder id.
 
+**SBA 7(a)** (``sba/FOIA_7a_FY2010_FY2019_asof_260630.csv``, the SBA's FOIA release of loans
+approved FY2010-FY2019, as of 2026-06-30). The FinTFM-R panel's label and features
+(:func:`sba_frame`, which ``scripts/candidates/build_panels.py`` also uses): charge-off within
+60 months of ``ApprovalDate``. The latest approval is 2019-09-30, so every window closes by
+2024-09-30, before the snapshot, and the label is uncensored; :func:`sba_frame` refuses a file
+for which that fails. Of 545,751 loans, the 66,788 never disbursed (``CANCLD``, ``COMMIT``)
+and the 10 charged off with no ``ChargeOffDate`` are dropped, leaving 478,953; loans still
+running (``EXEMPT``) are kept as not charged off, which the uncensored window makes exact. The
+file spells paid-in-full ``"P I F"``. :data:`SBA_FEATURE_SOURCES` lists the 14 fields features
+are built from, each known at approval; :data:`SBA_DROPPED` lists every other field and why,
+and :func:`sba_frame` refuses a file with a field in neither. The outcome fields
+(``LoanStatus``, ``ChargeOffDate``, ``GrossChargeOffAmount``, ``PaidInFullDate``), the
+post-approval ones (``FirstDisbursementDate``, ``SoldSecMrktInd``), borrower name and address
+(personal data) and lender identity are never features. ``RevolverStatus`` is a term or
+revolver flag set by the loan's structure at approval, so it is kept; the file codes it N/Y
+where the dictionary says 0/1, which left ``IsRevolver`` all-NaN in the FinTFM-R panel built on
+2026-10-06 (the only difference between that panel and this frame, MEASURED 2026-10-20).
+``ApprovalFY`` is dropped here, as Bondora's ``LoanYear`` is, because the split runs on the
+date. There is no borrower id, so the split is not grouped. Each split trains only on loans
+approved at least 1,827 days (60 months at their longest) before its test window opens, so
+every training label was known by then; the cost is a small first split, 23,763 training rows
+from the first seven months of FY2010. ``docs/results/FINDINGS.md`` §156 leaves one asymmetry
+open: few short-term loans appear as paid in full. ``TermInMonths`` is not rewritten after
+charge-off (§156), but it is the strongest single feature, so SBA's scores carry that open
+question.
+
 Split protocol
 --------------
 
@@ -77,13 +109,13 @@ Three splits per dataset, fixed by :data:`SPLIT_SEED` and the data alone:
 * **stratified** (no date): ``StratifiedKFold(3, shuffle=True, random_state=SPLIT_SEED)``,
   or ``StratifiedGroupKFold`` when a borrower id exists. No dataset uses the grouped form today.
 
-Licence at the original source (read 2026-10-19), and which datasets are admitted
----------------------------------------------------------------------------------
+Licence at the original source (read 2026-10-19, SBA's 2026-10-20), and which are admitted
+--------------------------------------------------------------------------------------------
 
 DR4.2's owner rule (2026-10-16) decides on the licence at the data's original source: CC BY,
 CC0, public domain or MIT pass; a permissive licence granted by someone other than the data's
 owner over data from a source that states no licence is excluded as unverified, and so is a
-copyleft term. Applied to the three datasets:
+copyleft term. Applied to the four datasets:
 
 * **PPDai**: figshare states "CC BY 4.0" (``https://api.figshare.com/v2/articles/13573871``,
   field ``license``). The record's description says the data "is obtained from customer data
@@ -105,19 +137,34 @@ copyleft term. Applied to the three datasets:
   source. ODbL carries a share-alike term on publicly used derivative databases; scores are
   "Produced Works" under ODbL, which need a notice when public. The MLG project page now
   returns 404, and its Wayback copy of 2025-04-05 states no licence.
+* **SBA 7(a)**: the SBA's catalogue page (``https://data.sba.gov/dataset/7a-504-foia``, title
+  "7(a) & 504 FOIA") states, in its "Additional information" table, "Publisher: U.S. Small
+  Business Administration" and "License: U.S. Government Works", the licence text linking
+  ``https://www.usa.gov/publicdomain/label/1.0/``; it lists this file as "FOIA - 7(a)
+  (FY2010-FY2019) as of June 30, 2026 (csv)", last modified April 28, 2026. The grantor is the
+  SBA, the data's producer, so the grant is from the source. The linked label now redirects to
+  ``https://www.usa.gov/government-copyright``, which says "Government work is something
+  created by a U.S. government officer or employee as part of their official duties", that
+  "U.S. copyright laws may not protect U.S. government works outside the country" though the
+  work "may be protected under the copyright laws of other jurisdictions", and that "other
+  people may have rights to the work itself or how people use it. This includes publicity or
+  privacy rights under state law." The last is why borrower names and addresses never leave
+  the raw file.
 
-Owner decision (2026-10-19): ULB is admitted, PPDai and Bondora are not. ULB's grant comes
-from the data's collector, and the suite never redistributes the database or a derivative of
-it; its scores are Produced Works, which ODbL-1.0 section 4.3 allows with a notice, so the
-share-alike term does not apply. :data:`ODBL_NOTICE` is that notice: :func:`run` prints it and
-writes it beside the results, and any public text quoting ULB scores carries it. PPDai and
+Owner decisions: ULB is admitted and PPDai and Bondora are not (2026-10-19), and SBA is
+admitted (2026-10-20), a public-domain grant by its producer, which DR4.2's rule passes and
+which asks for no notice. ULB's grant comes from the data's collector, and the suite never
+redistributes the database or a derivative of it; its scores are Produced Works, which
+ODbL-1.0 section 4.3 allows with a notice, so the share-alike term does not apply.
+:data:`ODBL_NOTICE` is that notice: :func:`run` prints it and writes it beside the results, and
+any public text quoting ULB scores carries it. PPDai and
 Bondora keep ``include=False``: their permissive grants come from someone other than the data's
 owner over data whose source states no licence. :func:`run` refuses an unadmitted dataset, and
 the command line scores the admitted ones by default. Admitting one is an owner decision
 recorded by flipping its entry, not a flag.
 
-Overlap with TabArena-v0.1 and BeyondArena (checked 2026-10-19)
---------------------------------------------------------------
+Overlap with TabArena-v0.1 and BeyondArena (checked 2026-10-19, SBA 2026-10-20)
+-------------------------------------------------------------------------------
 
 :func:`fintfm.evaluation.overlap.name_clashes` finds nothing for ``PPDai``, ``PaiPaiDai``,
 ``Bondora``, ``creditcardfraud`` or ``ulb_fraud``. OpenML's name for the ULB table,
@@ -125,7 +172,12 @@ Overlap with TabArena-v0.1 and BeyondArena (checked 2026-10-19)
 features); the contents differ (284,807 rows, 30 PCA features), so it is a name collision, not
 an overlap. Against the fork's metadata (``num_instances``, ``num_features``), the only row
 count within 5% of a suite dataset is ``give_me_some_credit`` (150,000 rows, 10 features)
-against Bondora (148,783, 100), a different table. No row-hash comparison was run.
+against Bondora (148,783, 100), a different table. For SBA, ``name_clashes`` finds nothing for
+``sba``, ``SBA 7(a)``, ``SBA 7(a) loans (FOIA)``, ``FOIA_7a_FY2010_FY2019_asof_260630``,
+``small business administration``, ``SBAnational`` (the Kaggle mirror's file) or ``should this
+loan be approved or denied`` (its paper), and no benchmark in
+``docs/research/benchmark_datasets.csv`` has a row count within 5% of 478,953 or of the raw
+545,751. No row-hash comparison was run.
 
 Metrics
 -------
@@ -196,6 +248,9 @@ def admitted() -> tuple[str, ...]:
 
 #: Date the licences and overlaps in the module docstring were checked.
 CHECKED = "2026-10-19"
+
+#: Date SBA's licence and overlap were checked, the day it joined the suite.
+SBA_CHECKED = "2026-10-20"
 
 #: CSV columns, in order.
 COLUMNS = (
@@ -335,6 +390,153 @@ def bondora_frame(raw: pd.DataFrame, horizon_months: int = 12) -> pd.DataFrame:
     return out.reset_index(drop=True)
 
 
+#: The SBA 7(a) FOIA file read, under ``sba/``: loans approved FY2010-FY2019, as of 2026-06-30.
+SBA_FILE = "FOIA_7a_FY2010_FY2019_asof_260630.csv"
+
+#: The label's horizon: charge-off within this many months of ``ApprovalDate``.
+SBA_HORIZON_MONTHS = 60
+
+#: The out-of-time embargo for SBA, in days: 60 months at their longest (five years holding two
+#: leap days), so every training label's window has closed when the test window opens.
+SBA_EMBARGO_DAYS = 1827.0
+
+#: ``LoanStatus`` values of loans never disbursed; dropped, as they carry no repayment outcome.
+SBA_UNDISBURSED = frozenset({"CANCLD", "COMMIT"})
+
+#: Every ``LoanStatus`` the data dictionary defines (``"P I F"`` is how the file spells PIF).
+SBA_STATUSES = frozenset({"CANCLD", "COMMIT", "CHGOFF", "EXEMPT", "P I F", "PIF"})
+
+#: FOIA fields the SBA features are built from, each known when the loan is approved: the
+#: amounts approved and guaranteed, the rate at approval (the dictionary's own words), the term,
+#: the lender's application-time estimate of jobs, the fiscal year, and the loan's structure
+#: (fixed or variable, term or revolver, collateral) and borrower description (franchise,
+#: industry, legal form, business age) as recorded on the application, and the SBA programme
+#: it was approved under.
+SBA_FEATURE_SOURCES = (
+    "GrossApproval", "SBAGuaranteedApproval", "InitialInterestRate", "TermInMonths",
+    "JobsSupported", "ApprovalFY", "FixedorVariableInterestInd", "RevolverStatus",
+    "CollateralInd", "FranchiseCode", "NaicsCode", "BusinessType", "BusinessAge",
+    "ProcessingMethod",
+)
+
+#: Every other FOIA field, and why no feature uses it. :func:`sba_frame` refuses a file with a
+#: field in neither list, so a new column in a later snapshot is classified before it is used.
+SBA_DROPPED: dict[str, str] = {
+    "AsOfDate": "the snapshot date, one value for every row",
+    "Program": "always 7A in this file",
+    "ApprovalDate": "orders the out-of-time split; not a feature",
+    "LoanStatus": "the outcome (current status); used only to drop undisbursed loans",
+    "ChargeOffDate": "the outcome; the label is built from it",
+    "GrossChargeOffAmount": "post-outcome: the balance charged off",
+    "PaidInFullDate": "post-outcome: the date repaid",
+    "FirstDisbursementDate": "after approval, and missing exactly for undisbursed loans",
+    "SoldSecMrktInd": "after approval: the guaranteed portion sold on the secondary market",
+    "BorrName": "personal data: borrower identity",
+    "BorrStreet": "personal data: borrower address",
+    "BorrCity": "personal data: borrower address",
+    "BorrState": "personal data: borrower address",
+    "BorrZip": "personal data: borrower address",
+    "LocationID": "lender identity",
+    "BankName": "lender identity, as currently assigned, so it can change after approval",
+    "BankFDICNumber": "lender identity",
+    "BankNCUANumber": "lender identity",
+    "BankStreet": "lender identity",
+    "BankCity": "lender identity",
+    "BankState": "lender identity",
+    "BankZip": "lender identity",
+    "NaicsDescription": "the text of NaicsCode, which is used",
+    "FranchiseName": "the name behind FranchiseCode, whose presence is used",
+    "ProjectCounty": "geography, left out of the FinTFM-R panel this frame reproduces",
+    "ProjectState": "geography, left out of the FinTFM-R panel this frame reproduces",
+    "SBADistrictOffice": "geography, left out of the FinTFM-R panel this frame reproduces",
+    "CongressionalDistrict": "geography, left out of the FinTFM-R panel this frame reproduces",
+}
+
+#: ``RevolverStatus`` codes: the dictionary documents 0/1, the 2026-06-30 file holds N/Y.
+_SBA_REVOLVER = {"0": 0.0, "1": 1.0, "0.0": 0.0, "1.0": 1.0, "N": 0.0, "Y": 1.0}
+
+
+def sba_money(series: pd.Series) -> pd.Series:
+    """Parse SBA currency fields (``"$1,234.00"`` or plain numbers) to floats.
+
+    Args:
+        series: A raw amount column.
+
+    Returns:
+        Float amounts, NaN where a value does not parse.
+    """
+    return pd.to_numeric(series.astype(str).str.replace(r"[$,]", "", regex=True), errors="coerce")
+
+
+def sba_frame(raw: pd.DataFrame, horizon_months: int = SBA_HORIZON_MONTHS) -> pd.DataFrame:
+    """SBA 7(a) features and a fixed-horizon, uncensored charge-off label, with bookkeeping.
+
+    The FinTFM-R panel builder (``scripts/candidates/build_panels.py``) and this suite share
+    this one definition. Loans never disbursed (:data:`SBA_UNDISBURSED`) are dropped, and so
+    are charged-off loans with no ``ChargeOffDate``, whose horizon outcome is unknowable and
+    would otherwise be labelled 0 silently. Loans still running (``EXEMPT``) are kept: they
+    have not been charged off, and the horizon check below guarantees none can still be
+    charged off inside its window.
+
+    Args:
+        raw: The FOIA 7(a) CSV as read by pandas.
+        horizon_months: Charge-off must occur within this many months of ``ApprovalDate``.
+
+    Returns:
+        Feature columns, then ``label``, then the bookkeeping column ``_approval_date``
+        (``ApprovalDate`` as a timestamp). Index reset.
+
+    Raises:
+        ValueError: If a field is in neither :data:`SBA_FEATURE_SOURCES` nor
+            :data:`SBA_DROPPED`, a ``LoanStatus`` or ``RevolverStatus`` code is unknown, an
+            approval date does not parse, or a kept loan's window closes after the snapshot
+            (the label would be censored).
+    """
+    unclassified = sorted(set(raw.columns) - set(SBA_FEATURE_SOURCES) - set(SBA_DROPPED))
+    if unclassified:
+        raise ValueError(f"sba: unclassified FOIA field(s) {unclassified}; add each to "
+                         "SBA_FEATURE_SOURCES (known at approval) or SBA_DROPPED")
+    status = raw["LoanStatus"].astype("string").str.strip()
+    unknown = sorted(set(status.dropna()) - SBA_STATUSES)
+    if unknown or status.isna().any():
+        raise ValueError(f"sba: unknown LoanStatus value(s) {unknown}, "
+                         f"{int(status.isna().sum())} missing")
+    undated = (status == "CHGOFF").to_numpy(bool) & raw["ChargeOffDate"].isna().to_numpy()
+    raw = raw[~status.isin(SBA_UNDISBURSED).to_numpy(bool) & ~undated]
+    approval = pd.to_datetime(raw["ApprovalDate"], errors="coerce")
+    if approval.isna().any():
+        raise ValueError(f"sba: {int(approval.isna().sum())} ApprovalDate value(s) do not parse")
+    snapshot = pd.to_datetime(raw["AsOfDate"]).max()
+    window_end = approval + pd.DateOffset(months=horizon_months)
+    if window_end.max() > snapshot:
+        raise ValueError(f"sba: a {horizon_months}-month window closes {window_end.max():%Y-%m-%d}"
+                         f", after the {snapshot:%Y-%m-%d} snapshot, so the label is censored")
+    chargeoff = pd.to_datetime(raw["ChargeOffDate"], errors="coerce")
+    label = chargeoff.notna() & (chargeoff <= window_end)
+    revolver = raw["RevolverStatus"].astype("string").str.strip()
+    odd = sorted(set(revolver.dropna()) - set(_SBA_REVOLVER))
+    if odd:
+        raise ValueError(f"sba: unknown RevolverStatus value(s) {odd}")
+    out = pd.DataFrame(index=raw.index)
+    out["GrossApproval"] = sba_money(raw["GrossApproval"])
+    out["SBAGuaranteedApproval"] = sba_money(raw["SBAGuaranteedApproval"])
+    out["GuaranteeShare"] = out["SBAGuaranteedApproval"] / out["GrossApproval"]
+    out["InitialInterestRate"] = pd.to_numeric(raw["InitialInterestRate"], errors="coerce")
+    out["TermInMonths"] = pd.to_numeric(raw["TermInMonths"], errors="coerce")
+    out["JobsSupported"] = pd.to_numeric(raw["JobsSupported"], errors="coerce")
+    out["ApprovalFY"] = pd.to_numeric(raw["ApprovalFY"], errors="coerce")
+    out["IsVariableRate"] = (raw["FixedorVariableInterestInd"] == "V").astype(np.float64)
+    out["IsRevolver"] = revolver.map(_SBA_REVOLVER).astype(np.float64)
+    out["HasCollateral"] = (raw["CollateralInd"] == "Y").astype(np.float64)
+    out["IsFranchise"] = raw["FranchiseCode"].notna().astype(np.float64)
+    naics = raw["NaicsCode"].astype("string").str[:2]
+    out = out.join(one_hot(naics, "Naics2", 20))
+    for field, top in (("BusinessType", 3), ("BusinessAge", 6), ("ProcessingMethod", 8)):
+        out = out.join(one_hot(raw[field].astype("string"), field, top))
+    out = out.assign(label=label.astype(np.int64), _approval_date=approval)
+    return out.reset_index(drop=True)
+
+
 def _days(stamps: pd.Series) -> np.ndarray:
     """Timestamps as float days since the Unix epoch."""
     return (stamps - pd.Timestamp("1970-01-01")).dt.total_seconds().to_numpy() / 86_400.0
@@ -394,6 +596,27 @@ def load_ulb_fraud(root: Path) -> CreditPanel:
     )
 
 
+def load_sba(root: Path) -> CreditPanel:
+    """SBA 7(a): :func:`sba_frame` less ``ApprovalFY``, out-of-time on ``ApprovalDate``.
+
+    Args:
+        root: Directory holding ``sba/`` + :data:`SBA_FILE`.
+
+    Returns:
+        The panel, with a :data:`SBA_EMBARGO_DAYS` embargo and no groups: the file's only
+        borrower identity is name and address, which are personal data and never read into a
+        feature or a group.
+    """
+    raw = pd.read_csv(root / "sba" / SBA_FILE, encoding_errors="replace", low_memory=False)
+    frame = sba_frame(raw)
+    feats = frame.drop(columns=["label", "_approval_date", "ApprovalFY"])
+    return CreditPanel(
+        name="sba", X=feats.to_numpy(np.float64), feature_names=tuple(feats.columns),
+        y=frame["label"].to_numpy(np.int64), time=_days(frame["_approval_date"]),
+        embargo=SBA_EMBARGO_DAYS,
+    )
+
+
 _UNVERIFIED = ("owner decision needed (DR4.2 rule): the grant is the uploader's, not the data "
                "owner's, and the original source states no licence")
 
@@ -430,6 +653,19 @@ DATASETS: dict[str, SuiteDataset] = {
             "the data's collector; scores are ODbL Produced Works, public with ODBL_NOTICE, "
             "and the database is never redistributed, so the share-alike term does not apply",
             CHECKED,
+        ),
+    ),
+    "sba": SuiteDataset(
+        "sba", "https://data.sba.gov/sites/default/files/uploaded_resources/" + SBA_FILE,
+        load_sba,
+        SourceLicence(
+            "https://data.sba.gov/dataset/7a-504-foia", "U.S. Government Works",
+            "U.S. Government Works (public domain)", True,
+            "admitted by the owner (2026-10-20): the SBA is the data's producer and its "
+            "catalogue page states U.S. Government Works, linking "
+            "https://www.usa.gov/publicdomain/label/1.0/; borrower and lender identity are "
+            "never read into a feature",
+            SBA_CHECKED,
         ),
     ),
 }

@@ -45,8 +45,9 @@ _BOOKKEEPING = frozenset({"label", "loan_id", "cik", "period_end"})
 #: (design review DR4.3). A source that scores an arm must never also train one, so a panel
 #: whose directory is one of these is refused at parse time and at sampling time. Keyed by
 #: directory name, the name :func:`source_name` stamps on a task; ``docs/research/
-#: data_candidates.csv`` marks the same sources ``EVAL_ONLY``.
-EVAL_ONLY_SOURCES = frozenset({"ppdai", "bondora", "ulb_fraud"})
+#: data_candidates.csv`` marks the same sources ``EVAL_ONLY``. SBA joined on 2026-10-20, after
+#: FinTFM-R's §157 pilot and C5 arms had trained on it.
+EVAL_ONLY_SOURCES = frozenset({"ppdai", "bondora", "ulb_fraud", "sba"})
 
 #: The column that identifies a firm in a panel with several rows per firm (EDGAR's filer id).
 #: When present, a task takes at most one row per firm; see :func:`draw_rows`.
@@ -136,7 +137,7 @@ def source_name(path: str) -> str:
         path: The panel's path, conventionally ``data/real/<source>/panel.parquet``.
 
     Returns:
-        E.g. ``"real:sba"``.
+        E.g. ``"real:edgar"``.
     """
     return f"real:{Path(path).parent.name}"
 
