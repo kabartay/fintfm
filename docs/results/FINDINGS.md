@@ -12001,3 +12001,28 @@ Government Works, from the SBA).
   suite's loader (`credit_suite.sba_frame`, now the one definition) fills it (30.1% revolvers).
   The §157 and C5 FinTFM-R arms trained on SBA with that column empty; their numbers stand as
   measured on that panel and are not re-run, since SBA is now evaluation-only.
+
+## §178 — DR6.2 and DR6.3 at screening: both harmful under §175's rule
+
+**MEASURED, 2026-10-21**, the two arms pre-registered in §175 (Kaggle T4x2, pinned at 6916a89,
+E1's 48k recipe, seed 0), each against `e1-v48-s0` with `scripts/compare_v4_scores.py --cluster`
+(outputs `runs/kaggle-ts-dr62-induced-s0/cmp_vs_v48s0.txt`, `runs/kaggle-ts-dr63-cls-s0/`):
+
+| arm | mean AP | diff vs control | folds negative | folds with company-level Holm p < 0.05 | diff vs `e1-v48-s1` |
+| --- | --- | --- | --- | --- | --- |
+| control `e1-v48-s0` | 0.1975 | | | | |
+| `dr62-induced-s0` (induced cell rows, 64 points) | 0.1789 | **-0.0186** | 5 of 5 | 4 of 5 | -0.0089 |
+| `dr63-cls-s0` (4 readout tokens, MLP head) | 0.1713 | **-0.0261** | 5 of 5 | 5 of 5 | -0.0165 |
+
+- **Verdicts under §175: both harmful** (below the control by more than 0.0117 with at least 4 of
+  5 folds negative). Per the pre-registration neither is carried into the v2 bundle (DR6.4), and
+  neither earns a replicate on this evidence.
+- **The caveat the rule did not price.** The control is the higher of the two 48k seeds (0.1975
+  against 0.1878). Against seed 1, DR6.2 is -0.0089, inside the yardstick; DR6.3 is -0.0165,
+  outside it either way. So DR6.3's loss is robust to the control seed and DR6.2's is not; the
+  rule as written is applied, and DR6.2 is better read as "no gain" than as a measured loss.
+- **Cost, secondary:** training wall time to the last checkpoint was 2,838 s for DR6.2 against
+  3,267 s for the control (13% faster, the case for induced points), and 3,258 s for DR6.3.
+- **With §176**, the three levers tested at this model size this week (10 times the tasks,
+  inducing points, readout tokens) all fail to beat the 48k published recipe. The binding
+  constraint is not volume or these two architecture changes.

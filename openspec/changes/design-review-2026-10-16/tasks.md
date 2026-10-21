@@ -364,7 +364,7 @@
       **Per-batch feature width** (pad to the batch's widest task, not 136), removing about
       half of all cell tokens from financial tasks.
       Verify: identical outputs on a fixed batch whose widest task is 136; step time measured.
-- [ ] DR6.2 **Screening launched (2026-10-21, §175, pre-registered): one seed at 48,000 tasks against E1's 48k control.** **Implemented behind `cell_row_attn: induced` (2026-10-18, 6916a89); measurement open.**
+- [x] DR6.2 **Done (2026-10-21, §178): harmful at screening under §175's rule, not adopted** (-0.0186 mean AP, 5 of 5 folds negative; -0.0089 against the other 48k seed, so read as no gain), 13% faster to train. **Implemented behind `cell_row_attn: induced` (2026-10-18, 6916a89); measurement open.**
       `n_inducing` (default 64) learned vectors per layer attend to each feature's context
       cells only, then every cell attends to the k summaries (Set Transformer ISAB, context-only);
       default `full` is today's stage, unchanged (Phase 5 fingerprint, golden outputs incl. the
@@ -381,7 +381,7 @@
       context cells through k inducing points), linear in rows.
       Verify: at matched N up to 1,024 it is within the yardstick of full attention; memory at
       N = 4,096 measured.
-- [ ] DR6.3 **Screening launched (2026-10-21, §175, pre-registered): one seed at 48,000 tasks against E1's 48k control.** **Implemented behind `readout: cls` and `head_mlp` (2026-10-18, 6916a89); measurement
+- [x] DR6.3 **Done (2026-10-21, §178): harmful at screening, not adopted** (-0.0261 mean AP, 5 of 5 folds negative and Holm-significant; -0.0165 against the other 48k seed). **Implemented behind `readout: cls` and `head_mlp` (2026-10-18, 6916a89); measurement
       open.** `n_readout` (default 4) learned tokens join each row's column attention: tokens
       and unpadded cells attend to each other, padded cells stay masked as keys, the tokens skip
       the row-within-feature stage and carry their state between blocks, and their concatenated
