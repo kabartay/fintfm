@@ -11914,3 +11914,27 @@ Learning Group, Universite Libre de Bruxelles, with Worldline;
 https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud), made available under the Open Database
 License (https://opendatacommons.org/licenses/odbl/1-0/); its contents under the Database Contents
 License (https://opendatacommons.org/licenses/dbcl/1-0/).
+
+## §175 — DR6.2 and DR6.3 screening at 48,000 tasks (pre-registered)
+
+**PRE-REGISTERED, 2026-10-21, before either arm trains.** One seed per lever, on the 4 h 37 m of
+Kaggle GPU quota left this week, which cannot fit E1's 480k seed-1 arm (§171, about 9.5 h).
+
+- **Arms:** E1's 48k recipe exactly (§171: `configs/published/v4-cellattn-labels.yaml`, fp16,
+  split attention, streaming loader, DDP on a T4x2 at 4 tasks per rank, 6,000 steps, 48,000
+  tasks), seed 0, one lever each: `dr62-induced-s0` adds `--cell-row-attn induced` (64 inducing
+  points); `dr63-cls-s0` adds `--readout cls --head-mlp` (4 readout tokens, MLP head). Both are
+  pinned at **6916a89**, which adds these flags on top of E1's d05ea19 and changes nothing else
+  under `src/fintfm/modeling` or `src/fintfm/prior`; at their defaults the model, the golden
+  outputs and the Phase 5 fingerprint reproduce exactly (its commit message). Kernels:
+  `scripts/kaggle/ts_dr62_induced_s0/`, `scripts/kaggle/ts_dr63_cls_s0/`.
+- **Control:** E1's `e1-v48-s0` (same recipe, same seed, d05ea19); `e1-v48-s1` shows seed spread.
+- **Measure:** five-fold mean V4FinBench AP, paired company-level bootstrap per fold
+  (`scripts/compare_v4_scores.py --cluster`), scored by the same kernel template.
+- **Rule:** a lever is **promising** if its mean AP exceeds the control's by more than the
+  pretraining yardstick, 0.0117 (§173), with at least 4 of 5 folds positive; **harmful** under
+  the mirror; otherwise **null**. One seed screens; it does not adopt. A promising lever earns a
+  seed-1 replicate and then DR6.4's matched comparison; a null or harmful one is not carried
+  into the v2 bundle on this evidence alone.
+- **Secondary, reported not decided on:** seconds per step against the control's, since DR6.2's
+  case is linear cost in rows.
