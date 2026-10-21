@@ -49,6 +49,11 @@ _BOOKKEEPING = frozenset({"label", "loan_id", "cik", "period_end"})
 #: FinTFM-R's §157 pilot and C5 arms had trained on it.
 EVAL_ONLY_SOURCES = frozenset({"ppdai", "bondora", "ulb_fraud", "sba"})
 
+#: Sources that are TabArena or BeyondArena datasets, refused for training like the above
+#: (AU0.1, DECISIONS D19): LendingClub is BeyondArena's ``lending_club_1m``. Its own sampler
+#: (:mod:`fintfm.prior.real_lendingclub`) refuses too; this closes the generic panel route.
+BENCHMARK_SOURCES = frozenset({"lendingclub"})
+
 #: The column that identifies a firm in a panel with several rows per firm (EDGAR's filer id).
 #: When present, a task takes at most one row per firm; see :func:`draw_rows`.
 GROUP_COLUMN = "cik"
@@ -120,9 +125,15 @@ def refuse_eval_only(path: str) -> None:
         path: A panel path, conventionally ``data/real/<source>/panel.parquet``.
 
     Raises:
-        ValueError: If the panel's directory is in :data:`EVAL_ONLY_SOURCES`.
+        ValueError: If the panel's directory is in :data:`EVAL_ONLY_SOURCES` or
+            :data:`BENCHMARK_SOURCES`.
     """
     source = Path(path).parent.name
+    if source in BENCHMARK_SOURCES:
+        raise ValueError(
+            f"real panel {path!r} is {source!r}, a benchmark dataset (AU0.1, DECISIONS D19); "
+            "this project never trains on a TabArena or BeyondArena dataset"
+        )
     if source in EVAL_ONLY_SOURCES:
         raise ValueError(
             f"real panel {path!r} is {source!r}, an evaluation-only source (credit suite, "

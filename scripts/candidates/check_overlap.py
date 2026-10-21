@@ -14,6 +14,8 @@ drifts the same way, so this script makes two things fail loudly instead of rely
    match is reported, so an overlap nobody noticed surfaces before training, not after. A
    collision a human has inspected and judged unrelated is recorded by name in
    `reviewed_not_overlapping` -- the judgement is written down rather than the check loosened.
+3. No source a model may train on (`IN_USE`, `SHORTLIST`) carries a `benchmark_match`
+   (AU0.1): LendingClub reached a training run that way, and is now `EXCLUDED_BENCHMARK`.
 
 Usage:
     uv run python scripts/candidates/check_overlap.py
@@ -36,6 +38,9 @@ VERDICTS = {
     "EXCLUDED_BENCHMARK", "EXCLUDED_DUPLICATE", "EXCLUDED_SYNTHETIC", "EXCLUDED_NOT_ROW_LEVEL",
     "EXCLUDED_NO_LABEL", "EXCLUDED_TOO_SMALL", "EXCLUDED_DETERMINISTIC", "EXCLUDED_NO_DATA",
 }
+
+#: Verdicts under which a source may train a model; none may carry a benchmark_match (AU0.1).
+TRAINABLE = {"IN_USE", "SHORTLIST"}
 
 #: Tokens too generic to signal an overlap on their own ("credit", "data", "prediction" appear
 #: in dozens of unrelated names). Distinctive tokens -- platform, place or dataset names -- are
@@ -95,6 +100,12 @@ def check(registry: pd.DataFrame, benchmarks: pd.DataFrame) -> list[str]:
             problems.append(f"{row['name']!r}: benchmark_match {match!r} is not in the snapshot")
         if row["verdict"] == "EXCLUDED_BENCHMARK" and not (isinstance(match, str) and match):
             problems.append(f"{row['name']!r}: EXCLUDED_BENCHMARK with no benchmark_match")
+        if row["verdict"] in TRAINABLE and isinstance(match, str) and match:
+            # AU0.1: a dataset that is in a benchmark may never train a model here
+            problems.append(
+                f"{row['name']!r}: {row['verdict']} but in a benchmark ({match!r}); "
+                "mark it EXCLUDED_BENCHMARK"
+            )
 
     bench_tokens = {n: _tokens(n) for n in names}
     bench_flat = {n: _flat(n) for n in names}

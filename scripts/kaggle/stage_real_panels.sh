@@ -17,8 +17,8 @@ mkdir -p "$OUT"
 for src in "$@"; do
   case "$src" in
     edgar)        from=data/edgar/panel.parquet ;;
-    lendingclub)  from=data/lendingclub/panel.parquet ;;
-    # ppdai, bondora, ulb_fraud and sba are evaluation-only (DR4.3) and never staged
+    # ppdai, bondora, ulb_fraud and sba are evaluation-only (DR4.3) and never staged;
+    # lendingclub is retired (AU0.1: BeyondArena's lending_club_1m)
     *) echo "refusing to stage '$src' (not in the stageable list)" >&2; exit 2 ;;
   esac
   mkdir -p "$OUT/$src"

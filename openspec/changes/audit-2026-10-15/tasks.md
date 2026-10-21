@@ -2,7 +2,8 @@
 
 ## Phase 0 — decisions for the owner
 
-- [ ] AU0.1 **LendingClub conflicts with the no-benchmark-data rule.** It is in BeyondArena
+- [x] AU0.1 **Done (2026-10-20): retired** (`docs/design/DECISIONS.md` D19). `data_candidates.csv` marks it `EXCLUDED_BENCHMARK` and `check_overlap.py` fails on any `IN_USE` or `SHORTLIST` row with a `benchmark_match`; the sampler raises `RetiredSourceError`, `p_real_lendingclub` and a `real_lendingclub` weight are refused before any draw, and the generic panel route refuses a `lendingclub` directory (`tests/test_real_lendingclub.py`, `tests/test_real_panel.py`, `tests/test_data_candidates.py`).
+      **LendingClub conflicts with the no-benchmark-data rule.** It is in BeyondArena
       (`lending_club_1m`); §155 knew and chose a bounded forfeit (exclude that task from any
       FinTFM-R BeyondArena number), and §157's fold-0 pilot trained on it. The standing rule is
       never to train on TabArena or BeyondArena datasets. Decide: retire it (mark

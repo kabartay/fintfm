@@ -160,6 +160,15 @@ def test_evaluation_only_sources_are_refused_at_parse_and_at_sampling(tmp_path, 
                                                           max_features=20, n_rows=50), n_rows=50)
 
 
+def test_a_benchmark_source_is_refused_on_the_generic_panel_route(tmp_path):
+    # AU0.1: LendingClub is BeyondArena's lending_club_1m; no route may train on it.
+    path = _write(tmp_path, "lendingclub", _panel())
+    with pytest.raises(ValueError, match="benchmark dataset"):
+        parse_real_panels(f"{path}=0.3")
+    with pytest.raises(ValueError, match="benchmark dataset"):
+        sample_real_panel_task(np.random.default_rng(0), 50, panel_path=path, max_features=20)
+
+
 def test_evaluation_only_sources_match_the_registry():
     """The sampler's list and data_candidates.csv's EVAL_ONLY rows name the same sources."""
     from pathlib import Path

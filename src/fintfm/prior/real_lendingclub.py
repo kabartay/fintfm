@@ -1,5 +1,13 @@
 """Real loan-level tasks sampled from LendingClub's granting-model dataset (D17's third source).
 
+**Retired (AU0.1, 2026-10-20; `docs/design/DECISIONS.md` D19).** LendingClub is BeyondArena's
+``lending_club_1m``, and this project never trains on a TabArena or BeyondArena dataset. The
+bounded forfeit recorded below (exclude that one task from any FinTFM-R BeyondArena number) is
+withdrawn: :func:`sample_real_lendingclub_task` raises :class:`RetiredSourceError`, and
+``p_real_lendingclub`` above zero or a ``real_lendingclub`` source weight is refused before any
+draw (:func:`fintfm.prior.mixture._check_levers`). The §157 pilot arm that trained on it is not
+held out on that task. The text below is the module as it was written.
+
 Why this is a *sampler*, not a *generator*
 -------------------------------------------
 
@@ -37,13 +45,22 @@ The real data file itself never enters this repository or its git history, match
 
 from __future__ import annotations
 
-import functools
-
 import numpy as np
 import pandas as pd
 
 from fintfm.prior.base import Task
-from fintfm.prior.real_panel import draw_rows, ensure_both_classes
+
+#: Why every draw from this source is refused (AU0.1).
+RETIRED = (
+    "LendingClub is retired as a training source (AU0.1, 2026-10-20; DECISIONS D19): it is "
+    "BeyondArena's lending_club_1m, and this project never trains on a TabArena or BeyondArena "
+    "dataset"
+)
+
+
+class RetiredSourceError(ValueError):
+    """Raised on any attempt to draw a training task from a retired real source."""
+
 
 #: Columns that identify a row rather than describe it. Never sampled as features.
 _BOOKKEEPING_COLUMNS = ("loan_id", "label")
@@ -52,24 +69,6 @@ _BOOKKEEPING_COLUMNS = ("loan_id", "label")
 #: small fixture panel without touching this path, and so a real run can point at wherever
 #: `scripts/lendingclub/build_panel.py` wrote its output.
 DEFAULT_PANEL_PATH = "data/lendingclub/panel.parquet"
-
-
-@functools.lru_cache(maxsize=4)
-def _load_panel_cached(path: str) -> pd.DataFrame:
-    """Read a panel parquet file once per path and cache it for the process lifetime.
-
-    Args:
-        path: Filesystem path to a parquet file built by `scripts/lendingclub/build_panel.py`.
-
-    Returns:
-        The panel, unmodified.
-
-    Raises:
-        FileNotFoundError: If no file exists at `path` -- raised here rather than inside
-            `sample_real_lendingclub_task` so a misconfigured `--p-real-lendingclub` run fails
-            at startup, not 500 steps in.
-    """
-    return pd.read_parquet(path)
 
 
 def feature_columns(panel: pd.DataFrame) -> list[str]:
@@ -118,33 +117,11 @@ def sample_real_lendingclub_task(
         A binary `Task` with `source="real_lendingclub"`, no survival framing (`period=None`).
 
     Raises:
+        RetiredSourceError: Always (AU0.1); the source is retired, and the checks below are
+            the ones it made while it was live.
         ValueError: If the panel's feature count is outside `[min_features, max_features]`,
             or if `n_rows` exceeds the panel's own row count (sampling without replacement
             must not silently fall back to sampling the same real loan twice into one task), or if
             the panel cannot supply a real row of each class.
     """
-    df = panel if panel is not None else _load_panel_cached(panel_path)
-    cols = feature_columns(df)
-    if not (min_features <= len(cols) <= max_features):
-        raise ValueError(
-            f"panel has {len(cols)} feature columns, expected between {min_features} and "
-            f"{max_features} -- rebuild the panel or adjust the checkpoint's max_features"
-        )
-    if n_rows > len(df):
-        raise ValueError(
-            f"requested n_rows={n_rows} exceeds the panel's {len(df)} rows; sampling without "
-            "replacement cannot supply more distinct real rows than the panel has"
-        )
-    idx = draw_rows(rng, len(df), n_rows)
-    labels = df["label"].to_numpy(dtype=np.int64)
-    idx = ensure_both_classes(rng, labels, idx, min_positives, name=panel_path)
-    rows = df.iloc[idx]
-    X = rows[cols].to_numpy(dtype=np.float64)
-    y = rows["label"].to_numpy(dtype=np.int64, copy=True)
-    return Task(
-        X=X.astype(np.float32),
-        y=y,
-        n_classes=2,
-        is_categorical=np.zeros(len(cols), dtype=bool),
-        source="real_lendingclub",
-    )
+    raise RetiredSourceError(RETIRED)

@@ -39,3 +39,19 @@ def test_checker_rejects_a_match_absent_from_the_snapshot():
         "reviewed_not_overlapping": "",
     }])
     assert any("not in the snapshot" in p for p in check(registry, benchmarks))
+
+
+def test_checker_refuses_a_trainable_source_that_is_in_a_benchmark():
+    # AU0.1: LendingClub was IN_USE with benchmark_match lending_club_1m and reached a run.
+    benchmarks = pd.DataFrame({"benchmark": ["BeyondArena"], "dataset_name": ["lending_club_1m"]})
+    for verdict in ("IN_USE", "SHORTLIST"):
+        registry = pd.DataFrame([{
+            "name": "LendingClub", "verdict": verdict, "benchmark_match": "lending_club_1m",
+            "reviewed_not_overlapping": "",
+        }])
+        assert any("EXCLUDED_BENCHMARK" in p for p in check(registry, benchmarks))
+    registry = pd.DataFrame([{
+        "name": "LendingClub", "verdict": "EXCLUDED_BENCHMARK",
+        "benchmark_match": "lending_club_1m", "reviewed_not_overlapping": "",
+    }])
+    assert check(registry, benchmarks) == []

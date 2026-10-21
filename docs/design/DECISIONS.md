@@ -743,3 +743,38 @@ diagnostic and stops being described as a lever; **or** a fine-tuned number is f
 under the zero-shot provenance claim, in which case the labelling has failed and fine-tuning
 moves behind an explicit acknowledgement in the API. Default-on is reconsidered only if
 fine-tuning closes a material part of the CatBoost gap, and then as a separate decision.
+
+## D19 — LendingClub is retired as a training source: no benchmark dataset trains a model here
+
+**Date:** 2026-10-20. **Status:** active. Closes `openspec/changes/audit-2026-10-15` task AU0.1.
+Supersedes the bounded forfeit §155 recorded for LendingClub under D17.
+
+LendingClub's granting-model release (Zenodo 11295916, CC-BY-4.0) was checked against
+TabArena-v0.1 on 2026-10-06, called clean and given a loader. It is also BeyondArena's
+`lending_club_1m`, which §155 found afterwards and answered with a bounded forfeit: exclude that
+one task from any FinTFM-R BeyondArena number. §157's fold-0 pilot then trained on it. The
+standing rule is simpler than the forfeit: **this project never trains on a TabArena or
+BeyondArena dataset**, because a benchmark that has been trained on can no longer measure the
+model, and a forfeit that relies on every later report remembering one exclusion will fail
+silently the first time someone forgets.
+
+**Chose: retire it.** The alternative, recording the forfeit as a permanent exception, keeps
+one FinTFM-R source of about 1.35 million loans at a 20% default rate, well above the V4
+band (§156), whose pilot gain was not separated from noise. That is not worth an exception to
+the one rule that keeps the benchmark numbers honest.
+
+What changed (2026-10-20):
+
+- `fintfm.prior.real_lendingclub.sample_real_lendingclub_task` raises `RetiredSourceError`;
+  `p_real_lendingclub` above zero or a `real_lendingclub` source weight is refused before any
+  draw (`fintfm.prior.mixture._check_levers`); a `real_panel:` path whose directory is
+  `lendingclub` is refused at parse and at sampling (`real_panel.BENCHMARK_SOURCES`).
+- `docs/research/data_candidates.csv` marks it `EXCLUDED_BENCHMARK`, and
+  `scripts/candidates/check_overlap.py` now fails on any `IN_USE` or `SHORTLIST` row that
+  carries a `benchmark_match` (`tests/test_data_candidates.py`).
+- Kaggle staging no longer offers it (`STAGEABLE`, `stage_real_panels.sh`).
+
+**No shipped checkpoint is affected**: FinTFM (synthetic-only) never saw it, and no FinTFM-R
+checkpoint has been released. The §157 pilot arm that trained on it is not held out on
+`lending_club_1m`. **Revisit** only if BeyondArena drops `lending_club_1m`; a new FinTFM-R
+source is found through the registry and the overlap report (DR4.1), not by reopening this one.

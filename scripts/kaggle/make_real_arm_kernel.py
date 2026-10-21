@@ -33,7 +33,8 @@ HERE = Path(__file__).resolve().parent
 #: Sources that may be staged to a private Kaggle dataset (licences in data_candidates.csv).
 #: PPDai, Bondora, ULB fraud and SBA are evaluation-only (credit suite, DR4.3) and never staged;
 #: the SBA kernels already generated (fintfm_r_sba_s0, _s1) are a record of the C5 arms.
-STAGEABLE = ("edgar", "lendingclub")
+#: LendingClub is retired (AU0.1: it is BeyondArena's lending_club_1m).
+STAGEABLE = ("edgar",)
 
 #: The `max_classes 10` no-change model each seed is compared against (§158).
 CONTROLS = {

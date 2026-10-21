@@ -39,7 +39,7 @@ from fintfm.prior.knobs import (
 from fintfm.prior.learnability import is_learnable
 from fintfm.prior.real_edgar import DEFAULT_PANEL_PATH, sample_real_edgar_task
 from fintfm.prior.real_lendingclub import DEFAULT_PANEL_PATH as DEFAULT_LENDINGCLUB_PANEL_PATH
-from fintfm.prior.real_lendingclub import sample_real_lendingclub_task
+from fintfm.prior.real_lendingclub import RETIRED, RetiredSourceError, sample_real_lendingclub_task
 from fintfm.prior.real_mortgage import DEFAULT_PANEL_PATH as DEFAULT_MORTGAGE_PANEL_PATH
 from fintfm.prior.real_mortgage import sample_real_mortgage_task
 from fintfm.prior.real_panel import parse_real_panels, sample_real_panel_task
@@ -450,7 +450,12 @@ def _check_levers(cfg: PriorConfig) -> None:
             (:func:`fintfm.prior.knobs.check_knobs`), ``financial_gate_prob`` outside
             ``[0, 1]`` or combined with ``n_horizons``, or ``financial_sign_flip_prob``
             outside ``[0, 1]``.
+        RetiredSourceError: On ``p_real_lendingclub`` above zero or a positive
+            ``real_lendingclub`` source weight (AU0.1: the source is retired).
     """
+    lc_weight = (cfg.source_weights or {}).get("real_lendingclub", 0.0)
+    if cfg.p_real_lendingclub > 0 or float(lc_weight) > 0:
+        raise RetiredSourceError(RETIRED)
     if cfg.source_weights is not None:
         _weighted_shares(cfg)
     knobs = knobs_from(cfg)
