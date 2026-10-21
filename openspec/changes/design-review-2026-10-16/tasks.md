@@ -408,3 +408,26 @@
       **Ask the maintainers** whether LightPFN's classification-only precedent (admitted
       2026-10-11 with regression imputed) applies, before building regression coverage.
       Verify: their answer recorded in `docs/results/TABARENA.md`.
+- [ ] DR7.3 **Owner decision (2026-10-21): FinTFM covers binary and multiclass.** Baseline the
+      multiclass checkpoint where arms may be chosen: `runs/v4-multiclass.pt` (max_classes 10,
+      cell labels, one cell block) on the proxy suite's 8 multiclass tasks (DR4.2 runner), beside
+      the binary checkpoint's proxy Elo, so every later multiclass arm has a control that is not
+      TabArena. §121's TabArena rank (93.4 of 95 over 7 datasets) is reported, never selected on.
+      Verify: the proxy Elo and per-task scores for `v4-multiclass.pt` recorded in FINDINGS.
+- [ ] DR7.4 **A multiclass arm at the current recipe:** E1's 48k recipe (§171) with
+      `max_classes 10`, the generic SCM mixed in as `v4-multiclass.pt` was trained, and
+      `--permute-classes` (AU5.5), one seed, against DR7.3's control on the proxy suite's
+      multiclass tasks by paired sign test; then at the volume E1 recommends, if it recommends
+      more. Blocked by DR7.3 and GPU quota.
+      Verify: the arm's proxy result and the decision in FINDINGS, pre-registered before training.
+- [ ] DR7.5 **No excluded datasets in the declared types.** The reviewer called excluding datasets
+      a model does poorly on cherry-picking (§122), and §106's width cap excluded 3 binary and 4
+      multiclass datasets. Cover them with `max_features_strategy: subsample` (AU5.7) at
+      inference, measured on the proxy suite's widest tasks first.
+      Verify: TabArena-Lite runs every binary and multiclass dataset with no capability exclusion.
+- [ ] DR7.6 **Resubmit only at the bar:** binary and multiclass declared together, scored on
+      TabArena-Lite, and a resubmission only when that Elo reaches about 1,010 (TABARENA_BAR).
+      Today's binary model is 756 (DR3.5), so the binary gap is the larger part of the work.
+      Blocked by DR7.4, DR7.5 and a binary model near the bar.
+      Verify: the declared-type Elo recorded in `docs/results/TABARENA.md`, and the resubmission
+      decision beside it.

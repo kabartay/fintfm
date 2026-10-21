@@ -332,3 +332,6 @@ set the order from here, ahead of the audit's Phase 4 and 5 measurements:
    pre-registered).
 4. **DR2 and DR6, prior v2 and architecture v2**, each at matched tasks.
 5. **DR7**: the resubmission bar is about 1,010 Elo (RF default parity), not 936.
+   Coverage is binary **and multiclass** (owner decision 2026-10-21, DR7.3 to DR7.6): a
+   multiclass baseline and arm chosen on the proxy suite, no capability exclusions, and a
+   resubmission only at the bar. The maintainers are not asked about coverage (DR7.2).
