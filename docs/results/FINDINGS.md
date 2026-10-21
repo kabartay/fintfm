@@ -11995,3 +11995,9 @@ Government Works, from the SBA).
   regression on both. The "FinTFM transfers to credit outside V4FinBench" claim is **not
   supported** by the suite as it stands.
 - **Cost:** 512 to 606 s of CPU per split for FinTFM, about 17 s for LightGBM.
+- **A defect found while building the loader: `IsRevolver` was empty in the stored SBA panel.**
+  The FOIA file codes `RevolverStatus` as N/Y, while the data dictionary and `build_panels.py`
+  expected 0/1, so the stored `data/real/sba/panel.parquet` holds the column as all-NaN. The
+  suite's loader (`credit_suite.sba_frame`, now the one definition) fills it (30.1% revolvers).
+  The §157 and C5 FinTFM-R arms trained on SBA with that column empty; their numbers stand as
+  measured on that panel and are not re-run, since SBA is now evaluation-only.
