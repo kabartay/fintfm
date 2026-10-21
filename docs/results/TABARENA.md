@@ -199,6 +199,39 @@ use average ties over the 95 methods' split-0 errors.
 datasets, and FinTFM is not on it. This is one split, 7 datasets, against §122's 2026-09-25
 snapshot of the board.
 
+## NaN passed through against NaN filled with 0 (DR3.5, AU1.19; 2026-10-19)
+
+**MEASURED, null.** TabArena-Lite, the 27 binary datasets, split 0, the published checkpoint
+`v4-cellattn-labels.pt`, run back to back on 2026-10-19 from one fintfm source (editable install)
+and one fork; only the adapter's missing-value handling differs (branch `fintfm-audit-fixes`,
+93821e5, against `add-fintfm`). Logs: `runs/dr35/nan.log`, `runs/dr35/zerofill.log`; results under
+the fork's `experiments/fintfm_lite_{nan,zerofill}_1019/`.
+
+21 of 27 datasets give bit-identical ROC-AUC, as they should if they hold no missing values. The
+6 that differ, ROC-AUC on split 0:
+
+| dataset | NaN passed through | NaN filled with 0 | difference |
+| --- | --- | --- | --- |
+| polish_companies_bankruptcy | 0.8619 | 0.8436 | +0.0183 |
+| jm1 | 0.7050 | 0.7038 | +0.0012 |
+| customer_satisfaction_in_airline | 0.9043 | 0.9043 | -0.0000 |
+| Fitness_Club | 0.7932 | 0.7978 | -0.0046 |
+| Marketing_Campaign | 0.8262 | 0.8309 | -0.0047 |
+| GiveMeSomeCredit | 0.8294 | 0.8373 | -0.0079 |
+
+Passing NaN through is better on 2 of 6 and worse on 4; the mean difference over all 27 is
++0.00008 ROC-AUC, and the two-sided sign test over the 6 gives p = 0.69. Elo, which the task
+says does not decide, is 756 (+126/-180) with NaN passed through and 763 (+123/-175) with zero
+fill, 94th of 95 either way. The zero-fill arm reproduces this page's earlier numbers
+(`polish_companies_bankruptcy` 0.8436, `GiveMeSomeCredit` 0.8373, `Diabetes130US` 0.6566), so the
+two runs are comparable.
+
+**Decision: keep NaN passed through.** It is the encoding the model was trained on (its
+missingness mask), the A/B finds no cost at this resolution, and the one large move
+(`polish_companies_bankruptcy`, +0.0183) is in its favour; that dataset is a TabArena panel and
+may not choose an arm (DR4.1), so it is reported, not used to decide. One split cannot separate a
+real effect of 0.005 from noise; the result is "no measurable difference", not "no difference".
+
 ## The leaderboard name is `FinTFM`, with no version
 
 The leaderboard renders `ag_name`, and it lists **models**, not releases — TabSTAR, OrionMSP,

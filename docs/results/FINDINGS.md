@@ -1688,7 +1688,7 @@ Installing Homebrew's `libomp` fixed the import and introduced a **segfault**. T
 report shows two OpenMP runtimes in one process:
 
 ```
-/Users/.../site-packages/torch/lib/libomp.dylib     (bundled with PyTorch)
+<venv>/.../site-packages/torch/lib/libomp.dylib     (bundled with PyTorch)
 /opt/homebrew/opt/libomp/lib/libomp.dylib           (Homebrew, loaded by LightGBM)
 ```
 
@@ -11880,3 +11880,37 @@ against that.
   (−0.0098 mean AP against the matched control) would be **no different**, not a loss; §147
   (−0.0230) stays a loss; §144 and §145 stay null. Fine-tuning and inference arms on one checkpoint
   are unaffected: their noise is the fine-tuning seed gap (SD 0.0008, §164) and the context draw.
+
+## §174 — DR4.3, first credit-suite result: on ULB card fraud FinTFM is below logistic regression
+
+**MEASURED, 2026-10-20**, with `python -m fintfm.evaluation.credit_suite --model
+runs/v4-cellattn-labels.pt --root data/real --out runs/credit_suite/results.csv` (log
+`runs/credit_suite/run.log`), the published checkpoint (sha256 d231b062..., the file on Hugging
+Face as `kabartay/fintfm-binary`), the suite's default inference configuration, CPU. ULB is the
+only dataset admitted so far (DR4.3: PPDai and Bondora fail DR4.2's licence rule). 284,807
+transactions, 30 features, 492 frauds (0.173%), three stratified splits of 94,935 to 94,936 test
+rows with 164 frauds each; ULB's `Time` is seconds into a two-day capture, so no out-of-time
+split is possible.
+
+| model | split 0 AP | split 1 AP | split 2 AP | mean AP | mean ROC-AUC | mean predicted vs 0.173% |
+| --- | --- | --- | --- | --- | --- | --- |
+| FinTFM | 0.6667 | 0.7083 | 0.6739 | **0.6830** | 0.9660 | 0.212% to 0.300% |
+| logistic regression | 0.7603 | 0.7437 | 0.7427 | **0.7489** | 0.9767 | 0.167% to 0.177% |
+| LightGBM, 1,000 trees, lr 0.05 | 0.8539 | 0.4845 | 0.6871 | **0.6751** | 0.9228 | 0.144% to 0.389% |
+
+- **FinTFM is 0.066 mean AP below untuned logistic regression**, on all three splits, and
+  over-predicts the level by a factor of 1.2 to 1.7. LightGBM's mean is level with FinTFM's only
+  because one split collapsed (0.4845); at these untuned defaults with 164 test positives its
+  spread across splits (0.48 to 0.85) is far wider than either other model's.
+- **What it says, and what it does not.** ULB's features are 28 PCA components plus time and
+  amount, a structure far from the accounting panels FinTFM's prior generates, and the label is
+  fraud, not default. It is one external credit-adjacent dataset with three splits, so it bounds
+  the claim "FinTFM transfers outside V4FinBench" rather than settling it. No paired bootstrap was
+  run; with three splits the per-split signs are the evidence.
+- **Cost:** 672 to 805 s of CPU per split for FinTFM, under 25 s for either baseline.
+
+ULB fraud scores are a Produced Work from the Credit Card Fraud Detection database (Machine
+Learning Group, Universite Libre de Bruxelles, with Worldline;
+https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud), made available under the Open Database
+License (https://opendatacommons.org/licenses/odbl/1-0/); its contents under the Database Contents
+License (https://opendatacommons.org/licenses/dbcl/1-0/).
