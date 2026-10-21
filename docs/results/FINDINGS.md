@@ -11938,3 +11938,30 @@ Kaggle GPU quota left this week, which cannot fit E1's 480k seed-1 arm (§171, a
   into the v2 bundle on this evidence alone.
 - **Secondary, reported not decided on:** seconds per step against the control's, since DR6.2's
   case is linear cost in rows.
+
+## §176 — E1 at seed 0: ten times the tasks does not help, so §171's "helps" branch is closed
+
+**MEASURED, 2026-10-21, interim (one seed of two; not the §171 verdict).** `e1-v480-s0` (60,000
+steps, 480,000 tasks) against `e1-v48-s0` (6,000 steps, 48,000 tasks), both trained and scored by
+the §171 kernels at d05ea19 on a Kaggle T4x2, uniform context. `scripts/compare_v4_scores.py
+--cluster` (output `runs/kaggle-ts-e1-v480-s0/cmp_vs_v48s0.txt`):
+
+| fold | 48k AP | 480k AP | diff | 95% CI (companies) | Holm p (companies) |
+| --- | --- | --- | --- | --- | --- |
+| 0 | 0.2071 | 0.1864 | -0.0207 | [-0.0304, -0.0101] | 0.002 |
+| 1 | 0.2031 | 0.1749 | -0.0281 | [-0.0405, -0.0168] | 0.002 |
+| 2 | 0.1821 | 0.1802 | -0.0019 | [-0.0110, +0.0073] | 0.744 |
+| 3 | 0.1734 | 0.1834 | +0.0100 | [-0.0003, +0.0201] | 0.120 |
+| 4 | 0.2215 | 0.2077 | -0.0139 | [-0.0260, -0.0014] | 0.075 |
+
+Δ_0 = **-0.0109** mean AP, 4 of 5 folds negative, inside the 0.0117 yardstick (§173). The five-fold
+means are 0.1975 (48k, seed 0), 0.1878 (48k, seed 1) and 0.1865 (480k, seed 0): the 480k arm sits
+at the bottom of the 48k seed range, not above it.
+
+**What this already settles under §171's rule.** "Volume helps" needs Δ_0 > 0, so it cannot be
+reached whatever seed 1 shows, and the 2M-task arm (`V2M`) is not funded. The remaining branches
+are "null on V4FinBench but positive on the proxy at both seeds" (2M on the prior v2 trunk) and
+"null on both" or "hurts" (fund neither; architecture v2). Seed 1 can only matter through the
+first, so **the proxy comparison at seed 0 is run before spending about 9.5 GPU-hours on seed 1**:
+if the proxy is not positive at seed 0, that branch is closed too and seed 1 decides nothing that
+§171 acts on. §171's prediction (null on V4FinBench) holds so far.

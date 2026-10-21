@@ -259,7 +259,8 @@
       disjoint indices; dumps kept only for byte-identity checks. Use both GPUs of a Kaggle T4x2.
       Verify: a test that the loader's batch i equals the dump's batch i, and that two workers
       give the same stream as one.
-- [ ] DR5.3 **E1: does volume help?** 48,000 against 480,000 tasks, seeds 0 and 1, one pinned
+- [ ] DR5.3 **Interim (2026-10-21, §176): seed 0 gives Δ_0 = -0.0109, so "helps" is closed.** Next: the proxy suite at seed 0 (480k against 48k); seed 1 runs only if the proxy is positive there.
+      **E1: does volume help?** 48,000 against 480,000 tasks, seeds 0 and 1, one pinned
       commit, everything else fixed, the 48k arm retrained rather than reused (§158). Volume
       helps if the 480k arm's five-fold mean V4FinBench AP is positive at both seeds and their
       average exceeds the DR4.4 pretraining yardstick; hurts under the mirror; otherwise null.
