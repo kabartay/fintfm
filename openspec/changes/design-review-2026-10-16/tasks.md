@@ -404,6 +404,7 @@
       `docs/roadmap/TABARENA_BAR.md`: about 1,010 Elo in the §122 pool (RF (default) parity), not
       Linear (default) at 936.
       Verify: both files state the new bar with the pool's baseline rows.
-- [ ] DR7.2 **Ask the maintainers** whether LightPFN's classification-only precedent (admitted
+- [x] DR7.2 **Done: closed without asking (owner decision, 2026-10-21).** §122's decline had two grounds, and the coverage question only touches one: the binary model ranked 94 of 95, below every linear and nearest-neighbour baseline, and DR3.5 measured it at 756 Elo on 2026-10-19 against a resubmission bar of about 1,010 (`docs/roadmap/TABARENA_BAR.md`). Until the model clears that bar, the coverage precedent decides nothing, so no message goes to the maintainers; competitiveness comes first, and the question is reopened only with a number at the bar.
+      **Ask the maintainers** whether LightPFN's classification-only precedent (admitted
       2026-10-11 with regression imputed) applies, before building regression coverage.
       Verify: their answer recorded in `docs/results/TABARENA.md`.
