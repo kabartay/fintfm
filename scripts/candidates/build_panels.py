@@ -27,12 +27,15 @@ Sources and why each label is shaped the way it is:
   so the horizon is uncensored. Never-disbursed loans (`CANCLD`, `COMMIT`) are dropped. Borrower
   name/address and lender identity are dropped; charge-off amount, paid-in-full date, status and
   the secondary-market flag are post-origination and dropped. Note the source spells
-  paid-in-full as ``"P I F"``.
+  paid-in-full as ``"P I F"``. The features come from
+  `fintfm.evaluation.credit_suite.sba_frame`, which also lists every dropped field and why.
+  `IsRevolver` was all-NaN in the 2026-10-06 panel (the file codes `RevolverStatus` N/Y, not
+  the dictionary's 0/1) and is filled from 2026-10-20.
 
-**`ppdai`, `bondora` and `ulb_fraud` are evaluation-only since 2026-10-19** (design review DR4.3):
-they make up the credit suite in `fintfm.evaluation.credit_suite`, and
-`fintfm.prior.real_panel` refuses their panels, so their panels here serve the feasibility
-script and nothing that trains.
+**`ppdai`, `bondora` and `ulb_fraud` are evaluation-only since 2026-10-19, and `sba` since
+2026-10-20** (design review DR4.3): they make up the credit suite in
+`fintfm.evaluation.credit_suite`, and `fintfm.prior.real_panel` refuses their panels, so their
+panels here serve the feasibility script and nothing that trains.
 
 These files hold real third-party data. Their outputs live under `data/real/`, which
 `.gitignore` covers, and must never be committed.
@@ -49,7 +52,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from fintfm.evaluation.credit_suite import bondora_frame, one_hot
+from fintfm.evaluation.credit_suite import SBA_FILE, bondora_frame, sba_frame
 
 ROOT = Path(__file__).resolve().parents[2]
 REAL = ROOT / "data" / "real"
@@ -85,13 +88,11 @@ def build_ulb_fraud() -> pd.DataFrame:
     return raw.drop(columns=["Class"]).astype(np.float64).assign(label=raw["Class"].astype(np.int64))
 
 
-def _money(series: pd.Series) -> pd.Series:
-    """Parse SBA currency strings (``"$1,234.00"`` or plain numbers) to floats."""
-    return pd.to_numeric(series.astype(str).str.replace(r"[$,]", "", regex=True), errors="coerce")
-
-
 def build_sba(horizon_months: int = 60) -> pd.DataFrame:
     """SBA 7(a) FY2010-FY2019 panel, label = charge-off within `horizon_months` of approval.
+
+    The definition lives in :func:`fintfm.evaluation.credit_suite.sba_frame`, shared with the
+    credit suite; the panel is that frame less its bookkeeping column.
 
     Args:
         horizon_months: Charge-off horizon. 60 is the longest horizon every loan in the
@@ -100,34 +101,8 @@ def build_sba(horizon_months: int = 60) -> pd.DataFrame:
     Returns:
         The panel.
     """
-    raw = pd.read_csv(
-        REAL / "sba" / "FOIA_7a_FY2010_FY2019_asof_260630.csv",
-        encoding_errors="replace", low_memory=False,
-    )
-    raw = raw[~raw["LoanStatus"].isin(["CANCLD", "COMMIT"])]
-    # 10 charged-off loans in the 2026-06-30 file carry no ChargeOffDate. Their horizon outcome
-    # is unknowable, and keeping them would label them 0 silently -- drop instead.
-    raw = raw[~((raw["LoanStatus"] == "CHGOFF") & raw["ChargeOffDate"].isna())]
-    approval = pd.to_datetime(raw["ApprovalDate"], errors="coerce")
-    chargeoff = pd.to_datetime(raw["ChargeOffDate"], errors="coerce")
-    label = chargeoff.notna() & (chargeoff <= approval + pd.DateOffset(months=horizon_months))
-    out = pd.DataFrame(index=raw.index)
-    out["GrossApproval"] = _money(raw["GrossApproval"])
-    out["SBAGuaranteedApproval"] = _money(raw["SBAGuaranteedApproval"])
-    out["GuaranteeShare"] = out["SBAGuaranteedApproval"] / out["GrossApproval"]
-    out["InitialInterestRate"] = pd.to_numeric(raw["InitialInterestRate"], errors="coerce")
-    out["TermInMonths"] = pd.to_numeric(raw["TermInMonths"], errors="coerce")
-    out["JobsSupported"] = pd.to_numeric(raw["JobsSupported"], errors="coerce")
-    out["ApprovalFY"] = pd.to_numeric(raw["ApprovalFY"], errors="coerce")
-    out["IsVariableRate"] = (raw["FixedorVariableInterestInd"] == "V").astype(np.float64)
-    out["IsRevolver"] = pd.to_numeric(raw["RevolverStatus"], errors="coerce")
-    out["HasCollateral"] = (raw["CollateralInd"] == "Y").astype(np.float64)
-    out["IsFranchise"] = raw["FranchiseCode"].notna().astype(np.float64)
-    naics = raw["NaicsCode"].astype("string").str[:2]
-    out = out.join(one_hot(naics, "Naics2", 20))
-    for field, top in (("BusinessType", 3), ("BusinessAge", 6), ("ProcessingMethod", 8)):
-        out = out.join(one_hot(raw[field].astype("string"), field, top))
-    return out.assign(label=label.astype(np.int64)).reset_index(drop=True)
+    raw = pd.read_csv(REAL / "sba" / SBA_FILE, encoding_errors="replace", low_memory=False)
+    return sba_frame(raw, horizon_months).drop(columns=["_approval_date"])
 
 
 BUILDERS = {

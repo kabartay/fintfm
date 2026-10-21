@@ -18,8 +18,8 @@ never staged there: its free-tier terms cover internal use (§153), and copying 
 host is not something to decide in a script.
 
 Usage:
-    uv run python scripts/kaggle/make_real_arm_kernel.py --commit <sha> --seeds 0,1 sba
-    kaggle kernels push -p scripts/kaggle/fintfm_r_sba_s0
+    uv run python scripts/kaggle/make_real_arm_kernel.py --commit <sha> --seeds 0,1 edgar
+    kaggle kernels push -p scripts/kaggle/fintfm_r_edgar_s0
 """
 
 from __future__ import annotations
@@ -31,8 +31,9 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 
 #: Sources that may be staged to a private Kaggle dataset (licences in data_candidates.csv).
-#: PPDai, Bondora and ULB fraud are evaluation-only (credit suite, DR4.3) and never staged.
-STAGEABLE = ("edgar", "sba", "lendingclub")
+#: PPDai, Bondora, ULB fraud and SBA are evaluation-only (credit suite, DR4.3) and never staged;
+#: the SBA kernels already generated (fintfm_r_sba_s0, _s1) are a record of the C5 arms.
+STAGEABLE = ("edgar", "lendingclub")
 
 #: The `max_classes 10` no-change model each seed is compared against (§158).
 CONTROLS = {

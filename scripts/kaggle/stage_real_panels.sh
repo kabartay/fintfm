@@ -6,9 +6,9 @@
 # docs/research/data_candidates.csv); Freddie Mac is deliberately absent (§153: internal use).
 #
 # Usage:
-#   scripts/kaggle/stage_real_panels.sh sba lendingclub
+#   scripts/kaggle/stage_real_panels.sh edgar
 #   kaggle datasets create -p runs/kaggle_staging/fintfm-r-panels      # first time, private by default
-#   kaggle datasets version -p runs/kaggle_staging/fintfm-r-panels -m "add sba"   # thereafter
+#   kaggle datasets version -p runs/kaggle_staging/fintfm-r-panels -m "add edgar"   # thereafter
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
@@ -18,7 +18,7 @@ for src in "$@"; do
   case "$src" in
     edgar)        from=data/edgar/panel.parquet ;;
     lendingclub)  from=data/lendingclub/panel.parquet ;;
-    sba) from=data/real/$src/panel.parquet ;;  # ppdai, bondora, ulb_fraud: evaluation-only (DR4.3)
+    # ppdai, bondora, ulb_fraud and sba are evaluation-only (DR4.3) and never staged
     *) echo "refusing to stage '$src' (not in the stageable list)" >&2; exit 2 ;;
   esac
   mkdir -p "$OUT/$src"

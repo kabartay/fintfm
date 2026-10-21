@@ -1,7 +1,7 @@
 """The DR4.3 credit suite: split protocol, top-decile AP, licence gate and an end-to-end run.
 
-Synthetic panels only, monkeypatched in place of the real loaders -- the PPDai, Bondora and ULB
-files never enter this repository. Covers what would fail silently: an out-of-time split
+Synthetic panels only, monkeypatched in place of the real loaders -- the PPDai, Bondora, ULB and
+SBA files never enter this repository. Covers what would fail silently: an out-of-time split
 training on rows whose outcome falls in the test window, a borrower on both sides, a CSV that
 drops a model, and a dataset scored before its licence is admitted.
 """
@@ -10,6 +10,7 @@ import csv
 import dataclasses
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from fintfm.evaluation import credit_suite as cs
@@ -36,7 +37,7 @@ def test_suite_keys_are_all_evaluation_only():
     for key, ds in cs.DATASETS.items():
         assert ds.key == key
         assert ds.licence.url.startswith("https://") and ds.licence.stated
-        assert ds.licence.checked == cs.CHECKED and ds.licence.reason
+        assert ds.licence.checked in (cs.CHECKED, cs.SBA_CHECKED) and ds.licence.reason
 
 
 def test_ap_top_decile_by_hand():
@@ -185,8 +186,6 @@ def test_lightgbm_runs_at_one_thousand_trees():
 
 
 def test_bondora_frame_label_window_and_bookkeeping():
-    import pandas as pd
-
     n = 6
     raw = pd.DataFrame({
         "ReportAsOfEOD": ["2021-07-20"] * n,
@@ -206,8 +205,147 @@ def test_bondora_frame_label_window_and_bookkeeping():
     assert list(frame.columns[-3:]) == ["label", "_user", "_loan_date"]
 
 
-def test_only_ulb_is_admitted_and_its_scores_carry_the_odbl_notice():
-    # Owner decision 2026-10-19: ULB's grant is the collector's; PPDai's and Bondora's are not.
-    assert cs.admitted() == ("ulb_fraud",)
+def test_ulb_and_sba_are_admitted_and_ulb_scores_carry_the_odbl_notice():
+    # Owner decisions: ULB's grant is the collector's (2026-10-19), SBA's is its producer's
+    # (2026-10-20); PPDai's and Bondora's are not the owners'.
+    from fintfm.evaluation.proxy_suite import licence_verdict
+
+    assert cs.admitted() == ("ulb_fraud", "sba")
+    sba = cs.DATASETS["sba"].licence
+    assert sba.stated == "U.S. Government Works" and sba.checked == cs.SBA_CHECKED
+    assert licence_verdict(sba.licence) is None
     assert cs.DATASETS["ulb_fraud"].licence.licence == "ODbL-1.0 + DbCL-1.0"
     assert "Open Database License" in cs.ODBL_NOTICE and "Bruxelles" in cs.ODBL_NOTICE
+
+
+def _sba_raw(approval: list[str], status: list[str], chargeoff: list[str | None],
+             seed: int = 0) -> pd.DataFrame:
+    """A frame shaped like the FOIA 7(a) CSV: every field, the file's own codes and spellings."""
+    rng = np.random.default_rng(seed)
+    n = len(approval)
+    dates = pd.to_datetime(pd.Series(approval))
+
+    def pick(*values: object) -> np.ndarray:
+        """``n`` draws from ``values``, kept as Python objects (None stays None)."""
+        return rng.choice(np.array(values, dtype=object), size=n)
+
+    gross = rng.integers(10, 500, size=n) * 1000.0
+    raw = pd.DataFrame({
+        "AsOfDate": "2026-06-30", "Program": " 7A",
+        "LocationID": rng.integers(1, 9999, size=n).astype(float),
+        "BorrName": [f"Borrower {i} LLC" for i in range(n)],
+        "BorrStreet": "1 Main St", "BorrCity": "Springfield", "BorrState": "IL",
+        "BorrZip": rng.integers(10000, 99999, size=n),
+        "BankName": pick("First Bank", "Second Bank"), "BankFDICNumber": 1234.0,
+        "BankNCUANumber": np.nan, "BankStreet": "2 High St", "BankCity": "Wilmington",
+        "BankState": "NC", "BankZip": "28403",
+        "GrossApproval": [f"${g:,.2f}" for g in gross], "SBAGuaranteedApproval": 0.75 * gross,
+        "ApprovalDate": approval,
+        "ApprovalFY": (dates.dt.year + (dates.dt.month >= 10)).to_numpy(),
+        "FirstDisbursementDate": approval,
+        "ProcessingMethod": pick("SBA Express Program", "Preferred Lenders Program", "7a General"),
+        "InitialInterestRate": rng.uniform(4, 10, size=n).round(2),
+        "FixedorVariableInterestInd": pick("V", "F"),
+        "TermInMonths": pick(84.0, 120.0, 300.0),
+        "NaicsCode": pick(722110.0, 541940.0, 238220.0),
+        "NaicsDescription": "Full-Service Restaurants",
+        "FranchiseCode": pick(None, "S2345"), "FranchiseName": None,
+        "ProjectCounty": "COOK", "ProjectState": "IL",
+        "SBADistrictOffice": "ILLINOIS DISTRICT OFFICE", "CongressionalDistrict": 7.0,
+        "BusinessType": pick("CORPORATION", "INDIVIDUAL", "PARTNERSHIP"),
+        "BusinessAge": pick("Existing, 5 or more years", "Unanswered"),
+        "LoanStatus": status, "PaidInFullDate": None, "ChargeOffDate": chargeoff,
+        "GrossChargeOffAmount": 0.0,
+        "RevolverStatus": pick("N", "Y"), "JobsSupported": rng.integers(0, 50, size=n) * 1.0,
+        "CollateralInd": pick("Y", "N"), "SoldSecMrktInd": pick(None, "Y"),
+    })
+    paid = raw["LoanStatus"] == "P I F"
+    raw.loc[paid, "PaidInFullDate"] = "2016-01-01"
+    raw.loc[raw["ChargeOffDate"].notna(), "GrossChargeOffAmount"] = 5000.0
+    raw.loc[raw["LoanStatus"].isin(["CANCLD", "COMMIT"]), "FirstDisbursementDate"] = None
+    return raw
+
+
+def test_sba_label_is_a_60_month_charge_off_with_undisbursed_and_undated_loans_dropped():
+    approval = ["2010-01-15"] * 8
+    status = ["P I F", "CHGOFF", "CHGOFF", "CHGOFF", "CHGOFF", "CANCLD", "COMMIT", "EXEMPT"]
+    # paid; inside; one day past the window; on its last day; (dropped x3); still running
+    chargeoff = [None, "2012-03-01", "2015-01-16", "2015-01-15", None, None, None, None]
+    raw = _sba_raw(approval, status, chargeoff)
+    raw.loc[0, "RevolverStatus"], raw.loc[1, "RevolverStatus"] = "Y", "N"
+    frame = cs.sba_frame(raw)
+    assert frame["label"].tolist() == [0, 1, 0, 1, 0]
+    assert frame["IsRevolver"].tolist()[:2] == [1.0, 0.0] and frame["IsRevolver"].notna().all()
+    assert frame["GrossApproval"].notna().all()  # "$123,000.00" parses
+    assert list(frame.columns[-2:]) == ["label", "_approval_date"]
+
+
+def test_sba_features_ignore_every_dropped_field():
+    approval = ["2010-01-15", "2011-06-01", "2012-02-29", "2013-07-04"] * 5
+    status = ["P I F", "CHGOFF", "EXEMPT", "CHGOFF"] * 5
+    chargeoff = [None, "2013-01-01", None, "2019-01-01"] * 5
+    raw = _sba_raw(approval, status, chargeoff)
+    base = cs.sba_frame(raw)
+    features = [c for c in base.columns if c not in ("label", "_approval_date")]
+    assert not [f for f in features for d in cs.SBA_DROPPED if f.startswith(d)]
+    # scrambling every dropped field that neither selects rows nor builds the label leaves the
+    # features as they were
+    scrambled = raw.copy()
+    structural = {"AsOfDate", "ApprovalDate", "LoanStatus", "ChargeOffDate"}
+    for field in set(cs.SBA_DROPPED) - structural:
+        scrambled[field] = scrambled[field].sample(frac=1.0, random_state=1).to_numpy()
+    scrambled["GrossChargeOffAmount"] = 1e9
+    scrambled["PaidInFullDate"] = "2011-01-01"
+    pd.testing.assert_frame_equal(cs.sba_frame(scrambled), base)
+    # moving the charge-off date changes the label and nothing else
+    moved = raw.copy()
+    moved.loc[moved["ChargeOffDate"].notna(), "ChargeOffDate"] = "2011-12-31"
+    after = cs.sba_frame(moved)
+    pd.testing.assert_frame_equal(after[features], base[features])
+    assert after["label"].sum() > base["label"].sum()
+
+
+def test_sba_frame_refuses_an_unclassified_field_a_censored_window_and_odd_codes():
+    raw = _sba_raw(["2010-01-15"] * 3, ["P I F", "CHGOFF", "EXEMPT"], [None, "2011-01-01", None])
+    with pytest.raises(ValueError, match="unclassified"):
+        cs.sba_frame(raw.assign(CurrentStatus="x"))
+    with pytest.raises(ValueError, match="censored"):
+        cs.sba_frame(raw.assign(AsOfDate="2014-06-30"))
+    with pytest.raises(ValueError, match="RevolverStatus"):
+        cs.sba_frame(raw.assign(RevolverStatus="2"))
+    with pytest.raises(ValueError, match="LoanStatus"):
+        cs.sba_frame(raw.assign(LoanStatus="CLOSED"))
+
+
+def test_sba_out_of_time_split_is_embargoed_by_60_months(tmp_path):
+    rng = np.random.default_rng(3)
+    n = 1500
+    # a busy first two years then a gap, so the latest half still has five-year-old history
+    early = pd.Timestamp("2009-10-01") + pd.to_timedelta(rng.integers(0, 730, size=n * 3 // 10),
+                                                         unit="D")
+    late = pd.Timestamp("2015-10-01") + pd.to_timedelta(rng.integers(0, 1460, size=n - len(early)),
+                                                        unit="D")
+    approval = pd.Series(np.concatenate([early, late])).sort_values().reset_index(drop=True)
+    hit = rng.random(n) < 0.15
+    chargeoff = [(a + pd.DateOffset(months=int(rng.integers(1, 60)))).strftime("%Y-%m-%d")
+                 if h else None for a, h in zip(approval, hit)]
+    status = ["CHGOFF" if h else "P I F" for h in hit]
+    raw = _sba_raw(approval.dt.strftime("%Y-%m-%d").tolist(), status, chargeoff, seed=3)
+    (tmp_path / "sba").mkdir()
+    raw.to_csv(tmp_path / "sba" / cs.SBA_FILE, index=False)
+    panel = cs.load_sba(tmp_path)
+    assert panel.name == "sba" and panel.split_kind == "out_of_time" and panel.groups is None
+    assert panel.embargo == cs.SBA_EMBARGO_DAYS and "ApprovalFY" not in panel.feature_names
+    assert panel.y.tolist() == hit.astype(int).tolist()
+    stamps = pd.to_datetime(panel.time, unit="D").round("D")
+    assert (stamps == approval).all()
+    splits = cs.suite_splits(panel)
+    assert len(splits) == cs.N_SPLITS
+    for tr, te in splits:
+        assert len(tr) > 0
+        # every training label's 60-month window has closed before the test window opens
+        window_end = stamps[tr].max() + pd.DateOffset(months=cs.SBA_HORIZON_MONTHS)
+        assert window_end < stamps[te].min()
+    # without the embargo, the training side would hold loans whose outcome was still open
+    unembargoed = cs.suite_splits(dataclasses.replace(panel, embargo=0.0))
+    assert len(unembargoed[0][0]) > len(splits[0][0])

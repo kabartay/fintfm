@@ -56,10 +56,10 @@ def test_bookkeeping_columns_are_never_features():
 
 
 def test_task_shape_and_source_label(tmp_path):
-    path = _write(tmp_path, "sba", _panel())
+    path = _write(tmp_path, "edgar", _panel())
     task = sample_real_panel_task(np.random.default_rng(1), 50, panel_path=path, max_features=20)
     assert task.X.shape == (50, 8)
-    assert task.source == "real:sba" == source_name(path)
+    assert task.source == "real:edgar" == source_name(path)
     assert len(np.unique(task.y)) == 2
 
 
@@ -148,7 +148,8 @@ def test_a_cik_panel_keeps_one_row_per_firm():
 
 @pytest.mark.parametrize("source", sorted(EVAL_ONLY_SOURCES))
 def test_evaluation_only_sources_are_refused_at_parse_and_at_sampling(tmp_path, source):
-    # DR4.3: the credit suite scores on PPDai, Bondora and ULB fraud, so none may train FinTFM-R.
+    # DR4.3: the credit suite scores on PPDai, Bondora, ULB fraud and SBA, so none may train
+    # FinTFM-R.
     path = _write(tmp_path, source, _panel())
     with pytest.raises(ValueError, match="evaluation-only"):
         parse_real_panels(f"{path}=0.3")
@@ -168,7 +169,7 @@ def test_evaluation_only_sources_match_the_registry():
         dtype=str, keep_default_na=False,
     )
     eval_only = registry[registry["verdict"] == "EVAL_ONLY"]
-    keys = {"ppdai": "ppdai", "bondora": "bondora", "ulb_fraud": "ulb"}
+    keys = {"ppdai": "ppdai", "bondora": "bondora", "ulb_fraud": "ulb", "sba": "sba"}
     assert set(keys) == EVAL_ONLY_SOURCES
     assert len(eval_only) == len(EVAL_ONLY_SOURCES)
     for key, token in keys.items():
@@ -184,12 +185,12 @@ def test_empty_default_never_opens_a_file():
 
 
 def test_two_panels_both_fire_and_collate(tmp_path):
-    a = _write(tmp_path, "lendingclub", _panel(n_features=6, seed=1))
-    b = _write(tmp_path, "sba", _panel(n_features=12, seed=2))
+    a = _write(tmp_path, "source_a", _panel(n_features=6, seed=1))
+    b = _write(tmp_path, "source_b", _panel(n_features=12, seed=2))
     cfg = PriorConfig(real_panels=f"{a}=0.5,{b}=0.5", max_features=20, n_rows=40)
     rng = np.random.default_rng(6)
     sources = {sample_task(rng, cfg, n_rows=40).source for _ in range(200)}
-    assert {"real:lendingclub", "real:sba"} <= sources
+    assert {"real:source_a", "real:source_b"} <= sources
     batch = sample_batch(rng, cfg, batch_size=4)
     assert batch.X.shape == (4, 40, 20)
 
