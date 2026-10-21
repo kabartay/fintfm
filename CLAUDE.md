@@ -11,11 +11,12 @@ not by being imaginable in advance.
 | --- | --- |
 | Commit author, human contact | `mukharbek.organokov@gmail.com` |
 
-**Never use `temelion.ai` or anything named Temelion, and never a `finkele.com` address in
-commits or account identities** (`finkele.com` is the Finkele company website). The shell environment on
-this machine carries a `temelion.ai` address by default for anything that reads "the user's
-email" — it has reached a monitoring channel on an unrelated project before. Check before
-creating anything (a commit, a cloud resource, a registration) that carries an address.
+**Use only the address above: never another employer's address, and never a `finkele.com`
+address in commits or account identities** (`finkele.com` is the Finkele company website). The
+shell environment on this machine carries a different address by default for anything that
+reads "the user's email" — it has reached a monitoring channel on an unrelated project before.
+Check before creating anything (a commit, a cloud resource, a registration) that carries an
+address.
 
 Commits carry no `Co-Authored-By` or Claude attribution trailers.
 
@@ -196,7 +197,7 @@ uninstalled; the command simply stopped existing. Sync every extra the session n
 
 **And `uv pip install` obeys the leaked `$VIRTUAL_ENV`.** The obvious recovery — `uv pip
 install huggingface_hub` — reported `Using Python 3.13.7 environment at
-/Users/morganoko/proj/finkele-alert/.venv` and installed into **another project's venv**, which
+<home>/proj/finkele-alert/.venv` and installed into **another project's venv**, which
 is the leak this file already warns about one section above, now with a way to act on it:
 
 ```bash
@@ -356,7 +357,7 @@ the difference is the thing this project sells:
 | family | training data | auditability claim |
 | --- | --- | --- |
 | **FinTFM** | synthetic prior only | never saw real data — the D2/D14 claim, intact |
-| **FinTFM-R** | real data (SEC EDGAR; Freddie Mac once licensed) | **does not hold** |
+| **FinTFM-R** | real data (SEC EDGAR; Freddie Mac under its free tier) | **does not hold** |
 
 Three rules follow, and all three are easy to break by accident:
 
@@ -371,11 +372,14 @@ Three rules follow, and all three are easy to break by accident:
   (CZ/HU/PL/SK), and TabArena's corporate-bankruptcy sets are Polish and Taiwanese while its
   credit sets are all consumer. A future US corporate-distress benchmark would be usable for
   FinTFM only.
-- **No Freddie Mac data until the commercial licence is signed.** Their free tier is
-  academic/non-commercial; this project is commercial. Registration plus a licensing agreement
-  is a human action, and until it exists that data enters nothing — not the repo, not a run,
-  not a derived artefact. EDGAR needs no such permission: it is a US federal government work,
-  public domain, and is the source FinTFM-R starts on.
+- **Freddie Mac data only under its free tier, and only while fintfm is free and
+  noncommercial** (`docs/results/FINDINGS.md` §153, which read the terms in full). The free
+  terms allow internal research use and the public, noncommercial release of research results
+  and derived products; the fee-based agreement covers commercial redistribution, and becomes
+  necessary the day fintfm is monetised (a paid product or API). Two rules bind on any tier:
+  never correlate the data to individuals (§3.2(c)), and never stage it to a third-party host;
+  it stays gitignored under `data/mortgage/`. EDGAR needs no permission: it is a US federal
+  government work, public domain, and is the source FinTFM-R starts on.
 
 ## Secrets: `.env`, and never anywhere else
 
@@ -484,7 +488,9 @@ Training volume is `steps × batch_size`, and that number belongs in every discu
 the model works. Every checkpoint here has come from **48,000 tasks** against a field norm
 around 10⁷ (§43) — visible in every command for two days, and never once multiplied out.
 Before concluding anything about architecture or scale, check that the model has been trained
-at a defensible volume. On a T4 it is roughly $13 for a million tasks.
+at a defensible volume. At the current recipe a million tasks is 125,000 steps at batch 8:
+about 66 T4-hours at 1.90 s/step (§86) or about $28 of L4 time at 1.02 s/step (§127), ESTIMATED
+from those MEASURED step times. The old "$13 per million tasks" predates cell attention.
 
 ## Configuration, not constants — and not everything
 

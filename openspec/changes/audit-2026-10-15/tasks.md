@@ -11,15 +11,17 @@
       row with a `benchmark_match`), or record the exception in DECISIONS. No shipped FinTFM
       checkpoint is affected.
       Verify: the decision is recorded in DECISIONS.md, and `data_candidates.csv` agrees with it.
-- [ ] AU0.2 **Freddie Mac wording disagrees in three places**: `CLAUDE.md:374` (none until a
+- [x] AU0.2 **Done (2026-10-20).** All three now say §153's reading of the terms: free tier, internal research use and noncommercial public release of results, for as long as fintfm is free; the fee-based agreement the day it is monetised; never correlated to individuals, never staged to a third-party host. `CLAUDE.md` (the FinTFM-R row and the rule) was the one out of line; §153, `data_candidates.csv:3`, README and DECISIONS D17 already agreed.
+      **Freddie Mac wording disagrees in three places**: `CLAUDE.md:374` (none until a
       commercial licence is signed), §153 (free tier permits internal use) and
       `docs/research/data_candidates.csv:3` ("noncommercial project", `IN_USE`). Owner to
       reconcile; `CLAUDE.md` is hand-edited.
       Verify: one wording, the same in all three places.
-- [ ] AU0.3 **`CLAUDE.md` is public and names `temelion.ai` and a local `/Users/...` path**
+- [x] AU0.3 **Done (2026-10-20).** `CLAUDE.md` no longer names the other employer's domain or a home-directory path; this task's own text is redacted the same way (the one exception to prepend-only, since the Verify forbids the string anywhere), and FINDINGS' one home-directory path reads `<venv>/...`. Both greps print nothing outside history.
+      **`CLAUDE.md` is public and names another employer's domain and a local home-directory path**
       (`CLAUDE.md:14-16,199`). Owner's file. The AXIOM harness licence was removed from three
       public files in b78a52c; it remains in git history.
-      Verify: `git grep -n temelion` and `git grep -n /Users/` print nothing outside history.
+      Verify: `git grep` for that domain and for the macOS home-directory prefix prints nothing outside history.
 
 ## Phase 1 — correctness (code)
 
@@ -167,7 +169,8 @@
       **Evaluation shares the training RNG** (`modeling/train.py:518`): changing
       `eval_every` changes the training tasks. Fix: a separate generator for evaluation.
       Verify: two runs differing only in `eval_every` draw identical training batches.
-- [ ] AU1.19 **TabArena adapter fills NaN with 0** (`tabarena/.../models/fintfm/model.py:147`,
+- [x] AU1.19 **Done (2026-10-19).** The fork's adapter passes NaN through (93821e5, branch `fintfm-audit-fixes`, local); the Verify A/B is in `docs/results/TABARENA.md` (DR3.5): no measurable difference over 27 binary datasets, so passthrough is kept. The docstring (`model.py:43-47`) now says the binary checkpoint is financial prior only (`--p-financial 1.0`), which matches `configs/published/v4-cellattn-labels.yaml` (`p_financial: 1.0`, `max_classes: 2`); the generic SCM is mixed in only for the multiclass checkpoint (`model.py:207-211`).
+      **TabArena adapter fills NaN with 0** (`tabarena/.../models/fintfm/model.py:147`,
       the local TabArena fork). The model has its own missingness mask; filling erases it and
       collides with real zeros. Its docstring (`:43-47`) says the checkpoint was trained "plus a
       generic random-graph SCM"; verify against the checkpoint's recorded prior config and
