@@ -83,7 +83,8 @@
       covering array of about 20 model and 25 classifier lever configurations.
       Verify: each refused combination raises with a message naming both levers; every covering
       configuration runs, gives finite outputs, chunks exactly and returns valid probabilities.
-- [ ] DR1.6 **Correct `CLAUDE.md`'s cost figure** (owner's file): about 66 T4-hours or about $28 of
+- [x] DR1.6 **Done (2026-10-20).** `CLAUDE.md`'s "Count the tasks" section now gives 125,000 steps at batch 8: about 66 T4-hours (§86) or about $28 of L4 time (§127) per million tasks, ESTIMATED from the measured step times, with a note that $13 predates cell attention.
+      **Correct `CLAUDE.md`'s cost figure** (owner's file): about 66 T4-hours or about $28 of
       L4 time per million tasks at the current recipe (§86, §127), not $13.
       Verify: the owner has edited it, or declined.
 - [x] DR1.7 **Done (2026-10-16, f209e29).** rms_match scaling (0.2·√max(n, m)), lr shared with AdamW, weight decay 0.01, Q/K/V orthogonalised as separate blocks (Keller's write-up; nothing per head is described there), fp32 Newton-Schulz without native bf16. **Verify amended 2026-10-16:** the step-1 comparison was ill-posed, since AdamW's first step is lr·sign(g) (RMS exactly lr) while 0.2·√max(n, m) matches AdamW's steady state; the check is now update RMS within 2x of AdamW's steady-state RMS on full-rank gradients (`tests/test_muon.py`). Measured on the tiny model (SMOKE-TEST): full-rank updates 0.14-0.24·lr against AdamW's steady 0.229·lr.
@@ -111,7 +112,8 @@
       **§130's probe fitted on the 2,000 context rows only.** If the probe's advantage over
       the head falls to 0.005 AP or less, §130-§136's reading is label count, not representation.
       Verify: the result and its consequence for §130-§136 written in FINDINGS.
-- [ ] DR3.5 **TabArena-Lite, same day, same fintfm source:** NaN against zero fill (fork branch
+- [ ] DR3.5 **Partly done (2026-10-19): NaN against zero fill measured, null** (`docs/results/TABARENA.md`, "NaN passed through against NaN filled with 0"): 21 of 27 binary datasets identical, NaN better on 2 of the 6 that differ, mean +0.00008 ROC-AUC, sign test p = 0.69; NaN passthrough kept. Open: `ensemble_class_shift`, `ensemble_transforms`, and `max_context` 500 and 750.
+      **TabArena-Lite, same day, same fintfm source:** NaN against zero fill (fork branch
       `fintfm-audit-fixes`), then `ensemble_class_shift`, then `ensemble_transforms=("rank",
       "squash")`, then `max_context` 500 and 750 against 1,000. Paired per-dataset differences,
       not Elo, decide.
@@ -163,7 +165,7 @@
 
 ## Phase DR4 — an evaluation loop that does not overlap TabArena
 
-- [ ] DR4.1 **Partly done (2026-10-19): reopened** because the row-hash check covers only the 27 of 51 TabArena-v0.1 datasets cached locally and no BeyondArena contents, and it is a network CLI check, not the test the Verify names; the selection guard is complete. Remaining: fetch the 24 uncached TabArena datasets and BeyondArena's contents and pin the overlap result in a test. Earlier the same day: Row-hash check (`overlap.content_fingerprint`, `openml_breadth --row-hash`): 0 of 9 SUITE datasets overlap the 27 of 51 TabArena-v0.1 datasets cached locally (BeyondArena not comparable by contents, no ids); `SELECTION_FORBIDDEN` guard in pilot_compare, label_symmetry_probe, openml_breadth and the proxy runner (`tests/test_selection_guard.py`).
+- [x] DR4.1 **Done (2026-10-20).** `docs/results/overlap_report.json` (generated 2026-10-19T22:02Z by `python -m fintfm.evaluation.overlap --report ... --fetch`, log `runs/dr41/overlap_report.log`) compares all 45 candidates (the 9 SUITE datasets, the 35 proxy-suite tasks and the credit-g control) with all 193 references (51 TabArena-v0.1, 142 BeyondArena) by row hashes and column fingerprints: 0 suite datasets overlap, and the control overlaps TabArena 46918 credit-g, as it must. `tests/test_overlap_report.py` pins it offline (candidate set, full coverage, no overlap, control). Blind spot stated in the report: all-categorical candidates (kr-vs-kp, tic-tac-toe, dresses-sales) hash no rows. Earlier: **Partly done (2026-10-19): reopened** because the row-hash check covers only the 27 of 51 TabArena-v0.1 datasets cached locally and no BeyondArena contents, and it is a network CLI check, not the test the Verify names; the selection guard is complete. Remaining: fetch the 24 uncached TabArena datasets and BeyondArena's contents and pin the overlap result in a test. Earlier the same day: Row-hash check (`overlap.content_fingerprint`, `openml_breadth --row-hash`): 0 of 9 SUITE datasets overlap the 27 of 51 TabArena-v0.1 datasets cached locally (BeyondArena not comparable by contents, no ids); `SELECTION_FORBIDDEN` guard in pilot_compare, label_symmetry_probe, openml_breadth and the proxy runner (`tests/test_selection_guard.py`).
       **Partly done (2026-10-16), left open.** The six datasets are out of `SUITE`;
       `tests/test_openml_breadth_overlap.py` checks OpenML id and name against TabArena-v0.1 and
       name against BeyondArena (which lists no ids); §165 carries a dated note. Open: the row-hash
