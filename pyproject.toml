@@ -23,9 +23,9 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "numpy>=2.0",
-    "pandas>=2.2",
-    "scikit-learn>=1.5",
+    "numpy>=2.5.4",
+    "pandas>=3.0.6",
+    "scikit-learn>=1.9.1",
     "pyyaml>=6.0",
     "scipy>=1.18.1",
     "torch>=2.4",
@@ -40,14 +40,14 @@ bench = [
     # *fetching* it is a `kaggle` one. Declared in both: pyarrow lived only in `kaggle` and
     # a bare `uv sync --extra bench` therefore broke the loader that every out-of-time
     # finding depends on, while CI stayed green because CI has no data and skips the test.
-    "pyarrow>=17",
+    "pyarrow>=26.0.0",
 ]
 # Hugging Face Jobs, for GPU pretraining runs. huggingface_hub is Apache-2.0.
 # See docs/infra/HF_JOBS.md; secrets go through `--secrets`, never `-e`.
 hf = [
     # not `[cli]` -- that extra was removed by hub 1.30 and resolves to a warning plus no CLI.
     # The `hf` command ships in the base package.
-    "huggingface_hub>=0.34",
+    "huggingface_hub>=2.2.0",
 ]
 
 # The TabArena overlap report (design review DR4.1, `fintfm.evaluation.overlap --report
@@ -57,8 +57,8 @@ hf = [
 # declared here as well as in its usual extra, for the reason the `bench` comment gives.
 overlap = [
     "openml>=0.15",
-    "huggingface_hub>=0.34",
-    "pyarrow>=17",
+    "huggingface_hub>=2.2.0",
+    "pyarrow>=26.0.0",
 ]
 
 # FinTFM-R (task A2/A3): the real EDGAR panel `scripts/edgar/build_panel.py` writes and
@@ -67,7 +67,7 @@ overlap = [
 # in only one extra breaks the moment a different sync is used, and `--p-real-edgar` is reached
 # from `fintfm-train`, not from the benchmark harness that happens to need parquet too.
 real = [
-    "pyarrow>=17",
+    "pyarrow>=26.0.0",
     # scripts/edgar/build_panel.py's own direct dependency (SEC's two public endpoints),
     # declared here rather than relied on transitively from another extra -- the exact trap
     # this file's pyarrow comment already documents once.
@@ -79,7 +79,7 @@ real = [
 kaggle = [
     "kaggle>=1.6",
     "kagglehub>=0.3",
-    "pyarrow>=17",
+    "pyarrow>=26.0.0",
 ]
 
 # Schedule-free optimisation (task 48.9, Defazio et al., NeurIPS 2024), behind --optimizer
@@ -113,10 +113,10 @@ fintfm-fetch = "fintfm.evaluation.fetch:main"
 # `pre-commit` is here rather than installed ad hoc: `uv pip install` puts a tool in one
 # venv and not in the lockfile, so the next `uv sync` removes it and a fresh clone never has
 # it. That is how the `hf` CLI disappeared mid-session on 2026-09-24.
-dev = ["pytest>=8", "ruff>=0.6", "pre-commit>=4"]
+dev = ["pytest>=8", "ruff>=0.17.1", "pre-commit>=4.7.0"]
 
 [build-system]
-requires = ["uv_build>=0.9.18,<0.10.0"]
+requires = ["uv_build>=0.13.4,<0.14.0"]
 build-backend = "uv_build"
 
 [tool.ruff]
