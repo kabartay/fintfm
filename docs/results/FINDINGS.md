@@ -12171,3 +12171,50 @@ measured at this recipe: DR2.3 measured 0.126 s per batch of 8 for the `v2` mixt
 the financial share elsewhere costs 0.022 to 0.034 AP whatever replaces it, and arms c and d
 move 0.7 of it, arm b all of it. Arm c ends on credit, but at the cosine schedule's tail, where
 the rate is lowest.
+
+## §181 — The proxy suite's first numbers: FinTFM is last on binary, mid-table on multiclass, and 480k beats 48k
+
+**MEASURED, 2026-10-23**, `python -m fintfm.evaluation.proxy_suite run` (logs and CSVs under
+`runs/dr73/`), OpenML's own splits, 3 splits per task, baselines at their library defaults with
+LightGBM out of process (§179). Elo is a Bradley-Terry fit over per-split pairwise results with
+RF (default) at 1,000 and a 95% interval from 1,000 task resamples. The suite has not yet passed
+DR4.2's Spearman validation against TabArena, so these are proxy numbers, not TabArena ones.
+
+**Binary, 18 tasks**, the published checkpoint `v4-cellattn-labels.pt` (16 of 18 scored:
+`madelon` at 500 features and `Internet-Advertisements` at 1,558 exceed the 136-feature cap):
+
+| method | Elo | 95% interval |
+| --- | --- | --- |
+| LightGBM | 1128 | [1058, 1201] |
+| RF | 1000 | anchor |
+| Linear | 981 | [833, 1112] |
+| ExtraTrees | 971 | [884, 1059] |
+| KNN | 690 | [505, 819] |
+| **FinTFM (binary)** | **561** | [316, 726] |
+
+**Multiclass, 8 tasks**, `v4-multiclass.pt` (6 of 8 scored: `mfeat-factors` at 216 features
+exceeds the cap; DR7.3's baseline):
+
+| method | Elo | 95% interval |
+| --- | --- | --- |
+| Linear | 1219 | [1046, 1458] |
+| LightGBM | 1188 | [1051, 1362] |
+| RF | 1000 | anchor |
+| **FinTFM (multiclass)** | **836** | [549, 1077] |
+| ExtraTrees | 804 | [534, 974] |
+| KNN | 755 | [647, 801] |
+
+**E1 at seed 0 on the proxy (§171's secondary measure, §176's open branch):** `e1-v480-s0`
+against `e1-v48-s0` on the 16 scorable binary tasks: **+168 Elo** [+50, +326] with the 48k arm at
+1,000; per task 14 wins, 2 losses (two-sided sign test p = 0.0042); per split 34 wins, 12 losses,
+2 ties (p = 0.0016).
+
+- **E1 now matches §171's prediction at seed 0: null on V4FinBench, positive on the proxy.** That
+  is the branch whose pre-declared action is the 2M-task run on the prior v2 trunk, and it needs
+  both seeds, so `e1-v480-s1` runs (launched with DR2.4 after the weekly quota reset).
+- **Read with the validation caveat.** If the proxy is later shown not to track TabArena
+  (DR4.2), this branch's evidence weakens accordingly; the V4FinBench verdict does not depend on it.
+- **The width cap costs coverage on both types** (2 of 18 binary, 2 of 8 multiclass tasks), the
+  DR7.5 problem on the proxy too.
+- **Binary is the weaker type here, not multiclass**, which inverts §121's TabArena picture
+  (both last). The proxy multiclass checkpoint sits between RF and ExtraTrees.

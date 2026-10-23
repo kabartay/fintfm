@@ -259,7 +259,7 @@
       disjoint indices; dumps kept only for byte-identity checks. Use both GPUs of a Kaggle T4x2.
       Verify: a test that the loader's batch i equals the dump's batch i, and that two workers
       give the same stream as one.
-- [ ] DR5.3 **Interim (2026-10-21, §176): seed 0 gives Δ_0 = -0.0109, so "helps" is closed.** Next: the proxy suite at seed 0 (480k against 48k); seed 1 runs only if the proxy is positive there.
+- [ ] DR5.3 **Interim (2026-10-21, §176; 2026-10-23, §181): seed 0 is null on V4FinBench (Δ_0 = -0.0109) and positive on the proxy (+168 Elo, 14 of 16 tasks, p = 0.004), so seed 1 runs** (launched after the quota reset).
       **E1: does volume help?** 48,000 against 480,000 tasks, seeds 0 and 1, one pinned
       commit, everything else fixed, the 48k arm retrained rather than reused (§158). Volume
       helps if the 480k arm's five-fold mean V4FinBench AP is positive at both seeds and their
@@ -410,7 +410,7 @@
       **Ask the maintainers** whether LightPFN's classification-only precedent (admitted
       2026-10-11 with regression imputed) applies, before building regression coverage.
       Verify: their answer recorded in `docs/results/TABARENA.md`.
-- [ ] DR7.3 **Owner decision (2026-10-21): FinTFM covers binary and multiclass.** Baseline the
+- [x] DR7.3 **Done (2026-10-23, §181):** `v4-multiclass.pt` scores 836 proxy Elo (6 of 8 tasks; RF 1,000), the binary checkpoint 561 (16 of 18). **Owner decision (2026-10-21): FinTFM covers binary and multiclass.** Baseline the
       multiclass checkpoint where arms may be chosen: `runs/v4-multiclass.pt` (max_classes 10,
       cell labels, one cell block) on the proxy suite's 8 multiclass tasks (DR4.2 runner), beside
       the binary checkpoint's proxy Elo, so every later multiclass arm has a control that is not
