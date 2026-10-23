@@ -227,6 +227,7 @@ class TrainConfigDefaults:
     run_steps: int | None = None
     resume: str | None = None
     init_from: str | None = None
+    new_prior_phase: bool = False
     feature_chunk: int | None = None
     optimizer: str = "adamw"
     task_dump: str | None = None
