@@ -12042,3 +12042,132 @@ unpickles only scikit-learn and LightGBM, with a timeout that records the split 
 of hanging. Tests: identical predictions to an in-process fit, a failing fit raises rather than
 hangs, and LightGBM scores with torch already loaded (`tests/test_proxy_suite_runner.py`). No
 proxy number was produced before the fix, so none is affected.
+
+## §180: DR2.4, prior v2 at 48,000 tasks (pre-registered)
+
+**PRE-REGISTERED, 2026-10-23, before any arm trains** (design review DR2.4). One seed per arm,
+screening in the shape of §175: V4FinBench first, then TabArena-Lite for what passes it.
+
+**What prior v2 is here.** DR2.1 to DR2.3 built it as opt-in configuration, each part off by
+default; `scripts/prior_stats.py` fixes the one setting of it that has been measured, its `v2`
+mixture and `V2_KNOBS`, and every value below is taken from there or from DR2.2's text rather
+than chosen for this run:
+
+- **Financial v2** is the financial source with `financial_gate_prob` 0.5 (the `v2` mixture's
+  "half the financial labels gated", so half the credit tasks keep the sigmoid label the
+  control trained on) and `financial_sign_flip_prob` 0.5 (DR2.2's measured value: each ratio's
+  sign a fair per-task coin, which took the worst column from 87.3% to 61.5% same-direction).
+  Of the DR2.3 knobs it reads only the feature-to-row bands, `0.5:0:0.05,0.35:0.05:0.2,
+  0.15:0.2:0.5`; the others act on the general sources only (`_KNOB_SOURCES`).
+- **The general trunk** is the `v2` mixture without its financial share: SCM 0.3, tree 0.2,
+  task families 0.1, the generic gated source 0.1, normalised by DR2.1's weighted draw to
+  0.4286, 0.2857, 0.1429 and 0.1429. Regression, `trivial` and `crossed` are left out as the
+  `v2` mixture leaves them out, and the real sources are FinTFM-R's, not this family's. The
+  trunk draws under every `V2_KNOBS` value (bands as above, `imbalance_draws`, unordered
+  categoricals, mixed missingness, tie probability 0.15, irrelevant columns up to 0.2,
+  near-duplicates up to 0.1, label flips up to 0.05) except `p_binary` 0.7, which is inert at
+  `max_classes` 2: every task is binary there with or without it.
+- **`--p-financial 0.7`** on the weighted arms is not a setting. A weighted draw refuses any
+  `p_*` away from `PriorConfig`'s default, so the published recipe's `p_financial` 1.0 has to
+  be set back to 0.7 for `--source-weights` to be accepted; it is not read in that mode.
+
+**Arms.** All on E1's 48k recipe exactly (§171, §175: `configs/published/v4-cellattn-labels.yaml`,
+fp16, split attention, streaming loader, DDP on a T4x2 at 4 tasks per rank, 6,000 steps, 48,000
+tasks, cosine schedule, seed 0, `max_classes` 2 as the control), pinned at **5e0fad0**. Each
+adds to `E1 + --seed 0 --steps 6000`:
+
+| arm | what it trains on | flags added |
+| --- | --- | --- |
+| `dr24-a-s0` | financial v2 alone | `--financial-gate-prob 0.5 --financial-sign-flip-prob 0.5 --feature-ratio-bands B` |
+| `dr24-b-s0` | general trunk alone | `--p-financial 0.7 --source-weights scm=0.3,tree=0.2,task_family=0.1,gated=0.1` + knobs |
+| `dr24-c-s0` | trunk for steps 1-4,200, then financial v2 for 4,201-6,000 | arm b's flags with `--run-steps 4200`, then arm a's with `--resume <out>.state --new-prior-phase` |
+| `dr24-d-s0` | trunk and financial v2 in one categorical | `--p-financial 0.7 --source-weights scm=0.3,tree=0.2,task_family=0.1,gated=0.1,financial=0.3 --financial-gate-prob 0.5 --financial-sign-flip-prob 0.5` + knobs |
+
+B is the band string above; "knobs" is `--feature-ratio-bands B --imbalance-draws
+--categorical-mode unordered --missing-mode mixed --tie-column-prob 0.15 --irrelevant-frac-max
+0.2 --duplicate-frac-max 0.1 --label-flip-max 0.05`. Kernels:
+`scripts/kaggle/ts_dr24_{a,b,c,d}_s0/`, written by `scripts/kaggle/train_score/make_train_score.py dr24-a-s0 dr24-b-s0 dr24-c-s0 dr24-d-s0`.
+
+- **The switch at 4,200 steps** gives arm c a financial share of 1,800 / 6,000 = 0.3, arm d's.
+  Arms c and d then see the same mixture in different order, so c against d measures order
+  alone, and each against the control measures prior v2 at that share.
+- **The curriculum mechanism** is 5e0fad0's `--new-prior-phase`: `--run-steps` stops the first
+  invocation at 4,200 of a 6,000-step cosine schedule, and the resume carries the optimiser
+  moments, the schedule position and both RNG streams, as every chunked run has
+  (`test_resuming_a_chunked_run_matches_an_uninterrupted_one`; the two-process resume in
+  `test_loader.py`). The stream loader draws batch i from `[seed, i]` under the current prior,
+  so the second phase's batches are batches 8,400 to 11,999 of the financial v2 stream. The
+  flag exists so the checkpoint states both mixtures: `prior_phases` lists each with its step
+  range, where before a resume read no prior and the final checkpoint would have recorded
+  financial v2 alone. The trunk-only weights at the switch are kept as `dr24-c-s0.phase1.pt`.
+  The resume path has only run on CPU (tests and the smoke below), not on a T4x2; arm c is the
+  one to watch at its switch.
+
+**Control: `e1-v48-s0`** (d05ea19), with `e1-v48-s1` for seed spread, both existing (§171). No
+new control arm is needed, MEASURED 2026-10-23 on this Mac's CPU: at the published recipe's
+prior config with E1's flags, the first 200 stream batches (4 tasks each, seed 0: both ranks'
+first 100 steps) hash to the same SHA-256 at d05ea19, d33b730 and 5e0fad0 (`4e1c3ec6...`), as
+do the initial weights at seed 0 (`56c54c75...`) and the weights after two fp32 training steps
+at batch 2 with split attention and the stream loader (`6389a201...`). The resolved configs
+differ only by fields added since d05ea19, each at its off value (the DR2.2/DR2.3 prior keys,
+the DR6.2/DR6.3 model keys). fp16 and DDP were not exercised, but the training loop's code is
+unchanged from d05ea19 to d33b730 apart from flag plumbing, and the model changes are behind
+the DR6 flags under the golden-output test.
+
+**SMOKE-TEST, 2026-10-23:** every arm's flags as read from its generated `kernel.py`, without
+`--amp fp16` and `--ddp` (CUDA only), at `--steps 2 --batch-size 1 --device cpu` on the
+published config, trained and saved at exit 0. The checkpoints record the intended mixtures:
+arm a sequential, financial 1.0, gate 0.5, flip 0.5, the bands; arm b weighted, SCM 0.4286,
+tree 0.2857, task families 0.1429, gated 0.1429; arm d weighted, SCM 0.3, financial 0.3, tree
+0.2, task families 0.1, gated 0.1; arm c (switch at step 1 of 2) two `prior_phases`, steps 0-1
+on arm b's shares and 1-2 on financial 1.0 with the gate and flip. Says nothing of quality.
+
+**Measure:** five-fold mean V4FinBench AP, zero-shot, scored by the same kernel template as
+the control, with a paired company-level bootstrap per fold:
+`scripts/compare_v4_scores.py --cluster --control runs/kaggle-ts-e1-v48-s0/e1-v48-s0/score
+dr24-a=runs/kaggle-ts-dr24-a-s0/dr24-a-s0/score ...`, and the same against
+`runs/kaggle-ts-e1-v48-s1/e1-v48-s1/score`.
+
+**Rule**, per arm, with Δ = arm mean AP minus `e1-v48-s0`'s:
+- **Promising** if Δ > 0.0117 (the pretraining yardstick, §173) with at least 4 of 5 folds
+  positive, **and** the arm's mean is above `e1-v48-s1`'s as well. The second condition is
+  §178's lesson: the control is the higher of the two 48k seeds (0.1975 against 0.1878), so a
+  gain that does not survive the lower seed is not one.
+- **Harmful** under the mirror: Δ < -0.0117 with at least 4 of 5 folds negative, and the
+  arm's mean below `e1-v48-s1`'s as well.
+- **Otherwise null.** One seed screens; it does not adopt.
+
+Secondary, reported but not decided on: arm c against arm d (order at a matched mixture),
+seconds per step against the control's (the trunk's generation cost), and the held-out
+synthetic AUC in each training log.
+
+**Pre-declared actions.**
+- **A promising arm** earns a seed-1 replicate (`dr24-<x>-s1`, the same flags at `--seed 1`),
+  then TabArena-Lite paired differences against the control (DR2.4's second stage). It is
+  adopted as prior v2 only if it is positive at both seeds, per DR2.4's "two seeds for any arm
+  that passes".
+- **Arm a null or harmful:** financial v2 is not adopted as the credit prior on this evidence.
+  If harmful, the sign flip is the first suspect, since real credit ratios have a fixed
+  direction and the flip teaches the model not to assume one; a gate-only arm (flip 0) is the
+  next screen, and it is pre-registered before it runs.
+- **Arms c and d not harmful:** their TabArena-Lite paired differences decide whether the trunk
+  earns a place in the credit model, since the trunk's case is breadth, not credit (`CLAUDE.md`:
+  a general-tabular gain is not a project result without a credit number beside it, and here
+  the credit number comes first).
+- **Arms c and d both harmful:** the trunk is not mixed into the credit model at a 0.3
+  financial share; a further mixed arm, if any, raises the financial share rather than changing
+  the order.
+- **Arm b** is the reference for what the trunk alone gives credit. A promising result would
+  be the surprise of this round and earns its replicate; any other result changes nothing above.
+
+**Cost, ESTIMATED from §178's timings** (2,838 to 3,267 s of training to the last checkpoint,
+plus installation and scoring five folds): about 1.5 to 2.5 h per arm on a T4x2, so 6 to 10 h
+of Kaggle GPU quota for the four, before any replicate. The trunk's generation cost is not
+measured at this recipe: DR2.3 measured 0.126 s per batch of 8 for the `v2` mixture against
+0.094 s for the default on this Mac, so it is unlikely to matter on the training process at
+0.525 s per step, but arm b's first 15 minutes of step rate are the check.
+
+**Prediction:** arm a null; arms b, c and d harmful. §166's pattern is that moving 0.2 to 0.3 of
+the financial share elsewhere costs 0.022 to 0.034 AP whatever replaces it, and arms c and d
+move 0.7 of it, arm b all of it. Arm c ends on credit, but at the cosine schedule's tail, where
+the rate is lowest.

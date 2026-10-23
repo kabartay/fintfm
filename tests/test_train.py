@@ -353,7 +353,7 @@ def test_published_recipe_pins_every_key_fintfm_train_reads():
     from fintfm.config import ModelConfigDefaults, PriorConfigDefaults, TrainConfigDefaults
 
     data = yaml.safe_load(_PUBLISHED_YAML.read_text())
-    per_invocation = {"device", "run_steps", "resume", "init_from"}
+    per_invocation = {"device", "run_steps", "resume", "init_from", "new_prior_phase"}
     assert set(data["model"]) == {f.name for f in fields(ModelConfigDefaults)}
     assert set(data["prior"]) == {f.name for f in fields(PriorConfigDefaults)}
     assert set(data["train"]) == {f.name for f in fields(TrainConfigDefaults)} - per_invocation
@@ -1078,3 +1078,135 @@ def test_cli_passes_the_task_dump_code_override(tmp_path, monkeypatch):
     assert _captured_train_cfg(monkeypatch, argv).task_dump_allow_code_mismatch is False
     cfg = _captured_train_cfg(monkeypatch, [*argv, "--task-dump-allow-code-mismatch"])
     assert cfg.task_dump_allow_code_mismatch is True
+
+
+_PHASE_COMMON = {"steps": 8, "batch_size": 2, "eval_every": 1000, "log_every": 1000, "seed": 3}
+
+
+def _trunk_then_credit(tmp_path: Path) -> tuple[PriorConfig, PriorConfig, str]:
+    """Train 4 of 8 steps on the default mixture, saving ``a.pt.state``.
+
+    Returns:
+        The default-mixture prior, the gated financial prior DR2.4's arm (c) ends on, and the
+        state's path.
+    """
+    from dataclasses import replace
+
+    from fintfm.modeling.train import TrainConfig, train
+
+    trunk = PriorConfig(max_features=8, max_classes=2, n_rows=32)
+    credit = replace(trunk, p_financial=1.0, financial_gate_prob=0.5,
+                     financial_sign_flip_prob=0.5)
+    first = tmp_path / "a.pt"
+    train(ModelConfig(**_TINY_RICH), trunk, TrainConfig(**_PHASE_COMMON, run_steps=4),
+          str(first))
+    return trunk, credit, f"{first}.state"
+
+
+def test_new_prior_phase_trains_on_the_new_prior_and_records_both_phases(
+    tmp_path, monkeypatch
+):
+    """DR2.4's curriculum: ``run_steps`` on one prior, then ``resume`` with
+    ``new_prior_phase`` on another. Every batch of the second phase comes from the new
+    prior, and the checkpoint states both phases with their step ranges while its top-level
+    prior is the current phase's."""
+    import importlib
+
+    from fintfm.modeling.train import TrainConfig
+    from fintfm.provenance import read_checkpoint_provenance
+
+    train_mod = importlib.import_module("fintfm.modeling.train")
+    _, credit, state = _trunk_then_credit(tmp_path)
+    seen: list[PriorConfig] = []
+    real = train_mod.sample_batch
+
+    def spy(rng, cfg, batch_size):
+        seen.append(cfg)
+        return real(rng, cfg, batch_size)
+
+    monkeypatch.setattr(train_mod, "sample_batch", spy)
+    out = tmp_path / "b.pt"
+    train_mod.train(ModelConfig(**_TINY_RICH), credit,
+                    TrainConfig(**_PHASE_COMMON, resume=state, new_prior_phase=True,
+                                checkpoint_every=2),
+                    str(out))
+    assert len(seen) == 4 and all(cfg == credit for cfg in seen)
+    rec = read_checkpoint_provenance(out)
+    phases = rec["prior_phases"]
+    assert [(p["from_step"], p["to_step"]) for p in phases] == [(0, 4), (4, 8)]
+    assert phases[0]["prior_config"]["p_financial"] == 0.7
+    assert phases[0]["source_shares"]["realised"]["scm"] == pytest.approx(0.3)
+    assert phases[1]["prior_config"]["financial_gate_prob"] == 0.5
+    assert phases[1]["source_shares"]["realised"]["financial"] == 1.0
+    assert rec["prior_config"] == phases[1]["prior_config"]
+    assert (rec["steps_completed"], rec["tasks_seen"]) == (8, 16)
+    # a partial checkpoint inside the second phase ends that phase at its own step
+    partial = read_checkpoint_provenance(f"{out}.step6")["prior_phases"]
+    assert [(p["from_step"], p["to_step"]) for p in partial] == [(0, 4), (4, 6)]
+    # the state carries both phases on, so a further resume under the credit prior needs no flag
+    assert len(torch.load(f"{out}.state", weights_only=False)["prior_phases"]) == 2
+
+
+def test_resume_under_a_different_prior_is_refused_without_new_prior_phase(tmp_path):
+    """Before DR2.4 a resume read no prior from its state, so a different prior continued
+    silently and the checkpoint stated only the last one. Now the state records it."""
+    from fintfm.modeling.train import TrainConfig, train
+
+    _, credit, state = _trunk_then_credit(tmp_path)
+    with pytest.raises(ValueError, match="different prior.*financial_gate_prob"):
+        train(ModelConfig(**_TINY_RICH), credit, TrainConfig(**_PHASE_COMMON, resume=state),
+              str(tmp_path / "x.pt"))
+
+
+def test_new_prior_phase_is_refused_when_it_could_not_take_effect(tmp_path):
+    """The flag is refused without a resume, with the state's own prior (inert), and on a
+    state written before priors were recorded (the earlier phase could not be stated)."""
+    from fintfm.modeling.train import TrainConfig, _check_train_config, train
+
+    with pytest.raises(ValueError, match="needs --resume"):
+        _check_train_config(TrainConfig(new_prior_phase=True))
+    trunk, credit, state = _trunk_then_credit(tmp_path)
+    model_cfg = ModelConfig(**_TINY_RICH)
+    with pytest.raises(ValueError, match="inert"):
+        train(model_cfg, trunk,
+              TrainConfig(**_PHASE_COMMON, resume=state, new_prior_phase=True),
+              str(tmp_path / "x.pt"))
+    old = torch.load(state, weights_only=False)
+    del old["prior_phases"]
+    torch.save(old, tmp_path / "old.state")
+    with pytest.raises(ValueError, match="records no prior"):
+        train(model_cfg, credit,
+              TrainConfig(**_PHASE_COMMON, resume=str(tmp_path / "old.state"),
+                          new_prior_phase=True),
+              str(tmp_path / "y.pt"))
+
+
+def test_a_resume_under_its_own_prior_records_no_phases(tmp_path):
+    """The default is unchanged: a chunked run under one prior, resumed from a state with
+    the phase record or from one that predates it, writes no ``prior_phases`` into its
+    provenance, and the two resumes give the same weights."""
+    from fintfm.modeling.train import TrainConfig, train
+    from fintfm.provenance import read_checkpoint_provenance
+
+    trunk, _, state = _trunk_then_credit(tmp_path)
+    model_cfg = ModelConfig(**_TINY_RICH)
+    new = train(model_cfg, trunk, TrainConfig(**_PHASE_COMMON, resume=state),
+                str(tmp_path / "b.pt"))
+    assert "prior_phases" not in read_checkpoint_provenance(tmp_path / "b.pt")
+    old = torch.load(state, weights_only=False)
+    del old["prior_phases"]
+    torch.save(old, tmp_path / "old.state")
+    legacy = train(model_cfg, trunk,
+                   TrainConfig(**_PHASE_COMMON, resume=str(tmp_path / "old.state")),
+                   str(tmp_path / "c.pt"))
+    assert "prior_phases" not in read_checkpoint_provenance(tmp_path / "c.pt")
+    for (name, a), (_, b) in zip(new.state_dict().items(), legacy.state_dict().items()):
+        assert torch.equal(a, b), name
+
+
+def test_cli_passes_new_prior_phase(tmp_path, monkeypatch):
+    """``--new-prior-phase`` reaches TrainConfig; it is off without the flag."""
+    argv = [*_TINY_CLI, "--out", str(tmp_path / "x.pt")]
+    assert _captured_train_cfg(monkeypatch, argv).new_prior_phase is False
+    cfg = _captured_train_cfg(monkeypatch, [*argv, "--resume", "s", "--new-prior-phase"])
+    assert cfg.new_prior_phase is True

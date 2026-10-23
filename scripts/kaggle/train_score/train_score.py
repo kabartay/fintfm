@@ -8,9 +8,15 @@ V4FinBench's five full-panel folds with the packaged default inference settings,
 §160 matched control was scored. Outputs: the checkpoint, its training log, and per-fold
 predictions with v4_protocol.json, in /kaggle/working/<ARM>/.
 
+A curriculum arm (design review DR2.4, arm c) sets SWITCH_STEP: it trains ARM_FLAGS for
+SWITCH_STEP steps of the same --steps schedule (`--run-steps`), keeps that checkpoint as
+`<ARM>.phase1.pt`, then resumes the state with PHASE2_FLAGS and `--new-prior-phase` for the
+rest. Optimiser, schedule and both RNG streams carry over, so only the prior changes.
+
 `make_train_score.py` writes one copy of this file per arm with ARM and ARM_FLAGS filled in.
 """
 
+import shutil
 import subprocess
 import sys
 import urllib.request
@@ -21,6 +27,8 @@ ARM = "__ARM__"
 ARM_FLAGS: list[str] = []  # __FLAGS__
 DDP = False  # __DDP__
 SCORE_PARTITION = False  # __PART__
+SWITCH_STEP = 0  # __SWITCH__
+PHASE2_FLAGS: list[str] = []  # __PHASE2__
 RECIPE_URL = (f"https://raw.githubusercontent.com/kabartay/fintfm/{COMMIT}/"
               "configs/published/v4-cellattn-labels.yaml")
 
@@ -46,14 +54,22 @@ def main() -> None:
     if DDP:
         launcher = [sys.executable, "-u", "-m", "torch.distributed.run", "--standalone",
                     "--nproc-per-node", "2", "-m", "fintfm.modeling.train"]
-    train = [*launcher, "--config", str(recipe), "--device", "cuda",
-             "--checkpoint-every", "1000", "--out", str(ckpt), *ARM_FLAGS]
-    print("$ " + " ".join(train), flush=True)
-    with (out / "train.log").open("w") as log:
-        rc = subprocess.run(train, stdout=log, stderr=subprocess.STDOUT, check=False).returncode
-    print((out / "train.log").read_text()[-3000:], flush=True)
-    if rc != 0:
-        sys.exit(f"training failed with exit {rc}")
+    base = [*launcher, "--config", str(recipe), "--device", "cuda",
+            "--checkpoint-every", "1000", "--out", str(ckpt)]
+    phases = [[*base, *ARM_FLAGS]]
+    if SWITCH_STEP:
+        phases = [[*base, *ARM_FLAGS, "--run-steps", str(SWITCH_STEP)],
+                  [*base, *PHASE2_FLAGS, "--resume", f"{ckpt}.state", "--new-prior-phase"]]
+    for i, train in enumerate(phases):
+        print("$ " + " ".join(train), flush=True)
+        with (out / "train.log").open("a" if i else "w") as log:
+            rc = subprocess.run(train, stdout=log, stderr=subprocess.STDOUT,
+                                check=False).returncode
+        print((out / "train.log").read_text()[-3000:], flush=True)
+        if rc != 0:
+            sys.exit(f"training phase {i + 1} failed with exit {rc}")
+        if i + 1 < len(phases):
+            shutil.copy(ckpt, out / f"{ARM}.phase1.pt")  # the trunk-only weights at the switch
     from fintfm.config import load_config
     from fintfm.experiments.v4_protocol import run, summarise
 

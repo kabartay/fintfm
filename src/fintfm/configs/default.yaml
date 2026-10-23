@@ -200,6 +200,7 @@ train:
   run_steps: null          # steps in THIS invocation; null runs to steps
   resume: null             # a <out>.state file to continue from
   init_from: null          # a model checkpoint to start from, fresh optimiser and schedule
+  new_prior_phase: false   # let resume continue under a different prior, a curriculum phase (DR2.4)
   feature_chunk: null      # identity-preserving memory knob for n_cell_blocks > 0 (§81)
   optimizer: adamw         # adamw, muon or schedulefree
   task_dump: null          # pre-generated batches (AU5.15); null samples live

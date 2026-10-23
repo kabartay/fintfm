@@ -94,6 +94,16 @@ class TrainConfig:
     #: checkpoint's architecture must equal this run's exactly; mutually exclusive with
     #: :attr:`resume`.
     init_from: str | None = None
+    #: Let this :attr:`resume` continue under a **different prior** from the one the state
+    #: was trained on, as a new curriculum phase (design review DR2.4: trunk, then credit).
+    #: Every ``.state`` records the prior of each phase it has trained under, and a resume
+    #: under a different prior is refused without this, since it would otherwise continue
+    #: silently under a mixture the checkpoint would then misstate. With it, the optimiser,
+    #: schedule and both RNG streams carry over exactly as in any resume, the new phase
+    #: starts at the state's step, and every later checkpoint records all phases under
+    #: ``prior_phases`` in its provenance. ``False`` (default) changes no batch, weight or
+    #: provenance record of any run that resumes under its own prior.
+    new_prior_phase: bool = False
     #: Features per row-within-feature attention call, for ``n_cell_blocks > 0`` models.
     #: Identity-preserving (``docs/results/FINDINGS.md`` §81), so it changes no number and only
     #: bounds memory. ``None`` keeps the unchunked path, which is what every checkpoint
@@ -224,8 +234,13 @@ def _check_train_config(train_cfg: TrainConfig) -> None:
             a task dump with the stream loader (two batch sources); ``ddp`` without the
             stream loader (every rank would draw the same sync batches) or with a task dump;
             ``"wsd"`` under schedule-free (which takes no external schedule); a ``"wsd"``
-            decay that starts inside the warmup; or a value out of range.
+            decay that starts inside the warmup; ``new_prior_phase`` without ``resume``
+            (there is no earlier phase to follow); or a value out of range.
     """
+    if train_cfg.new_prior_phase and train_cfg.resume is None:
+        raise ValueError(
+            "--new-prior-phase needs --resume: a new prior phase continues a run's state"
+        )
     if train_cfg.loader not in LOADERS:
         raise ValueError(f"loader must be one of {LOADERS}, got {train_cfg.loader!r}")
     if train_cfg.loader_workers < 0 or train_cfg.loader_prefetch < 1:
@@ -957,6 +972,7 @@ def _save_training_state(
     train_cfg: TrainConfig | None = None,
     world_size: int = 1,
     torch_rng_ranks: list[torch.Tensor] | None = None,
+    prior_phases: list[dict[str, Any]] | None = None,
 ) -> None:
     """Write everything needed to continue a run, not just the weights.
 
@@ -997,6 +1013,9 @@ def _save_training_state(
             rank. The model draws per-task column identities from it and each rank draws
             for its own batches, so the ranks' states differ and each resumes its own.
             Omitted when ``None``.
+        prior_phases: The prior of every phase the run has trained under
+            (:func:`_resolve_prior_phases`), so a resume can tell whether its prior is the
+            state's (DR2.4). Omitted when ``None``.
     """
     state = {
         "model_state": model.state_dict(),
@@ -1023,7 +1042,80 @@ def _save_training_state(
         state["world_size"] = world_size
     if torch_rng_ranks is not None:
         state["torch_rng_ranks"] = torch_rng_ranks
+    if prior_phases is not None:
+        state["prior_phases"] = prior_phases
     torch.save(state, path)
+
+
+def _prior_phase(prior_cfg: PriorConfig, from_step: int) -> dict[str, Any]:
+    """One curriculum phase's record: where it starts and the prior it draws from (DR2.4).
+
+    Args:
+        prior_cfg: The phase's prior configuration.
+        from_step: The first step trained under it, counted from the start of the run.
+
+    Returns:
+        ``{"from_step", "prior_config", "source_shares"}``, JSON-safe.
+    """
+    return {
+        "from_step": from_step,
+        "prior_config": json_safe(asdict(prior_cfg)),
+        "source_shares": source_shares(prior_cfg),
+    }
+
+
+def _resolve_prior_phases(
+    state: dict[str, Any] | None, prior_cfg: PriorConfig, train_cfg: TrainConfig
+) -> list[dict[str, Any]]:
+    """The prior phases a run has trained under, with this invocation's last (DR2.4).
+
+    A fresh run has one phase from step 0. A resume continues the state's phases, and a
+    state written before phases were recorded is taken as one phase under this prior, as
+    every resume before then assumed. A resume whose prior differs from the state's last
+    phase is refused unless :attr:`TrainConfig.new_prior_phase` is set, which appends a
+    phase starting at the state's step. Fields recorded on one side only (a ``PriorConfig``
+    field added by a later commit) are not compared.
+
+    Args:
+        state: The loaded ``.state`` being resumed, or ``None`` for a fresh run.
+        prior_cfg: This invocation's prior.
+        train_cfg: This invocation's training configuration.
+
+    Returns:
+        The phases, oldest first.
+
+    Raises:
+        ValueError: On a different prior without ``new_prior_phase``; or ``new_prior_phase``
+            with an unchanged prior (the flag would be inert) or with a state that recorded
+            no prior (the earlier phase could not be stated).
+    """
+    current = _prior_phase(prior_cfg, 0 if state is None else int(state["step"]))
+    if state is None:
+        return [current]
+    saved = state.get("prior_phases")
+    if saved is None:
+        if train_cfg.new_prior_phase:
+            raise ValueError(
+                f"{train_cfg.resume} records no prior, so a new phase could not state the one "
+                "before it; --new-prior-phase needs a state written by this version or later"
+            )
+        return [{**current, "from_step": 0}]
+    last, now = saved[-1]["prior_config"], current["prior_config"]
+    changed = sorted(k for k in last.keys() & now.keys() if last[k] != now[k])
+    if train_cfg.new_prior_phase:
+        if not changed:
+            raise ValueError(
+                "--new-prior-phase is inert: this run's prior is the one the state last "
+                "trained under"
+            )
+        return [*saved, current]
+    if changed:
+        raise ValueError(
+            f"{train_cfg.resume} was trained under a different prior (differing fields: "
+            f"{changed}); pass --new-prior-phase to continue it as a new curriculum phase, "
+            "or resume with the state's own prior"
+        )
+    return list(saved)
 
 
 def _resumable_with_new_horizon(state: dict[str, Any], train_cfg: TrainConfig) -> bool:
@@ -1059,6 +1151,7 @@ def _training_provenance(
     dump: TaskDump | None,
     init_from: dict[str, Any] | None,
     world_size: int = 1,
+    prior_phases: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """The part of a checkpoint's provenance only the training loop knows (design review DR1.2).
 
@@ -1073,6 +1166,8 @@ def _training_provenance(
         init_from: The :attr:`TrainConfig.init_from` checkpoint's path, SHA-256 and recorded
             tasks seen, or ``None``.
         world_size: Processes each step's batches came from (``--ddp``, DR5.2).
+        prior_phases: The run's prior phases (:func:`_resolve_prior_phases`); recorded only
+            when there is more than one, so a single-prior run's record is unchanged.
 
     Returns:
         The full prior and training configurations, the configured and realised source
@@ -1080,8 +1175,12 @@ def _training_provenance(
         tasks seen (steps x batch x world size, this run's only; an ``init_from``
         checkpoint's own count is under ``init_from``), the dump's record, and the fixed
         evaluation set (seed, batches, tasks; ``None`` for fresh evaluation tasks, DR5.4).
+        **After a new prior phase** (DR2.4) ``prior_config`` and ``source_shares`` are the
+        current phase's, and ``prior_phases`` lists every phase with its ``from_step`` and
+        ``to_step`` (exclusive; the last ends at ``steps_completed``), so the record states
+        each mixture and how many steps it trained.
     """
-    return {
+    record = {
         "prior_config": json_safe(asdict(prior_cfg)),
         "train_config": json_safe(asdict(train_cfg)),
         "source_shares": source_shares(prior_cfg),
@@ -1097,6 +1196,10 @@ def _training_provenance(
             "tasks": train_cfg.eval_batches * train_cfg.batch_size,
         },
     }
+    if prior_phases is not None and len(prior_phases) > 1:
+        ends = [p["from_step"] for p in prior_phases[1:]] + [steps_done]
+        record["prior_phases"] = [{**p, "to_step": end} for p, end in zip(prior_phases, ends)]
+    return record
 
 
 def check_model_matches_prior(model_cfg: ModelConfig, prior_cfg: PriorConfig) -> None:
@@ -1246,6 +1349,7 @@ def train(
 
     start_step = 0
     init_record: dict[str, Any] | None = None
+    state: dict[str, Any] | None = None
     if train_cfg.init_from is not None:
         if train_cfg.resume is not None:
             raise ValueError("init_from and resume are mutually exclusive")
@@ -1342,6 +1446,12 @@ def train(
                 f"from its stable phase"
             )
         say(f"resumed from {train_cfg.resume} at step {start_step}/{train_cfg.steps}")
+    prior_phases = _resolve_prior_phases(state, prior_cfg, train_cfg)
+    if train_cfg.new_prior_phase:
+        say(
+            f"new prior phase {len(prior_phases)} from step {start_step}: source shares "
+            f"{prior_phases[-1]['source_shares']['realised']}"
+        )
 
     ddp_module: torch.nn.Module | None = None
     if train_cfg.ddp:
@@ -1419,6 +1529,7 @@ def train(
             train_cfg=train_cfg,
             world_size=world,
             torch_rng_ranks=rank_rngs,
+            prior_phases=prior_phases,
         )
 
     for step in range(start_step, stop_step):
@@ -1458,7 +1569,7 @@ def train(
                     partial,
                     trained_objectives=tuple(sorted(objectives)),
                     provenance=_training_provenance(
-                        prior_cfg, train_cfg, step + 1, dump, init_record, world
+                        prior_cfg, train_cfg, step + 1, dump, init_record, world, prior_phases
                     ),
                 )
             save_state(f"{out_path}.state", step + 1)
@@ -1500,7 +1611,7 @@ def train(
             out_path,
             trained_objectives=tuple(sorted(objectives)),
             provenance=_training_provenance(
-                prior_cfg, train_cfg, stop_step, dump, init_record, world
+                prior_cfg, train_cfg, stop_step, dump, init_record, world, prior_phases
             ),
         )
     save_state(f"{out_path}.state", stop_step)
@@ -2074,6 +2185,16 @@ def build_parser() -> argparse.ArgumentParser:
         "position, both RNG streams and the step counter. Resuming from a plain model "
         "checkpoint instead would restart AdamW cold and replay the same synthetic "
         "tasks, neither of which shows up in a loss curve",
+    )
+    p.add_argument(
+        "--new-prior-phase",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="let --resume continue under a different prior from the state's, as a new "
+        "curriculum phase (design review DR2.4: e.g. --run-steps on a general trunk, then "
+        "--resume with the credit prior). Optimiser, schedule and RNG streams carry over as "
+        "in any resume, and the checkpoint records every phase under prior_phases. Without "
+        "it a resume under a different prior is refused. Defaults to false",
     )
     p.add_argument(
         "--feature-chunk",

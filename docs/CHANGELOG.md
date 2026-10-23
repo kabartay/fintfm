@@ -8,6 +8,13 @@ not paste one into the other. See `CLAUDE.md`.
 
 ### Added
 
+- **Curriculum phases on resume** (design review DR2.4, Section 180). Every `.state` records
+  the prior of each phase it trained under. `--new-prior-phase` lets `--resume` continue under
+  a different prior, with optimiser, schedule and RNG streams carried over as in any resume,
+  and the checkpoint lists every phase with its step range under `prior_phases`. A resume
+  under a different prior without the flag is now refused, where it used to continue silently
+  and record only the last prior. A resume under its own prior changes no batch, weight or
+  provenance record.
 - **Fine-tuning seed and default-enriched queries** (Section 164, pre-registered, no result
   yet). `finetune_seed` seeds numpy and torch inside a forked RNG, since column identities come
   from torch in training mode and Section 163's run was one unseeded draw.

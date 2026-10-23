@@ -13,7 +13,8 @@
 #
 # Every key fintfm-train reads is pinned here rather than inherited from the packaged
 # default, so a later change to a default cannot move this recipe; only the per-invocation
-# keys (train.device, run_steps, resume, init_from) are left to the command line.
+# keys (train.device, run_steps, resume, init_from, new_prior_phase) are left to the command
+# line.
 # tests/test_config.py checks that this file builds the checkpoint's ModelConfig and that it
 # pins every model, prior and train key.
 
