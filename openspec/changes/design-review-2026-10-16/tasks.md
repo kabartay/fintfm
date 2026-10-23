@@ -346,7 +346,8 @@
       label noise (the review's spec, §1.5 and DR2 in `DESIGN_REVIEW_2026-10-16.md`).
       Verify: `scripts/prior_stats.py` reports each distribution within its target on 300 tasks
       per source; generation stays at or below 0.25 s per batch.
-- [ ] DR2.4 **Prior v2 A/B at fixed tasks:** financial v2 alone, general trunk alone, trunk then
+- [ ] DR2.4 **Pre-registered (2026-10-23, §180); kernels `scripts/kaggle/ts_dr24_{a,b,c,d}_s0/` pinned at 5e0fad0, launch at the weekly quota reset.** `--new-prior-phase` (5e0fad0) makes the trunk-then-credit curriculum a recorded two-phase resume.
+      **Prior v2 A/B at fixed tasks:** financial v2 alone, general trunk alone, trunk then
       credit, and interleaved, 48k tasks each, matched `max_classes`, two seeds for any arm that
       passes. V4FinBench first, then TabArena-Lite.
       Verify: per-arm per-fold AP and Lite paired differences in FINDINGS under DR4.4's yardstick.
