@@ -1,11 +1,35 @@
-"""Write one Kaggle kernel directory per train-and-score arm from train_score.py."""
+"""Write one Kaggle kernel directory per train-and-score arm from train_score.py.
+
+Usage: ``python make_train_score.py [arm ...]`` writes the named arms, or every arm when none
+is named. Naming arms leaves the kernels of earlier arms as they were generated.
+"""
 
 import json
+import sys
 from pathlib import Path
 
 COMMIT = "d05ea19"
 #: E1 (FINDINGS §171): fp16, split attention, DDP on a T4x2 at 4 tasks per rank (global batch 8)
 E1 = ["--amp", "fp16", "--attn-impl", "split", "--loader", "stream", "--ddp", "--batch-size", "4"]
+#: E1's 48k arm at seed 0: 6,000 steps x 8 tasks
+S0_48K = ["--seed", "0", "--steps", "6000"]
+#: DR2.4 (FINDINGS §180). The DR2.3 knobs at scripts/prior_stats.py's V2_KNOBS, the values
+#: their checks passed at; p_binary 0.7 is left out because it is inert at max_classes 2.
+BANDS = "0.5:0:0.05,0.35:0.05:0.2,0.15:0.2:0.5"
+KNOBS = ["--feature-ratio-bands", BANDS, "--imbalance-draws", "--categorical-mode", "unordered",
+         "--missing-mode", "mixed", "--tie-column-prob", "0.15", "--irrelevant-frac-max", "0.2",
+         "--duplicate-frac-max", "0.1", "--label-flip-max", "0.05"]
+#: Financial v2: half the labels gated, each ratio's sign a per-task coin (DR2.2), and the
+#: width bands, the only knob the financial source reads. The published recipe's sequential
+#: p_financial 1.0 draws every task from it.
+FIN_V2 = ["--financial-gate-prob", "0.5", "--financial-sign-flip-prob", "0.5",
+          "--feature-ratio-bands", BANDS]
+#: The general trunk: prior_stats.py's "v2" mixture without its financial share. --p-financial
+#: goes back to PriorConfig's default 0.7, since a weighted draw refuses a non-default p_*.
+TRUNK_WEIGHTS = "scm=0.3,tree=0.2,task_family=0.1,gated=0.1"
+TRUNK = ["--p-financial", "0.7", "--source-weights", TRUNK_WEIGHTS, *KNOBS]
+INTERLEAVED = ["--p-financial", "0.7", "--source-weights", f"{TRUNK_WEIGHTS},financial=0.3",
+               "--financial-gate-prob", "0.5", "--financial-sign-flip-prob", "0.5", *KNOBS]
 ARMS = {
     "e1-v48-s0": (E1 + ["--seed", "0", "--steps", "6000"], True),
     "e1-v48-s1": (E1 + ["--seed", "1", "--steps", "6000"], True),
@@ -17,10 +41,23 @@ ARMS = {
                         True),
     "dr63-cls-s0": (E1 + ["--seed", "0", "--steps", "6000", "--readout", "cls", "--head-mlp"],
                     True),
+    # DR2.4 prior v2 A/B (FINDINGS §180): E1's 48k recipe at seed 0, against e1-v48-s0
+    "dr24-a-s0": (E1 + S0_48K + FIN_V2, True),  # financial v2 alone
+    "dr24-b-s0": (E1 + S0_48K + TRUNK, True),  # general trunk alone
+    "dr24-c-s0": (E1 + S0_48K + TRUNK, True),  # trunk, then credit from SWITCH below
+    "dr24-d-s0": (E1 + S0_48K + INTERLEAVED, True),  # trunk and financial v2 in one draw
 }
+#: Curriculum arms: the step the prior switches at, and the second phase's flags. 4,200 of
+#: 6,000 steps on the trunk gives arm c arm d's 0.3 financial share, so c and d differ in
+#: order only.
+SWITCH = {"dr24-c-s0": (4200, E1 + S0_48K + FIN_V2)}
 #: Arms pinned at another commit: 6916a89 adds the DR6.2/DR6.3 flags on top of d05ea19 and
-#: nothing else under src/fintfm/modeling or src/fintfm/prior, with defaults unchanged
-COMMITS = {"dr62-induced-s0": "6916a89", "dr63-cls-s0": "6916a89"}
+#: nothing else under src/fintfm/modeling or src/fintfm/prior, with defaults unchanged; the
+#: DR2.4 commit adds --new-prior-phase, and at the recipe's prior config draws the same
+#: training stream and trains the same weights as d05ea19 (FINDINGS §180)
+DR24_COMMIT = "5e0fad0"
+COMMITS = {"dr62-induced-s0": "6916a89", "dr63-cls-s0": "6916a89",
+           **{arm: DR24_COMMIT for arm in ARMS if arm.startswith("dr24-")}}
 OLD_ARMS = {
     # DR4.4 replicates of the published recipe (seed 0 also re-checks reproducibility)
     "pub-s0": ["--seed", "0"],
@@ -32,12 +69,20 @@ OLD_ARMS = {
 HERE = Path(__file__).parent
 TEMPLATE = (HERE / "train_score.py").read_text()
 
-for arm, (flags, ddp) in ARMS.items():
+wanted = sys.argv[1:] or list(ARMS)
+unknown = sorted(set(wanted) - set(ARMS))
+if unknown:
+    sys.exit(f"unknown arm(s) {unknown}; known: {list(ARMS)}")
+for arm in wanted:
+    flags, ddp = ARMS[arm]
+    switch, phase2 = SWITCH.get(arm, (0, []))
     d = HERE.parent / f"ts_{arm.replace('-', '_')}"
     d.mkdir(exist_ok=True)
     code = (TEMPLATE.replace("__COMMIT__", COMMITS.get(arm, COMMIT)).replace("__ARM__", arm)
             .replace("[]  # __FLAGS__", json.dumps(flags))
-            .replace("False  # __DDP__", str(ddp)).replace("False  # __PART__", "False"))
+            .replace("False  # __DDP__", str(ddp)).replace("False  # __PART__", "False")
+            .replace("0  # __SWITCH__", str(switch))
+            .replace("[]  # __PHASE2__", json.dumps(phase2)))
     (d / "kernel.py").write_text(code)
     (d / "kernel-metadata.json").write_text(json.dumps({
         "id": f"muhakabartay/fintfm-ts-{arm}", "title": f"fintfm-ts-{arm}",
