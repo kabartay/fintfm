@@ -56,7 +56,10 @@ inference:
   ensemble_transforms: null        # e.g. [rank, power, squash], cycled over members
   ensemble_svd_components: 0       # SVD projections appended in odd-indexed members
   ensemble_class_shift: false      # cyclic class relabelling per member, mapped back
-  max_features_strategy: raise     # or "subsample": round-robin column subsets per member
+  max_features_strategy: raise     # or "subsample": round-robin column subsets per member;
+                                   # or "select" (DR8.3): keep the top max_features columns
+  select_method: extra_trees       # "select"'s ranking; or mutual_info (univariate)
+  select_subsample: 20000          # training rows the "select" ranking is computed on
   retrieval_per_class: null        # AU5.8: k_pos nearest positives + rest nearest negatives
   # DR3.3: uniform context with exactly max(floor, round(max_context x pool rate)) positives,
   # the rest uniform from the negatives; null = today's uniform draw (count left to chance)

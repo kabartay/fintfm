@@ -101,6 +101,8 @@ class InferenceConfig:
     max_features_strategy: str = "raise"
     retrieval_per_class: int | None = None
     context_positive_floor: int | None = None
+    select_method: str = "extra_trees"
+    select_subsample: int = 20_000
 
 
 @dataclass(frozen=True)
@@ -478,11 +480,18 @@ def _validate(cfg: Config) -> None:
         )
     if cfg.inference.finetune_clip is not None and cfg.inference.finetune_clip <= 0:
         raise ConfigError("inference.finetune_clip must be null or positive")
-    if cfg.inference.max_features_strategy not in ("raise", "subsample"):
+    if cfg.inference.max_features_strategy not in ("raise", "subsample", "select"):
         raise ConfigError(
-            "inference.max_features_strategy must be 'raise' or 'subsample', got "
+            "inference.max_features_strategy must be 'raise', 'subsample' or 'select', got "
             f"{cfg.inference.max_features_strategy!r}"
         )
+    if cfg.inference.select_method not in ("extra_trees", "mutual_info"):
+        raise ConfigError(
+            "inference.select_method must be 'extra_trees' or 'mutual_info', got "
+            f"{cfg.inference.select_method!r}"
+        )
+    if cfg.inference.select_subsample < 1:
+        raise ConfigError("inference.select_subsample must be at least 1")
     if cfg.inference.retrieval_per_class is not None and cfg.inference.retrieval_per_class < 1:
         raise ConfigError("inference.retrieval_per_class must be null or at least 1")
     if (

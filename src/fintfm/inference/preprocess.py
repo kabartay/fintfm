@@ -23,6 +23,11 @@ Neither requires retraining, which is why they are tried before anything that do
 Audit AU5.12 added two pieces used only by ensemble members that ask for them, so the
 default path is untouched: a ``"squash"`` transform (robust scaling then a soft clip), and
 :class:`SVDAugmenter`, which appends a few singular-vector projections of the context.
+
+Design review DR8.3 added :class:`ColumnSelector`, the supervised column ranking behind
+``max_features_strategy="select"``: on a table wider than the checkpoint it keeps the
+columns that carry the most signal about the label, fitted on training rows only like
+everything else here.
 """
 
 from __future__ import annotations
@@ -34,6 +39,9 @@ import numpy as np
 
 #: Which transform to apply to features before the model sees them.
 FeatureTransform = Literal["none", "winsor", "rank", "power", "squash"]
+
+#: How :class:`ColumnSelector` scores a column against the label.
+SelectMethod = Literal["extra_trees", "mutual_info"]
 
 #: Scale of the ``"squash"`` soft clip, in robust units (IQRs from the median): a value at
 #: this distance maps to ``3 / sqrt(2)``, and every value maps inside ``(-3, 3)``.
@@ -305,3 +313,158 @@ class SVDAugmenter:
         """``X`` with NaN and ``+-inf`` set to 0, for the projection only."""
         X = np.asarray(X, dtype=np.float32)
         return np.where(np.isfinite(X), X, 0.0).astype(np.float32)
+
+
+class ColumnSelector:
+    """Keep the ``k`` columns that best explain the label, ranked on training rows only.
+
+    Built for ``max_features_strategy="select"`` (design review DR8.3): a table wider than
+    the checkpoint's ``max_features`` is cut to the ``k`` columns a cheap supervised score
+    ranks highest, and the same column indices are applied to every query row. The ranking
+    never sees a query row, so a query cannot influence which columns it is scored on.
+
+    The steps, in order:
+
+    1. **Constant columns are dropped first**, on every training row: a column whose finite
+       and infinite values are all equal, or which is entirely missing, carries nothing.
+       When at most ``k`` columns survive, all of them are kept and nothing is ranked.
+    2. **Up to ``subsample`` rows are drawn** at ``random_state`` to bound the cost.
+    3. **Each column is rank-conditioned** (:class:`FeatureConditioner` with ``"rank"``,
+       fitted on those rows) and a missing cell is set to 0, the conditioned median, so the
+       score sees order rather than scale and a ratio's heavy tail cannot dominate it.
+    4. **Each column is scored** and the ``k`` best are kept, returned in their original
+       order so the table's column order is unchanged.
+
+    **Why ExtraTrees impurity importance is the default.** It is multivariate: each column
+    is scored by the splits it wins inside trees that also split on other columns, so a
+    column's credit includes what it adds beside the rest, where mutual information scores
+    each column alone. After the rank conditioning it treats a binary indicator, a count
+    and a continuous ratio alike. It runs in scikit-learn's own code, so it carries none of
+    LightGBM's deadlock risk beside torch (``docs/results/FINDINGS.md`` §25, §179). And on
+    synthetic checks made when this was written (SMOKE-TEST, not a benchmark), keeping 8
+    columns of 600 at 400 training rows it kept all 5 signal columns where
+    ``"mutual_info"`` kept 3, and it ranked 20,000 rows by 1,558 columns in 36 s against
+    130 s, single-threaded on the shared Mac. On madelon (proxy task 9976, OpenML fold 0,
+    2,340 training rows) it kept all 20 of the 20 columns usually reported as relevant in
+    its 136, where ``"mutual_info"`` kept 12. Neither found a pure two-column XOR among
+    500 columns at 2,000 rows, so neither is a cure for signal that lives only in an
+    interaction. Impurity importance is biased towards columns with many distinct values,
+    which on a wide table favours continuous columns over indicators. ``"mutual_info"`` (scikit-learn's ``mutual_info_classif``, a
+    k-nearest-neighbour estimate) is the univariate alternative, free of that bias.
+
+    Args:
+        k: Columns to keep, at least 1.
+        method: ``"extra_trees"`` (the default) or ``"mutual_info"``; see above.
+        subsample: Training rows the score is computed on, drawn uniformly at
+            ``random_state`` when the table has more.
+        random_state: Seed for the row draw, the trees and the mutual-information noise.
+        n_estimators: Trees in the ExtraTrees forest; unused by ``"mutual_info"``.
+
+    Attributes:
+        columns_: ``(m,)`` sorted indices of the kept columns, ``m <= k``.
+        scores_: ``(F,)`` each column's score, 0 for a constant column, NaN where nothing
+            was ranked (every non-constant column fitted within ``k``).
+        n_features_in_: Width of the table :meth:`fit` saw.
+    """
+
+    def __init__(
+        self,
+        k: int,
+        method: SelectMethod = "extra_trees",
+        subsample: int = 20_000,
+        random_state: int = 0,
+        n_estimators: int = 100,
+    ) -> None:
+        """Configure the selector. See the class docstring for what each argument means."""
+        if k < 1:
+            raise ValueError(f"k must be at least 1, got {k}")
+        if method not in ("extra_trees", "mutual_info"):
+            raise ValueError(f"method must be 'extra_trees' or 'mutual_info', got {method!r}")
+        if subsample < 1:
+            raise ValueError(f"subsample must be at least 1, got {subsample}")
+        self.k = k
+        self.method = method
+        self.subsample = subsample
+        self.random_state = random_state
+        self.n_estimators = n_estimators
+
+    def fit(self, X: np.ndarray, y: np.ndarray) -> ColumnSelector:
+        """Rank the columns of training rows against their labels.
+
+        Args:
+            X: ``(n, F)`` training features, NaN for missing, ``+-inf`` allowed.
+            y: ``(n,)`` class labels.
+
+        Returns:
+            ``self``, with ``columns_``, ``scores_`` and ``n_features_in_`` set.
+        """
+        X = np.asarray(X, dtype=np.float32)
+        y = np.asarray(y)
+        self.n_features_in_ = X.shape[1]
+        with warnings.catch_warnings():
+            # an all-missing column makes nanmin/nanmax warn; it is treated as constant
+            warnings.simplefilter("ignore", category=RuntimeWarning)
+            lo, hi = np.nanmin(X, axis=0), np.nanmax(X, axis=0)
+        varying = np.flatnonzero(~np.isnan(lo) & (lo != hi))
+        self.scores_ = np.zeros(X.shape[1], dtype=np.float64)
+        if varying.size <= self.k:
+            self.scores_[varying] = np.nan
+            self.columns_ = varying.astype(np.int64)
+            return self
+        rng = np.random.default_rng(self.random_state)
+        rows = (
+            np.sort(rng.choice(X.shape[0], size=self.subsample, replace=False))
+            if X.shape[0] > self.subsample
+            else np.arange(X.shape[0])
+        )
+        S = X[rows][:, varying]
+        R = FeatureConditioner("rank", subsample=self.subsample, random_state=self.random_state)
+        R = R.fit(S).transform(S)
+        R = np.where(np.isfinite(R), R, 0.0).astype(np.float32)
+        self.scores_[varying] = self._score(R, y[rows])
+        # stable descending order, so ties fall to the earlier column, deterministically
+        top = varying[np.argsort(-self.scores_[varying], kind="stable")[: self.k]]
+        self.columns_ = np.sort(top).astype(np.int64)
+        return self
+
+    def _score(self, R: np.ndarray, y: np.ndarray) -> np.ndarray:
+        """Score every column of conditioned rows against the labels.
+
+        Args:
+            R: ``(n, m)`` rank-conditioned, finite rows.
+            y: ``(n,)`` their labels.
+
+        Returns:
+            ``(m,)`` non-negative scores, higher meaning more signal.
+        """
+        if self.method == "mutual_info":
+            from sklearn.feature_selection import mutual_info_classif
+
+            return mutual_info_classif(R, y, random_state=self.random_state)
+        from sklearn.ensemble import ExtraTreesClassifier
+
+        forest = ExtraTreesClassifier(
+            n_estimators=self.n_estimators,
+            max_features="sqrt",
+            min_samples_leaf=2,
+            random_state=self.random_state,
+            n_jobs=1,
+        ).fit(R, y)
+        return forest.feature_importances_
+
+    def transform(self, X: np.ndarray) -> np.ndarray:
+        """Keep the selected columns.
+
+        Args:
+            X: ``(n, F)`` rows of the width :meth:`fit` saw.
+
+        Returns:
+            ``(n, m)`` the kept columns, in their original order.
+
+        Raises:
+            ValueError: If ``X`` is not as wide as the table :meth:`fit` saw.
+        """
+        X = np.asarray(X, dtype=np.float32)
+        if X.ndim != 2 or X.shape[1] != self.n_features_in_:
+            raise ValueError("feature width at predict time must match fit time")
+        return X[:, self.columns_]

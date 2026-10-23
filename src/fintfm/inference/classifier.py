@@ -44,7 +44,13 @@ import torch
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.utils.validation import check_is_fitted
 
-from fintfm.inference.preprocess import FeatureConditioner, FeatureTransform, SVDAugmenter
+from fintfm.inference.preprocess import (
+    ColumnSelector,
+    FeatureConditioner,
+    FeatureTransform,
+    SelectMethod,
+    SVDAugmenter,
+)
 from fintfm.inference.retrieval import (
     distance_stats,
     group_queries,
@@ -61,7 +67,7 @@ if TYPE_CHECKING:  # the config module is only needed for the annotation
 
 ContextStrategy = Literal["balanced", "hybrid", "uniform", "retrieval", "prototype"]
 #: What :meth:`FinancialTFMClassifier.fit` does with a table wider than the checkpoint.
-MaxFeaturesStrategy = Literal["raise", "subsample"]
+MaxFeaturesStrategy = Literal["raise", "subsample", "select"]
 
 
 @dataclass(frozen=True)
@@ -432,6 +438,18 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             Only :meth:`predict_proba` (and :meth:`predict`) can score a wide table; fine-
             tuning, :meth:`predict_term_structure` and :meth:`transform_representation`
             need the whole row in one forward pass and raise.
+            ``"select"`` (design review DR8.3) keeps the ``max_features`` columns a cheap
+            supervised score ranks highest, fitted at :meth:`fit` on the training rows only
+            (:class:`~fintfm.inference.preprocess.ColumnSelector`: constant columns dropped
+            first, then ``select_method`` on up to ``select_subsample`` rows), and applies the
+            same column indices to every query row; the kept indices are
+            ``selected_columns_``. Unlike ``"subsample"`` the narrowed table is an ordinary
+            one, so every method works on it, fine-tuning included, and ``n_ensemble``
+            means what it means on a narrow table: every member sees the same selected
+            columns and differs only as members otherwise do (``ensemble_feature_frac``
+            then subsets the selected columns). On a table within ``max_features`` both
+            ``"subsample"`` and ``"select"`` change nothing; ``"select"`` is bit-identical
+            to the default there, which a test asserts.
         winsor_quantile: Tail fraction clipped at each end when the conditioning is
             ``"winsor"``; unused by the other transforms. Passed to
             :class:`~fintfm.inference.preprocess.FeatureConditioner` as ``quantile``, whose
@@ -441,11 +459,24 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             :class:`~fintfm.inference.preprocess.FeatureConditioner` as ``subsample``, whose
             default it equals. Both were configuration keys before they were arguments, and
             reached nothing (design review DR1.3).
+        select_method: How ``max_features_strategy="select"`` ranks columns.
+            **``"extra_trees"`` (the default)** is ExtraTrees impurity importance, which
+            scores a column beside the others; ``"mutual_info"`` is scikit-learn's
+            univariate ``mutual_info_classif``.
+            The reasoning is in :class:`~fintfm.inference.preprocess.ColumnSelector`.
+            Unused under any other strategy.
+        select_subsample: Training rows (drawn at ``random_state``) the ranking is computed
+            on, bounding its cost on a large table. Unused unless ``"select"`` narrows the
+            table.
 
     Attributes:
         model_: The network predictions run through: ``model`` itself, placed on ``device``
             and in eval mode at :meth:`fit`, or its fine-tuned copy when ``finetune_steps > 0``.
-        n_features_in_: Feature count seen by :meth:`fit`.
+        n_features_in_: Feature count seen by :meth:`fit`, before any column selection;
+            every query table must match it.
+        selected_columns_: Sorted indices of the columns ``max_features_strategy="select"``
+            kept, or ``None`` when nothing was selected (any other strategy, or a table
+            within the checkpoint's ``max_features``).
         n_members_: Ensemble members :meth:`predict_proba` averages: ``n_ensemble``, or more
             on a wide table under ``max_features_strategy="subsample"``.
         svd_components_: Projections this estimator appended to its own rows; 0 except on an
@@ -493,6 +524,8 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         winsor_quantile: float = 0.01,
         transform_subsample: int = 20_000,
         context_positive_floor: int | None = None,
+        select_method: SelectMethod = "extra_trees",
+        select_subsample: int = 20_000,
     ) -> None:
         """Configure the classifier. See the class docstring — every argument is documented
         there with the measurement that set its default."""
@@ -530,6 +563,8 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         self.winsor_quantile = winsor_quantile
         self.transform_subsample = transform_subsample
         self.context_positive_floor = context_positive_floor
+        self.select_method = select_method
+        self.select_subsample = select_subsample
         # Placement, eval mode and feature_chunk are applied in fit, not here: applied at
         # construction, a later set_params(device=...) moved nothing and the first forward
         # pass mixed devices. A checkpoint path is still loaded here, so model.cfg is readable
@@ -606,7 +641,9 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             ValueError: If the task exceeds the checkpoint's class or feature capacity. It
                 raises rather than truncating, so a caller records a skip instead of a
                 meaningless score; with ``max_features_strategy="subsample"`` a wide table
-                is accepted instead (and fine-tuning on it rejected). Also if ``groups``
+                is accepted instead (and fine-tuning on it rejected), and with ``"select"``
+                it is cut to its best columns (and rejected only if every column is
+                constant). Also if ``groups``
                 does not have one entry per row, for the ensemble settings
                 :meth:`_check_ensemble_settings` rejects, for the lever combinations
                 :meth:`_validate_combination` refuses, and for the fine-tuning settings
@@ -620,6 +657,22 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         if groups is not None and len(groups) != len(y):
             raise ValueError(f"groups has {len(groups)} entries for {len(y)} rows")
         periods = self._check_periods(periods, len(y))
+        self.n_features_in_ = X.shape[1]
+        # DR8.3: a wide table is cut to its best columns here, on training rows only, so
+        # everything below (conditioning, context, members) sees an ordinary narrow table
+        self._selector: ColumnSelector | None = None
+        self.selected_columns_: np.ndarray | None = None
+        if self.max_features_strategy == "select" and X.shape[1] > self.model.cfg.max_features:
+            self._selector = ColumnSelector(
+                self.model.cfg.max_features,
+                method=self.select_method,
+                subsample=self.select_subsample,
+                random_state=self.random_state,
+            ).fit(X, y)
+            if self._selector.columns_.size == 0:
+                raise ValueError("max_features_strategy='select' found every column constant")
+            self.selected_columns_ = self._selector.columns_
+            X = self._selector.transform(X)
         # None unless the checkpoint reads context periods; aligned with _raw_y, so an
         # ensemble member redrawing its own context takes the periods of its own rows
         self._raw_period = periods
@@ -635,7 +688,6 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         ).fit(X)
         X = self._conditioner.transform(X)
         self.classes_ = np.unique(y)
-        self.n_features_in_ = X.shape[1]
         if len(self.classes_) > self.model.cfg.max_classes:
             raise ValueError(
                 f"model supports at most {self.model.cfg.max_classes} classes, got {len(self.classes_)}"
@@ -1131,7 +1183,8 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         """Reject AU5.7/AU5.8/AU5.12 settings that would otherwise be silently ignored or misread.
 
         Raises:
-            ValueError: For an unknown ``max_features_strategy``, an empty or unknown entry in
+            ValueError: For an unknown ``max_features_strategy`` or ``select_method``, a
+                ``select_subsample`` below 1, an empty or unknown entry in
                 ``ensemble_transforms``, a negative ``ensemble_svd_components``, or SVD
                 components that no member would carry (``n_ensemble < 2``) or that the
                 retrieval path cannot score; for a ``retrieval_per_class`` outside
@@ -1166,6 +1219,13 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
                 f"max_features_strategy must be one of {get_args(MaxFeaturesStrategy)}, "
                 f"got {self.max_features_strategy!r}"
             )
+        if self.select_method not in get_args(SelectMethod):
+            raise ValueError(
+                f"select_method must be one of {get_args(SelectMethod)}, "
+                f"got {self.select_method!r}"
+            )
+        if self.select_subsample < 1:
+            raise ValueError(f"select_subsample must be at least 1, got {self.select_subsample}")
         if self.ensemble_transforms is not None:
             # FeatureConditioner treats any unrecognised kind as "rank", so a misspelling here
             # would run, report numbers, and have measured something else
@@ -1393,14 +1453,34 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         classes = np.unique(y)
         return classes[(np.searchsorted(classes, y) + shift) % len(classes)]
 
-    def _condition(self, X: np.ndarray) -> np.ndarray:
-        """Query rows as the stored context saw them: conditioned, then SVD-augmented if fit was.
+    def _select_query(self, X: np.ndarray) -> np.ndarray:
+        """Query rows checked against :meth:`fit`'s width and cut to its selected columns.
 
         Args:
             X: ``(n, n_features_in_)`` raw query rows.
 
         Returns:
-            ``(n, n_features_in_ + svd_components_)`` rows, the conditioner's output alone
+            ``(n, f)`` float32 rows: ``X`` itself, or its ``selected_columns_`` when
+            ``max_features_strategy="select"`` narrowed the table at :meth:`fit`.
+
+        Raises:
+            ValueError: If ``X`` is not as wide as the table :meth:`fit` saw.
+        """
+        X = np.asarray(X, dtype=np.float32)
+        if X.ndim != 2 or X.shape[1] != self.n_features_in_:
+            raise ValueError("feature width at predict time must match fit time")
+        selector = getattr(self, "_selector", None)
+        return X if selector is None else selector.transform(X)
+
+    def _condition(self, X: np.ndarray) -> np.ndarray:
+        """Query rows as the stored context saw them: conditioned, then SVD-augmented if fit was.
+
+        Args:
+            X: ``(n, f)`` raw query rows, already cut to ``selected_columns_`` if
+                :meth:`fit` selected any (see :meth:`_select_query`).
+
+        Returns:
+            ``(n, f + svd_components_)`` rows, the conditioner's output alone
             unless this estimator is an SVD-carrying ensemble member.
         """
         X = self._conditioner.transform(X)
@@ -1530,10 +1610,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         check_is_fitted(self, "_ctx_X")
         self.model_.assert_trained_for("classification")
         self._refuse_wide("transform_representation")
-        X = np.asarray(X, dtype=np.float32)
-        if X.shape[1] != self.n_features_in_:
-            raise ValueError("feature width at predict time must match fit time")
-        X = self._condition(X)
+        X = self._condition(self._select_query(X))
         if X.shape[0] > self.query_chunk:
             return np.concatenate(
                 [
@@ -1570,12 +1647,10 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         """
         check_is_fitted(self, "_ctx_X")
         self.model_.assert_trained_for("classification")
+        # checked here, not only in the members: a wide table's members each slice their own
+        # columns, so a query table of the wrong width would be sliced rather than caught
+        X = self._select_query(X)
         if self._uses_members():
-            # a wide table's members each slice their own columns, so a query table of the
-            # wrong width would be sliced rather than caught by the members' own check
-            wide = getattr(self, "_member_columns", None) is not None
-            if wide and np.shape(X)[1] != self.n_features_in_:
-                raise ValueError("feature width at predict time must match fit time")
             # average probabilities, not logits: the members disagree about the base rate
             # their context implies, and averaging in logit space would let one confident
             # member dominate the mean rather than contribute one vote to it
@@ -1583,9 +1658,6 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
                 self._member_proba(X, self.random_state + i, i) for i in range(self.n_members_)
             ]
             return np.mean(members, axis=0)
-        X = np.asarray(X, dtype=np.float32)
-        if X.shape[1] != self.n_features_in_:
-            raise ValueError("feature width at predict time must match fit time")
         X = self._condition(X)
         if self.context_strategy == "retrieval":
             return self._run_retrieval(X, self._predict_chunk, len(self.classes_))
@@ -1675,10 +1747,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             raise RuntimeError("this checkpoint has no hazard head; pretrain with --n-horizons K")
         self.model_.assert_trained_for("survival")
         self._refuse_wide("predict_term_structure")
-        X = np.asarray(X, dtype=np.float32)
-        if X.shape[1] != self.n_features_in_:
-            raise ValueError("feature width at predict time must match fit time")
-        X = self._condition(X)
+        X = self._condition(self._select_query(X))
         if self.context_strategy == "retrieval":
             plan = self._retrieval_plan(X)
             out = np.empty((X.shape[0], self.model_.hazard.n_horizons), dtype=np.float32)

@@ -88,6 +88,8 @@ _NON_DEFAULT_INFERENCE = {
     "max_features_strategy": "subsample",
     "retrieval_per_class": 3,
     "context_positive_floor": 16,
+    "select_method": "mutual_info",
+    "select_subsample": 321,
 }
 
 

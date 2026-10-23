@@ -1,0 +1,17 @@
+# Design review DR8.3: score datasets wider than the checkpoint's 136 features by keeping
+# the 136 columns an ExtraTrees impurity ranking puts first, fitted on the training rows only
+# and applied unchanged to the query rows (constant columns dropped first). The DR7.5
+# alternative, configs/arms/dr75-subsample.yaml, gives round-robin column subsets to members
+# and measured near the floor on the wide proxy tasks (FINDINGS §182).
+#
+# NOT PRODUCTION. MEASUREMENT OPEN. One member, so the arm differs from the default only on
+# tasks the default refuses; on a table within 136 features "select" is bit-identical to it.
+#
+#   uv run --frozen --extra bench python -m fintfm.evaluation.proxy_suite run \
+#     --model runs/v4-cellattn-labels.pt --config configs/arms/dr83-select.yaml \
+#     --tasks 9976,167125 --no-baselines --out runs/dr83/proxy_binary_wide.csv
+
+inference:
+  max_features_strategy: select
+  select_method: extra_trees
+  select_subsample: 20000
