@@ -12026,3 +12026,19 @@ E1's 48k recipe, seed 0), each against `e1-v48-s0` with `scripts/compare_v4_scor
 - **With §176**, the three levers tested at this model size this week (10 times the tasks,
   inducing points, readout tokens) all fail to beat the 48k published recipe. The binding
   constraint is not volume or these two architecture changes.
+
+## §179 — The proxy runner hung for 31 hours on §25's OpenMP clash; LightGBM now runs out of process
+
+**MEASURED, 2026-10-23.** The DR7.3 proxy run started 2026-10-22 10:52 and printed nothing after
+its first task's KNN baseline. 31 hours later the process had used 4 s of CPU; a stack sample
+showed the main thread in `LGBM_DatasetCreateFromMats` -> `__kmpc_fork_call` -> `__kmp_join_barrier`
+-> `pthread_cond_wait`: LightGBM waiting in an OpenMP barrier. The runner imports fintfm, fintfm
+imports torch, and torch's bundled `libomp` plus LightGBM's Homebrew one in one process is §25's
+failure, which there segfaulted and here deadlocked, silently. The credit suite had already
+isolated its boosters (`fintfm.evaluation.boosting`); the proxy runner had not.
+
+Fix: `proxy_suite.IsolatedEstimator` fits and predicts the LightGBM baseline in a subprocess that
+unpickles only scikit-learn and LightGBM, with a timeout that records the split as skipped instead
+of hanging. Tests: identical predictions to an in-process fit, a failing fit raises rather than
+hangs, and LightGBM scores with torch already loaded (`tests/test_proxy_suite_runner.py`). No
+proxy number was produced before the fix, so none is affected.

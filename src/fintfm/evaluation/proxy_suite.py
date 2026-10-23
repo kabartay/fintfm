@@ -1008,8 +1008,84 @@ def _baseline(method: str, kind: str, X: pd.DataFrame, seed: int, n_jobs: int) -
 
         est = (lightgbm.LGBMClassifier if clf else lightgbm.LGBMRegressor)(
             random_state=seed, n_jobs=n_jobs, verbose=-1)
-        return make_pipeline(ordinal, est)
+        # out of process: LightGBM's libomp after torch's deadlocks or segfaults (FINDINGS §25)
+        return IsolatedEstimator(make_pipeline(ordinal, est), regression=not clf)
     raise ValueError(f"unknown baseline {method!r}")
+
+
+#: The subprocess :class:`IsolatedEstimator` runs: unpickle, fit, predict, pickle the result.
+#: It imports only what the pickled estimator needs (scikit-learn, LightGBM), never torch.
+_ISOLATED_WORKER = """
+import pickle, sys
+with open(sys.argv[1], "rb") as fh:
+    est, X_train, y_train, X_test, regression = pickle.load(fh)
+est.fit(X_train, y_train)
+out = (est.predict(X_test), None) if regression else (est.predict_proba(X_test), est.classes_)
+with open(sys.argv[2], "wb") as fh:
+    pickle.dump(out, fh)
+"""
+
+
+class IsolatedEstimator:
+    """Fit and predict a scikit-learn estimator in a subprocess that never imports torch.
+
+    This module imports fintfm, which imports torch, and LightGBM's Homebrew ``libomp`` in the
+    same process as torch's bundled one segfaults or, as on 2026-10-22, deadlocks in an OpenMP
+    barrier for 31 hours (``docs/results/FINDINGS.md`` §25, §179). :meth:`fit` only stores the
+    training rows; the first :meth:`predict_proba` or :meth:`predict` fits and predicts in one
+    subprocess, so a split costs one process start.
+
+    Args:
+        estimator: The unfitted estimator or pipeline; it must pickle.
+        regression: True to call ``predict``, False for ``predict_proba``.
+        timeout: Seconds before the subprocess is abandoned, which raises ``ValueError`` so
+            :func:`_fit_and_score` records the split as skipped rather than hanging the run.
+    """
+
+    def __init__(self, estimator: Any, regression: bool, timeout: float = 3600.0) -> None:
+        """See the class docstring."""
+        self.estimator = estimator
+        self.regression = regression
+        self.timeout = timeout
+        self.classes_: np.ndarray | None = None
+        self._train: tuple[Any, np.ndarray] | None = None
+
+    def fit(self, X: Any, y: np.ndarray) -> IsolatedEstimator:
+        """Store the training rows; fitting happens with the first prediction."""
+        self._train = (X, np.asarray(y))
+        return self
+
+    def _run(self, X_test: Any) -> np.ndarray:
+        """Fit on the stored rows and predict ``X_test`` in a subprocess."""
+        import pickle
+        import tempfile
+
+        if self._train is None:
+            raise ValueError("IsolatedEstimator: predict before fit")
+        with tempfile.TemporaryDirectory() as tmp:
+            src, dst = Path(tmp) / "in.pkl", Path(tmp) / "out.pkl"
+            with open(src, "wb") as fh:
+                pickle.dump((self.estimator, *self._train, X_test, self.regression), fh)
+            try:
+                proc = subprocess.run([sys.executable, "-c", _ISOLATED_WORKER, str(src), str(dst)],
+                                      capture_output=True, timeout=self.timeout, check=False)
+            except subprocess.TimeoutExpired as exc:
+                raise ValueError(f"isolated fit timed out after {self.timeout:.0f} s") from exc
+            if proc.returncode != 0 or not dst.exists():
+                tail = proc.stderr.decode(errors="replace").strip().splitlines()[-1:] or [""]
+                raise ValueError(f"isolated fit failed (exit {proc.returncode}): {tail[0]}")
+            with open(dst, "rb") as fh:
+                pred, classes = pickle.load(fh)
+        self.classes_ = classes
+        return np.asarray(pred, dtype=float)
+
+    def predict_proba(self, X_test: Any) -> np.ndarray:
+        """Class probabilities for ``X_test``; sets :attr:`classes_`."""
+        return self._run(X_test)
+
+    def predict(self, X_test: Any) -> np.ndarray:
+        """Regression predictions for ``X_test``."""
+        return self._run(X_test)
 
 
 def available_baselines() -> tuple[str, ...]:

@@ -295,3 +295,48 @@ def test_reference_cache_reads_parquet_and_drops_the_target(tmp_path: Path):
     assert any("1 of 51 datasets read" in n for n in notes)
     match = content_match(content_fingerprint(_frame()), refs["TabArena-v0.1 46918 credit-g"], "r")
     assert match.row_share == 1.0
+
+
+def test_isolated_estimator_matches_an_in_process_fit_and_sets_classes():
+    # §179: LightGBM runs out of process because torch's libomp deadlocks it in process.
+    from sklearn.linear_model import LogisticRegression, Ridge
+
+    from fintfm.evaluation.proxy_suite import IsolatedEstimator
+
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(120, 4))
+    y = np.repeat([0, 1, 2], 40)
+    X_test = rng.normal(size=(30, 4))
+    iso = IsolatedEstimator(LogisticRegression(max_iter=500), regression=False).fit(X, y)
+    np.testing.assert_allclose(
+        iso.predict_proba(X_test),
+        LogisticRegression(max_iter=500).fit(X, y).predict_proba(X_test), rtol=1e-12)
+    assert list(iso.classes_) == [0, 1, 2]
+    reg = IsolatedEstimator(Ridge(), regression=True).fit(X, y.astype(float))
+    np.testing.assert_allclose(reg.predict(X_test), Ridge().fit(X, y).predict(X_test))
+
+
+def test_isolated_estimator_failure_is_a_value_error_not_a_hang():
+    from sklearn.linear_model import LogisticRegression
+
+    from fintfm.evaluation.proxy_suite import IsolatedEstimator
+
+    iso = IsolatedEstimator(LogisticRegression(), regression=False).fit(
+        np.zeros((10, 2)), np.zeros(10))  # one class: the fit raises in the subprocess
+    with pytest.raises(ValueError, match="isolated fit failed"):
+        iso.predict_proba(np.zeros((3, 2)))
+
+
+def test_lightgbm_baseline_is_isolated_and_scores_after_torch_is_loaded():
+    pytest.importorskip("lightgbm")
+    import torch  # noqa: F401  the condition that deadlocked the in-process fit
+
+    from fintfm.evaluation.proxy_suite import IsolatedEstimator, _baseline
+
+    rng = np.random.default_rng(1)
+    X = pd.DataFrame({"a": rng.normal(size=200), "b": rng.normal(size=200)})
+    y = (X["a"] > 0).astype(int).to_numpy()
+    est = _baseline("LightGBM", "binary", X, seed=0, n_jobs=2)
+    assert isinstance(est, IsolatedEstimator)
+    proba = est.fit(X, y).predict_proba(X)
+    assert proba.shape == (200, 2) and list(est.classes_) == [0, 1]
