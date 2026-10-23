@@ -722,6 +722,8 @@ def run(
             "ensemble_svd_components": cfg.inference.ensemble_svd_components,
             "ensemble_class_shift": cfg.inference.ensemble_class_shift,
             "max_features_strategy": cfg.inference.max_features_strategy,
+            "select_method": cfg.inference.select_method,
+            "select_subsample": cfg.inference.select_subsample,
             "retrieval_per_class": cfg.inference.retrieval_per_class,
             "context_positive_floor": cfg.inference.context_positive_floor,
             "large_n": asdict(cfg.large_n),
