@@ -434,3 +434,27 @@
       Blocked by DR7.4, DR7.5 and a binary model near the bar.
       Verify: the declared-type Elo recorded in `docs/results/TABARENA.md`, and the resubmission
       decision beside it.
+
+## Phase DR8 — new approaches (2026-10-23)
+
+Filed after §176-§182: volume is the one lever that moved FinTFM (+140 proxy Elo at 480k tasks),
+DR6.2/DR6.3 did not, and boosters lead by 3.5x on SBA.
+
+- [ ] DR8.1 **Inference-lever sweep on the proxy** (pre-registered §183): 8-member ensembles,
+      label swap, mixed transforms, an 8,000-row context, retrieval, 200 fine-tuning steps; a
+      proxy candidate is scored on V4FinBench before it is believed.
+      Verify: each arm's per-task sign test against the default in FINDINGS.
+- [ ] DR8.2 **Model size at volume.** §114's wide scale-up lost at 48,000 tasks, where a larger
+      model is data-starved; repeat depth (Nori's 16 layers at width 128) and width at 480,000
+      tasks against `e1-v480-s0`, pre-registered with §173's yardstick. Blocked by GPU quota and
+      E1's seed-1 verdict.
+      Verify: the pre-registration and verdict in FINDINGS.
+- [ ] DR8.3 **Wide data handled, not subsampled.** §182: subsampling scores wide tasks near the
+      floor. Compare a column-selection front end (mutual information or a booster's importance,
+      fitted on the training split only) against a checkpoint trained at `max_features` 512, on
+      the proxy's wide tasks first.
+      Verify: per-task results for both on madelon, Internet-Advertisements and mfeat-factors.
+- [ ] DR8.4 **FinTFM plus booster for credit** (AU4.4's `hybrid_catboost`, built, unmeasured):
+      on SBA and ULB (credit suite) and V4FinBench, against LightGBM alone, so the practical
+      credit answer is measured, not assumed.
+      Verify: credit-suite and V4FinBench rows for the hybrid in FINDINGS.
