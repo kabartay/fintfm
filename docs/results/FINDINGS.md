@@ -12218,3 +12218,45 @@ against `e1-v48-s0` on the 16 scorable binary tasks: **+168 Elo** [+50, +326] wi
   DR7.5 problem on the proxy too.
 - **Binary is the weaker type here, not multiclass**, which inverts §121's TabArena picture
   (both last). The proxy multiclass checkpoint sits between RF and ExtraTrees.
+
+## §182 — The internal arena on 2026-10-23, and DR7.5: subsampling covers wide tasks but scores them near the floor
+
+**MEASURED, 2026-10-23.** One Bradley-Terry pool over every binary checkpoint scored on the proxy
+suite so far, RF (default) at 1,000, 95% intervals from 1,000 task resamples
+(`scripts/proxy_arena.py`, inputs under `runs/dr73/`). Baselines on 18 tasks; FinTFM checkpoints
+on the 16 within the 136-feature cap, which flatters them (below).
+
+| method | Elo | 95% interval |
+| --- | --- | --- |
+| LightGBM | 1123 | [1059, 1189] |
+| Linear | 1035 | [886, 1158] |
+| RF | 1000 | anchor |
+| ExtraTrees | 985 | [885, 1079] |
+| KNN | 740 | [565, 852] |
+| `e1-v480-s0` (480k tasks) | **699** | [445, 832] |
+| `dr63-cls-s0` | 596 | [310, 776] |
+| published `v4-cellattn-labels.pt` | 587 | [334, 744] |
+| `dr62-induced-s0` | 585 | [304, 762] |
+| `e1-v48-s0` | 563 | [320, 695] |
+| `e1-v48-s1` | 546 | [282, 715] |
+
+- **Volume is the one lever that moves FinTFM here**, about +140 Elo over the 48k seeds (§181's
+  paired test: 14 of 16 tasks). DR6.2 and DR6.3, harmful on V4FinBench (§178), sit level with the
+  48k arms on the proxy rather than below them.
+- **The best checkpoint is about 300 Elo below RF and below KNN.** Ratings move as methods join a
+  pool (Linear reads 981 in §181's six-method pool, 1,035 here), so compare within a table.
+
+**DR7.5 on the proxy's three wide tasks**, `configs/arms/dr75-subsample.yaml`
+(`max_features_strategy: subsample`, 4 members, so 544 columns seen), mean over 3 splits
+(`runs/dr75/`):
+
+| task (columns) | FinTFM | best baseline | worst baseline |
+| --- | --- | --- | --- |
+| madelon (500), 1 - ROC-AUC | 0.377 | 0.094 LightGBM | 0.450 KNN |
+| Internet-Advertisements (1,558), 1 - ROC-AUC | 0.269 | 0.013 RF | 0.055 KNN |
+| mfeat-factors (216, multiclass), log-loss | 1.99 | 0.082 Linear | 0.508 KNN |
+
+Subsampling makes every task scorable, which answers §122's cherry-picking objection, but scores
+them near the floor: mfeat-factors is close to a uniform guess (ln 10 = 2.30), Internet-Advertisements
+five times the worst baseline's error. Declaring these tasks will cost Elo until wide data is
+handled properly (a wider checkpoint, or column selection ahead of the model).

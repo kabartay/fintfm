@@ -422,7 +422,8 @@
       multiclass tasks by paired sign test; then at the volume E1 recommends, if it recommends
       more. Blocked by DR7.3 and GPU quota.
       Verify: the arm's proxy result and the decision in FINDINGS, pre-registered before training.
-- [ ] DR7.5 **No excluded datasets in the declared types.** The reviewer called excluding datasets
+- [ ] DR7.5 **Measured on the proxy (2026-10-23, §182): subsampling covers the wide tasks but scores them near the floor** (mfeat-factors log-loss 1.99 against a 2.30 uniform guess). Open: proper wide-data handling (a wider checkpoint or column selection), then the TabArena-Lite run.
+      **No excluded datasets in the declared types.** The reviewer called excluding datasets
       a model does poorly on cherry-picking (§122), and §106's width cap excluded 3 binary and 4
       multiclass datasets. Cover them with `max_features_strategy: subsample` (AU5.7) at
       inference, measured on the proxy suite's widest tasks first.

@@ -1,0 +1,14 @@
+# Design review DR7.5: cover datasets wider than the checkpoint's 136 features instead of
+# excluding them, by giving each ensemble member a round-robin column subset (AU5.7).
+#
+# NOT PRODUCTION. MEASUREMENT OPEN. Four members, so 4 x 136 = 544 columns are seen: all of
+# madelon (500) and mfeat-factors (216), about a third of Internet-Advertisements (1,558). Only
+# tasks the default refuses are scored with it, so the members' cost falls on those alone.
+#
+#   uv run --frozen --extra bench python -m fintfm.evaluation.proxy_suite run \
+#     --model runs/v4-cellattn-labels.pt --config configs/arms/dr75-subsample.yaml \
+#     --tasks 9976,167125 --no-baselines --out runs/dr75/proxy_binary_wide.csv
+
+inference:
+  max_features_strategy: subsample
+  n_ensemble: 4
