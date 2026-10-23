@@ -12260,3 +12260,27 @@ Subsampling makes every task scorable, which answers §122's cherry-picking obje
 them near the floor: mfeat-factors is close to a uniform guess (ln 10 = 2.30), Internet-Advertisements
 five times the worst baseline's error. Declaring these tasks will cost Elo until wide data is
 handled properly (a wider checkpoint, or column selection ahead of the model).
+
+## §183 — Inference-lever sweep on the proxy suite (pre-registered)
+
+**PRE-REGISTERED, 2026-10-23, before any arm is scored.** The published checkpoint
+`v4-cellattn-labels.pt`, the proxy suite's 16 binary tasks within the feature cap, 3 OpenML splits
+each, one arm per lever (`configs/arms/proxy/*.yaml`), each against the same checkpoint at the
+packaged defaults (`FinTFM-binary` in `runs/dr73/proxy_binary.csv`):
+
+| arm | change from the default |
+| --- | --- |
+| `ens8` | `n_ensemble: 8` |
+| `ens8-swap` | 8 members, each averaged with its label-swapped twin |
+| `ens8-tf` | 8 members cycling `rank`, `power`, `squash` |
+| `ctx8k` | `max_context: 8000` (median training set is 2,310 rows; the default caps half the tasks) |
+| `retrieval` | `context_strategy: retrieval` |
+| `ft200` | `finetune_steps: 200` (§163's recipe) |
+
+**Rule.** An arm is a **candidate** if it beats the default on more tasks than it loses with a
+two-sided per-task sign test p < 0.05 (`proxy_suite compare --unit task`); otherwise not. The proxy
+is not yet validated against TabArena (DR4.2), and CLAUDE.md puts credit first, so a candidate is
+then scored five-fold on V4FinBench before it is believed; nothing is adopted on the proxy alone.
+Six arms at alpha 0.05 expect 0.3 false candidates, which the V4FinBench step catches.
+**Prediction:** `ens8` and `ens8-tf` candidates (the peers' main inference lever), `ctx8k`
+candidate on the larger tasks only, `retrieval` and `ft200` not.

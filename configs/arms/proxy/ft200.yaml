@@ -1,0 +1,5 @@
+# Inference-lever sweep on the proxy suite (FINDINGS §183), arm "ft200". NOT PRODUCTION.
+# Every other key inherits the packaged default; the control is the same command without --config.
+
+inference:
+  finetune_steps: 200
