@@ -187,10 +187,50 @@ beside it, and :func:`ap_top_decile`, the AP earned in the highest-scored tenth 
 rows. Each row also carries the base rate and the mean predicted probability, so a level error
 is visible beside the ranking.
 
+Hybrid arms (task DR8.4, off unless ``--hybrid``)
+-------------------------------------------------
+
+Two more rows per split measure a **system**, FinTFM plus a booster, against the booster
+alone, as :mod:`fintfm.experiments.hybrid_catboost` (AU4.4) does with CatBoost on V4FinBench:
+
+* ``lightgbm_fintfm_feature``: LightGBM at :data:`LIGHTGBM_PARAMS` with FinTFM's logit as one
+  more feature.
+* ``lightgbm_fintfm_baseline``: LightGBM at :data:`LIGHTGBM_PARAMS` started from FinTFM's logit
+  (``init_score``), so its trees fit what FinTFM leaves over; the test score is the sigmoid of
+  the trees' raw score plus the logit.
+
+LightGBM needs a FinTFM logit for every training row, and a context drawn from the training
+rows would hold the row being scored. So :func:`oof_fintfm_logits` splits each split's training
+rows into ``--inner-folds`` (default :data:`INNER_FOLDS`) stratified inner folds, grouped by
+``panel.groups`` where it exists (neither ULB nor SBA has one), and scores each inner fold with
+a FinTFM whose context comes only from the other inner folds. Inside an out-of-time split the
+inner folds are not temporal: every inner context is still made of training rows, so the
+embargo against the test window holds, but a query may be scored from later training rows.
+The test rows are scored by the ``fintfm`` row's own predictions, one FinTFM fitted on all
+training rows, reused rather than recomputed; when that row is skipped, so are both hybrid rows.
+The inner logits condition on ``(K - 1) / K`` of the training rows and the test logits on all
+of them, the usual stacking asymmetry; with a ``max_context`` far below the pool, every fit
+samples the same context size. Before any inner fit, :func:`~fintfm.experiments.hybrid_catboost.
+assert_no_leak` refuses an inner context holding a test row, a row it scores, or, with groups,
+a borrower of either.
+
+A hybrid row's ``seconds`` is the split's inner FinTFM fits plus that booster's fit; the test
+side's FinTFM time is the ``fintfm`` row's and is not counted again.
+
+**Hybrid runtime, ESTIMATED (not run on the real data).** The ``fintfm`` arm MEASURED 512 to
+606 s per split on SBA for about 80,000 test rows (§177) and 672 to 805 s on ULB for about
+94,936 (§174): 6.4 to 7.6 and 7.1 to 8.5 ms per query row at a ``max_context`` of 2,000, which
+does not grow with the pool. The hybrid adds every training row once as an inner query: SBA
+23,763 + 83,052 + 138,004 = 244,819 rows, 0.43 to 0.52 h; ULB 3 x 189,871 = 569,614 rows, 1.1
+to 1.3 h. Two extra LightGBM fits per split add minutes. ``K`` changes the number of inner
+fits, not the query rows, so it barely moves the cost.
+
 Usage::
 
     uv run python -m fintfm.evaluation.credit_suite --model v4-cellattn-labels.pt \\
         --out runs/credit_suite/results.csv
+    uv run python -m fintfm.evaluation.credit_suite --model v4-cellattn-labels.pt \\
+        --datasets sba --hybrid --out runs/credit_suite/hybrid_sba.csv
 """
 
 from __future__ import annotations
@@ -202,7 +242,7 @@ import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 import numpy as np
 import pandas as pd
@@ -210,10 +250,21 @@ import pandas as pd
 from fintfm.evaluation.datasets import CACHE_DIR
 from fintfm.evaluation.overlap import guard_selection
 from fintfm.evaluation.proxy_suite import SourceLicence
+from fintfm.experiments.hybrid_catboost import INNER_SEED_OFFSET, assert_no_leak, to_logit
 
 if TYPE_CHECKING:
     from fintfm.config import Config
     from fintfm.modeling.model import FinancialTFM
+
+
+class InContextClassifier(Protocol):
+    """What :func:`oof_fintfm_logits` needs of a FinTFM classifier or its ``large_n`` wrapper."""
+
+    def fit(self, X: np.ndarray, y: np.ndarray, groups: np.ndarray | None = None) -> object:
+        """Condition on a context of rows ``X`` with labels ``y``."""
+
+    def predict_proba(self, X: np.ndarray) -> np.ndarray:
+        """``(n, 2)`` class probabilities for the query rows ``X``."""
 
 #: Where the raw files live: ``data/real/<key>/``, gitignored, the FinTFM-R candidates' home.
 DEFAULT_ROOT = CACHE_DIR.parent / "real"
@@ -231,6 +282,12 @@ OOT_CUTS = (1 / 2, 2 / 3, 5 / 6)
 #: LightGBM's settings: §167 measured LightGBM's 100-tree default 0.1242 mean AP below 1,000
 #: trees at learning rate 0.05 on V4FinBench, so the default is under-trained.
 LIGHTGBM_PARAMS = {"n_estimators": 1000, "learning_rate": 0.05}
+
+#: The hybrid arms (module docstring, "Hybrid arms"), in the order they are reported.
+HYBRID_MODELS = ("lightgbm_fintfm_feature", "lightgbm_fintfm_baseline")
+
+#: Default inner folds for the hybrid arms' out-of-fold FinTFM logits.
+INNER_FOLDS = 3
 
 #: The notice ODbL-1.0 section 4.3 asks of a public Produced Work, for ULB scores.
 ODBL_NOTICE = (
@@ -785,6 +842,103 @@ def score_row(y_true: np.ndarray, p: np.ndarray) -> dict[str, float]:
     }
 
 
+def inner_folds(
+    y_train: np.ndarray, groups_train: np.ndarray | None, n_inner: int, seed: int
+) -> np.ndarray:
+    """Deal a split's training rows into stratified inner folds, by borrower when grouped.
+
+    Args:
+        y_train: ``(n_train,)`` labels of the training rows.
+        groups_train: ``(n_train,)`` borrower id per training row, or ``None``: plain
+            ``StratifiedKFold`` then, as for ULB and SBA, which have no borrower id.
+        n_inner: Inner folds, at least 2.
+        seed: The folds' ``random_state``.
+
+    Returns:
+        ``(n_train,)`` inner-fold index per training row, each in ``range(n_inner)``.
+    """
+    from sklearn.model_selection import StratifiedGroupKFold, StratifiedKFold
+
+    fold = np.full(len(y_train), -1, dtype=np.int64)
+    if groups_train is not None:
+        dealt = StratifiedGroupKFold(n_inner, shuffle=True, random_state=seed).split(
+            np.zeros(len(y_train)), y_train, groups_train
+        )
+    else:
+        dealt = StratifiedKFold(n_inner, shuffle=True, random_state=seed).split(
+            np.zeros(len(y_train)), y_train
+        )
+    for k, (_, query) in enumerate(dealt):
+        fold[query] = k
+    return fold
+
+
+def oof_fintfm_logits(
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+    train_rows: np.ndarray,
+    test_rows: np.ndarray,
+    groups: np.ndarray | None,
+    make_classifier: Callable[[int], InContextClassifier],
+    n_inner: int = INNER_FOLDS,
+    seed: int = 0,
+) -> tuple[np.ndarray, list[tuple[np.ndarray, np.ndarray]]]:
+    """Out-of-fold FinTFM logits for every training row of one split.
+
+    Each inner fold's rows are scored by a classifier whose context is the other inner folds'
+    rows; :func:`~fintfm.experiments.hybrid_catboost.assert_no_leak` checks every context
+    against the test rows and against its own queries before any fit runs.
+
+    Args:
+        X_train: ``(n_train, F)`` preprocessed training features, aligned with
+            ``train_rows``.
+        y_train: ``(n_train,)`` training labels, aligned with ``train_rows``.
+        train_rows: Panel row indices of the split's training rows.
+        test_rows: Panel row indices of the split's test rows, which no context may hold.
+        groups: ``(n,)`` borrower id per **panel** row, or ``None``; when given, inner folds
+            keep borrowers whole and the checks refuse a shared borrower too.
+        make_classifier: Builds an unfitted classifier from the inner-fold index.
+        n_inner: Inner folds.
+        seed: Seed for dealing the training rows to inner folds.
+
+    Returns:
+        ``(logits, plan)``: ``(n_train,)`` logits aligned with ``train_rows``, and per inner
+        fold the ``(context_rows, query_rows)`` panel indices it used, for checking.
+
+    Raises:
+        LeakageError: Before any fit, if a context holds a test row or a row it scores (or,
+            with groups, a borrower of either).
+        ValueError: If ``n_inner`` is below 2, the inputs are misaligned, or an inner context
+            holds one class.
+        RuntimeError: If a training row is left without a logit.
+    """
+    train_rows = np.asarray(train_rows)
+    if n_inner < 2:
+        raise ValueError(f"n_inner must be at least 2, got {n_inner}")
+    if not len(X_train) == len(y_train) == len(train_rows):
+        raise ValueError("X_train, y_train and train_rows must be aligned")
+    fold = inner_folds(y_train, groups[train_rows] if groups is not None else None,
+                       n_inner, seed)
+    plan: list[tuple[np.ndarray, np.ndarray]] = []
+    for k in range(n_inner):
+        ctx, qry = train_rows[fold != k], train_rows[fold == k]
+        assert_no_leak(ctx, test_rows, groups, f"inner fold {k} vs the test rows")
+        assert_no_leak(ctx, qry, groups, f"inner fold {k} vs its own queries")
+        plan.append((ctx, qry))
+    logits = np.full(len(train_rows), np.nan)
+    for k in range(n_inner):
+        ctx_local, qry_local = np.flatnonzero(fold != k), np.flatnonzero(fold == k)
+        if len(np.unique(y_train[ctx_local])) < 2:
+            raise ValueError(f"inner fold {k}'s context holds one class; lower --inner-folds")
+        clf = make_classifier(k)
+        clf.fit(X_train[ctx_local], y_train[ctx_local],
+                groups=groups[train_rows[ctx_local]] if groups is not None else None)
+        logits[qry_local] = to_logit(clf.predict_proba(X_train[qry_local])[:, 1])
+    if np.isnan(logits).any():
+        raise RuntimeError("a training row received no out-of-fold logit")
+    return logits, plan
+
+
 def _write(rows: list[dict], out: Path) -> None:
     """Write every row so far, so a run that dies keeps what it finished."""
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -802,6 +956,8 @@ def run(
     config_path: str | None = None,
     device: str = "cpu",
     with_lightgbm: bool = True,
+    hybrid: bool = False,
+    n_inner: int = INNER_FOLDS,
 ) -> list[dict]:
     """Score every model on every split of the named datasets and write the CSV.
 
@@ -816,14 +972,22 @@ def run(
         device: Torch device for FinTFM.
         with_lightgbm: Fit LightGBM at :data:`LIGHTGBM_PARAMS`; off only for tests and
             machines without the ``bench`` extra.
+        hybrid: Also score :data:`HYBRID_MODELS` (module docstring, "Hybrid arms"); needs
+            ``model_path`` and ``with_lightgbm``.
+        n_inner: Inner folds for the hybrid arms' out-of-fold FinTFM logits.
 
     Returns:
         The rows written, one per dataset, split and model.
 
     Raises:
         ValueError: On an unknown dataset, or one whose licence entry does not admit it --
-            checked for every dataset before any file is read.
+            checked for every dataset before any file is read; or on ``hybrid`` without a
+            checkpoint or LightGBM, or with ``n_inner`` below 2.
     """
+    if hybrid and (model_path is None or not with_lightgbm):
+        raise ValueError("the hybrid arms need a FinTFM checkpoint and LightGBM")
+    if hybrid and n_inner < 2:
+        raise ValueError(f"n_inner must be at least 2, got {n_inner}")
     from sklearn.impute import SimpleImputer
     from sklearn.preprocessing import StandardScaler
 
@@ -862,15 +1026,36 @@ def run(
             models = ["logistic_regression"] + (["lightgbm_1000"] if with_lightgbm else [])
             if model is not None:
                 models.insert(0, "fintfm")
+            if hybrid:
+                models += list(HYBRID_MODELS)
+            p_fintfm: np.ndarray | None = None  # the fintfm row's test scores, for the hybrids
+            oof: tuple[np.ndarray, float] | str | None = None  # (logits, seconds) or why not
             for name in models:
+                uses_checkpoint = name == "fintfm" or name in HYBRID_MODELS
                 row = {
                     "dataset": key, "split_kind": panel.split_kind, "split": k, "model": name,
                     "n_train": len(tr), "n_test": len(te), "n_test_positive": int(y_te.sum()),
-                    "checkpoint_sha256": sha if name == "fintfm" else "", "skipped": "",
+                    "checkpoint_sha256": sha if uses_checkpoint else "", "skipped": "",
                 }
                 if name == "fintfm" and model.cfg.max_features < Xtr.shape[1]:
                     row["skipped"] = (f"checkpoint takes {model.cfg.max_features} features, "
                                       f"data has {Xtr.shape[1]}")
+                elif name in HYBRID_MODELS and p_fintfm is None:
+                    row["skipped"] = "needs the fintfm row's test scores, which were not made"
+                elif name in HYBRID_MODELS:
+                    if oof is None:
+                        oof = _hybrid_oof(panel, tr, te, Xtr, y_tr, model, cfg, device, k,
+                                          n_inner)
+                    if isinstance(oof, str):
+                        row["skipped"] = oof
+                    else:
+                        t0 = time.perf_counter()
+                        p = _predict_hybrid(name, Xtr, y_tr, Xte, oof[0], to_logit(p_fintfm))
+                        row["seconds"] = round(oof[1] + time.perf_counter() - t0, 1)
+                        if p is None:
+                            row["skipped"] = "fit failed (printed above)"
+                        else:
+                            row.update(score_row(y_te, p))
                 else:
                     t0 = time.perf_counter()
                     groups = panel.groups[tr] if panel.groups is not None else None
@@ -880,6 +1065,8 @@ def run(
                         row["skipped"] = "fit failed (printed above)"
                     else:
                         row.update(score_row(y_te, p))
+                        if name == "fintfm":
+                            p_fintfm = p
                 rows.append(row)
                 _write(rows, out)
                 _report(row)
@@ -933,9 +1120,99 @@ def _predict(
     raise ValueError(f"unknown model {name!r}")
 
 
+def _hybrid_oof(
+    panel: CreditPanel, tr: np.ndarray, te: np.ndarray, Xtr: np.ndarray, y_tr: np.ndarray,
+    model: FinancialTFM, cfg: Config, device: str, split: int, n_inner: int,
+) -> tuple[np.ndarray, float] | str:
+    """One split's out-of-fold FinTFM logits for the hybrid arms, with the cost printed.
+
+    Each inner classifier is built exactly as the ``fintfm`` row's (``inference`` and
+    ``large_n`` sections), seeded ``split + INNER_SEED_OFFSET * (inner fold + 1)`` so no inner
+    seed coincides with the outer one.
+
+    Args:
+        panel: The dataset, for its borrower ids.
+        tr: Panel indices of the split's training rows.
+        te: Panel indices of the split's test rows.
+        Xtr: Imputed and scaled training features, aligned with ``tr``.
+        y_tr: Training labels, aligned with ``tr``.
+        model: The loaded checkpoint.
+        cfg: Configuration.
+        device: Torch device for FinTFM.
+        split: The split index.
+        n_inner: Inner folds.
+
+    Returns:
+        ``(logits, seconds)``, or the reason both hybrid rows are skipped when an inner
+        context holds one class. A :class:`~fintfm.experiments.hybrid_catboost.LeakageError`
+        is never caught.
+    """
+    from fintfm.experiments.v4_protocol import fintfm_classifier
+    from fintfm.inference.large_n import wrap_large_n
+
+    print(f"  split {split} hybrid: {n_inner} inner FinTFM fits scoring {len(tr):,} training "
+          f"rows out of fold, each context drawn from about {len(tr) * (n_inner - 1) // n_inner:,}"
+          f" rows (<= {cfg.inference.max_context:,} sampled)"
+          + (", grouped by borrower" if panel.groups is not None else ", no borrower id"),
+          flush=True)
+    t0 = time.perf_counter()
+    try:
+        logits, _ = oof_fintfm_logits(
+            Xtr.astype(np.float32), y_tr, tr, te, panel.groups,
+            lambda j: wrap_large_n(
+                fintfm_classifier(model, cfg, device=device,
+                                  random_state=split + INNER_SEED_OFFSET * (j + 1)),
+                cfg.large_n,
+            ),
+            n_inner=n_inner, seed=SPLIT_SEED + INNER_SEED_OFFSET + split,
+        )
+    except ValueError as e:
+        print(f"  split {split} hybrid: skipped, {e}", flush=True)
+        return f"inner folds unusable: {e}"
+    seconds = time.perf_counter() - t0
+    print(f"  split {split} hybrid: out-of-fold logits in {seconds:.1f}s", flush=True)
+    return logits, seconds
+
+
+def _predict_hybrid(
+    name: str, Xtr: np.ndarray, y_tr: np.ndarray, Xte: np.ndarray, oof_train: np.ndarray,
+    logit_test: np.ndarray,
+) -> np.ndarray | None:
+    """Fit one hybrid arm's LightGBM out of process and score the test side.
+
+    Args:
+        name: One of :data:`HYBRID_MODELS`.
+        Xtr: Imputed and scaled training features.
+        y_tr: Training labels.
+        Xte: Test features, transformed as ``Xtr``.
+        oof_train: ``(n_train,)`` out-of-fold FinTFM logits for the training rows.
+        logit_test: ``(n_test,)`` FinTFM logits for the test rows, from the ``fintfm`` row.
+
+    Returns:
+        ``(n_test,)`` positive-class probabilities, or ``None`` when the fit failed
+        (:func:`fintfm.evaluation.boosting.fit_predict_boosting` prints why).
+
+    Raises:
+        ValueError: For a name outside :data:`HYBRID_MODELS`.
+    """
+    from fintfm.evaluation.boosting import fit_predict_boosting
+
+    if name == "lightgbm_fintfm_feature":
+        return fit_predict_boosting(
+            "lightgbm", np.column_stack([Xtr, oof_train]), y_tr,
+            np.column_stack([Xte, logit_test]), params=LIGHTGBM_PARAMS,
+        )
+    if name == "lightgbm_fintfm_baseline":
+        return fit_predict_boosting(
+            "lightgbm", Xtr, y_tr, Xte, params=LIGHTGBM_PARAMS,
+            init_score_train=oof_train, init_score_test=logit_test,
+        )
+    raise ValueError(f"unknown hybrid model {name!r}")
+
+
 def _report(row: dict) -> None:
     """Print one scored row, the level beside the ranking."""
-    head = f"  split {row['split']} {row['model']:>20}:"
+    head = f"  split {row['split']} {row['model']:>24}:"
     if row["skipped"]:
         print(f"{head} skipped ({row['skipped']})", flush=True)
         return
@@ -971,10 +1248,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     p.add_argument("--config", default=None, help="configuration override (inference section)")
     p.add_argument("--device", default="cpu")
     p.add_argument("--no-lightgbm", action="store_true")
+    p.add_argument("--hybrid", action="store_true",
+                   help="also score LightGBM with FinTFM's out-of-fold logit as a feature and "
+                        "as its starting score (DR8.4); needs --model")
+    p.add_argument("--inner-folds", type=int, default=INNER_FOLDS,
+                   help=f"inner folds for the hybrid arms' out-of-fold logits "
+                        f"(default {INNER_FOLDS})")
     args = p.parse_args(argv)
+    if args.hybrid and (args.model is None or args.no_lightgbm):
+        p.error("--hybrid needs --model and LightGBM")
+    if args.inner_folds < 2:
+        p.error("--inner-folds must be at least 2")
     run(
         args.out, args.model, tuple(filter(None, args.datasets.split(","))), args.root,
-        args.config, args.device, with_lightgbm=not args.no_lightgbm,
+        args.config, args.device, with_lightgbm=not args.no_lightgbm, hybrid=args.hybrid,
+        n_inner=args.inner_folds,
     )
     return 0
 

@@ -120,14 +120,16 @@ def to_logit(p: np.ndarray) -> np.ndarray:
 
 
 def assert_no_leak(
-    context_rows: np.ndarray, forbidden_rows: np.ndarray, company: np.ndarray, what: str
+    context_rows: np.ndarray, forbidden_rows: np.ndarray, company: np.ndarray | None,
+    what: str,
 ) -> None:
     """Refuse a context that shares a row, or a company, with rows it must not see.
 
     Args:
         context_rows: Panel row indices a FinTFM context is drawn from.
         forbidden_rows: Panel row indices that must stay out of it.
-        company: ``(n,)`` company per panel row.
+        company: ``(n,)`` company (or borrower) per panel row, or ``None`` for a panel
+            without one, such as the credit suite's ULB and SBA, where only rows are checked.
         what: Names the check in the error, e.g. ``"fold 2 inner 1 vs outer val/test"``.
 
     Raises:
@@ -136,6 +138,8 @@ def assert_no_leak(
     shared_rows = np.intersect1d(context_rows, forbidden_rows)
     if shared_rows.size:
         raise LeakageError(f"{what}: {shared_rows.size} forbidden row(s) in the context")
+    if company is None:
+        return
     shared = np.intersect1d(company[context_rows], company[forbidden_rows])
     if shared.size:
         raise LeakageError(f"{what}: {shared.size} forbidden company(ies) in the context")
