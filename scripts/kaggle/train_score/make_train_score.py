@@ -1,7 +1,9 @@
 """Write one Kaggle kernel directory per train-and-score arm from train_score.py.
 
 Usage: ``python make_train_score.py [arm ...]`` writes the named arms, or every arm when none
-is named. Naming arms leaves the kernels of earlier arms as they were generated.
+is named. Naming arms leaves the kernels of earlier arms as they were generated. An arm in
+SESSIONS gets two kernels, ``ts_<arm>_p1`` and ``ts_<arm>_p2``; push p2 only once p1 has a
+completed version, since p2 reads p1's output.
 """
 
 import json
@@ -46,7 +48,15 @@ ARMS = {
     "dr24-b-s0": (E1 + S0_48K + TRUNK, True),  # general trunk alone
     "dr24-c-s0": (E1 + S0_48K + TRUNK, True),  # trunk, then credit from SWITCH below
     "dr24-d-s0": (E1 + S0_48K + INTERLEAVED, True),  # trunk and financial v2 in one draw
+    # DR8.2 model size at volume (FINDINGS §184): e1-v480-s0's recipe with twice the layers,
+    # d_model, heads and d_ff unchanged, against e1-v480-s0
+    "dr82-depth8-s0": (E1 + ["--seed", "0", "--steps", "60000", "--n-layers", "8"], True),
 }
+#: Two-session arms (DR8.2): session 1's training wall-time budget in seconds. Each writes two
+#: kernels, <arm>-p1 (trains for the budget with --run-seconds, no scoring) and <arm>-p2
+#: (attaches p1's output as a kernel source, resumes to --steps and scores). 30,600 s is
+#: 8.5 h, which leaves a 12 h session room for the install and the final save.
+SESSIONS = {"dr82-depth8-s0": 30600}
 #: Curriculum arms: the step the prior switches at, and the second phase's flags. 4,200 of
 #: 6,000 steps on the trunk gives arm c arm d's 0.3 financial share, so c and d differ in
 #: order only.
@@ -56,8 +66,11 @@ SWITCH = {"dr24-c-s0": (4200, E1 + S0_48K + FIN_V2)}
 #: DR2.4 commit adds --new-prior-phase, and at the recipe's prior config draws the same
 #: training stream and trains the same weights as d05ea19 (FINDINGS §180)
 DR24_COMMIT = "5e0fad0"
+#: DR8.2's commit adds --run-seconds, whose default reads no clock and changes no weight
+DR82_COMMIT = "e493123"
 COMMITS = {"dr62-induced-s0": "6916a89", "dr63-cls-s0": "6916a89",
-           **{arm: DR24_COMMIT for arm in ARMS if arm.startswith("dr24-")}}
+           **{arm: DR24_COMMIT for arm in ARMS if arm.startswith("dr24-")},
+           "dr82-depth8-s0": DR82_COMMIT}
 OLD_ARMS = {
     # DR4.4 replicates of the published recipe (seed 0 also re-checks reproducibility)
     "pub-s0": ["--seed", "0"],
@@ -73,23 +86,38 @@ wanted = sys.argv[1:] or list(ARMS)
 unknown = sorted(set(wanted) - set(ARMS))
 if unknown:
     sys.exit(f"unknown arm(s) {unknown}; known: {list(ARMS)}")
+clash = sorted(set(SESSIONS) & set(SWITCH))
+if clash:
+    sys.exit(f"arm(s) {clash} are both two-session and curriculum; the template runs one or other")
 for arm in wanted:
     flags, ddp = ARMS[arm]
     switch, phase2 = SWITCH.get(arm, (0, []))
-    d = HERE.parent / f"ts_{arm.replace('-', '_')}"
-    d.mkdir(exist_ok=True)
-    code = (TEMPLATE.replace("__COMMIT__", COMMITS.get(arm, COMMIT)).replace("__ARM__", arm)
-            .replace("[]  # __FLAGS__", json.dumps(flags))
-            .replace("False  # __DDP__", str(ddp)).replace("False  # __PART__", "False")
-            .replace("0  # __SWITCH__", str(switch))
-            .replace("[]  # __PHASE2__", json.dumps(phase2)))
-    (d / "kernel.py").write_text(code)
-    (d / "kernel-metadata.json").write_text(json.dumps({
-        "id": f"muhakabartay/fintfm-ts-{arm}", "title": f"fintfm-ts-{arm}",
-        "code_file": "kernel.py", "language": "python", "kernel_type": "script",
-        "is_private": "true", "enable_gpu": "true", "enable_tpu": "false",
-        "enable_internet": "true",
-        "dataset_sources": ["sebastiantomczak10/v4-group-corporate-bankruptcy"],
-        "competition_sources": [], "kernel_sources": [], "model_sources": [],
-    }, indent=2) + "\n")
-    print(d)
+    # (kernel name suffix, session, session 1's kernel id or None): one session, or two
+    sessions: list[tuple[str, int, str | None]] = [("", 0, None)]
+    if arm in SESSIONS:
+        first = f"muhakabartay/fintfm-ts-{arm}-p1"
+        sessions = [("-p1", 1, None), ("-p2", 2, first)]
+    for suffix, session, source in sessions:
+        name = f"{arm}{suffix}"
+        d = HERE.parent / f"ts_{name.replace('-', '_')}"
+        d.mkdir(exist_ok=True)
+        code = (TEMPLATE.replace("__COMMIT__", COMMITS.get(arm, COMMIT))
+                .replace("__ARM__", arm)
+                .replace("[]  # __FLAGS__", json.dumps(flags))
+                .replace("False  # __DDP__", str(ddp)).replace("False  # __PART__", "False")
+                .replace("0  # __SWITCH__", str(switch))
+                .replace("[]  # __PHASE2__", json.dumps(phase2))
+                .replace("0  # __SESSION__", str(session))
+                .replace("0  # __RUN_SECONDS__", str(SESSIONS.get(arm, 0)))
+                .replace('""  # __SESSION1__', json.dumps(source or "")))
+        (d / "kernel.py").write_text(code)
+        (d / "kernel-metadata.json").write_text(json.dumps({
+            "id": f"muhakabartay/fintfm-ts-{name}", "title": f"fintfm-ts-{name}",
+            "code_file": "kernel.py", "language": "python", "kernel_type": "script",
+            "is_private": "true", "enable_gpu": "true", "enable_tpu": "false",
+            "enable_internet": "true",
+            "dataset_sources": ["sebastiantomczak10/v4-group-corporate-bankruptcy"],
+            "competition_sources": [], "kernel_sources": [source] if source else [],
+            "model_sources": [],
+        }, indent=2) + "\n")
+        print(d)
