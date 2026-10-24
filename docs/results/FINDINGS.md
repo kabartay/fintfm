@@ -12340,8 +12340,10 @@ volume step it names comes after this verdict.
 - **Rule:** the arm is a **candidate** if it wins more tasks than it loses with the per-task
   two-sided sign test at p < 0.05; **worse** under the mirror; otherwise **null**. With 6 scorable
   tasks only a 6 of 6 result reaches p < 0.05 (p = 0.031; 5 of 6 gives p = 0.22), so this rule
-  detects a uniform gain and nothing smaller. Secondary, reported and not decided on: Elo with
-  the control at 1,000, the per-split sign test (18 splits), and per-task log-loss.
+  alone detects a uniform gain and nothing smaller. **Amended before launch (2026-10-24):** the
+  arm is also a **candidate** if the per-split sign test over the 18 scored splits gives
+  p < 0.05 in its favour **and** at least 5 of the 6 tasks are positive (mirror for **worse**).
+  Reported, not decided on: Elo with the control at 1,000, and per-task log-loss.
 - **Not scored on V4FinBench.** V4FinBench is binary, so the kernel trains only (`SCORE_V4` False
   in the template); a credit number can be added later on this Mac and does not decide this arm.
 - **Pre-declared actions.** Candidate: a seed-1 replicate before anything is adopted, then
