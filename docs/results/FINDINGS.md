@@ -12556,3 +12556,33 @@ Mean of Δ_0 and Δ_1: **-0.0106**, inside the 0.0117 yardstick (§173).
   this model (about +170 Elo on the proxy at both seeds); on credit it does not. That is the §116
   pattern again, the two benchmarks disagreeing, and CLAUDE.md's rule is that the credit one
   decides project claims.
+
+## §189 — DR8.4: FinTFM inside LightGBM helps on both credit datasets, but not the same way
+
+**MEASURED, 2026-10-24**, `python -m fintfm.evaluation.credit_suite --hybrid` (0672f83; inner 3-fold
+out-of-fold FinTFM logits on the training rows, leakage asserted; LightGBM 1,000 trees, lr 0.05,
+out of process), the published checkpoint, CPU. Outputs `runs/credit_suite/{sba,ulb_fraud}_hybrid.csv`.
+Average precision per split:
+
+| dataset | split | FinTFM | LightGBM | + FinTFM logit as a feature | + FinTFM logit as init score | logistic regression |
+| --- | --- | --- | --- | --- | --- | --- |
+| SBA 7(a) | 0 | 0.0795 | 0.4392 | 0.4497 | 0.4366 | 0.1342 |
+| | 1 | 0.1314 | 0.4320 | 0.4473 | 0.4282 | 0.1455 |
+| | 2 | 0.1176 | 0.2872 | 0.2944 | 0.2967 | 0.1087 |
+| | **mean** | 0.1095 | **0.3861** | **0.3971** (+0.011, 3 of 3) | 0.3872 (+0.001) | 0.1295 |
+| ULB fraud | 0 | 0.6667 | 0.8539 | 0.4135 | 0.8510 | 0.7603 |
+| | 1 | 0.7083 | 0.4845 | 0.6620 | 0.8517 | 0.7437 |
+| | 2 | 0.6739 | 0.6871 | 0.5957 | 0.8576 | 0.7427 |
+| | **mean** | 0.6830 | 0.6751 | 0.5571 | **0.8534** | 0.7489 |
+
+- **SBA: the logit as a feature adds +0.011 mean AP over LightGBM alone, on 3 of 3 splits** (about
+  3% relative), from a model that alone scores 0.1095. The init-score variant does nothing.
+- **ULB: the init-score variant is the best and most stable model in the suite** (0.851 to 0.858
+  across splits). LightGBM alone collapses on two splits at these untuned settings with 164 test
+  positives (0.48, 0.69), so most of the +0.178 against it is LightGBM's instability, not FinTFM's
+  signal; against logistic regression, the stable baseline, the init-score variant is +0.105 on
+  3 of 3 splits. The feature variant is unstable like LightGBM alone.
+- **So the hybrid helps on both datasets, by different routes, and no single variant wins both.**
+  Three splits per dataset and untuned boosters: this is a system result (FinTFM plus a booster),
+  reported as such per AU4.4, not a FinTFM result. A tuned LightGBM is the fair next control.
+- **Cost:** the out-of-fold logits took up to 1,791 s per split on SBA (138,004 training rows).

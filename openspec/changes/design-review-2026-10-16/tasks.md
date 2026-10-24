@@ -455,7 +455,8 @@ DR6.2/DR6.3 did not, and boosters lead by 3.5x on SBA.
       fitted on the training split only) against a checkpoint trained at `max_features` 512, on
       the proxy's wide tasks first.
       Verify: per-task results for both on madelon, Internet-Advertisements and mfeat-factors.
-- [ ] DR8.4 **FinTFM plus booster for credit** (AU4.4's `hybrid_catboost`, built, unmeasured):
+- [ ] DR8.4 **Credit suite measured (2026-10-24, §189):** the logit as a LightGBM feature adds +0.011 AP on SBA (3 of 3 splits); as an init score it gives ULB's best and most stable result (0.853 mean). Open: a tuned LightGBM control, and V4FinBench (capped, about 4.5 to 6 h of CPU).
+      **FinTFM plus booster for credit** (AU4.4's `hybrid_catboost`, built, unmeasured):
       on SBA and ULB (credit suite) and V4FinBench, against LightGBM alone, so the practical
       credit answer is measured, not assumed.
       Verify: credit-suite and V4FinBench rows for the hybrid in FINDINGS.
