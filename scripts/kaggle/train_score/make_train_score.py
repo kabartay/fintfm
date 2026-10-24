@@ -30,6 +30,11 @@ TRUNK_WEIGHTS = "scm=0.3,tree=0.2,task_family=0.1,gated=0.1"
 TRUNK = ["--p-financial", "0.7", "--source-weights", TRUNK_WEIGHTS, *KNOBS]
 INTERLEAVED = ["--p-financial", "0.7", "--source-weights", f"{TRUNK_WEIGHTS},financial=0.3",
                "--financial-gate-prob", "0.5", "--financial-sign-flip-prob", "0.5", *KNOBS]
+#: DR7.4 (FINDINGS §185): the multiclass control v4-multiclass.pt's prior (§99: --max-classes
+#: 10 --p-financial 0.5, so half the tasks are the generic SCM's, uniform on 2 to 10 classes)
+#: with the SCM sampler it was trained on (--scm-legacy: it predates 48.17/48.19's widening of
+#: 2026-09-21), plus AU5.5's per-task class permutation, the one prior change under test
+MULTICLASS = ["--max-classes", "10", "--p-financial", "0.5", "--scm-legacy", "--permute-classes"]
 ARMS = {
     "e1-v48-s0": (E1 + ["--seed", "0", "--steps", "6000"], True),
     "e1-v48-s1": (E1 + ["--seed", "1", "--steps", "6000"], True),
@@ -46,7 +51,13 @@ ARMS = {
     "dr24-b-s0": (E1 + S0_48K + TRUNK, True),  # general trunk alone
     "dr24-c-s0": (E1 + S0_48K + TRUNK, True),  # trunk, then credit from SWITCH below
     "dr24-d-s0": (E1 + S0_48K + INTERLEAVED, True),  # trunk and financial v2 in one draw
+    # DR7.4 (FINDINGS §185): E1's 48k recipe at seed 0 with the multiclass prior, against
+    # v4-multiclass.pt on the proxy suite's multiclass tasks
+    "dr74-mc-s0": (E1 + S0_48K + MULTICLASS, True),
 }
+#: Arms trained but not scored on V4FinBench, which is binary: a multiclass arm is decided
+#: on the proxy suite, run off Kaggle
+TRAIN_ONLY = {"dr74-mc-s0"}
 #: Curriculum arms: the step the prior switches at, and the second phase's flags. 4,200 of
 #: 6,000 steps on the trunk gives arm c arm d's 0.3 financial share, so c and d differ in
 #: order only.
@@ -57,7 +68,9 @@ SWITCH = {"dr24-c-s0": (4200, E1 + S0_48K + FIN_V2)}
 #: training stream and trains the same weights as d05ea19 (FINDINGS §180)
 DR24_COMMIT = "5e0fad0"
 COMMITS = {"dr62-induced-s0": "6916a89", "dr63-cls-s0": "6916a89",
-           **{arm: DR24_COMMIT for arm in ARMS if arm.startswith("dr24-")}}
+           **{arm: DR24_COMMIT for arm in ARMS if arm.startswith("dr24-")},
+           # DR7.4 needs no code change: a901cdc (origin/main, 2026-10-24) carries every flag
+           "dr74-mc-s0": "a901cdc"}
 OLD_ARMS = {
     # DR4.4 replicates of the published recipe (seed 0 also re-checks reproducibility)
     "pub-s0": ["--seed", "0"],
@@ -82,7 +95,8 @@ for arm in wanted:
             .replace("[]  # __FLAGS__", json.dumps(flags))
             .replace("False  # __DDP__", str(ddp)).replace("False  # __PART__", "False")
             .replace("0  # __SWITCH__", str(switch))
-            .replace("[]  # __PHASE2__", json.dumps(phase2)))
+            .replace("[]  # __PHASE2__", json.dumps(phase2))
+            .replace("True  # __SCORE__", str(arm not in TRAIN_ONLY)))
     (d / "kernel.py").write_text(code)
     (d / "kernel-metadata.json").write_text(json.dumps({
         "id": f"muhakabartay/fintfm-ts-{arm}", "title": f"fintfm-ts-{arm}",

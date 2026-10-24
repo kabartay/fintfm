@@ -12284,3 +12284,74 @@ then scored five-fold on V4FinBench before it is believed; nothing is adopted on
 Six arms at alpha 0.05 expect 0.3 false candidates, which the V4FinBench step catches.
 **Prediction:** `ens8` and `ens8-tf` candidates (the peers' main inference lever), `ctx8k`
 candidate on the larger tasks only, `retrieval` and `ft200` not.
+
+## §185: DR7.4, a multiclass arm at the current recipe (pre-registered)
+
+**PRE-REGISTERED, 2026-10-24, before the arm trains.** One seed, the first half of DR7.4; the
+volume step it names comes after this verdict.
+
+- **Arm** `dr74-mc-s0`, kernel `scripts/kaggle/ts_dr74_mc_s0/`, fintfm pinned at **a901cdc**
+  (origin/main; no code change was needed). E1's 48k recipe exactly as §175 states it
+  (`configs/published/v4-cellattn-labels.yaml`, `--amp fp16 --attn-impl split --loader stream`,
+  DDP on a T4x2 at `--batch-size 4` per rank, `--seed 0 --steps 6000`, `--checkpoint-every
+  1000`), plus `--max-classes 10 --p-financial 0.5 --scm-legacy --permute-classes`:
+  - `--max-classes 10 --p-financial 0.5`: the control's own flags (§99). Half the tasks come
+    from the financial prior, which is binary, and half from the generic SCM, whose class count
+    is uniform on 2 to 10.
+  - `--scm-legacy`: the control was trained before 2026-09-20 15:26 (§99's commit, ffd3ff0), and
+    the SCM was widened on 2026-09-21 (0951874, tasks 48.17 and 48.19). Without the flag the
+    SCM half would change sampler as well, a second difference from the control.
+  - `--permute-classes` (AU5.5): each classification task's classes relabelled by a random
+    permutation, so no class index keeps a fixed meaning (SCM classes are ordinal; financial
+    class 1 is always the rare one). It is the one prior change under test.
+  - Nothing else: the published config already holds the control's architecture and
+    the recipe of its time (`--n-rows-choices 256,512,1024 --feature-chunk 8 --column-id-dim
+    16`, one cell block, cell labels, §91).
+- **The prior matches the control's, checked and not assumed (MEASURED, CPU, 2026-10-24).** With
+  `--permute-classes` off, `sample_batch` at seed 0 from the published config plus `--max-classes
+  10 --p-financial 0.5 --scm-legacy` gives the same 20 of 20 batches of 8 (features, labels, class
+  counts, context split) as the prior code at ffd3ff0. Without `--scm-legacy`, 0 of 20 match. A CPU
+  smoke test of the exact flags (`--steps 2 --batch-size 1 --device cpu`, no `--amp` or `--ddp`)
+  exits 0 with **888,090 parameters**, the control's count, and a stored ModelConfig equal to the
+  control's on every key the control records. Its provenance records `scm_legacy` true,
+  `permute_classes` true and realised shares financial 0.5, SCM 0.5.
+- **What still differs from the control:** the class permutation; E1's training protocol (fp16,
+  split attention, streaming loader, DDP); about five weeks of code, with every lever since
+  pinned off by the published config; and a different training draw at the same seed (DDP ranks,
+  the streaming loader, AU1.18's separate evaluation stream). A candidate verdict therefore
+  credits the current recipe with class permutation, not permutation alone.
+- **Volume:** 6,000 steps at a global batch of 8 is **48,000 tasks**, the control's volume (6,000
+  steps; its batch of 8 is inferred, not recorded: the recipe of its time ran 8, §91, and its
+  3 h 27 m on one T4 fits that recipe's 1.90 s per step, about 3 h 10 m).
+- **Control:** `runs/v4-multiclass.pt`, **836 proxy Elo** with RF at 1,000 (§181,
+  `runs/dr73/proxy_multiclass.csv`, method `FinTFM-multiclass`).
+- **Measure:** the proxy suite's 8 multiclass tasks (6, 11, 12, 14, 16, 18, 22, 23), 3 OpenML
+  splits each, log-loss, on this Mac. At the 136-feature and 10-class caps both checkpoints score
+  the same 6: `letter` (26 classes) and `mfeat-factors` (216 features) are skipped for both.
+
+  ```bash
+  python -m fintfm.evaluation.proxy_suite run --model runs/kaggle-ts-dr74-mc-s0/dr74-mc-s0/dr74-mc-s0.pt \
+      --tasks 6,11,12,14,16,18,22,23 --name FinTFM-dr74-mc-s0 \
+      --out runs/dr74/proxy_multiclass_dr74-mc-s0.csv
+  python -m fintfm.evaluation.proxy_suite compare runs/dr74/proxy_multiclass_dr74-mc-s0.csv \
+      runs/dr73/proxy_multiclass.csv --anchor FinTFM-multiclass --unit task
+  ```
+
+- **Rule:** the arm is a **candidate** if it wins more tasks than it loses with the per-task
+  two-sided sign test at p < 0.05; **worse** under the mirror; otherwise **null**. With 6 scorable
+  tasks only a 6 of 6 result reaches p < 0.05 (p = 0.031; 5 of 6 gives p = 0.22), so this rule
+  detects a uniform gain and nothing smaller. Secondary, reported and not decided on: Elo with
+  the control at 1,000, the per-split sign test (18 splits), and per-task log-loss.
+- **Not scored on V4FinBench.** V4FinBench is binary, so the kernel trains only (`SCORE_V4` False
+  in the template); a credit number can be added later on this Mac and does not decide this arm.
+- **Pre-declared actions.** Candidate: a seed-1 replicate before anything is adopted, then
+  DR7.4's volume step. Null or worse: permutation is not carried into the multiclass recipe on
+  this evidence, and DR7.4's volume step runs on the control's prior without it. The proxy is not
+  yet validated against TabArena (DR4.2), so nothing here is a TabArena claim.
+- **Cost, ESTIMATED from §178's timings:** 2,838 to 3,267 s of training to the last checkpoint at
+  this recipe, plus installation, with no scoring: about 1 to 1.5 h on a T4x2, inside the 1.5 to 2
+  h budgeted for it. The SCM half's generation cost on the streaming loader is not measured at
+  this width; the first 15 minutes of step rate against E1's 0.525 s per step are the check.
+- **Prediction:** null. Permutation removes a class-index shortcut rather than adding signal, the
+  rest of the recipe moved FinTFM by little on binary at 48,000 tasks (§182: the 48k arms sit
+  within 50 Elo of the published checkpoint), and 6 tasks need a clean sweep.

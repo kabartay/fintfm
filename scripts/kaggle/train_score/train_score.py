@@ -13,6 +13,10 @@ SWITCH_STEP steps of the same --steps schedule (`--run-steps`), keeps that check
 `<ARM>.phase1.pt`, then resumes the state with PHASE2_FLAGS and `--new-prior-phase` for the
 rest. Optimiser, schedule and both RNG streams carry over, so only the prior changes.
 
+A train-only arm (design review DR7.4, a multiclass checkpoint) sets SCORE_V4 False.
+V4FinBench is binary, so such an arm is decided elsewhere (the proxy suite's multiclass tasks,
+run off Kaggle), and the kernel stops after training without reading the V4FinBench data.
+
 `make_train_score.py` writes one copy of this file per arm with ARM and ARM_FLAGS filled in.
 """
 
@@ -29,15 +33,18 @@ DDP = False  # __DDP__
 SCORE_PARTITION = False  # __PART__
 SWITCH_STEP = 0  # __SWITCH__
 PHASE2_FLAGS: list[str] = []  # __PHASE2__
+SCORE_V4 = True  # __SCORE__
 RECIPE_URL = (f"https://raw.githubusercontent.com/kabartay/fintfm/{COMMIT}/"
               "configs/published/v4-cellattn-labels.yaml")
 
 
 def main() -> None:
-    hits = sorted(Path("/kaggle/input").rglob("company_years_h1.parquet"))
-    if len(hits) != 1:
-        sys.exit(f"expected one company_years_h1.parquet under /kaggle/input, found {hits}")
-    root = hits[0].parent
+    root = None
+    if SCORE_V4:
+        hits = sorted(Path("/kaggle/input").rglob("company_years_h1.parquet"))
+        if len(hits) != 1:
+            sys.exit(f"expected one company_years_h1.parquet under /kaggle/input, found {hits}")
+        root = hits[0].parent
     smi = subprocess.run(["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
                          capture_output=True, text=True, check=False)
     if smi.returncode != 0 or not smi.stdout.strip():
@@ -70,6 +77,10 @@ def main() -> None:
             sys.exit(f"training phase {i + 1} failed with exit {rc}")
         if i + 1 < len(phases):
             shutil.copy(ckpt, out / f"{ARM}.phase1.pt")  # the trunk-only weights at the switch
+    if not SCORE_V4:
+        _keep_final(out)
+        print("done (train only: V4FinBench scoring skipped)")
+        return
     from fintfm.config import load_config
     from fintfm.experiments.v4_protocol import run, summarise
 
@@ -88,9 +99,18 @@ def main() -> None:
                      root=root, with_boosting=False, classical=("logistic_regression",),
                      cfg=load_config(part_cfg), device="cuda")
         print(summarise(record), flush=True)
-    for p in out.glob(f"{ARM}.pt.step*"):
-        p.unlink()  # keep the final checkpoint only
+    _keep_final(out)
     print("done")
+
+
+def _keep_final(out: Path) -> None:
+    """Delete the intermediate step checkpoints, keeping the final one.
+
+    Args:
+        out: The arm's output directory.
+    """
+    for p in out.glob(f"{ARM}.pt.step*"):
+        p.unlink()
 
 
 if __name__ == "__main__":
