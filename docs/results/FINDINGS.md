@@ -12466,3 +12466,35 @@ volume step it names comes after this verdict.
 - **Prediction:** null. Permutation removes a class-index shortcut rather than adding signal, the
   rest of the recipe moved FinTFM by little on binary at 48,000 tasks (§182: the 48k arms sit
   within 50 Elo of the published checkpoint), and 6 tasks need a clean sweep.
+
+## §186 — DR7.4: the multiclass arm at the current recipe is a candidate, and reaches RF parity on the proxy
+
+**MEASURED, 2026-10-24**, §185's pre-registered arm `dr74-mc-s0` (Kaggle T4x2, a901cdc, E1's 48k
+recipe at `max_classes 10`, `--p-financial 0.5 --scm-legacy --permute-classes`, seed 0, trained
+only) against `v4-multiclass.pt` on the proxy suite's multiclass tasks (`runs/dr73/proxy_dr74.csv`;
+6 of 8 scored: `letter` has 26 classes and `mfeat-factors` 216 features).
+
+- **Rule (§185): candidate on both criteria.** Per task 6 wins, 0 losses (two-sided sign test
+  p = 0.031); per split 17 wins, 1 loss (p = 0.0001) with all 6 tasks positive.
+- **Arena** (`scripts/proxy_arena.py --kind multiclass`, RF at 1,000): `dr74-mc-s0` **994**
+  [726, 1256] against the control's 808 [459, 1065], +186 Elo; Linear 1233, LightGBM 1185,
+  ExtraTrees 814, KNN 766.
+
+Mean log-loss over 3 splits:
+
+| task | `dr74-mc-s0` | control | best baseline |
+| --- | --- | --- | --- |
+| balance-scale | 0.316 | 0.635 | 0.271 Linear |
+| cmc | **0.971** | 0.983 | 0.991 Linear |
+| mfeat-fourier | 1.298 | 1.978 | 0.557 Linear |
+| mfeat-karhunen | 1.077 | 2.081 | 0.136 LightGBM |
+| mfeat-morphological | 0.887 | 1.646 | 0.694 Linear |
+| mfeat-zernike | 1.124 | 1.999 | 0.366 Linear |
+
+- **Best of every method on `cmc`**, near the best on `balance-scale`; still far behind on the four
+  `mfeat` views, which are digit features where linear and boosted models lead.
+- **What it credits, per §185:** "the current recipe with class permutation" at 48,000 tasks, not
+  permutation alone; five weeks of recipe changes, E1's training protocol and the permutation all
+  differ from the control.
+- **Pre-declared action: a seed-1 replicate before anything is adopted**, then DR7.4's volume step.
+  Not on this week's quota (DR8.2 holds it); queued for the next reset.

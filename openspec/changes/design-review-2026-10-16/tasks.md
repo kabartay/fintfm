@@ -416,7 +416,8 @@
       the binary checkpoint's proxy Elo, so every later multiclass arm has a control that is not
       TabArena. §121's TabArena rank (93.4 of 95 over 7 datasets) is reported, never selected on.
       Verify: the proxy Elo and per-task scores for `v4-multiclass.pt` recorded in FINDINGS.
-- [ ] DR7.4 **A multiclass arm at the current recipe:** E1's 48k recipe (§171) with
+- [ ] DR7.4 **Seed 0 a candidate (2026-10-24, §186): 6 of 6 tasks, 17 of 18 splits, 994 proxy Elo against the control's 808.** Next: the seed-1 replicate at the next quota reset, then the volume step.
+      **A multiclass arm at the current recipe:** E1's 48k recipe (§171) with
       `max_classes 10`, the generic SCM mixed in as `v4-multiclass.pt` was trained, and
       `--permute-classes` (AU5.5), one seed, against DR7.3's control on the proxy suite's
       multiclass tasks by paired sign test; then at the volume E1 recommends, if it recommends
