@@ -201,6 +201,7 @@ train:
   seed: 0
   device: cpu
   run_steps: null          # steps in THIS invocation; null runs to steps
+  run_seconds: null        # training seconds in THIS invocation (DR8.2); null has no limit
   resume: null             # a <out>.state file to continue from
   init_from: null          # a model checkpoint to start from, fresh optimiser and schedule
   new_prior_phase: false   # let resume continue under a different prior, a curriculum phase (DR2.4)

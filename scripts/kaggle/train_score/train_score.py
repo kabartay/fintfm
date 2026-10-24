@@ -13,6 +13,16 @@ SWITCH_STEP steps of the same --steps schedule (`--run-steps`), keeps that check
 `<ARM>.phase1.pt`, then resumes the state with PHASE2_FLAGS and `--new-prior-phase` for the
 rest. Optimiser, schedule and both RNG streams carry over, so only the prior changes.
 
+A run longer than one Kaggle session (design review DR8.2) is two kernels, SESSION 1 and 2.
+Session 1 trains ARM_FLAGS with `--run-seconds RUN_SECONDS`, which stops at a step boundary
+and writes `<ARM>.pt` and `<ARM>.pt.state`, and skips scoring. Session 2 attaches session 1's
+kernel output (kernel-metadata `kernel_sources`, mounted read-only under /kaggle/input),
+copies the two files into /kaggle/working/<ARM>/ as `<ARM>.session1.pt` and
+`<ARM>.session1.pt.state`, resumes the state to the full `--steps` with the same ARM_FLAGS,
+then scores as usual. Session 2 finds the state by globbing /kaggle/input for
+`<ARM>.pt.state` and stops unless there is exactly one, since the mount layout of a kernel
+source is not pinned down here. SESSION 0 is the one-session run every other arm is.
+
 `make_train_score.py` writes one copy of this file per arm with ARM and ARM_FLAGS filled in.
 """
 
@@ -29,11 +39,47 @@ DDP = False  # __DDP__
 SCORE_PARTITION = False  # __PART__
 SWITCH_STEP = 0  # __SWITCH__
 PHASE2_FLAGS: list[str] = []  # __PHASE2__
+SESSION = 0  # __SESSION__
+RUN_SECONDS = 0  # __RUN_SECONDS__
+SESSION1_KERNEL = ""  # __SESSION1__
 RECIPE_URL = (f"https://raw.githubusercontent.com/kabartay/fintfm/{COMMIT}/"
               "configs/published/v4-cellattn-labels.yaml")
 
 
+def find_session1_state(arm: str, inputs: Path = Path("/kaggle/input")) -> Path:
+    """The training state session 1 wrote, from session 1's attached kernel output.
+
+    Args:
+        arm: The arm name; session 1 wrote ``<arm>.pt.state`` beside ``<arm>.pt``.
+        inputs: The read-only input mount to search.
+
+    Returns:
+        The one ``<arm>.pt.state`` found anywhere under ``inputs``, whose ``<arm>.pt`` sibling
+        exists.
+
+    Raises:
+        SystemExit: Unless exactly one state file is found and its checkpoint sits beside it,
+            naming every candidate, so a wrong attachment fails before any GPU time is spent.
+    """
+    hits = sorted(inputs.rglob(f"{arm}.pt.state"))
+    if len(hits) != 1:
+        listing = sorted(str(p) for p in inputs.rglob("*") if p.is_file())[:200]
+        sys.exit(f"expected one {arm}.pt.state under {inputs} (session 1's output, kernel "
+                 f"source {SESSION1_KERNEL!r}), found {hits}; files there: {listing}")
+    ckpt = hits[0].with_suffix("")  # <arm>.pt.state -> <arm>.pt
+    if not ckpt.is_file():
+        sys.exit(f"{hits[0]} has no {ckpt.name} beside it; session 1 did not finish its save")
+    return hits[0]
+
+
 def main() -> None:
+    """Train the arm (or this session's share of it), then score it on V4FinBench."""
+    if SESSION not in (0, 1, 2):
+        sys.exit(f"SESSION must be 0, 1 or 2, not {SESSION}")
+    if SESSION and SWITCH_STEP:
+        sys.exit("a two-session arm cannot also switch priors; the generator refuses both")
+    if SESSION == 1 and RUN_SECONDS <= 0:
+        sys.exit("session 1 needs a RUN_SECONDS budget")
     hits = sorted(Path("/kaggle/input").rglob("company_years_h1.parquet"))
     if len(hits) != 1:
         sys.exit(f"expected one company_years_h1.parquet under /kaggle/input, found {hits}")
@@ -57,6 +103,18 @@ def main() -> None:
     base = [*launcher, "--config", str(recipe), "--device", "cuda",
             "--checkpoint-every", "1000", "--out", str(ckpt)]
     phases = [[*base, *ARM_FLAGS]]
+    if SESSION == 1:
+        phases = [[*base, *ARM_FLAGS, "--run-seconds", str(RUN_SECONDS)]]
+    elif SESSION == 2:
+        found = find_session1_state(ARM)
+        state = out / f"{ARM}.session1.pt.state"
+        shutil.copy(found, state)
+        shutil.copy(found.with_suffix(""), out / f"{ARM}.session1.pt")
+        log1 = found.parent / "train.log"
+        if log1.is_file():
+            shutil.copy(log1, out / "train.session1.log")
+        print(f"session 1's state: {found} -> {state}", flush=True)
+        phases = [[*base, *ARM_FLAGS, "--resume", str(state)]]
     if SWITCH_STEP:
         phases = [[*base, *ARM_FLAGS, "--run-steps", str(SWITCH_STEP)],
                   [*base, *PHASE2_FLAGS, "--resume", f"{ckpt}.state", "--new-prior-phase"]]
@@ -70,6 +128,18 @@ def main() -> None:
             sys.exit(f"training phase {i + 1} failed with exit {rc}")
         if i + 1 < len(phases):
             shutil.copy(ckpt, out / f"{ARM}.phase1.pt")  # the trunk-only weights at the switch
+    from fintfm.provenance import read_checkpoint_provenance
+
+    rec = read_checkpoint_provenance(ckpt) or {}
+    print(f"checkpoint: {rec.get('steps_completed')} steps, {rec.get('tasks_seen')} tasks; "
+          f"time budget: {rec.get('time_budget')}", flush=True)
+    if SESSION == 1:
+        for p in out.glob(f"{ARM}.pt.step*"):
+            p.unlink()  # session 2 needs only <ARM>.pt and <ARM>.pt.state
+        if not (out / f"{ARM}.pt.state").is_file():
+            sys.exit(f"session 1 wrote no {ARM}.pt.state; session 2 would have nothing to resume")
+        print("session 1 done, not scored; session 2 attaches this kernel's output", flush=True)
+        return
     from fintfm.config import load_config
     from fintfm.experiments.v4_protocol import run, summarise
 

@@ -353,7 +353,9 @@ def test_published_recipe_pins_every_key_fintfm_train_reads():
     from fintfm.config import ModelConfigDefaults, PriorConfigDefaults, TrainConfigDefaults
 
     data = yaml.safe_load(_PUBLISHED_YAML.read_text())
-    per_invocation = {"device", "run_steps", "resume", "init_from", "new_prior_phase"}
+    per_invocation = {
+        "device", "run_steps", "run_seconds", "resume", "init_from", "new_prior_phase",
+    }
     assert set(data["model"]) == {f.name for f in fields(ModelConfigDefaults)}
     assert set(data["prior"]) == {f.name for f in fields(PriorConfigDefaults)}
     assert set(data["train"]) == {f.name for f in fields(TrainConfigDefaults)} - per_invocation
@@ -1210,3 +1212,109 @@ def test_cli_passes_new_prior_phase(tmp_path, monkeypatch):
     assert _captured_train_cfg(monkeypatch, argv).new_prior_phase is False
     cfg = _captured_train_cfg(monkeypatch, [*argv, "--resume", "s", "--new-prior-phase"])
     assert cfg.new_prior_phase is True
+
+
+# --- design review DR8.2: --run-seconds, a wall-time budget per invocation ---
+
+_BUDGET_MODEL = ModelConfig(
+    max_features=8, max_classes=2, d_cell=8, d_model=16, n_layers=1, n_col_layers=1, n_heads=2,
+)
+_BUDGET_PRIOR = PriorConfig(max_features=8, max_classes=2, n_rows=32)
+_BUDGET_COMMON = {
+    "steps": 12, "batch_size": 2, "eval_every": 1000, "log_every": 1000, "device": "cpu",
+    "seed": 3,
+}
+
+
+def _step_clock(monkeypatch) -> None:
+    """Replace the budget's clock with one that advances one second per reading.
+
+    The loop reads it once before the first step and once after every step, so after step
+    ``k`` the elapsed time is exactly ``k`` seconds and the stop step is deterministic.
+    """
+    import importlib
+    import itertools
+
+    train_mod = importlib.import_module("fintfm.modeling.train")
+    ticks = itertools.count()
+    monkeypatch.setattr(train_mod, "_training_clock", lambda: float(next(ticks)))
+
+
+def test_run_seconds_stop_resumes_to_the_uninterrupted_weights(tmp_path, monkeypatch):
+    """A run stopped by its time budget writes the checkpoint and ``.state`` as ``run_steps``
+    does, records where it stopped, and resumed to the full ``steps`` equals the
+    uninterrupted run, the same property as the ``run_steps`` resume test."""
+    from fintfm.modeling.train import TrainConfig, train
+    from fintfm.provenance import read_checkpoint_provenance
+
+    whole = train(_BUDGET_MODEL, _BUDGET_PRIOR, TrainConfig(**_BUDGET_COMMON),
+                  str(tmp_path / "whole.pt"))
+    _step_clock(monkeypatch)
+    part = tmp_path / "part.pt"
+    train(_BUDGET_MODEL, _BUDGET_PRIOR, TrainConfig(**_BUDGET_COMMON, run_seconds=4.5),
+          str(part))
+    rec = read_checkpoint_provenance(part)
+    assert rec["steps_completed"] == 5 and rec["tasks_seen"] == 10
+    budget = rec["time_budget"]
+    assert (budget["run_seconds"], budget["start_step"], budget["stop_step"]) == (4.5, 0, 5)
+    assert budget["stopped_early"] is True
+    state = torch.load(f"{part}.state", weights_only=False)
+    assert state["step"] == 5 and state["total_steps"] == 12
+    monkeypatch.undo()
+    resumed = train(_BUDGET_MODEL, _BUDGET_PRIOR,
+                    TrainConfig(**_BUDGET_COMMON, resume=f"{part}.state"),
+                    str(tmp_path / "resumed.pt"))
+    assert "time_budget" not in read_checkpoint_provenance(tmp_path / "resumed.pt")
+    for (name, a), (_, b) in zip(whole.state_dict().items(), resumed.state_dict().items()):
+        assert torch.allclose(a, b, atol=1e-6), f"{name} diverged between stopped and whole run"
+
+
+def test_run_seconds_budget_not_reached_runs_to_the_end(tmp_path):
+    """A budget the run never reaches trains every step and says the clock did not stop it;
+    with ``run_steps`` beside it, whichever comes first stops the run."""
+    from fintfm.modeling.train import TrainConfig, train
+    from fintfm.provenance import read_checkpoint_provenance
+
+    common = {**_BUDGET_COMMON, "steps": 3}
+    train(_BUDGET_MODEL, _BUDGET_PRIOR, TrainConfig(**common, run_seconds=1e6),
+          str(tmp_path / "a.pt"))
+    budget = read_checkpoint_provenance(tmp_path / "a.pt")["time_budget"]
+    assert (budget["stop_step"], budget["stopped_early"]) == (3, False)
+    train(_BUDGET_MODEL, _BUDGET_PRIOR, TrainConfig(**common, run_seconds=1e6, run_steps=2),
+          str(tmp_path / "b.pt"))
+    budget = read_checkpoint_provenance(tmp_path / "b.pt")["time_budget"]
+    assert (budget["stop_step"], budget["stopped_early"]) == (2, False)
+
+
+def test_run_seconds_default_reads_no_clock(tmp_path, monkeypatch):
+    """Without a budget the loop never reads the clock and writes no ``time_budget``."""
+    import importlib
+
+    from fintfm.modeling.train import TrainConfig, train
+    from fintfm.provenance import read_checkpoint_provenance
+
+    train_mod = importlib.import_module("fintfm.modeling.train")
+
+    def no_clock() -> float:
+        raise AssertionError("read the budget clock without --run-seconds")
+
+    monkeypatch.setattr(train_mod, "_training_clock", no_clock)
+    train(_BUDGET_MODEL, _BUDGET_PRIOR, TrainConfig(**{**_BUDGET_COMMON, "steps": 2}),
+          str(tmp_path / "m.pt"))
+    assert "time_budget" not in read_checkpoint_provenance(tmp_path / "m.pt")
+
+
+def test_run_seconds_refuses_a_negative_budget(tmp_path):
+    from fintfm.modeling.train import TrainConfig, train
+
+    with pytest.raises(ValueError, match="run_seconds"):
+        train(_BUDGET_MODEL, _BUDGET_PRIOR, TrainConfig(**_BUDGET_COMMON, run_seconds=-1.0),
+              str(tmp_path / "x.pt"))
+
+
+def test_cli_passes_run_seconds(tmp_path, monkeypatch):
+    """``--run-seconds`` reaches TrainConfig as a float; without it there is no budget."""
+    argv = [*_TINY_CLI, "--out", str(tmp_path / "x.pt")]
+    assert _captured_train_cfg(monkeypatch, argv).run_seconds is None
+    cfg = _captured_train_cfg(monkeypatch, [*argv, "--run-seconds", "30600"])
+    assert cfg.run_seconds == 30600.0
