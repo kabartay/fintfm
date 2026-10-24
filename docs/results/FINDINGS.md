@@ -12524,3 +12524,35 @@ CSVs `runs/dr73/proxy_lever_*.csv`):
   typically 0.002 to 0.007 in 1 - ROC-AUC per task for `ens8`.
 - The prediction held for `ens8` and failed for `ens8-tf` (not a candidate) and `retrieval` (a
   candidate).
+
+## §188 — E1's verdict (§171): ten times the tasks is null on V4FinBench at both seeds, and positive on the unvalidated proxy
+
+**MEASURED, 2026-10-24.** `e1-v480-s1` (Kaggle T4x2, d05ea19, 60,000 steps) against `e1-v48-s1`,
+completing §171's design (§176 has seed 0). Five-fold mean V4FinBench AP:
+
+| seed | 48k | 480k | Δ | folds positive |
+| --- | --- | --- | --- | --- |
+| 0 | 0.1975 | 0.1865 | -0.0109 | 1 of 5 |
+| 1 | 0.1878 | 0.1775 | -0.0103 | 0 of 5 |
+
+Mean of Δ_0 and Δ_1: **-0.0106**, inside the 0.0117 yardstick (§173).
+
+- **Verdict under §171's rule: null.** "Helps" needs both Δ positive; "hurts" needs the mirror,
+  including a mean below -0.0117, which -0.0106 misses by 0.0011. Both seeds point the same way
+  (9 of 10 folds negative), so volume at this model size and prior does not help credit, and may
+  cost a little.
+- **The proxy, §171's secondary measure** (16 scorable binary tasks; `runs/dr73/`): seed 0, 480k
+  over 48k by +168 Elo, 14 of 16 tasks (p = 0.0042); seed 1, +186 Elo, 12 of 16 tasks (p = 0.077)
+  and 36 of 48 splits (p = 0.0007).
+- **Why the proxy branch does not fire.** §171 tied the proxy to "the DR4.2 proxy suite once
+  validated", and it is not validated (DR4.2's Spearman check against TabArena is open), and it
+  did not say which test makes the proxy "positive". Reading the proxy as positive now would be
+  choosing the rule after the result. The pre-declared action for that branch, 2M tasks on the
+  prior v2 trunk, is also undercut by §180's DR2.4 result, where the trunk alone collapsed to
+  0.0713 mean AP on V4FinBench.
+- **So the funded action is §171's "null on both" branch in substance: no 2M or 10M run at this
+  model size and prior.** Depth at volume (DR8.2, §184) is the one scale question still running.
+- **What it says for TabArena:** on general tabular data, volume is the one lever measured to move
+  this model (about +170 Elo on the proxy at both seeds); on credit it does not. That is the §116
+  pattern again, the two benchmarks disagreeing, and CLAUDE.md's rule is that the credit one
+  decides project claims.

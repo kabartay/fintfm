@@ -259,7 +259,7 @@
       disjoint indices; dumps kept only for byte-identity checks. Use both GPUs of a Kaggle T4x2.
       Verify: a test that the loader's batch i equals the dump's batch i, and that two workers
       give the same stream as one.
-- [ ] DR5.3 **Interim (2026-10-21, §176; 2026-10-23, §181): seed 0 is null on V4FinBench (Δ_0 = -0.0109) and positive on the proxy (+168 Elo, 14 of 16 tasks, p = 0.004), so seed 1 runs** (launched after the quota reset).
+- [x] DR5.3 **Done (2026-10-24, §188): null on V4FinBench at both seeds** (Δ -0.0109 and -0.0103, mean -0.0106 against the 0.0117 yardstick); positive on the unvalidated proxy at both seeds (+168, +186 Elo), which §171 did not make decisive. No 2M run at this size and prior. Earlier: **Interim (2026-10-21, §176; 2026-10-23, §181): seed 0 is null on V4FinBench (Δ_0 = -0.0109) and positive on the proxy (+168 Elo, 14 of 16 tasks, p = 0.004), so seed 1 runs** (launched after the quota reset).
       **E1: does volume help?** 48,000 against 480,000 tasks, seeds 0 and 1, one pinned
       commit, everything else fixed, the 48k arm retrained rather than reused (§158). Volume
       helps if the 480k arm's five-fold mean V4FinBench AP is positive at both seeds and their
