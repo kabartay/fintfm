@@ -12634,3 +12634,9 @@ In the same pool: KNN 775, `e1-v480-s0` 702, the published checkpoint 570.
   claims) and a general one (trunk prior, TabArena), would apply CLAUDE.md's "two families" rule to
   the prior. The general one's next measured step would be the trunk prior at 480,000 tasks, the
   two levers that each moved the proxy, about 9.5 T4x2 hours.
+- **§180's V4FinBench verdicts, recorded here** (five-fold mean AP; `compare_v4_scores.py --cluster`
+  outputs `runs/kaggle-ts-dr24-*-s0/cmp_vs_v48s0.txt`): against `e1-v48-s0` (0.1975), (a) -0.0212,
+  (b) -0.1262, (c) -0.0546, (d) -0.0358, each with 0 of 5 folds positive, so **all four harmful** under
+  §180's rule. Against `e1-v48-s1` (0.1878) they are -0.0116, -0.1166, -0.0450 and -0.0262, so (a) is
+  "no gain" rather than a measured loss once the control seed is allowed for, as with DR6.2 (§178).
+  The prediction (a null; b, c, d harmful) held.
