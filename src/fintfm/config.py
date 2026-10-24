@@ -227,6 +227,7 @@ class TrainConfigDefaults:
     seed: int = 0
     device: str = "cpu"
     run_steps: int | None = None
+    run_seconds: float | None = None
     resume: str | None = None
     init_from: str | None = None
     new_prior_phase: bool = False

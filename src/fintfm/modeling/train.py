@@ -81,6 +81,14 @@ class TrainConfig:
     #: so chunking a run changes nothing about it -- which is the whole point, and the reason
     #: this is a separate field rather than lowering ``steps``.
     run_steps: int | None = None
+    #: Training wall time in seconds for *this* invocation (design review DR8.2): the run
+    #: stops at the first step boundary at or after this many seconds since its step loop
+    #: began, and writes the checkpoint and ``.state`` exactly as :attr:`run_steps` does, so
+    #: a run longer than one session resumes with :attr:`resume`. Under ``--ddp`` rank 0's
+    #: clock decides and the decision is broadcast, so every rank stops at the same step. The
+    #: checkpoint's provenance records the stop under ``time_budget``. ``None`` (default)
+    #: reads no clock and changes no batch, weight or step count.
+    run_seconds: float | None = None
     #: Training state to resume from, written by :func:`_save_training_state`. Carries the
     #: optimiser moments, the schedule position, both RNG streams and the step counter --
     #: everything a bare model checkpoint lacks. Resuming from a model checkpoint alone would
@@ -235,12 +243,15 @@ def _check_train_config(train_cfg: TrainConfig) -> None:
             stream loader (every rank would draw the same sync batches) or with a task dump;
             ``"wsd"`` under schedule-free (which takes no external schedule); a ``"wsd"``
             decay that starts inside the warmup; ``new_prior_phase`` without ``resume``
-            (there is no earlier phase to follow); or a value out of range.
+            (there is no earlier phase to follow); or a value out of range (a negative
+            ``run_seconds`` among them).
     """
     if train_cfg.new_prior_phase and train_cfg.resume is None:
         raise ValueError(
             "--new-prior-phase needs --resume: a new prior phase continues a run's state"
         )
+    if train_cfg.run_seconds is not None and train_cfg.run_seconds < 0:
+        raise ValueError(f"run_seconds must be at least 0, got {train_cfg.run_seconds}")
     if train_cfg.loader not in LOADERS:
         raise ValueError(f"loader must be one of {LOADERS}, got {train_cfg.loader!r}")
     if train_cfg.loader_workers < 0 or train_cfg.loader_prefetch < 1:
@@ -1152,6 +1163,7 @@ def _training_provenance(
     init_from: dict[str, Any] | None,
     world_size: int = 1,
     prior_phases: list[dict[str, Any]] | None = None,
+    time_budget: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """The part of a checkpoint's provenance only the training loop knows (design review DR1.2).
 
@@ -1168,6 +1180,10 @@ def _training_provenance(
         world_size: Processes each step's batches came from (``--ddp``, DR5.2).
         prior_phases: The run's prior phases (:func:`_resolve_prior_phases`); recorded only
             when there is more than one, so a single-prior run's record is unchanged.
+        time_budget: This invocation's :attr:`TrainConfig.run_seconds` stop record
+            (``run_seconds``, ``start_step``, ``stop_step``, ``stopped_early`` and rank 0's
+            ``elapsed_seconds``); recorded only when given, so a run without the budget has
+            the record it always had.
 
     Returns:
         The full prior and training configurations, the configured and realised source
@@ -1178,7 +1194,8 @@ def _training_provenance(
         **After a new prior phase** (DR2.4) ``prior_config`` and ``source_shares`` are the
         current phase's, and ``prior_phases`` lists every phase with its ``from_step`` and
         ``to_step`` (exclusive; the last ends at ``steps_completed``), so the record states
-        each mixture and how many steps it trained.
+        each mixture and how many steps it trained. **Under a time budget** (DR8.2)
+        ``time_budget`` states where this invocation stopped and whether the clock stopped it.
     """
     record = {
         "prior_config": json_safe(asdict(prior_cfg)),
@@ -1199,7 +1216,51 @@ def _training_provenance(
     if prior_phases is not None and len(prior_phases) > 1:
         ends = [p["from_step"] for p in prior_phases[1:]] + [steps_done]
         record["prior_phases"] = [{**p, "to_step": end} for p, end in zip(prior_phases, ends)]
+    if time_budget is not None:
+        record["time_budget"] = time_budget
     return record
+
+
+def _training_clock() -> float:
+    """Seconds on a monotonic clock, read by the :attr:`TrainConfig.run_seconds` budget.
+
+    A function of its own so a test can replace it with a deterministic clock; the budget
+    measures elapsed wall time, which a wall-clock adjustment must not move.
+
+    Returns:
+        :func:`time.monotonic`.
+    """
+    return time.monotonic()
+
+
+def _time_budget_spent(
+    elapsed: float, run_seconds: float, world: int, device: torch.device | str
+) -> bool:
+    """Whether a :attr:`TrainConfig.run_seconds` budget is spent, agreed across ranks (DR8.2).
+
+    Each rank's clock reads a slightly different elapsed time, so a rank deciding alone could
+    stop one step before another, leaving the other waiting forever in its next gradient
+    reduction. Under ``--ddp`` rank 0's decision is therefore broadcast and every rank
+    returns it.
+
+    Args:
+        elapsed: Seconds this rank has spent in the step loop.
+        run_seconds: The budget.
+        world: Processes in the run; above 1 the decision is broadcast from rank 0, so every
+            rank must call this at the same step.
+        device: The rank's device, which holds the broadcast tensor (NCCL needs a CUDA one).
+
+    Returns:
+        ``True`` once rank 0's ``elapsed`` has reached ``run_seconds``.
+    """
+    spent = elapsed >= run_seconds
+    if world > 1:
+        import torch.distributed as dist
+
+        flag = torch.tensor([int(spent)], dtype=torch.int32, device=device)
+        dist.broadcast(flag, src=0)
+        spent = bool(flag.item())
+    return spent
 
 
 def check_model_matches_prior(model_cfg: ModelConfig, prior_cfg: PriorConfig) -> None:
@@ -1532,6 +1593,9 @@ def train(
             prior_phases=prior_phases,
         )
 
+    planned_stop = stop_step
+    time_budget: dict[str, Any] | None = None
+    loop_t0 = _training_clock() if train_cfg.run_seconds is not None else 0.0
     for step in range(start_step, stop_step):
         if stream is not None:
             _, batch = next(stream)  # already on the device, pinned on CUDA
@@ -1603,6 +1667,24 @@ def train(
                     f"  (base rate {q['base_rate']:.3f})"
                 )
             _set_optimizer_mode(opt, train_cfg.optimizer, "train")
+        if train_cfg.run_seconds is not None and step + 1 < planned_stop:
+            elapsed = _training_clock() - loop_t0
+            if _time_budget_spent(elapsed, train_cfg.run_seconds, world, device):
+                stop_step = step + 1
+                say(
+                    f"run-seconds: {elapsed:.0f}s of training reached the "
+                    f"{train_cfg.run_seconds:g}s budget; stopping at step {stop_step}",
+                    flush=True,
+                )
+                break
+    if train_cfg.run_seconds is not None:
+        time_budget = {
+            "run_seconds": train_cfg.run_seconds,
+            "start_step": start_step,
+            "stop_step": stop_step,
+            "stopped_early": stop_step < planned_stop,
+            "elapsed_seconds": round(_training_clock() - loop_t0, 3),
+        }
     if stream is not None:
         stream.close()  # shuts the loader's workers down
     _set_optimizer_mode(opt, train_cfg.optimizer, "eval")
@@ -1611,7 +1693,8 @@ def train(
             out_path,
             trained_objectives=tuple(sorted(objectives)),
             provenance=_training_provenance(
-                prior_cfg, train_cfg, stop_step, dump, init_record, world, prior_phases
+                prior_cfg, train_cfg, stop_step, dump, init_record, world, prior_phases,
+                time_budget,
             ),
         )
     save_state(f"{out_path}.state", stop_step)
@@ -2168,6 +2251,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="steps to run in THIS invocation; the LR schedule still spans --steps. Use when "
         "a run is longer than one job's wall-clock: each job saves <out>.state and "
         "prints the --resume line to continue with",
+    )
+    p.add_argument(
+        "--run-seconds",
+        type=float,
+        default=None,
+        help="training wall time in seconds for THIS invocation (design review DR8.2): stop at "
+        "the first step boundary after it, saving <out> and <out>.state as --run-steps does, "
+        "and record the stop step under time_budget in the checkpoint's provenance. Under "
+        "--ddp rank 0's clock decides for every rank. Combines with --run-steps (whichever "
+        "comes first); defaults to no limit",
     )
     p.add_argument(
         "--init-from",

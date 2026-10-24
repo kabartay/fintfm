@@ -55,8 +55,8 @@ validation while not being it.
 
 `configs/published/` holds the training recipe of each published checkpoint, and inverts the
 rule above on purpose: it states every `model`, `prior` and `train` key `fintfm-train` reads,
-leaving only the per-invocation ones (`device`, `run_steps`, `resume`, `init_from`,
-`new_prior_phase`) to the command line. An override that inherits a key moves when the packaged default moves, which is
+leaving only the per-invocation ones (`device`, `run_steps`, `run_seconds`, `resume`,
+`init_from`, `new_prior_phase`) to the command line. An override that inherits a key moves when the packaged default moves, which is
 right for an experiment and wrong for a record of what produced a set of weights.
 
 ```bash

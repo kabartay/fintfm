@@ -197,11 +197,12 @@ _TINY_CLI = [
 ]
 
 
-def _torchrun(args: list[str]) -> subprocess.CompletedProcess:
+def _torchrun(args: list[str], script: str | None = None) -> subprocess.CompletedProcess:
     """Launch ``fintfm-train`` on two CPU (gloo) ranks with ``torchrun``, loopback only.
 
     ``--standalone`` advertises the machine's hostname, which does not always resolve (it
-    hung here on macOS), so the rendezvous is pinned to 127.0.0.1 on a free port.
+    hung here on macOS), so the rendezvous is pinned to 127.0.0.1 on a free port. With
+    ``script`` the two ranks run that file with ``args`` instead of ``fintfm-train``.
     """
     import socket
 
@@ -212,10 +213,12 @@ def _torchrun(args: list[str]) -> subprocess.CompletedProcess:
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         port = s.getsockname()[1]
+    target = (["-m", "fintfm.modeling.train", *_TINY_CLI, *args, "--ddp"] if script is None
+              else [script, *args])
     proc = subprocess.run(
         [sys.executable, "-m", "torch.distributed.run", "--nnodes", "1", "--nproc-per-node",
          "2", "--master-addr", "127.0.0.1", "--master-port", str(port), "--local-addr",
-         "127.0.0.1", "-m", "fintfm.modeling.train", *_TINY_CLI, *args, "--ddp"],
+         "127.0.0.1", *target],
         env=env, capture_output=True, text=True, timeout=300, check=False,
     )
     assert proc.returncode == 0, proc.stdout[-3000:] + proc.stderr[-3000:]
@@ -286,6 +289,56 @@ def test_two_process_run_resumes_to_the_uninterrupted_weights(tmp_path):
     _torchrun(["--steps", "4", "--run-steps", "2", "--out", str(tmp_path / "part.pt")])
     state = torch.load(tmp_path / "part.pt.state", weights_only=False)
     assert state["world_size"] == 2 and len(state["torch_rng_ranks"]) == 2
+    _torchrun(["--steps", "4", "--resume", str(tmp_path / "part.pt.state"),
+               "--out", str(tmp_path / "resumed.pt")])
+    whole = FinancialTFM.load(str(tmp_path / "whole.pt"))
+    resumed = FinancialTFM.load(str(tmp_path / "resumed.pt"))
+    for (name, a), (_, b) in zip(whole.state_dict().items(), resumed.state_dict().items()):
+        assert torch.equal(a, b), name
+
+
+#: Two ranks whose clocks disagree: rank 0 alone has spent the budget, then rank 1 alone.
+_BUDGET_SCRIPT = '''
+import torch.distributed as dist
+
+from fintfm.modeling.train import _time_budget_spent
+
+dist.init_process_group("gloo")
+rank = dist.get_rank()
+first = _time_budget_spent(10.0 if rank == 0 else 0.0, 5.0, 2, "cpu")
+second = _time_budget_spent(0.0 if rank == 0 else 10.0, 5.0, 2, "cpu")
+print(f"rank {rank}: {first} {second}", flush=True)
+dist.destroy_process_group()
+'''
+
+
+@_NEEDS_GLOO
+def test_two_ranks_take_rank_zeros_time_budget_decision(tmp_path):
+    """Design review DR8.2: under ``--ddp`` each rank reads its own clock, and a rank that
+    stopped alone would leave the other waiting in its next reduction. Rank 0's decision is
+    broadcast, so both ranks stop when rank 0's budget is spent and neither stops when only
+    rank 1's is."""
+    script = tmp_path / "budget.py"
+    script.write_text(_BUDGET_SCRIPT)
+    proc = _torchrun([], script=str(script))
+    assert "rank 0: True False" in proc.stdout and "rank 1: True False" in proc.stdout
+
+
+@_NEEDS_GLOO
+def test_two_process_run_seconds_stop_resumes_to_the_uninterrupted_weights(tmp_path):
+    """A ``--ddp`` run stopped by ``--run-seconds`` (0 here, so it stops at the first step
+    boundary) exits cleanly on both ranks at one step, records the stop, and resumed to the
+    full ``--steps`` equals the uninterrupted run bit for bit."""
+    from fintfm.modeling.model import FinancialTFM
+    from fintfm.provenance import read_checkpoint_provenance
+
+    _torchrun(["--steps", "4", "--out", str(tmp_path / "whole.pt")])
+    proc = _torchrun(["--steps", "4", "--run-seconds", "0", "--out", str(tmp_path / "part.pt")])
+    assert proc.stdout.count("stopping at step 1") == 1  # rank 0 alone logs
+    budget = read_checkpoint_provenance(tmp_path / "part.pt")["time_budget"]
+    assert (budget["stop_step"], budget["stopped_early"]) == (1, True)
+    state = torch.load(tmp_path / "part.pt.state", weights_only=False)
+    assert state["step"] == 1 and len(state["torch_rng_ranks"]) == 2
     _torchrun(["--steps", "4", "--resume", str(tmp_path / "part.pt.state"),
                "--out", str(tmp_path / "resumed.pt")])
     whole = FinancialTFM.load(str(tmp_path / "whole.pt"))

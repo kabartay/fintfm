@@ -12285,6 +12285,115 @@ Six arms at alpha 0.05 expect 0.3 false candidates, which the V4FinBench step ca
 **Prediction:** `ens8` and `ens8-tf` candidates (the peers' main inference lever), `ctx8k`
 candidate on the larger tasks only, `retrieval` and `ft200` not.
 
+## §184: DR8.2, depth at 480,000 tasks (pre-registration draft)
+
+**PRE-REGISTERED (draft), 2026-10-24, before the arm trains** (design review DR8.2). §114 closed
+parameter scale at 48,000 tasks, where a larger model is data-starved, and its scope note leaves
+scale at a larger task volume untested. E1 now gives one volume at which the published width
+gains: `e1-v480-s0` beats `e1-v48-s0` on the proxy suite at seed 0 (+168 Elo [+50, +326], 14 of
+16 binary tasks, §181) and is null on V4FinBench (Δ -0.0109 mean AP, inside the 0.0117 yardstick,
+§176). This arm asks whether depth, the axis §114 could not score, pays at that volume. Width is
+DR8.2's other half and is not part of this registration.
+
+**Arm: `dr82-depth8-s0`.** `e1-v480-s0`'s recipe exactly (§171: `configs/published/
+v4-cellattn-labels.yaml`, fp16, split attention, streaming loader, DDP on a T4x2 at 4 tasks per
+rank, global batch 8, cosine schedule, seed 0, 60,000 steps, 480,000 tasks) plus `--n-layers 8`.
+Everything else is the recipe's: d_model 128, 4 heads, d_ff 512, 2 column layers, 1 cell block.
+That is 1,678,738 parameters against the control's 885,650 (1.9 times; counted from the built
+model at both settings). Pinned at **e493123**. No commit from 5e0fad0 (where §180 checked the
+recipe's stream batches and weights against d05ea19's on CPU) to e493123's parent touches
+`src/fintfm/modeling` or `src/fintfm/prior`, and e493123 adds only `--run-seconds`, whose default
+reads no clock (`test_run_seconds_default_reads_no_clock`). The inference changes since 5e0fad0
+(DR8.3's `select`, DR8.4) sit behind settings left at their off values; the scoring path was not
+re-checked byte for byte against d05ea19's. Kernels:
+`scripts/kaggle/ts_dr82_depth8_s0_p1/` and `scripts/kaggle/ts_dr82_depth8_s0_p2/`, written by
+`scripts/kaggle/train_score/make_train_score.py dr82-depth8-s0`.
+
+**Two sessions, because the arm cannot fit one.** Session 1 (`fintfm-ts-dr82-depth8-s0-p1`)
+trains with `--run-seconds 30600` (8.5 h): the run stops at the first step boundary after that
+much training wall time and writes `dr82-depth8-s0.pt` and its `.state`, as `--run-steps` does,
+with the stop step under `time_budget` in the checkpoint's provenance; it is not scored. Session
+2 (`fintfm-ts-dr82-depth8-s0-p2`) attaches session 1's output as a kernel source, finds the one
+`dr82-depth8-s0.pt.state` under `/kaggle/input` (it stops if there is not exactly one, since
+Kaggle's mount layout for a kernel source was not confirmed from its documentation), copies it
+and the checkpoint into `/kaggle/working`, resumes to 60,000 steps and scores. The resume carries
+the optimiser moments, the schedule position, both RNG streams and each rank's torch generator,
+so the two sessions train the weights one session would: on CPU
+`test_run_seconds_stop_resumes_to_the_uninterrupted_weights` (one process) and
+`test_two_process_run_seconds_stop_resumes_to_the_uninterrupted_weights` (two gloo ranks, bit for
+bit), and `test_two_ranks_take_rank_zeros_time_budget_decision` checks that both ranks stop at rank
+0's step. Neither has run on a T4x2 or under fp16; the first minutes of session 2's log (the
+"resumed from ... at step N" line and the loss level beside session 1's last) are the check.
+
+**Control: `e1-v480-s0`** (d05ea19), existing: five-fold mean AP 0.1865 (0.1864, 0.1749, 0.1802,
+0.1834, 0.2077; §176) and proxy Elo 699 in §182's pool. No second seed of either arm exists yet;
+`e1-v480-s1` is E1's own replicate.
+
+**Measures.**
+- **Primary, V4FinBench:** five-fold mean AP, zero-shot, scored by the same kernel template as the
+  control, with a paired company-level bootstrap per fold:
+  `scripts/compare_v4_scores.py --cluster --control runs/kaggle-ts-e1-v480-s0/e1-v480-s0/score
+  dr82-depth8=runs/kaggle-ts-dr82-depth8-s0-p2/dr82-depth8-s0/score`.
+- **Secondary, the proxy suite:** the 16 binary tasks within the feature cap, 3 OpenML splits
+  each, `python -m fintfm.evaluation.proxy_suite run --model <arm> --no-baselines`, then
+  `proxy_suite compare --unit task <arm csv> runs/dr73/proxy_e1_v480-s0.csv` (per-task two-sided
+  sign test, and Elo with the control at 1,000).
+
+**Rule**, with Δ = arm mean AP minus `e1-v480-s0`'s.
+- **Promising on V4FinBench** if Δ > 0.0117 (the pretraining yardstick, §173) with at least 4 of
+  5 folds positive. **Harmful on V4FinBench** under the mirror: Δ < -0.0117 with at least 4 of 5
+  folds negative. Otherwise **null on V4FinBench**.
+- **Promising on the proxy** if the arm beats the control on more tasks than it loses with a
+  two-sided per-task sign test p < 0.05. **Harmful on the proxy** under the mirror. Otherwise
+  **null on the proxy**.
+- **The arm is promising** if it is promising on either measure and harmful on neither. It is
+  **mixed** if promising on one and harmful on the other, **harmful** if harmful on either and
+  promising on neither, and **null** otherwise. V4FinBench decides any adoption: a proxy-only
+  result is a lead for breadth, not a credit result (`CLAUDE.md`), and the proxy has not passed
+  DR4.2's validation against TabArena.
+
+Secondary, reported but not decided on: seconds per step against the control's 0.530 (31,806 s
+for 60,000 steps, from its `train.log`), V4FinBench scoring time against the control's (§114:
+depth costs inference time roughly linearly), and the held-out synthetic AUC in the training log
+at the steps both arms log.
+
+**Pre-declared actions.**
+- **Promising, through V4FinBench:** a seed-1 replicate (`dr82-depth8-s1`), and the arm is
+  carried into DR6.4's matched comparison only if it is positive at both seeds. Inference cost is
+  then measured before any adoption, since §114 found depth infeasible on TabArena's time limit.
+- **Promising on the proxy only:** no adoption for credit; the replicate is funded only if E1's
+  seed 1 also keeps the proxy branch of §171 open, and the arm joins the 2M-task plan as a
+  candidate shape rather than as a result.
+- **Null:** depth at 480,000 tasks is not worth its inference cost; DR8.2's width arm is the
+  remaining scale question at this volume, and no deeper arm (12 or 16 layers) is run on this
+  evidence.
+- **Harmful or mixed:** depth is closed at this volume as §114 closed it at 48,000; a harmful
+  V4FinBench result with a positive proxy is recorded as the §115/§116 pattern (a general-tabular
+  gain that costs credit), not averaged away.
+
+**Prediction:** null on V4FinBench, as E1's volume was (§176), and promising on the proxy, where
+capacity and volume have so far moved together (§181, §182).
+
+**Cost.** MEASURED on this Mac's CPU, 2026-10-24: `fintfm-train --config
+configs/published/v4-cellattn-labels.yaml --device cpu --threads 2 --benchmark-steps 5` (3 untimed
+warmup steps, the same seed-0 batches for both), 136.2 s for 5 steps at 4 layers and 138.8 s at
+8, so **8 layers cost 1.019 times 4 layers per step**; peak RSS 13.9 GB and 14.0 GB. The machine
+was under a load average near 23 from other jobs, and the CPU run used fp32 masked attention,
+not E1's fp16 split attention, so the ratio is the share of a CPU step the row-attention layers
+take (small beside the cell-attention block over up to 1,024 rows and 136 features), not a GPU
+measurement.
+
+ESTIMATED from that ratio and the control's MEASURED 0.530 s per step on a T4x2: **0.540 s per
+step**, so 32,400 s (9.0 h) of training for 60,000 steps, plus scoring at about 2,100 s times the
+same ratio (0.6 h), about **9.6 GPU-hours in all**. Session 1 then reaches about step 56,600 in
+its 30,600 s (8.5 h, about 8.6 h with installation), and session 2 trains the remaining 3,400 or
+so steps and scores in about 1.1 h. The whole arm would fit one 12 h session at this estimate;
+the two sessions are there because about 9.5 GPU-hours are available this week and because the
+estimate is not a GPU measurement. **The check:** session 1's log line at step 1,000, against
+the control's 522 s and this estimate's 532 s. If depth cost the full doubling on the GPU (1.06 s
+per step), the arm would need about 19 h, two full sessions, and still not exceed the 20 h at
+which a 6-layer arm would be the fallback.
+
 ## §185: DR7.4, a multiclass arm at the current recipe (pre-registered)
 
 **PRE-REGISTERED, 2026-10-24, before the arm trains.** One seed, the first half of DR7.4; the
