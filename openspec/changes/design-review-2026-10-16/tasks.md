@@ -450,7 +450,8 @@ DR6.2/DR6.3 did not, and boosters lead by 3.5x on SBA.
       tasks against `e1-v480-s0`, pre-registered with §173's yardstick. Blocked by GPU quota and
       E1's seed-1 verdict.
       Verify: the pre-registration and verdict in FINDINGS.
-- [ ] DR8.3 **Wide data handled, not subsampled.** §182: subsampling scores wide tasks near the
+- [ ] DR8.3 **Column selection measured (2026-10-24, §190): no gain, and a loss on Internet-Advertisements**; built behind `max_features_strategy: select` (3a63d7b). Open: the `max_features` 512 checkpoint.
+      **Wide data handled, not subsampled.** §182: subsampling scores wide tasks near the
       floor. Compare a column-selection front end (mutual information or a booster's importance,
       fitted on the training split only) against a checkpoint trained at `max_features` 512, on
       the proxy's wide tasks first.

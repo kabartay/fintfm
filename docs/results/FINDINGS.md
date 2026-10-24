@@ -12586,3 +12586,23 @@ Average precision per split:
   Three splits per dataset and untuned boosters: this is a system result (FinTFM plus a booster),
   reported as such per AU4.4, not a FinTFM result. A tuned LightGBM is the fair next control.
 - **Cost:** the out-of-fold logits took up to 1,791 s per split on SBA (138,004 training rows).
+
+## §190 — DR8.3: column selection does not rescue wide tasks; the checkpoint is the limit
+
+**MEASURED, 2026-10-24**, `configs/arms/dr83-select.yaml` (`max_features_strategy: select`,
+ExtraTrees importance on the training rows, 4 members; 3a63d7b) on the proxy's three wide tasks,
+3 splits each (`runs/dr83/`), beside §182's subsampling arm:
+
+| task (columns) | select | subsample | best baseline |
+| --- | --- | --- | --- |
+| madelon (500), 1 - ROC-AUC | 0.385 | 0.377 | 0.094 LightGBM |
+| Internet-Advertisements (1,558), 1 - ROC-AUC | **0.447** | 0.269 | 0.013 RF |
+| mfeat-factors (216, multiclass), log-loss | 1.96 | 1.99 | 0.082 Linear |
+
+- **No gain on madelon or mfeat-factors, and a loss on Internet-Advertisements.** The selector
+  works (on madelon it keeps all 20 informative columns, and a random forest on its 136 columns
+  scores 0.077 against 0.161 on all 500), so the right columns reach FinTFM and it still cannot use
+  them. Internet-Advertisements is almost all sparse 0/1 indicators, where ranking by impurity keeps
+  a set the model reads worse than a random spread of columns.
+- **DR8.3's first route is closed; the second, a checkpoint trained at `max_features` 512, is what
+  remains**, and it is a pretraining run, so it goes through the same V4FinBench-first rule.
