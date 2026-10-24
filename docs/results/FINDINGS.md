@@ -12498,3 +12498,29 @@ Mean log-loss over 3 splits:
   differ from the control.
 - **Pre-declared action: a seed-1 replicate before anything is adopted**, then DR7.4's volume step.
   Not on this week's quota (DR8.2 holds it); queued for the next reset.
+
+## §187 — §183's inference-lever sweep: 8 members and retrieval are proxy candidates; fine-tuning stopped for cost
+
+**MEASURED, 2026-10-24**, §183's arms on the proxy's 16 scorable binary tasks against the published
+checkpoint at the packaged defaults, per-task two-sided sign test (`proxy_suite compare --unit task`,
+CSVs `runs/dr73/proxy_lever_*.csv`):
+
+| arm | wins / losses / ties | p | verdict |
+| --- | --- | --- | --- |
+| `ens8` | 13 / 2 / 1 | 0.0074 | **candidate** |
+| `retrieval` | 8 / 1 / 7 | 0.039 | **candidate** |
+| `ens8-swap` | 11 / 5 / 0 | 0.21 | not |
+| `ens8-tf` | 11 / 5 / 0 | 0.21 | not |
+| `ctx8k` | 6 / 2 / 8 | 0.29 | not (8 tasks have fewer than 2,000 training rows, so no change) |
+| `ft200` | stopped | | not decided |
+
+- **Deviation from §183, stated:** `ft200` (200 fine-tuning steps per fit) cost about 2,000 s of CPU
+  per split, so the 16 tasks would have taken about 27 h and held every other queued job. It was
+  stopped after `kr-vs-kp`'s 3 splits (1 - ROC-AUC 0.0157 on split 2, against the default's 0.0439
+  mean over the three), which is one task and decides nothing. It reruns later on the smaller
+  tasks as a separate, separately labelled arm.
+- **Per §183 the two candidates are scored five-fold on V4FinBench before they are believed**
+  (queued: `runs/v4-lever-retrieval`, `runs/v4-lever-ens8`); the gains are small,
+  typically 0.002 to 0.007 in 1 - ROC-AUC per task for `ens8`.
+- The prediction held for `ens8` and failed for `ens8-tf` (not a candidate) and `retrieval` (a
+  candidate).
