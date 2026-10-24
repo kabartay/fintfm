@@ -12606,3 +12606,31 @@ ExtraTrees importance on the training rows, 4 members; 3a63d7b) on the proxy's t
   a set the model reads worse than a random spread of columns.
 - **DR8.3's first route is closed; the second, a checkpoint trained at `max_features` 512, is what
   remains**, and it is a pretraining run, so it goes through the same V4FinBench-first rule.
+
+## §191 — DR2.4 on the proxy: the general-trunk priors are the best FinTFM checkpoints there, the reverse of V4FinBench
+
+**MEASURED, 2026-10-24**, §180's four arms on the proxy suite's 16 scorable binary tasks
+(`runs/dr73/proxy_arm_dr24-*.csv`), against `e1-v48-s0` (per-task sign test) and in one arena pool
+with every checkpoint so far (`scripts/proxy_arena.py`, RF at 1,000):
+
+| arm | proxy Elo | per task vs `e1-v48-s0` | V4FinBench mean AP (§180) |
+| --- | --- | --- | --- |
+| (c) trunk, then financial v2 | **764** | 13 / 3, p = 0.021 | 0.1428 |
+| (b) trunk alone | 729 | 14 / 2, p = 0.0042 | 0.0713 |
+| (d) interleaved | 721 | 13 / 3, p = 0.021 | 0.1616 |
+| (a) financial v2 alone | 610 | 9 / 7, p = 0.80 | 0.1762 |
+| control `e1-v48-s0` | 548 | | 0.1975 |
+
+In the same pool: KNN 775, `e1-v480-s0` 702, the published checkpoint 570.
+
+- **At 48,000 tasks the general trunk does on the proxy what ten times the financial-prior volume
+  does (§188), and more:** arm (c) at 764 is level with KNN (775), the first FinTFM checkpoint to be.
+- **On V4FinBench the same arms are the worst** (arm (b) 0.0713 against 0.1975). This is §116 at the
+  scale of the whole prior: what teaches general tabular data unteaches low-default credit.
+- **The order matters on both benchmarks:** trunk-then-financial (c) beats interleaved (d) on the
+  proxy and loses to it on V4FinBench.
+- **Decision for the owner, not taken here:** one checkpoint cannot currently serve both
+  benchmarks. Two separately named checkpoints, a credit one (financial prior, the V4FinBench
+  claims) and a general one (trunk prior, TabArena), would apply CLAUDE.md's "two families" rule to
+  the prior. The general one's next measured step would be the trunk prior at 480,000 tasks, the
+  two levers that each moved the proxy, about 9.5 T4x2 hours.
