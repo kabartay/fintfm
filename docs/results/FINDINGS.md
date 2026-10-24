@@ -12640,3 +12640,29 @@ In the same pool: KNN 775, `e1-v480-s0` 702, the published checkpoint 570.
   §180's rule. Against `e1-v48-s1` (0.1878) they are -0.0116, -0.1166, -0.0450 and -0.0262, so (a) is
   "no gain" rather than a measured loss once the control seed is allowed for, as with DR6.2 (§178).
   The prediction (a null; b, c, d harmful) held.
+
+## §192 — §183's fine-tuning arm, run on a GPU: 200 steps per fit beat the default on 16 of 16 proxy tasks
+
+**MEASURED, 2026-10-24**, the `ft200` arm (`finetune_steps: 200`, everything else at the packaged
+defaults, the published checkpoint) on the proxy suite's 16 scorable binary tasks, run on Hugging
+Face Jobs (A10G, 2 then 1 process; pinned commit, the lock file's numpy/pandas/scikit-learn/scipy/
+pyarrow versions; logs `runs/hf_ft200_job*.log`, merged CSV `runs/dr73/proxy_lever_ft200_hf.csv`).
+
+**Deviation from §183, stated before reading the result:** one split per task (split 0), not three,
+to fit the budget; the comparison is against the default's own split 0
+(`runs/dr73/proxy_binary_default_split0.csv`), so both sides see identical rows.
+
+- **16 wins, 0 losses** (two-sided per-task sign test p = 3e-5). The gain is largest where the
+  default is weakest: wilt 0.216 to 0.049 (1 - ROC-AUC), pc1 0.289 to 0.142, banknote-authentication
+  0.062 to 0.011, dresses-sales 0.514 to 0.434, climate-model-simulation-crashes 0.310 to 0.245;
+  smallest on the near-solved wdbc and breast-w.
+- **Arena on split 0** (RF at 1,000; one split per task, so wide intervals): fine-tuned **726**
+  [527, 865] against the default's 419 [209, 555], **+307**; LightGBM 1060, ExtraTrees 978, Linear 961,
+  KNN 676. The first FinTFM configuration above KNN on the same rows.
+- **Credit already agrees:** §163 measured the same 200-step recipe at +0.0076 five-fold mean AP on
+  V4FinBench, 5 of 5 folds positive at one fine-tuning seed. Fine-tuning is the one lever positive
+  on both benchmarks, which §183's V4FinBench-before-belief rule asks for.
+- **Cost is the catch:** 62 to 638 s per fit on an A10G, about 2,000 s on this Mac's CPU. TabArena
+  fits each dataset 8 times (bagging), so a fine-tuned TabArena run needs a GPU.
+- **Spend:** about $2.80 of Hugging Face credit across this arm's runs, including three that failed
+  for an unpinned pandas/scikit-learn pairing and GPU memory (ESTIMATED from flavour price × runtime).
