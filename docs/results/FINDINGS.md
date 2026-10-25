@@ -12723,11 +12723,23 @@ full panel. Log `runs/v4-lever-retrieval.log`, scores `runs/v4-lever-retrieval/`
   across commits.
 - **Not adopted.** The proxy result (§187: 8 wins, 1 loss, 7 ties, p = 0.039) does not transfer to
   credit, the §115/§116 pattern again: a proxy gain that costs credit.
-- **The size is unexplained and may be a defect rather than an effect.** Logistic regression on
-  the same folds scores 0.1655 mean AP, so the panel is not the problem. One candidate: retrieval
-  picks neighbours by distance over 130 features at a 0.36% default rate, and a neighbourhood
-  holding few or no defaults would leave the model nothing to read; `retrieval_min_positive` is 8
-  of 2,000 rows. Not checked: the context's positive count and base rate per query group, which
-  `CLAUDE.md` requires printed beside the population's. That diagnostic is filed as a follow-up;
-  until it runs, this section says "retrieval as configured fails on V4FinBench", not "retrieval
-  fails".
+- **Cause, fold 0 (MEASURED, `uv run --extra bench python scripts/retrieval_plan_diag.py`, output
+  `runs/v4-lever-retrieval/diag_fold0.txt`).** The script rebuilds the run's retrieval plan (same
+  split, preprocessing and `random_state`, no forward pass; the saved `y_true` matches the rebuilt
+  test split) and joins it to the saved predictions:
+  - **The contexts are 27 times richer in defaults than the pool:** pooled context rate 9.74%
+    against the pool's 0.3546%, 136 groups, 45 to 222 positives per 2,000-row context (median
+    193). No group sits at the `retrieval_min_positive` floor of 8, so the floor is not the
+    mechanism.
+  - **They are the same defaults over and over:** 540 of the pool's 2,128 positives ever enter a
+    context, and the median one appears in 51 of the 136 groups. Not a missing-data artefact:
+    retrieved positives miss 8.7% of features, all pool positives 8.6%.
+  - **Ranking breaks inside groups, not only between them:** within-group ROC-AUC 0.8688
+    (weighted by test positives, the 19 groups holding all 741), against the default's pooled
+    0.9886. The group-mean score alone ranks at chance (ROC-AUC 0.5076), so the single pooled
+    shift is not the problem either; it cannot reorder anything by construction.
+  - So retrieval as configured shows the model an unrepresentative, heavily repeated set of
+    defaults near every group's centroid. Read as an effect of the strategy on this panel, not a
+    code defect: the plan does what `retrieve` documents. Why the same 540 sit near every
+    centroid is not measured; §1.1 of the 2026-10-16 design review (the gated label) is the
+    first place to look.

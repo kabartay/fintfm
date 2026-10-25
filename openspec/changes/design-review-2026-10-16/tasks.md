@@ -441,7 +441,7 @@
 Filed after §176-§182: volume is the one lever that moved FinTFM (+140 proxy Elo at 480k tasks),
 DR6.2/DR6.3 did not, and boosters lead by 3.5x on SBA.
 
-- [ ] DR8.1 **Proxy sweep done (§187): `ens8` and `retrieval` candidates. V4FinBench (2026-10-25, §194): `retrieval` collapses to 0.0126 mean AP against 0.1986, 5 of 5 folds, not adopted; cause unchecked (print the retrieved context's positive count and base rate per query group). `ens8` five-fold V4FinBench running.** **Inference-lever sweep on the proxy** (pre-registered §183): 8-member ensembles,
+- [ ] DR8.1 **Proxy sweep done (§187): `ens8` and `retrieval` candidates. V4FinBench (2026-10-25, §194): `retrieval` collapses to 0.0126 mean AP against 0.1986, 5 of 5 folds, not adopted; the contexts are 9.74% positive against a 0.35% pool, drawn from the same 540 of 2,128 positives (fold 0 diagnostic); why those sit near every centroid is open. `ens8` five-fold V4FinBench running.** **Inference-lever sweep on the proxy** (pre-registered §183): 8-member ensembles,
       label swap, mixed transforms, an 8,000-row context, retrieval, 200 fine-tuning steps; a
       proxy candidate is scored on V4FinBench before it is believed.
       Verify: each arm's per-task sign test against the default in FINDINGS.
