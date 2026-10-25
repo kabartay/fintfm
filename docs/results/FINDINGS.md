@@ -12666,3 +12666,68 @@ to fit the budget; the comparison is against the default's own split 0
   fits each dataset 8 times (bagging), so a fine-tuned TabArena run needs a GPU.
 - **Spend:** about $2.80 of Hugging Face credit across this arm's runs, including three that failed
   for an unpinned pandas/scikit-learn pairing and GPU memory (ESTIMATED from flavour price × runtime).
+
+## §193 — DR8.2's depth arm on V4FinBench: null at 480,000 tasks (proxy half pending)
+
+**MEASURED, 2026-10-25**, `dr82-depth8-s0` (§184's registration: `e1-v480-s0`'s recipe plus
+`--n-layers 8`, pinned e493123, Kaggle T4x2 in two sessions) against `e1-v480-s0`, five-fold
+V4FinBench, zero-shot, full panel (fold 0: 600,120 training rows, 200,361 test rows, the same
+rows as the control). Scores: `runs/kaggle-ts-dr82-depth8-s0-p2/dr82-depth8-s0/score/`; paired
+bootstrap: `runs/kaggle-ts-dr82-depth8-s0-p2/cmp_vs_e1v480s0.txt`.
+
+| fold | control AP | arm AP | diff | 95% CI (companies) | Holm p (companies) |
+| --- | --- | --- | --- | --- | --- |
+| 0 | 0.1864 | 0.1875 | +0.0011 | [-0.0056, +0.0076] | 1.000 |
+| 1 | 0.1749 | 0.1760 | +0.0011 | [-0.0060, +0.0082] | 1.000 |
+| 2 | 0.1802 | 0.1760 | -0.0042 | [-0.0108, +0.0027] | 0.856 |
+| 3 | 0.1834 | 0.1588 | -0.0246 | [-0.0355, -0.0147] | 0.002 |
+| 4 | 0.2077 | 0.2110 | +0.0034 | [-0.0041, +0.0113] | 0.945 |
+
+- **Δ = -0.0047 mean AP, 3 of 5 folds positive: null on V4FinBench** under §184's rule (neither
+  |Δ| > 0.0117 nor 4 of 5 folds one way). The prediction held for this half. Mean ROC-AUC
+  0.9872.
+- **One fold carries the whole loss.** Fold 3 alone survives Holm correction (-0.0246); the other
+  four sit within ±0.005 and overlap zero. Not decided on, recorded so a seed-1 replicate can say
+  whether fold 3 is the arm or the seed.
+- **The two-session resume worked on a T4x2 under fp16**, which §184 left as the open check:
+  session 2's log reads "resumed from ... at step 53552/60000" and trains to step 60,000 (final
+  loss 0.1784). Session 1 reached step 53,552 in its 30,600 s budget, against §184's estimate of
+  about 56,600, so depth cost more per step on the GPU than the 1.019 CPU ratio implied
+  (ESTIMATED from those step counts, about 0.57 s per step against the control's 0.530).
+  Session 2 ran 6,349 s including scoring.
+- **Still open:** the proxy half (`proxy_suite run` on the 16 binary tasks, then `compare --unit
+  task` against `runs/dr73/proxy_e1_v480-s0.csv`). The verdict on the arm waits for it; it runs on
+  this Mac after the `ens8` V4FinBench check, one heavy job at a time.
+
+## §194 — §183's `retrieval` candidate on V4FinBench: AP collapses to 0.0126
+
+**MEASURED, 2026-10-25**, the published `v4-cellattn-labels.pt` with `context_strategy:
+retrieval` (`configs/arms/proxy/retrieval.yaml`, everything else at the packaged defaults,
+`max_context` 2000, one member), `fintfm-v4protocol --no-boosting --device cpu`, commit d9bc7f0,
+full panel. Log `runs/v4-lever-retrieval.log`, scores `runs/v4-lever-retrieval/`.
+
+| fold | default (`runs/lrsweep/eval-published`) | `retrieval` |
+| --- | --- | --- |
+| 0 | 0.2113 | 0.0144 |
+| 1 | 0.2050 | 0.0104 |
+| 2 | 0.1786 | 0.0131 |
+| 3 | 0.1810 | 0.0123 |
+| 4 | 0.2172 | 0.0129 |
+| mean AP | 0.1986 | **0.0126** |
+| mean ROC-AUC | 0.9886 | 0.8703 |
+
+- **Harmful on V4FinBench, by a factor of about 16 in AP, on 5 of 5 folds.** Both runs score the
+  same rows (fold 0: 600,120 training, 200,361 test) at the same `max_context`. The default
+  column is the published checkpoint's earlier five-fold score (§128's reference table, 0.1986),
+  not a same-day rerun; no change since then explains a loss of this size, but the comparison is
+  across commits.
+- **Not adopted.** The proxy result (§187: 8 wins, 1 loss, 7 ties, p = 0.039) does not transfer to
+  credit, the §115/§116 pattern again: a proxy gain that costs credit.
+- **The size is unexplained and may be a defect rather than an effect.** Logistic regression on
+  the same folds scores 0.1655 mean AP, so the panel is not the problem. One candidate: retrieval
+  picks neighbours by distance over 130 features at a 0.36% default rate, and a neighbourhood
+  holding few or no defaults would leave the model nothing to read; `retrieval_min_positive` is 8
+  of 2,000 rows. Not checked: the context's positive count and base rate per query group, which
+  `CLAUDE.md` requires printed beside the population's. That diagnostic is filed as a follow-up;
+  until it runs, this section says "retrieval as configured fails on V4FinBench", not "retrieval
+  fails".

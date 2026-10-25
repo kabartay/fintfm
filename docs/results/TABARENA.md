@@ -232,6 +232,25 @@ missingness mask), the A/B finds no cost at this resolution, and the one large m
 may not choose an arm (DR4.1), so it is reported, not used to decide. One split cannot separate a
 real effect of 0.005 from noise; the result is "no measurable difference", not "no difference".
 
+## E1's 480,000-task checkpoint on TabArena-Lite (2026-10-24, reporting only)
+
+**MEASURED, no measurable change.** TabArena-Lite, the 27 binary datasets (27 of 51, 53%
+coverage), the default config, NaN passed through, checkpoint `e1-v480-s0` (`runs/kaggle-ts-e1-
+v480-s0/e1-v480-s0/e1-v480-s0.pt`, fintfm `FINDINGS.md` §176), the adapter's default `max_context` of 1000 (the run name says 1024; no override was set), fork branch
+`fintfm-audit-fixes`. Log `runs/lite_e1v480s0.log`; results under the fork's
+`experiments/fintfm_lite_e1v480s0_1024/`.
+
+Elo **842 (+139/-213), 94th of 95**, against 756 (+126/-180) for the published checkpoint with
+NaN passed through in the 2026-10-19 run above: +86 Elo, inside either interval, same rank. Lite
+reports and never selects (DR4.1), and E1's verdict was already taken on V4FinBench (§188: null
+at both seeds), so this changes nothing; it records that ten times the pretraining tasks does not
+move the TabArena standing either.
+
+The DR7.4 multiclass checkpoint was queued for the same run and **scored nothing**: the adapter
+declares binary only (`_supported_problem_types`, narrowed 2026-09-25), so `FINTFM_PROBLEM_TYPES=
+multiclass` left 0 eligible datasets and the script printed the existing leaderboard. Measuring
+it needs the adapter to accept multiclass first.
+
 ## The leaderboard name is `FinTFM`, with no version
 
 The leaderboard renders `ag_name`, and it lists **models**, not releases — TabSTAR, OrionMSP,

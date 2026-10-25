@@ -441,11 +441,11 @@
 Filed after §176-§182: volume is the one lever that moved FinTFM (+140 proxy Elo at 480k tasks),
 DR6.2/DR6.3 did not, and boosters lead by 3.5x on SBA.
 
-- [ ] DR8.1 **Inference-lever sweep on the proxy** (pre-registered §183): 8-member ensembles,
+- [ ] DR8.1 **Proxy sweep done (§187): `ens8` and `retrieval` candidates. V4FinBench (2026-10-25, §194): `retrieval` collapses to 0.0126 mean AP against 0.1986, 5 of 5 folds, not adopted; cause unchecked (print the retrieved context's positive count and base rate per query group). `ens8` five-fold V4FinBench running.** **Inference-lever sweep on the proxy** (pre-registered §183): 8-member ensembles,
       label swap, mixed transforms, an 8,000-row context, retrieval, 200 fine-tuning steps; a
       proxy candidate is scored on V4FinBench before it is believed.
       Verify: each arm's per-task sign test against the default in FINDINGS.
-- [ ] DR8.2 **Model size at volume.** §114's wide scale-up lost at 48,000 tasks, where a larger
+- [ ] DR8.2 **Depth arm on V4FinBench (2026-10-25, §193): null, -0.0047 mean AP, 3 of 5 folds positive; the proxy half is open, then the depth verdict; width not started.** **Model size at volume.** §114's wide scale-up lost at 48,000 tasks, where a larger
       model is data-starved; repeat depth (Nori's 16 layers at width 128) and width at 480,000
       tasks against `e1-v480-s0`, pre-registered with §173's yardstick. Blocked by GPU quota and
       E1's seed-1 verdict.
