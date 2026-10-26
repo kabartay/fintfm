@@ -6,6 +6,15 @@ not paste one into the other. See `CLAUDE.md`.
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-10-26
+
+Code and tooling only: no new weights, and the published checkpoint `v4-cellattn-labels.pt`
+scores as before (pinned bit for bit by `tests/test_golden_outputs.py`). Most of the release is the
+2026-10-16 design review's levers and harnesses, each off by default. Three changes can alter
+existing code or runs: `FinancialTFMClassifier.fit` keeps the model passed in (read `clf.model_`
+for fine-tuned weights), training with evaluation on draws different batches from 0.7.1 at the same
+seed, and LendingClub is refused as a training source.
+
 ### Added
 
 - **Curriculum phases on resume** (design review DR2.4, Section 180). Every `.state` records
@@ -42,8 +51,55 @@ not paste one into the other. See `CLAUDE.md`.
 - `scripts/label_symmetry_probe.py` and Section 165; `scripts/prior_stats.py`;
   `fintfm.__version__`.
 
+- **Design review 2026-10-16, levers and harnesses** (`openspec/changes/design-review-2026-10-16`),
+  every one off by default and tested to reproduce today's outputs, streams or batches byte for
+  byte when off:
+  - Training: a streaming loader with worker processes (`--loader stream`), DDP (`--ddp`), a
+    warmup-stable-decay schedule (`--schedule wsd`) and a fixed evaluation set
+    (`--eval-set-seed`) (DR5.2, DR5.4); `--run-seconds`, which stops at a step boundary after a
+    wall-time budget and writes a resumable checkpoint (DR8.2); per-batch padding to the widest
+    task (`pad_to_batch_width`, DR6.1); one categorical draw over normalised source weights
+    (`prior.source_weights`, DR2.1), since the sequential `p_*` chain makes each weight a
+    conditional share; opt-in Muon now uses Moonlight-style update scaling (`--muon-scale
+    rms_match`, DR1.7); nothing has trained with it.
+  - Prior: a gated source and gated financial tasks, prior v2 knob distributions, and a
+    per-task sign flip on financial ratios (DR2.2, DR2.3).
+  - Model: induced cell rows (`cell_row_attn: induced`) and readout tokens (DR6.2, DR6.3); an
+    unmasked split row attention (`attn_impl: split`, AU5.2) that computes the masked path's
+    logits and admits fused kernels.
+  - Inference: a fixed positive count in the uniform context (`context_positive_floor`, DR3.3);
+    `max_features_strategy: select`, which keeps the top-ranked columns of a table wider than the
+    model (DR8.3); large-table arms (`PartitionedTFMClassifier`, `BoostedTFMClassifier`,
+    `retrieval_per_class`; AU5.8); `fit(periods=)` so a checkpoint built with
+    `hazard_period_context` can be served (AU5.9).
+  - Evaluation: the proxy suite (`fintfm.evaluation.proxy_suite`, DR4.2), OpenML tasks admitted
+    only by the licence at their original source, scored per split beside five baselines with
+    Elo and a per-task sign test; a credit suite (`fintfm.evaluation.credit_suite`, DR4.3) with
+    ULB card fraud (its ODbL notice written beside the results) and SBA 7(a), PPDai and Bondora
+    implemented but not admitted, and hybrid LightGBM + FinTFM arms behind `--hybrid` (DR8.4); a
+    CatBoost hybrid with out-of-fold FinTFM logits (`fintfm.experiments.hybrid_catboost`, AU4.4);
+    an overlap report against all of TabArena and BeyondArena (DR4.1); TabArena's imbalanced
+    subset scored from held Lite results (DR3.6); a cross-fitted context-row control for the
+    representation probe (`--probe-rows context`, DR3.4); `scripts/retrieval_plan_diag.py`.
+  - Code integrity: `tests/test_golden_outputs.py` pins the published checkpoint's outputs bit for
+    bit (DR1.1); every checkpoint, run JSON and task dump records its provenance (config, commit,
+    versions, prior and training settings; DR1.2); `FinancialTFMClassifier.from_config` builds
+    every classifier from the whole `inference` section (DR1.3); every inference caller goes
+    through `FinancialTFM.predict_context` (DR1.4); lever combinations that run but misbehave
+    are refused (DR1.5).
+  - Kaggle train-and-score kernels for E0, E1, DR2.4, DR6.2/DR6.3, DR7.4 and DR8.2, including
+    two-session kernels that resume across a session limit.
+
 ### Changed
 
+- **LendingClub is retired as a training source** (AU0.1, `docs/design/DECISIONS.md` D19). It
+  is BeyondArena's `lending_club_1m`, and no benchmark dataset trains a model here: the sampler
+  raises `RetiredSourceError`, and `p_real_lendingclub` or a `real_lendingclub` weight is refused
+  before any draw. Configurations that used it must drop it.
+- **Arm-selection tools refuse the Polish and Taiwanese bankruptcy panels** (DR4.1). Both are
+  TabArena-v0.1 datasets, so choosing an arm on them biases the TabArena number reported here.
+- The proxy runner fits LightGBM in a subprocess that never imports torch (Section 179), after a
+  31-hour OpenMP deadlock between torch's libomp and Homebrew's.
 - **`fintfm-v4protocol --tune` selects each baseline on validation average precision**, not
   ROC-AUC (audit AU2.2); `--select-metric auc` reproduces earlier runs, and the choice is
   recorded. The untuned banner names the booster defaults (CatBoost 1,000 iterations, LightGBM
@@ -101,6 +157,16 @@ three can change predictions, but only on the inputs named:
 - Four test assertions that could not fail now can (AU1.12).
 - Fine-tuning now frees its gradients and optimiser state before predicting. A 200-step run on a
   14.5 GB T4 ran out of memory at its first prediction chunk; a test checks no gradients remain.
+
+- Design review DR1: the term-structure path ran on seed 0's column identities at any
+  `random_state` (fixed by routing through `predict_context`, DR1.4), and four inference keys
+  (`correct_prior`, `retrieval_groups`, `retrieval_min_positive`,
+  `prototype_minority_ratio`) loaded from configuration and never reached the V4FinBench
+  classifier (DR1.3). Both affect only non-default settings.
+- Pretraining conditions features with the same call inference makes, so the off-by-default
+  feature-transform lever feeds the model what inference will.
+- Under `--amp fp16` the cell stages' 12-wide attention heads fell back to the math kernel and ran
+  out of memory on a T4; heads are padded to a fused-kernel width (DR5.5).
 
 ### Documentation
 

@@ -10,7 +10,7 @@
   ],
   "license": "apache-2.0",
   "access_right": "open",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "keywords": [
     "tabular foundation model",
     "in-context learning",

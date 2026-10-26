@@ -58,8 +58,8 @@ financial tables, and to say honestly where it currently is not.
 | **Fine-tuning** | opt-in per-dataset fine-tuning (`finetune_steps`, 0.7.0) lifts V4FinBench AP on 5 of 5 folds, 0.1986 → 0.2062 — the first lever to move it, closing 3.8% of the gap to CatBoost (§163) |
 | **Licence** | Apache-2.0, **code and weights** — chosen separately, not inherited (see [Licensing](#licensing--provenance)) |
 | **Checkpoint** | [kabartay/fintfm-binary](https://huggingface.co/kabartay/fintfm-binary) — 885K, binary, ≤136 features |
-| **Tests** | 413 collected, plus `ruff`, the openspec validator, a dependency-licence check and a documentation-link check — all in CI |
-| **Measurement log** | 164 numbered entries (§164 is pre-registered, with no result yet), each declaring how its numbers were produced |
+| **Tests** | 1,130 collected, plus `ruff`, the openspec validator, a dependency-licence check and a documentation-link check — all in CI |
+| **Measurement log** | 194 numbered entries, each declaring how its numbers were produced; pre-registrations are written before their arms run |
 | **Problem types** | binary declared; multiclass and regression implemented but **not** declared (§121) |
 
 **Read [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md) before anything else.** Every claim this
@@ -528,7 +528,7 @@ renders BibTeX and APA directly. The same entry, to copy:
   title     = {{FinTFM: a tabular foundation model for corporate credit risk,
                pretrained only on synthetic data}},
   year      = {2026},
-  version   = {0.7.1},
+  version   = {0.8.0},
   doi       = {10.5281/zenodo.22949759},
   url       = {https://github.com/kabartay/fintfm},
   publisher = {Zenodo},
