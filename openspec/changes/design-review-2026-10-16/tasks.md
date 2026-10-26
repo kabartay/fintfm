@@ -416,7 +416,7 @@
       the binary checkpoint's proxy Elo, so every later multiclass arm has a control that is not
       TabArena. §121's TabArena rank (93.4 of 95 over 7 datasets) is reported, never selected on.
       Verify: the proxy Elo and per-task scores for `v4-multiclass.pt` recorded in FINDINGS.
-- [ ] DR7.4 **Seed 0 a candidate (2026-10-24, §186): 6 of 6 tasks, 17 of 18 splits, 994 proxy Elo against the control's 808.** Next: the seed-1 replicate at the next quota reset, then the volume step.
+- [ ] DR7.4 **TabArena-Lite, reporting only (2026-10-26, TABARENA.md): 306 Elo, 94th of 95 on 7 datasets, no gain.** **Seed 0 a candidate (2026-10-24, §186): 6 of 6 tasks, 17 of 18 splits, 994 proxy Elo against the control's 808.** Next: the seed-1 replicate at the next quota reset, then the volume step.
       **A multiclass arm at the current recipe:** E1's 48k recipe (§171) with
       `max_classes 10`, the generic SCM mixed in as `v4-multiclass.pt` was trained, and
       `--permute-classes` (AU5.5), one seed, against DR7.3's control on the proxy suite's
@@ -441,11 +441,11 @@
 Filed after §176-§182: volume is the one lever that moved FinTFM (+140 proxy Elo at 480k tasks),
 DR6.2/DR6.3 did not, and boosters lead by 3.5x on SBA.
 
-- [ ] DR8.1 **Proxy sweep done (§187): `ens8` and `retrieval` candidates. V4FinBench (2026-10-25, §194): `retrieval` collapses to 0.0126 mean AP against 0.1986, 5 of 5 folds, not adopted; the contexts are 9.74% positive against a 0.35% pool, drawn from the same 540 of 2,128 positives (fold 0 diagnostic); why those sit near every centroid is open. `ens8` five-fold V4FinBench running.** **Inference-lever sweep on the proxy** (pre-registered §183): 8-member ensembles,
+- [ ] DR8.1 **Proxy sweep done (§187): `ens8` and `retrieval` candidates. V4FinBench (2026-10-25, §194): `retrieval` collapses to 0.0126 mean AP against 0.1986, 5 of 5 folds, not adopted; the contexts are 9.74% positive against a 0.35% pool, drawn from the same 540 of 2,128 positives (fold 0 diagnostic); why those sit near every centroid is open. `ens8` (2026-10-26, §196): +0.0058 mean AP, three folds up and two down, not adopted; a lead for DR6.4.** **Inference-lever sweep on the proxy** (pre-registered §183): 8-member ensembles,
       label swap, mixed transforms, an 8,000-row context, retrieval, 200 fine-tuning steps; a
       proxy candidate is scored on V4FinBench before it is believed.
       Verify: each arm's per-task sign test against the default in FINDINGS.
-- [ ] DR8.2 **Depth arm on V4FinBench (2026-10-25, §193): null, -0.0047 mean AP, 3 of 5 folds positive; the proxy half is open, then the depth verdict; width not started.** **Model size at volume.** §114's wide scale-up lost at 48,000 tasks, where a larger
+- [ ] DR8.2 **Depth closed (2026-10-26, §195): null on V4FinBench (-0.0047 mean AP, §193) and on the proxy (8 wins, 8 losses); no deeper arm. Open: the width arm.** **Model size at volume.** §114's wide scale-up lost at 48,000 tasks, where a larger
       model is data-starved; repeat depth (Nori's 16 layers at width 128) and width at 480,000
       tasks against `e1-v480-s0`, pre-registered with §173's yardstick. Blocked by GPU quota and
       E1's seed-1 verdict.

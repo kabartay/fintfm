@@ -12743,3 +12743,51 @@ full panel. Log `runs/v4-lever-retrieval.log`, scores `runs/v4-lever-retrieval/`
     code defect: the plan does what `retrieve` documents. Why the same 540 sit near every
     centroid is not measured; §1.1 of the 2026-10-16 design review (the gated label) is the
     first place to look.
+
+## §195 — DR8.2's verdict: depth at 480,000 tasks is null on both measures
+
+**MEASURED, 2026-10-26**, the proxy half §193 left open. `dr82-depth8-s0` on the proxy suite,
+`proxy_suite run --no-baselines --out runs/dr73/proxy_dr82-depth8-s0.csv`, then `proxy_suite
+compare --unit task --anchor e1-v480-s0` against `runs/dr73/proxy_e1_v480-s0.csv` (output
+`runs/dr73/cmp_dr82_vs_e1v480s0.txt`). The 16 binary tasks both arms scored, 3 splits each.
+
+- **Proxy: 8 wins, 8 losses, 0 ties, two-sided p = 1.0; Elo 1000 [855, 1146] with the control
+  at 1,000. Null on the proxy.**
+- **V4FinBench (§193): Δ -0.0047 mean AP, 3 of 5 folds positive. Null.**
+- **The arm is null** under §184's rule. The prediction failed on the proxy half: capacity did
+  not move with volume here as it did in §181/§182.
+- **Pre-declared action, taken:** depth at 480,000 tasks is not worth its inference cost, and no
+  12- or 16-layer arm runs on this evidence. DR8.2's width arm is the remaining scale question at
+  this volume.
+- Deviation, stated: the first launch failed at once because `proxy_suite run` requires `--out`
+  (EXIT 2, `runs/dr82_proxy.log`); the rerun is the registered command plus that flag.
+
+## §196 — §183's `ens8` candidate on V4FinBench: +0.0058 mean AP, three folds up and two down
+
+**MEASURED, 2026-10-26**, the published `v4-cellattn-labels.pt` with `n_ensemble: 8`
+(`configs/arms/proxy/ens8.yaml`), `fintfm-v4protocol --no-boosting --device cpu`, commit d9bc7f0,
+full panel, against the same default column as §194 (`runs/lrsweep/eval-published`, same rows).
+Paired bootstrap: `compare_v4_scores.py --cluster`, output `runs/v4-lever-ens8/cmp_vs_default.txt`.
+
+| fold | default AP | `ens8` AP | diff | 95% CI (companies) | Holm p (companies) |
+| --- | --- | --- | --- | --- | --- |
+| 0 | 0.2113 | 0.2091 | -0.0021 | [-0.0080, +0.0042] | 0.550 |
+| 1 | 0.2050 | 0.1968 | -0.0083 | [-0.0172, -0.0002] | 0.088 |
+| 2 | 0.1786 | 0.1892 | +0.0106 | [+0.0054, +0.0163] | 0.002 |
+| 3 | 0.1810 | 0.1997 | +0.0187 | [+0.0120, +0.0252] | 0.002 |
+| 4 | 0.2172 | 0.2271 | +0.0099 | [+0.0042, +0.0158] | 0.002 |
+| mean | 0.1986 | **0.2044** | **+0.0058** | | |
+
+Mean ROC-AUC 0.9890 against 0.9886. The same bootstrap confirms §194: `retrieval` is -0.1860 mean
+AP, all 5 folds at Holm p 0.002.
+
+- **Not adopted.** §183 set no V4FinBench threshold for its levers; against §173's 0.0117
+  yardstick, used by every pretraining arm, +0.0058 is half the bar, with 3 of 5 folds positive.
+- **But the folds disagree for real**, not by noise: three survive Holm correction upward and
+  fold 1's interval sits just below zero. That is a fold-dependent effect, which a mean of
+  +0.0058 hides. Recorded as a lead for DR6.4's matched comparison, not as a null.
+- **Cost:** about 7 h per fold on this Mac's CPU under load, against about 1.1 h per fold for §194's
+  one-member retrieval run (ESTIMATED from wall times on a shared machine; not a matched cost
+  comparison).
+- The default column is the published checkpoint's earlier score, not a same-day rerun, as in
+  §194.

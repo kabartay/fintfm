@@ -251,6 +251,14 @@ declares binary only (`_supported_problem_types`, narrowed 2026-09-25), so `FINT
 multiclass` left 0 eligible datasets and the script printed the existing leaderboard. Measuring
 it needs the adapter to accept multiclass first.
 
+**Measured on 2026-10-26, after the adapter gained an opt-in** (`FINTFM_ALLOW_MULTICLASS=1`,
+tabarena fork 5cb019c; unset, the declaration stays binary only). `dr74-mc-s0` on the 7 multiclass
+datasets within the caps (MIC, SDSS17, anneal, maternal_health_risk, splice,
+students_dropout_and_academic_success, website_phishing), default config, log
+`runs/lite_dr74_mc.log`: **Elo 306 (+76/-2619), 94th of 95, mean rank 93.86**, against §121's
+93.4 mean rank on the same 7 for the earlier multiclass checkpoint. No gain on TabArena; reporting
+only, so it does not weigh against §186's proxy candidate, which DR7.4's seed-1 replicate decides.
+
 ## The leaderboard name is `FinTFM`, with no version
 
 The leaderboard renders `ag_name`, and it lists **models**, not releases — TabSTAR, OrionMSP,
