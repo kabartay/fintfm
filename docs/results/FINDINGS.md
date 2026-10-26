@@ -12791,3 +12791,36 @@ AP, all 5 folds at Holm p 0.002.
   comparison).
 - The default column is the published checkpoint's earlier score, not a same-day rerun, as in
   §194.
+
+## §197 — DR7.4's seed-1 replicate: a candidate again, so class permutation enters the multiclass recipe
+
+**MEASURED, 2026-10-26**, `dr74-mc-s1`: §185's arm at seed 1, otherwise identical (Kaggle T4x2,
+a901cdc, flags as seed 0's apart from `--seed 1`; kernel `scripts/kaggle/ts_dr74_mc_s1/`, 6,000
+steps in 3,285 s against seed 0's 3,233 s), trained only, scored on this Mac with §185's command
+(`--tasks 6,11,12,14,16,18,22,23`, output `runs/dr73/proxy_dr74_s1.csv`, beside seed 0's
+`runs/dr73/proxy_dr74.csv`; §185 named `runs/dr74/`, both seeds used `runs/dr73/`). Compared with
+`compare --anchor FinTFM-multiclass` against `runs/dr73/proxy_multiclass.csv` (outputs
+`runs/dr73/cmp_dr74_s1_{task,split}.txt`). 6 of 8 tasks scored, as for seed 0.
+
+Mean log-loss over 3 splits:
+
+| task | control `v4-multiclass.pt` | seed 0 | seed 1 |
+| --- | --- | --- | --- |
+| balance-scale | 0.6349 | 0.3158 | 0.4304 |
+| cmc | 0.9832 | 0.9705 | **1.0021** |
+| mfeat-fourier | 1.9784 | 1.2983 | 1.3537 |
+| mfeat-karhunen | 2.0809 | 1.0772 | 1.5589 |
+| mfeat-morphological | 1.6464 | 0.8871 | 0.9418 |
+| mfeat-zernike | 1.9989 | 1.1239 | 1.3251 |
+
+- **Rule (§185, as amended before launch): candidate.** Per task 5 wins, 1 loss (p = 0.22, below
+  the bar on its own); per split 16 wins, 2 losses (p = 0.0013) with 5 of 6 tasks positive, which
+  meets the amended criterion. Seed 0 met both criteria (§186).
+- **Seed 1 is weaker than seed 0 on every task**, and loses `cmc` by 0.019 log-loss, the one task
+  where seed 0's gain was also smallest (0.013). Arena with the control at 1,000: seed 1 **1171**
+  [1066, 1297]; RF 1184, ExtraTrees 999, KNN 951 on the same splits.
+- **Pre-declared action (§185), taken:** a candidate at both seeds, so `--permute-classes` is
+  carried into the multiclass recipe, and DR7.4's volume step runs with it. That step needs GPU
+  quota beyond this week's.
+- The proxy is not validated against TabArena (DR4.2), and the TabArena-Lite run of seed 0 showed
+  no gain there (`TABARENA.md`, 306 Elo, 94th of 95); nothing here is a TabArena claim.
