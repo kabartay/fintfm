@@ -259,6 +259,24 @@ students_dropout_and_academic_success, website_phishing), default config, log
 93.4 mean rank on the same 7 for the earlier multiclass checkpoint. No gain on TabArena; reporting
 only, so it does not weigh against §186's proxy candidate, which DR7.4's seed-1 replicate decides.
 
+## Context size: 500 and 750 rows against 1000 (AU5.14, 2026-10-26)
+
+**MEASURED, reporting only.** TabArena-Lite, the 27 binary datasets, the published checkpoint,
+NaN passed through, the default config with `FINTFM_MAX_CONTEXT` set (logs
+`runs/au514_ctx{500,750}.log`; results under the fork's `experiments/fintfm_lite_ctx{500,750}_1026/`).
+Pretraining contexts reach about 921 rows, so 500 and 750 sit inside the trained range and 1000
+just beyond it.
+
+| `max_context` | Elo | interval | rank |
+| --- | --- | --- | --- |
+| 500 | 702 | +113/-179 | 94 of 95 |
+| 750 | 745 | +125/-183 | 94 of 95 |
+| 1000 (2026-10-19, above) | 756 | +126/-180 | 94 of 95 |
+
+Elo rises with context and every interval overlaps the others; the rank does not move. **Keep the
+default of 1000.** Staying inside the trained range buys nothing here, and the shorter contexts
+point the other way. The 1000 row comes from the 2026-10-19 run, not a same-day rerun.
+
 ## The leaderboard name is `FinTFM`, with no version
 
 The leaderboard renders `ag_name`, and it lists **models**, not releases — TabSTAR, OrionMSP,

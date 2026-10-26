@@ -457,7 +457,7 @@
 - [ ] AU5.13 **Fill the TabArena search space** (`tabarena/.../models/fintfm/hpo.py` is empty)
       once AU5.12 exists; compute-heavy (11 s per 1k rows locally), so GPU only.
       Verify: a TabArena T+E run recorded as its own row, not as the default.
-- [ ] AU5.14 **TabArena context size**: TabArena-Lite at `max_context` 500 and 750 against 1000
+- [x] AU5.14 **Done (2026-10-26, `docs/results/TABARENA.md`): 702, 745 and 756 Elo at 500, 750 and 1,000, 94th of 95 each; the default stays 1,000.** **TabArena context size**: TabArena-Lite at `max_context` 500 and 750 against 1000
       (trained range ends ~921 rows).
       Verify: TabArena-Lite Elo at 500, 750 and 1,000 recorded.
 - [ ] AU5.15 **Implemented behind `scripts/dump_prior_tasks.py --stream per_shard --workers K`
