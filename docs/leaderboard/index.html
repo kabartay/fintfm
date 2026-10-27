@@ -183,8 +183,8 @@
 
 <div class="hero">
   <div class="headline-num">
-    <span class="big">763</span>
-    <span class="unit">Elo · <b>94th</b> of <b>95</b> · the published model, own classification head (re-checked 2026-10-06)</span>
+    <span class="big">756</span>
+    <span class="unit">Elo · <b>94th</b> of <b>95</b> · the published model, own classification head (re-checked 2026-10-19)</span>
   </div>
 
   <figure class="strip">
@@ -217,7 +217,7 @@
   </p>
   <div class="variants">
     <div class="variant">
-      <div class="v-elo">763</div>
+      <div class="v-elo">756</div>
       <div class="v-name">Own classification head</div>
       <div class="v-sub">rank 94 of 95 · submitted, withdrawn</div>
     </div>
@@ -257,7 +257,9 @@
 <footer>
   From a TabArena-Lite run, 27 datasets, 2026-09-27. The classification-head number (above) was
   reverified 2026-10-06 against TabArena's refreshed cached baselines (a Linear/LR correctness
-  fix since propagated) and moved 765 &rarr; 763, an unchanged rank. The linear-probe number and
+  fix since propagated) and moved 765 &rarr; 763, an unchanged rank. Since 2026-10-19 the adapter
+  passes missing values through instead of filling them with 0 (an A/B found no measurable
+  difference), and the same check gives 756 (+126/&minus;180), still 94th of 95. The linear-probe number and
   the sortable table below are the original 2026-09-27 snapshot, not yet reverified against that
   refresh. Data, methodology and every retraction live in
   <a href="https://github.com/kabartay/fintfm/blob/main/docs/results/FINDINGS.md">FINDINGS.md</a>;

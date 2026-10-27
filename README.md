@@ -87,7 +87,8 @@ measured at the time, against an earlier cached snapshot of the board:
 
 The §101 model, unchanged at 0.7823 mean ROC-AUC, ranks **94 of 95** against the snapshot the
 TabArena review used (§122, Elo 765), and still 94 of 95 at Elo 763 after a refreshed baseline
-cache (§150). The move from 93 to 94 is the board changing, not the model.
+cache (§150), and at Elo 756 with missing values passed through rather than zero-filled
+(2026-10-19, `docs/results/TABARENA.md`). The move from 93 to 94 is the board changing, not the model.
 
 **One change has moved the TabArena number, and it was preprocessing rather than
 architecture.** The tree prior adds a further +0.0094 here and replicates across two
