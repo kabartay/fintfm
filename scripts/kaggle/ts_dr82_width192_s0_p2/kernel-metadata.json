@@ -1,0 +1,19 @@
+{
+  "id": "muhakabartay/fintfm-ts-dr82-width192-s0-p2",
+  "title": "fintfm-ts-dr82-width192-s0-p2",
+  "code_file": "kernel.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": "true",
+  "enable_gpu": "true",
+  "enable_tpu": "false",
+  "enable_internet": "true",
+  "dataset_sources": [
+    "sebastiantomczak10/v4-group-corporate-bankruptcy"
+  ],
+  "competition_sources": [],
+  "kernel_sources": [
+    "muhakabartay/fintfm-ts-dr82-width192-s0-p1"
+  ],
+  "model_sources": []
+}

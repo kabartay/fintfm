@@ -58,18 +58,24 @@ ARMS = {
     "dr74-mc-s0": (E1 + S0_48K + MULTICLASS, True),
     # DR7.4 seed-1 replicate, §185's pre-declared next step for a candidate (§186)
     "dr74-mc-s1": (E1 + ["--seed", "1", "--steps", "6000"] + MULTICLASS, True),
+    # DR7.4 volume step (FINDINGS §198): the candidate recipe at E1's 480,000 tasks
+    "dr74-mc-v480-s0": (E1 + ["--seed", "0", "--steps", "60000"] + MULTICLASS, True),
     # DR8.2 model size at volume (FINDINGS §184): e1-v480-s0's recipe with twice the layers,
     # d_model, heads and d_ff unchanged, against e1-v480-s0
     "dr82-depth8-s0": (E1 + ["--seed", "0", "--steps", "60000", "--n-layers", "8"], True),
+    # DR8.2 width (FINDINGS §199): d_model 192 at 6 heads in the row stages, cell stage kept at
+    # 4 heads, 1.88M parameters against the depth arm's 1.68M
+    "dr82-width192-s0": (E1 + ["--seed", "0", "--steps", "60000", "--d-model", "192", "--d-ff", "768",
+                               "--n-heads", "6", "--n-cell-heads", "4"], True),
 }
 #: Arms trained but not scored on V4FinBench, which is binary: a multiclass arm is decided
 #: on the proxy suite, run off Kaggle
-TRAIN_ONLY = {"dr74-mc-s0", "dr74-mc-s1"}
+TRAIN_ONLY = {"dr74-mc-s0", "dr74-mc-s1", "dr74-mc-v480-s0"}
 #: Two-session arms (DR8.2): session 1's training wall-time budget in seconds. Each writes two
 #: kernels, <arm>-p1 (trains for the budget with --run-seconds, no scoring) and <arm>-p2
 #: (attaches p1's output as a kernel source, resumes to --steps and scores). 30,600 s is
 #: 8.5 h, which leaves a 12 h session room for the install and the final save.
-SESSIONS = {"dr82-depth8-s0": 30600}
+SESSIONS = {"dr82-depth8-s0": 30600, "dr82-width192-s0": 30600}
 #: Curriculum arms: the step the prior switches at, and the second phase's flags. 4,200 of
 #: 6,000 steps on the trunk gives arm c arm d's 0.3 financial share, so c and d differ in
 #: order only.
@@ -86,7 +92,9 @@ COMMITS = {"dr62-induced-s0": "6916a89", "dr63-cls-s0": "6916a89",
            # DR7.4 needs no code change: a901cdc (origin/main, 2026-10-24) carries every flag
            "dr74-mc-s0": "a901cdc",
            "dr74-mc-s1": "a901cdc",
-           "dr82-depth8-s0": DR82_COMMIT}
+           "dr74-mc-v480-s0": "a901cdc",
+           "dr82-depth8-s0": DR82_COMMIT,
+           "dr82-width192-s0": DR82_COMMIT}
 OLD_ARMS = {
     # DR4.4 replicates of the published recipe (seed 0 also re-checks reproducibility)
     "pub-s0": ["--seed", "0"],

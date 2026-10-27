@@ -12824,3 +12824,83 @@ Mean log-loss over 3 splits:
   quota beyond this week's.
 - The proxy is not validated against TabArena (DR4.2), and the TabArena-Lite run of seed 0 showed
   no gain there (`TABARENA.md`, 306 Elo, 94th of 95); nothing here is a TabArena claim.
+
+## §198: DR7.4's volume step, the multiclass candidate at 480,000 tasks (pre-registered)
+
+**PRE-REGISTERED, 2026-10-27, before the arm trains.** §197 made `--permute-classes` part of the
+multiclass recipe at both seeds, and DR7.4 then runs "at the volume E1 recommends, if it
+recommends more". E1 (§188) was null on V4FinBench and positive on the proxy at both seeds; a
+multiclass arm is decided on the proxy, so its branch is open at E1's 480,000 tasks.
+
+**Arm: `dr74-mc-v480-s0`.** `dr74-mc-s0`'s flags exactly (§185: E1's recipe, `--max-classes 10
+--p-financial 0.5 --scm-legacy --permute-classes`, fp16, split attention, streaming loader, DDP on
+a T4x2 at 4 tasks per rank, seed 0, pinned a901cdc) with `--steps 60000` in place of 6,000.
+Kernel `scripts/kaggle/ts_dr74_mc_v480_s0/`, written by `make_train_score.py dr74-mc-v480-s0`;
+trained only, `--checkpoint-every 1000`, one session.
+
+**Control: `dr74-mc-s0`** (48,000 tasks, `runs/dr73/proxy_dr74.csv`), so the comparison isolates
+volume. `v4-multiclass.pt` is reported beside both.
+
+**Measures.** §185's command on the 8 multiclass proxy tasks (6 scorable), output
+`runs/dr73/proxy_dr74_v480.csv`, then `proxy_suite compare --unit task` and `--unit split` with
+`--anchor FinTFM-dr74-mc-s0`.
+
+**Rule**, §185's as amended. **Candidate** if the arm wins more tasks than it loses with the
+per-task two-sided sign test at p < 0.05, **or** the per-split sign test over 18 splits gives
+p < 0.05 in its favour with at least 5 of 6 tasks positive; **worse** under the mirror; otherwise
+**null**. Reported, not decided on: Elo with the control at 1,000, per-task log-loss, and a
+TabArena-Lite run on the 7 multiclass datasets.
+
+**Pre-declared actions.**
+- **Candidate:** a seed-1 replicate at 480,000 tasks before the volume is adopted for multiclass.
+- **Null:** 48,000 tasks stays the multiclass recipe's volume; nothing larger is run on this
+  evidence.
+- **Worse:** recorded against §188's proxy result, which this would contradict for multiclass.
+
+**Prediction:** candidate, as volume moved E1's binary proxy result (+168 and +186 Elo).
+
+**Cost.** MEASURED: 6,000 steps in 3,233 s (seed 0) and 3,285 s (seed 1) on a T4x2, about
+0.54 s per step. ESTIMATED from that: 60,000 steps in about 32,300 to 32,900 s (9.0 to 9.1 h), plus
+installation, inside one 12 h session with no scoring. **The check:** the step-1,000 line of the
+training log against seed 0's 534 s; Kaggle's log endpoint returned no step lines mid-run for
+seed 1, so the check is the kernel's own `train.log` once a checkpoint is written, or the
+session's elapsed time against this estimate.
+
+## §199: DR8.2's width arm at 480,000 tasks (pre-registered)
+
+**PRE-REGISTERED, 2026-10-27, before the arm trains.** §195 closed depth at 480,000 tasks (null on
+both measures). Width is DR8.2's other half. To compare the two axes at about the same budget,
+the arm widens the row stages to roughly the depth arm's size and leaves everything else alone.
+
+**Arm: `dr82-width192-s0`.** `e1-v480-s0`'s recipe exactly (§171, as in §184) plus `--d-model 192
+--d-ff 768 --n-heads 6 --n-cell-heads 4`: width 192 at 6 heads (32 per head, as the control's
+128 at 4) in the row stages, the cell stage kept at d_cell 48 and 4 heads, 4 layers, 2 column
+layers, 1 cell block. **1,878,674 parameters** against the control's 885,650 (2.1 times) and the
+depth arm's 1,678,738 (counted from the built model). Pinned at **e493123**, the depth arm's
+commit; no commit from there to this registration's parent touches `src/fintfm/modeling` or
+`src/fintfm/prior`. Kernels `scripts/kaggle/ts_dr82_width192_s0_p1/` and `_p2/`, two sessions
+with `--run-seconds 30600` as §184's, so session 2 resumes and scores.
+
+**Control: `e1-v480-s0`** (d05ea19): five-fold mean AP 0.1865 (§176) and
+`runs/dr73/proxy_e1_v480-s0.csv` on the proxy. Reported beside it: `dr82-depth8-s0`.
+
+**Measures and rule: §184's, unchanged.** Primary V4FinBench five-fold mean AP with the paired
+company-level bootstrap; secondary the proxy suite's 16 binary tasks by per-task sign test,
+`--anchor e1-v480-s0`, with `--out` given this time (§195's deviation). Promising, harmful, mixed
+and null as §184 defines them, V4FinBench deciding adoption.
+
+**Pre-declared actions: §184's.** Promising through V4FinBench: a seed-1 replicate, then DR6.4's
+matched comparison, then inference cost before adoption. Proxy only: no credit adoption. Null:
+parameter scale at 480,000 tasks is closed on both axes at about 2 times the published size, and
+DR8 has no further scale arm at this volume. Harmful or mixed: recorded as the §115/§116 pattern.
+
+**Prediction:** null on V4FinBench, as E1 and depth were; null on the proxy, as depth was.
+
+**Cost.** Not measured. A CPU benchmark on this Mac (5 steps, 2 threads, 2026-10-27) gave 493 s
+for this arm and 600 s for the control, the wrong way round, under a load average near 35 with an
+MPS scoring queue running; §184 measured the same control at 136 s. It is not used. ESTIMATED
+instead from the depth arm's GPU step rate: doubling the row layers cost about 0.57 s per step
+against the control's 0.530 (§193), so the row stages are a small share of a step, and widening
+them by 1.5 should cost a similar margin: about 0.55 to 0.62 s per step, 9.2 to 10.3 h for 60,000
+steps, plus scoring. Two sessions cover that range. **The check:** session 1's stop step under
+`time_budget`, against the depth arm's 53,552 in the same 30,600 s.
