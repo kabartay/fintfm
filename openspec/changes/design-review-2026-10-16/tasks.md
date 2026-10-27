@@ -104,7 +104,7 @@
 - [ ] DR3.2 **V4: 8 ensemble members against 1** at 2,000 rows, and a second arm adding
       `ensemble_class_shift`. Same rule.
       Verify: per-fold AP for each arm in FINDINGS.
-- [ ] DR3.3 **Implemented behind `context_positive_floor` (2026-10-16, 6917d41); measurement open.** `null` (default) is today's uniform draw; an integer k holds exactly max(k, round(max_context x pool rate)) positives, rest uniform from negatives, with the D5 correction read from the actual context rate. Arms: `configs/arms/dr33-exact.yaml` (0) and `configs/arms/dr33-floor16.yaml` (16); tests in `tests/test_classifier.py` (`*positive_floor*`) and `tests/test_large_n.py`.
+- [x] DR3.3 **Done (§200): null.** Exact +0.0024 (fold SD 0.0091 vs 0.0177), floor16 +0.0055 (SD 0.0250), both below 0.0117 and split by fold; default stays null. **Implemented behind `context_positive_floor` (2026-10-16, 6917d41); measurement open.** `null` (default) is today's uniform draw; an integer k holds exactly max(k, round(max_context x pool rate)) positives, rest uniform from negatives, with the D5 correction read from the actual context rate. Arms: `configs/arms/dr33-exact.yaml` (0) and `configs/arms/dr33-floor16.yaml` (16); tests in `tests/test_classifier.py` (`*positive_floor*`) and `tests/test_large_n.py`.
       **V4: a fixed positive count in the uniform context** (exactly round(n x rate), or a
       floor of 16, with the base-rate correction). Report the fold-to-fold SD beside the mean.
       Verify: per-fold AP and SD in FINDINGS.
@@ -154,7 +154,7 @@
       field. State the feature set (with or without `operational_status`) beside every booster
       number.
       Verify: README, CLAIMS, LIMITATIONS and CHANGELOG quote §167's figures with feature set.
-- [ ] DR3.10 **FinTFM without `operational_status`** (zero-shot and fine-tuned arms), paired
+- [ ] DR3.10 **Zero-shot done (§200):** −0.0022 AP without the column (CatBoost loses 0.034, §167); fine-tuned arm open. **FinTFM without `operational_status`** (zero-shot and fine-tuned arms), paired
       against the published-feature runs, so both models' dependence on the column is known.
       Verify: per-fold AP for both arms in FINDINGS beside §167.
 

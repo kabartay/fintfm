@@ -12904,3 +12904,39 @@ against the control's 0.530 (§193), so the row stages are a small share of a st
 them by 1.5 should cost a similar margin: about 0.55 to 0.62 s per step, 9.2 to 10.3 h for 60,000
 steps, plus scoring. Two sessions cover that range. **The check:** session 1's stop step under
 `time_budget`, against the depth arm's 53,552 in the same 30,600 s.
+
+## §200: DR3.3 and DR3.10 zero-shot, scored against a same-day MPS control
+
+**MEASURED, 2026-10-27.** Published checkpoint `v4-cellattn-labels.pt`, full V4FinBench, five
+folds, inference on MPS. Paired company bootstrap (`scripts/compare_v4_scores.py --cluster
+--control runs/dr3-control-mps`), output in `runs/dr3_cmp_1027.txt`. The control is the
+published configuration run the same day on MPS; the published CPU run
+(`runs/lrsweep/eval-published`) matches it to four decimals on every fold, so MPS inference
+reproduces the CPU numbers on the full panel as well as on the earlier 30,000-row fold-0 check.
+
+| fold | control | dr33-exact | dr33-floor16 | dr310-noop (zero-shot) |
+| --- | --- | --- | --- | --- |
+| 0 | 0.2113 | 0.1955 (−0.0157, p 0.012) | 0.2138 (+0.0025) | 0.2093 (−0.0020) |
+| 1 | 0.2050 | 0.2006 (−0.0045) | 0.1875 (−0.0176, p 0.009) | 0.2019 (−0.0031) |
+| 2 | 0.1786 | 0.2061 (+0.0275, p 0.002) | 0.1698 (−0.0088, p 0.009) | 0.1798 (+0.0012) |
+| 3 | 0.1810 | 0.1898 (+0.0087) | 0.2178 (+0.0367, p 0.002) | 0.1791 (−0.0020) |
+| 4 | 0.2172 | 0.2133 (−0.0039) | 0.2319 (+0.0147, p 0.002) | 0.2119 (−0.0053, p 0.005) |
+| mean | 0.1986 | 0.2011 (+0.0024) | 0.2042 (+0.0055) | 0.1964 (−0.0022) |
+| fold SD | 0.0177 | 0.0091 | 0.0250 | 0.0159 |
+
+p values are Holm-adjusted, shown where below 0.05.
+
+**DR3.3: null.** Neither arm clears the §173 yardstick (0.0117), and both split by fold with
+significant moves in both directions: exact 2 up, 3 down; floor16 3 up, 2 down. The fixed
+positive count reshuffles which companies land in the context rather than improving it. Exact
+halves the fold SD (0.0091 against 0.0177), which is the one property worth noting; it is not a
+gain in AP. Default stays `context_positive_floor: null`.
+
+**DR3.10 zero-shot: FinTFM barely uses `operational_status`.** Dropping the column costs
+−0.0022 AP (4 of 5 folds negative, one significant), against 0.034 for CatBoost (§167). The
+column that carries a large share of CatBoost's lead is close to unused by the in-context
+model, which is consistent with §167's reading that the booster's advantage is partly this one
+feature. The fine-tuned arm is not yet run.
+
+§196's ens8 sits at +0.0058 against this control as well (folds −0.0021, −0.0083, +0.0106,
++0.0187, +0.0099), unchanged from §196.
