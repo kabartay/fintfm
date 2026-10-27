@@ -119,6 +119,25 @@ def to_logit(p: np.ndarray) -> np.ndarray:
     return np.log(p) - np.log1p(-p)
 
 
+def fold_group_key(country: np.ndarray, company: np.ndarray) -> np.ndarray:
+    """One key per row for the unit the protocol's folds deal: a company within its country.
+
+    :func:`build_fold_assignments` groups by ``(country, company)``, so a company name that
+    appears in two countries (7 of V4FinBench's 188,058, e.g. ``MOL Nyrt.``) can sit in
+    different outer folds by the published protocol's own design. A leak check keyed on the
+    name alone refused fold 0 for exactly that; keying on the pair checks what the folds promise.
+
+    Args:
+        country: ``(n,)`` country per row.
+        company: ``(n,)`` company per row.
+
+    Returns:
+        ``(n,)`` string keys, ``"<country>|<company>"``.
+    """
+    country_str = np.asarray(country).astype(str)
+    return np.char.add(np.char.add(country_str, "|"), np.asarray(company).astype(str))
+
+
 def assert_no_leak(
     context_rows: np.ndarray, forbidden_rows: np.ndarray, company: np.ndarray | None,
     what: str,
@@ -182,12 +201,13 @@ def inner_oof_logits(
     inner = build_fold_assignments(
         country[train_rows], company[train_rows], n_splits=n_inner, seed=seed
     )
+    key = fold_group_key(country, company)
     logits = np.full(len(train_rows), np.nan)
     plan: list[tuple[np.ndarray, np.ndarray]] = []
     for k in range(n_inner):
         ctx, qry = train_rows[inner != k], train_rows[inner == k]
-        assert_no_leak(ctx, forbidden_rows, company, f"inner fold {k} vs outer val/test")
-        assert_no_leak(ctx, qry, company, f"inner fold {k} vs its own queries")
+        assert_no_leak(ctx, forbidden_rows, key, f"inner fold {k} vs outer val/test")
+        assert_no_leak(ctx, qry, key, f"inner fold {k} vs its own queries")
         plan.append((ctx, qry))
     for k, (ctx, qry) in enumerate(plan):
         if qry.size == 0:
@@ -341,7 +361,8 @@ def run_arrays(
         if max_train_rows is not None:
             tr = cap_train_rows(tr, company, max_train_rows, seed=fold)
         held = np.concatenate([va, te])
-        assert_no_leak(tr, held, company, f"fold {fold} outer train vs val/test")
+        held_key = fold_group_key(country, company)
+        assert_no_leak(tr, held, held_key, f"fold {fold} outer train vs val/test")
         # preprocessing fitted on the (capped) training rows alone, as the protocol does
         imputer = SimpleImputer(strategy="median").fit(X[tr])
         scaler = StandardScaler().fit(imputer.transform(X[tr]))

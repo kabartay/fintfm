@@ -20,6 +20,7 @@ from fintfm.experiments.hybrid_catboost import (
     assert_no_leak,
     cap_train_rows,
     fit_predict_catboost,
+    fold_group_key,
     inner_oof_logits,
     run_arrays,
     to_logit,
@@ -178,3 +179,11 @@ def test_run_writes_the_v4protocol_layout_and_pairs_with_compare(tmp_path):
                    n_boot=50, cluster=True)
     assert [r["fold"] for r in rows] == [0]
     assert np.isfinite(rows[0]["arm"]) and np.isfinite(rows[0]["control"])
+
+
+def test_a_company_name_in_two_countries_is_two_fold_groups():
+    """The leak check keys on (country, company), the unit the outer folds deal."""
+    key = fold_group_key(np.array([1, 2, 1]), np.array(["MOL Nyrt.", "MOL Nyrt.", "MOL Nyrt."]))
+    assert_no_leak(np.array([0]), np.array([1]), key, "same name, other country")
+    with pytest.raises(LeakageError, match="company"):
+        assert_no_leak(np.array([0]), np.array([2]), key, "same name, same country")
