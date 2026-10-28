@@ -340,7 +340,7 @@
       (`prior/mixture.py:446` with the shipped `n_rows` choices; verify from the checkpoint
       config), inference uses 2,000. Score `max_context` 900 with `n_ensemble` 3 against 2,000.
       Verify: the checkpoint's recorded `n_rows` choices quoted, and five-fold AP for both arms.
-- [ ] AU4.4 **Implemented behind `python -m fintfm.experiments.hybrid_catboost` (2026-10-16, a3865e0); measurement open.**
+- [x] AU4.4 **Done (§201): null, a system result.** CatBoost 0.4005; + FinTFM as baseline 0.4044 (+0.0039, 4/5 folds), as feature 0.4023 (+0.0018, 2/5); nothing survives Holm. Leak assert keyed on (country, company) held. **Implemented behind `python -m fintfm.experiments.hybrid_catboost` (2026-10-16, a3865e0); measurement open.**
       **Hybrid ceiling.** Out-of-fold FinTFM logits (inner company-grouped K-fold) as a
       CatBoost `baseline` and as a feature; compare against CatBoost alone. Measures a system,
       not FinTFM, and is reported as such.

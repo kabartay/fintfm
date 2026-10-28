@@ -12940,3 +12940,26 @@ feature. The fine-tuned arm is not yet run.
 
 §196's ens8 sits at +0.0058 against this control as well (folds −0.0021, −0.0083, +0.0106,
 +0.0187, +0.0099), unchanged from §196.
+
+## §201: AU4.4's hybrid ceiling, a system result, null
+
+**MEASURED, 2026-10-27/28. A system (CatBoost plus FinTFM logits), not FinTFM.** `python -m
+fintfm.experiments.hybrid_catboost --model runs/v4-cellattn-labels.pt --device mps --out
+runs/au44-hybrid`, after 425cede keyed the leak assert on (country, company); the assert held on
+every fold. Out-of-fold FinTFM logits from an inner company-grouped K-fold enter CatBoost as its
+`baseline` or as one feature. Paired company bootstrap against CatBoost alone
+(`runs/au44_cmp.txt`):
+
+| fold | CatBoost | + FinTFM baseline | + FinTFM feature |
+| --- | --- | --- | --- |
+| 0 | 0.4097 | 0.4101 (+0.0004) | 0.4228 (+0.0131) |
+| 1 | 0.3807 | 0.3938 (+0.0131) | 0.3932 (+0.0125) |
+| 2 | 0.4231 | 0.4256 (+0.0025) | 0.4191 (−0.0041) |
+| 3 | 0.3896 | 0.3865 (−0.0031) | 0.3832 (−0.0064) |
+| 4 | 0.3992 | 0.4058 (+0.0066) | 0.3931 (−0.0061) |
+| mean | 0.4005 | 0.4044 (+0.0039) | 0.4023 (+0.0018) |
+
+No fold survives Holm correction (adjusted p 1.000 throughout). As a baseline FinTFM moves
+CatBoost up on 4 of 5 folds by +0.0039 on average, a third of the §173 yardstick; as a feature
+it splits 2 up, 3 down. FinTFM alone scores 0.1986 on the same folds. Adding it to CatBoost does
+not measurably raise the ceiling.
