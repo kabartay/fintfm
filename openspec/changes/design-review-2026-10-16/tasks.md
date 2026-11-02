@@ -158,7 +158,7 @@
       against the published-feature runs, so both models' dependence on the column is known.
       Verify: per-fold AP for both arms in FINDINGS beside §167.
 
-- [ ] DR3.11 **Depth done (2026-10-17, §169 addendum):** depth 1, 2, 3 give 0.2347, 0.2361, 0.2357. **Follow up §169.** Partitioned contexts with fine-tuning per leaf; with 8 members;
+- [ ] DR3.11 **Fine-tuning per leaf, folds 0-1 only (2026-11-02, Kaggle `task_dr311_ftleaf`, `runs/dr311_ftleaf_cmp.txt`): +0.0060 and +0.0003 AP against §169's partition, neither surviving Holm; folds 2-4 at the next quota reset before any verdict.** **Depth done (2026-10-17, §169 addendum):** depth 1, 2, 3 give 0.2347, 0.2361, 0.2357. **Follow up §169.** Partitioned contexts with fine-tuning per leaf; with 8 members;
       depth 1 and 3; bagging over 4-8 trees; and on TabArena-Lite (must not lose on numeric-only
       datasets). Each against §169's arm under §163's rule.
       Verify: per-fold AP for each arm in FINDINGS.
