@@ -1,0 +1,6 @@
+# DR3.11 follow-up of §169: partitioned contexts (depth 2, 5% leaf floor) with 8 ensemble members
+# per leaf. NOT PRODUCTION. Compared against §169's arm (runs/dr31/partition).
+large_n:
+  method: partition
+inference:
+  n_ensemble: 8

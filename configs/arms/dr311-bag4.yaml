@@ -1,0 +1,5 @@
+# DR3.11 follow-up of §169: a forest of 4 depth-2 trees on random 60% bags, leaf scores averaged.
+# NOT PRODUCTION. Compared against §169's arm (runs/dr31/partition).
+large_n:
+  method: partition
+  partition_n_bags: 4

@@ -1,0 +1,6 @@
+# DR3.11 follow-up of §169: partitioned contexts (depth 2) with §163's fine-tuning (200 steps) in
+# each leaf. NOT PRODUCTION. Compared against §169's arm (runs/dr31/partition).
+large_n:
+  method: partition
+inference:
+  finetune_steps: 200
