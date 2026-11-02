@@ -1,0 +1,15 @@
+{
+  "id": "muhakabartay/fintfm-s6e11",
+  "title": "fintfm-s6e11",
+  "code_file": "s6e11_fintfm.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": "true",
+  "enable_gpu": "false",
+  "enable_tpu": "false",
+  "enable_internet": "true",
+  "dataset_sources": [],
+  "competition_sources": ["playground-series-s6e11"],
+  "kernel_sources": [],
+  "model_sources": []
+}
