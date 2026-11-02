@@ -154,7 +154,7 @@
       field. State the feature set (with or without `operational_status`) beside every booster
       number.
       Verify: README, CLAIMS, LIMITATIONS and CHANGELOG quote §167's figures with feature set.
-- [ ] DR3.10 **Zero-shot done (§200):** −0.0022 AP without the column (CatBoost loses 0.034, §167); fine-tuned arm open. **FinTFM without `operational_status`** (zero-shot and fine-tuned arms), paired
+- [x] DR3.10 **Done (§202): fine-tuned −0.0023 AP without the column (5 of 5 folds negative, none survives Holm), zero-shot −0.0022 (§200); CatBoost loses 0.034 (§167).** **Zero-shot done (§200):** −0.0022 AP without the column (CatBoost loses 0.034, §167); fine-tuned arm open. **FinTFM without `operational_status`** (zero-shot and fine-tuned arms), paired
       against the published-feature runs, so both models' dependence on the column is known.
       Verify: per-fold AP for both arms in FINDINGS beside §167.
 
@@ -416,7 +416,7 @@
       the binary checkpoint's proxy Elo, so every later multiclass arm has a control that is not
       TabArena. §121's TabArena rank (93.4 of 95 over 7 datasets) is reported, never selected on.
       Verify: the proxy Elo and per-task scores for `v4-multiclass.pt` recorded in FINDINGS.
-- [ ] DR7.4 **Seed 1 a candidate too (2026-10-26, §197): 16 of 18 splits, 5 of 6 tasks; permutation enters the multiclass recipe. Next: the volume step, pre-registered as §198 with its kernel, at the next quota reset.** **TabArena-Lite, reporting only (2026-10-26, TABARENA.md): 306 Elo, 94th of 95 on 7 datasets, no gain.** **Seed 0 a candidate (2026-10-24, §186): 6 of 6 tasks, 17 of 18 splits, 994 proxy Elo against the control's 808.** Next: the seed-1 replicate at the next quota reset, then the volume step.
+- [x] DR7.4 **Done (§202). Volume step null (§202): 4 wins, 2 losses per task, 12 of 18 splits (p 0.24); 48,000 tasks stays the multiclass volume.** **Seed 1 a candidate too (2026-10-26, §197): 16 of 18 splits, 5 of 6 tasks; permutation enters the multiclass recipe. Next: the volume step, pre-registered as §198 with its kernel, at the next quota reset.** **TabArena-Lite, reporting only (2026-10-26, TABARENA.md): 306 Elo, 94th of 95 on 7 datasets, no gain.** **Seed 0 a candidate (2026-10-24, §186): 6 of 6 tasks, 17 of 18 splits, 994 proxy Elo against the control's 808.** Next: the seed-1 replicate at the next quota reset, then the volume step.
       **A multiclass arm at the current recipe:** E1's 48k recipe (§171) with
       `max_classes 10`, the generic SCM mixed in as `v4-multiclass.pt` was trained, and
       `--permute-classes` (AU5.5), one seed, against DR7.3's control on the proxy suite's
@@ -445,7 +445,7 @@ DR6.2/DR6.3 did not, and boosters lead by 3.5x on SBA.
       label swap, mixed transforms, an 8,000-row context, retrieval, 200 fine-tuning steps; a
       proxy candidate is scored on V4FinBench before it is believed.
       Verify: each arm's per-task sign test against the default in FINDINGS.
-- [ ] DR8.2 **Depth closed (2026-10-26, §195): null on V4FinBench (-0.0047 mean AP, §193) and on the proxy (8 wins, 8 losses); no deeper arm. Open: the width arm, pre-registered as §199 with its two kernels, at the next quota reset.** **Model size at volume.** §114's wide scale-up lost at 48,000 tasks, where a larger
+- [x] DR8.2 **Done (§202): width null too, +0.0003 AP on V4FinBench and 10 wins, 6 losses (p 0.45) on the proxy; with depth (§195) null, no larger arm at 480,000 tasks.** **Depth closed (2026-10-26, §195): null on V4FinBench (-0.0047 mean AP, §193) and on the proxy (8 wins, 8 losses); no deeper arm. Open: the width arm, pre-registered as §199 with its two kernels, at the next quota reset.** **Model size at volume.** §114's wide scale-up lost at 48,000 tasks, where a larger
       model is data-starved; repeat depth (Nori's 16 layers at width 128) and width at 480,000
       tasks against `e1-v480-s0`, pre-registered with §173's yardstick. Blocked by GPU quota and
       E1's seed-1 verdict.

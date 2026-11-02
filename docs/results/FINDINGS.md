@@ -12963,3 +12963,58 @@ No fold survives Holm correction (adjusted p 1.000 throughout). As a baseline Fi
 CatBoost up on 4 of 5 folds by +0.0039 on average, a third of the §173 yardstick; as a feature
 it splits 2 up, 3 down. FinTFM alone scores 0.1986 on the same folds. Adding it to CatBoost does
 not measurably raise the ceiling.
+
+## §202: the 2026-11-01 Kaggle runs, DR3.10 fine-tuned, §199 width and §198 multiclass volume: all null
+
+**MEASURED, 2026-11-02.** Five Kaggle T4 sessions, 25.3 h of quota, launched by
+`runs/kaggle_1101.sh` in two lanes; scored on this Mac by `runs/score_1102.sh` (outputs
+`runs/score_1102_*.txt`).
+
+### DR3.10, fine-tuned: −0.0023 AP without `operational_status`
+
+Kernels `task_dr310_ft_ctl` and `task_dr310_ft_noop`, pinned to 352e70d: §163's fine-tuning
+(200 steps) on the published checkpoint, with and without the column, on the same Kaggle GPU.
+Full-panel fine-tuning on MPS exhausted this Mac's memory (a guarded rerun aborted at 6 GB free;
+the first attempt likely caused the 2026-10-27 17:09 restart), so both arms ran on Kaggle.
+
+| fold | fine-tuned | without column | Δ |
+| --- | --- | --- | --- |
+| 0 | 0.2185 | 0.2159 | −0.0026 |
+| 1 | 0.2069 | 0.2054 | −0.0015 |
+| 2 | 0.1901 | 0.1891 | −0.0010 |
+| 3 | 0.1957 | 0.1938 | −0.0019 |
+| 4 | 0.2202 | 0.2158 | −0.0044 |
+| mean | 0.2063 | 0.2040 | −0.0023 |
+
+All 5 folds negative, none surviving Holm (smallest adjusted p 0.125). With §200's zero-shot
+−0.0022, FinTFM's dependence on the column is about 0.002 AP fine-tuned or not, against 0.034 for
+CatBoost (§167). DR3.10 closes.
+
+### §199, DR8.2 width: null on both measures, as predicted
+
+`dr82-width192-s0`, 60,000 steps (session 1 reached 57,200 at 0.535 s per step, below §199's
+0.55-0.62 estimate; session 2 ran the last 2,800). Against `e1-v480-s0`:
+
+| fold | control | width192 | depth8 (§193, beside) |
+| --- | --- | --- | --- |
+| 0 | 0.1864 | 0.1899 (+0.0034) | 0.1875 (+0.0011) |
+| 1 | 0.1749 | 0.1763 (+0.0014) | 0.1760 (+0.0011) |
+| 2 | 0.1802 | 0.1899 (+0.0097) | 0.1760 (−0.0042) |
+| 3 | 0.1834 | 0.1620 (−0.0214, p 0.002) | 0.1588 (−0.0246, p 0.002) |
+| 4 | 0.2077 | 0.2160 (+0.0083) | 0.2110 (+0.0034) |
+| mean | 0.1865 | 0.1868 (+0.0003) | 0.1818 (−0.0047) |
+
+Δ +0.0003 is far inside ±0.0117: **null on V4FinBench**. Proxy (`runs/dr73/proxy_dr82-width192-s0.csv`,
+16 binary tasks): 10 wins, 6 losses, p 0.4545, Elo 1079 [949, 1222]: **null**. Both scale arms
+lose fold 3 by about 0.02 with significance, so that fold's loss belongs to the larger models,
+not to one axis. **DR8.2 closes:** neither depth nor width at about 2× the parameters moves
+V4FinBench at 480,000 tasks; no larger arm is run on this evidence.
+
+### §198, DR7.4 multiclass at 480,000 tasks: null, against the prediction
+
+`dr74-mc-v480-s0`, 60,000 steps in one session (33,505 s). Against `dr74-mc-s0` on the 6
+scorable multiclass proxy tasks: **4 wins, 2 losses per task (p 0.6875); 12 wins, 6 losses per
+split (p 0.2379)**. Neither leg of §198's rule reaches p < 0.05, so the verdict is **null**; the
+registered prediction was candidate and was wrong. Reported, not decided on: Elo 1044 [953, 1129]
+with the control at 1,000. **Pre-declared action: 48,000 tasks stays the multiclass recipe's
+volume**, and nothing larger is run on this evidence.
