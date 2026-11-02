@@ -354,7 +354,7 @@
       16). Arms: lr {1e-5, 3e-5, 1e-4}, up to 3,000 steps, early stopping on inner-validation
       companies. Depends on §164.
       Verify: five-fold AP against §163's arm under §159's rule, inner-validation selection only.
-- [ ] AU5.2 **Implemented behind `--attn-impl split` (2026-10-16, e18d122); measurement open.**
+- [ ] AU5.2 **Recommended for closing (2026-11-02, `docs/results/drafts/preregs_2026-11.md`): the Verify is met by §170 and its addendum** (split attention 1.21x at fp32 and 1.10x under fp16 in tasks per hour on one Kaggle kernel, logits within 1.2e-4 and 9.4e-4 of fp32 masked); no run needed. **Implemented behind `--attn-impl split` (2026-10-16, e18d122); measurement open.**
       Exact unmasked route (context attention plus a sentinel key carrying each query's own
       key, no mask in either call), in the row encoder and the row-within-feature stage;
       equal to `masked` within 1e-5 fp32 (tests/test_model.py `*attn_impl_split*`). This
@@ -371,14 +371,14 @@
       and an attention path that allows flash attention (the bool row mask blocks it). Measure
       tasks per GPU-hour before and after; no accuracy claim.
       Verify: tasks per GPU-hour measured before and after on the same kernel; outputs equal within fp tolerance on a fixed batch.
-- [ ] AU5.3 **fintfm-train flags `--n-heads`, `--n-cell-heads` and `--n-summary-tokens` wired (2026-10-16, 6ec5534); measurement open.**
+- [ ] AU5.3 **Narrowed (2026-11-02, `docs/results/drafts/preregs_2026-11.md`): one arm, `au53-cell2-s0` (`--n-cell-blocks 2`, a weight-tied second cell pass at d05ea19), pre-registration drafted and kernel `scripts/kaggle/ts_au53_cell2_s0/` written; not trained.** Heads and width are superseded by §202 (DR8.2 width null) and summary tokens by DR6.3's readout tokens, harmful at screening (§178). **fintfm-train flags `--n-heads`, `--n-cell-heads` and `--n-summary-tokens` wired (2026-10-16, 6ec5534); measurement open.**
       **Hooks implemented behind `n_cell_heads` and `n_summary_tokens` (2026-10-16, 0a3b8c8); measurement open; fintfm-train flags and `--n-heads` not yet wired; more cell blocks is the existing `n_cell_blocks`.** **Capacity where the bottleneck is.** The shipped model has ~886k parameters (agent
       measurement; verify) and pools up to 136 cell tokens into one 128-d row vector after one
       cell block (`model.py:537-553`). Peers keep per-cell tokens (TabPFN v2) or several summary
       tokens per row (TabICL); verify their sizes from primary sources first. Arms: more cell
       blocks; 4 summary tokens per row; expose `n_heads`.
       Verify: peer sizes quoted from primary sources; each arm scored at matched tasks under §159's rule.
-- [ ] AU5.4 **Implemented behind `--max-query-rows` / `prior.max_query_rows` (2026-10-16,
+- [ ] AU5.4 **Arm `au54-ctx2k-s0` drafted (2026-11-02, `docs/results/drafts/preregs_2026-11.md`): `--n-rows-choices 256,512,1024,2223 --max-query-rows 512`, contexts to 2,000 rows, kernel `scripts/kaggle/ts_au54_ctx2k_s0/` written; not trained.** **Implemented behind `--max-query-rows` / `prior.max_query_rows` (2026-10-16,
       b1084ce); measurement open.** Contexts to 4,096 rows were already reachable through
       `--n-rows-choices` (4552 gives `int(0.9 * 4552) == 4096`); the flag caps the query rows
       that come with them. Row attention is a dense masked N x N, so cost grows with context
@@ -386,13 +386,13 @@
       **Train on the context lengths inference uses** (up to 4,096 rows; query-to-context
       attention keeps cost linear in queries).
       Verify: the trained `n_rows` range covers inference's `max_context`; five-fold AP against the current checkpoint.
-- [ ] AU5.5 **Implemented behind `--permute-classes` / `prior.permute_classes` (2026-10-16,
+- [ ] AU5.5 **Recommended for closing without a GPU run (2026-11-02, `docs/results/drafts/preregs_2026-11.md`):** the test exists; the probe "before" is §165, and "after" can run on CPU on `dr74-mc-s0`/`dr74-mc-s1` (trained with `--permute-classes`) against `v4-multiclass.pt`. A binary credit arm is not funded: in credit the default is always class 1. **Implemented behind `--permute-classes` / `prior.permute_classes` (2026-10-16,
       b1084ce); measurement open.**
       **Class-index permutation in pretraining** (`collate`): SCM classes are ordinal and
       class 1 is always the rare default in the financial prior, so the model can learn a
       class-index prior.
       Verify: a test that class indices are permuted per task; label-symmetry probe before and after.
-- [ ] AU5.6 **Implemented behind `--feature-transforms` / `prior.feature_transforms`
+- [ ] AU5.6 **Recommended for closing as superseded (2026-11-02, `docs/results/drafts/preregs_2026-11.md`): §88 measured that the inference rank transform does the invariance work (§87's mismatch "needs no retraining"; marginal augmentation about 0.001); no arm drafted.** **Implemented behind `--feature-transforms` / `prior.feature_transforms`
       (2026-10-16, b1084ce); measurement open.**
       **Match pretraining and inference preprocessing.** Pretraining z-scores; inference
       defaults to rank-to-normal. Draw a random transform per pretraining task and ensemble over
@@ -417,7 +417,7 @@
       **Implemented behind `hazard_period_context` (2026-10-16, 0a3b8c8); measurement open; the classifier cannot yet pass context periods at inference.** **Hazard context carries only the binary label** (`model.py:751-759,787-797`): embed
       the default period and a censored token for context rows.
       Verify: a hazard test where the term structure is learnable only from context periods.
-- [ ] AU5.10 **Implemented behind `--no-decay-norm-bias` and `--warmup-steps` (2026-10-16, 9c3b615); measurement open.**
+- [ ] AU5.10 **Recommended for closing without a run (2026-11-02, `docs/results/drafts/preregs_2026-11.md`):** the Verify test exists (`tests/test_train.py::test_decay_norm_bias_false_exempts_norms_biases_and_embeddings`); exempting decay of 0.01 cannot plausibly reach the 0.0117 yardstick (§173) one 48k arm resolves. Final-LayerNorm nit not done, not funded. **Implemented behind `--no-decay-norm-bias` and `--warmup-steps` (2026-10-16, 9c3b615); measurement open.**
       The final-LayerNorm-before-pooling nit is not done (model.py).
       **Optimiser nits.** Weight decay also hits LayerNorm, biases and embeddings
       (`train.py:407`); no final LayerNorm before pooling in two encoders; warmup fixed at 500
@@ -473,11 +473,11 @@
       `--checkpoint-every`. Cost to be measured on one Kaggle session before committing. After
       it, re-test the closed architecture verdicts, all measured at 48k tasks.
       Verify: tasks per GPU-hour and cost measured on one Kaggle session before the full run; then §159's rule on V4FinBench and TabArena-Lite.
-- [ ] AU5.16 **fintfm-train flags `--value-embedding`, `--value-basis-size`, `--value-basis-learnable` and `--value-ecdf` wired (2026-10-16, 6ec5534); measurement open.**
+- [ ] AU5.16 **Arm `au516-rbf-s0` drafted (2026-11-02, `docs/results/drafts/preregs_2026-11.md`): `--value-embedding rbf`, 16 fixed centres, ECDF channel left out; kernel `scripts/kaggle/ts_au516_rbf_s0/` written; not trained.** **fintfm-train flags `--value-embedding`, `--value-basis-size`, `--value-basis-learnable` and `--value-ecdf` wired (2026-10-16, 6ec5534); measurement open.**
       **Implemented behind `value_embedding` and `value_ecdf` (2026-10-16, 0a3b8c8); measurement open.** **Value embedding**: Fourier or RBF plus ECDF-rank features in place of the MLP on
       (z, missing) (LimiX-2M RaBEL, TabPFN-3.5). One module, behind a flag.
       Verify: a flag, a test that it is off by default, and five-fold AP at matched tasks.
-- [ ] AU5.17 **fintfm-train flags `--attn-length-scale` and `--attn-length-ref` wired (2026-10-16, 6ec5534); measurement open.**
+- [ ] AU5.17 **Two arms drafted (2026-11-02, `docs/results/drafts/preregs_2026-11.md`): `au517-lenscale-s0` (`--attn-length-scale`) and `au517-muon-s0` (`--optimizer muon`), kernels `scripts/kaggle/ts_au517_lenscale_s0/` and `ts_au517_muon_s0/` written; not trained.** **fintfm-train flags `--attn-length-scale` and `--attn-length-ref` wired (2026-10-16, 6ec5534); measurement open.**
       **Implemented behind flags (2026-10-16); measurement open.** Attention half:
       `attn_length_scale` (0a3b8c8; fixed log-length scale, no learned per-query factor).
       Optimiser half: `--optimizer muon` (9c3b615). Early target inclusion already exists as `cell_labels` (task 39.2; design review 2026-10-16).

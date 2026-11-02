@@ -267,7 +267,7 @@
       Secondary: DR4.2 proxy and a fixed 512-task synthetic set. Pre-register the outcome actions
       (2M run, mixed-prior 2M run, or neither) before launching.
       Verify: the pre-registration committed before the first arm trains; the verdict in FINDINGS.
-- [ ] DR5.4 **Implemented behind `--schedule wsd` and `--eval-set-seed` (2026-10-16, 96c1e39); measurement open.**
+- [ ] DR5.4 **Recommended for closing as superseded (2026-11-02, `docs/results/drafts/preregs_2026-11.md`): the Verify test passes; the open 2M-task branched run is unfunded by §188, and §202 closed scale at this size.** **Implemented behind `--schedule wsd` and `--eval-set-seed` (2026-10-16, 96c1e39); measurement open.**
       A wsd run keeps `<out>.stable.state` at its last stable step; the Verify test passes
       (`tests/test_train.py::test_wsd_stable_state_resumes_with_a_longer_horizon_to_the_
       uninterrupted_weights`, 12 -> 20 steps, equal weights). Open: a 2M-task run branched
@@ -354,7 +354,7 @@
 
 ## Phase DR6 — architecture v2
 
-- [ ] DR6.1 **Implemented behind `pad_to_batch_width` (2026-10-16, 2d22ba9); measurement open.**
+- [ ] DR6.1 **Recommended for closing (2026-11-02, `docs/results/drafts/preregs_2026-11.md`): the Verify is met (2d22ba9's identical-output test; step time in §170, 1.29x against split alone's 1.21x at fp32).** Not added to the 2026-11 arms, to keep each one lever from its control. **Implemented behind `pad_to_batch_width` (2026-10-16, 2d22ba9); measurement open.**
       Column ids are drawn at 136 and sliced when on, so a task's outputs match full padding
       (max abs logit gap 3.6e-7, eval, fixed `column_id_seed`) and a widest-136 batch is byte
       for byte the same. MEASURED on a 300-task sample of the reference recipe at batch 8: the
@@ -392,7 +392,7 @@
       **Readout tokens that take part in feature attention** (re-specify AU5.3), feeding a
       2-layer head.
       Verify: §137's parity probe at k = 2 rises above 0.60 AUC (chance today).
-- [ ] DR6.4 **v2 bundle against v1** at matched 240,000 tasks, two seeds: adopt if five-fold mean
+- [ ] DR6.4 **Deferred (2026-11-02, `docs/results/drafts/preregs_2026-11.md`): no bundle exists, since §178 excluded DR6.2 and DR6.3; to be re-specified as the 2026-11 screening levers promising at both seeds, about 22 GPU-h ESTIMATED for four 240k arms.** **v2 bundle against v1** at matched 240,000 tasks, two seeds: adopt if five-fold mean
       AP is at least +0.010 with 4 of 5 folds positive at both seeds; then leave-one-out on DR6.2
       and DR6.3 only.
       Verify: the verdict in FINDINGS.

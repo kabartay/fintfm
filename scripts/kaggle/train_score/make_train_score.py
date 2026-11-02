@@ -67,6 +67,21 @@ ARMS = {
     # 4 heads, 1.88M parameters against the depth arm's 1.68M
     "dr82-width192-s0": (E1 + ["--seed", "0", "--steps", "60000", "--d-model", "192", "--d-ff", "768",
                                "--n-heads", "6", "--n-cell-heads", "4"], True),
+    # 2026-11 screening (docs/results/drafts/preregs_2026-11.md): E1's 48k recipe at seed 0,
+    # one lever each, against e1-v48-s0, pinned at its commit d05ea19, which carries every
+    # flag below. Ranked by expected value per GPU-hour in that file.
+    # AU5.17 attention half: row-attention logits times log(n_ctx)/log(512)
+    "au517-lenscale-s0": (E1 + S0_48K + ["--attn-length-scale"], True),
+    # AU5.17 optimiser half: Muon on the hidden matrices at --lr (rms_match), AdamW on the rest
+    "au517-muon-s0": (E1 + S0_48K + ["--optimizer", "muon"], True),
+    # AU5.16: a 16-centre fixed RBF basis on the normalised cell value before the cell MLP
+    "au516-rbf-s0": (E1 + S0_48K + ["--value-embedding", "rbf"], True),
+    # AU5.3, narrowed: a second two-way cell-attention block, the one capacity axis DR8.2 kept
+    "au53-cell2-s0": (E1 + S0_48K + ["--n-cell-blocks", "2"], True),
+    # AU5.4: contexts to inference's 2,000 rows (int(0.9 * 2223) == 2000), queries capped at
+    # inference's query_chunk 512
+    "au54-ctx2k-s0": (E1 + S0_48K + ["--n-rows-choices", "256,512,1024,2223",
+                                     "--max-query-rows", "512"], True),
 }
 #: Arms trained but not scored on V4FinBench, which is binary: a multiclass arm is decided
 #: on the proxy suite, run off Kaggle
