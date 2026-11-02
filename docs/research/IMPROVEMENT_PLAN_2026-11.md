@@ -42,7 +42,7 @@ representation, not in scale.
 | linear-probe variant 910 Elo | 910 against the own head's 765 on §132's cache; the current own-head figure, 756, is a later run (NaN passed through) | §132, `docs/results/TABARENA.md` |
 
 The other figures in the brief match their sources: 0.1986 (§130's own-head mean), 0.2362
-(§169), 0.4005 (§167), 756 Elo and 94th of 95 (`TABARENA.md`, 2026-10-19 run), 936 for
+(§169), 0.4005 (§167), 756 Elo and 94th of 95 (`docs/results/TABARENA.md`, 2026-10-19 run), 936 for
 `Linear (default)` on §132's cache.
 
 Two facts the plan depends on, also from the source:
@@ -123,7 +123,7 @@ against TabArena (DR4.2).
 | --- | --- | --- | --- |
 | rank transform | yes | +0.086 AUC; Yeo-Johnson loses to rank on every fold | §35, §129 |
 | context size, full panel | yes | nearly flat; in-range 500 rows does not beat 2,000 | §83, §162 |
-| context size, TabArena-Lite | yes | 500: 702, 750: 745, 1,000: 756 Elo | `TABARENA.md` |
+| context size, TabArena-Lite | yes | 500: 702, 750: 745, 1,000: 756 Elo | `docs/results/TABARENA.md` |
 | 8 members | yes | V4 +0.0058, 3 of 5; proxy candidate 13/2 | §187, §196 |
 | 8 members with label swap; with transform cycling | yes, proxy | 11/5, not candidates | §187 |
 | retrieval context | yes | V4 collapses to 0.0126 | §194 |
