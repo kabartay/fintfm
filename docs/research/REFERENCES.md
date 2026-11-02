@@ -482,6 +482,42 @@ objective, run to convergence: it trails the value-only arm 32:70 on classificat
 real datasets, one run per arm. A negative result for latent self-supervision on a synthetic
 prior.
 
+**Entries added 2026-11-02 (`docs/research/IMPROVEMENT_PLAN_2026-11.md`).** Read from the arXiv
+PDF with `pdftotext`, title and authors checked on the PDF's first page; licences from the
+repository `LICENSE` or README and the model card, separately. Figures and quotes are in
+`docs/paper/RELATED_WORK.md`, "Prior row counts, task volume and inference defaults, read
+2026-11-02". Ideas only.
+
+**Qu, Holzmüller, Varoquaux & Le Morvan (2025).** *TabICL: A Tabular Foundation Model for
+In-Context Learning on Large Data.* Venue not checked (arXiv v2, 24 May 2025). [arXiv:2502.05564](https://arxiv.org/abs/2502.05564).
+Code `github.com/soda-inria/tabicl`, **BSD-3-Clause; weights BSD-3-Clause** (Hub card of
+`jingang/TabICL`). The predecessor of TabICLv2, entered for its row curriculum (1,024 rows for
+160K steps, then 1K to 40K, then 40K to 60K), its 70% MLP-SCM and 30% XGBoost-tree-SCM prior, and
+about 82 million pretraining datasets. Its paper ensembles over 32 column and class shuffles; the
+repository's default has since dropped to 8.
+
+**LimiX Team, Stable AI and Tsinghua University (2025).** *LimiX: Unleashing Structured-Data
+Modeling Capability for Generalist Intelligence.* [arXiv:2509.03505](https://arxiv.org/abs/2509.03505).
+The first LimiX report (LimiX-16M and LimiX-2M), before LimiX-2 above. Hierarchical SCM prior with
+MLP, convolutional and decision-tree edge functions; four inference pipelines for classification,
+each permuting features and reordering labels, with attention-based retrieval. **Licence: "All
+LimiX models are publicly accessible under Apache 2.0"** (abstract), unlike LimiX-2's
+non-commercial weights; the current repository carries the Stable AI licence noted above, so which
+text governs a given v1 checkpoint has to be checked at the checkpoint, not here. Row counts and
+task volume are not disclosed.
+
+**Synthefy (2025).** *Nori.* Model card `huggingface.co/Synthefy/Nori`, code
+`github.com/Synthefy/synthefy-nori`; the card cites a Zenodo record, doi:10.5281/zenodo.20710462,
+not opened here. **Code and weights Apache-2.0.** No paper. Regression-only, about 5.9M
+parameters, a hierarchical-DAG SCM with 8 edge-function types and 9 target families, an
+ExtraTrees signal filter, training tiers up to 56K rows (`docs/training.md`). Discussed since
+2026-09-21 in `docs/paper/RELATED_WORK.md` and entered here only now.
+
+**Erickson et al. (2025), TabArena**, entered above, is also
+[arXiv:2506.16791](https://arxiv.org/abs/2506.16791). Two protocol facts from it matter here:
+foundation models are refit on training plus validation data rather than cross-validation
+ensembles (§3), and TabArena-Lite is all datasets with one outer fold (Appendix A.4).
+
 **What none of these licenses.** Reading a paper licenses an *idea*. Nothing in this section
 authorises copying an implementation, a weight file, or a pretraining corpus, and a repository
 under a permissive code licence proves nothing about the weights inside it.

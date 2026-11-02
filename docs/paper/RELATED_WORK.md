@@ -1131,3 +1131,91 @@ tasks with no separate selection set (O'Prior also on OpenML-CC18, where the Hyb
 holds). LightPFN selected on held-out synthetic tasks, mechanism probes and real datasets outside
 TabArena, and "ha[s] not used TabArena for any decision since" (abstract; §7.6, p16). This
 project's rule since §115/§116 (`CLAUDE.md`) is to score a change on V4FinBench before TabArena.
+
+## Prior row counts, task volume and inference defaults, read 2026-11-02
+
+**Status.** Read for `docs/research/IMPROVEMENT_PLAN_2026-11.md`. Every figure below was taken
+from the source named beside it: arXiv PDFs converted with `pdftotext -layout`, and repository or
+model-card files fetched raw. No summariser was used. Where a source is silent the entry says so;
+nothing is filled in. Ideas only: nothing from any of these enters the repository, whatever the
+licence.
+
+**Rows per pretraining task, the axis this project has never varied.**
+
+| model | rows per task | source |
+| --- | --- | --- |
+| TabPFN v2 | "uniformly up to 2,048", plus a fixed 128-row validation set | Nature 637:319, Methods |
+| TabICL | "fixed size of 1,024 for 160K steps", then "between 1K and 40K over 2K steps", then 40K-60K for 50 steps | arXiv 2502.05564, §4.2 |
+| TabICLv2 | "500K steps on datasets with 1,024 samples", then 40K steps at 400-10,240, then "10K steps on datasets with 400–60K samples" | arXiv 2602.11139, §4.1 |
+| Mitra-v2 | "160–5,120 support rows; 1,280 query rows", 1-50 features, up to 10 classes | arXiv 2609.04540, §2.4 |
+| TabFM | four-stage curriculum "from 2,048 to 16,384 instances", tokens per step held at 2^22 | arXiv 2609.37959, §3.2 |
+| TabDPT (real data) | context and query lengths of 1,024 | arXiv 2410.18164 |
+| TabPFN-2.5, 3, 3.5; LimiX; LimiX-2 | not disclosed | their reports |
+| **FinTFM** | 256, 512 or 1,024 rows; contexts 76-921 (`docs/results/FINDINGS.md` §162) | |
+
+Every leader that discloses a schedule trains at 2,048 rows or more in some stage; FinTFM never
+has, and is scored at 1,000 (TabArena adapter) and 2,000 (V4FinBench). §162's full-panel result
+(an in-range 500-row context does no better than 2,000) says inference past the trained length is
+not itself the harm; it does not say whether training at that length would help.
+
+**Task volume.** TabPFN v2: "approximately 2,000,000 steps with a batch size of 64 … around
+130,000,000 synthetically generated datasets" (Methods). TabICL: "approximately 82 million"
+(appendix); TabICLv2 states "(≈35M) than TabICL (≈83M) and TabPFNv2 (≈130M)" at batch 64 (§4.1),
+so the two TabICL papers differ by one million on the same model. Mitra: "45 million synthetically
+generated datasets" (arXiv 2510.21204). Mitra-v2: "about 28.7 million nominal synthetic tasks"
+(§2.5). TabPFN-3: "more than 8 trillion tokens", no task count (§2.5). FinTFM: 48,000 published,
+480,000 in E1. Mitra-v2's Appendix C (longer training "left the board flat") and this project's
+E1 null on credit (§188) are the two data points against reading the volume gap as the cause.
+
+**Classification readout.** TabPFN-3 replaces "the fixed-width MLP output head of previous TabPFN
+versions … with an attention-based retrieval decoder that treats class prediction as soft
+nearest-neighbor retrieval over the in-context training set" (arXiv 2605.13986, §2). TabPFN-3.5:
+"Classification is read out by attention over the one-hot training labels" (arXiv 2609.17895,
+§3.4). TabICL keeps "a two-layer MLP"; TabFM a 2-layer MLP; Mitra-v2 "a linear head over class
+logits". FinTFM's head is one linear layer, and a post-hoc linear probe on its pre-head state beats
+it (§131, label-count confounded). The Prior Labs change is the closest published relative of what
+that probe does, and is the reason the improvement plan ranks a label-attention readout (its
+experiment 5) behind a matched-label probe test rather than ahead of it.
+
+**Label entry.** TabICLv2's target-aware embedding, "E2[i,j] = E1[i,j] + EmbedTAE(yi), i ∈ Dtrain",
+is the same idea as FinTFM's `cell_labels`, which §172 measured at +0.0520 AP with cell
+attention. TabFM: "Labeled rows receive a target embedding e(yi) added to each cell, while query
+rows receive nothing". LimiX-2 fills the query target "with a learnable MASK embedding". FinTFM's
+cell labels use a learned mask token for query cells, as LimiX-2 does.
+
+**Inference defaults.**
+
+| model | members | axes | preprocessing | source |
+| --- | --- | --- | --- | --- |
+| TabPFN v2 | `DEFAULT_N_ESTIMATORS = 8` in current code; the default at release not checked | feature shuffle; "For classification tasks, we additionally randomly permute the labels" | quantile, SVD, outlier removal beyond 12 SD, Yeo-Johnson, one-hot, a random "fingerprint" feature; softmax temperature 0.9 | Nature Methods; `PriorLabs/TabPFN` source |
+| TabICL | 32 in the paper | "randomly shuffling columns and classes and using different pre-processors" | z-normalisation with or without power transform | arXiv 2502.05564 |
+| TabICLv2 | 8 ("TabICLv1 and v1.1 originally used n_estimators=32") | `feat_shuffle_method="latin"`, `class_shuffle_method="shift"` | `["none", "power"]`, outlier clipping at z = 4.0, temperature 0.9 | `soda-inria/tabicl` README and classifier docstring |
+| TabPFN-3.5 | 8 (Fast: 4) | "distinct permutations of the dataset" | "does not rely on additional feature transformations such as quantile transformations or robust scaling" | arXiv 2609.17895, §3.2 |
+| LimiX | 4 classification, 8 regression | feature permutation, label reordering, attention-based retrieval | quantile, log-normal, SVD | arXiv 2509.03505, §5 |
+| TabDPT | 8 | feature and class permutation; kNN context of 2,048 | PCA above the feature cap | arXiv 2410.18164 |
+| TabFM | 1 (zero-shot); TabFM+ 32, NNLS-stacked, Platt-scaled | column and categorical permutations, cyclic class shifts | identity or Yeo-Johnson, clipping at 4.0 | arXiv 2609.37959, §4 |
+| Mitra-v2 on TabArena | fine-tuned, 50 steps per fold, 8-fold bagging; "They do not mean zero-shot inference" | | | arXiv 2609.04540 |
+| **FinTFM** | 1 | column-identity draw | rank (§35) | `src/fintfm/configs/default.yaml` |
+
+Two readings. **Class permutation is universal** among the leaders as an inference axis; FinTFM
+has it built (`ensemble_class_shift`) and has scored only label swap on the proxy (11 of 16, not a
+candidate, §187). **TabPFN-3.5 dropped preprocessing diversity** and moved the work into the cell
+encoding (ECDF and Fourier features), which bears on this project's built and unscored AU5.16.
+
+**TabArena's protocol for foundation models.** "For all foundation models, we refit on training
+and validation data instead of using cross-validation ensembles", and TabICL and TabDPT were run
+at "only their default performance" (Erickson et al., arXiv 2506.16791, §3). TabArena-Lite is "a
+subset of TabArena that consists of all datasets with one outer fold" (same paper, Appendix A.4).
+Mitra-v2's board entry is fine-tuned and bagged by its own description, so leaderboard rows do not
+share one inference protocol.
+
+**Licences, code and weights separately** (read from each repository's `LICENSE` or README and the
+model card): TabICL and TabICLv2 BSD-3-Clause for both; TabPFN code Apache-2.0, TabPFN-2 weights
+"Prior Labs License (Apache 2.0 with an additional attribution requirement)", 2.5 onwards
+non-commercial; LimiX v1 "publicly accessible under Apache 2.0" (abstract), LimiX-2 weights
+non-commercial; Mitra and Mitra-v2 Apache-2.0; TabDPT Apache-2.0 for both; TabFM code Apache-2.0,
+weights non-commercial; Nori Apache-2.0 for both.
+
+**What is left for us from this read.** No new claim. Two untested levers with direct peer
+support, both in the improvement plan: training at the row counts the model is scored at, and a
+readout over the context's own labels.
