@@ -454,7 +454,20 @@
       TabArena datasets). Local TabArena-Lite T+E gains for peers whose defaults lack this:
       TabPFNv2 +92 Elo, TabDPT +129; RealTabPFN-2.5, which has it by default, −3.
       Verify: the label-symmetry probe result recorded first; each member axis scored on TabArena-Lite.
-- [ ] AU5.13 **Fill the TabArena search space** (`tabarena/.../models/fintfm/hpo.py` is empty)
+- [ ] AU5.13 **Search space written (2026-11-02); not yet committed in the fork, and the T+E run
+      is open.** The fork's `hpo.py` was not empty (it held an unmeasured space over the ensemble
+      member axes); it is replaced by a seeded ConfigSpace space over the levers FINDINGS shows
+      moving a score: `n_ensemble` 4/8/16 (§187, §196), `max_context` 1,000/2,000 (AU5.14,
+      §187), `context_strategy` uniform/retrieval (§187, §196), `context_positive_floor`
+      none/0/16 (§200), `large_n` partition with depth 1-3 and 1 or 4 bags (§169),
+      `finetune_steps` 0/200 (§163), `feature_transform` rank/power (§129). Conditions and
+      forbidden clauses keep every sampled config inside what fintfm accepts. The wrapper gains
+      `large_n`/`partition_*` and moves a fine-tuned copy (`model_`) on `_set_device`, which it
+      missed before. The keys past v0.7.1 need fintfm from source. Fork tests 10 of 10 pass
+      (`tests/tabarena/models/test_fintfm_hpo.py`), ruff 0.14.0 clean. The fork could not be
+      branched from this session, so the change is the patch `~/proj/tabarena-fintfm-hpo-space.patch`
+      for branch `fintfm-hpo-space` off `fintfm-audit-fixes` (5cb019c).
+      **Fill the TabArena search space** (`tabarena/.../models/fintfm/hpo.py` is empty)
       once AU5.12 exists; compute-heavy (11 s per 1k rows locally), so GPU only.
       Verify: a TabArena T+E run recorded as its own row, not as the default.
 - [x] AU5.14 **Done (2026-10-26, `docs/results/TABARENA.md`): 702, 745 and 756 Elo at 500, 750 and 1,000, 94th of 95 each; the default stays 1,000.** **TabArena context size**: TabArena-Lite at `max_context` 500 and 750 against 1000
@@ -485,6 +498,12 @@
       softmax scaling), early target inclusion; also the fix for AU4.3 if context length is the
       problem.
       Verify: each change behind a flag, scored at matched tasks.
-- [ ] AU5.18 **Score the TabArena imbalanced subset** (v0.1.9), the credit-relevant slice, with
+- [ ] AU5.18 **Run script ready (2026-11-02, `scripts/tabarena_imbalanced_run.py`); run open.**
+      Default config, every split of the 7 covered binary datasets of the subset's 15 (63 fits;
+      `--dry-run` confirms the count and the 8 exclusions), Elo over those 7 only, no imputation
+      of FinTFM. Cost ESTIMATED from the 2026-10-19 Lite run's split-0 times on these 7 (MEASURED
+      2,010 s fit plus 879 s predict on MPS): about 7 to 10 h, and under 1 GB of process memory
+      per fit by the harness's own record, which does not count MPS allocations.
+      **Score the TabArena imbalanced subset** (v0.1.9), the credit-relevant slice, with
       the current checkpoint as a baseline.
       Verify: the imbalanced-subset Elo recorded in TABARENA.md with its date.
