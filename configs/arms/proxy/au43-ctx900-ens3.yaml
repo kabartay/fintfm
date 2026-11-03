@@ -1,0 +1,9 @@
+# Audit AU4.3 on the proxy suite (docs/results/drafts/inference_tasks_2026-11.md), arm
+# "au43-ctx900-ens3". NOT PRODUCTION. A 900-row context, inside the trained 76-921 range, with 3
+# members (about 2,700 context rows in all), against the packaged 2,000-row single-member default.
+# Every other key inherits the packaged default; the control is FinTFM-binary in
+# runs/dr73/proxy_binary.csv.
+
+inference:
+  max_context: 900
+  n_ensemble: 3

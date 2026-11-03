@@ -1,0 +1,14 @@
+# Audit AU4.2, arm "prototype": k-means prototype undersampling of the context (Kostrzewa et
+# al.'s minority-to-majority ratio 0.3, FINDINGS §36/§38), against the zero-shot uniform default.
+#
+# NOT PRODUCTION. MEASUREMENT OPEN; NOT RUN (full-panel V4FinBench, deferred for memory;
+# docs/results/drafts/inference_tasks_2026-11.md). §162 scored this arm on fold 0 at the
+# 200,000-row development cap only (+0.0483 AP, Holm p 0.054), a pool that §162's own
+# confirmation showed does not transfer to the full panel. Every other key inherits the packaged
+# default, so the control is the same command without --config.
+#
+#   uv run --frozen fintfm-v4protocol --model runs/v4-cellattn-labels.pt \
+#     --config configs/arms/au42-prototype.yaml --no-boosting --device cpu --out runs/au42/prototype
+
+inference:
+  context_strategy: prototype

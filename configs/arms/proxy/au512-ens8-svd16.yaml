@@ -1,0 +1,8 @@
+# Audit AU5.12 on the proxy suite (docs/results/drafts/inference_tasks_2026-11.md), arm
+# "au512-ens8-svd16". NOT PRODUCTION. 8 members; odd-indexed members append 16 truncated-SVD
+# projections of their own conditioned context (capped at max_features minus the table width).
+# The control is lever-ens8 (runs/dr73/proxy_lever_ens8.csv), so only the SVD axis differs.
+
+inference:
+  n_ensemble: 8
+  ensemble_svd_components: 16

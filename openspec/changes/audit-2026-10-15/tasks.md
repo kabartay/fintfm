@@ -336,7 +336,7 @@
       k-means prototype undersampling (the V4FinBench authors' 0.3 ratio) were never scored on
       the full panel. Comparator: zero-shot uniform.
       Verify: five-fold AP against zero-shot uniform, paired bootstrap, §159's rule.
-- [ ] AU4.3 **Context length beyond training.** Pretraining contexts reach at most ~921 rows
+- [ ] AU4.3 **Proxy measured (2026-11-03, `docs/results/drafts/inference_tasks_2026-11.md`): `max_context` 900 with 3 members against 2,000 rows, 11/5 tasks (p 0.21), 25/21 splits (p 0.66), null; the V4FinBench arm stays open.** **Context length beyond training.** Pretraining contexts reach at most ~921 rows
       (`prior/mixture.py:446` with the shipped `n_rows` choices; verify from the checkpoint
       config), inference uses 2,000. Score `max_context` 900 with `n_ensemble` 3 against 2,000.
       Verify: the checkpoint's recorded `n_rows` choices quoted, and five-fold AP for both arms.
@@ -436,7 +436,7 @@
       (`prior/tree.py:79-82,136`). Arm: a TabArena checkpoint on SCM + tree + families with
       `p_financial ≤ 0.3`, more tasks, after AU1.13.
       Verify: the prior sampler's statistics (class balance, categoricals, missingness, kurtosis) reported before and after.
-- [ ] AU5.12 **Implemented behind `ensemble_class_shift`, `ensemble_transforms` (new `squash`
+- [ ] AU5.12 **Proxy measured (2026-11-03, `docs/results/drafts/inference_tasks_2026-11.md`): against 8 plain members, SVD-16 members 31/14 splits (p 0.016), 12/4 tasks (p 0.077), a lead for V4FinBench; class shift 30/17 splits (p 0.079), null.** **Implemented behind `ensemble_class_shift`, `ensemble_transforms` (new `squash`
       transform) and `ensemble_svd_components`, with `max_features_strategy: subsample` for
       wide tables (2026-10-16, b3da945); measurement open.** Label-symmetry probe
       (`scripts/label_symmetry_probe.py`), MEASURED on `runs/v4-cellattn-labels.pt`, Pearson

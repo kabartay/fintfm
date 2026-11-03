@@ -1,0 +1,9 @@
+# Audit AU5.12 / design review DR3.5 on the proxy suite
+# (docs/results/drafts/inference_tasks_2026-11.md), arm "au512-ens8-cshift". NOT PRODUCTION.
+# Class permutation as a member axis: 8 members, member i relabels the context by a cyclic shift
+# of i (on a binary task, label swap on every other member at no extra cost). The control is
+# lever-ens8 (runs/dr73/proxy_lever_ens8.csv), so only the shift differs.
+
+inference:
+  n_ensemble: 8
+  ensemble_class_shift: true
