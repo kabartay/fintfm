@@ -200,7 +200,7 @@
       Validation predictions (`y_val`, `val_<arm>`) are already saved: switch the pilot to them,
       and note in §157/§162 that fold 0 selected the arm.
       Verify: `pilot_compare.py --split val` exists and is the default.
-- [ ] AU2.5 **Booster ablation done (2026-10-16, §167):** without `operational_status` CatBoost loses 0.0343 mean AP (5 of 5 folds), LightGBM 0.0210, LR 0.0064. FinTFM's own ablation is still open.
+- [x] AU2.5 **Done (2026-11-03): FinTFM's own ablation is §200 (zero-shot, −0.0022 mean AP, 4 of 5 folds down, one Holm-significant) and §202 (fine-tuned, −0.0023, 5 of 5 down, none Holm-significant), both per fold; with §167's boosters every arm is written up. FinTFM depends on the column by about 0.002 AP against CatBoost's 0.034.** **Booster ablation done (2026-10-16, §167):** without `operational_status` CatBoost loses 0.0343 mean AP (5 of 5 folds), LightGBM 0.0210, LR 0.0064. FinTFM's own ablation is still open.
       **Partly done (2026-10-16).** Upstream checked: their drop list
       (`docs/benchmark_protocol.md`, `preprocessing.py` at 59d33ea) equals ours and keeps both
       `operational_status` and `Insolvency_flag` as features; the paper lists the latter as
