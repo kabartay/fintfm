@@ -331,12 +331,12 @@
       ~2,150 training positives, not categoricals (CatBoost gets no `cat_features` here; check
       `get_all_params()` for its boosting type).
       Verify: per-fold AP for both arms in FINDINGS, paired against the existing booster runs.
-- [ ] AU4.2 **Context composition, inference only.** Uniform beat balanced/hybrid in §29/D9,
+- [ ] AU4.2 **Progress (2026-11-03, `docs/results/drafts/inference_tasks_2026-11.md`): floor half answered by §200, null** (floor16 +0.0055 mean AP, 3 folds up, 2 down, below 0.0117). **Open: prototype undersampling on the full panel** (only §162's capped fold 0 exists); command and estimate in the draft, `configs/arms/au42-prototype.yaml`, not run (memory). **Context composition, inference only.** Uniform beat balanced/hybrid in §29/D9,
       but a minimum-positive floor on a uniform context (~7 positives at 2,000 rows) and
       k-means prototype undersampling (the V4FinBench authors' 0.3 ratio) were never scored on
       the full panel. Comparator: zero-shot uniform.
       Verify: five-fold AP against zero-shot uniform, paired bootstrap, §159's rule.
-- [ ] AU4.3 **Proxy measured (2026-11-03, `docs/results/drafts/inference_tasks_2026-11.md`): `max_context` 900 with 3 members against 2,000 rows, 11/5 tasks (p 0.21), 25/21 splits (p 0.66), null; the V4FinBench arm stays open.** **Context length beyond training.** Pretraining contexts reach at most ~921 rows
+- [ ] AU4.3 **Progress (2026-11-03, `docs/results/drafts/inference_tasks_2026-11.md`): the checkpoint does not record `n_rows` choices; the recorded training command's `--n-rows-choices 256,512,1024` gives contexts of 76-921 rows.** Proxy, MEASURED: `max_context` 900 with 3 members against the default, 11 wins, 5 losses, p 0.21, not a candidate; §162's 500-row 8-member arm was −0.0029 on V4FinBench. Open: the five-fold V4FinBench arm (command in the draft, about 7.5 h ESTIMATED, not run). **Context length beyond training.** Pretraining contexts reach at most ~921 rows
       (`prior/mixture.py:446` with the shipped `n_rows` choices; verify from the checkpoint
       config), inference uses 2,000. Score `max_context` 900 with `n_ensemble` 3 against 2,000.
       Verify: the checkpoint's recorded `n_rows` choices quoted, and five-fold AP for both arms.
@@ -398,7 +398,7 @@
       defaults to rank-to-normal. Draw a random transform per pretraining task and ensemble over
       transforms at inference.
       Verify: a test that pretraining draws each transform; five-fold AP against the current checkpoint.
-- [ ] AU5.7 **Implemented behind `max_features_strategy: subsample` and `ensemble_transforms`
+- [ ] AU5.7 **Progress (2026-11-03, `docs/results/drafts/inference_tasks_2026-11.md`): the V4FinBench half is §196 (`ens8` +0.0058 mean AP, 3 of 5 folds up); `ens8-tf` against `ens8` on the proxy 12 wins, 4 losses, p 0.077.** Open: TabArena-Lite at `n_ensemble` 1 against the adapter's 8, which needs an override in the fork's adapter first. **Implemented behind `max_features_strategy: subsample` and `ensemble_transforms`
       (2026-10-16, b3da945); measurement open.** Round-robin column subsets per member cover
       every feature of a table wider than `max_features`, raising the member count to
       `ceil(F / size)` when `n_ensemble` is below it; the default `raise` is unchanged.
@@ -406,13 +406,13 @@
       add feature-shuffle and transform members, and feature-subset ensembling to lift the
       `max_features` hard limit (`classifier.py:373`).
       Verify: TabArena-Lite and V4FinBench scores against `n_ensemble` 1 and the current 8.
-- [ ] AU5.8 **Implemented behind `--large-n partition|boost` and `inference.retrieval_per_class` (2026-10-16, b53ee51); measurement open.**
+- [ ] AU5.8 **Progress (2026-11-03, `docs/results/drafts/inference_tasks_2026-11.md`): partition against §163's fine-tuned arm, MEASURED from saved predictions, +0.0299 mean AP, 5 of 5 folds, 4 Holm-significant (company bootstrap); the partition third of Verify is met.** Open: `--large-n boost` and `retrieval_per_class` (`configs/arms/au58-retrieval-pc16.yaml`) on V4FinBench; commands and estimates in the draft, not run. **Implemented behind `--large-n partition|boost` and `inference.retrieval_per_class` (2026-10-16, b53ee51); measurement open.**
       **Large-n methods from the literature**, each its own arm: TabPFN-kNN/LoCalPFN-style
       retrieval with per-class neighbours (arXiv 2406.05207; code has no licence file, so
       reimplement); a tree partition or forest of PFNs (tabpfn-extensions `rf_pfn`,
       Apache-2.0); BoostPFN (arXiv 2503.01256, MIT).
       Verify: each arm's five-fold AP against §163's arm under §159's rule.
-- [ ] AU5.9 **Implemented behind `hazard_period_context` at inference (2026-10-16, f69f5a4): `FinancialTFMClassifier.fit(X, y, periods=...)` stores context periods and `predict_term_structure` passes them; required on a flag-on checkpoint, ignored on a flag-off one; the V4FinBench harnesses pass `ds.period`; measurement open.**
+- [ ] AU5.9 **Progress (2026-11-03, `docs/results/drafts/inference_tasks_2026-11.md`): not runnable at inference; no flag-on checkpoint exists** and the published one is classification-only. Needs a `--n-horizons --hazard-period-context` pretraining run and a synthetic task built for the Verify. **Implemented behind `hazard_period_context` at inference (2026-10-16, f69f5a4): `FinancialTFMClassifier.fit(X, y, periods=...)` stores context periods and `predict_term_structure` passes them; required on a flag-on checkpoint, ignored on a flag-off one; the V4FinBench harnesses pass `ds.period`; measurement open.**
       **fintfm-train flag `--hazard-period-context` wired (2026-10-16, 6ec5534); measurement open; inference gap unchanged.**
       **Implemented behind `hazard_period_context` (2026-10-16, 0a3b8c8); measurement open; the classifier cannot yet pass context periods at inference.** **Hazard context carries only the binary label** (`model.py:751-759,787-797`): embed
       the default period and a censored token for context rows.
@@ -436,7 +436,7 @@
       (`prior/tree.py:79-82,136`). Arm: a TabArena checkpoint on SCM + tree + families with
       `p_financial ≤ 0.3`, more tasks, after AU1.13.
       Verify: the prior sampler's statistics (class balance, categoricals, missingness, kurtosis) reported before and after.
-- [ ] AU5.12 **Proxy measured (2026-11-03, `docs/results/drafts/inference_tasks_2026-11.md`): against 8 plain members, SVD-16 members 31/14 splits (p 0.016), 12/4 tasks (p 0.077), a lead for V4FinBench; class shift 30/17 splits (p 0.079), null.** **Implemented behind `ensemble_class_shift`, `ensemble_transforms` (new `squash`
+- [ ] AU5.12 **Progress (2026-11-03, `docs/results/drafts/inference_tasks_2026-11.md`): member axes on the proxy against 8 plain members, none a candidate:** class shift 11 wins, 5 losses (p 0.21, MEASURED); label-swap twin 9/7 (p 0.80) and transforms 12/4 (p 0.077) re-read from §187's CSVs; SVD 16 components 12/4 (p 0.077, MEASURED), a lead carried by two narrow tables (wilt, banknote-authentication) that V4FinBench's 130 columns leave no room for (at most 6 components). Open: the TabArena-Lite runs, which need the fork adapter to expose these settings. **Implemented behind `ensemble_class_shift`, `ensemble_transforms` (new `squash`
       transform) and `ensemble_svd_components`, with `max_features_strategy: subsample` for
       wide tables (2026-10-16, b3da945); measurement open.** Label-symmetry probe
       (`scripts/label_symmetry_probe.py`), MEASURED on `runs/v4-cellattn-labels.pt`, Pearson

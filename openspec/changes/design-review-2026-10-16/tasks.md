@@ -112,7 +112,7 @@
       **§130's probe fitted on the 2,000 context rows only.** If the probe's advantage over
       the head falls to 0.005 AP or less, §130-§136's reading is label count, not representation.
       Verify: the result and its consequence for §130-§136 written in FINDINGS.
-- [ ] DR3.5 **Partly done (2026-10-19): NaN against zero fill measured, null** (`docs/results/TABARENA.md`, "NaN passed through against NaN filled with 0"): 21 of 27 binary datasets identical, NaN better on 2 of the 6 that differ, mean +0.00008 ROC-AUC, sign test p = 0.69; NaN passthrough kept. Open: `ensemble_class_shift`, `ensemble_transforms`, and `max_context` 500 and 750.
+- [ ] DR3.5 **Progress (2026-11-03, `docs/results/drafts/inference_tasks_2026-11.md`): `max_context` 500 and 750 paired per dataset from the existing Lite results:** 500 better on 12, worse on 14 (p 0.85, −0.00048 ROC-AUC); 750 better on 14, worse on 8 (p 0.29, +0.00096); null, default stays; to be copied into TABARENA.md. Open: class shift and transforms on Lite (adapter override needed); on the proxy neither is a candidate. **Partly done (2026-10-19): NaN against zero fill measured, null** (`docs/results/TABARENA.md`, "NaN passed through against NaN filled with 0"): 21 of 27 binary datasets identical, NaN better on 2 of the 6 that differ, mean +0.00008 ROC-AUC, sign test p = 0.69; NaN passthrough kept. Open: `ensemble_class_shift`, `ensemble_transforms`, and `max_context` 500 and 750.
       **TabArena-Lite, same day, same fintfm source:** NaN against zero fill (fork branch
       `fintfm-audit-fixes`), then `ensemble_class_shift`, then `ensemble_transforms=("rank",
       "squash")`, then `max_context` 500 and 750 against 1,000. Paired per-dataset differences,
@@ -423,7 +423,7 @@
       multiclass tasks by paired sign test; then at the volume E1 recommends, if it recommends
       more. Blocked by DR7.3 and GPU quota.
       Verify: the arm's proxy result and the decision in FINDINGS, pre-registered before training.
-- [ ] DR7.5 **Measured on the proxy (2026-10-23, §182): subsampling covers the wide tasks but scores them near the floor** (mfeat-factors log-loss 1.99 against a 2.30 uniform guess). Open: proper wide-data handling (a wider checkpoint or column selection), then the TabArena-Lite run.
+- [ ] DR7.5 **Progress (2026-11-03, `docs/results/drafts/inference_tasks_2026-11.md`): no inference lever left** (§182 subsampling, §190 selection); blocked on DR8.3's `max_features` 512 checkpoint. **Measured on the proxy (2026-10-23, §182): subsampling covers the wide tasks but scores them near the floor** (mfeat-factors log-loss 1.99 against a 2.30 uniform guess). Open: proper wide-data handling (a wider checkpoint or column selection), then the TabArena-Lite run.
       **No excluded datasets in the declared types.** The reviewer called excluding datasets
       a model does poorly on cherry-picking (§122), and §106's width cap excluded 3 binary and 4
       multiclass datasets. Cover them with `max_features_strategy: subsample` (AU5.7) at
@@ -441,7 +441,7 @@
 Filed after §176-§182: volume is the one lever that moved FinTFM (+140 proxy Elo at 480k tasks),
 DR6.2/DR6.3 did not, and boosters lead by 3.5x on SBA.
 
-- [ ] DR8.1 **Proxy sweep done (§187): `ens8` and `retrieval` candidates. V4FinBench (2026-10-25, §194): `retrieval` collapses to 0.0126 mean AP against 0.1986, 5 of 5 folds, not adopted; the contexts are 9.74% positive against a 0.35% pool, drawn from the same 540 of 2,128 positives (fold 0 diagnostic); why those sit near every centroid is open. `ens8` (2026-10-26, §196): +0.0058 mean AP, three folds up and two down, not adopted; a lead for DR6.4.** **Inference-lever sweep on the proxy** (pre-registered §183): 8-member ensembles,
+- [x] DR8.1 **Done (2026-11-03, `docs/results/drafts/inference_tasks_2026-11.md`): Verify met. Every §183 arm has its per-task sign test in FINDINGS (§187; `ft200` 16/0 on split 0 in §192), and both proxy candidates were scored on V4FinBench (§194 harmful, §196 not adopted). The retrieval collapse's cause stays a diagnostic, tested next by AU5.8's per-class retrieval arm.** **Proxy sweep done (§187): `ens8` and `retrieval` candidates. V4FinBench (2026-10-25, §194): `retrieval` collapses to 0.0126 mean AP against 0.1986, 5 of 5 folds, not adopted; the contexts are 9.74% positive against a 0.35% pool, drawn from the same 540 of 2,128 positives (fold 0 diagnostic); why those sit near every centroid is open. `ens8` (2026-10-26, §196): +0.0058 mean AP, three folds up and two down, not adopted; a lead for DR6.4.** **Inference-lever sweep on the proxy** (pre-registered §183): 8-member ensembles,
       label swap, mixed transforms, an 8,000-row context, retrieval, 200 fine-tuning steps; a
       proxy candidate is scored on V4FinBench before it is believed.
       Verify: each arm's per-task sign test against the default in FINDINGS.
@@ -450,7 +450,7 @@ DR6.2/DR6.3 did not, and boosters lead by 3.5x on SBA.
       tasks against `e1-v480-s0`, pre-registered with §173's yardstick. Blocked by GPU quota and
       E1's seed-1 verdict.
       Verify: the pre-registration and verdict in FINDINGS.
-- [ ] DR8.3 **Column selection measured (2026-10-24, §190): no gain, and a loss on Internet-Advertisements**; built behind `max_features_strategy: select` (3a63d7b). Open: the `max_features` 512 checkpoint.
+- [ ] DR8.3 **Progress (2026-11-03, `docs/results/drafts/inference_tasks_2026-11.md`): no inference lever left; the remaining arm is a pretraining run.** **Column selection measured (2026-10-24, §190): no gain, and a loss on Internet-Advertisements**; built behind `max_features_strategy: select` (3a63d7b). Open: the `max_features` 512 checkpoint.
       **Wide data handled, not subsampled.** §182: subsampling scores wide tasks near the
       floor. Compare a column-selection front end (mutual information or a booster's importance,
       fitted on the training split only) against a checkpoint trained at `max_features` 512, on
