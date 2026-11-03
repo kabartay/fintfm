@@ -13018,3 +13018,41 @@ split (p 0.2379)**. Neither leg of §198's rule reaches p < 0.05, so the verdict
 registered prediction was candidate and was wrong. Reported, not decided on: Elo 1044 [953, 1129]
 with the control at 1,000. **Pre-declared action: 48,000 tasks stays the multiclass recipe's
 volume**, and nothing larger is run on this evidence.
+
+## §203: on the prior's own tasks the head beats the probe, so §130's gap is a real-data gap
+
+**MEASURED, 2026-11-03.** `scripts/head_probe_prior.py --model runs/v4-cellattn-labels.pt
+--tasks 200` (commit 82238f6; output `runs/head_probe_prior.json`, log
+`runs/head_probe_prior.log`). 200 synthetic financial prior tasks (374 drawn, degenerate draws
+skipped), 2,048 rows each: 512 context rows `C`, 512 further labelled rows `P`, the rest scored.
+Every arm sees the same labelled rows, so label count cannot explain a difference (the confound
+DR3.4 tests on V4FinBench). Mean scored base rate 0.081.
+
+| arm | AP | ROC-AUC |
+| --- | --- | --- |
+| head, context `C`+`P` | 0.2365 | 0.7081 |
+| probe, context `C`, logistic regression on `P`'s pre-head representation | 0.2319 | 0.6911 |
+| logistic regression on `C`+`P` raw features | 0.2224 | 0.7004 |
+
+| pair | ΔAP | wins / losses | sign-test p | ΔAUC | wins / losses | sign-test p |
+| --- | --- | --- | --- | --- | --- | --- |
+| probe − head | −0.0046 | 75 / 125 | 0.0005 | −0.0170 | 64 / 136 | <0.0001 |
+| head − raw LR | +0.0141 | 108 / 92 | 0.289 | +0.0077 | 110 / 90 | — |
+| probe − raw LR | +0.0095 | 94 / 106 | 0.437 | −0.0092 | 75 / 125 | — |
+
+**The head beats the probe on the tasks it was trained on**, on both metrics and significantly
+by task. §130's opposite result on V4FinBench (probe +0.039 AP, 5 of 5 folds) is therefore not a
+head that under-reads its representation everywhere; it is a head fitted to the prior that loses
+its edge on real tables. Of the two readings the script was written to separate, this is the
+second: the prior differs from real credit data where it matters, and the head, not the
+representation, carries that mismatch.
+
+Two qualifiers. The head clears raw logistic regression on its own prior by only +0.0141 AP,
+108 to 92 tasks, not significant: even in distribution the checkpoint (48,000 tasks) is close to
+one linear fit per task, which matches the TabArena loss analysis's reading. And this run does
+not remove DR3.4's question on real data: there, the probe's extra labelled rows may still
+explain part of §130's gap.
+
+**Action.** Improvement work goes to the prior's coverage of real tables and to the head's
+fit, not to shipping a probe as the default readout. DR3.4 stays open as the real-data half of
+the test.
