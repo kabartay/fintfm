@@ -109,6 +109,7 @@ class InferenceConfig:
     context_positive_floor: int | None = None
     select_method: str = "extra_trees"
     select_subsample: int = 20_000
+    context_positive_cap: float | None = None
 
 
 @dataclass(frozen=True)
@@ -519,6 +520,9 @@ def _validate(cfg: Config) -> None:
         and cfg.inference.context_positive_floor < 0
     ):
         raise ConfigError("inference.context_positive_floor must be null or at least 0")
+    cap = cfg.inference.context_positive_cap
+    if cap is not None and not 0.0 < cap < 1.0:
+        raise ConfigError("inference.context_positive_cap must be null or in (0, 1)")
     if cfg.inference.ensemble_svd_components < 0:
         raise ConfigError("inference.ensemble_svd_components must be at least 0")
     if cfg.large_n.method not in ("none", "partition", "boost"):

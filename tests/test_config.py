@@ -94,6 +94,7 @@ _NON_DEFAULT_INFERENCE = {
     "max_features_strategy": "subsample",
     "retrieval_per_class": 3,
     "context_positive_floor": 16,
+    "context_positive_cap": 0.3,
     "select_method": "mutual_info",
     "select_subsample": 321,
 }
@@ -256,6 +257,7 @@ def test_overlapping_time_split_is_refused(tmp_path):
         ("inference:\n  winsor_quantile: 0.7\n", "winsor_quantile"),
         ("inference:\n  retrieval_per_class: 0\n", "retrieval_per_class"),
         ("inference:\n  context_positive_floor: -1\n", "context_positive_floor"),
+        ("inference:\n  context_positive_cap: 1.0\n", "context_positive_cap"),
         ("large_n:\n  method: forest\n", "large_n.method"),
         ("large_n:\n  boost_weighting: square\n", "large_n.boost_weighting"),
         ("large_n:\n  partition_max_depth: 5\n", "large_n.partition_max_depth"),

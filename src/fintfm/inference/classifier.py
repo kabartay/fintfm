@@ -219,6 +219,7 @@ def _select_context(
     rng: np.random.Generator,
     positive_floor: int | None = None,
     positive: int | None = None,
+    positive_cap: float | None = None,
 ) -> np.ndarray:
     """Choose which training rows become the model's context.
 
@@ -236,13 +237,36 @@ def _select_context(
             ``max(positive_floor, round(max_context * pool rate))`` positives, capped at the
             positives the pool has, drawn uniformly from them, and the rest of the budget is
             drawn uniformly from the other rows. ``0`` is a stratified uniform draw.
-        positive: The label code whose count ``positive_floor`` fixes; the last code
-            (``y.max()``) when ``None``.
+        positive: The label code whose count ``positive_floor`` fixes, or whose share
+            ``positive_cap`` bounds; the last code (``y.max()``) when ``None``.
+        positive_cap: ``None`` (the default) leaves the draw as ``strategy`` makes it. A
+            fraction in ``(0, 1)``, with ``strategy="uniform"`` only and no
+            ``positive_floor``, bounds the context's positive share (TabArena loss analysis,
+            fix 3): a pool whose positive rate exceeds it yields a context of as many
+            negatives as fit and positives drawn uniformly down to the cap, **even when the
+            pool fits in ``max_context``**, so the context is smaller than the pool there. A
+            pool at or below the cap gets the plain draw, byte for byte.
 
     Returns:
         Indices into ``y``, sorted for reproducibility.
     """
     n = y.shape[0]
+    if strategy == "uniform" and positive_cap is not None:
+        pos_code = int(y.max()) if positive is None else positive
+        is_pos = y == pos_code
+        pos_idx, neg_idx = np.flatnonzero(is_pos), np.flatnonzero(~is_pos)
+        if pos_idx.size > positive_cap * n and neg_idx.size > 0:
+            # largest context m <= max_context whose negatives fit and whose positive share
+            # is at most the cap: m - floor(cap * m) negatives, floor(cap * m) positives
+            m = min(max_context, n, int(neg_idx.size / (1.0 - positive_cap)))
+            k = int(np.floor(positive_cap * m))
+            n_neg = min(m - k, neg_idx.size)
+            k = min(k, pos_idx.size)
+            picked = np.concatenate([
+                rng.choice(pos_idx, size=k, replace=False),
+                rng.choice(neg_idx, size=n_neg, replace=False),
+            ])
+            return np.sort(picked.astype(np.int64))
     if n <= max_context:
         return np.arange(n)
     if strategy == "uniform" and positive_floor is not None:
@@ -319,6 +343,20 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             positives is shifted back to the population's level. Inert when the training set
             fits in ``max_context``, and refused with any ``context_strategy`` other than
             ``"uniform"``. Experiment lever; nothing here has measured its effect yet.
+        context_positive_cap: An upper bound on the context's positive share (TabArena loss
+            analysis, fix 3: the financial prior never made class 1 more than 30% of a task's
+            rows, so a balanced table's context is outside the rates the checkpoint saw).
+            **``None`` (the default) leaves the draw unchanged**, byte for byte. A fraction
+            in ``(0, 1)``: when the training rows' positive rate exceeds it, the context
+            holds as many negatives as fit in ``max_context`` and positives drawn uniformly
+            down to the cap, **even when the training set fits in ``max_context``** (so the
+            context is then smaller than the pool); a pool at or below the cap gets today's
+            draw. The positive class is the last of ``classes_``, and a label-swapped or
+            class-shifted member bounds the same rows, as for ``context_positive_floor``. The
+            base-rate correction reads the context's actual rate, so with ``correct_prior``
+            the capped context is shifted back to the population's level. Refused with any
+            ``context_strategy`` other than ``"uniform"`` and together with
+            ``context_positive_floor``. Experiment lever; not yet measured.
         correct_prior: Undo the base-rate distortion that resampling introduces. An
             in-context model reads the class balance *out of its context*, so handing it a
             balanced context tells it defaults are far commoner than they are, and its
@@ -579,6 +617,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         context_positive_floor: int | None = None,
         select_method: SelectMethod = "extra_trees",
         select_subsample: int = 20_000,
+        context_positive_cap: float | None = None,
     ) -> None:
         """Configure the classifier. See the class docstring — every argument is documented
         there with the measurement that set its default."""
@@ -622,6 +661,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         self.winsor_quantile = winsor_quantile
         self.transform_subsample = transform_subsample
         self.context_positive_floor = context_positive_floor
+        self.context_positive_cap = context_positive_cap
         self.select_method = select_method
         self.select_subsample = select_subsample
         # Placement, eval mode and feature_chunk are applied in fit, not here: applied at
@@ -800,6 +840,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
                 np.random.default_rng(self.random_state),
                 positive_floor=self.context_positive_floor,
                 positive=None if member_pos is None else label_map[member_pos],
+                positive_cap=self.context_positive_cap,
             )
         # an ensemble member selected by ensemble_svd_components appends projections fitted on
         # its own context rows; set by _clone_with_seed, absent (0) on any other estimator
@@ -1332,8 +1373,26 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
                 retrieval path cannot score; for a ``retrieval_per_class`` outside
                 ``[1, max_context]`` or set without ``context_strategy="retrieval"``; and for
                 a negative ``context_positive_floor`` or one set without
-                ``context_strategy="uniform"``.
+                ``context_strategy="uniform"``; and for a ``context_positive_cap`` outside
+                ``(0, 1)``, set without ``context_strategy="uniform"`` or together with
+                ``context_positive_floor``.
         """
+        if self.context_positive_cap is not None:
+            if self.context_strategy != "uniform":
+                raise ValueError(
+                    "context_positive_cap applies only to context_strategy='uniform', got "
+                    f"{self.context_strategy!r}"
+                )
+            if not 0.0 < self.context_positive_cap < 1.0:
+                raise ValueError(
+                    f"context_positive_cap must be None or in (0, 1), got "
+                    f"{self.context_positive_cap}"
+                )
+            if self.context_positive_floor is not None:
+                raise ValueError(
+                    "context_positive_cap and context_positive_floor both fix the positive "
+                    "count; set one"
+                )
         if self.context_positive_floor is not None:
             if self.context_strategy != "uniform":
                 raise ValueError(
@@ -1422,7 +1481,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
 
         Warns:
             UserWarning: When fine-tuning is combined with a non-uniform ``context_strategy``,
-                a ``context_positive_floor``, or any ensemble member axis (``ensemble_label_swap``,
+                a ``context_positive_floor`` or ``context_positive_cap``, or any ensemble member axis (``ensemble_label_swap``,
                 ``ensemble_class_shift``, ``ensemble_transforms``,
                 ``ensemble_svd_components``, ``ensemble_feature_frac``): fine-tuning draws one
                 plain uniform context per task, so inference would read a distribution the
@@ -1485,6 +1544,8 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
                 unseen.append(f"a context chosen by context_strategy={self.context_strategy!r}")
             if self.context_positive_floor is not None:
                 unseen.append("a fixed positive count (context_positive_floor)")
+            if self.context_positive_cap is not None:
+                unseen.append("a capped positive share (context_positive_cap)")
             if self.ensemble_label_swap:
                 unseen.append("label-swapped members (ensemble_label_swap)")
             if self.ensemble_class_shift:
@@ -1692,11 +1753,15 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             winsor_quantile=self.winsor_quantile,
             transform_subsample=self.transform_subsample,
             context_positive_floor=self.context_positive_floor,
+            context_positive_cap=self.context_positive_cap,
         )
         # private, not a constructor argument: a member's SVD is the parent's decision, and a
         # public single-model knob would be a second way to ask for the same thing
         twin._member_svd = svd_components
-        if self.context_positive_floor is not None and y is not None:
+        positive_fixed = (
+            self.context_positive_floor is not None or self.context_positive_cap is not None
+        )
+        if positive_fixed and y is not None:
             # the label the twin's y gives the parent's positive rows, so a swapped or shifted
             # member fixes the count of the same rows rather than of its own last class
             pos_rows = np.flatnonzero(self._raw_y == self.classes_[-1])

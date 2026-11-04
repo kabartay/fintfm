@@ -815,6 +815,102 @@ def test_context_positive_floor_refuses_what_it_cannot_mean(kw, match):
         clf.fit(rng.normal(size=(100, 4)), _rare(100, 10))
 
 
+def _balanced(n=2000, rate=0.55, seed=0):
+    """Labels at a TabArena-balanced rate, positives being the majority above 0.5."""
+    y = np.zeros(n, dtype=np.int64)
+    y[np.random.default_rng(seed).choice(n, size=round(n * rate), replace=False)] = 1
+    return y
+
+
+@pytest.mark.parametrize(
+    ("n", "rate", "max_context", "size", "n_pos"),
+    [
+        # pool larger than the context: 1,000 rows, 300 of them positive
+        (2000, 0.55, 1000, 1000, 300),
+        # pool that fits (an 875-row credit-g bag fold at 70%): the 263 negatives allow
+        # int(263 / 0.7) = 375 rows, 112 of them positive, so the context shrinks
+        (875, 0.70, 1000, 375, 112),
+    ],
+)
+def test_context_positive_cap_bounds_the_positive_share(n, rate, max_context, size, n_pos):
+    """Above the cap, the context keeps every negative it has room for and draws positives
+    down to the cap; distinct sorted rows; the count does not depend on the seed."""
+    y = _balanced(n, rate)
+    for seed in range(4):
+        idx = _select_context(
+            y, max_context, "uniform", np.random.default_rng(seed), positive_cap=0.3
+        )
+        assert idx.shape == (size,) and np.all(np.diff(idx) > 0)
+        assert int(y[idx].sum()) == n_pos and y[idx].mean() <= 0.3
+        assert int((y[idx] == 0).sum()) == min(size - n_pos, int((y == 0).sum()))
+
+
+def test_context_positive_cap_at_or_below_the_cap_is_the_plain_draw_byte_for_byte():
+    """A 0.47% pool and a pool at exactly the cap both get today's uniform draw, so a Lite
+    arm with the cap leaves every dataset under it bit-identical (the built-in control)."""
+    for y in (_rare(), _balanced(2000, 0.30)):
+        for seed in range(3):
+            plain = _select_context(y, 1000, "uniform", np.random.default_rng(seed))
+            capped = _select_context(
+                y, 1000, "uniform", np.random.default_rng(seed), positive_cap=0.3
+            )
+            assert plain.tobytes() == capped.tobytes()
+    torch.manual_seed(0)
+    model = _tiny_model()
+    rng = np.random.default_rng(0)
+    X, Xq = rng.normal(size=(400, 4)), rng.normal(size=(30, 4))
+    y = _rare(400, 12)
+    plain = FinancialTFMClassifier(model, max_context=100).fit(X, y)
+    capped = FinancialTFMClassifier(model, max_context=100, context_positive_cap=0.3).fit(X, y)
+    assert plain._ctx_X.tobytes() == capped._ctx_X.tobytes()
+    assert plain.predict_proba(Xq).tobytes() == capped.predict_proba(Xq).tobytes()
+
+
+def test_context_positive_cap_reaches_every_member_and_stays_calibrated():
+    """Members, label-swapped ones included, cap the same rows; the base-rate correction
+    reads the capped context's 30% and returns the ideal reader's mean to the pool's 55%."""
+    cfg = ModelConfig(max_features=6, max_classes=2, d_model=16, n_heads=2, n_layers=1, d_ff=32)
+    rng = np.random.default_rng(0)
+    X, Xq = rng.normal(size=(2000, 4)), rng.normal(size=(200, 4))
+    y = _balanced(2000, 0.55)
+    kw = {"max_context": 400, "context_positive_cap": 0.3}
+    torch.manual_seed(0)
+    fixed = FinancialTFMClassifier(_BaseRateReader(cfg), **kw).fit(X, y)
+    raw = FinancialTFMClassifier(_BaseRateReader(cfg), correct_prior=False, **kw).fit(X, y)
+    s = fixed.context_summary_
+    assert (s.n_context, s.n_positive) == (400, 120)
+    assert raw.predict_proba(Xq)[:, 1].mean() == pytest.approx(0.3, rel=1e-5)
+    assert fixed.predict_proba(Xq)[:, 1].mean() == pytest.approx(0.55, rel=1e-5)
+    clf = FinancialTFMClassifier(
+        _tiny_model(), n_ensemble=3, ensemble_label_swap=True, **kw
+    ).fit(X, y)
+    for seed in (1, 2):
+        twin = clf._clone_with_seed(seed, clf._raw_X, clf._raw_y)
+        swapped = clf._clone_with_seed(seed, clf._raw_X, clf._flip(clf._raw_y))
+        assert twin.context_positive_cap == 0.3
+        assert (twin._ctx_y == 1).sum() == 120
+        # the swapped twin calls the parent's positives class 0, and caps those same rows
+        assert (swapped._ctx_y == 0).sum() == 120
+    p = clf.predict_proba(Xq)
+    assert p.shape == (200, 2) and np.isfinite(p).all()
+
+
+@pytest.mark.parametrize(
+    ("kw", "match"),
+    [
+        ({"context_strategy": "balanced", "context_positive_cap": 0.3}, "uniform"),
+        ({"context_positive_cap": 0.0}, r"\(0, 1\)"),
+        ({"context_positive_cap": 1.0}, r"\(0, 1\)"),
+        ({"context_positive_cap": 0.3, "context_positive_floor": 0}, "set one"),
+    ],
+)
+def test_context_positive_cap_refuses_what_it_cannot_mean(kw, match):
+    rng = np.random.default_rng(0)
+    clf = FinancialTFMClassifier(_tiny_model(), max_context=40, **kw)
+    with pytest.raises(ValueError, match=match):
+        clf.fit(rng.normal(size=(100, 4)), _balanced(100, 0.5))
+
+
 def test_restrict_context_to_the_fitted_rows_is_the_fitted_classifier():
     """Restricting to the stored context's own rows changes nothing, bit for bit; a smaller
     restriction stores exactly those rows, corrects against the same population rate, and

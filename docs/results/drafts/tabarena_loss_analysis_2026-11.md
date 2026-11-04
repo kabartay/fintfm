@@ -221,6 +221,18 @@ ESTIMATED from this analysis, not measured.
 | 5 | `context_strategy="retrieval"` (§187's other proxy candidate: 8 wins, 1 loss, 7 ties) | adapter default params, `model.py:327-340` | the same nonlinear tables with more rows than one context | up on those; no change on tables that fit one context |
 | 6 | Tie-aware rank: map tied values to their mid-quantile instead of pinning the extremes; first A/B `feature_transform="squash"` | `preprocess.py:200-205`, `:239` | coil2000, qsar, GiveMeSomeCredit, heloc, seismic-bumps, online_shoppers, bank-marketing | small up at most; low prior (ρ = +0.03; §187's `ens8-tf` was not a candidate) |
 
+**Implementation status (2026-11-04), not yet run.** Fix 1 is in the fork's untracked
+`fintfm_linprobe/model.py` and queued as `fintfm_linprobe_d1fix_1104`; fixes 5 and 6 (squash)
+are queued as `fintfm_lite_retrieval_1104` and `fintfm_lite_squash_1104`. Fix 2 is opt-in
+`FINTFM_MINORITY_POSITIVE=1` in the fork (branch `fix2-minority-positive`): a fit whose class 1
+holds more than half of its rows is recoded and the probability columns are swapped back, so
+datasets at or below one half stay bit-identical. Fix 3 is the classifier option
+`context_positive_cap` (default `None`, byte-identical; `FINTFM_PARAMS='{"context_positive_cap":
+0.3}'` on Lite): above the cap the context keeps the negatives that fit and draws positives down
+to the cap, also when the pool fits in `max_context`, so credit-g's 875-row bag folds get
+375-row contexts; the base-rate correction then reads the capped rate. Neither is merged into
+the running queue's code until that queue finishes.
+
 Not worth a run on this evidence: a larger context (+0.0008 for 500 → 1000), wide-table
 strategies (no Lite table is wide), and categorical-encoding variants (ρ = -0.07).
 

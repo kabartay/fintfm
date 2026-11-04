@@ -70,6 +70,9 @@ inference:
   # DR3.3: uniform context with exactly max(floor, round(max_context x pool rate)) positives,
   # the rest uniform from the negatives; null = today's uniform draw (count left to chance)
   context_positive_floor: null
+  # loss-analysis fix 3: positive share of the context at most this (the prior's ceiling
+  # is 0.30), even when the pool fits; null = today's draw. Uniform only, not with a floor
+  context_positive_cap: null
 
 # Thresholds used when scoring. Changing these changes what counts as a result, so they are
 # recorded in every run's output alongside the numbers they produced.
