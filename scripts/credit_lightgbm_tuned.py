@@ -31,6 +31,12 @@ def main() -> int:
     p.add_argument("--configs", type=int, default=30)
     p.add_argument("--per-split-budget", type=float, default=720.0, help="search seconds")
     p.add_argument("--total-budget", type=float, default=7200.0, help="wall seconds")
+    p.add_argument(
+        "--inner-embargo", type=float, default=None,
+        help="embargo (time units) for the inner tuning split only; default: the panel's. "
+        "SBA's 1,827-day embargo exceeds its training windows (split 0 spans 203 days), so "
+        "its inner split needs 0; the test split keeps the panel's embargo either way",
+    )
     a = p.parse_args()
     from sklearn.impute import SimpleImputer
     from sklearn.preprocessing import StandardScaler
@@ -53,7 +59,7 @@ def main() -> int:
             arrays = {
                 "Xtr": sc.transform(imp.transform(panel.X[tr])), "ytr": panel.y[tr],
                 "Xte": sc.transform(imp.transform(panel.X[te])), "yte": panel.y[te],
-                "embargo": np.array(panel.embargo),
+                "embargo": np.array(panel.embargo if a.inner_embargo is None else a.inner_embargo),
             }
             if panel.time is not None:
                 arrays["ttr"] = panel.time[tr]
@@ -71,6 +77,9 @@ def main() -> int:
                 print(f"{key} split {k} failed", flush=True)
                 continue
             res = json.loads(dest.read_text())
+            res["inner_embargo"] = float(panel.embargo if a.inner_embargo is None else a.inner_embargo)
+            res["panel_embargo"] = float(panel.embargo)
+            dest.write_text(json.dumps(res, indent=2))
             print(f"{key} split {k}: tuned AP {res['tuned_ap']:.4f} AUC {res['tuned_auc']:.4f} | "
                   f"untuned AP {res['untuned_ap']:.4f} | {res['n_trials']} configs, "
                   f"{res['tune_seconds']} s", flush=True)
