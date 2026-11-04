@@ -178,7 +178,8 @@ def test_evaluation_only_sources_match_the_registry():
         dtype=str, keep_default_na=False,
     )
     eval_only = registry[registry["verdict"] == "EVAL_ONLY"]
-    keys = {"ppdai": "ppdai", "bondora": "bondora", "ulb_fraud": "ulb", "sba": "sba"}
+    keys = {"ppdai": "ppdai", "bondora": "bondora", "ulb_fraud": "ulb", "sba": "sba",
+            "fdic": "fdic", "estonia": "estonian"}
     assert set(keys) == EVAL_ONLY_SOURCES
     assert len(eval_only) == len(EVAL_ONLY_SOURCES)
     for key, token in keys.items():

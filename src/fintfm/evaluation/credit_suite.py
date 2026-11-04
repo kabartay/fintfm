@@ -743,6 +743,11 @@ DATASETS["estonia"] = SuiteDataset(
     ),
 )
 
+# FDIC bank failures (DR4.3, 2026-11-04): loader and licence live in credit_fdic; not admitted.
+from fintfm.evaluation import credit_fdic as _fdic
+
+DATASETS["fdic"] = SuiteDataset("fdic", _fdic.API + "/failures", _fdic.load_fdic, _fdic.LICENCE)
+
 
 def out_of_time_splits(panel: CreditPanel) -> list[tuple[np.ndarray, np.ndarray]]:
     """The three out-of-time splits of a dated panel (module docstring, "Split protocol").

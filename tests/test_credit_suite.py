@@ -36,7 +36,8 @@ def test_suite_keys_are_all_evaluation_only():
     assert set(cs.DATASETS) <= EVAL_ONLY_SOURCES
     for key, ds in cs.DATASETS.items():
         assert ds.key == key
-        assert ds.licence.url.startswith("https://") and ds.licence.stated
+        assert ds.licence.url.startswith("https://")
+        assert ds.licence.stated or not ds.licence.include  # FDIC states none and is not admitted
         assert ds.licence.checked >= cs.CHECKED and ds.licence.reason
 
 

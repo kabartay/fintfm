@@ -47,7 +47,7 @@ _BOOKKEEPING = frozenset({"label", "loan_id", "cik", "period_end"})
 #: directory name, the name :func:`source_name` stamps on a task; ``docs/research/
 #: data_candidates.csv`` marks the same sources ``EVAL_ONLY``. SBA joined on 2026-10-20, after
 #: FinTFM-R's §157 pilot and C5 arms had trained on it.
-EVAL_ONLY_SOURCES = frozenset({"ppdai", "bondora", "ulb_fraud", "sba", "estonia"})
+EVAL_ONLY_SOURCES = frozenset({"ppdai", "bondora", "ulb_fraud", "sba", "estonia", "fdic"})
 
 #: Sources that are TabArena or BeyondArena datasets, refused for training like the above
 #: (AU0.1, DECISIONS D19): LendingClub is BeyondArena's ``lending_club_1m``. Its own sampler
