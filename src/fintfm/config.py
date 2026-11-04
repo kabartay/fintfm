@@ -95,6 +95,12 @@ class InferenceConfig:
     finetune_query_pos_frac: float | None = None
     finetune_seed: int = 0
     finetune_clip: float | None = None
+    finetune_val_frac: float = 0.0
+    finetune_eval_every: int = 10
+    finetune_patience: int = 16
+    finetune_val_tasks: int = 4
+    finetune_val_query: int = 1024
+    finetune_val_pos_frac: float | None = 0.1
     ensemble_transforms: tuple[str, ...] | None = None
     ensemble_svd_components: int = 0
     ensemble_class_shift: bool = False
@@ -481,6 +487,16 @@ def _validate(cfg: Config) -> None:
         )
     if cfg.inference.finetune_clip is not None and cfg.inference.finetune_clip <= 0:
         raise ConfigError("inference.finetune_clip must be null or positive")
+    if not 0.0 <= cfg.inference.finetune_val_frac < 1.0:
+        raise ConfigError("inference.finetune_val_frac must lie in [0, 1)")
+    if cfg.inference.finetune_val_frac > 0 and min(
+        cfg.inference.finetune_eval_every, cfg.inference.finetune_patience,
+        cfg.inference.finetune_val_tasks, cfg.inference.finetune_val_query,
+    ) < 1:
+        raise ConfigError(
+            "inference.finetune_eval_every, finetune_patience, finetune_val_tasks and "
+            "finetune_val_query must be at least 1 when finetune_val_frac > 0"
+        )
     if cfg.inference.max_features_strategy not in ("raise", "subsample", "select"):
         raise ConfigError(
             "inference.max_features_strategy must be 'raise', 'subsample' or 'select', got "

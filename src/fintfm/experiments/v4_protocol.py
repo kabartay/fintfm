@@ -537,6 +537,7 @@ def run(
     # since have been overwritten
     checkpoint_sha256 = sha256_file(model_path) if model_path is not None else None
     classifier_params: dict[str, dict] = {}
+    finetune_selection: dict[str, dict] = {}  # AU5.1: per-fold early-stopping record
     # §25: every gradient-boosting comparison in this project once used sklearn's weakest
     # implementation because the strong ones were silently absent. available_boosting()
     # announces what is missing rather than skipping it quietly.
@@ -585,6 +586,14 @@ def run(
                 k = max(1, len(fl) // 10)
                 print(f"  fine-tuned {len(fl)} steps: loss first-10% {np.mean(fl[:k]):.4f}, "
                       f"last-10% {np.mean(fl[-k:]):.4f}")
+                if cfg.inference.finetune_val_frac > 0:
+                    finetune_selection[str(fold)] = {
+                        "best_step": clf.finetune_best_step_,
+                        "stopped_step": clf.finetune_stopped_step_,
+                        "val_curve": [[int(a), float(b)] for a, b in clf.finetune_val_curve_],
+                    }
+                    print(f"  inner validation: best step {clf.finetune_best_step_}, "
+                          f"stopped at {clf.finetune_stopped_step_}")
             arms["fintfm"] = (
                 clf.predict_proba(Xva.astype(np.float32))[:, 1],
                 clf.predict_proba(Xte.astype(np.float32))[:, 1],
@@ -718,6 +727,12 @@ def run(
             "finetune_query_group_frac": cfg.inference.finetune_query_group_frac,
             "finetune_query_pos_frac": cfg.inference.finetune_query_pos_frac,
             "finetune_seed": cfg.inference.finetune_seed,
+            "finetune_val_frac": cfg.inference.finetune_val_frac,
+            "finetune_eval_every": cfg.inference.finetune_eval_every,
+            "finetune_patience": cfg.inference.finetune_patience,
+            "finetune_val_tasks": cfg.inference.finetune_val_tasks,
+            "finetune_val_query": cfg.inference.finetune_val_query,
+            "finetune_val_pos_frac": cfg.inference.finetune_val_pos_frac,
             "ensemble_transforms": cfg.inference.ensemble_transforms,
             "ensemble_svd_components": cfg.inference.ensemble_svd_components,
             "ensemble_class_shift": cfg.inference.ensemble_class_shift,
@@ -736,6 +751,7 @@ def run(
             **environment_record(),
             "checkpoint_sha256": checkpoint_sha256,
             "classifier_params": classifier_params,
+            "finetune_selection": finetune_selection,
         },
     }
     (out_dir / "v4_protocol.json").write_text(json.dumps(record, indent=2))

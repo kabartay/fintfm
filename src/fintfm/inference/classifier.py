@@ -160,6 +160,36 @@ def _finetune_rows(
     return ci, qi, None
 
 
+def _draw_val_queries(
+    rng: np.random.Generator, y: np.ndarray, n_q: int, pos_frac: float | None
+) -> tuple[np.ndarray, np.ndarray | None]:
+    """Draw one validation task's query positions among the held-out rows.
+
+    Args:
+        rng: Random generator.
+        y: Coded labels of the held-out rows.
+        n_q: Query rows to draw.
+        pos_frac: Share drawn from the positive (last) class with importance weights, as
+            :func:`_finetune_rows`; ``None`` draws uniformly.
+
+    Returns:
+        ``(positions into y, weights or None)``; uniform when a class is absent.
+    """
+    if pos_frac is not None:
+        pos = np.flatnonzero(y == y.max())
+        neg = np.flatnonzero(y != y.max())
+        if len(pos) and len(neg):
+            n_pos = min(max(1, round(n_q * pos_frac)), n_q - 1)
+            qi = np.concatenate([
+                rng.choice(pos, size=n_pos, replace=len(pos) < n_pos),
+                rng.choice(neg, size=n_q - n_pos, replace=len(neg) < n_q - n_pos),
+            ])
+            true_rate, sampled = len(pos) / len(y), n_pos / n_q
+            w = np.where(y[qi] == y.max(), true_rate / sampled, (1 - true_rate) / (1 - sampled))
+            return qi, w.astype(np.float32)
+    return rng.choice(len(y), size=n_q, replace=len(y) < n_q), None
+
+
 @contextlib.contextmanager
 def _forked_rng() -> Iterator[None]:
     """Restore every generator ``torch.manual_seed`` reseeds, CPU and accelerator alike.
@@ -396,6 +426,23 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             column identities are drawn from torch's generator in training mode -- inside a
             forked RNG, so the caller's random state, CPU and CUDA/MPS, is untouched.
         finetune_clip: Gradient-norm clip per fine-tuning step, as pretraining applies at 1.0.
+        finetune_val_frac: ``0.0`` (default) fine-tunes for exactly ``finetune_steps`` steps, as
+            §163 and §164 did. A fraction in (0, 1) holds out that share of the training
+            companies (groups) as an inner validation set: they supply no fine-tuning context or
+            query, only fixed validation tasks scored every ``finetune_eval_every`` steps, and
+            ``finetune_steps`` becomes the cap. Training stops after ``finetune_patience``
+            evaluations without a lower validation loss and the best weights are restored (the
+            step-0 weights if nothing improved). Only the rows ``fit`` receives are used, so a
+            test fold is never read (AU5.1).
+        finetune_eval_every: Steps between validation evaluations.
+        finetune_patience: Evaluations without improvement before stopping.
+        finetune_val_tasks: Fixed validation tasks (context from the training-side companies,
+            queries from the held-out ones), drawn once and reused at every evaluation.
+        finetune_val_query: Query rows per validation task.
+        finetune_val_pos_frac: Share of validation queries drawn from the positive class, with
+            importance weights (as ``finetune_query_pos_frac``), so the weighted loss estimates
+            the uniform-query loss with far less noise at a low default rate; ``None`` draws
+            uniformly.
             **``None`` (the default) does not clip**, because §163 and §164 were measured
             without clipping and clipping changes the tuned weights; pass 1.0 to match
             pretraining in a new experiment.
@@ -516,6 +563,12 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         finetune_query_pos_frac: float | None = None,
         finetune_seed: int = 0,
         finetune_clip: float | None = None,
+        finetune_val_frac: float = 0.0,
+        finetune_eval_every: int = 10,
+        finetune_patience: int = 16,
+        finetune_val_tasks: int = 4,
+        finetune_val_query: int = 1024,
+        finetune_val_pos_frac: float | None = 0.1,
         ensemble_transforms: tuple[FeatureTransform, ...] | None = None,
         ensemble_svd_components: int = 0,
         ensemble_class_shift: bool = False,
@@ -555,6 +608,12 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         self.finetune_query_pos_frac = finetune_query_pos_frac
         self.finetune_seed = finetune_seed
         self.finetune_clip = finetune_clip
+        self.finetune_val_frac = finetune_val_frac
+        self.finetune_eval_every = finetune_eval_every
+        self.finetune_patience = finetune_patience
+        self.finetune_val_tasks = finetune_val_tasks
+        self.finetune_val_query = finetune_val_query
+        self.finetune_val_pos_frac = finetune_val_pos_frac
         self.ensemble_transforms = ensemble_transforms
         self.ensemble_svd_components = ensemble_svd_components
         self.ensemble_class_shift = ensemble_class_shift
@@ -969,7 +1028,38 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
                 f"finetune_query_pos_frac must lie strictly between 0 and 1, with "
                 f"finetune_query >= 2, got {pos_frac} and {self.finetune_query}"
             )
+        use_val = self.finetune_val_frac > 0.0
+        if not 0.0 <= self.finetune_val_frac < 1.0:
+            raise ValueError(f"finetune_val_frac must lie in [0, 1), got {self.finetune_val_frac}")
+        if use_val and min(
+            self.finetune_eval_every, self.finetune_patience, self.finetune_val_tasks,
+            self.finetune_val_query,
+        ) < 1:
+            raise ValueError(
+                "finetune_eval_every, finetune_patience, finetune_val_tasks and "
+                "finetune_val_query must be at least 1 with finetune_val_frac > 0"
+            )
+        vpf = self.finetune_val_pos_frac
+        if use_val and vpf is not None and not (0.0 < vpf < 1.0 and self.finetune_val_query >= 2):
+            raise ValueError(
+                f"finetune_val_pos_frac must be None or lie strictly between 0 and 1, with "
+                f"finetune_val_query >= 2, got {vpf} and {self.finetune_val_query}"
+            )
         raw = np.asarray(groups) if groups is not None else np.arange(len(y))
+        val_rows: np.ndarray | None = None
+        if use_val:
+            # inner validation: whole companies held out of this fit's own training rows. The
+            # fine-tuning tasks below are drawn from the remainder only.
+            all_uniq = np.unique(raw)
+            if len(all_uniq) < 4:
+                raise ValueError("inner validation needs at least four groups")
+            n_val = min(max(1, round(len(all_uniq) * self.finetune_val_frac)), len(all_uniq) - 2)
+            vrng = np.random.default_rng([int(self.random_state), int(self.finetune_seed), 7919])
+            val_groups = vrng.choice(all_uniq, size=n_val, replace=False)
+            is_val = np.isin(raw, val_groups)
+            val_rows = np.flatnonzero(is_val)
+            X_all, y_all = X, y
+            X, y, raw = X[~is_val], y[~is_val], raw[~is_val]
         uniq, g = np.unique(raw, return_inverse=True)  # integer codes; see _finetune_rows
         if len(uniq) < 2:
             raise ValueError(
@@ -999,10 +1089,60 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         F = model.cfg.max_features
         nc = torch.full((B,), n_classes, dtype=torch.long, device=self.device)
         self.finetune_losses_: list[float] = []
+        self.finetune_val_curve_: list[tuple[int, float]] = []
+        self.finetune_best_step_: int | None = None
+        self.finetune_stopped_step_: int | None = None
+        val_tasks: list[tuple[torch.Tensor, torch.Tensor, torch.Tensor | None]] = []
+        if val_rows is not None:
+            vq = self.finetune_val_query
+            vr = np.random.default_rng([int(self.random_state), int(self.finetune_seed), 104729])
+            vy = y_all[val_rows]
+            for _ in range(self.finetune_val_tasks):
+                ci = vr.choice(len(y), size=n_ctx, replace=len(y) < n_ctx)
+                qpos, qw = _draw_val_queries(vr, vy, vq, vpf)
+                Xv = np.full((1, n_ctx + vq, F), np.nan, dtype=np.float32)
+                Xv[0, :n_ctx, : X.shape[1]] = X[ci]
+                Xv[0, n_ctx:, : X.shape[1]] = X_all[val_rows[qpos]]
+                yv = np.concatenate([y[ci], vy[qpos]])[None].astype(np.int64)
+                wv = None if qw is None else torch.from_numpy(qw[None]).to(self.device)
+                val_tasks.append((
+                    torch.from_numpy(Xv).to(self.device), torch.from_numpy(yv).to(self.device), wv,
+                ))
+
+        def validate() -> float:
+            """Mean validation loss over the fixed tasks, in eval mode, without gradients."""
+            model.eval()
+            ncv = torch.full((1,), n_classes, dtype=torch.long, device=self.device)
+            try:
+                with torch.no_grad():
+                    return float(np.mean([
+                        float(model.loss(xv, yv, n_ctx, ncv, weights=wv))
+                        for xv, yv, wv in val_tasks
+                    ]))
+            finally:
+                model.train()
+
+        best_loss = float("inf")
+        best_state: dict[str, torch.Tensor] | None = None
+        stale = 0
         try:
             with _forked_rng():
                 torch.manual_seed(1_000_003 * int(self.random_state) + int(self.finetune_seed))
-                for _ in range(self.finetune_steps):
+                for step in range(self.finetune_steps + 1 if val_tasks else self.finetune_steps):
+                    if val_tasks and (step % self.finetune_eval_every == 0
+                                      or step == self.finetune_steps):
+                        vl = validate()
+                        self.finetune_val_curve_.append((step, vl))
+                        if vl < best_loss:
+                            best_loss, stale, self.finetune_best_step_ = vl, 0, step
+                            best_state = {
+                                k: v.detach().clone() for k, v in model.state_dict().items()
+                            }
+                        else:
+                            stale += 1
+                        if stale >= self.finetune_patience or step == self.finetune_steps:
+                            self.finetune_stopped_step_ = step
+                            break
                     Xb = np.full((B, n_ctx + n_q, F), np.nan, dtype=np.float32)
                     yb = np.zeros((B, n_ctx + n_q), dtype=np.int64)
                     wb = np.ones((B, n_q), dtype=np.float32)
@@ -1028,6 +1168,8 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
                         torch.nn.utils.clip_grad_norm_(model.parameters(), self.finetune_clip)
                     opt.step()
                     self.finetune_losses_.append(float(loss.detach()))
+            if best_state is not None:
+                model.load_state_dict(best_state)
         finally:
             # free what training held -- gradients, optimiser state, the allocator's cache --
             # before prediction needs the memory: on a 14.5 GB T4 it was the difference between

@@ -1,0 +1,17 @@
+# AU5.1: fine-tuning at published scale, learning rate 1e-4. Up to 3,000 steps, stopped early on
+# inner-validation companies (10% of the fold's training companies, held out of every fine-tuning
+# task; never the fold's test rows or the protocol's validation split). Everything else is
+# §163's setting. Pre-registration: docs/results/drafts/au5.1_2026-11.md. NOT PRODUCTION.
+inference:
+  finetune_steps: 3000
+  finetune_lr: 1.0e-4
+  finetune_batch: 2
+  finetune_query: 512
+  finetune_val_frac: 0.1
+  finetune_eval_every: 10
+  finetune_patience: 16
+  finetune_val_tasks: 4
+  finetune_val_query: 1024
+  finetune_val_pos_frac: 0.1
+  query_chunk: 512        # identity-preserving (tests); a 2,048 chunk did not fit a T4 after fine-tuning
+  feature_chunk: 8        # identity-preserving (tests)

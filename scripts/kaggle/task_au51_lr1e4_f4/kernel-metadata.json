@@ -1,0 +1,17 @@
+{
+  "id": "muhakabartay/fintfm-task-au51-lr1e4-f4",
+  "title": "fintfm-task-au51-lr1e4-f4",
+  "code_file": "task_au51_lr1e4_f4.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": "true",
+  "enable_gpu": "true",
+  "enable_tpu": "false",
+  "enable_internet": "true",
+  "dataset_sources": [
+    "sebastiantomczak10/v4-group-corporate-bankruptcy"
+  ],
+  "competition_sources": [],
+  "kernel_sources": [],
+  "model_sources": []
+}

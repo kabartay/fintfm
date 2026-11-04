@@ -361,3 +361,104 @@ def test_finetuning_leaves_no_gradients_behind():
         _model(), max_context=100, finetune_steps=2, finetune_query=32,
     ).fit(X, y, groups=g)
     assert all(p.grad is None for p in clf.model_.parameters())
+
+
+# --- AU5.1: early stopping on inner-validation companies --------------------------------------
+
+
+def _imbalanced(n: int = 600, seed: int = 0) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Rows in three-row companies with roughly 10% positives, so validation has both classes."""
+    rng = np.random.default_rng(seed)
+    X = rng.normal(size=(n, 6)).astype(np.float32)
+    y = (X[:, 0] - X[:, 1] > 1.2).astype(np.int64)
+    return X, y, np.repeat(np.arange(n // 3), 3)
+
+
+def _ES(**kw):
+    base = {"max_context": 100, "finetune_steps": 30, "finetune_lr": 1e-3, "finetune_batch": 2,
+            "finetune_query": 32, "finetune_val_frac": 0.25, "finetune_eval_every": 5,
+            "finetune_patience": 2, "finetune_val_tasks": 2, "finetune_val_query": 64}
+    return FinancialTFMClassifier(_model(), **{**base, **kw})
+
+
+def test_early_stopping_off_by_default_changes_nothing():
+    """val_frac 0 is the old loop: the same weights as before the keys existed, no curve."""
+    X, y, g = _data()
+    a = FinancialTFMClassifier(_model(), max_context=100, finetune_steps=3, finetune_lr=1e-3,
+                               finetune_query=32).fit(X, y, groups=g)
+    b = FinancialTFMClassifier(_model(), max_context=100, finetune_steps=3, finetune_lr=1e-3,
+                               finetune_query=32, finetune_val_frac=0.0).fit(X, y, groups=g)
+    assert b.finetune_val_curve_ == [] and b.finetune_best_step_ is None
+    assert len(b.finetune_losses_) == 3
+    for k, v in a.model_.state_dict().items():
+        assert torch.equal(v, b.model_.state_dict()[k])
+
+
+def test_early_stopping_records_a_curve_stops_within_the_cap_and_never_hurts_validation():
+    X, y, g = _imbalanced()
+    clf = _ES().fit(X, y, groups=g)
+    curve = clf.finetune_val_curve_
+    assert curve[0][0] == 0  # step 0 (zero-shot) is a candidate
+    assert clf.finetune_stopped_step_ <= 30
+    assert len(clf.finetune_losses_) == clf.finetune_stopped_step_
+    best = min(v for _, v in curve)
+    assert dict(curve)[clf.finetune_best_step_] == best
+    # at most patience evaluations past the best one
+    assert len(curve) - 1 - [s for s, _ in curve].index(clf.finetune_best_step_) <= 2 or (
+        clf.finetune_stopped_step_ == 30
+    )
+
+
+def test_early_stopping_restores_the_best_weights():
+    """With an absurd learning rate the loss rises, so the step-0 weights must come back."""
+    X, y, g = _imbalanced()
+    model = _model()
+    before = _state(model)
+    clf = FinancialTFMClassifier(
+        model, max_context=100, finetune_steps=20, finetune_lr=50.0, finetune_query=32,
+        finetune_val_frac=0.25, finetune_eval_every=2, finetune_patience=2, finetune_val_tasks=2,
+        finetune_val_query=64,
+    ).fit(X, y, groups=g)
+    assert clf.finetune_best_step_ == 0
+    assert clf.finetune_stopped_step_ < 20
+    for k, v in clf.model_.state_dict().items():
+        assert torch.equal(v, before[k]), k
+    for k, v in model.state_dict().items():  # the caller's model is still untouched
+        assert torch.equal(v, before[k])
+
+
+def test_validation_companies_never_supply_training_tasks(monkeypatch):
+    """The held-out companies appear in no fine-tuning draw: the selection set stays unseen."""
+    import fintfm.inference.classifier as mod
+
+    X, y, g = _imbalanced()
+    seen: list[np.ndarray] = []
+    real = mod._finetune_rows
+
+    def spy(rng, groups, uniq, *a, **k):
+        ci, qi, w = real(rng, groups, uniq, *a, **k)
+        seen.append(uniq[groups[np.concatenate([ci, qi])]])
+        return ci, qi, w
+
+    monkeypatch.setattr(mod, "_finetune_rows", spy)
+    clf = _ES(finetune_steps=6, finetune_eval_every=3, finetune_patience=9).fit(X, y, groups=g)
+    all_groups = np.unique(g)
+    used = np.unique(np.concatenate(seen))
+    vrng = np.random.default_rng([0, 0, 7919])
+    n_val = round(len(all_groups) * 0.25)
+    val_groups = vrng.choice(all_groups, size=n_val, replace=False)
+    assert not np.intersect1d(used, val_groups).size
+    assert clf.finetune_stopped_step_ == 6
+
+
+def test_early_stopping_is_deterministic_and_validates_arguments():
+    X, y, g = _imbalanced()
+    a = _ES().fit(X, y, groups=g)
+    b = _ES().fit(X, y, groups=g)
+    assert a.finetune_val_curve_ == b.finetune_val_curve_
+    with pytest.raises(ValueError, match="finetune_val_frac"):
+        _ES(finetune_val_frac=1.0).fit(X, y, groups=g)
+    with pytest.raises(ValueError, match="at least 1"):
+        _ES(finetune_patience=0).fit(X, y, groups=g)
+    with pytest.raises(ValueError, match="finetune_val_pos_frac"):
+        _ES(finetune_val_pos_frac=1.5).fit(X, y, groups=g)
