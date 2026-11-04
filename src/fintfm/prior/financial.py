@@ -322,7 +322,60 @@ def _ratio_family(
         floor = np.maximum(np.abs(d), 1e-6 * (np.abs(d).mean() + 1e-12))
         cols.append(acc[num] / np.where(d < 0, -floor, floor))
         used.append(key)
+    if len(cols) < n_wanted:
+        _extend_ratio_family(rng, acc, n_wanted, cols, used)
     return cols, used
+
+
+def _extend_ratio_family(
+    rng: np.random.Generator,
+    acc: dict[str, np.ndarray],
+    n_wanted: int,
+    cols: list[np.ndarray],
+    used: list[str],
+) -> None:
+    """Top ``cols`` up to ``n_wanted`` when the sampled account pairs ran short (DR8.3).
+
+    The balance sheet has 20 accounts, so there are 380 ordered ratios, and sampling pairs with
+    replacement reaches about 370 distinct ones: a task asked for 500 columns came back with
+    about 367. The pretraining run at ``max_features`` 512 needs the prior to be able to emit
+    that width, so the shortfall is filled here: first the ordered pairs not yet used, in a
+    random order, then differences of two accounts over a third (``(a - b) / s``), a family
+    real panels also compute (growth and margin differences) and one with 3,420 members.
+
+    It runs only when the loop above came up short, which a task of up to 136 columns almost
+    never does, and then draws nothing beforehand, so the random stream of every task the loop
+    already filled is untouched. ``cols`` and ``used`` are extended in place.
+
+    Args:
+        rng: Random generator.
+        acc: Accounts from :func:`_accounts`.
+        n_wanted: Total number of ratio columns wanted.
+        cols: Columns so far; appended to.
+        used: Their keys; appended to.
+    """
+    names = list(acc)
+    pairs = [(a, b) for a in names for b in names if a != b and f"{a}/{b}" not in used]
+    for k in rng.permutation(len(pairs)):
+        if len(cols) >= n_wanted:
+            return
+        num, den = pairs[int(k)]
+        d = acc[den]
+        floor = np.maximum(np.abs(d), 1e-6 * (np.abs(d).mean() + 1e-12))
+        cols.append(acc[num] / np.where(d < 0, -floor, floor))
+        used.append(f"{num}/{den}")
+    triples = [
+        (a, b, s) for i, a in enumerate(names) for b in names[i + 1 :] for s in names
+        if s != a and s != b
+    ]
+    for k in rng.permutation(len(triples)):
+        if len(cols) >= n_wanted:
+            return
+        a, b, s = triples[int(k)]
+        d = acc[s]
+        floor = np.maximum(np.abs(d), 1e-6 * (np.abs(d).mean() + 1e-12))
+        cols.append((acc[a] - acc[b]) / np.where(d < 0, -floor, floor))
+        used.append(f"({a}-{b})/{s}")
 
 
 def _floored_ratio(num: np.ndarray, den: np.ndarray) -> np.ndarray:
