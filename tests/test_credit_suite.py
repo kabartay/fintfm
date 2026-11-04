@@ -37,7 +37,7 @@ def test_suite_keys_are_all_evaluation_only():
     for key, ds in cs.DATASETS.items():
         assert ds.key == key
         assert ds.licence.url.startswith("https://") and ds.licence.stated
-        assert ds.licence.checked in (cs.CHECKED, cs.SBA_CHECKED) and ds.licence.reason
+        assert ds.licence.checked >= cs.CHECKED and ds.licence.reason
 
 
 def test_ap_top_decile_by_hand():

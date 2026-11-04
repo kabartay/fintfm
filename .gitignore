@@ -15,6 +15,8 @@ data/lendingclub/
 # Every further real source lands under data/real/<source>/, so one rule covers sources that
 # do not exist yet -- data/lendingclub/ was missing from this list for most of a session.
 data/real/
+# DR4.3 Estonian register: evaluation only, never in git
+data/estonia/
 *.pt
 !tests/fixtures/*.pt
 

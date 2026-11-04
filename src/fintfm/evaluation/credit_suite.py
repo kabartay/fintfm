@@ -247,6 +247,7 @@ from typing import TYPE_CHECKING, Protocol
 import numpy as np
 import pandas as pd
 
+from fintfm.evaluation.credit_estonia import load_estonia
 from fintfm.evaluation.datasets import CACHE_DIR
 from fintfm.evaluation.overlap import guard_selection
 from fintfm.evaluation.proxy_suite import SourceLicence
@@ -726,6 +727,21 @@ DATASETS: dict[str, SuiteDataset] = {
         ),
     ),
 }
+
+# Estonian register (DR4.3, 2026-11-04): the licence passes (RIK links CC BY 4.0) but the label
+# is survivor-conditioned, so the entry is gated off; see credit_estonia's docstring.
+DATASETS["estonia"] = SuiteDataset(
+    "estonia", "https://avaandmed.ariregister.rik.ee/en/downloading-open-data", load_estonia,
+    SourceLicence(
+        "https://avaandmed.ariregister.rik.ee/en/downloading-open-data",
+        "License information: https://creativecommons.org/licenses/by/4.0/legalcode",
+        "CC BY 4.0", False,
+        "licence passes (RIK, the operator, links CC BY 4.0; no sentence names it beside the "
+        "link), but the files hold only firms currently registered, so firms bankrupt and "
+        "then deleted are absent and the label is survivor-conditioned; owner decision needed",
+        "2026-11-04",
+    ),
+)
 
 
 def out_of_time_splits(panel: CreditPanel) -> list[tuple[np.ndarray, np.ndarray]]:
