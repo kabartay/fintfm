@@ -63,7 +63,7 @@ MAX_DEPTH = 7
 
 
 def _oblivious_forest(
-    rng: np.random.Generator, X: np.ndarray, n_trees: int, depth: int
+    rng: np.random.Generator, X: np.ndarray, n_trees: int, depth: int, split_by: str = "std"
 ) -> np.ndarray:
     """Evaluate a random oblivious-tree ensemble on ``X``.
 
@@ -72,16 +72,26 @@ def _oblivious_forest(
         X: ``(n_rows, n_features)`` inputs. Must be finite.
         n_trees: Number of trees to average.
         depth: Thresholds per tree.
+        split_by: ``"std"`` (default, the original behaviour) draws each split column with
+            probability proportional to its raw standard deviation; ``"uniform"`` draws it
+            uniformly, so a column's scale no longer decides how often it is split on.
 
     Returns:
         ``(n_rows,)`` averaged leaf values.
+
+    Raises:
+        ValueError: On an unknown ``split_by``.
     """
+    if split_by not in ("std", "uniform"):
+        raise ValueError(f"split_by must be 'std' or 'uniform', got {split_by!r}")
     n_rows, n_features = X.shape
     # Split dimension sampled proportional to column spread, so the tree splits on features
     # that actually vary. A near-constant column is a useless split and would waste depth.
     spread = X.std(axis=0)
     total = spread.sum()
     p = spread / total if total > 0 else np.full(n_features, 1.0 / n_features)
+    if split_by == "uniform":
+        p = np.full(n_features, 1.0 / n_features)
     out = np.zeros(n_rows)
     for _ in range(n_trees):
         dims = rng.choice(n_features, size=depth, replace=True, p=p)
@@ -148,7 +158,9 @@ def sample_tree_task(
 
     n_trees = int(np.exp(rng.uniform(0.0, np.log(MAX_TREES))))
     depth = int(rng.integers(1, MAX_DEPTH + 1))
-    t = _oblivious_forest(rng, X, n_trees, depth)
+    t = _oblivious_forest(
+        rng, X, n_trees, depth, "std" if knobs is None else knobs.tree_split_by
+    )
     t = t + rng.normal(0, rng.uniform(0.0, 1.5) * (t.std() + 1e-9), size=n_rows)
     if _latent_out is not None:
         _latent_out.append(t.copy())

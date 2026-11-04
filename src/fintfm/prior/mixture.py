@@ -395,6 +395,17 @@ class PriorConfig:
     """Upper end of the per-task rate at which a general classification task's labels flip to
     another class (DR2.3). The financial prior keeps its own :attr:`label_noise_rate`.
     ``0.0`` (default) flips nothing."""
+    heavy_tail_column_prob: float = 0.0
+    """Per numeric column probability, in the general priors, of the monotone heavy-tail map
+    ``sinh(a z) / a`` with ``a`` LogU(0.3, 2) (AU5.11); ranks are kept, so the tie and rank
+    structure is not disturbed. ``0.0`` (default) touches no column."""
+    tree_split_by: str = "std"
+    """``"uniform"`` makes the tree prior choose split columns uniformly (AU5.11); ``"std"``
+    (default) keeps the choice proportional to raw column standard deviation."""
+    missing_label: bool = False
+    """With ``missing_mode="mixed"``, add a label-driven ``"mnar_label"`` mechanism to the
+    draw (AU5.11), so missingness can carry class information in a general classification
+    task. ``False`` (default) keeps the MCAR / MAR / MNAR draw."""
 
 
 #: Every source :attr:`PriorConfig.source_weights` may name besides a real panel, in the order

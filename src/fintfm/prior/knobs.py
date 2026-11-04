@@ -35,6 +35,13 @@ The knobs, and the distribution each draws when on:
   LogInt(3, 30) values (ties), given a point mass (a share U(0.05, 0.5) of rows set to one of
   its values) or zero-inflated (its lowest share U(0.05, 0.6) set to exactly zero, the rest
   shifted, on a random side).
+* ``heavy_tail_column_prob``: each numeric column, with this probability, goes through the
+  monotone map ``sinh(a z) / a`` (``z`` standardised, ``a`` LogU(0.3, 2)), which keeps ranks
+  and raises the excess kurtosis.
+* ``tree_split_by="uniform"``: the tree prior picks split columns uniformly, not in proportion
+  to raw standard deviation (read in ``prior/tree.py``).
+* ``missing_label``: with ``missing_mode="mixed"``, a fourth mechanism ``"mnar_label"`` blanks
+  cells with a probability that follows the class label.
 * ``irrelevant_frac_max`` / ``duplicate_frac_max``: a share U(0, max) of the width added as
   row-permuted copies of existing columns (each keeps its marginal and loses any relation to
   the label) and as near-duplicates (a column plus noise at LogU(0.01, 0.2) of its spread).
@@ -80,6 +87,14 @@ MISSING_MECHANISMS: tuple[str, ...] = ("mcar", "mar", "mnar")
 #: The column treatments :attr:`TaskKnobs.tie_column_prob` draws from, uniformly.
 TIE_KINDS: tuple[str, ...] = ("ties", "point_mass", "zero_inflation")
 
+#: Accepted values of :attr:`TaskKnobs.tree_split_by`.
+TREE_SPLIT_BY: tuple[str, ...] = ("std", "uniform")
+
+#: Range of the ``a`` in the ``sinh(a * z) / a`` heavy-tail map, drawn log-uniformly. At
+#: ``a = 0.3`` the map is close to linear over a few standard deviations; at ``a = 2`` a
+#: Gaussian column becomes strongly heavy-tailed.
+HEAVY_TAIL_SHARPNESS: tuple[float, float] = (0.3, 2.0)
+
 
 @dataclass(frozen=True)
 class TaskKnobs:
@@ -99,6 +114,12 @@ class TaskKnobs:
         irrelevant_frac_max: Upper end of the share of the width added as permuted copies.
         duplicate_frac_max: Upper end of the share of the width added as near-duplicates.
         label_flip_max: Upper end of the per-task label flip rate.
+        heavy_tail_column_prob: Per numeric column probability of a monotone heavy-tail map
+            (:func:`_heavy_tail_column`).
+        tree_split_by: ``"std"`` (today) draws the oblivious-tree split column in proportion
+            to its raw standard deviation; ``"uniform"`` draws it uniformly.
+        missing_label: Add ``"mnar_label"`` to the ``"mixed"`` mechanisms: missingness driven
+            by the class label. Needs ``missing_mode="mixed"`` and a classification task.
     """
 
     feature_ratio_bands: tuple[tuple[float, float, float], ...] = ()
@@ -110,6 +131,9 @@ class TaskKnobs:
     irrelevant_frac_max: float = 0.0
     duplicate_frac_max: float = 0.0
     label_flip_max: float = 0.0
+    heavy_tail_column_prob: float = 0.0
+    tree_split_by: str = "std"
+    missing_label: bool = False
 
     @property
     def unordered(self) -> bool:
@@ -145,6 +169,9 @@ def knobs_from(cfg: Any) -> TaskKnobs | None:
         irrelevant_frac_max=cfg.irrelevant_frac_max,
         duplicate_frac_max=cfg.duplicate_frac_max,
         label_flip_max=cfg.label_flip_max,
+        heavy_tail_column_prob=cfg.heavy_tail_column_prob,
+        tree_split_by=cfg.tree_split_by,
+        missing_label=cfg.missing_label,
     )
     return None if knobs == TaskKnobs() else knobs
 
@@ -168,12 +195,19 @@ def check_knobs(knobs: TaskKnobs) -> None:
         raise ValueError(
             f"missing_mode must be one of {list(MISSING_MODES)}, got {knobs.missing_mode!r}"
         )
+    if knobs.tree_split_by not in TREE_SPLIT_BY:
+        raise ValueError(
+            f"tree_split_by must be one of {list(TREE_SPLIT_BY)}, got {knobs.tree_split_by!r}"
+        )
+    if knobs.missing_label and not knobs.mixed_missing:
+        raise ValueError("missing_label needs missing_mode='mixed'")
     unit = {
         "p_binary": knobs.p_binary if knobs.p_binary is not None else 0.0,
         "tie_column_prob": knobs.tie_column_prob,
         "irrelevant_frac_max": knobs.irrelevant_frac_max,
         "duplicate_frac_max": knobs.duplicate_frac_max,
         "label_flip_max": knobs.label_flip_max,
+        "heavy_tail_column_prob": knobs.heavy_tail_column_prob,
     }
     bad = {k: v for k, v in unit.items() if not (math.isfinite(v) and 0.0 <= v <= 1.0)}
     if bad:
@@ -457,6 +491,36 @@ def _unordered_code(rng: np.random.Generator, col: np.ndarray) -> tuple[np.ndarr
     return out, k
 
 
+def _heavy_tail_column(rng: np.random.Generator, col: np.ndarray) -> tuple[np.ndarray, float]:
+    """Give a numeric column a heavy tail by a monotone map, ``sinh(a * z) / a``.
+
+    ``z`` is the column standardised on its finite values and ``a`` is drawn LogU(0.3, 2).
+    ``sinh`` is odd and strictly increasing, so ranks, ties and point masses survive and the
+    label's relation to the column keeps its order; it is linear near zero and exponential in
+    the tails (``sinh(a z) / a ~ exp(a |z|) / 2a``), so a Gaussian column comes out roughly
+    log-normal in each tail, with excess kurtosis rising with ``a``. Chosen over a Student-t
+    quantile map because it needs one parameter and no distribution table.
+
+    Args:
+        rng: NumPy random generator.
+        col: ``(n_rows,)`` values; NaN stays NaN.
+
+    Returns:
+        ``(column, a)``. A column with fewer than two finite values or no spread comes back
+        unchanged.
+    """
+    a = log_uniform(rng, *HEAVY_TAIL_SHARPNESS)
+    finite = np.isfinite(col)
+    out = col.copy()
+    if finite.sum() < 2:
+        return out, a
+    v = col[finite]
+    sd = float(v.std())
+    if sd > 1e-12:
+        out[finite] = np.sinh(a * (v - v.mean()) / sd) / a
+    return out, a
+
+
 def _tie_column(rng: np.random.Generator, col: np.ndarray) -> tuple[np.ndarray, str]:
     """Give a numeric column ties, a point mass or zero inflation.
 
@@ -492,13 +556,18 @@ def _tie_column(rng: np.random.Generator, col: np.ndarray) -> tuple[np.ndarray, 
 
 
 def _missing_mask(
-    rng: np.random.Generator, X: np.ndarray
+    rng: np.random.Generator, X: np.ndarray, y: np.ndarray | None = None
 ) -> tuple[np.ndarray, dict[str, Any]]:
     """Draw ``"mixed"`` missingness for a feature matrix.
 
     Args:
         rng: NumPy random generator.
         X: ``(n_rows, n_features)`` values, NaN already missing.
+        y: Class labels, or ``None`` (the default, which keeps the three-mechanism table and
+            so the exact draws of every earlier call). Given, ``"mnar_label"`` joins the
+            table: each class gets a random score and a row's chance of being blanked
+            follows its class score through the logistic mask, so the missingness pattern
+            carries label information beyond what the features do.
 
     Returns:
         ``(mask, record)``: cells to blank, and what was drawn.
@@ -507,7 +576,8 @@ def _missing_mask(
     mask = np.zeros(X.shape, dtype=bool)
     if rng.random() < 0.5 or n_features == 0:
         return mask, {"mechanism": "none"}
-    mechanism = MISSING_MECHANISMS[int(rng.integers(len(MISSING_MECHANISMS)))]
+    table = MISSING_MECHANISMS if y is None else MISSING_MECHANISMS + ("mnar_label",)
+    mechanism = table[int(rng.integers(len(table)))]
     rate = log_uniform(rng, *MISSING_RATE_RANGE)
     share = rng.uniform(0.2, 1.0)
     cols = np.flatnonzero(rng.random(n_features) < share)
@@ -516,6 +586,15 @@ def _missing_mask(
     k = len(cols)
     if mechanism == "mcar":
         mask[:, cols] = rng.random((n_rows, k)) < rate
+        return mask, {"mechanism": mechanism, "rate": rate, "columns": k}
+    if mechanism == "mnar_label":
+        assert y is not None
+        score = rng.normal(size=int(y.max()) + 1)[y]
+        z = _standardise(score[:, None]) * (
+            rng.uniform(1.0, 3.0, size=k) * rng.choice([-1.0, 1.0], size=k)
+        )
+        p = 1.0 / (1.0 + np.exp(-(z + _intercepts_for_rate(z, rate))))
+        mask[:, cols] = rng.random((n_rows, k)) < p
         return mask, {"mechanism": mechanism, "rate": rate, "columns": k}
     if mechanism == "mar" and n_features > 1:
         drivers = rng.integers(n_features - 1, size=k)
@@ -540,8 +619,8 @@ def apply_task_knobs(
     """Apply the column- and label-side knobs to a finished task from a general prior.
 
     In a fixed order, each consuming draws only when on: label flips, irrelevant and
-    near-duplicate columns (then a column shuffle), unordered categoricals, ties / point masses
-    / zero inflation, then mixed missingness. The source's own ordered categoricals and MCAR
+    near-duplicate columns (then a column shuffle), unordered categoricals, heavy tails, ties /
+    point masses / zero inflation, then mixed missingness. The source's own ordered categoricals and MCAR
     step were skipped when ``categorical_mode`` / ``missing_mode`` replace them, so nothing is
     applied twice.
 
@@ -607,6 +686,13 @@ def apply_task_knobs(
                 is_cat[j] = True
                 levels.append(k)
         record["categorical_levels"] = levels
+    if knobs.heavy_tail_column_prob > 0:
+        tails: list[float] = []
+        numeric = np.flatnonzero(~is_cat)
+        for j in numeric[rng.random(len(numeric)) < knobs.heavy_tail_column_prob]:
+            X[:, j], a = _heavy_tail_column(rng, X[:, j])
+            tails.append(a)
+        record["heavy_tail_a"] = tails
     if knobs.tie_column_prob > 0:
         kinds: list[str] = []
         numeric = np.flatnonzero(~is_cat)
@@ -616,7 +702,8 @@ def apply_task_knobs(
         record["tie_kinds"] = kinds
         record["numeric_columns"] = len(numeric)
     if knobs.mixed_missing:
-        mask, record["missing"] = _missing_mask(rng, X)
+        informative = knobs.missing_label and label_knobs and task.y_continuous is None
+        mask, record["missing"] = _missing_mask(rng, X, y if informative else None)
         X[mask] = np.nan
     meta = dict(task.meta or {})
     meta["knobs"] = record

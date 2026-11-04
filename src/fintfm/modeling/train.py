@@ -222,6 +222,7 @@ _PRIOR_CONFIG_KNOBS = (
     "real_lendingclub_panel_path", "real_panels", "source_weights", "financial_gate_prob",
     "financial_sign_flip_prob", "feature_ratio_bands", "p_binary", "imbalance_draws", "categorical_mode", "missing_mode",
     "tie_column_prob", "irrelevant_frac_max", "duplicate_frac_max", "label_flip_max",
+    "heavy_tail_column_prob", "tree_split_by", "missing_label",
 )
 
 #: Accepted values of :attr:`TrainConfig.optimizer`.
@@ -2166,6 +2167,28 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="upper end of the per-task label flip rate in the general priors (DR2.3); the "
         "financial prior keeps --label-noise-rate. Defaults to 0.0",
+    )
+    p.add_argument(
+        "--heavy-tail-column-prob",
+        type=float,
+        default=None,
+        help="per numeric column probability of the monotone heavy-tail map sinh(a z)/a in "
+        "the general priors (AU5.11); defaults to 0.0",
+    )
+    p.add_argument(
+        "--tree-split-by",
+        type=str,
+        default=None,
+        choices=("std", "uniform"),
+        help="'uniform': the tree prior splits on columns uniformly instead of in proportion "
+        "to raw standard deviation (AU5.11); defaults to the config's, 'std'",
+    )
+    p.add_argument(
+        "--missing-label",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="add a label-driven missingness mechanism to --missing-mode mixed (AU5.11); "
+        "defaults to the config's, off",
     )
     p.add_argument(
         "--identity-shuffle",

@@ -189,6 +189,10 @@ prior:
   irrelevant_frac_max: 0.0         # share of width as row-permuted copies, U(0, max)
   duplicate_frac_max: 0.0          # share of width as near-duplicates, U(0, max)
   label_flip_max: 0.0              # per-task label flip rate, U(0, max)
+  # AU5.11: three more diversity flags, off by default
+  heavy_tail_column_prob: 0.0      # per numeric column: monotone sinh(a z)/a heavy-tail map
+  tree_split_by: std               # uniform: tree prior splits on columns uniformly, not by std
+  missing_label: false             # true: missing_mode mixed adds a label-driven mechanism
 
 # Every TrainConfig field, read by fintfm-train (DR1.3; the knobs of audit AU5.2, AU5.10 and
 # AU5.17 among them). These MIRROR the literal defaults of TrainConfig in modeling/train.py, as

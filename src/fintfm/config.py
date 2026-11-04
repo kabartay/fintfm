@@ -209,6 +209,9 @@ class PriorConfigDefaults:
     irrelevant_frac_max: float = 0.0
     duplicate_frac_max: float = 0.0
     label_flip_max: float = 0.0
+    heavy_tail_column_prob: float = 0.0
+    tree_split_by: str = "std"
+    missing_label: bool = False
 
 
 @dataclass(frozen=True)
@@ -588,7 +591,10 @@ def _validate(cfg: Config) -> None:
         "irrelevant_frac_max": p.irrelevant_frac_max,
         "duplicate_frac_max": p.duplicate_frac_max,
         "label_flip_max": p.label_flip_max,
+        "heavy_tail_column_prob": p.heavy_tail_column_prob,
     }
+    if p.tree_split_by not in ("std", "uniform"):
+        raise ConfigError(f"prior.tree_split_by must be 'std' or 'uniform', got {p.tree_split_by!r}")
     off = [k for k, v in unit.items() if not 0.0 <= v <= 1.0]
     if off:
         raise ConfigError(f"prior.{off[0]} must lie in [0, 1], got {unit[off[0]]}")
