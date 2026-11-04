@@ -1,0 +1,16 @@
+# Design review DR3.2, second arm "ens8-cshift": 8 ensemble members at the default 2,000-row
+# context, member i relabelling the context by a cyclic class shift of i (on a binary task, a
+# label swap on every other member), mapped back before averaging.
+#
+# NOT PRODUCTION. MEASUREMENT OPEN. Every other key inherits the packaged default (uniform,
+# max_context 2000, correct_prior on). Controls: the zero-shot published checkpoint
+# (runs/lrsweep/eval-published, one member) and the first arm, §196's `ens8`
+# (runs/v4-lever-ens8, 8 members, no shift), so only the shift differs from `ens8`.
+#
+#   uv run --frozen --extra bench --extra hf fintfm-v4protocol --model runs/v4-cellattn-labels.pt \
+#     --config configs/arms/dr32-ens8-cshift.yaml --no-boosting --device cpu \
+#     --out runs/dr32/ens8-cshift
+
+inference:
+  n_ensemble: 8
+  ensemble_class_shift: true
