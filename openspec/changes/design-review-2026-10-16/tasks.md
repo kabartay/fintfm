@@ -456,7 +456,7 @@ DR6.2/DR6.3 did not, and boosters lead by 3.5x on SBA.
       fitted on the training split only) against a checkpoint trained at `max_features` 512, on
       the proxy's wide tasks first.
       Verify: per-task results for both on madelon, Internet-Advertisements and mfeat-factors.
-- [ ] DR8.4 **Credit suite measured (2026-10-24, §189):** the logit as a LightGBM feature adds +0.011 AP on SBA (3 of 3 splits); as an init score it gives ULB's best and most stable result (0.853 mean). Open: a tuned LightGBM control, and V4FinBench (capped, about 4.5 to 6 h of CPU).
+- [ ] DR8.4 **Progress (2026-11-04, `docs/results/drafts/dr8.4_2026-11.md`, MEASURED): the tuned LightGBM control is run on the credit suite (seeded search of up to 30 configs on an inner split of each training split; SBA's inner split without embargo, the test split keeps it). SBA: tuned 0.4021 mean AP against untuned 0.3861 (+0.0159, 3 of 3) and against §189's logit-as-feature hybrid 0.3971 (+0.0049, 3 of 3), so §189's feature gain is smaller than a tuning gain. ULB: tuned 0.8299 against the init-score hybrid's 0.8534 (hybrid +0.0235, 3 of 3). Open: a tuned booster plus the FinTFM logit (needs out-of-fold logits §189 did not save), and V4FinBench.** **Credit suite measured (2026-10-24, §189):** the logit as a LightGBM feature adds +0.011 AP on SBA (3 of 3 splits); as an init score it gives ULB's best and most stable result (0.853 mean). Open: a tuned LightGBM control, and V4FinBench (capped, about 4.5 to 6 h of CPU).
       **FinTFM plus booster for credit** (AU4.4's `hybrid_catboost`, built, unmeasured):
       on SBA and ULB (credit suite) and V4FinBench, against LightGBM alone, so the practical
       credit answer is measured, not assumed.
