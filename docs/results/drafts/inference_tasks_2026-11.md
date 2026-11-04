@@ -141,7 +141,13 @@ tasks and scores them near the floor (§182). New here, from existing CSVs (no i
 `max_context` 1,000 and exposes only `FINTFM_MAX_CONTEXT` as an override
 (the fork's `packages/tabarena/src/tabarena/models/fintfm/model.py`, `_default_max_context` and
 `_set_default_params`), so the `n_ensemble` 1 arm needs a hyperparameter
-override or an env var added to the fork first. Then, as AU5.14 ran: `FINTFM_PROBLEM_TYPES=binary
+override or an env var added to the fork first. **Added 2026-11-04 (fork, uncommitted):
+`FINTFM_PARAMS`, a JSON object of `FinancialTFMClassifier` arguments that overrides the
+adapter's defaults; an unknown or reserved key raises, and an explicit hyperparameter still
+wins.** Arms: `FINTFM_PARAMS='{"n_ensemble": 1}'` (AU5.7),
+`'{"n_ensemble": 8, "ensemble_class_shift": true}'` and
+`'{"n_ensemble": 8, "ensemble_svd_components": 16}'` (AU5.12),
+`'{"n_ensemble": 8, "ensemble_transforms": ["rank", "squash"]}'` (DR3.5). Then, as AU5.14 ran: `FINTFM_PROBLEM_TYPES=binary
 FINTFM_RUN_NAME=fintfm_lite_ens1 nice -n 10 .venv/bin/python -P run_fintfm_lite.py --full`, about
 an hour per arm (CLAUDE.md's figure for a 27-dataset single-fold run), and pair per dataset as in
 DR3.5 below.
