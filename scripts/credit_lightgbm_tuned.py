@@ -35,13 +35,12 @@ def main() -> int:
     from sklearn.impute import SimpleImputer
     from sklearn.preprocessing import StandardScaler
 
-    from fintfm.evaluation.credit_suite import DATASETS, suite_splits
-    from fintfm.evaluation.datasets import CACHE_DIR
+    from fintfm.evaluation.credit_suite import DATASETS, DEFAULT_ROOT, suite_splits
 
     a.out.mkdir(parents=True, exist_ok=True)
     t_all = time.perf_counter()
     for key in a.datasets:
-        panel = DATASETS[key].loader(CACHE_DIR)
+        panel = DATASETS[key].loader(DEFAULT_ROOT)
         for k, (tr, te) in enumerate(suite_splits(panel)):
             dest = a.out / f"{key}_split{k}.json"
             if dest.exists():
