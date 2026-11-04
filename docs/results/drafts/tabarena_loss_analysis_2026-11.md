@@ -1,3 +1,5 @@
+Merged into FINDINGS §204 (2026-11-04).
+
 # Where FinTFM loses on TabArena-Lite (draft, 2026-11-02)
 
 **MEASURED by re-reading cached results; no model was fitted or scored.** TabArena-Lite, the 27

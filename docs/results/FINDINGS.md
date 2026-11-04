@@ -13056,3 +13056,455 @@ explain part of §130's gap.
 **Action.** Improvement work goes to the prior's coverage of real tables and to the head's
 fit, not to shipping a probe as the default readout. DR3.4 stays open as the real-data half of
 the test.
+
+
+## §204: where FinTFM loses on TabArena-Lite: a weaker logistic regression, with nonlinear headroom untouched
+
+**MEASURED, 2026-11-02, from cached results; no model was fitted or scored.** TabArena-Lite's 27
+binary datasets (27 of 51), split 0, ROC-AUC. Head: the 2026-10-19 run with NaN passed through
+(`experiments/fintfm_lite_nan_1019/` in the tabarena fork, Elo 756 (+126/−180), 94th of 95,
+`docs/results/TABARENA.md`). Probe: §132's run (`fintfm_linprobe_lite/`, Elo 910, 93rd of 95),
+which predates AU1.19 and so filled numeric NaN with 0. Baselines are the board's cached
+`LR (default)`, `RF (default)`, `CAT (default)` (CatBoost) and the best non-imputed default config of
+nine in-context foundation models. Script `scripts/tabarena_loss_analysis.py` (commit 82238f6 and
+this branch), run as `uv run --frozen --extra bench python -I scripts/tabarena_loss_analysis.py
+--markdown table.md`; re-run on 2026-11-04, it reproduces the per-dataset table, the Spearman table
+and the threshold splits below. Full draft: `docs/results/drafts/tabarena_loss_analysis_2026-11.md`.
+
+This section analyses existing Lite results only. **None of the fixes in the last table has been
+measured.** Fix 1 (probe sampling, defect D1) is implemented in the fork (uncommitted) and fixes 1,
+5 and 6a are queued as Lite runs.
+
+### Result
+
+- FinTFM is below `LR (default)` on 23 of 27 datasets by a roughly constant amount (mean
+  −0.0297 ROC-AUC: head 0.7824, LR 0.8120). It is below CatBoost (0.8449) and below the best
+  default TFM (0.8572) on 27 of 27, and first of the five compared methods on no dataset. Mean
+  rank 89.3 of 96.
+- Its gap to CatBoost and to the TFMs is predicted by how much a dataset rewards a nonlinear
+  model (RF minus LR: Spearman ρ −0.69 against the CatBoost gap, −0.65 against the TFM gap, both
+  p < 0.001). Its gap to LR is not (ρ −0.12, p 0.54). FinTFM takes none of the nonlinear headroom
+  that trees and TFMs take, and that is where the Elo goes.
+- Row count, width, categorical share, missingness and tie-heavy numeric share explain nothing
+  measurable (|ρ| ≤ 0.17 against the LR gap, every p > 0.38). Class balance is the only secondary
+  axis and is a direction, not a result: gap to LR against the coded positive rate ρ −0.37,
+  p 0.054, unadjusted, at n = 27 with nine covariates tried.
+- The linear probe (0.8096) recovers 0.0272 of the 0.0297 LR gap on average (it is −0.0024 below
+  LR) and recovers most where the task is nonlinear (probe minus head against RF minus LR:
+  ρ +0.47, p 0.014). The head throws away signal the representation holds. The probe is still
+  0.0353 below CatBoost; the head is 0.0625 below.
+- What this points at, in order: the prior and model (no interaction structure, §137; a base-rate
+  range capped at 30%; no tied or discrete columns), then the head. Adapter and inference settings
+  can at best close the gap to LR; they cannot reach CatBoost.
+
+### Per-dataset table
+
+ROC-AUC on split 0, worst gap to LR first. "Train rows" is TabArena's split-0 training size; under
+the 8x1 bagged protocol each fold model sees 7/8 of it. "Coded positive rate" is the share of the
+label AutoGluon codes as 1, recomputed from the full dataset, not read from the run. "Rank of 96"
+ranks FinTFM among every entry in the 1019 snapshot's per-split file (average ties); "rank of 5"
+is among FinTFM, LR, RF, CatBoost and the best TFM.
+
+| dataset | train rows | features | cat share | missing share | coded positive rate | FinTFM | probe | LR | RF | CatBoost | best default TFM | rank of 96 | rank of 5 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | ---: | ---: |
+| Marketing_Campaign | 1,493 | 25 | 0.32 | 0.000 | 0.15 | 0.8262 | 0.8925 | 0.9235 | 0.9042 | 0.9335 | 0.9455 (TA-TABPFN-3.5) | 96 | 5 |
+| hazelnut-spread-contaminant-detection | 1,600 | 30 | 0.00 | 0.000 | 0.50 | 0.8533 | 0.8972 | 0.9427 | 0.9529 | 0.9683 | 0.9945 (TA-TABPFN-3.5) | 96 | 5 |
+| credit-g | 666 | 20 | 0.65 | 0.000 | 0.70 | 0.6789 | 0.7442 | 0.7664 | 0.7783 | 0.7915 | 0.8082 (TA-LIMIX) | 96 | 5 |
+| in_vehicle_coupon_recommendation | 8,456 | 24 | 0.88 | 0.000 | 0.57 | 0.6827 | 0.7317 | 0.7457 | 0.8206 | 0.8478 | 0.8682 (TA-TABPFN-3.5) | 96 | 5 |
+| customer_satisfaction_in_airline | 86,586 | 21 | 0.76 | 0.000 | 0.55 | 0.9043 | 0.9043\* | 0.9649 | 0.9923 | 0.9948 | 0.9960 (TA-TABPFN-3.5) | 96 | 5 |
+| qsar-biodeg | 702 | 41 | 0.12 | 0.000 | 0.34 | 0.8504 | 0.8770 | 0.8970 | 0.9211 | 0.9250 | 0.9387 (TABICL_GPU) | 96 | 5 |
+| bank-marketing | 30,140 | 13 | 0.54 | 0.000 | 0.12 | 0.7088 | 0.7445 | 0.7553 | 0.7339 | 0.7746 | 0.7768 (TABICLV2) | 96 | 5 |
+| HR_Analytics_Job_Change_of_Data_Scientists | 12,772 | 12 | 0.75 | 0.000 | 0.25 | 0.7636 | 0.8013 | 0.8055 | 0.7973 | 0.8124 | 0.8158 (TABICL_GPU) | 95 | 5 |
+| blood-transfusion-service-center | 498 | 4 | 0.00 | 0.000 | 0.24 | 0.6955 | 0.7133 | 0.7311 | 0.6651 | 0.7059 | 0.7452 (TABICLV2) | 77 | 4 |
+| coil2000_insurance_policies | 6,548 | 85 | 0.04 | 0.000 | 0.06 | 0.7020 | 0.6955 | 0.7359 | 0.6828 | 0.7431 | 0.7682 (TA-LIMIX) | 91 | 4 |
+| churn | 3,333 | 19 | 0.21 | 0.000 | 0.14 | 0.7316 | 0.8354 | 0.7634 | 0.9252 | 0.9363 | 0.9449 (TABICLV2) | 96 | 5 |
+| jm1 | 7,256 | 21 | 0.00 | 0.000 | 0.19 | 0.7050 | 0.7264 | 0.7342 | 0.7630 | 0.7537 | 0.7939 (TA-TABPFN-3.5) | 96 | 5 |
+| E-CommereShippingData | 7,332 | 10 | 0.40 | 0.000 | 0.60 | 0.6744 | 0.7279 | 0.6995 | 0.7447 | 0.7409 | 0.7435 (REALTABPFN-V2.5) | 96 | 5 |
+| online_shoppers_intention | 8,220 | 17 | 0.41 | 0.000 | 0.15 | 0.8796 | 0.9137 | 0.9018 | 0.9184 | 0.9266 | 0.9346 (TA-TABPFN-3.5) | 95 | 5 |
+| Amazon_employee_access | 21,846 | 9 | 1.00 | 0.000 | 0.94 | 0.8220 | 0.8220\* | 0.8411 | 0.8415 | 0.8709 | 0.8775 (TA-TABPFN-3.5) | 82 | 5 |
+| credit_card_clients_default | 20,000 | 23 | 0.13 | 0.000 | 0.22 | 0.7295 | 0.7812 | 0.7467 | 0.7727 | 0.7898 | 0.7961 (TA-TABPFN-3.5) | 96 | 5 |
+| GiveMeSomeCredit | 100,000 | 10 | 0.00 | 0.022 | 0.07 | 0.8294 | 0.8637 | 0.8445 | 0.8532 | 0.8699 | 0.8735 (TA-TABPFN-3.5) | 94 | 5 |
+| taiwanese_bankruptcy_prediction | 4,546 | 94 | 0.00 | 0.000 | 0.03 | 0.9291 | 0.9320 | 0.9419 | 0.9458 | 0.9457 | 0.9557 (TA-TABPFN-3.5) | 84 | 5 |
+| heloc | 6,972 | 23 | 0.00 | 0.000 | 0.48 | 0.7731 | 0.7867 | 0.7850 | 0.7929 | 0.7981 | 0.8022 (TA-TABPFN-3.5) | 94 | 5 |
+| NATICUSdroid | 4,994 | 86 | 1.00 | 0.000 | 0.35 | 0.9703 | 0.9783 | 0.9813 | 0.9799 | 0.9860 | 0.9877 (TA-TABPFN-3.5) | 95 | 5 |
+| polish_companies_bankruptcy | 3,940 | 64 | 0.00 | 0.012 | 0.07 | 0.8619 | 0.8871 | 0.8726 | 0.9357 | 0.9704 | 0.9943 (TA-TABPFN-3.5) | 89 | 5 |
+| Fitness_Club | 1,000 | 6 | 0.50 | 0.002 | 0.30 | 0.7932 | 0.8003 | 0.8032 | 0.7797 | 0.8051 | 0.8101 (TABPFNV2_GPU) | 89 | 4 |
+| diabetes | 512 | 8 | 0.00 | 0.000 | 0.35 | 0.8188 | 0.8365 | 0.8223 | 0.8255 | 0.8340 | 0.8537 (TA-TABPFN-3.5) | 86 | 5 |
+| Is-this-a-good-customer | 1,148 | 13 | 0.62 | 0.000 | 0.11 | 0.7263 | 0.7381 | 0.7235 | 0.6695 | 0.7413 | 0.7450 (TA-TABPFN-3.5) | 56 | 3 |
+| Diabetes130US | 47,678 | 47 | 0.83 | 0.041 | 0.09 | 0.6566 | 0.6433 | 0.6528 | 0.6372 | 0.6800 | 0.6950 (TA-TABPFN-3.5) | 70 | 3 |
+| Bank_Customer_Churn | 6,666 | 10 | 0.40 | 0.000 | 0.20 | 0.7717 | 0.8003 | 0.7648 | 0.8510 | 0.8767 | 0.8824 (TA-TABPFN-3.5) | 93 | 4 |
+| seismic-bumps | 1,722 | 15 | 0.20 | 0.000 | 0.07 | 0.7862 | 0.7855 | 0.7788 | 0.7650 | 0.7908 | 0.7965 (MITRA_GPU) | 66 | 3 |
+| **mean** | | | | | | **0.7824** | 0.8096 | 0.8120 | 0.8241 | 0.8449 | 0.8572 | 89.3 | 4.63 |
+
+\* The probe never ran on these two datasets. Its score is the own head's to 16 digits (the head
+from the zero-fill era, `fintfm_lite_tafintfm`). §132 reported one fallback dataset (Amazon); there
+are two, and the cause is a defect, not AutoGluon bookkeeping (D1 below).
+
+FinTFM is best of the five on no dataset. It beats RF or LR only on small low-base-rate sets where
+every method is close (`seismic-bumps`, `Is-this-a-good-customer`, `Diabetes130US`).
+
+### The pattern of losses
+
+Spearman ρ of FinTFM's ROC-AUC gap against dataset properties, 27 datasets, two-sided p unadjusted.
+A negative ρ means FinTFM falls further behind as the property grows.
+
+| property | gap to LR | gap to CatBoost | gap to best TFM | probe minus head |
+| --- | --- | --- | --- | --- |
+| log training rows | −0.00 (p 0.99) | −0.15 (0.45) | −0.06 (0.78) | −0.06 (0.77) |
+| features (4 to 94) | −0.17 (0.39) | −0.26 (0.20) | −0.20 (0.31) | −0.10 (0.63) |
+| categorical share | −0.07 (0.74) | −0.13 (0.53) | +0.01 (0.97) | −0.06 (0.76) |
+| missing share | +0.07 (0.73) | +0.02 (0.93) | +0.01 (0.95) | −0.10 (0.61) |
+| tie-heavy numeric share | +0.03 (0.87) | −0.01 (0.97) | −0.02 (0.93) | +0.07 (0.74) |
+| minority share | −0.34 (0.085) | −0.24 (0.23) | −0.21 (0.29) | +0.32 (0.11) |
+| coded positive rate | −0.37 (0.054) | −0.32 (0.11) | −0.26 (0.20) | +0.24 (0.22) |
+| **RF minus LR** | −0.12 (0.54) | **−0.69 (<0.001)** | **−0.65 (<0.001)** | **+0.47 (0.014)** |
+| **best TFM minus LR** | −0.17 (0.38) | **−0.73 (<0.001)** | **−0.79 (<0.001)** | +0.42 (0.029) |
+
+Threshold splits, Mann-Whitney two-sided (group sizes as "with / without"):
+
+| split | n | median gap to LR | median gap to CatBoost | p (LR, CatBoost) |
+| --- | --- | --- | --- | --- |
+| whole training split fits one 1,000-row context | 5 / 22 | −0.0356 / −0.0206 | −0.0152 / −0.0489 | 0.69, 0.31 |
+| over 10,000 training rows | 7 / 20 | −0.0191 / −0.0236 | −0.0489 / −0.0478 | 0.81, 0.94 |
+| over 40 features | 6 / 21 | −0.0119 / −0.0251 | −0.0323 / −0.0489 | 0.38, 0.59 |
+| categorical share ≥ 0.5 | 10 / 17 | −0.0305 / −0.0222 | −0.0489 / −0.0487 | 0.74, 0.90 |
+| coded positive rate > 0.30 | 11 / 16 | −0.0251 / −0.0197 | −0.0665 / −0.0478 | 0.29, 0.44 |
+| any missing value | 8 / 19 | −0.0222 / −0.0222 | −0.0488 / −0.0489 | 0.98, 0.98 |
+| RF beats LR by > 0.03 | 5 / 22 | −0.0251 / −0.0206 | **−0.1085 / −0.0441** | 0.79, **0.003** |
+
+Reading, axis by axis:
+
+- **Size: no.** The five datasets whose whole training split fits one context (`blood-transfusion`,
+  `diabetes`, `credit-g`, `qsar-biodeg`, `Fitness_Club`) lose to LR by as much as the rest.
+  `credit-g` is the plainest case: all of each bag fold's 582-583 rows are in context, no
+  subsampling happens, and FinTFM is about 0.087 below LR. The context arms agree: 500 to 1,000
+  rows moved the 22 tables that exceed the context by +0.0008 mean ROC-AUC, positive on 13 of 22
+  (`fintfm_lite_ctx500_1026` against the 1019 run). This repeats §102's size null on the newer run.
+- **Width: no.** No eligible dataset exceeds 94 features, and pretraining drew widths up to the
+  136-feature cap. The six tables over 40 features lose less to LR than the narrow ones. The three
+  over-cap tasks are excluded from Lite coverage, not lost on.
+- **Categorical share: no**, after §101's target encoding. Fully categorical `NATICUSdroid` is
+  0.011 behind LR; 88%-categorical `in_vehicle_coupon` is 0.063 behind, and its loss is the
+  nonlinear one (RF minus LR +0.075).
+- **Missingness: no.** The 8 datasets with any missing cell have the same median gap as the rest.
+- **Balance: weak, same direction as §102.** The rank of 96 rises with the minority share
+  (ρ +0.51, p 0.006, unadjusted; ×9 covariates puts it at 0.05). The published checkpoint's prior
+  draws its base rate log-uniformly up to `_RATE_CEILING = 0.30` (`src/fintfm/prior/financial.py`),
+  so it never saw a task whose positive class held more than 30% of rows. 11 of 27 Lite datasets
+  code a positive class above that, 5 of them above 50% (Amazon 0.94, credit-g 0.70, E-Commerce
+  0.60, coupon 0.57, airline 0.55).
+- **Nonlinearity: yes, the main effect.** Where RF beats LR by more than 0.03 (`churn`,
+  `Bank_Customer_Churn`, `in_vehicle_coupon`, `polish_companies_bankruptcy`,
+  `E-CommereShippingData`), FinTFM's median gap to CatBoost is −0.1085 against −0.0441 elsewhere
+  (p 0.003), while its gap to LR is the same in both groups. On `churn` FinTFM (0.7316) sits next
+  to LR (0.7634) while RF reaches 0.9252. This matches §137: chance on any interaction of order 2
+  or more.
+- **Head against representation.** The probe's gain is largest where the task is nonlinear
+  (`churn` +0.104, `Marketing_Campaign` +0.066, `credit-g` +0.065, `E-Commerce` +0.054) and
+  smallest on tables over 40 features (median +0.006 against +0.034, p 0.026).
+
+### The adapter's path, checked against each pattern
+
+Fork branch `fintfm-audit-fixes` (the branch both runs used), line numbers as of 2026-11-02, before
+the D1 edit below; fintfm at 82238f6.
+
+- **D1, defect: the probe falls back to the head whenever positives exceed 20,000.**
+  `tabarena/models/fintfm_linprobe/model.py` kept every row coded 1 and padded with negatives to
+  `TRAIN_SAMPLE_SIZE = 20_000`; `n_negative = max(20_000 − len(positive), 0)` is 0 once positives
+  pass 20,000, the subsample holds one class and the single-class guard falls back to the head.
+  Airline has about 47,400 coded positives in 86,586 rows (54.7%), so every fit falls back;
+  Amazon's refit-on-all fits (about 20,580 positives in 21,846 rows) do the same. The code
+  comment attributed this to AutoGluon's refit step; the arithmetic accounts for it without that.
+  The 910 Elo therefore has 2 of 27 datasets scored by the head. **A fix is implemented in the
+  fork (uncommitted): when positives reach 20,000 both classes are capped at half the budget. Not
+  yet run.**
+- **D2, setting: the positive slot is AutoGluon's alphabetical choice, not the minority.**
+  `tabarena/models/fintfm/model.py` passes AutoGluon's 0/1 coding straight to `fit`. AutoGluon
+  codes the second sorted label as 1, so on 5 datasets the class the model treats as "default" is
+  the majority. The financial prior always made class 1 the rarer outcome, at most 30% of rows.
+  ROC-AUC is invariant to the swap; the model is not (§45; §165 measured this checkpoint's
+  symmetry at pooled r 0.891 on financial-prior tasks and 0.490 on Polish 3-year, not 1.0).
+- **D3, setting: balanced tasks are outside the base-rate range the checkpoint was trained on**,
+  and nothing in the adapter maps them back. The context draw is uniform, so a 0.48-positive
+  table yields a 0.48-positive context. The classifier already corrects logits for a context whose
+  rate differs from the pool's, which is what a rate-capped context would need.
+- **D4, defect (small expected cost): the rank transform pins tied extremes to ±5.2 SD.**
+  `preprocess.py` fits `QuantileTransformer(output_distribution="normal")`. On a synthetic
+  zero-inflated count (60% zeros), 0 maps to −5.199 and counts 1 to 5 map to 0.29 to 1.20, so a
+  count of 1 and a count of 5 differ by 0.30 SD while 0 and 1 differ by 1.80 SD. The prior never
+  produced ties (every financial-prior column gets Gaussian jitter). Seven Lite datasets have at
+  least 30% tie-heavy columns (coil2000 0.60, qsar 0.51, GiveMeSomeCredit 0.50, heloc 0.48,
+  seismic-bumps 0.47, online_shoppers 0.41, bank-marketing 0.31). The tie-heavy share does not
+  correlate with the gap (ρ +0.03), so the cost is likely small.
+
+Checked and not a lever here: context subsampling (the adapter sets `max_context` 1,000 and
+`n_ensemble` 8, so up to 8,000 distinct rows inform a prediction; 500 → 1,000 moved +0.0008;
+pretraining contexts reach about 921 rows, so 2,000 is outside the trained range too); wide tables
+(none on the eligible set); categorical encoding (out-of-fold, 5 folds, smoothing 10, fitted before
+the context is drawn; no defect found); target handling (binary 0/1 gets target statistics as
+intended).
+
+### Fixes to test (adapter or inference only)
+
+Each is one Lite run under a new `FINTFM_RUN_NAME`. Lite reports and never selects (DR4.1), and a
+change is scored on V4FinBench before it is believed. **Expected directions are ESTIMATED from this
+analysis, not measured.**
+
+| # | change | datasets it should move | expected direction (ESTIMATED) | status |
+| --- | --- | --- | --- | --- |
+| 1 | Fix D1: draw the probe's 20,000 rows stratified, cap both classes, rerun the probe arm | `customer_satisfaction_in_airline` (head 0.9043, LR 0.9649), `Amazon_employee_access` (0.8220, LR 0.8411); the other 25 should be bit-identical | up on both; probe Elo up from 910 (§132 measured +145 Elo with the defect) | implemented in fork (uncommitted); Lite run queued |
+| 2 | Code the minority class as 1 before fit, swap probability columns back at predict | Amazon, credit-g, E-Commerce, coupon, airline; the other 22 bit-identical | up on the five if the label-slot asymmetry costs accuracy; null otherwise | not implemented |
+| 3 | Cap each member's context positive rate at 0.30 by subsampling the minority, using the existing prior correction | hazelnut, heloc, airline, coupon, E-Commerce, NATICUSdroid, qsar, diabetes, credit-g, Fitness_Club (fix 2 first above 0.5) | up if §102's balance effect is the prior's 30% ceiling; down if losing minority rows costs more | not implemented |
+| 4 | Tree-partitioned contexts (`PartitionedTFMClassifier`, depth 2, 5% leaf floor; §169 gained +0.0375 mean AP on V4FinBench, 5 of 5 folds), untested on TabArena | churn, Bank_Customer_Churn, in_vehicle_coupon, polish, E-Commerce, jm1, airline | up on those; flat or slightly down on small tables | not run |
+| 5 | `context_strategy="retrieval"` (§187: 8 wins, 1 loss, 7 ties on the proxy; §194: collapsed on V4FinBench) | the same nonlinear tables with more rows than one context | up on those; no change on tables that fit one context | Lite run queued |
+| 6 | Tie-aware rank (mid-quantile for ties); 6a first A/B `feature_transform="squash"` | coil2000, qsar, GiveMeSomeCredit, heloc, seismic-bumps, online_shoppers, bank-marketing | small up at most; low prior (ρ +0.03) | 6a Lite run queued |
+
+Not worth a run on this evidence: a larger context (+0.0008), wide-table strategies, categorical
+encoding variants (ρ −0.07).
+
+**Ceiling, stated so a fix is not oversold.** The probe already sits at LR on average (−0.0024).
+Fixes 1 to 3 can plausibly take FinTFM to LR and slightly past it on the balanced and majority-coded
+sets. The gap to CatBoost sits on the nonlinear tasks and is a prior and model property. Fixes 4 and
+5 are the only ones aimed at it, and they work around the model by handing it local contexts.
+
+### Caveats
+
+- One split per dataset (Lite). Of nine covariates, only the nonlinearity correlations survive any
+  multiplicity allowance; the balance result is a direction.
+- The head (NaN passed through) and the probe (zero fill) differ in missing-value handling on 6
+  datasets; DR3.5 measured that difference at +0.00008 mean ROC-AUC over 27.
+- "Best default TFM" excludes imputed rows, so it is the best of the models that actually ran.
+
+**What this settles.** On Lite, FinTFM's loss is a loss to a nonlinear model, not to size, width,
+categoricals or missing values, and the cheap adapter fixes are bounded above by LR. It does not
+settle which of the prior's three gaps (interactions, base-rate range, ties) matters most; the
+queued runs test the adapter-side ones only.
+
+
+## §205: AU5.8, the zero-shot partition arm beats §163's fine-tuned arm on 5 of 5 folds
+
+**MEASURED, 2026-11-03, from saved predictions; no new inference.**
+`scripts/compare_v4_scores.py --cluster --control runs/ft/B_lr1e5 partition=runs/dr31/partition`
+(output `runs/inf2611/cmp_partition_vs_ft200.txt`). Control: §163's fine-tuning (200 steps) on the
+published checkpoint. Arm: §169's partitioned contexts (depth 2, 5% leaf floor), zero-shot. Same
+full-panel folds; the control's fold 0 AP (0.2181) matches §163's table, and the arm's per-fold AP
+matches §169's.
+
+| fold | §163 fine-tuned (200 steps) | partition (§169, zero-shot) | diff | 95% CI, companies | Holm p, companies |
+| --- | --- | --- | --- | --- | --- |
+| 0 | 0.2181 | 0.2241 | +0.0059 | [−0.0129, +0.0248] | 0.487 |
+| 1 | 0.2068 | 0.2262 | +0.0194 | [+0.0049, +0.0320] | 0.020 |
+| 2 | 0.1901 | 0.2411 | +0.0510 | [+0.0333, +0.0681] | 0.002 |
+| 3 | 0.1955 | 0.2370 | +0.0415 | [+0.0249, +0.0584] | 0.002 |
+| 4 | 0.2205 | 0.2524 | +0.0319 | [+0.0139, +0.0494] | 0.003 |
+| mean | 0.2062 | 0.2362 | **+0.0299** | | |
+
+Under §159's rule (five-fold mean beyond the 0.0073 bar with at least 4 of 5 folds the same sign;
+it also clears §173's 0.0117 yardstick) the zero-shot partition arm beats §163's fine-tuned arm:
+5 of 5 folds positive, 4 significant after Holm. For reference, the same arm against the zero-shot
+control is +0.0375 (§169), so fine-tuning recovered about +0.0076 of that.
+
+**What this settles.** The partition third of AU5.8's Verify. A depth-2 tree that gives each leaf its
+own 2,000-row context is worth more on V4FinBench than 200 fine-tuning steps, with no training.
+
+**What it does not settle.** `--large-n boost` and per-class retrieval (`retrieval_per_class`) are
+not run: the proxy suite builds FinTFM from the `inference` section only, so it cannot run the
+`large_n` wrappers, and its tasks are too small for a large-n method to matter. Per-class
+retrieval on the proxy was not run either, because §194 showed proxy retrieval (a candidate)
+collapsing on V4FinBench. Both need full-panel V4FinBench runs, ESTIMATED at about 1.1 h per fold
+for per-class retrieval (from §194's one-member run) and, for boost, 8 to 25 h per fold with an
+uncapped residual pool (not measured; time fold 0 first with `large_n.boost_pool_rows` set).
+AU5.8 stays open for those two. Draft with commands:
+`docs/results/drafts/inference_tasks_2026-11.md`.
+
+
+## §206: AU4.3 and AU5.12 on the proxy, DR3.5's context 500/750 pairing: no candidate; SVD is a lead; the Lite half is pending
+
+**MEASURED, 2026-11-03.** Published checkpoint `runs/v4-cellattn-labels.pt` (48,000 tasks), zero-shot,
+fintfm 82238f6 plus this branch's arm configs (`configs/arms/proxy/`). Proxy suite, the 16 binary
+tasks within the 136-feature cap (of the 18 requested; `madelon` and `Internet-Advertisements` are
+skipped by the cap as in §181), OpenML splits 0 to 2, CPU, `--n-jobs 2`. Rule: §183's. An arm is a
+**candidate** if its per-task two-sided sign test against its control gives p < 0.05 with more wins
+than losses. Controls are the existing 2026-10-23/24 CSVs in `runs/dr73/` (`proxy_binary.csv` for
+the default, `proxy_lever_ens8.csv` for `ens8`), run from an earlier commit; inference code for these
+settings has not changed since, but the comparison is across days, as in §194 and §196. Outputs
+`runs/inf2611/proxy_*.csv`. A proxy result advances a task and never decides a credit claim
+(CLAUDE.md: V4FinBench first).
+
+**Pre-registered in the draft before any arm ran** (all three: not a candidate).
+
+| arm (config) | change | control | wall time (loaded machine) |
+| --- | --- | --- | --- |
+| `au43-ctx900-ens3` | `max_context` 900, `n_ensemble` 3 | default (`FinTFM-binary`) | 48 min |
+| `au512-ens8-cshift` | `n_ensemble` 8, `ensemble_class_shift` | `ens8` | 2 h 58 min |
+| `au512-ens8-svd16` | `n_ensemble` 8, `ensemble_svd_components` 16 | `ens8` | 2 h 21 min |
+
+Command (one arm shown): `nice -n 10 uv run --frozen --extra bench python -m
+fintfm.evaluation.proxy_suite --cache-dir data/cache/proxy_suite run --model
+runs/v4-cellattn-labels.pt --config configs/arms/proxy/au43-ctx900-ens3.yaml --name
+au43-ctx900-ens3 --no-baselines --n-jobs 2 --device cpu --out runs/inf2611/proxy_au43-ctx900-ens3.csv`,
+then `proxy_suite compare <arm csv> <control csv> --unit task --anchor <RF or lever-ens8>`. Every
+count below was re-derived from the CSVs on 2026-11-04.
+
+### AU4.3: context length beyond training
+
+The checkpoint does not record its `n_rows` choices. `torch.load(...)["config"]` holds only the
+architecture (`max_features` 136, `d_cell` 48, `d_model` 128, `n_heads` 4, `n_col_layers` 2,
+`n_layers` 4, `d_ff` 512, `pooling` meanmax, `n_cell_blocks` 1, `cell_labels` true) and
+`trained_objectives` `['classification']`. From the recorded recipe (`--n-rows-choices 256,512,1024`)
+with `min_ctx_frac` 0.3 and `max_ctx_frac` 0.9, every training context held 76 to 921 rows. The prior
+configuration should travel with the checkpoint; it does not.
+
+Earlier evidence: §162's five-fold full-panel confirmation, `max_context` 500 with 8 members,
+−0.0029 mean AP, 2 of 5 folds positive. TabArena-Lite (AU5.14, `TABARENA.md`): 702, 745 and 756
+Elo at 500, 750 and 1,000 rows.
+
+Proxy, `au43-ctx900-ens3` against the default: **11 wins, 5 losses, 0 ties per task (p 0.2101);
+25 wins, 21 losses, 2 ties per split (p 0.6587). Not a candidate; the prediction held.** Elo 589
+[334, 754] against the default's 566 [304, 740], RF at 1,000. Mean 1 − ROC-AUC difference +0.0022
+in the arm's favour; on the 8 tasks with more than 2,000 training rows (where the default's context
+is capped) 5 wins, 3 losses, +0.0017. Against `ens8` (8 members at 2,000 rows): 6 wins, 9 losses,
+1 tie. Three in-range members are no better than one out-of-range one here, and no better than
+eight. V4FinBench run not done (ESTIMATED 1.5 h per fold, about 7.5 h, low priority given §162 and
+this result).
+
+### AU5.12: per-member inference diversity
+
+Each axis against `ens8`, so only the axis differs:
+
+| axis | arm | per task (wins / losses / ties) | p | per split | Elo (`ens8` = 1,000) | source |
+| --- | --- | --- | --- | --- | --- | --- |
+| class shift (label swap on odd members) | `au512-ens8-cshift` | 11 / 5 / 0 | 0.2101 | 30 / 17 / 1, p 0.0789 | 1094 [979, 1216] | here |
+| label-swap twin per member | `ens8-swap` | 9 / 7 / 0 | 0.8036 | 29 / 18 / 1, p 0.1439 | 1079 [957, 1205] | re-read of §187's CSV |
+| transforms `rank, power, squash` | `ens8-tf` | 12 / 4 / 0 | 0.0768 | 28 / 19 / 1, p 0.2430 | 1065 [950, 1186] | re-read of §187's CSV |
+| SVD, 16 components on odd members | `au512-ens8-svd16` | 12 / 4 / 0 | 0.0768 | 31 / 14 / 3, p 0.0161 | 1126 [1021, 1259] | here |
+
+**No axis is a candidate against 8 plain members under §183's per-task rule; the prediction
+held.** All four lean positive.
+
+- **SVD is the closest and is a lead, not a result.** Mean 1 − ROC-AUC gain +0.0170 over `ens8`. The
+  mean is carried by two low-width tasks: wilt (5 features) 0.2018 to 0.0139, and
+  banknote-authentication (4 features) 0.0693 to 0.0056. Against the single-member default it is
+  13 wins, 3 losses (p 0.0213), but that bundles 8 members with SVD. **It will not carry to
+  V4FinBench as is:** components are capped at `max_features` minus the table width, so a
+  130-column V4FinBench fold gets at most 6, and the gain here comes from narrow tables. A
+  V4FinBench run would test a 6-component arm, not this one.
+- Class shift: mean gain +0.0080 over the 16, largest on the weakest tasks
+  (climate-model-simulation-crashes 0.2167 to 0.1600, wilt 0.2018 to 0.1538). Against the
+  single-member default 11 wins, 5 losses (p 0.2101), fewer than `ens8`'s own 13 wins, 2 losses
+  (§187).
+- `ens8-tf` against `ens8` is 12 / 4 (p 0.0768); against the default it is §187's 11 / 5
+  (p 0.21). Both are recorded; they are different comparisons.
+
+### AU4.2 floor half, AU5.7 ens8, pointers only
+
+The floor half of AU4.2 is answered by §200: `dr33-floor16` +0.0055 mean AP (0.2042 against the
+same-day control's 0.1986), 3 folds up and 2 down with significant moves both ways, below §173's
+0.0117 yardstick: null; exact positive count +0.0024. The prototype half has one V4FinBench
+number, §162's fold 0 at the 200,000-row development cap (+0.0483 AP, Holm p 0.054), which §162
+itself showed the cap can distort; the full-panel prototype run is not done. AU5.7's `ens8` is
++0.0058 on V4FinBench, 3 folds up and 2 down, not adopted (§196).
+
+### DR3.5: context 500 and 750 against 1,000 on TabArena-Lite
+
+Paired per dataset from existing results, no new fit: `experiments/fintfm_lite_{ctx500,ctx750}_1026/`
+against `experiments/fintfm_lite_nan_1019/` in the tabarena fork, `results_per_split.csv`, split 0,
+ROC-AUC error, 27 binary datasets. Re-derived on 2026-11-04.
+
+| `max_context` | better / worse / tied (of 27) | sign test p | mean ROC-AUC change |
+| --- | --- | --- | --- |
+| 500 | 12 / 14 / 1 | 0.845 | −0.00048 |
+| 750 | 14 / 8 / 5 | 0.286 | +0.00096 |
+
+Largest moves at 500: `Marketing_Campaign` +0.0180, `churn` +0.0084; `Is-this-a-good-customer`
+−0.0118, `Diabetes130US` −0.0092. At 750: `in_vehicle_coupon_recommendation` +0.0155, `churn`
++0.0096; `seismic-bumps` −0.0061. Null both ways, consistent with AU5.14's Elo; the default of 1,000
+stays. The 1,000-row arm is a 2026-10-19 run, not same-day. (Ties at 750 are counted with an
+absolute tolerance of 1e-9; with exact comparison the split is 14 / 9 / 4, p 0.405.)
+
+### Pending: the TabArena-Lite half
+
+Not measured, and queued as Lite runs now: `n_ensemble` 1 (AU5.7), `ensemble_class_shift` and
+`ensemble_svd_components` 16 (AU5.12), `ensemble_transforms` rank and squash (DR3.5). The fork
+adapter gained `FINTFM_PARAMS` on 2026-11-04 (uncommitted): a JSON object of
+`FinancialTFMClassifier` arguments that overrides the adapter's defaults, with unknown or reserved
+keys rejected. The proxy rows above are the nearest evidence until those runs land.
+
+Not merged here: AU5.9 (needs a pretraining run with `--hazard-period-context`, not inference-only),
+DR7.5 and DR8.3 (no inference lever left, blocked on a `max_features` 512 checkpoint), and DR8.1's
+closure argument. None of them has a new measurement. Full text and the V4FinBench commands for AU4.2
+and AU4.3: `docs/results/drafts/inference_tasks_2026-11.md`.
+
+**What this settles.** Neither shorter in-range contexts (AU4.3) nor any of the four member axes
+clears §183's rule on the proxy, and a 500-row or 750-row context is a null on Lite. It does not
+settle SVD: 12 / 4 is a lead on narrow tables that the V4FinBench width cap would remove.
+
+
+## §207: pre-registration drafts for five unrun 48,000-task arms, and closure recommendations (not findings)
+
+**DRAFT, recorded 2026-11-04. Nothing here has been trained or scored, and no task is closed.** This
+section records what was drafted so the arms are not launched from memory; it adds no result. The
+full text, with each arm's lever, question, cost reasoning, check and prediction, is
+`docs/results/drafts/preregs_2026-11.md`. Every cost below is ESTIMATED, except the two reference
+figures marked MEASURED. Each arm's own pre-registration section is to be merged here before its
+kernel is pushed.
+
+### The five drafted arms
+
+Common recipe: `e1-v48-s0`'s (§171), `configs/published/v4-cellattn-labels.yaml` with `--amp fp16
+--attn-impl split --loader stream --ddp --batch-size 4` on a Kaggle T4x2 (global batch 8), `--seed 0
+--steps 6000` (48,000 tasks), `--checkpoint-every 1000`, plus one lever. Pinned at d05ea19, the
+control's own commit. Kernels `scripts/kaggle/ts_<arm>/`, written by
+`scripts/kaggle/train_score/make_train_score.py <arm>`. Control `e1-v48-s0`: five-fold zero-shot
+mean AP 0.1975 (0.2071, 0.2031, 0.1821, 0.1734, 0.2215; §171), 0.525 s per step MEASURED (6,000
+steps in 3,150 s); `e1-v48-s1` 0.1878 is reported beside it. Parameter counts checked by building
+the model on CPU (SMOKE-TEST, 2026-11-02): control and four arms 885,650; `au516-rbf-s0` 886,418.
+
+| arm | task | lever (flags) | cost, GPU-h (ESTIMATED) | prediction |
+| --- | --- | --- | --- | --- |
+| `au517-lenscale-s0` | AU5.17, attention half | `--attn-length-scale`: row-attention logits times log(n_ctx)/log(512), row encoder only; no new weight | 1.6 to 2.0 | null |
+| `au54-ctx2k-s0` | AU5.4 | `--n-rows-choices 256,512,1024,2223 --max-query-rows 512` (contexts to 2,000); out-of-memory risk, about 12 of 14.56 GB | 2.2 to 3.2 | null |
+| `au517-muon-s0` | AU5.17, optimiser half | `--optimizer muon`, `--lr` 3e-4, `muon_scale: rms_match`; untested under fp16 and DDP | 1.6 to 2.1 | null |
+| `au53-cell2-s0` | AU5.3, narrowed to one arm | `--n-cell-blocks 2`; at d05ea19 the blocks share weights, so a second weight-tied pass, not more parameters | 1.9 to 2.6 | null |
+| `au516-rbf-s0` | AU5.16 | `--value-embedding rbf`, 16 fixed Gaussian centres; the ECDF channel is not part of the arm | 1.6 to 2.0 | null |
+
+Launch plan for a 30 GPU-hour week: lane A `au517-lenscale-s0`, `au517-muon-s0`, `au516-rbf-s0`
+(4.8 to 6.1 h); lane B `au54-ctx2k-s0` first (the only arm that could run out of memory, which
+shows at the first 2,223-row batch), then `au53-cell2-s0` (4.1 to 5.8 h); about 11.5 GPU-h in all.
+The other 18 h are held for seed-1 replicates of any arm that earns one. The order is judgement on
+the cited evidence, not a computed probability.
+
+### The decision rule (§175's, unchanged)
+
+Primary measure: five-fold zero-shot V4FinBench mean AP, full panel, packaged inference defaults
+(uniform context, `max_context` 2,000, one member), paired company-level bootstrap per fold with
+Holm across folds (`scripts/compare_v4_scores.py --cluster`). **Promising** if the arm's mean AP
+exceeds the control's by more than the pretraining yardstick 0.0117 (§173) with at least 4 of 5
+folds positive; **harmful** under the mirror; otherwise **null**. One seed screens and adopts
+nothing. Pre-declared actions: promising, a seed-1 replicate from the reserve, then DR6.4's matched
+comparison; null or harmful, not carried into any bundle on this evidence. Reported, not decided on:
+the difference against `e1-v48-s1` (the control is the higher 48,000-task seed, so a promising
+verdict against it is the conservative one), seconds per step against 0.525, mean ROC-AUC, and the
+proxy suite's 16 binary tasks (not validated against TabArena, DR4.2).
+
+### Closure recommendations (the owner has not decided any of these)
+
+Recommended in the draft. A task is closed only by the owner and by the repository's closure
+convention (prepend the result, keep the Verify text).
+
+| task | recommendation | stated reason |
+| --- | --- | --- |
+| AU5.2 | close | Verify met by §170 and its addendum: split attention 1.21x at fp32, 1.10x under fp16 (37,367 against 33,959 tasks per hour); logits within 1.2e-4 and 9.4e-4 |
+| DR6.1 | close | Verify met by §170: 1.29x padded against 1.21x split alone at fp32 (18,256 against 17,101 tasks per hour, MEASURED at fp32 only) |
+| AU5.10 | close without a run | Verify is a test, and it exists (`tests/test_train.py::test_decay_norm_bias_false_exempts_norms_biases_and_embeddings`); one 48,000-task arm resolves only 0.0117 mean AP (§173) |
+| DR5.4 | close, superseded by §188 | Verify (a stable-phase resume reproduces uninterrupted weights) passes; §188 funded no 2,000,000-task run at this model size and prior; reopen if a later recipe earns a volume arm |
+| AU5.6 | close as superseded by §87 and §88 | §88 measured that the inference rank transform does the invariance work; marginal augmentation was worth about 0.001 |
+| DR6.4 | defer | its bundle (DR6.2 and DR6.3) was excluded by §178; re-specify as the bundle of whichever arms above are promising at both seeds, at 240,000 tasks and two seeds, about 22 h (ESTIMATED), a week of its own |
+
+The draft also recommends closing AU5.5 without a GPU run (test present; before-probe is §165;
+after-probe is a small CPU job on the `dr74-mc` checkpoints) and narrowing AU5.3 to the single arm
+above. Those two are recorded in the draft only.
+
+**What this section is not.** It is not a result and not a claim about any lever. No arm is a
+TabArena claim, a promising arm at one seed adopts nothing, and every arm is at 48,000 tasks, so a
+lever that helps is not thereby tested at 480,000.

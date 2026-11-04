@@ -1,3 +1,5 @@
+Merged into FINDINGS §207 (2026-11-04).
+
 # Pre-registration drafts, November 2026: the training-measurement tasks
 
 **DRAFT, 2026-11-02, before any arm trains.** Not yet in FINDINGS.md; each arm's section is meant

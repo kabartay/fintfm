@@ -1,3 +1,5 @@
+Merged into FINDINGS §205 and §206 (2026-11-04).
+
 # Inference-only open tasks, 2026-11-02/03 (draft for FINDINGS)
 
 Draft, not yet merged into `docs/results/FINDINGS.md`. Covers the ten inference-only open tasks
