@@ -177,7 +177,7 @@
       datasets.
       Verify: a test that the SUITE shares no OpenML id, name or row hash with TabArena-v0.1 or
       BeyondArena.
-- [ ] DR4.2 **Partly done (2026-10-19): runner, Elo, sign test and row hash built, left open.**
+- [ ] DR4.2 **Progress (2026-11-04, `docs/results/drafts/dr4.2_2026-11.md`): the Spearman Verify is not computable yet; 2 distinct checkpoints (published, `e1-v480-s0`) have both a full proxy run (12 exist) and a TabArena-Lite Elo (756 and 842 on record); 7 older 3.4 MB checkpoints have Lite results on disk but no proxy run. Cheapest route to n = 6: proxy-score 4 of them (ESTIMATED 0.2 to 0.8 h of CPU) and compute their Lite Elo from existing results with the fork's leaderboard code.** **Partly done (2026-10-19): runner, Elo, sign test and row hash built, left open.**
       `proxy_suite run` scores FinTFM (`from_config`) and cached RF/ExtraTrees/Linear/KNN/LightGBM
       on OpenML's own splits (repeat 0, folds 0-2; 34 tasks are 1x10-fold CV, energy_efficiency
       10x10) into a per-split CSV; `compare A B` gives Bradley-Terry Elo (RF = 1000, task
