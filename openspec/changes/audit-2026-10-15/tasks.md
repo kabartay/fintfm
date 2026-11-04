@@ -398,7 +398,7 @@
       defaults to rank-to-normal. Draw a random transform per pretraining task and ensemble over
       transforms at inference.
       Verify: a test that pretraining draws each transform; five-fold AP against the current checkpoint.
-- [ ] AU5.7 **Progress (2026-11-03, `docs/results/drafts/inference_tasks_2026-11.md`): the V4FinBench half is §196 (`ens8` +0.0058 mean AP, 3 of 5 folds up); `ens8-tf` against `ens8` on the proxy 12 wins, 4 losses, p 0.077.** Open: TabArena-Lite at `n_ensemble` 1 against the adapter's 8, which needs an override in the fork's adapter first. **Implemented behind `max_features_strategy: subsample` and `ensemble_transforms`
+- [ ] AU5.7 **Progress (2026-11-04, `docs/results/drafts/inference_tasks_2026-11.md`): the TabArena-Lite half is measured: `n_ensemble` 1 against the adapter's 8 is worse on 20 of 27 datasets (sign test p 0.019), mean ROC-AUC −0.00445, Elo 696 against 756 (`fintfm_lite_ens1_1104` against `fintfm_lite_nan_1019`, `scripts/compare_lite_arms.py`); with §196 both halves of Verify are met; the adapter's 8 stays; proposed for closure.** **Progress (2026-11-03, `docs/results/drafts/inference_tasks_2026-11.md`): the V4FinBench half is §196 (`ens8` +0.0058 mean AP, 3 of 5 folds up); `ens8-tf` against `ens8` on the proxy 12 wins, 4 losses, p 0.077.** Open: TabArena-Lite at `n_ensemble` 1 against the adapter's 8, which needs an override in the fork's adapter first. **Implemented behind `max_features_strategy: subsample` and `ensemble_transforms`
       (2026-10-16, b3da945); measurement open.** Round-robin column subsets per member cover
       every feature of a table wider than `max_features`, raising the member count to
       `ceil(F / size)` when `n_ensemble` is below it; the default `raise` is unchanged.

@@ -154,6 +154,25 @@ FINTFM_RUN_NAME=fintfm_lite_ens1 nice -n 10 .venv/bin/python -P run_fintfm_lite.
 an hour per arm (CLAUDE.md's figure for a 27-dataset single-fold run), and pair per dataset as in
 DR3.5 below.
 
+**Lite half, MEASURED 2026-11-04: one member is worse than eight.** `fintfm_lite_ens1_1104`
+(`FINTFM_PARAMS='{"n_ensemble": 1}'`, every other setting the adapter's default, MPS) against
+`fintfm_lite_nan_1019` (the default 8), split 0, ROC-AUC, paired per dataset with
+`scripts/compare_lite_arms.py` (which reproduces DR3.5's ctx500 row below exactly):
+
+| arm | better / worse / tied (of 27) | sign test p | mean ROC-AUC change | Elo (+/−) |
+| --- | --- | --- | --- | --- |
+| `n_ensemble` 1 | 7 / 20 / 0 | 0.019 | −0.00445 | 696 (+115/−196) |
+| `n_ensemble` 8 (baseline) | | | | 756 (+126/−180) |
+
+Largest moves: Diabetes130US −0.0267, coil2000 −0.0229, airline −0.0171, hazelnut −0.0158,
+Is-this-a-good-customer −0.0150; E-CommereShippingData +0.0175, jm1 +0.0056, GiveMeSomeCredit
++0.0053. With §196 (`ens8` +0.0058 mean AP on V4FinBench, 3 of 5 folds up) both halves of AU5.7's
+Verify are now measured: the adapter's 8 stays. The baseline is a 2026-10-19 run, not same-day.
+Run note: on MPS the Metal-side allocations grew across fits in one process (85 GB against 3.3 GB
+of live tensors) until the arm died after about 8 datasets; the arms now run one process per
+dataset (`runs/lite2611/queue_ds.sh`), which does not change any number (each dataset's fit is
+independent and cached).
+
 ## AU5.8: large-n methods
 
 **Partition arm against §163's arm, MEASURED from saved predictions (no new inference).**
