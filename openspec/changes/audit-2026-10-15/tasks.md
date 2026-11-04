@@ -348,7 +348,7 @@
 
 ## Phase 5 — strength levers (GPU, ordered by expected gain × feasibility)
 
-- [ ] AU5.1 **Fine-tuning recipe at published scale.** Our 200 steps at 1e-5 is the bottom of
+- [ ] AU5.1 **Progress (2026-11-04, `docs/results/drafts/au5.1_2026-11.md`, 0606ceb): early stopping on inner-validation companies implemented behind `finetune_val_frac` (default 0, byte-identical to before; held-out companies come from the fold's own training rows, never the test fold or the protocol's validation split), selected on validation cross-entropy; arms `au51-lr1e5`, `au51-lr3e5`, `au51-lr1e4` (cap 3,000 steps, val_frac 0.1, eval every 10 steps, patience 16) as configs under `configs/arms/` and nine Kaggle kernels `scripts/kaggle/task_au51_*` (folds 0-1, 2-3, 4 per arm), unpinned until pushed; pre-registered under §159 / §164 Rule 3 (mean ΔAP above 0.0073, at least 4 of 5 folds positive, against §163's arm); cost ESTIMATED at 7.1 GPU-h per arm if it stops near step 600, 27.6 at the cap (5.7 s/step and about 1,400 s scoring per fold, MEASURED in the L600 log); not run.** **Fine-tuning recipe at published scale.** Our 200 steps at 1e-5 is the bottom of
       the published range (Rubachev et al. 2025, arXiv 2506.08982: full fine-tune, lr sweep
       5e-6..5e-4, 1,024 queries per step, early stopping on validation every 10 steps, patience
       16). Arms: lr {1e-5, 3e-5, 1e-4}, up to 3,000 steps, early stopping on inner-validation
@@ -423,7 +423,7 @@
       (`train.py:407`); no final LayerNorm before pooling in two encoders; warmup fixed at 500
       steps with no flag.
       Verify: a test that LayerNorm, biases and embeddings are excluded from weight decay.
-- [ ] AU5.11 **"Before" statistics measured with `scripts/prior_stats.py` (2026-10-16,
+- [ ] AU5.11 **Progress (2026-11-04, `docs/results/drafts/au5.11_2026-11.md`, MEASURED, 300 tasks per mixture, seed 0, CPU): the "before" reproduces in the same session (shipped p_financial 1.0: label-informative missingness 11.7% of binary tasks, median excess kurtosis 4.06). The arm mixture (p_financial 0.3, p_tree 0.3, p_task_family 0.3) gives 4.7% and median -0.03; adding the existing flags `categorical_mode=unordered`, `missing_mode=mixed` and `feature_ratio_bands` gives 5.7%, median -0.03, categorical levels p95 54 (max 64) and features p50 31.5. Still open: heavy-tailed marginals (no flag), tree splits by raw std (`prior/tree.py:82-84`), Gaussian-only families; smallest code changes proposed in the draft, none implemented. The arm checkpoint is not trained.** **"Before" statistics measured with `scripts/prior_stats.py` (2026-10-16,
       a4806e2), 300 tasks per mixture; no default changed.** Two claims below do not hold for
       the financial prior: its missingness is label-informative in 11.7% of tasks (Fisher,
       Bonferroni 0.01) and its marginals are heavy-tailed (median excess kurtosis 4.06).
@@ -473,7 +473,7 @@
 - [x] AU5.14 **Done (2026-10-26, `docs/results/TABARENA.md`): 702, 745 and 756 Elo at 500, 750 and 1,000, 94th of 95 each; the default stays 1,000.** **TabArena context size**: TabArena-Lite at `max_context` 500 and 750 against 1000
       (trained range ends ~921 rows).
       Verify: TabArena-Lite Elo at 500, 750 and 1,000 recorded.
-- [ ] AU5.15 **Implemented behind `scripts/dump_prior_tasks.py --stream per_shard --workers K`
+- [ ] AU5.15 **Progress (2026-11-04, `docs/results/drafts/au5.15_2026-11.md`, e1db9a5): one-session throughput kernel `scripts/kaggle/task_au515_throughput/` written and smoke-tested on CPU (SMOKE-TEST, script path only); not launched, nothing measured. It measures per_shard generation at K=1, 2, 4, single-GPU live, `--task-dump` and stream training, and checkpointed 300-step runs including two-GPU DDP, in about 25 to 30 minutes (ESTIMATED). `--task-dump` is refused with `--ddp`, so a dump run is single-GPU (§170: 37,367 tasks/h fp16 split; ESTIMATED 53.5 GPU-h for 2M tasks). Launch after setting COMMIT to a pushed commit.** **Implemented behind `scripts/dump_prior_tasks.py --stream per_shard --workers K`
       (2026-10-16, 3705a71); measurement open.** K=2 writes the K=1 dump array for array,
       compressed or not (tests/test_prior_levers.py). Throughput at load 514-521 on 16 cores,
       128 batches of the reference recipe: K=1 4.94 batches/s, K=4 3.43 (compressed 2.36), so
