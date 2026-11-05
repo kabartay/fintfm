@@ -126,3 +126,6 @@ prior:
   irrelevant_frac_max: 0.0
   duplicate_frac_max: 0.0
   label_flip_max: 0.0
+  heavy_tail_column_prob: 0.0   # AU5.11 knobs, all at their pre-knob behaviour (byte-identical
+  tree_split_by: std            # prior output, tests/test_prior_diversity.py); the published
+  missing_label: false          # run predates them

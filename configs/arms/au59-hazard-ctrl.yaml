@@ -130,3 +130,6 @@ prior:
   irrelevant_frac_max: 0.0
   duplicate_frac_max: 0.0
   label_flip_max: 0.0
+  heavy_tail_column_prob: 0.0   # AU5.11 knobs at their pre-knob behaviour, as the published recipe
+  tree_split_by: std
+  missing_label: false
