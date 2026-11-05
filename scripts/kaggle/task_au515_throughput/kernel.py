@@ -37,7 +37,7 @@ from pathlib import Path
 
 # Pin to a pushed commit that contains the task dump and --checkpoint-every (3705a71 and
 # b1084ce, then everything after). The placeholder refuses to run rather than install a wrong ref.
-COMMIT = "<pin to a pushed commit>"
+COMMIT = "62a73c3"
 RECIPE_URL = (f"https://raw.githubusercontent.com/kabartay/fintfm/{COMMIT}/"
               "configs/published/v4-cellattn-labels.yaml")
 SMOKE = os.environ.get("FINTFM_AU515_SMOKE") == "1"

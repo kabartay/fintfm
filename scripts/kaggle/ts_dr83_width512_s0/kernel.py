@@ -52,7 +52,7 @@ import sys
 import urllib.request
 from pathlib import Path
 
-COMMIT = "UNPINNED"  # set to a PUSHED sha that has configs/arms/dr83-width512.yaml
+COMMIT = "62a73c3"  # pushed, CI green; has configs/arms/dr83-width512.yaml
 ARM = "dr83-width512-s0"
 ARM_FLAGS: list[str] = ["--amp", "fp16", "--attn-impl", "split", "--loader", "stream", "--ddp", "--batch-size", "2", "--seed", "0", "--steps", "12000"]
 DDP = True

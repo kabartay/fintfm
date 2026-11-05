@@ -8,7 +8,9 @@
 #
 # Each item is DIR:CHECKPOINT -- the kernel directory under scripts/kaggle/ and the file name its
 # `--out` writes under /kaggle/working/. Results land in runs/kaggle-<slug>/; the lane's log is
-# runs/kaggle_queue/<lane>.log.
+# runs/kaggle_queue/<lane>.log. CHECKPOINT `-` fetches the outputs and scores nothing locally: for
+# kernels that score on Kaggle themselves (the train-and-score template, fine-tuning evaluations)
+# or produce no checkpoint, where a local full-panel scoring would only repeat the kernel's work.
 #
 # Usage (detached, survives the session):
 #   nohup scripts/kaggle/launch_queue.sh lane1 task_158_matched_control:v4-cellattn-labels-mc10.pt \
@@ -59,6 +61,9 @@ for item in "$@"; do
 
   mkdir -p "$out"
   kaggle kernels output "$id" -p "$out" >> "$LOG" 2>&1
+  if [ "$ckpt" = "-" ]; then
+    log "fetched $out (outputs only, no local scoring)"; continue
+  fi
   if [ ! -f "$out/$ckpt" ]; then
     log "MISSING $out/$ckpt after fetch -- lane stops"; exit 1
   fi
