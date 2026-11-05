@@ -1319,3 +1319,66 @@ lives there, so the question is whether our existing signal filter does the same
 panels. (ii) The classification read-out is separable (CardoAI), supporting the matched-label probe
 test before a rebuild. (iii) Check TabArena claims against the replacement LimiX-2 before quoting any
 rank relative to it.
+
+### Addendum 2026-11-05 (task 48.26): Seldon read in full, and LimiX-2 status
+
+Sources and URLs are in `docs/research/REFERENCES.md`, "Addendum 2026-11-05 (task 48.26)". All read
+on 2026-11-05 from the primary file or CSV; nothing accepted, nothing downloaded but text.
+
+**Seldon's licence, closing the licence part of item 3 above.** The Seldon weights are under the
+"Seldon Research and Evaluation License": non-commercial research and internal evaluation only, no
+serving, no use of outputs to train any other model, no probing for the data-generating prior, and
+no publication of results without Neuralk's consent. That is stricter than the earlier "treat as
+non-commercial" assumption. Seldon-Mini is a *different* document (the "Seldon Model License
+Agreement": internal business use, commercial included, but no serving to third parties and the same
+training and reverse-engineering bans), and the TabArena board mislabels it with Seldon's licence.
+For FinTFM both are evaluation-by-published-numbers only.
+
+**Seldon's Elo on the classification-only view, settling the rest of item 3.** TabArena v0.1.9.15,
+classification tasks, 99 methods, no imputation in the shown rows: **Seldon 1879, Seldon-Mini 1786,
+TabICLv2 1569**; TabPFN-3.5 1842, LimiX-2 1930, Kumo-Tabular 1922. The all-tasks board's 1548
+against TabICLv2's 1550 reflected the 25.49% imputation, not the model. Against the vendor's
+head-to-head claims, the Elo gaps convert (ESTIMATED, a standard 400-point logistic, not a board
+output) to expected win rates of 0.86 for Seldon over TabICLv2 (vendor 82.3%), 0.78 for Seldon-Mini
+over TabICLv2 (vendor 78.5%), 0.43 for Seldon against LimiX-2 (vendor 40.6%) and 0.55 against
+TabPFN-3.5 (vendor 63.5%). Three of four agree within about four points; the TabPFN-3.5 pair differs
+by eight, within Seldon's wide interval (+158/-106). The vendor's claim over TabICLv2 is therefore
+corroborated by the independent board. **By the criterion of task 48.26, Seldon is a real peer**:
+its classification-only Elo exceeds TabICLv2's by 310, with non-overlapping intervals. Caveats: Elo is
+relative to the entrant pool; it is TabArena classification (38 datasets), not credit; and Seldon's
+licence forbids us from running it, so nothing about it can be measured here. Its generator remains
+unpublished, so "synthetic SCM prior only" is not auditable (unlike ours).
+
+**LimiX-2, new facts.** (1) TabArena has flagged LimiX-2 as leaky itself: PR #691 (merged
+2026-10-27) states it "is shown to have seen TabArena test data, with labels" and publishes
+`_noleak` pools that exclude it. The section above described only the open issue and the team's
+account. The maintainers' wording is stronger than the team's ("partly used as training
+examples"); both name diabetes and blood-transfusion as the evidenced datasets. (2) **No
+replacement model exists as of 2026-11-05**: issue #648 is still open with no activity after the
+team's 2026-10-29 comment, the `stable-ai` Hub models and `limix-ldm-ai/LimiX` releases show nothing
+new, and the README still claims Elo 1935. So task 48.26(b)'s "replacement once released" stays open
+and should be rechecked.
+
+**Statements made relative to LimiX-2 in this repository (listed; none edited).** Each is a
+statement about LimiX-2's reported or board score, which is the thing flagged, and none is
+invalidated by the new facts.
+- `docs/paper/RELATED_WORK.md` line ~100 (34.68 Elo per parameter doubling, from LimiX-2's own
+  report, qualifying the §114 scale cap): the slope inherits the doubt about LimiX-2's scores; the
+  cap at this project's task budget is unaffected.
+- same file, line ~104 ("every top-14 rank is synthetic-pretrained", Decision D2): the "synthetic"
+  label for LimiX-2 is the disputed part; the finding survives without it (Kumo, Seldon, TabPFN-3.5
+  and TabICLv2 stay at the top of the `_noleak` board, though their synthetic-only status rests on
+  their own statements).
+- lines ~598, 844-847, 961-1021 (2026-10-16 table: LimiX-2 1935/1940, 2nd; the 34.68 slope; top two
+  not separable): read rank claims relative to LimiX-2 as the flagged score; the `_noleak` board is
+  the clean comparison, on which Kumo-Tabular leads and LimiX-2 is absent.
+- lines ~1006, 1013-1021, 1153, 1183-1184, 1215, 1232-1250, 1320 (synthetic-only labelling, the
+  joint `p(x,y|D)` objective, the learned mask token, "(iii) check claims against the replacement
+  LimiX-2"): (iii) still applies since no replacement exists yet; the mask-token and objective
+  comparisons concern architecture and are unaffected by the contamination.
+- `docs/paper/CLAIMS.md` line ~98 and `docs/paper/LIMITATIONS.md` line ~368 ("first at Elo 1872 on
+  SCM-generated synthetic data alone", from the 2026-09-26 read): a historical figure and label,
+  superseded by the later reads and by this flag; read the LIMITATIONS sentence with the flag until
+  it is next revised.
+- `docs/results/FINDINGS.md` lines ~6761 (our rank beside "leader LimiX-2: 1878"), ~7589, ~7646,
+  ~7919 (the Elo-per-doubling quote): dated results; the leader score is the flagged entry's.

@@ -616,3 +616,59 @@ what is inside it.
 - Fundamental NEXUS: no benchmark published as of the sources found (press only); nothing citable.
 - Neuralk "NICL 2.0": a talk listing only; superseded in practice by Seldon above.
 
+
+### Addendum 2026-11-05 (task 48.26): Seldon licences, Seldon on the classification-only board, LimiX-2 status
+
+All opened on 2026-11-05. No terms were accepted, no account was used, nothing was downloaded
+except the licence and card text files below (plain unauthenticated HTTP GET).
+
+- **Seldon weights licence, read at primary source.** The repository is gated (Hub API
+  `gated: auto`; the card shows "You need to agree to share your Hugging Face information"), but the
+  `LICENSE.md` file named in the card's `license_link` is served without login:
+  `huggingface.co/Neuralk-AI/seldon/resolve/main/LICENSE.md` returned HTTP 200 with the full text
+  (15,971 bytes), titled **"Seldon Research and Evaluation License"**. It is **non-commercial**:
+  only (a) research and (b) internal evaluation on public/synthetic/own data "for the sole purpose
+  of deciding whether to obtain a commercial licence" (s.1.7, 2.1-2.3; the evaluation right ends when
+  that decision is made); any commercial use needs a separate licence (s.6.7). Further
+  restrictions: no serving to third parties (s.3.3); **no use of the model or its Outputs to
+  train, distil or otherwise improve any other model, including as features or priors** (s.3.5);
+  **no reverse-engineering of training data or "data-generating priors"** (s.3.6); **no publication
+  of results without Neuralk's prior written consent**, and "Internal Evaluation results may
+  never be published", with research publications needing 15 days' prior notice (s.4.1-4.2);
+  French law, Paris courts. Consequence for this repository: the weights are never run here;
+  Neuralk's own published numbers and the TabArena board's numbers may be cited, nothing
+  measured on Seldon by us.
+- **Seldon-Mini carries a different licence from Seldon**, although both cards say
+  `license_name: neuralk-seldon-license`. `Neuralk-AI/seldon-mini/resolve/main/LICENSE.md` (HTTP 200)
+  is titled **"Seldon Model License Agreement"**: use by the licensee and its affiliates for an
+  **internal business purpose, commercial operations included** (s.1.7, 2.2: it names scoring "its own
+  customers' credit risk" as permitted), but no serving to third parties by any route (API, SaaS,
+  consulting, "prediction-as-a-service", s.3.1), no redistribution, the same no-training-on-Outputs
+  and no-reverse-engineering clauses (s.3.3-3.4), no benchmarking against competing models "for the
+  purpose of developing or marketing a competing product" (s.3.7), and publication of any benchmark
+  result only with prior written consent (s.4.1). Its gate text reads "Neuralk Seldon-mini License".
+  The TabArena board labels **both** rows "Seldon Research and Evaluation License" (board CSV, commit
+  `0cec481`), which is wrong for Seldon-Mini on the evidence of the file itself. Both licences
+  forbid serving the model to a third party, so neither could sit behind a product like FinTFM's.
+  Read from the plain-text files, not a summary; the Hub card's licence field is "other" for both.
+- **TabArena classification-only Elo**, from the Space's raw CSVs at commit `0cec4810` (v0.1.9.15,
+  2026-11-04), path
+  `data/entrants_models/imputation_yes/splits_all/tasks_classification/datasets_all/website_leaderboard.csv`
+  (99 methods, imputed 0% for every row shown; the `imputation_no` twin and the `_noleak` twin, which
+  drops LimiX-2, give the same order). Elo (95% CI): LimiX-2 1930 (+136/-76), Kumo-Tabular 1922,
+  **Seldon 1879 (+158/-106)**, Kumo-Medium 1870, TabPFN-3.5 1842 (+102/-66), **Seldon-Mini 1786
+  (+90/-62)**, TabFM 1781, TabPFN-3.5-Fast 1776, Kumo-Small 1769, TabAbax 1635, **TabICLv2 1569
+  (+73/-61)**, LimiX (v1) 1395. Seldon is +310 Elo and Seldon-Mini +217 over TabICLv2, and the
+  intervals do not overlap TabICLv2's. The near-tie on the all-tasks default board (1548 against
+  1550) came with 25.49% imputation, which the classification view does not carry.
+- **PR #691 (autogluon/tabarena), merged 2026-10-27 as `4d7494c`**, read at
+  `github.com/autogluon/tabarena/issues/691`: TabArena itself flags LimiX-2 as leaky ("shown to have
+  seen TabArena test data, with labels, during training", evidence on diabetes and blood-transfusion),
+  marks it in every chart, and publishes `_noleak` twins of every pool that exclude it. It does not
+  announce a replacement.
+- **LimiX-2 replacement: none released as of 2026-11-05.** Issue #648 (page read in full): state open,
+  last activity the LimiX team's comment of 2026-10-29, nothing after it. The `stable-ai` Hub models
+  (LimiX-2 last modified 2026-09-18, no newer repo), the `limix-ldm-ai/LimiX` releases (latest tag
+  V1.1.0, 2025-11-10) and its last commit (2026-10-30, a README_cn model-name fix) show no
+  replacement and no technical-report update; the README still carries the 1935 Elo claim and the
+  16 September release line. A web search found nothing further.
