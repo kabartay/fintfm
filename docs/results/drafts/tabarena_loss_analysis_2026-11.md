@@ -242,6 +242,37 @@ that memory grows within a single dataset, so one process per dataset does not c
 arm was stopped by hand and needs a CUDA run; `runs/lite2611/fintfm_lite_retrieval_1104*.log`
 hold both failure modes. Fixes 1, 2, 3 and 6 run in `runs/lite2611/queue_rest.sh`.
 
+**Results of fixes 1, 2, 3 and 6 on TabArena-Lite (MEASURED, 2026-11-05).** One process per
+dataset (`runs/lite2611/queue_rest.sh`), split 0, 27 binary datasets, paired with
+`scripts/compare_lite_arms.py`; ROC-AUC change against the baseline named in each row.
+
+| fix | arm | baseline | better / worse / tied | sign test p | mean ROC-AUC change | Elo |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1, probe rows stratified | `fintfm_linprobe_d1fix_1104` | `fintfm_linprobe_lite` (910) | 5 / 2 / 20 | 0.45 | +0.00339 | 914 (+111/−147) |
+| 2, minority coded as 1 | `fintfm_lite_minpos_1105` | `fintfm_lite_nan_1019` (756) | 4 / 1 / 22 | 0.38 | +0.00104 | 756 (+126/−180) |
+| 2 + 3, plus positive cap 0.3 | `fintfm_lite_minpos_cap30_1105` | `fintfm_lite_nan_1019` | 9 / 2 / 16 | 0.065 | +0.00157 | 756 (+126/−180) |
+| 3 alone, over fix 2 | `fintfm_lite_minpos_cap30_1105` | `fintfm_lite_minpos_1105` | 9 / 1 / 17 | 0.021 | +0.00053 | 756 |
+| 6, `feature_transform="squash"` | `fintfm_lite_squash_1104` | `fintfm_lite_nan_1019` | 18 / 8 / 1 | 0.076 | +0.01004 | 777 (+129/−183) |
+
+- **Fix 1** moved what it targeted: customer_satisfaction_in_airline +0.0465 and
+  Amazon_employee_access +0.0150. polish_companies_bankruptcy also moved (+0.0317), which the
+  prediction ("the other 25 bit-identical") did not expect; four more datasets moved by at most
+  0.0022. Probe Elo 910 to 914, inside the interval.
+- **Fix 2** changed exactly the five datasets predicted, with the other 22 bit-identical, the built-in
+  control holding: E-CommereShippingData +0.0238, in_vehicle_coupon +0.0093, airline +0.0088,
+  Amazon +0.0016, credit-g −0.0154. Small and mixed: the label-slot asymmetry is not a large cost.
+- **Fix 3** over fix 2 is consistent in sign (9 up, 1 down, p 0.021) and tiny in size (mean
+  +0.00053, largest hazelnut +0.0062).
+- **Elo is identical to the baseline for fixes 2 and 3, and this is not a defect:** on the datasets
+  they move, FinTFM ranks last of 96 methods before and after (for example E-CommereShippingData
+  and credit-g, rank 96 in all three runs), so the AUC changes move no rank and Elo reads ranks.
+- **Fix 6, squash, is the one large move**: +0.0100 mean, 18 of 26 untied datasets up, led by churn
+  +0.0639, credit-g +0.0612, E-CommereShippingData +0.0443 and customer_satisfaction_in_airline
+  +0.0362; Elo 777. Its size matches the rank+squash member transforms (`fintfm_lite_tfsq_1104`,
+  +0.01023, 20 / 6 / 1), so the gain is plausibly the squash transform itself rather than the
+  ensemble mix. Like that arm, **it is general-tabular only and decides nothing until V4FinBench
+  agrees**; AU5.12's V4FinBench kernels test the member-transform version first.
+
 Not worth a run on this evidence: a larger context (+0.0008 for 500 → 1000), wide-table
 strategies (no Lite table is wide), and categorical-encoding variants (ρ = -0.07).
 
