@@ -1,0 +1,128 @@
+# AU5.11 arm `au511-mixture-s0`: the same mixture with the three new flags off (attribution arm).
+# NOT PRODUCTION. NOT RUN. Pre-registration: docs/results/drafts/au5.11_2026-11c.md.
+#
+# Matched to configs/published/v4-cellattn-labels.yaml (6,000 steps x 8 tasks = 48,000 tasks,
+# same model, optimiser, rows, max_classes 2) except the prior keys below. The Kaggle kernel
+# (scripts/kaggle/ts_au511_mixture_s0/) passes the same values as CLI flags on top of the published recipe,
+# the way every make_train_score.py arm does; tests/test_au511_arm.py checks that this file and
+# those flags build the same PriorConfig.
+#   p_financial 0.3, p_tree 0.3, p_task_family 0.3 (sequential chain: conditional weights, so the
+#   realised shares are about scm 0.35, tree 0.30, family 0.22, financial 0.13, MEASURED in
+#   docs/results/drafts/au5.11_2026-11b.md, 300 tasks), categorical_mode unordered, missing_mode
+#   mixed, DR2.4's three feature-ratio bands.
+
+
+model:
+  max_features: 136
+  max_classes: 2
+  d_cell: 48
+  d_model: 128
+  n_heads: 4
+  n_col_layers: 2
+  n_layers: 4
+  d_ff: 512                     # 4 x d_model, as the CLI resolved it
+  dropout: 0.0
+  pooling: meanmax
+  column_id_dim: 16             # §104: the curve peaks here
+  n_horizons: null
+  n_cell_blocks: 1
+  cell_labels: true             # §91: jointly necessary with the cell-attention block
+  mask_embedding: false
+  head_type: binned
+  n_quantiles: 99
+  n_cell_heads: null
+  n_summary_tokens: 1
+  value_embedding: mlp
+  value_basis_size: 16
+  value_basis_learnable: false
+  value_ecdf: false
+  attn_length_scale: false
+  attn_length_ref: 512
+  attn_impl: masked
+  hazard_period_context: false
+  cell_row_attn: full
+  n_inducing: 64
+  readout: pool
+  n_readout: 4
+  head_mlp: false
+
+train:
+  steps: 6000
+  batch_size: 8
+  lr: 3.0e-4                    # §127: the default wins at this recipe
+  warmup_steps: 500
+  log_every: 50
+  eval_every: 500
+  checkpoint_every: 1000        # §90's runs set it; saving changes no weight
+  seed: 0
+  feature_chunk: 8              # identity-preserving (§81); bounds memory on a T4
+  optimizer: adamw
+  task_dump: null
+  task_dump_allow_code_mismatch: false
+  decay_norm_bias: true
+  amp: "none"
+  muon_lr: null                 # Muon keys unused: the recipe is adamw
+  muon_scale: rms_match
+  loader: sync                  # DR5.2/DR5.4 keys: the recipe predates them
+  loader_workers: 0
+  loader_prefetch: 2
+  ddp: false
+  schedule: cosine
+  decay_frac: 0.1               # unused under cosine
+  lr_min: 0.0                   # unused under cosine
+  eval_set_seed: null
+  eval_batches: 5
+
+prior:
+  sharpness_min: 0.3
+  sharpness_max: 12.0
+  min_expected_positives: 2.0
+  absolute_rate_floor: 0.001
+  rate_ceiling: 0.30
+  n_sectors: 12
+  min_ctx_per_class: 0
+  permute_classes: false
+  feature_transforms: []
+  max_query_rows: null
+  pad_to_batch_width: false
+  n_rows: 256                   # unused: n_rows_choices is set
+  n_rows_choices: [256, 512, 1024]
+  p_financial: 0.3   # AU5.11: sequential chain, conditional weights
+  p_tree: 0.3   # AU5.11
+  p_trivial: 0.0
+  p_crossed: 0.0
+  p_task_family: 0.3   # AU5.11
+  p_regression: 0.0
+  p_learnability_filter: 0.0
+  scm_legacy: false
+  scm_reuse_graph: 1
+  identity_shuffle: false
+  discretize_frac: 0.0
+  n_noise_features: 0
+  n_correlated_block_features: 0
+  label_noise_rate: 0.0
+  p_real_edgar: 0.0
+  real_edgar_panel_path: data/edgar/panel.parquet
+  p_real_mortgage: 0.0
+  real_mortgage_panel_path: data/mortgage/panel.parquet
+  p_real_lendingclub: 0.0
+  real_lendingclub_panel_path: data/lendingclub/panel.parquet
+  real_panels: ""
+  source_weights: null            # the sequential source draw; DR2.1's weighted draw came later
+  financial_gate_prob: 0.0      # design review DR2.2; the published run had no gated labels
+  financial_sign_flip_prob: 0.0 # DR2.2's ratio sign flip; the published run had none
+  feature_ratio_bands:          # AU5.11: DR2.4's bands (make_train_score.BANDS)
+    - [0.5, 0.0, 0.05]
+    - [0.35, 0.05, 0.2]
+    - [0.15, 0.2, 0.5]
+  p_binary: null
+  imbalance_draws: false
+  categorical_mode: unordered   # AU5.11: existing flag
+  missing_mode: mixed   # AU5.11: existing flag
+  tie_column_prob: 0.0
+  irrelevant_frac_max: 0.0
+  duplicate_frac_max: 0.0
+  label_flip_max: 0.0
+  heavy_tail_column_prob: 0.0   # AU5.11 knobs, all at their pre-knob behaviour (byte-identical
+  tree_split_by: std            # prior output, tests/test_prior_diversity.py); the published
+  missing_label: false          # run predates them

@@ -37,6 +37,13 @@ INTERLEAVED = ["--p-financial", "0.7", "--source-weights", f"{TRUNK_WEIGHTS},fin
 #: with the SCM sampler it was trained on (--scm-legacy: it predates 48.17/48.19's widening of
 #: 2026-09-21), plus AU5.5's per-task class permutation, the one prior change under test
 MULTICLASS = ["--max-classes", "10", "--p-financial", "0.5", "--scm-legacy", "--permute-classes"]
+#: AU5.11 (docs/results/drafts/au5.11_2026-11c.md): the broader mixture, as the sequential chain's
+#: conditional weights, with the existing diversity flags, and (arm "diverse") the three new ones.
+#: p_tree and p_task_family are 0.3 of what the chain leaves; max_classes stays at the recipe's 2.
+AU511_MIXTURE = ["--p-financial", "0.3", "--p-tree", "0.3", "--p-task-family", "0.3",
+                 "--categorical-mode", "unordered", "--missing-mode", "mixed",
+                 "--feature-ratio-bands", BANDS]
+AU511_NEW = ["--heavy-tail-column-prob", "0.15", "--tree-split-by", "uniform", "--missing-label"]
 ARMS = {
     "e1-v48-s0": (E1 + ["--seed", "0", "--steps", "6000"], True),
     "e1-v48-s1": (E1 + ["--seed", "1", "--steps", "6000"], True),
@@ -82,6 +89,10 @@ ARMS = {
     # inference's query_chunk 512
     "au54-ctx2k-s0": (E1 + S0_48K + ["--n-rows-choices", "256,512,1024,2223",
                                      "--max-query-rows", "512"], True),
+    # AU5.11: prior diversity (mixture + heavy tails + uniform tree splits + label-driven
+    # missingness) against e1-v48-s0, and the same mixture without the three new flags
+    "au511-diverse-s0": (E1 + S0_48K + AU511_MIXTURE + AU511_NEW, True),
+    "au511-mixture-s0": (E1 + S0_48K + AU511_MIXTURE, True),
 }
 #: Arms trained but not scored on V4FinBench, which is binary: a multiclass arm is decided
 #: on the proxy suite, run off Kaggle
@@ -102,7 +113,10 @@ SWITCH = {"dr24-c-s0": (4200, E1 + S0_48K + FIN_V2)}
 DR24_COMMIT = "5e0fad0"
 #: DR8.2's commit adds --run-seconds, whose default reads no clock and changes no weight
 DR82_COMMIT = "e493123"
-COMMITS = {"dr62-induced-s0": "6916a89", "dr63-cls-s0": "6916a89",
+#: 62a73c3 contains 7dfd663 (the AU5.11 flags), checked with merge-base --is-ancestor
+AU511_COMMIT = "62a73c3"
+COMMITS = {"dr62-induced-s0": "6916a89",
+           "au511-diverse-s0": AU511_COMMIT, "au511-mixture-s0": AU511_COMMIT, "dr63-cls-s0": "6916a89",
            **{arm: DR24_COMMIT for arm in ARMS if arm.startswith("dr24-")},
            # DR7.4 needs no code change: a901cdc (origin/main, 2026-10-24) carries every flag
            "dr74-mc-s0": "a901cdc",
