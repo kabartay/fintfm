@@ -258,6 +258,25 @@ adapter exposes none of `ensemble_class_shift`, `ensemble_transforms` or
 `ensemble_svd_components`; one env var or hyperparameter pass-through is needed, then one Lite run
 per axis, about an hour each.
 
+**TabArena-Lite half, MEASURED 2026-11-05.** The fork adapter gained a `FINTFM_PARAMS` override,
+and each axis ran as its own Lite arm (one process per dataset, `runs/lite2611/queue_ds.sh`) against
+`fintfm_lite_nan_1019`, the 8-member default, so only the axis differs. Split 0, 27 binary datasets,
+paired with `scripts/compare_lite_arms.py`:
+
+| axis | arm | better / worse / tied | sign test p | mean ROC-AUC change | Elo (baseline 756 +126/−180) |
+| --- | --- | --- | --- | --- | --- |
+| class shift | `fintfm_lite_cshift_1104` | 10 / 17 / 0 | 0.25 | −0.00611 | 716 (+150/−218) |
+| SVD, 16 components | `fintfm_lite_svd16_1104` | 17 / 10 / 0 | 0.25 | +0.00306 | 782 (+128/−196) |
+| transforms `rank, squash` | `fintfm_lite_tfsq_1104` | 20 / 6 / 1 | 0.009 | +0.01023 | 807 (+128/−195) |
+
+Class shift reverses its proxy lean: its largest losses are Is-this-a-good-customer −0.0477 and
+Diabetes130US −0.0451. SVD stays a null lean (blood-transfusion +0.0127, hazelnut +0.0122, churn
++0.0118). **Transforms `rank, squash` clear the sign test on Lite** (credit-g +0.0497, churn
++0.0412, E-CommereShippingData +0.0383, in_vehicle_coupon_recommendation +0.0348), the proxy's
+12 / 4 lean (p 0.077, `rank, power, squash`) now holding at 27 datasets. **It is a general-tabular
+result and decides nothing yet:** under the V4FinBench-first rule it needs a five-fold V4FinBench
+mean AP beside it before the default changes. The Elo intervals overlap throughout.
+
 ## DR3.5: TabArena-Lite levers
 
 **Context 500 and 750 against 1,000, paired per dataset, MEASURED from existing results (no new
@@ -275,6 +294,11 @@ Diabetes130US −0.0092. At 750: in_vehicle_coupon_recommendation +0.0155, churn
 seismic-bumps −0.0061. Null both ways, consistent with AU5.14's Elo; default 1,000 stays. The
 1,000-row arm is a 2026-10-19 run, not same-day. This belongs in `docs/results/TABARENA.md` beside
 the AU5.14 table when merged.
+
+**Measured 2026-11-05: class shift and `ensemble_transforms=("rank", "squash")` on Lite** (table in
+AU5.12 above). Class shift 10 / 17 (p 0.25, −0.00611), a null that reverses the proxy's lean;
+transforms 20 / 6 / 1 (p 0.009, +0.01023, Elo 807 against 756), a Lite gain that waits on
+V4FinBench. The original open item:
 
 **Open: `ensemble_class_shift` and `ensemble_transforms=("rank", "squash")` on Lite**, for the same
 reason as AU5.12 (no adapter override). The proxy rows above are the nearest evidence: neither is a
