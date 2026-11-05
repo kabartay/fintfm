@@ -386,3 +386,31 @@
       regression or LightGBM) on those features on V4FinBench, and compare against (a) fintfm's
       own head and (b) the same classifier on raw features — a representation that helps (b)
       without matching (a) is still a real and reportable result, not a null one.
+- [ ] 48.23 **Audit whether the prior's signal filter drops weak-signal tasks (peer read
+      2026-11-05, TabAbax, `docs/paper/RELATED_WORK.md`).** TabAbax (arXiv:2611.00562) improves
+      TabICLv2's prior with filters and names as its own limitation that they drop weak-signal
+      tasks, which is the low-base-rate credit regime. Check whether any filter in
+      `src/fintfm/prior/` rejects or down-weights such tasks, and measure the share of generated
+      binary tasks it removes by positive rate. Verify: if a filter exists, train or score with it
+      on and off at matched tasks and report the V4FinBench five-fold mean AP change; falsified
+      if the change is inside the seed noise floor (0.0117, §173). If no filter exists, record
+      that and close.
+- [ ] 48.24 **Majority-downsampled context (peer read 2026-11-05, TabPFN v9.0.0
+      `majority_downsample`).** Keep every minority-class row in the context and downsample the
+      majority class to fill `max_context`. Inference only, no retraining. Verify: five-fold
+      V4FinBench mean AP against the default uniform context and against AU4.2's prototype and
+      floor arms, AP first; adopt only if it clears 0.0117 on at least 4 of 5 folds against the
+      default and is not below the best existing context arm; falsified otherwise.
+- [ ] 48.25 **A separately trained read-out head on the frozen FinTFM trunk (peer read 2026-11-05,
+      CardoAI's head on frozen Nori).** Train only a small classification head (label encoder
+      plus read-out) on synthetic prior tasks with the trunk frozen, and compare with the
+      model's own head and with the linear probe of 48.22/DR3.4. Verify: V4FinBench five-fold
+      mean AP at matched context labels; falsified if the new head is below the current own
+      head's AP on at least 3 of 5 folds.
+- [ ] 48.26 **Re-read two peer facts left open on 2026-11-05.** (a) Neuralk Seldon's weights
+      licence terms (gated; unread, so treated as non-commercial) and its Elo on TabArena's
+      classification-only view, where its vendor win rate (82.3% over TabICLv2) would be
+      comparable; (b) LimiX-2's replacement model once released (TabArena issue #648), and every
+      statement in `docs/paper/` made relative to LimiX-2. Verify: both read at primary source and
+      recorded in `docs/research/REFERENCES.md` and `docs/paper/RELATED_WORK.md`; Seldon counts as
+      a real peer if its classification-only Elo exceeds TabICLv2's there.
