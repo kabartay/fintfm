@@ -1,0 +1,18 @@
+# Learn-from-peers 48.24, arm "majority-downsample" (TabPFN v9.0.0 `majority_downsample`): the
+# context keeps every positive row and fills the rest of max_context with a uniform draw of the
+# negatives. Needs no new code: it is context_positive_floor at or above the pool's positive
+# count (tests/test_classifier.py::test_majority_downsample_*), here a number no fold reaches.
+#
+# NOT PRODUCTION. MEASUREMENT OPEN; NOT RUN (full-panel V4FinBench, deferred for memory;
+# docs/results/drafts/48.24_2026-11.md). max_context is 4,000, not the default 2,000: a training
+# fold holds about 2,900 positives (3,587 over the panel, ESTIMATED at 80% per fold), and at
+# 2,000 rows "every positive" is impossible, the draw is all positives. At 4,000 the context is
+# about 72% positive; the D5 correction reads that rate and shifts the level back.
+#
+#   uv run --frozen fintfm-v4protocol --model runs/v4-cellattn-labels.pt \
+#     --config configs/arms/48.24-majority-downsample.yaml --no-boosting --device cpu \
+#     --out runs/48.24/majority
+
+inference:
+  max_context: 4000
+  context_positive_floor: 1000000

@@ -959,3 +959,53 @@ def test_context_positive_floor_is_inert_when_the_pool_fits():
     y = _rare(300, 3)
     idx = _select_context(y, 2000, "uniform", np.random.default_rng(0), positive_floor=16)
     np.testing.assert_array_equal(idx, np.arange(300))
+
+
+def test_majority_downsample_context_is_a_positive_floor_at_the_pool_count():
+    """48.24 (TabPFN v9 ``majority_downsample``: every minority row, the majority drawn down to
+    fill the budget) already exists: a ``context_positive_floor`` at or above the positive
+    count. Every positive is kept, the other ``max_context - 47`` slots are a uniform draw of
+    the negatives, and the draw is seed-dependent only in which negatives it takes."""
+    y = _rare()
+    pos = set(np.flatnonzero(y == 1).tolist())
+    negs = []
+    for seed in range(4):
+        idx = _select_context(
+            y, 2000, "uniform", np.random.default_rng(seed), positive_floor=len(pos)
+        )
+        assert idx.shape == (2000,) and pos <= set(idx.tolist())
+        negs.append(tuple(i for i in idx.tolist() if i not in pos))
+    assert len(set(negs)) == 4
+    # a floor of any size above the count is the same context, so "all of them" needs no number
+    a = _select_context(y, 2000, "uniform", np.random.default_rng(1), positive_floor=47)
+    b = _select_context(y, 2000, "uniform", np.random.default_rng(1), positive_floor=10**9)
+    assert a.tobytes() == b.tobytes()
+
+
+def test_majority_downsample_with_more_minority_rows_than_budget_is_all_positive():
+    """When the minority alone exceeds ``max_context`` (V4FinBench: about 2,900 positives
+    per training fold against 2,000), keeping every minority row is impossible and the
+    existing setting degrades to ``max_context`` positives drawn uniformly and no negative,
+    which cannot carry a decision boundary. The arm has to raise ``max_context`` above the
+    minority count."""
+    y = _rare(10_000, 300)
+    idx = _select_context(y, 200, "uniform", np.random.default_rng(0), positive_floor=10**9)
+    assert idx.shape == (200,) and int(y[idx].sum()) == 200
+    wide = _select_context(y, 400, "uniform", np.random.default_rng(0), positive_floor=10**9)
+    assert int(y[wide].sum()) == 300 and wide.shape == (400,)
+
+
+def test_majority_downsample_context_reads_its_own_rate_in_the_base_rate_correction():
+    """Through ``fit`` the context rate is 47/400 and the D5 correction restores the pool's
+    0.47%, as for any floor."""
+    cfg = ModelConfig(max_features=6, max_classes=2, d_model=16, n_heads=2, n_layers=1, d_ff=32)
+    rng = np.random.default_rng(0)
+    X, Xq = rng.normal(size=(10_000, 4)), rng.normal(size=(100, 4))
+    y = _rare()
+    kw = {"max_context": 400, "context_positive_floor": 10**9}
+    torch.manual_seed(0)
+    clf = FinancialTFMClassifier(_BaseRateReader(cfg), **kw).fit(X, y)
+    raw = FinancialTFMClassifier(_BaseRateReader(cfg), correct_prior=False, **kw).fit(X, y)
+    assert clf.context_summary_.n_positive == 47
+    assert raw.predict_proba(Xq)[:, 1].mean() == pytest.approx(47 / 400, rel=1e-5)
+    assert clf.predict_proba(Xq)[:, 1].mean() == pytest.approx(47 / 10_000, rel=1e-5)
