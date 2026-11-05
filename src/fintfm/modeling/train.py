@@ -102,6 +102,19 @@ class TrainConfig:
     #: checkpoint's architecture must equal this run's exactly; mutually exclusive with
     #: :attr:`resume`.
     init_from: str | None = None
+    #: Train only a named part of the model and freeze every other parameter (peer read
+    #: 2026-11-05, openspec 48.25): ``"head"`` trains the read-out ``head`` alone, and
+    #: ``"head_label"`` also trains ``y_proj``, the row-level label encoder, so the trunk's
+    #: weights stay fixed while its input labels are re-encoded. ``None`` trains everything,
+    #: byte for byte as before. Needs :attr:`init_from` (a frozen random trunk is no
+    #: experiment), is refused with :attr:`resume` (the optimiser state would not match the
+    #: parameter set) and with the hazard objective, which never reaches ``head``.
+    train_only: str | None = None
+    #: With :attr:`train_only`, re-draw the trainable modules' weights at their default
+    #: initialisation after loading :attr:`init_from`, so the head is trained from scratch on
+    #: the frozen trunk rather than continued from the checkpoint's own (openspec 48.25: a
+    #: continued head is the own head plus more tasks). Needs ``train_only``.
+    reinit_trained: bool = False
     #: Let this :attr:`resume` continue under a **different prior** from the one the state
     #: was trained on, as a new curriculum phase (design review DR2.4: trunk, then credit).
     #: Every ``.state`` records the prior of each phase it has trained under, and a resume
@@ -231,6 +244,13 @@ OPTIMIZERS = ("adamw", "schedulefree", "muon")
 #: Accepted values of :attr:`TrainConfig.schedule`.
 SCHEDULES = ("cosine", "wsd")
 
+#: Accepted values of :attr:`TrainConfig.train_only`, each the attribute names of the
+#: :class:`FinancialTFM` submodules and parameters left trainable.
+TRAIN_ONLY_PARTS: dict[str, tuple[str, ...]] = {
+    "head": ("head",),
+    "head_label": ("head", "y_proj"),
+}
+
 
 def _check_train_config(train_cfg: TrainConfig) -> None:
     """Refuse a loader, distribution or schedule setting that would run but misbehave.
@@ -247,6 +267,24 @@ def _check_train_config(train_cfg: TrainConfig) -> None:
             (there is no earlier phase to follow); or a value out of range (a negative
             ``run_seconds`` among them).
     """
+    if train_cfg.reinit_trained and train_cfg.train_only is None:
+        raise ValueError("--reinit-trained needs --train-only: it would re-draw the whole model")
+    if train_cfg.train_only is not None:
+        if train_cfg.train_only not in TRAIN_ONLY_PARTS:
+            raise ValueError(
+                f"train_only must be one of {sorted(TRAIN_ONLY_PARTS)}, "
+                f"got {train_cfg.train_only!r}"
+            )
+        if train_cfg.init_from is None:
+            raise ValueError(
+                "--train-only needs --init-from: freezing a randomly initialised trunk "
+                "would train a head on noise"
+            )
+        if train_cfg.resume is not None:
+            raise ValueError(
+                "--train-only cannot be combined with --resume: the saved optimiser state "
+                "belongs to a different parameter set"
+            )
     if train_cfg.new_prior_phase and train_cfg.resume is None:
         raise ValueError(
             "--new-prior-phase needs --resume: a new prior phase continues a run's state"
@@ -355,6 +393,53 @@ def _fused_qkv_parameters(model: torch.nn.Module) -> set[int]:
     }
 
 
+def _trainable(model: torch.nn.Module) -> list[torch.nn.Parameter]:
+    """The parameters with ``requires_grad``, in ``model.parameters()`` order (all of them
+    unless :func:`_freeze_all_but` ran), so the default optimiser is built over exactly the
+    list it always was."""
+    return [p for p in model.parameters() if p.requires_grad]
+
+
+def _reinit_trained(model: FinancialTFM, train_only: str) -> None:
+    """Re-draw the ``train_only`` modules' weights at their constructors' default init.
+
+    Args:
+        model: The model, after :attr:`TrainConfig.init_from` was loaded into it.
+        train_only: A key of :data:`TRAIN_ONLY_PARTS`.
+    """
+    for name in TRAIN_ONLY_PARTS[train_only]:
+        for m in getattr(model, name).modules():
+            if hasattr(m, "reset_parameters"):
+                m.reset_parameters()
+
+
+def _freeze_all_but(model: FinancialTFM, train_only: str | None) -> None:
+    """Set ``requires_grad=False`` on every parameter outside the ``train_only`` parts.
+
+    A no-op for ``None``. Must run before :func:`_build_optimizer`, which builds over the
+    trainable parameters only.
+
+    Args:
+        model: The model, before its optimiser exists.
+        train_only: A key of :data:`TRAIN_ONLY_PARTS`, or ``None``.
+
+    Raises:
+        ValueError: For an unknown part, a part the model lacks, or the hazard objective
+            (``n_horizons``), whose loss never reaches ``head``.
+    """
+    if train_only is None:
+        return
+    if train_only not in TRAIN_ONLY_PARTS:
+        raise ValueError(f"train_only must be one of {sorted(TRAIN_ONLY_PARTS)}, got {train_only!r}")
+    if model.cfg.n_horizons is not None:
+        raise ValueError("--train-only trains the classification head; a hazard model has none")
+    keep: set[int] = set()
+    for name in TRAIN_ONLY_PARTS[train_only]:
+        keep.update(id(p) for p in getattr(model, name).parameters())
+    for p in model.parameters():
+        p.requires_grad = id(p) in keep
+
+
 def _build_optimizer(
     model: FinancialTFM, train_cfg: TrainConfig
 ) -> tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LRScheduler]:
@@ -392,7 +477,7 @@ def _build_optimizer(
         # the two optimisers' warmup serves the same purpose even though the rest of their
         # schedules differ completely.
         opt = schedulefree.AdamWScheduleFree(
-            model.parameters(), lr=train_cfg.lr, warmup_steps=train_cfg.warmup_steps
+            _trainable(model), lr=train_cfg.lr, warmup_steps=train_cfg.warmup_steps
         )
         return opt, _NullSchedule(train_cfg.lr)  # type: ignore[return-value]
 
@@ -412,7 +497,7 @@ def _build_optimizer(
         # plain AdamW does.
         muon_ids = _muon_parameters(model)
         fused = _fused_qkv_parameters(model)
-        params = list(model.parameters())
+        params = _trainable(model)
         groups = [
             {"params": [p for p in params if id(p) in muon_ids and id(p) not in fused],
              "use_muon": True, "lr": muon_lr, "weight_decay": _ADAMW_WEIGHT_DECAY,
@@ -428,9 +513,9 @@ def _build_optimizer(
         opt = Muon([g for g in groups if g["params"]], lr=train_cfg.lr,
                    scale=train_cfg.muon_scale)
     elif train_cfg.decay_norm_bias:
-        opt = torch.optim.AdamW(model.parameters(), lr=train_cfg.lr)
+        opt = torch.optim.AdamW(_trainable(model), lr=train_cfg.lr)
     else:
-        params = list(model.parameters())
+        params = _trainable(model)
         opt = torch.optim.AdamW(
             [
                 {"params": [p for p in params if id(p) not in exempt],
@@ -1397,6 +1482,7 @@ def train(
     model.feature_chunk = train_cfg.feature_chunk
     model.column_ids_full_width = prior_cfg.pad_to_batch_width  # DR6.1
     say(f"model parameters: {model.num_parameters():,}")
+    _freeze_all_but(model, train_cfg.train_only)
     opt, sched = _build_optimizer(model, train_cfg)
     _autocast(model, train_cfg.amp)  # refuse an unsupported precision before any step
     scaler = _grad_scaler(train_cfg.amp)
@@ -1431,6 +1517,9 @@ def train(
                 f"(checkpoint, this run): {mismatched}"
             )
         model.load_state_dict(init["state_dict"])
+        if train_cfg.reinit_trained:
+            assert train_cfg.train_only is not None  # _check_train_config
+            _reinit_trained(model, train_cfg.train_only)
         objectives = set(init.get("trained_objectives", []))
         init_record = {
             "path": train_cfg.init_from,
@@ -1796,6 +1885,7 @@ def benchmark(
     model = FinancialTFM(model_cfg).to(train_cfg.device)
     model.feature_chunk = train_cfg.feature_chunk
     model.column_ids_full_width = prior_cfg.pad_to_batch_width  # DR6.1
+    _freeze_all_but(model, train_cfg.train_only)
     opt, sched = _build_optimizer(model, train_cfg)
     _autocast(model, train_cfg.amp)
     scaler = _grad_scaler(train_cfg.amp)
@@ -2294,6 +2384,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="initialise weights from a model checkpoint with a fresh optimiser and schedule "
         "(continued pretraining for matched-pair ablations). The checkpoint's architecture "
         "must match this run's exactly; mutually exclusive with --resume",
+    )
+    p.add_argument(
+        "--train-only",
+        type=str,
+        default=None,
+        choices=sorted(TRAIN_ONLY_PARTS),
+        help="freeze every parameter but the named part (openspec 48.25): 'head' trains the "
+        "read-out alone, 'head_label' also the row-level label encoder. Needs --init-from; "
+        "refused with --resume. Defaults to training everything",
+    )
+    p.add_argument(
+        "--reinit-trained",
+        action="store_true",
+        default=None,
+        help="with --train-only, re-draw the trained modules' weights after --init-from, so "
+        "the head is trained from scratch on the frozen trunk. Defaults to false",
     )
     p.add_argument(
         "--resume",

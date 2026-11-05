@@ -217,6 +217,8 @@ train:
   run_seconds: null        # training seconds in THIS invocation (DR8.2); null has no limit
   resume: null             # a <out>.state file to continue from
   init_from: null          # a model checkpoint to start from, fresh optimiser and schedule
+  train_only: null         # 'head' or 'head_label': freeze all else, needs init_from (48.25)
+  reinit_trained: false    # with train_only, re-draw the trained modules after init_from (48.25)
   new_prior_phase: false   # let resume continue under a different prior, a curriculum phase (DR2.4)
   feature_chunk: null      # identity-preserving memory knob for n_cell_blocks > 0 (§81)
   optimizer: adamw         # adamw, muon or schedulefree

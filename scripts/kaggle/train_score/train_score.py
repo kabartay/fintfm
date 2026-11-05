@@ -27,9 +27,14 @@ then scores as usual. Session 2 finds the state by globbing /kaggle/input for
 `<ARM>.pt.state` and stops unless there is exactly one, since the mount layout of a kernel
 source is not pinned down here. SESSION 0 is the one-session run every other arm is.
 
+A head-only arm (openspec 48.25) sets INIT_URL and INIT_SHA256: the starting checkpoint is
+downloaded, verified against the hash, and passed as `--init-from`; ARM_FLAGS then carry
+`--train-only`. A kernel whose COMMIT is the placeholder `UNPINNED` refuses to run.
+
 `make_train_score.py` writes one copy of this file per arm with ARM and ARM_FLAGS filled in.
 """
 
+import hashlib
 import shutil
 import subprocess
 import sys
@@ -47,6 +52,8 @@ SCORE_V4 = True  # __SCORE__
 SESSION = 0  # __SESSION__
 RUN_SECONDS = 0  # __RUN_SECONDS__
 SESSION1_KERNEL = ""  # __SESSION1__
+INIT_URL = ""  # __INITURL__
+INIT_SHA256 = ""  # __INITSHA__
 RECIPE_URL = (f"https://raw.githubusercontent.com/kabartay/fintfm/{COMMIT}/"
               "configs/published/v4-cellattn-labels.yaml")
 
@@ -79,6 +86,9 @@ def find_session1_state(arm: str, inputs: Path = Path("/kaggle/input")) -> Path:
 
 def main() -> None:
     """Train the arm (or this session's share of it), then score it on V4FinBench."""
+    if COMMIT == "UNPINNED":
+        sys.exit("kernel is not pinned: regenerate with make_train_score.py once the commit "
+                 "is pushed")
     if SESSION not in (0, 1, 2):
         sys.exit(f"SESSION must be 0, 1 or 2, not {SESSION}")
     if SESSION and SWITCH_STEP:
@@ -111,6 +121,13 @@ def main() -> None:
                     "--nproc-per-node", "2", "-m", "fintfm.modeling.train"]
     base = [*launcher, "--config", str(recipe), "--device", "cuda",
             "--checkpoint-every", "1000", "--out", str(ckpt)]
+    if INIT_URL:
+        init = out / "init.pt"
+        urllib.request.urlretrieve(INIT_URL, init)
+        digest = hashlib.sha256(init.read_bytes()).hexdigest()
+        if digest != INIT_SHA256:
+            sys.exit(f"init checkpoint hash {digest} != {INIT_SHA256}")
+        base += ["--init-from", str(init)]
     phases = [[*base, *ARM_FLAGS]]
     if SESSION == 1:
         phases = [[*base, *ARM_FLAGS, "--run-seconds", str(RUN_SECONDS)]]

@@ -354,7 +354,8 @@ def test_published_recipe_pins_every_key_fintfm_train_reads():
 
     data = yaml.safe_load(_PUBLISHED_YAML.read_text())
     per_invocation = {
-        "device", "run_steps", "run_seconds", "resume", "init_from", "new_prior_phase",
+        "device", "run_steps", "run_seconds", "resume", "init_from", "train_only",
+        "reinit_trained", "new_prior_phase",
     }
     assert set(data["model"]) == {f.name for f in fields(ModelConfigDefaults)}
     assert set(data["prior"]) == {f.name for f in fields(PriorConfigDefaults)}
@@ -1318,3 +1319,86 @@ def test_cli_passes_run_seconds(tmp_path, monkeypatch):
     assert _captured_train_cfg(monkeypatch, argv).run_seconds is None
     cfg = _captured_train_cfg(monkeypatch, [*argv, "--run-seconds", "30600"])
     assert cfg.run_seconds == 30600.0
+
+
+_TRAIN_ONLY_DEVICES = [
+    "cpu",
+    pytest.param(
+        "mps",
+        marks=pytest.mark.skipif(not torch.backends.mps.is_available(), reason="no Metal GPU"),
+    ),
+]
+
+
+def _tiny_train_only_setup():
+    model_cfg = ModelConfig(
+        max_features=6, max_classes=2, d_cell=8, d_model=16, n_heads=2, n_col_layers=1,
+        n_layers=1, d_ff=16,
+    )
+    return model_cfg, PriorConfig(max_features=6, max_classes=2, n_rows=16)
+
+
+@pytest.mark.parametrize("device", _TRAIN_ONLY_DEVICES)
+@pytest.mark.parametrize("part, trained", [("head", {"head"}), ("head_label", {"head", "y_proj"})])
+def test_train_only_leaves_the_frozen_parameters_bit_identical(device, part, trained, tmp_path):
+    """Openspec 48.25: only the named modules move; the rest equal the init checkpoint
+    exactly, and the saved checkpoint loads through the normal path."""
+    from fintfm.modeling.model import FinancialTFM
+    from fintfm.modeling.train import TrainConfig, train
+
+    model_cfg, prior_cfg = _tiny_train_only_setup()
+    common = {"steps": 3, "batch_size": 2, "eval_every": 1000, "log_every": 1000,
+              "warmup_steps": 1, "lr": 1e-2, "device": device}
+    base = tmp_path / "base.pt"
+    train(model_cfg, prior_cfg, TrainConfig(**common), str(base))
+    out = tmp_path / "head.pt"
+    train(model_cfg, prior_cfg, TrainConfig(**common, init_from=str(base), train_only=part,
+                              reinit_trained=(part == "head")),
+          str(out))
+    before = FinancialTFM.load(str(base)).state_dict()
+    after = FinancialTFM.load(str(out)).state_dict()
+    moved = {k.split(".")[0] for k in before if not torch.equal(before[k], after[k])}
+    assert moved and moved <= trained
+    assert "head" in moved
+
+
+def test_train_only_refuses_ambiguous_combinations(tmp_path):
+    """Missing init, unknown part and resume are errors, not silent fallbacks."""
+    from fintfm.modeling.train import TrainConfig, train
+
+    model_cfg, prior_cfg = _tiny_train_only_setup()
+    out = str(tmp_path / "x.pt")
+    for kwargs, match in [
+        ({"train_only": "head"}, "needs --init-from"),
+        ({"train_only": "trunk", "init_from": "a.pt"}, "must be one of"),
+        ({"train_only": "head", "init_from": "a.pt", "resume": "b.state"}, "--resume"),
+        ({"reinit_trained": True, "init_from": "a.pt"}, "needs --train-only"),
+    ]:
+        with pytest.raises(ValueError, match=match):
+            train(model_cfg, prior_cfg, TrainConfig(steps=1, **kwargs), out)
+
+
+def test_train_only_off_trains_every_parameter():
+    """The default builds the optimiser over all parameters, in model order."""
+    from fintfm.modeling.model import FinancialTFM
+    from fintfm.modeling.train import TrainConfig, _build_optimizer, _freeze_all_but
+
+    model_cfg, _ = _tiny_train_only_setup()
+    model = FinancialTFM(model_cfg)
+    _freeze_all_but(model, None)
+    opt, _ = _build_optimizer(model, TrainConfig())
+    assert all(p.requires_grad for p in model.parameters())
+    assert opt.param_groups[0]["params"] == list(model.parameters())
+
+
+def test_reinit_trained_redraws_only_the_named_modules():
+    """The head is re-drawn and every other parameter is untouched."""
+    from fintfm.modeling.model import FinancialTFM
+    from fintfm.modeling.train import _reinit_trained
+
+    model = FinancialTFM(_tiny_train_only_setup()[0])
+    before = {k: v.clone() for k, v in model.state_dict().items()}
+    _reinit_trained(model, "head")
+    after = model.state_dict()
+    changed = {k.split(".")[0] for k in before if not torch.equal(before[k], after[k])}
+    assert changed == {"head"}

@@ -93,6 +93,11 @@ ARMS = {
     # missingness) against e1-v48-s0, and the same mixture without the three new flags
     "au511-diverse-s0": (E1 + S0_48K + AU511_MIXTURE + AU511_NEW, True),
     "au511-mixture-s0": (E1 + S0_48K + AU511_MIXTURE, True),
+    # 48.25 (docs/results/drafts/48.25_2026-11.md): a read-out head re-drawn and trained on the
+    # published checkpoint's frozen trunk, one GPU, masked attention (the checkpoint's own
+    # attn_impl: --init-from refuses a different architecture), 48,000 tasks
+    "4825-headonly-s0": (["--amp", "fp16", "--loader", "stream", "--seed", "0", "--steps", "6000",
+                          "--train-only", "head", "--reinit-trained"], False),
 }
 #: Arms trained but not scored on V4FinBench, which is binary: a multiclass arm is decided
 #: on the proxy suite, run off Kaggle
@@ -115,7 +120,8 @@ DR24_COMMIT = "5e0fad0"
 DR82_COMMIT = "e493123"
 #: 62a73c3 contains 7dfd663 (the AU5.11 flags), checked with merge-base --is-ancestor
 AU511_COMMIT = "62a73c3"
-COMMITS = {"dr62-induced-s0": "6916a89",
+#: The 48.25 arm's code is not pushed yet: UNPINNED kernels refuse to run
+COMMITS = {"4825-headonly-s0": "UNPINNED", "dr62-induced-s0": "6916a89",
            "au511-diverse-s0": AU511_COMMIT, "au511-mixture-s0": AU511_COMMIT, "dr63-cls-s0": "6916a89",
            **{arm: DR24_COMMIT for arm in ARMS if arm.startswith("dr24-")},
            # DR7.4 needs no code change: a901cdc (origin/main, 2026-10-24) carries every flag
@@ -124,6 +130,14 @@ COMMITS = {"dr62-induced-s0": "6916a89",
            "dr74-mc-v480-s0": "a901cdc",
            "dr82-depth8-s0": DR82_COMMIT,
            "dr82-width192-s0": DR82_COMMIT}
+#: Arms that start from the public checkpoint kabartay/fintfm-binary: (URL, SHA-256), the pair
+#: scripts/kaggle/task_dr310_ft_ctl verifies against runs/v4-cellattn-labels.pt
+PUBLISHED_CKPT = (
+    ("https://huggingface.co/kabartay/fintfm-binary/resolve/"
+     "f116bfd43a2b15c65ed3551ea8c38e3364629ddc/v4-cellattn-labels.pt"),
+    "d231b062483c9261aae4c503ad5359db295fc7206fa0183f51763e4953c518d2",
+)
+INITS = {"4825-headonly-s0": PUBLISHED_CKPT}
 OLD_ARMS = {
     # DR4.4 replicates of the published recipe (seed 0 also re-checks reproducibility)
     "pub-s0": ["--seed", "0"],
@@ -158,6 +172,8 @@ for arm in wanted:
                 .replace("__ARM__", arm)
                 .replace("[]  # __FLAGS__", json.dumps(flags))
                 .replace("False  # __DDP__", str(ddp)).replace("False  # __PART__", "False")
+                .replace('""  # __INITURL__', json.dumps(INITS.get(arm, ("", ""))[0]))
+                .replace('""  # __INITSHA__', json.dumps(INITS.get(arm, ("", ""))[1]))
                 .replace("0  # __SWITCH__", str(switch))
                 .replace("[]  # __PHASE2__", json.dumps(phase2))
                 .replace("0  # __SESSION__", str(session))

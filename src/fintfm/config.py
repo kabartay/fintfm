@@ -240,6 +240,8 @@ class TrainConfigDefaults:
     run_seconds: float | None = None
     resume: str | None = None
     init_from: str | None = None
+    train_only: str | None = None
+    reinit_trained: bool = False
     new_prior_phase: bool = False
     feature_chunk: int | None = None
     optimizer: str = "adamw"
