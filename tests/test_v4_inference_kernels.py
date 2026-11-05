@@ -36,7 +36,7 @@ def test_committed_kernels_match_the_generator_and_cover_five_folds_per_arm():
         assert sorted(folds) == [0, 1, 2, 3, 4], arm
 
 
-@pytest.mark.parametrize("arm", ["tfsq8", "ctx900e3", "au42proto", "pc16", "boost"])
+@pytest.mark.parametrize("arm", ["tfsq8", "ctx900e3", "au42proto", "pc16", "boost", "maj4000", "uni4000"])
 def test_embedded_config_loads_and_carries_the_registered_setting(arm, tmp_path):
     gen = _gen()
     p = tmp_path / "arm.yaml"
@@ -53,5 +53,9 @@ def test_embedded_config_loads_and_carries_the_registered_setting(arm, tmp_path)
     elif arm == "pc16":
         assert (cfg.inference.context_strategy, cfg.inference.retrieval_per_class) == (
             "retrieval", 16)
+    elif arm == "maj4000":
+        assert (cfg.inference.max_context, cfg.inference.context_positive_floor) == (4000, 1000000)
+    elif arm == "uni4000":
+        assert (cfg.inference.max_context, cfg.inference.context_positive_floor) == (4000, None)
     else:
         assert (cfg.large_n.method, cfg.large_n.boost_pool_rows) == ("boost", 100000)

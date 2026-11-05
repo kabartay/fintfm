@@ -34,6 +34,8 @@ ARMS: dict[str, tuple[str, str]] = {
     "au42proto": ("au42-prototype.yaml", "AU4.2 prototype undersampling"),
     "pc16": ("au58-retrieval-pc16.yaml", "AU5.8 per-class retrieval, 16 positives"),
     "boost": ("au58-boost.yaml", "AU5.8 boost, residual pool capped at 100,000"),
+    "maj4000": ("48.24-majority-downsample.yaml", "48.24 majority downsample, 4,000-row context"),
+    "uni4000": ("48.24-uniform-ctx4000.yaml", "48.24 size control, uniform 4,000-row context"),
 }
 #: arm -> {group name: folds}. 8-member arms are split so each kernel fits one 12 h session.
 GROUPS: dict[str, dict[str, tuple[int, ...]]] = {
@@ -43,6 +45,8 @@ GROUPS: dict[str, dict[str, tuple[int, ...]]] = {
     "pc16": {"f01234": (0, 1, 2, 3, 4)},
     # boost's cost is unmeasured: time fold 0 first, then (1, 2) and (3, 4) only if it fits
     "boost": {"f0": (0,), "f12": (1, 2), "f34": (3, 4)},
+    "maj4000": {"f01234": (0, 1, 2, 3, 4)},
+    "uni4000": {"f01234": (0, 1, 2, 3, 4)},
 }
 #: Applied over every arm. A 2,048-row query chunk did not fit a T4 after fine-tuning
 #: (task_dr311_ftleaf); 512 / 8 are the chunk sizes it used. Both are identity-preserving knobs

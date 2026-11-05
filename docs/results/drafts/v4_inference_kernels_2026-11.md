@@ -56,6 +56,8 @@ an output). Outputs land in `/kaggle/working/<arm>_<group>/`.
 | `au42proto` (`f01234`) | k-means prototype undersampling, ratio 0.3 | `configs/arms/au42-prototype.yaml` |
 | `pc16` (`f01234`) | per-class retrieval, 16 positives | `configs/arms/au58-retrieval-pc16.yaml` |
 | `boost` (`f0`, `f12`, `f34`) | 8 rounds of 512 rows, residual pool capped at 100,000 | `configs/arms/au58-boost.yaml` (new) |
+| `maj4000` (`f01234`) | 48.24: 4,000-row context, every positive plus uniform negatives (`context_positive_floor` 1000000) | `configs/arms/48.24-majority-downsample.yaml` |
+| `uni4000` (`f01234`) | 48.24 size control: 4,000 uniform rows | `configs/arms/48.24-uniform-ctx4000.yaml` |
 
 Folds are grouped so that no kernel exceeds about 8 h ESTIMATED (one session is 12 h): the 8-member
 arm and boost are split; the rest are one kernel each.
@@ -68,8 +70,8 @@ regression took 1,297 s, **about 0.36 h per fold** (the log's own timestamps, no
 timing: the 2,048-row context, 1 member, about 400,000 scored rows per fold). Taken as the
 one-member cost per fold, an upper bound because the logistic regression and fitting are in it.
 Everything below multiplies that, and none of it was measured on the arm itself. On a quota of
-30 GPU-hours a week (`docs/results/drafts/preregs_2026-11.md`), the five arms below total roughly
-30 to 45 GPU-hours, so they do not all fit one week; the order below is the order of value.
+30 GPU-hours a week (`docs/results/drafts/preregs_2026-11.md`), the seven arms below total roughly
+37 to 52 GPU-hours, so they do not all fit one week; the order below is the order of value.
 
 ## Order, adoption rules, estimates, scoring
 
@@ -87,6 +89,8 @@ second; always the five-fold mean, never a single fold.
 | 3 | `au42proto` (AU4.2) | default | 1.8 plus k-means over a ~600,000-row pool per fold, unmeasured, so 3 to 4 | 3 to 4 h |
 | 4 | `pc16` (AU5.8) | `ft200`, then default | 1.8 to 5.5 (0.36 h GPU-only; 1.1 h per fold if kNN-bound, as locally) | 2 to 5.5 h |
 | 5 | `boost` (AU5.8) | `ft200`, then default | `f0` about 4 as a timing probe; `f12`, `f34` about 7 each, unmeasured | about 18 h |
+| 6 | `maj4000` (48.24), lowest priority | default | 3.6 (4,000-row context about doubles the attention cost: 2 x 0.36 h per fold, the draft's own factor) | 3.6 h |
+| 7 | `uni4000` (48.24 size control), after 6 | default | 3.6 | 3.6 h |
 
 Why this order: AU5.12 is the one task with a Lite gain waiting for a credit number, and its three
 kernels are independent, so they can run in any order or in parallel sessions. AU4.3 and AU4.2 are
@@ -170,6 +174,31 @@ uv run --frozen python scripts/compare_v4_scores.py --cluster --control runs/lrs
   pc16=runs/v4inf/pc16 > runs/v4inf/cmp_pc16_vs_default.txt
 ```
 
+### 6 and 7. Task 48.24 (`learn-from-peers`), `maj4000` and `uni4000`
+
+Pre-registered in `docs/results/drafts/48.24_2026-11.md`; this section only adds the GPU
+route. `context_positive_floor` exists at 62a73c3 (`_select_context`, `default.yaml`). `maj4000`
+keeps every positive (about 2,900 per training fold, ESTIMATED) plus uniform negatives in a
+4,000-row context; `uni4000` is the size control, so a gain can be attributed to composition.
+**Adoption rule (that draft's, unchanged):** adopt only if `maj4000` clears **+0.0117 mean AP over
+the default on at least 4 of 5 folds** and is not below the best existing context arm (floor16
+§200, prototype `au42proto` once run, `uni4000`); falsified otherwise. **Prediction:** negative or
+null (§29/§33: balanced contexts cost 6.7 to 12.3 AUC points; this one is about 72% positive). Run
+`uni4000` only after `maj4000`, and only if `maj4000` is not already clearly harmful (a clearly
+negative `maj4000` is falsified without it, but then the size control no longer attributes
+anything; the owner decides). Scoring:
+
+```bash
+for a in maj4000 uni4000; do
+  mkdir -p runs/v4inf/$a && cp runs/kaggle-fintfm-task-v4inf-$a-f01234/${a}_f01234/{predictions_fold*.npz,v4_protocol.json} runs/v4inf/$a/
+  uv run --frozen python scripts/compare_v4_scores.py --cluster --control runs/lrsweep/eval-published \
+    $a=runs/v4inf/$a > runs/v4inf/cmp_${a}_vs_default.txt
+done
+```
+
+The context's positive count per fold and the mean predicted rate beside the observed rate are
+printed by the protocol's own output (`v4_protocol.json`); read them before the AP.
+
 ### 5. AU5.8 boost, `boost`
 
 Same Verify and control as `pc16`. The residual pool is capped at 100,000 rows
@@ -195,7 +224,14 @@ local checkpoint and the source tree of commit 62a73c3 (`PYTHONPATH`; the module
 printed), `nice -n 19`, `OMP_NUM_THREADS=1`, through
 `scripts/kaggle/smoke_v4_inference_kernels.py`. It proves the embedded configs load at the pinned
 commit and the protocol completes; it says nothing about quality or about GPU speed. Results
-(wall time on a Mac at load average about 99, so not a timing): SMOKE_RESULTS
+(wall time on a Mac at load average about 99, so not a timing): 
+`au42proto` 73 s, `boost_f0` 600 s, `tfsq8_f4` 608 s, `ctx900e3` 147 s, `pc16` 2,728 s,
+`maj4000` 51 s, `uni4000` 51 s, all ok. `tfsq8_f01`, `tfsq8_f23`, `boost_f12`, `boost_f34` differ
+from a smoke-tested sibling only in the `FOLDS` tuple (checked by
+`tests/test_v4_inference_kernels.py`, which regenerates every kernel and compares), so they were
+not run separately. The GPU path (`device="cuda"`, the pip install of the pin, the dataset mount,
+the checkpoint download) is **untested**: it has only run in the existing kernels, which share
+that code.
 
 ## What this does not do
 
