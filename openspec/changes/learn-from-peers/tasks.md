@@ -407,7 +407,7 @@
       model's own head and with the linear probe of 48.22/DR3.4. Verify: V4FinBench five-fold
       mean AP at matched context labels; falsified if the new head is below the current own
       head's AP on at least 3 of 5 folds.
-- [ ] 48.26 **Re-read two peer facts left open on 2026-11-05.** (a) Neuralk Seldon's weights
+- [x] 48.26 **Done (2026-11-05, both halves read at primary source; `docs/research/REFERENCES.md` and `docs/paper/RELATED_WORK.md` addenda):** (a) Seldon's weights are under the non-commercial "Seldon Research and Evaluation License" (`LICENSE.md` readable without accepting the gate); Seldon-Mini carries a different licence allowing internal commercial use but not third-party serving. On TabArena's classification-only view (Space v0.1.9.15) Seldon is Elo 1879 (+158/−106) and Seldon-Mini 1786 against TabICLv2 1569, so Seldon counts as a real peer and the vendor's 82.3% win rate is consistent with the board. (b) No LimiX-2 replacement as of 2026-11-05 (issue #648 open, last activity 2026-10-29); TabArena flagged LimiX-2 as having seen test data in PR #691 (2026-10-27) and publishes `_noleak` pools; the statements in `docs/` relative to LimiX-2 are listed and none needed changing. The replacement stays a standing recheck at the next peer read. **Re-read two peer facts left open on 2026-11-05.** (a) Neuralk Seldon's weights
       licence terms (gated; unread, so treated as non-commercial) and its Elo on TabArena's
       classification-only view, where its vendor win rate (82.3% over TabICLv2) would be
       comparable; (b) LimiX-2's replacement model once released (TabArena issue #648), and every
