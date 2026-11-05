@@ -395,7 +395,7 @@
       on and off at matched tasks and report the V4FinBench five-fold mean AP change; falsified
       if the change is inside the seed noise floor (0.0117, §173). If no filter exists, record
       that and close.
-- [ ] 48.24 **Majority-downsampled context (peer read 2026-11-05, TabPFN v9.0.0
+- [ ] 48.24 **Progress (2026-11-05, `docs/results/drafts/48.24_2026-11.md`): already exists, no new code.** `context_positive_floor` at or above the pool's positive count is the majority-downsampled context (every positive plus a uniform draw of negatives up to `max_context`), pinned by `tests/test_classifier.py::test_majority_downsample_*`; the base-rate correction reads the context rate and the default stays byte-identical. With more positives than `max_context` it degrades to an all-positive context, which is V4FinBench at 2,000 rows (about 2,900 positives per training fold, ESTIMATED), so the arm runs at `max_context` 4,000 (`configs/arms/48.24-majority-downsample.yaml`) beside a 4,000-row uniform size control (`48.24-uniform-ctx4000.yaml`). Prediction: null or negative (§29, §200). Open: the five-fold V4FinBench run, about 11 h per arm ESTIMATED, not run. **Majority-downsampled context (peer read 2026-11-05, TabPFN v9.0.0
       `majority_downsample`).** Keep every minority-class row in the context and downsample the
       majority class to fill `max_context`. Inference only, no retraining. Verify: five-fold
       V4FinBench mean AP against the default uniform context and against AU4.2's prototype and
