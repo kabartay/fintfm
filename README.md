@@ -55,11 +55,11 @@ financial tables, and to say honestly where it currently is not.
 | --- | --- |
 | **External benchmark** | [TabArena](https://tabarena.ai), 27 binary datasets against 94 other methods: **rank 94 of 95**, integration confirmed correct by a maintainer and the entry declined on competitiveness (§122) |
 | **On real credit panels** | calibration consistently among the best measured; discrimination consistently loses to gradient boosting — on V4FinBench's full panel, untuned CatBoost scores 0.40 mean AP against FinTFM's 0.20 (§163). (§167, 2026-10-16: on V4FinBench's published features, which keep `operational_status`; LightGBM at 1,000 trees scores 0.3908, so the field is about 0.39-0.40 mean AP and the lead is boosting rounds, not one library.) |
-| **Fine-tuning** | opt-in per-dataset fine-tuning (`finetune_steps`, 0.7.0) lifts V4FinBench AP on 5 of 5 folds, 0.1986 → 0.2062 — the first lever to move it, closing 3.8% of the gap to CatBoost (§163) |
+| **Fine-tuning** | opt-in per-dataset fine-tuning (`finetune_steps`, 0.7.0) lifts V4FinBench AP on 5 of 5 folds, 0.1986 → 0.2062 — the first lever to move it, closing 3.8% of the gap to CatBoost (§163). Zero-shot partitioned contexts (`fintfm-v4protocol --large-n partition`) then lift it further with no training, 0.1986 → 0.2362, +0.0375 on 5 of 5 folds (§169), and beat the fine-tuned arm on 5 of 5 folds (§205) |
 | **Licence** | Apache-2.0, **code and weights** — chosen separately, not inherited (see [Licensing](#licensing--provenance)) |
 | **Checkpoint** | [kabartay/fintfm-binary](https://huggingface.co/kabartay/fintfm-binary) — 885K, binary, ≤136 features |
-| **Tests** | 1,130 collected, plus `ruff`, the openspec validator, a dependency-licence check and a documentation-link check — all in CI |
-| **Measurement log** | 194 numbered entries, each declaring how its numbers were produced; pre-registrations are written before their arms run |
+| **Tests** | 1,198 collected, plus `ruff`, the openspec validator, a dependency-licence check and a documentation-link check — all in CI |
+| **Measurement log** | 207 numbered entries, each declaring how its numbers were produced; pre-registrations are written before their arms run |
 | **Problem types** | binary declared; multiclass and regression implemented but **not** declared (§121) |
 
 **Read [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md) before anything else.** Every claim this
@@ -98,7 +98,8 @@ with three surviving multiple-comparison correction at p < 0.001, so it ships of
 the tree arm also cut the financial share from 0.70 to 0.49. Against a control at the same
 financial share the tree arm is +0.0119 mean AP, 4 of 5 folds positive, one seed per arm. The
 evidence that the tree prior hurts credit is gone; it still ships off, now pending a re-test at
-a matched share and two seeds, task DR2.4.)
+a matched share and two seeds. DR2.4 (§180, §191) ran mixed-prior arms instead, all four harmful
+on V4FinBench, and is not that test.)
 
 The full table, including an unpublished exploratory variant (a linear probe on the model's
 representation, §132) measured at 910 Elo, is published at
@@ -171,7 +172,7 @@ offered.
 4. **Inference** (`src/fintfm/inference/`) — an sklearn-compatible `FinancialTFMClassifier`:
    `fit()` stores the table as context, `predict_proba()` runs the frozen network. Several
    context-construction strategies (uniform, balanced, hybrid, retrieval, prototype) and a
-   base-rate correction, plus ensembling over column-identity draws to recover the
+   base-rate correction, plus ensembling over column-identity draws (`n_ensemble`, default 1; the TabArena adapter uses 8, kept after §196 and the Lite arms in `docs/results/TABARENA.md`) to recover the
    distributional column-order invariance a random identity trades for expressiveness.
    `inference/categorical.py` encodes categorical columns as **out-of-fold** smoothed target
    statistics, because the model reads every cell as an ordered scalar and label encoding's
@@ -195,6 +196,9 @@ offered.
    ROC-AUC everywhere, and read first at low base rates (ROC-AUC's chance floor is 0.5
    regardless of prevalence; AP's floor is the prevalence itself, so it stays legible at the
    base rates this project's target segment actually has).
+   `fintfm/evaluation/credit_suite.py` is a second credit suite outside V4FinBench, evaluation
+   only and never training; it currently admits ULB card fraud, SBA, Estonia and FDIC (§174, §177
+   for the first two results).
    `fintfm-priorscore` scores a *prior* rather than a model, on the three criteria the
    literature converged on — performance, diversity, distinctiveness — using **fitted**
    baselines only, so it cannot confuse "the prior lacks this structure" with "our model cannot
@@ -222,7 +226,7 @@ To work on the model rather than use it, clone the repository instead:
 
 ```bash
 uv sync --extra bench --extra hf   # naming one extra uninstalls the others
-uv run pytest                      # 413 tests collected
+uv run pytest                      # 1,198 tests collected
 ```
 
 ### Using a checkpoint
@@ -373,9 +377,11 @@ scores 0.3908, so a booster given enough rounds reaches about 0.39-0.40 mean AP;
 LightGBM (0.2666) and XGBoost (0.2229) defaults are under-trained and are not the field. Without
 `operational_status`, CatBoost's defaults score 0.3662.)
 
-One lever has moved V4FinBench: opt-in fine-tuning on each fold's training rows, +0.0076 mean AP,
+The first lever to move V4FinBench was opt-in fine-tuning on each fold's training rows, +0.0076 mean AP,
 positive on 5 of 5 folds (0.1986 to 0.2062, §163). That closes 3.8% of the gap to CatBoost, and
-a fine-tuned model is no longer the zero-shot model. Real-data pretraining (FinTFM-R) was null at
+a fine-tuned model is no longer the zero-shot model. Partitioned contexts (a depth-2 tree, each leaf
+its own 2,000-row context) are a zero-shot lever that moved it more: 0.1986 to 0.2362, +0.0375,
+positive on 5 of 5 folds (§169), ahead of the fine-tuned arm on 5 of 5 folds (§205). Real-data pretraining (FinTFM-R) was null at
 GPU scale (§160-§161). These are the remaining candidates:
 
 | still open | why it is a candidate | status |
@@ -392,8 +398,8 @@ reason the list above is short:
 | candidate | what the measurement said |
 | --- | --- |
 | parameter scale | **−0.0049** at 5.7× the parameters on *matched* task volume (§114). A peer's published curve returns +0.0049 R² for 16.7×, against a 0.035 deficit. |
-| training volume | null at 5× (§93); **+0.0028** at 2× (§114). |
-| depth over width | on TabArena it could not be scored: the harness's per-dataset time limit stopped it after 8 of 27 datasets (§114). On V4FinBench, 16 layers against 4 at width 128 is null: +0.0010 mean AP over five folds at a matched learning rate (§124, §126). |
+| training volume | null at 5× (§93); **+0.0028** at 2× (§114); **−0.0106** mean AP at 10× over two seeds on V4FinBench, 9 of 10 folds negative (§188). |
+| depth over width | on TabArena it could not be scored: the harness's per-dataset time limit stopped it after 8 of 27 datasets (§114). On V4FinBench, 16 layers against 4 at width 128 is null: +0.0010 mean AP over five folds at a matched learning rate (§124, §126); at 480,000 tasks depth is null again, −0.0047 mean AP, 3 of 5 folds positive (§195). |
 | `column_id_dim` | peaks at the value chosen by accident; all four non-peak arms below it on all five folds (§104). |
 | a widened structural-causal prior | **p = 1.000** against its own matched control. |
 | a tree-structured prior | +0.0094 on general tabular data, replicated across two seeds (§115) — and **−0.0221 average precision on credit** (§116). Ships off by default. (§166, 2026-10-16: §116's arms differed in financial share, 0.49 against 0.70; at a matched share the tree arm is +0.0119 mean AP, 4 of 5 folds, one seed, so the credit loss is not the tree prior's.) |
@@ -430,7 +436,7 @@ because they are what stops the same wrong conclusion being reached twice.
 - [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md) — **start here.** Every claim this project
   could make, tagged by status, newest evidence wins.
 - [`docs/results/FINDINGS.md`](docs/results/FINDINGS.md) — the full measurement log, numbered sequentially
-  (164 entries at the time of writing), each declaring how its numbers were produced.
+  (207 entries at the time of writing), each declaring how its numbers were produced.
 - [`docs/design/DECISIONS.md`](docs/design/DECISIONS.md) — why the project is built the way it is, and what
   would reverse each choice.
 - [`docs/roadmap/STRATEGY.md`](docs/roadmap/STRATEGY.md) — the plan of record.
