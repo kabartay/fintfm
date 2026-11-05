@@ -101,10 +101,10 @@ def test_load_estonia_builds_a_grouped_embargoed_panel(tmp_path):
     assert not any(n.startswith("_") for n in panel.feature_names)
 
 
-def test_estonia_is_registered_evaluation_only_and_gated_off():
+def test_estonia_is_registered_evaluation_only_and_admitted_with_its_caveat():
     from fintfm.prior.real_panel import EVAL_ONLY_SOURCES
 
     assert "estonia" in EVAL_ONLY_SOURCES and "estonia" in cs.DATASETS
     lic = cs.DATASETS["estonia"].licence
-    assert lic.include is False and lic.licence == "CC BY 4.0" and "survivor" in lic.reason
-    assert "estonia" not in cs.admitted()
+    assert lic.include is True and lic.licence == "CC BY 4.0" and "survivor" in lic.reason
+    assert "estonia" in cs.admitted()

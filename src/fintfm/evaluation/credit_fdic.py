@@ -26,9 +26,10 @@ likewise state no licence for its data; the only reuse text is that external sit
 information that is copyrighted with restrictions on reuse" and that permission for such
 material "cannot be obtained from the FDIC". The FDIC is the data's producer, a US federal
 agency, so the work is a US government work (17 U.S.C. section 105; stated on the SBA page the
-suite already uses, not on the FDIC's). Verdict: ``include=False`` pending an owner decision,
-because DR4.2's rule is decided on what the source states and this source states nothing; the
-public-domain basis is statute, not a grant at the source. The FFIEC's Call Report bulk files
+suite already uses, not on the FDIC's). DR4.2's rule is decided on what the source
+states and this source states nothing, so the public-domain basis is statute, not a grant at
+the source; the owner admitted it on that basis on 2026-11-05 (``include=True``), as a named
+exception to the rule. The FFIEC's Call Report bulk files
 are not used. Only the API's ``failures`` list and its quarterly ``financials`` summary
 (about 160 fields per bank-quarter, a subset of the Call Report) are read.
 
@@ -142,10 +143,11 @@ NEVER_FEATURES = ("ACTIVE", "ENDEFYMD", "EFFDATE", "RISDATE", "INSAGNT1", "NAME"
 
 LICENCE = SourceLicence(
     "https://api.fdic.gov/banks/docs/", "",
-    "none stated (US government work, 17 U.S.C. section 105)", False,
-    "owner decision needed (DR4.2 rule): the FDIC's API page and website policies state no "
-    "licence for the data; the FDIC is the producer, so public domain rests on statute, not on a "
-    "grant read at the source",
+    "public domain (US government work, 17 U.S.C. section 105; none stated at the source)", True,
+    "admitted by the owner (2026-11-05) as an exception to DR4.2's stated-at-source rule: the "
+    "FDIC's API page and website policies state no licence for the data; the FDIC, a US federal "
+    "agency, is the producer, so public domain rests on statute. FinTFM only: at least 6.72% of "
+    "rows belong to SEC filers, so no FinTFM-R number is computed on it",
     FDIC_CHECKED,
 )
 

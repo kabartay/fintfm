@@ -728,22 +728,24 @@ DATASETS: dict[str, SuiteDataset] = {
     ),
 }
 
-# Estonian register (DR4.3, 2026-11-04): the licence passes (RIK links CC BY 4.0) but the label
-# is survivor-conditioned, so the entry is gated off; see credit_estonia's docstring.
+# Estonian register (DR4.3, 2026-11-04): the licence passes (RIK links CC BY 4.0); admitted by
+# the owner on 2026-11-05 with its label survivor-conditioned; see credit_estonia's docstring.
 DATASETS["estonia"] = SuiteDataset(
     "estonia", "https://avaandmed.ariregister.rik.ee/en/downloading-open-data", load_estonia,
     SourceLicence(
         "https://avaandmed.ariregister.rik.ee/en/downloading-open-data",
         "License information: https://creativecommons.org/licenses/by/4.0/legalcode",
-        "CC BY 4.0", False,
-        "licence passes (RIK, the operator, links CC BY 4.0; no sentence names it beside the "
-        "link), but the files hold only firms currently registered, so firms bankrupt and "
-        "then deleted are absent and the label is survivor-conditioned; owner decision needed",
+        "CC BY 4.0", True,
+        "admitted by the owner (2026-11-05): RIK, the operator, links CC BY 4.0 (no sentence "
+        "names it beside the link); the files hold only firms currently registered, so firms "
+        "bankrupt and then deleted are absent and the label is survivor-conditioned: a score "
+        "here is not bankruptcy-prediction skill and is reported with that caveat",
         "2026-11-04",
     ),
 )
 
-# FDIC bank failures (DR4.3, 2026-11-04): loader and licence live in credit_fdic; not admitted.
+# FDIC bank failures (DR4.3, 2026-11-04): loader and licence live in credit_fdic; admitted by
+# the owner on 2026-11-05, FinTFM only.
 from fintfm.evaluation import credit_fdic as _fdic
 
 DATASETS["fdic"] = SuiteDataset("fdic", _fdic.API + "/failures", _fdic.load_fdic, _fdic.LICENCE)

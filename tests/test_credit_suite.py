@@ -37,7 +37,9 @@ def test_suite_keys_are_all_evaluation_only():
     for key, ds in cs.DATASETS.items():
         assert ds.key == key
         assert ds.licence.url.startswith("https://")
-        assert ds.licence.stated or not ds.licence.include  # FDIC states none and is not admitted
+        # an admission needs a licence stated at the source; FDIC is the one named exception,
+        # admitted by the owner on statute (17 U.S.C. section 105, 2026-11-05)
+        assert ds.licence.stated or not ds.licence.include or key == "fdic"
         assert ds.licence.checked >= cs.CHECKED and ds.licence.reason
 
 
@@ -211,7 +213,7 @@ def test_ulb_and_sba_are_admitted_and_ulb_scores_carry_the_odbl_notice():
     # (2026-10-20); PPDai's and Bondora's are not the owners'.
     from fintfm.evaluation.proxy_suite import licence_verdict
 
-    assert cs.admitted() == ("ulb_fraud", "sba")
+    assert cs.admitted() == ("ulb_fraud", "sba", "estonia", "fdic")  # the last two 2026-11-05
     sba = cs.DATASETS["sba"].licence
     assert sba.stated == "U.S. Government Works" and sba.checked == cs.SBA_CHECKED
     assert licence_verdict(sba.licence) is None

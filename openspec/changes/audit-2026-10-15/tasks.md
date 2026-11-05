@@ -354,7 +354,7 @@
       16). Arms: lr {1e-5, 3e-5, 1e-4}, up to 3,000 steps, early stopping on inner-validation
       companies. Depends on §164.
       Verify: five-fold AP against §163's arm under §159's rule, inner-validation selection only.
-- [ ] AU5.2 **Recommended for closing (2026-11-02, `docs/results/drafts/preregs_2026-11.md`): the Verify is met by §170 and its addendum** (split attention 1.21x at fp32 and 1.10x under fp16 in tasks per hour on one Kaggle kernel, logits within 1.2e-4 and 9.4e-4 of fp32 masked); no run needed. **Implemented behind `--attn-impl split` (2026-10-16, e18d122); measurement open.**
+- [x] AU5.2 **Done (2026-11-05, closed by the owner on the recommendation below).** **Recommended for closing (2026-11-02, `docs/results/drafts/preregs_2026-11.md`): the Verify is met by §170 and its addendum** (split attention 1.21x at fp32 and 1.10x under fp16 in tasks per hour on one Kaggle kernel, logits within 1.2e-4 and 9.4e-4 of fp32 masked); no run needed. **Implemented behind `--attn-impl split` (2026-10-16, e18d122); measurement open.**
       Exact unmasked route (context attention plus a sentinel key carrying each query's own
       key, no mask in either call), in the row encoder and the row-within-feature stage;
       equal to `masked` within 1e-5 fp32 (tests/test_model.py `*attn_impl_split*`). This
@@ -392,13 +392,13 @@
       class 1 is always the rare default in the financial prior, so the model can learn a
       class-index prior.
       Verify: a test that class indices are permuted per task; label-symmetry probe before and after.
-- [ ] AU5.6 **Recommended for closing as superseded (2026-11-02, `docs/results/drafts/preregs_2026-11.md`): §88 measured that the inference rank transform does the invariance work (§87's mismatch "needs no retraining"; marginal augmentation about 0.001); no arm drafted.** **Implemented behind `--feature-transforms` / `prior.feature_transforms`
+- [x] AU5.6 **Done (2026-11-05, closed as superseded by the owner on the recommendation below).** **Recommended for closing as superseded (2026-11-02, `docs/results/drafts/preregs_2026-11.md`): §88 measured that the inference rank transform does the invariance work (§87's mismatch "needs no retraining"; marginal augmentation about 0.001); no arm drafted.** **Implemented behind `--feature-transforms` / `prior.feature_transforms`
       (2026-10-16, b1084ce); measurement open.**
       **Match pretraining and inference preprocessing.** Pretraining z-scores; inference
       defaults to rank-to-normal. Draw a random transform per pretraining task and ensemble over
       transforms at inference.
       Verify: a test that pretraining draws each transform; five-fold AP against the current checkpoint.
-- [ ] AU5.7 **Progress (2026-11-04, `docs/results/drafts/inference_tasks_2026-11.md`): the TabArena-Lite half is measured: `n_ensemble` 1 against the adapter's 8 is worse on 20 of 27 datasets (sign test p 0.019), mean ROC-AUC −0.00445, Elo 696 against 756 (`fintfm_lite_ens1_1104` against `fintfm_lite_nan_1019`, `scripts/compare_lite_arms.py`); with §196 both halves of Verify are met; the adapter's 8 stays; proposed for closure.** **Progress (2026-11-03, `docs/results/drafts/inference_tasks_2026-11.md`): the V4FinBench half is §196 (`ens8` +0.0058 mean AP, 3 of 5 folds up); `ens8-tf` against `ens8` on the proxy 12 wins, 4 losses, p 0.077.** Open: TabArena-Lite at `n_ensemble` 1 against the adapter's 8, which needs an override in the fork's adapter first. **Implemented behind `max_features_strategy: subsample` and `ensemble_transforms`
+- [x] AU5.7 **Done (2026-11-05, closed by the owner: both halves of Verify measured, the adapter's 8 members stay).** **Progress (2026-11-04, `docs/results/drafts/inference_tasks_2026-11.md`): the TabArena-Lite half is measured: `n_ensemble` 1 against the adapter's 8 is worse on 20 of 27 datasets (sign test p 0.019), mean ROC-AUC −0.00445, Elo 696 against 756 (`fintfm_lite_ens1_1104` against `fintfm_lite_nan_1019`, `scripts/compare_lite_arms.py`); with §196 both halves of Verify are met; the adapter's 8 stays; proposed for closure.** **Progress (2026-11-03, `docs/results/drafts/inference_tasks_2026-11.md`): the V4FinBench half is §196 (`ens8` +0.0058 mean AP, 3 of 5 folds up); `ens8-tf` against `ens8` on the proxy 12 wins, 4 losses, p 0.077.** Open: TabArena-Lite at `n_ensemble` 1 against the adapter's 8, which needs an override in the fork's adapter first. **Implemented behind `max_features_strategy: subsample` and `ensemble_transforms`
       (2026-10-16, b3da945); measurement open.** Round-robin column subsets per member cover
       every feature of a table wider than `max_features`, raising the member count to
       `ceil(F / size)` when `n_ensemble` is below it; the default `raise` is unchanged.
@@ -417,7 +417,7 @@
       **Implemented behind `hazard_period_context` (2026-10-16, 0a3b8c8); measurement open; the classifier cannot yet pass context periods at inference.** **Hazard context carries only the binary label** (`model.py:751-759,787-797`): embed
       the default period and a censored token for context rows.
       Verify: a hazard test where the term structure is learnable only from context periods.
-- [ ] AU5.10 **Recommended for closing without a run (2026-11-02, `docs/results/drafts/preregs_2026-11.md`):** the Verify test exists (`tests/test_train.py::test_decay_norm_bias_false_exempts_norms_biases_and_embeddings`); exempting decay of 0.01 cannot plausibly reach the 0.0117 yardstick (§173) one 48k arm resolves. Final-LayerNorm nit not done, not funded. **Implemented behind `--no-decay-norm-bias` and `--warmup-steps` (2026-10-16, 9c3b615); measurement open.**
+- [x] AU5.10 **Done (2026-11-05, closed without a run by the owner on the recommendation below).** **Recommended for closing without a run (2026-11-02, `docs/results/drafts/preregs_2026-11.md`):** the Verify test exists (`tests/test_train.py::test_decay_norm_bias_false_exempts_norms_biases_and_embeddings`); exempting decay of 0.01 cannot plausibly reach the 0.0117 yardstick (§173) one 48k arm resolves. Final-LayerNorm nit not done, not funded. **Implemented behind `--no-decay-norm-bias` and `--warmup-steps` (2026-10-16, 9c3b615); measurement open.**
       The final-LayerNorm-before-pooling nit is not done (model.py).
       **Optimiser nits.** Weight decay also hits LayerNorm, biases and embeddings
       (`train.py:407`); no final LayerNorm before pooling in two encoders; warmup fixed at 500

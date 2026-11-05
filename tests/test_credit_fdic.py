@@ -133,11 +133,14 @@ def test_shared_splits_put_the_crisis_in_training(tmp_path):
         assert panel.time[tr].max() < panel.time[te].min() - panel.embargo
 
 
-def test_registered_evaluation_only_and_not_admitted():
+def test_registered_evaluation_only_and_admitted_fintfm_only():
     assert "fdic" in cs.DATASETS and "fdic" in EVAL_ONLY_SOURCES
     ds = cs.DATASETS["fdic"]
-    assert ds.licence.include is False and ds.licence.checked == fd.FDIC_CHECKED
-    assert "fdic" not in cs.admitted()
+    assert ds.licence.include is True and ds.licence.checked == fd.FDIC_CHECKED
+    assert "fdic" in cs.admitted() and "FinTFM only" in ds.licence.reason
+    from fintfm.evaluation.proxy_suite import licence_verdict
+
+    assert licence_verdict(ds.licence.licence) is None
     assert ds.licence.url.startswith("https://") and ds.licence.reason
     assert "FinTFM-only" in fd.__doc__ or "FinTFM-R number" in fd.__doc__
 

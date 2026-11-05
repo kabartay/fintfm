@@ -2,8 +2,9 @@
 
 Task DR4.3 (design review 2026-10-16). Evaluation only: the data stays under ``data/estonia/``
 (gitignored), ``estonia`` is in :data:`fintfm.prior.real_panel.EVAL_ONLY_SOURCES`, and the
-suite entry in :mod:`fintfm.evaluation.credit_suite` is registered with ``include=False``
-(see "What the open data cannot give" below).
+suite entry in :mod:`fintfm.evaluation.credit_suite` was admitted by the owner on 2026-11-05
+(``include=True``) with its survivor-conditioned label stated (see "What the open data cannot
+give" below).
 
 Source and licence
 ------------------
@@ -42,8 +43,8 @@ of 2026-11-04 (counts in ``docs/results/drafts/dr4.3-estonia_2026-11.md``):
    alive in 2026. Both are selected on 2026 state, so the label is conditioned on a future
    the model would not have had. This is survivor-conditioned, not a default label.
 
-The panel is built anyway so the owner can see the numbers, and it is gated off. Do not
-quote a score from it as a bankruptcy-prediction result.
+The panel was built so the owner could see the numbers, and the owner admitted it on
+2026-11-05 with this caveat. Do not quote a score from it as a bankruptcy-prediction result.
 
 Label
 -----
