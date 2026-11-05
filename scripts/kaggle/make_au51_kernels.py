@@ -52,7 +52,8 @@ FOLDS = {folds}
 CONFIG = """{config}"""
 
 
-def main():
+def main() -> None:
+    """Fine-tune per dataset and score this kernel's folds, refusing an unpinned or CPU-only run."""
     if COMMIT == "{placeholder}":
         sys.exit("kernel is not pinned: regenerate with make_au51_kernels.py --commit <pushed sha>")
     hits = sorted(Path("/kaggle/input").rglob("company_years_h1.parquet"))

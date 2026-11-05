@@ -55,12 +55,14 @@ import sys
 from pathlib import Path
 
 
-def run(cmd):
+def run(cmd: list[str]) -> None:
+    """Echo ``cmd`` to the log, then run it, failing the kernel on a non-zero exit."""
     print("+ " + " ".join(cmd), flush=True)
     subprocess.run(cmd, check=True)
 
 
-def find_panel():
+def find_panel() -> Path:
+    """The one ``panel.parquet`` of this arm's dataset; exactly one, so no wrong source."""
     # Kaggle has mounted datasets at more than one depth under /kaggle/input; search rather than
     # trust one layout, and require exactly one match so the wrong source cannot be picked up.
     hits = sorted(p for p in Path("/kaggle/input").rglob("{arm}/panel.parquet")
@@ -71,7 +73,8 @@ def find_panel():
     return hits[0]
 
 
-def main():
+def main() -> None:
+    """Install the pinned package, then train the arm from scratch with its real-panel share."""
     panel = find_panel()
     run([sys.executable, "-m", "pip", "install", "--quiet",
          "fintfm[real] @ git+https://github.com/kabartay/fintfm.git@{commit}"])

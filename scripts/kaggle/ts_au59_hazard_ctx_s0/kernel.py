@@ -19,7 +19,8 @@ RECIPE_URL = ("https://raw.githubusercontent.com/kabartay/fintfm/" + COMMIT
               + "/configs/arms/au59-hazard-period-context.yaml")
 
 
-def main():
+def main() -> None:
+    """Refuse an unpinned or CPU run, install the pinned package, pretrain, then probe."""
     if COMMIT == "UNPINNED":
         sys.exit("kernel is not pinned: regenerate with make_au59_kernels.py --commit <pushed sha>")
     smi = subprocess.run(["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
