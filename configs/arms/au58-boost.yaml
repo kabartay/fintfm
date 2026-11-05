@@ -1,0 +1,14 @@
+# Audit AU5.8, arm "boost": BoostPFN-style boosting rounds of small contexts, combined in logit
+# space (arXiv 2503.01256, reimplemented): 8 rounds of 512 context rows.
+#
+# NOT PRODUCTION. MEASUREMENT OPEN. `boost_pool_rows` caps the residual pool at 100,000 rows,
+# because uncapped every round scores the whole ~600,000-row training pool (draft estimate 8 to
+# 25 h per fold). Equivalent to `--large-n boost` plus this cap; every other key inherits the
+# packaged default.
+#
+#   uv run --frozen fintfm-v4protocol --model runs/v4-cellattn-labels.pt \
+#     --config configs/arms/au58-boost.yaml --no-boosting --device cpu --out runs/au58/boost
+
+large_n:
+  method: boost
+  boost_pool_rows: 100000

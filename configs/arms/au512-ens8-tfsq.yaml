@@ -1,0 +1,15 @@
+# Audit AU5.12, arm "ens8-tfsq": 8 ensemble members at the default 2,000-row context, member i
+# conditioning its features with transform i mod 2 of (rank, squash).
+#
+# NOT PRODUCTION. MEASUREMENT OPEN (V4FinBench five folds). TabArena-Lite, 27 binary datasets,
+# split 0: 20 better / 6 worse / 1 tied against the 8-member default (sign p 0.009, mean ROC-AUC
+# +0.01023, Elo 807 against 756), docs/results/drafts/inference_tasks_2026-11.md. Every other key
+# inherits the packaged default. Control: §196's `ens8` (runs/v4-lever-ens8, 8 plain members), so
+# only the transforms differ.
+#
+#   uv run --frozen fintfm-v4protocol --model runs/v4-cellattn-labels.pt \
+#     --config configs/arms/au512-ens8-tfsq.yaml --no-boosting --device cpu --out runs/au512/tfsq
+
+inference:
+  n_ensemble: 8
+  ensemble_transforms: [rank, squash]
