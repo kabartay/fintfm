@@ -233,6 +233,15 @@ to the cap, also when the pool fits in `max_context`, so credit-g's 875-row bag 
 375-row contexts; the base-rate correction then reads the capped rate. Neither is merged into
 the running queue's code until that queue finishes.
 
+**Fix 5 could not run on this machine (2026-11-05).** `fintfm_lite_retrieval_1104` completed 0 of
+the 4 datasets it attempted (Amazon_employee_access, Bank_Customer_Churn, Diabetes130US,
+E-CommereShippingData). On MPS each fit ran out of Metal memory (86 GB of "other allocations"
+against about 2 GB of live tensors), because retrieval runs one forward pass per query group and
+that memory grows within a single dataset, so one process per dataset does not contain it. On CPU
+(fork switch `FINTFM_DEVICE=cpu`, be201d7) the same datasets hit TabArena's per-fit time limit. The
+arm was stopped by hand and needs a CUDA run; `runs/lite2611/fintfm_lite_retrieval_1104*.log`
+hold both failure modes. Fixes 1, 2, 3 and 6 run in `runs/lite2611/queue_rest.sh`.
+
 Not worth a run on this evidence: a larger context (+0.0008 for 500 → 1000), wide-table
 strategies (no Lite table is wide), and categorical-encoding variants (ρ = -0.07).
 
