@@ -9,7 +9,7 @@ Status vocabulary:
 - **RETRACTED** — we asserted it and it is false.
 - **OPEN** — proposed, not measured.
 
-Statuses last reviewed 2026-09-20. Numbers and section references re-checked against
+Statuses last reviewed 2026-09-20 (Claim 2 note added 2026-11-05). Numbers and section references re-checked against
 `docs/results/FINDINGS.md` on 2026-10-15; corrections made then carry that date. Claims 16-18
 (§157-§164) added 2026-10-16.
 
@@ -91,6 +91,15 @@ The *technique* is public and permissively licensed. What remains defensible is 
 **financial** generative story, the provenance *argument* (not the mechanism), and the
 calibration result. Any draft must make the claim in that narrower form; see
 `docs/paper/RELATED_WORK.md`.
+
+**Update 2026-11-05 (peer read, `docs/paper/RELATED_WORK.md`): narrower again, in two ways.**
+Three more peers now ship synthetic-only, in-context models (Neuralk Seldon, TabAbax, and Nori 1.5
+with a third-party classifier head), so the mechanism is a field default, not a differentiator.
+And **a model that described its pretraining data as synthetic, LimiX-2, is the subject of an open
+contamination report on TabArena** (autogluon/tabarena issue #648; the team attributes it to
+pipeline bugs). The surviving version of the provenance argument is the *auditable* one: FinTFM
+publishes its generator and never touches real data, so the label can be checked. This is a
+positioning claim, not a measurement, and applies to FinTFM only.
 
 **Everything below still holds as measured.** The mechanism that broke the
 original measurement is fixed and independently confirmed; what transfer exists is now

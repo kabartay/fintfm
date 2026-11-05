@@ -1219,3 +1219,103 @@ weights non-commercial; Nori Apache-2.0 for both.
 **What is left for us from this read.** No new claim. Two untested levers with direct peer
 support, both in the improvement plan: training at the row counts the model is scored at, and a
 readout over the context's own labels.
+
+## Peer read of 2026-11-05: a contaminated "synthetic-only" leader, a prior-quality paper, and three new synthetic-only entrants
+
+**Status.** Periodic read (previous: 2026-10-16, with the 2026-11-02 row-count addendum). Every
+figure comes from the source named in `docs/research/REFERENCES.md`, section "Peer read 2026-11-05":
+arXiv PDFs via `pdftotext`, the board as the raw CSV of the TabArena Space at commit `0cec481`
+(v0.1.9.15, 2026-11-04), repository files and releases directly, Seldon's card as raw HTML. A
+WebFetch summary was used first for some pages and is not the basis of any number here.
+
+**The board, default view (models only, imputed included, 51 datasets).** Against the 2026-10-16
+read (Space v0.1.9.7): Kumo-Tabular 1931 (was 1947), LimiX-2 1922 (1940), Kumo-Medium 1870 (1889),
+TabPFN-3.5 1833 (1853), TabFM 1763 (1774), Causilo 1756 (1777), Mitra-v2 1740 (1754), EXAONE-Tabular
+1721 (1738). Elo is relative to the entrant pool, so a uniform drop of 10-20 is new entrants, not
+regression. New rows: **TabAbax 1651** (rank 10), Xiaomi-TabLDM 1571, TabPFN-3 1611, **Seldon 1548
+(CI +117/-117, 25.49% imputed) and Seldon-Mini 1513**, FTFM 1477. TabICLv2 1550; Nori and Nori-30M
+sit at 1152 and 1162. Order of the top three is unchanged.
+
+**1. LimiX-2, the #2 entry, carries an open contamination report** (TabArena issue #648,
+2026-10-07). Evidence in the issue: with a stripped configuration LimiX-2 reaches test 1-AUC 0.0066
+on diabetes against 0.1556 for the next-best method, and returns to 0.1536 when the column order is
+reversed; the same on blood-transfusion (0.1774 stripped against 0.2410 next-best). The LimiX team
+(2026-10-29) calls it unintended, caused by an incomplete overlap filter plus a bug that sometimes
+added reference data as training examples, says the reference sets were meant to set four generator
+parameters only, and promises a replacement model. Two readings that matter here. (a) The team
+described its training data as synthetic; a synthetic-only label on a model card was not enough to
+guarantee it, which is the argument D2 and the published generator (`CLAUDE.md`, Licensing) make for
+auditable provenance. It supports that argument; it does not make FinTFM's measured placement better.
+(b) Our own comparisons to LimiX-2 (the 2026-10-16 table, and the scaling-ablation reading in the
+Peer sweep) rest on a score that may be inflated on a dataset-by-dataset basis. Treat LimiX-2's
+rank as provisional until the replacement ships. The issue says nothing about datasets beyond the
+two, and the bug account is the team's own.
+
+**2. TabAbax (arXiv:2611.00562): the first paper to vary prior quality on its own, and its answer
+splits by task type.** Same TabICLv2 architecture, improved prior: **+228 Elo on regression, +12 on
+classification** (Table 4). Their architectural changes carry classification (+64 more). The
+authors' own limitation: their predictability filters remove weak-signal, high-noise tasks, "exactly
+the regime of many real-world datasets", so generalisation to weak-signal real data "may be
+reduced". Credit default is that regime and a classification task. What it means here: it is the
+nearest published relative of our prior-versus-architecture decomposition (§78: the cap was
+architectural, not prior content), and it points the same direction for classification. It is
+evidence about a general-tabular board, not about credit, and TabArena's authors' pool differs
+from the repository's board (their 1,647 is their own 99-method pool; the board shows 1651 for the
+combined entry). Weights CC-BY-NC-4.0, so evaluation of numbers only.
+
+**3. Seldon (Neuralk): a vendor's head-to-head win rates and the board disagree.** Its card (read
+raw) claims win rates on TabArena classification (38 datasets, 594 folds) of 82.3% over TabICLv2,
+63.5% over TabPFN-3.5 and 40.6% over LimiX-2, synthetic SCM prior only, classification only,
+213.5M parameters, gated weights under the Neuralk Seldon License. The board, which imputes the
+missing regression datasets, places it at 1548 against TabICLv2's 1550. These measure different
+things (classification-only win rate against Elo with 25.49% imputation), so neither refutes the
+other; only the classification-only board view would settle it, and it was not read. Licence: not
+read in full; treat as non-commercial until read. For this project: a fourth synthetic-only peer
+whose claim cannot be audited (the generator is not published, unlike ours).
+
+**4. Nori 1.5 and the CardoAI classification head.** Nori 1.5 (~21M, Apache-2.0 per card,
+"trained entirely on synthetic data") reports R2 on TabArena's 13 regression datasets of 0.8175
+mean against 0.8120 for Nori-100M, and is 2.5x faster than Nori-30M (309 s against 782 s,
+approximate, by the card). Scaling axis varied: size 6M to 100M and a newer 21M variant; the pattern
+of "smaller and newer matches larger" repeats the finding already recorded (the 2026-09-21 Nori
+curve). More relevant: CardoAI trained **only a label encoder and read-out head** on a frozen
+Nori base, with Synthefy's synthetic prior, and reports ROC AUC 0.820 on all TabArena binary sets
+(card, own protocol). That is a synthetic-only, Apache-2.0 classifier built on someone else's
+weights: it shows the classification read-out is the cheap, separable part, which bears on the
+read-out experiment already in the improvement plan.
+
+**5. TabPFN: licence loosened for code only, new context-construction option, API-only compute.**
+v9.0.0 (2026-09-15) relicenses the **code** to plain Apache-2.0; weights unchanged (2.5, 2.6, 3 and,
+per the README, 3.5 and 3.5-Fast non-commercial; TabPFN-2 under the Prior Labs licence). The
+"TabPFN code Apache-2.0 with attribution requirement" wording in this repository's older entries is
+now out of date for current code. v9.0.0 also adds `SAMPLE_SUBSAMPLING_METHOD="majority_downsample"`
+(keep all minority rows, downsample the most frequent target value): an inference-time context rule
+in the same family as the prototype and undersampled contexts (Kostrzewa; Tanna) already recorded.
+Thinking mode (test-time compute, TabPFN-3.5-Thinking) is **hosted-API only**, with no benchmark
+numbers on its own docs page; the "over 200 Elo" figure seen in a search snippet is not cited
+because its source was not opened. SAP announced the acquisition on 2026-05-04 (terms undisclosed);
+treat later completion reports as unconfirmed.
+
+**6. TabICL, TabDPT, Mitra, TabFM, NEXUS: no new model.** TabICL's latest release is v2.2.0
+(2 Sep; adds pre-training code, FlashAttention-3 support), no licence change stated. TabDPT's HF repo
+last modified 2026-09-08, still Apache-2.0 per the Hub API. TabFM's 1.1.0 card is already recorded.
+No new Mitra release found. Fundamental publishes no benchmark we could find. Mitra-v2 stays at 1740
+on the board, Apache-2.0.
+
+**7. Credit and finance.** Nothing new that is a paper. The Lessmann seminar (2026-10-01, 14 PD and 7
+LGD datasets, 33 and 27 methods) reports TabPFN-3 and TabICLv2 strongest, with gains largest in
+small and imbalanced settings; the event page links no paper and states no time split, so it does not
+change the positioning (our edge was never in-sample AUC on small static data, Claim 7).
+The Mission Lane post could not be opened. Morgan Stanley's mechanistic paper (Biloš et al.) uses
+credit-g and credit-approval only as two of 49 datasets.
+
+**What it means for the claims.** Claim 2's "synthetic-only" differentiator was already gone; it
+now has three more peers (Seldon, TabAbax, Nori 1.5 plus a classifier head) and one demonstration
+that the label alone does not prove it (LimiX-2). The defensible part is the *auditable* version:
+published generator, and for FinTFM no real data at all.
+
+**What is left for us.** (i) A credit-aware prior filter: TabAbax drops weak-signal tasks, credit
+lives there, so the question is whether our existing signal filter does the same harm on low-base-rate
+panels. (ii) The classification read-out is separable (CardoAI), supporting the matched-label probe
+test before a rebuild. (iii) Check TabArena claims against the replacement LimiX-2 before quoting any
+rank relative to it.

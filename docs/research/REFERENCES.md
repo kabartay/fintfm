@@ -522,6 +522,72 @@ ensembles (§3), and TabArena-Lite is all datasets with one outer fold (Appendix
 authorises copying an implementation, a weight file, or a pretraining corpus, and a repository
 under a permissive code licence proves nothing about the weights inside it.
 
+## Peer read 2026-11-05
+
+Every entry below was opened on 2026-11-05 at the URL given: arXiv PDFs converted with
+`pdftotext`, repository files and releases via `gh api` or the page itself, the model-card HTML
+fetched raw with `curl` where a summariser had been used first, and the TabArena Space via its
+raw CSV and commit API. Reading only: nothing enters the repository.
+
+**Cheng, Gao, Han, Suo & Wang (2026), Bairong Inc.** *TabAbax: A Tabular Foundation Model
+Technical Report.* [arXiv:2611.00562](https://arxiv.org/abs/2611.00562) (v1, 31 Oct 2026). A
+TabICLv2 derivative (12-layer ICL stack kept) that changes only the synthetic prior and the
+column-row encoder. TabArena Elo (paper's own pool of 99 methods): classification 1,647 (+76 over
+TabICLv2's 1,571), regression 2,024 (+336 over 1,688); prior-only ablation +12 classification,
++228 regression (Table 4). Repository `github.com/tababax-research/TabAbax`: code is a mixture
+(BSD-3-Clause TabICL-derived parts, MIT, Apache-2.0), **weights CC-BY-NC-4.0**. The synthetic-only
+status is not stated in the paper text read; the README only mentions a synthetic prior.
+
+**Biloš, Wilson, Schneider & Nevmyvaka (2026), Morgan Stanley.** *A Mechanistic Study of Tabular
+Foundation Models.* [arXiv:2605.21288](https://arxiv.org/abs/2605.21288) (v1, 20 May 2026). TabPFNv2,
+TabICLv2 and Mitra reach similar accuracy through distinct similarity-based readouts, each
+confirmed by causal intervention; the paper states the training-data axis (varying the synthetic
+prior) is left open. Evaluated on 49 classification datasets including credit-g and
+credit-approval. Entered now; it was cited by TabAbax.
+
+**Neuralk-AI (2026).** *Seldon* model card, `huggingface.co/Neuralk-AI/seldon` (repository created
+2026-11-02 per the Hub API). Classification only, 213.46M parameters, "No real-world data was used
+in pretraining", SCM prior. **Weights gated under the "Neuralk Seldon License"** (named
+`neuralk-seldon-license`; the TabArena board calls it "Seldon Research and Evaluation License");
+terms not read, so treat as non-commercial until read. No paper linked on the card.
+
+**Synthefy (2026).** *Nori 1.5*, `huggingface.co/Synthefy/Nori-1-5` (created 2026-10-20 per the Hub
+API). Apache-2.0, ~21M parameters (20,757,832), "trained entirely on synthetic data". Regression
+only on its own card. License field is the card's; the weights file licence was not separately
+read, so state "Apache-2.0 per the card".
+
+**Geci & Guerrini (CardoAI) (2026).** *Nori Classifier 30M*, `huggingface.co/CardoAIDevs/Nori-Classifier-30M`.
+A third-party classification read-out trained on a frozen Nori base using Synthefy's synthetic prior
+(card text), Apache-2.0 per the card, context capped around 2,000 rows. Card reports ROC AUC 0.820
+on all TabArena binary datasets (their evaluation, not the board's).
+
+**Prior Labs (2026).** `PriorLabs/TabPFN` releases v9.0.0 (2026-09-15, GitHub API) to v9.2.0:
+TabPFN-3.5 default; **code relicensed to standard Apache-2.0** (PR #1271) with weights unchanged
+(TabPFN-2 Prior Labs License; 2.5, 2.6, 3 non-commercial; README adds 3.5 and 3.5-Fast
+non-commercial). New `SAMPLE_SUBSAMPLING_METHOD="majority_downsample"` keeps all minority-class
+rows. Thinking mode: `docs.priorlabs.ai/capabilities/thinking-mode` ("available exclusively through
+the hosted API"; TabPFN-3.5-Thinking default; no benchmark figures on that page). Changelog
+`docs.priorlabs.ai/changelog.md` lists "New Thinking mode, academic plan and more" for November 2026.
+SAP acquisition: `news.sap.com/2026/05/sap-to-acquire-prior-labs-establish-frontier-ai-lab-europe/`
+(4 May 2026; terms undisclosed, "more than EUR 1 billion over the next four years"; closing date
+not confirmed from a primary source).
+
+**LimiX (2026).** `github.com/limix-ldm-ai/LimiX` front page (code licence "Stable AI Technology
+Co., Ltd. License, Version 1.0 (September 2026)", Apache-derived with attribution and naming terms;
+LimiX-2 weights "StableAI LimiX Non-Commercial License"; LimiX-2M and 16M weights under the Stable AI
+licence). **Contamination report:** `github.com/autogluon/tabarena/issues/648` (opened 2026-10-07, open
+as read): LimiX-2 shows signs of memorising two TabArena datasets (diabetes, blood-transfusion);
+the LimiX team's reply of 2026-10-29 attributes it to two pipeline bugs (an incomplete overlap
+filter and reference data sometimes used as training examples) and promises a replacement model.
+The team's account is theirs and unverified.
+
+**TabArena board** at Space commit `0cec481` (v0.1.9.15, 2026-11-04), default view's
+`website_leaderboard.csv`. See `docs/paper/RELATED_WORK.md`, section "Peer read of 2026-11-05".
+
+**Other entrants newly on the board, repositories read:** FTFM (`machinelearningnuremberg/ftfm-official`,
+code Apache-2.0, weights CC-BY-NC-4.0, no paper or training-data statement on the README);
+Xiaomi-TabLDM, TabAbax and Seldon as above.
+
 ### Still unverified — do not cite
 
 - Credit-risk TFM evaluations reporting that TFMs are strongest in small-data PD/LGD
@@ -539,3 +605,14 @@ Confirm title, authors, venue, licence and commercial-use terms before citing or
 **Check the data licence separately from the code licence** — Google's TabFM ships
 Apache-2.0 code with non-commercial weights, so a permissive repository proves nothing about
 what is inside it.
+
+**Added 2026-11-05, opened but not usable as evidence:**
+- Lessmann (Humboldt) seminar, Tinbergen Institute, 2026-10-01 (event page opened): 33 classifiers on
+  14 PD datasets, 27 regressors on 7 LGD datasets, "TabPFN-3 and TabICLv2 achieve the strongest
+  average results", largest gains in small and strongly imbalanced settings. No paper linked on the
+  page; protocol (time split or not) unknown. A lead, not a citation.
+- Mission Lane tech blog on TabICL for enterprise credit risk: the page returned HTTP 403, so
+  nothing from it may be quoted (a search snippet claimed "10,000x slower than LGBM"; unverified).
+- Fundamental NEXUS: no benchmark published as of the sources found (press only); nothing citable.
+- Neuralk "NICL 2.0": a talk listing only; superseded in practice by Seldon above.
+
