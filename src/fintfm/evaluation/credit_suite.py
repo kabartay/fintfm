@@ -2,11 +2,24 @@
 
 V4FinBench is the benchmark this project's claims rest on, and every arm so far was chosen on
 it. A second credit suite, scored the same way, says whether a change helps on credit data the
-arm was not chosen on. The suite is four public consumer-credit, card-fraud and small-business
-loan tables, with a fixed split per dataset, logistic regression and LightGBM at 1,000 trees
-beside FinTFM, and one CSV row per dataset, split and model.
+arm was not chosen on. The suite is :data:`DATASETS`, six tables in run order: PPDai and Bondora
+(consumer loans), ULB (card fraud), SBA 7(a) (small-business loans), the Estonian business
+register (firm bankruptcy) and FDIC bank failures (bank distress), with a fixed split per
+dataset, logistic regression and LightGBM at 1,000 trees beside FinTFM, and one CSV row per
+dataset, split and model.
 
-**Evaluation only, never training.** None of the four may feed pretraining or fine-tuning of
+**Four are admitted, two are not.** :func:`admitted` returns ``("ulb_fraud", "sba", "estonia",
+"fdic")``: the licence gate below admits ULB, SBA, Estonia and FDIC, and PPDai and Bondora stay
+in :data:`DATASETS` with ``include=False`` because their licences are excluded as unverified.
+:func:`run` and the command line score only the admitted ones. The detailed sections below
+(sizes, runtimes, the split and licence reasoning) were written when the suite was the first
+four tables and are still exact for them; Estonia and FDIC are documented in
+:mod:`fintfm.evaluation.credit_estonia` and :mod:`fintfm.evaluation.credit_fdic`, and the
+licence section says how each was admitted. FDIC is scored with FinTFM and the baselines only
+(never FinTFM-R), and Estonia's label is survivor-conditioned, so a score there is not
+bankruptcy-prediction skill.
+
+**Evaluation only, never training.** None of the six may feed pretraining or fine-tuning of
 either family: :data:`fintfm.prior.real_panel.EVAL_ONLY_SOURCES` makes the FinTFM-R sampler
 refuse their panels, and ``docs/research/data_candidates.csv`` marks them ``EVAL_ONLY``. PPDai,
 Bondora, ULB fraud and SBA were FinTFM-R pilot arms before this suite existed
@@ -115,7 +128,7 @@ Licence at the original source (read 2026-10-19, SBA's 2026-10-20), and which ar
 DR4.2's owner rule (2026-10-16) decides on the licence at the data's original source: CC BY,
 CC0, public domain or MIT pass; a permissive licence granted by someone other than the data's
 owner over data from a source that states no licence is excluded as unverified, and so is a
-copyleft term. Applied to the four datasets:
+copyleft term. Applied to the first four datasets (Estonia and FDIC follow below):
 
 * **PPDai**: figshare states "CC BY 4.0" (``https://api.figshare.com/v2/articles/13573871``,
   field ``license``). The record's description says the data "is obtained from customer data
@@ -151,9 +164,19 @@ copyleft term. Applied to the four datasets:
   privacy rights under state law." The last is why borrower names and addresses never leave
   the raw file.
 
-Owner decisions: ULB is admitted and PPDai and Bondora are not (2026-10-19), and SBA is
-admitted (2026-10-20), a public-domain grant by its producer, which DR4.2's rule passes and
-which asks for no notice. ULB's grant comes from the data's collector, and the suite never
+* **Estonia** (2026-11-04): RIK, the register's operator, links CC BY 4.0 as "License
+  information"; no sentence names the licence beside the link. Admitted 2026-11-05 with its
+  survivor-conditioned label stated (:mod:`fintfm.evaluation.credit_estonia`).
+* **FDIC** (2026-11-04): the API page and website policies state no licence; the FDIC, a US
+  federal agency, produces the data, so public domain rests on statute (17 U.S.C. section 105),
+  not on a grant at the source. Admitted 2026-11-05 as a named exception to DR4.2's rule, for
+  FinTFM only: a name match against the one EDGAR filer list reachable already flags 6.72% of
+  rows as SEC filers, a floor, so no FinTFM-R number is computed on it
+  (:mod:`fintfm.evaluation.credit_fdic`).
+
+Owner decisions: ULB is admitted and PPDai and Bondora are not (2026-10-19), SBA is admitted
+(2026-10-20), a public-domain grant by its producer, which DR4.2's rule passes and which asks
+for no notice, and Estonia and FDIC are admitted (2026-11-05) on the terms above. ULB's grant comes from the data's collector, and the suite never
 redistributes the database or a derivative of it; its scores are Produced Works, which
 ODbL-1.0 section 4.3 allows with a notice, so the share-alike term does not apply.
 :data:`ODBL_NOTICE` is that notice: :func:`run` prints it and writes it beside the results, and
@@ -678,8 +701,8 @@ def load_sba(root: Path) -> CreditPanel:
 _UNVERIFIED = ("owner decision needed (DR4.2 rule): the grant is the uploader's, not the data "
                "owner's, and the original source states no licence")
 
-#: The suite, in run order. Every entry is excluded until the owner admits it; see the module
-#: docstring for the text and pages behind each verdict.
+#: The suite, in run order. An entry is scored only once the owner admits it (``include=True``);
+#: PPDai and Bondora are still excluded and the other four admitted. See the module docstring for the text and pages behind each verdict.
 DATASETS: dict[str, SuiteDataset] = {
     "ppdai": SuiteDataset(
         "ppdai", "https://ndownloader.figshare.com/files/26049599", load_ppdai,

@@ -11,8 +11,10 @@ with SEC EDGAR filers before any FinTFM-R number is computed on a new benchmark.
 holding companies file 10-K and 10-Q with the SEC, and FinTFM-R's pretraining panels start on
 EDGAR, so this dataset may share firms with them (the bank-level financials here are the Call
 Report, filed with the FDIC, not the holding company's filing, but the economic entity
-overlaps). That check has not been run. Until it is, score this dataset with FinTFM
-(synthetic-only) and the baselines only; do not compute a FinTFM-R number on it.
+overlaps). The check is partial: a conservative name match against the only EDGAR filer list
+reachable (2023 filings) already flags 6.72% of rows (``docs/results/drafts/dr4.3_2026-11b.md``),
+a floor, and no historical filer list has been matched. Until one is, score this dataset with
+FinTFM (synthetic-only) and the baselines only; do not compute a FinTFM-R number on it.
 
 Source and licence (read 2026-11-04)
 ------------------------------------
