@@ -24,11 +24,13 @@ import sys
 
 
 def run(cmd: list[str]) -> None:
+    """Echo ``cmd`` to the log, then run it, failing the kernel on a non-zero exit."""
     print(f"+ {' '.join(cmd)}", flush=True)
     subprocess.run(cmd, check=True)
 
 
 def main() -> None:
+    """Install the pinned fintfm, run the pretraining recipe once and save its checkpoint."""
     # Pinned to the commit that added --head-type/--n-quantiles, which postdates the 0.5.6
     # PyPI release used by every other kernel that doesn't need this flag.
     run([

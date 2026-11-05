@@ -39,6 +39,7 @@ RECIPE_URL = (f"https://raw.githubusercontent.com/kabartay/fintfm/{COMMIT}/"
 
 
 def main() -> None:
+    """Train the arm with its pinned recipe and flags; SCORE_V4 is False, so it stops after training."""
     root = None
     if SCORE_V4:
         hits = sorted(Path("/kaggle/input").rglob("company_years_h1.parquet"))

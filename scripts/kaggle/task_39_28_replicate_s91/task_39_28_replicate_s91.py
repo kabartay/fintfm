@@ -19,11 +19,13 @@ import sys
 
 
 def run(cmd: list[str]) -> None:
+    """Echo ``cmd`` to the log, then run it, failing the kernel on a non-zero exit."""
     print(f"+ {' '.join(cmd)}", flush=True)
     subprocess.run(cmd, check=True)
 
 
 def main() -> None:
+    """Install the pinned fintfm, then pretrain twice (with and without cell labels) and save both checkpoints."""
     run([sys.executable, "-m", "pip", "install", "--quiet", "fintfm==0.5.6"])
 
     import torch

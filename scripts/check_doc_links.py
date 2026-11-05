@@ -49,6 +49,11 @@ def anchor_slug(heading: str) -> str:
 
 
 def main() -> int:
+    """Check every tracked Markdown file's links and prose references.
+
+    Returns:
+        0 when all resolve, 1 after printing each broken one to stderr.
+    """
     files = [
         Path(p)
         for p in subprocess.run(

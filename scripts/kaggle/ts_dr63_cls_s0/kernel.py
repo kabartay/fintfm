@@ -26,6 +26,7 @@ RECIPE_URL = (f"https://raw.githubusercontent.com/kabartay/fintfm/{COMMIT}/"
 
 
 def main() -> None:
+    """Train the arm with its pinned recipe and flags, then score it on V4FinBench's folds."""
     hits = sorted(Path("/kaggle/input").rglob("company_years_h1.parquet"))
     if len(hits) != 1:
         sys.exit(f"expected one company_years_h1.parquet under /kaggle/input, found {hits}")

@@ -63,6 +63,7 @@ def prepare() -> tuple[np.ndarray, np.ndarray, np.ndarray, pd.Series, list[str]]
 
 
 def main() -> None:
+    """Fit on a Home Credit training split, report a held-out estimate, and write the submission CSV."""
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--model", required=True)
     p.add_argument("--out", default="runs/homecredit_submission.csv")

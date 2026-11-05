@@ -26,11 +26,13 @@ import sys
 
 
 def run(cmd: list[str]) -> None:
+    """Echo ``cmd`` to the log, then run it, failing the kernel on a non-zero exit."""
     print(f"+ {' '.join(cmd)}", flush=True)
     subprocess.run(cmd, check=True)
 
 
 def main() -> None:
+    """Install the pinned fintfm, run the pretraining recipe once and save its checkpoint."""
     # Pinned to the commit that fixed warmup_steps never being wired to AdamWScheduleFree.
     run([
         sys.executable, "-m", "pip", "install", "--quiet",

@@ -114,6 +114,11 @@ def check(path: Path) -> list[str]:
 
 
 def main() -> int:
+    """Validate ``.zenodo.json`` as deposit metadata.
+
+    Returns:
+        0 when it would publish, 1 when it is absent or has problems (each printed).
+    """
     path = Path(".zenodo.json")
     if not path.exists():
         print(f"{path} absent; Zenodo would derive metadata from the GitHub repository")

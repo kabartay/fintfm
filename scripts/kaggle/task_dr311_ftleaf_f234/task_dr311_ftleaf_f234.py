@@ -28,7 +28,8 @@ inference:
 """
 
 
-def main():
+def main() -> None:
+    """Pin the package, verify the public checkpoint, then score the V4FinBench folds on GPU."""
     hits = sorted(Path("/kaggle/input").rglob("company_years_h1.parquet"))
     if len(hits) != 1:
         sys.exit(f"expected one company_years_h1.parquet under /kaggle/input, found {hits}")

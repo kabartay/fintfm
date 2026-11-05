@@ -71,6 +71,7 @@ def paired_delta(dir_a: str, dir_b: str) -> tuple[float, int, int, list[float]]:
 
 
 def main() -> None:
+    """Print per-fold and mean AP for each complete column_id_dim arm, with Holm-adjusted paired tests."""
     have = {k: v for k, v in ARMS.items() if len(glob.glob(f"{v}/predictions_fold*.npz")) == 5}
     missing = sorted(set(ARMS) - set(have))
     if missing:

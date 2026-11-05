@@ -48,7 +48,8 @@ def load():
     return X, y, Xt, ids.loc["test"].to_numpy()
 
 
-def main():
+def main() -> None:
+    """Score LightGBM and both FinTFM arms on a holdout, then write each arm's submission."""
     subprocess.run([sys.executable, "-m", "pip", "install", "--quiet",
                     "fintfm @ git+https://github.com/kabartay/fintfm.git@4ad16a8"], check=True)
     import pandas as pd
@@ -66,10 +67,12 @@ def main():
     X, y, Xt, test_ids = load()
     Xa, Xh, ya, yh = train_test_split(X, y, test_size=0.2, stratify=y, random_state=0)
 
-    def fintfm():
+    def fintfm() -> FinancialTFMClassifier:
+        """A fresh zero-shot FinTFM classifier on CPU."""
         return FinancialTFMClassifier(str(ckpt), device="cpu", random_state=0)
 
     def lightgbm():
+        """A fresh default LightGBM reference classifier (500 rounds)."""
         # Imported last: LightGBM's OpenMP loaded before torch segfaulted the local smoke run.
         from lightgbm import LGBMClassifier
 

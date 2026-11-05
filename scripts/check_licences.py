@@ -18,7 +18,7 @@ licence, which is a separate question and the one that actually bites (`CLAUDE.m
 from __future__ import annotations
 
 import sys
-from importlib.metadata import distributions
+from importlib.metadata import PackageMetadata, distributions
 
 #: Substrings that identify a permissive licence. Matched case-insensitively against whatever
 #: the distribution declares, which is inconsistent across packaging generations -- some use
@@ -61,7 +61,7 @@ KNOWN_GOOD: dict[str, str] = {
 }
 
 
-def declared_licence(meta) -> str:
+def declared_licence(meta: PackageMetadata) -> str:
     """Best available licence string for a distribution, across packaging generations."""
     for key in ("License-Expression", "License"):
         value = (meta.get(key) or "").strip()
@@ -78,6 +78,11 @@ def declared_licence(meta) -> str:
 
 
 def main() -> int:
+    """Check every installed distribution's declared licence against the permissive list.
+
+    Returns:
+        0 when all are permissive or verified by hand, 1 on a non-permissive or unknown one.
+    """
     offenders: list[tuple[str, str]] = []
     unknown: list[str] = []
     cuda: list[str] = []

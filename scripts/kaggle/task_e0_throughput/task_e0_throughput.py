@@ -92,6 +92,7 @@ def agreement(recipe: Path) -> dict:
 
 
 def main() -> None:
+    """Time each throughput arm on the session's GPUs, then check the arms agree numerically."""
     OUT.mkdir(parents=True, exist_ok=True)
     # ask nvidia-smi, not torch: initialising CUDA here would hold GPU 0 memory for the run
     smi = subprocess.run(["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
