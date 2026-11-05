@@ -386,7 +386,7 @@
       regression or LightGBM) on those features on V4FinBench, and compare against (a) fintfm's
       own head and (b) the same classifier on raw features — a representation that helps (b)
       without matching (a) is still a real and reportable result, not a null one.
-- [ ] 48.23 **Audit whether the prior's signal filter drops weak-signal tasks (peer read
+- [x] 48.23 **Done (2026-11-05, audit; `docs/results/drafts/48.23_2026-11.md`, `scripts/prior_filter_audit.py`): no filter drops weak-signal or low-base-rate tasks at the published recipe.** The only signal filter, the ExtraTrees learnability resample (`prior/mixture.py:218`, `prior/learnability.py`), is off (`p_learnability_filter: 0.0`); the remaining guards are both-classes repairs and a base-rate floor, which widen coverage (`prior/financial.py:817-847`). MEASURED, seed 0, 2,000 binary tasks: positive-rate median 0.033 (5th percentile 0.0039), 39% of tasks below 2%, 0 rejections; the both-classes repair fired on 17 of 2,000. The opt-in filter, if enabled, would reject 30.4% of draws overall and 52.4% of tasks below a 2% positive rate, so it stays off; an on/off arm (V4FinBench five-fold mean AP, 0.0117 rule) is needed only if someone proposes enabling it. **Audit whether the prior's signal filter drops weak-signal tasks (peer read
       2026-11-05, TabAbax, `docs/paper/RELATED_WORK.md`).** TabAbax (arXiv:2611.00562) improves
       TabICLv2's prior with filters and names as its own limitation that they drop weak-signal
       tasks, which is the low-base-rate credit regime. Check whether any filter in
