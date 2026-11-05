@@ -592,6 +592,7 @@ class _LossModule(torch.nn.Module):
     """
 
     def __init__(self, model: FinancialTFM) -> None:
+        """Hold ``model`` as the only submodule; see the class docstring."""
         super().__init__()
         self.model = model
 
@@ -634,6 +635,7 @@ class _NullSchedule:
     """
 
     def __init__(self, lr: float) -> None:
+        """Remember the constant base rate ``lr`` that :meth:`get_last_lr` reports."""
         self._lr = lr
 
     def step(self) -> None:

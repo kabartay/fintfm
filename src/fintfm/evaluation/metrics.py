@@ -199,6 +199,7 @@ def _group_sampler(groups: np.ndarray, rng: np.random.Generator) -> Callable[[],
     n_groups = len(counts)
 
     def draw() -> np.ndarray:
+        """Row indices of one whole-group bootstrap resample (groups drawn with replacement)."""
         g = rng.integers(0, n_groups, size=n_groups)
         lens = counts[g]
         # each output position, minus where its drawn group begins in the output, plus where
@@ -215,7 +216,7 @@ def paired_auc_difference(
     p_b: np.ndarray,
     n_boot: int = 2000,
     seed: int = 0,
-    metric=None,
+    metric: Callable[[np.ndarray, np.ndarray], float] | None = None,
     groups: np.ndarray | None = None,
 ) -> tuple[float, tuple[float, float], float]:
     """Bootstrap the metric difference between two models scored on the *same* rows.

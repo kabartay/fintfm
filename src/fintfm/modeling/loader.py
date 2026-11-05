@@ -133,6 +133,7 @@ class StreamingTaskDataset(IterableDataset):
         rank: int = 0,
         world_size: int = 1,
     ) -> None:
+        """Store the stream settings and this rank's indices; see the class docstring for args."""
         super().__init__()
         self.prior_cfg = prior_cfg
         self.batch_size = batch_size

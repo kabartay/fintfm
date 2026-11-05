@@ -1013,6 +1013,7 @@ class FinancialTFM(nn.Module):
         layers = None if induced else self.row_within_feature_encoder.layers
 
         def encode(x: torch.Tensor) -> torch.Tensor:
+            """Apply the row encoder (induced, masked or context-split) to one block of features."""
             if induced:
                 assert n_ctx is not None
                 return self._induced_rows(x, n_ctx)  # DR6.2

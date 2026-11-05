@@ -294,6 +294,7 @@ def _sample_interaction_order(
         raise ValueError(f"k must be in [1, n_features={n_features}], got {k}")
 
     def raw(X: np.ndarray) -> np.ndarray:
+        """Product of the signs of the first ``k`` features (zero counted as +1): the parity rule."""
         signs = np.sign(X[:, :k])
         signs[signs == 0] = 1.0
         return np.prod(signs, axis=1)
@@ -357,6 +358,7 @@ def sample_interaction_task(
     """A smooth multiplicative interaction between two features, no additive main effect."""
 
     def raw(X: np.ndarray) -> np.ndarray:
+        """Product of features 0 and 1, with no additive main effect."""
         return X[:, 0] * X[:, 1]
 
     X, y = _sample_by_sharpness(rng, n_rows, n_features, target_auc, raw, _score_out)
@@ -374,6 +376,7 @@ def sample_max_min_task(
     k = min(4, n_features)
 
     def raw(X: np.ndarray) -> np.ndarray:
+        """Row-wise maximum over the first ``k`` features."""
         return X[:, :k].max(axis=1)
 
     X, y = _sample_by_sharpness(rng, n_rows, n_features, target_auc, raw, _score_out)
@@ -398,6 +401,7 @@ def sample_piecewise_task(
     edges = np.concatenate([[-np.inf], breakpoints, [np.inf]])
 
     def raw(X: np.ndarray) -> np.ndarray:
+        """Piecewise-linear response of feature 0 under this task's fixed breakpoints and slopes."""
         x0 = X[:, 0]
         r = np.zeros_like(x0)
         for i in range(4):
