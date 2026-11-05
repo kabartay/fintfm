@@ -277,6 +277,64 @@ Elo rises with context and every interval overlaps the others; the rank does not
 default of 1000.** Staying inside the trained range buys nothing here, and the shorter contexts
 point the other way. The 1000 row comes from the 2026-10-19 run, not a same-day rerun.
 
+**Paired per dataset (DR3.5), MEASURED 2026-11-03 from the results above, no new fit.** Each arm
+against `experiments/fintfm_lite_nan_1019/` (the 1,000-row run), split 0, ROC-AUC, per-dataset
+`results.pkl`:
+
+| `max_context` | better / worse / tied (of 27) | sign test p | mean ROC-AUC change |
+| --- | --- | --- | --- |
+| 500 | 12 / 14 / 1 | 0.85 | -0.00048 |
+| 750 | 14 / 8 / 5 | 0.29 | +0.00096 |
+
+Largest moves at 500: Marketing_Campaign +0.0180, churn +0.0084; Is-this-a-good-customer -0.0118,
+Diabetes130US -0.0092. At 750: in_vehicle_coupon_recommendation +0.0155, churn +0.0096;
+seismic-bumps -0.0061. Null both ways, consistent with the Elo table; the default stays at 1000.
+The 1000-row arm is a 2026-10-19 run, not same-day.
+
+## Inference arms against the 8-member default (AU5.7, AU5.12, DR3.5; 2026-11-04/05)
+
+**MEASURED. One arm is a general-tabular gain that decides nothing yet.** TabArena-Lite, the 27
+binary datasets, split 0, the published checkpoint, NaN passed through, MPS. Each arm changes one
+inference setting of `FinancialTFMClassifier` against `fintfm_lite_nan_1019` (the adapter's default
+of 8 members, `max_context` 1000, 2026-10-19; **not a same-day run**), paired per dataset with
+`scripts/compare_lite_arms.py` on ROC-AUC. Baseline Elo 756 (+126/-180), 94th of 95.
+
+| arm | change | better / worse / tied | sign test p | mean ROC-AUC change | Elo |
+| --- | --- | --- | --- | --- | --- |
+| `fintfm_lite_ens1_1104` (AU5.7) | `n_ensemble` 1 | 7 / 20 / 0 | 0.019 | -0.00445 | 696 (+115/-196) |
+| `fintfm_lite_cshift_1104` (AU5.12) | `ensemble_class_shift` | 10 / 17 / 0 | 0.25 | -0.00611 | 716 (+150/-218) |
+| `fintfm_lite_svd16_1104` (AU5.12) | `ensemble_svd_components` 16 | 17 / 10 / 0 | 0.25 | +0.00306 | 782 (+128/-196) |
+| `fintfm_lite_tfsq_1104` (AU5.12, DR3.5) | `ensemble_transforms` `("rank", "squash")` | 20 / 6 / 1 | 0.009 | +0.01023 | 807 (+128/-195) |
+
+Largest moves. One member: Diabetes130US -0.0267, coil2000 -0.0229, airline -0.0171, hazelnut
+-0.0158, Is-this-a-good-customer -0.0150; E-CommereShippingData +0.0175, jm1 +0.0056,
+GiveMeSomeCredit +0.0053. Class shift: Is-this-a-good-customer -0.0477, Diabetes130US -0.0451.
+SVD: blood-transfusion +0.0127, hazelnut +0.0122, churn +0.0118. Transforms: credit-g +0.0497,
+churn +0.0412, E-CommereShippingData +0.0383, in_vehicle_coupon_recommendation +0.0348.
+
+**Readings.** One member is worse than eight, so the adapter's 8 stays (with FINDINGS §196's V4
+`ens8` +0.0058 mean AP, both halves of AU5.7 are measured). Class shift is a null that reverses its
+proxy lean. SVD is a null lean. Transforms `rank, squash` clear the sign test on Lite, which the
+proxy's 12 / 4 lean (p 0.077, `rank, power, squash`) pointed to. **That gain is general-tabular
+only.** Per CLAUDE.md ("Score on the benchmark this project claims"), it needs a five-fold
+V4FinBench mean AP beside it before the default changes, and that run is held by AU5.12. All Elo
+intervals overlap, the rank was not computed per arm here, and Lite reports and never selects
+(DR4.1).
+
+**How they were run.** The fork adapter gained `FINTFM_PARAMS` on 2026-11-04 (uncommitted at the
+time): a JSON object of `FinancialTFMClassifier` arguments overriding the adapter's defaults, with
+an unknown or reserved key raising and an explicit hyperparameter still winning. For example
+`FINTFM_PARAMS='{"n_ensemble": 8, "ensemble_transforms": ["rank", "squash"]}'`, with
+`FINTFM_PROBLEM_TYPES=binary` and a new `FINTFM_RUN_NAME` per arm (the caching trap above). On MPS
+the Metal-side allocations grew across fits in one process (85 GB against 3.3 GB of live tensors)
+until the first arm died after about 8 datasets, so every arm ran **one process per dataset**
+(`runs/lite2611/queue_ds.sh`); that changes no number, since each dataset's fit is independent and
+cached.
+
+**Not run: `context_strategy=retrieval`.** It could not be run locally: 0 of 4 datasets attempted
+completed (MPS out of memory, then TabArena's time limit on CPU, which is the integration defect
+described above, not a model result). It needs a CUDA run.
+
 ## The leaderboard name is `FinTFM`, with no version
 
 The leaderboard renders `ag_name`, and it lists **models**, not releases — TabSTAR, OrionMSP,
