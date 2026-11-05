@@ -13564,3 +13564,63 @@ bar. The gain is concentrated in fold 3 (+0.0140); the other four average +0.002
 fine-tuning is not shown to help beyond the partition, and it costs a fine-tuning run per fold.
 
 Still open in DR3.11: 8 members, depth 1 and 3 with fine-tuning, bagging over 4-8 trees, and TabArena-Lite, each against §169's arm.
+
+## §209: DR3.4, at equal labels the probe ties the head on V4FinBench, so §130-§136 measured label count
+
+**MEASURED, 2026-11-05.** `runs/dr34/run.sh`: `uv run --frozen --extra bench python -m
+fintfm.experiments.representation_transfer --model runs/v4-cellattn-labels.pt --stage pre_head
+--probe-rows context --device cpu --out runs/dr34/dr34-context-cpu.json` (log
+`runs/dr34/dr34-context-cpu.log`). CPU, because MPS aborted on memory on 2026-11-03; 48 h wall.
+V4FinBench horizon 0, 1,000,087 rows at 0.359% positive, five folds, every arm scored on the
+full test split (199,392-200,822 rows per fold). The probe is a logistic regression on the
+pre-head representation (§131's stage) fitted on the **2,000 rows the classifier uses as
+context**, which hold 4-13 positives per fold. Cross-fitted: each context row is represented
+against the other 4/5 of the context, and the head is scored the same way (`own_head_crossfit`),
+so no row reads its own label (DR3.4 task, dccaa0a). The `_stratified` arms are §131's 20,000-row
+sample (2,128-2,189 positives).
+
+| fold | head | head, cross-fitted | probe, 2,000 context rows | probe, 20,000 stratified | MLP, context | raw LR, context |
+| --- | --- | --- | --- | --- | --- | --- |
+| 0 | 0.2113 | 0.2107 | 0.2108 | 0.2349 | 0.1084 | 0.1109 |
+| 1 | 0.2050 | 0.2056 | 0.2060 | 0.2156 | 0.2015 | 0.0725 |
+| 2 | 0.1786 | 0.1792 | 0.1839 | 0.2130 | 0.1699 | 0.1029 |
+| 3 | 0.1810 | 0.1785 | 0.1737 | 0.2392 | 0.1459 | 0.0394 |
+| 4 | 0.2172 | 0.2167 | 0.2138 | 0.2041 | 0.2115 | 0.0919 |
+| **mean** | **0.1986** | **0.1981** | **0.1976** | **0.2213** | 0.1674 | 0.0835 |
+
+Average precision. Point values per fold; no bootstrap was run for this entry.
+
+| pair | ΔAP per fold | mean | folds positive |
+| --- | --- | --- | --- |
+| probe on context − head, cross-fitted | +0.0001, +0.0003, +0.0046, −0.0048, −0.0028 | **−0.0005** | 3 of 5 |
+| probe on context − head | −0.0005, +0.0009, +0.0053, −0.0073, −0.0033 | −0.0010 | 2 of 5 |
+| probe on 20,000 − probe on context | +0.0240, +0.0096, +0.0291, +0.0655, −0.0097 | +0.0237 | 4 of 5 |
+| probe on 20,000 − head | +0.0236, +0.0105, +0.0344, +0.0582, −0.0131 | +0.0227 | 4 of 5 |
+
+**The pre-registered rule is met.** DR3.4 said: if the probe's advantage over the head falls to
+0.005 AP or less when the probe sees only the context rows, §130-§136's reading is label count,
+not representation. The advantage is −0.0005 (cross-fitted), and no fold is outside ±0.0048.
+With the same labels the head reads its representation as well as a linear fit does.
+
+**Consequence for §130-§136.** "The representation beats its own head" should read "a linear fit
+given ten times the labelled rows, and about two hundred times the positives, beats the head".
+§131's +0.0214 is what 18,000 more labelled rows buy a linear fit on the same features; the
+stratified arm here reproduces it (+0.0227, 4 of 5; folds 0-3 within 0.0004 of §131's
+per-fold values, fold 4 0.2041 against §131's 0.1968, not investigated). Together with §203
+(at equal labels the head beats the probe on the prior's own tasks, −0.0046), neither in
+distribution nor on real credit data does the head under-read its representation. §132's
+TabArena linear-probe variant and §136's replication carry the same confound and are not
+evidence of a better readout.
+
+**What the representation is worth.** At 2,000 labelled rows it lifts a logistic regression from
+0.0835 to 0.1976 AP (+0.1141, 5 of 5); at 20,000 rows from 0.1661 to 0.2213 (+0.0552). The
+representation matters most where labels are scarce, which is the regime the classifier runs in.
+A two-layer MLP on the same 2,000 rows (0.1674) falls below the linear probe on 5 of 5 folds,
+fold 0 collapsing to 0.1084.
+
+**Action.** The head is not the bottleneck at the labels it sees; how many labelled rows, and
+especially positives, reach the model is. That question is already being tested on V4FinBench
+by 48.24's majority-downsample and uniform-4000 context arms and by AU4.3 (queued, AU5.12
+kernels). A label-attention or MLP readout (`docs/paper/RELATED_WORK.md`, the Prior Labs paragraph) is not
+supported by this result and stays behind those. §203's action stands for the prior: real-data
+improvement goes to the prior's coverage of real tables.

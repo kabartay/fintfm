@@ -749,7 +749,8 @@ framing places Seldon as tied with TabPFN v3 and TabICL rather than distinct fro
   representation is useful when handed to something else. Worth one experiment: extract fintfm's
   representation and test it as input to a plain classifier. (Done, noted 2026-10-15: §130-§136.
   A linear probe on fintfm's representation beats its own head on V4FinBench, +0.039 mean AP,
-  5 of 5 folds, §130.)
+  5 of 5 folds, §130; at equal labels it ties the head, −0.0005, so the gap was label count,
+  §209.)
 - **Yeo-Johnson `PowerTransformer`**, offered as a config-toggled alternative to standard
   scaling. A direct, one-line alternative to this project's rank-based `feature_transform` on
   the heavy-tailed financial ratios §35 already identified as a preprocessing lever. Cheapest
@@ -1173,9 +1174,10 @@ nearest-neighbor retrieval over the in-context training set" (arXiv 2605.13986, 
 "Classification is read out by attention over the one-hot training labels" (arXiv 2609.17895,
 §3.4). TabICL keeps "a two-layer MLP"; TabFM a 2-layer MLP; Mitra-v2 "a linear head over class
 logits". FinTFM's head is one linear layer, and a post-hoc linear probe on its pre-head state beats
-it (§131, label-count confounded). The Prior Labs change is the closest published relative of what
-that probe does, and is the reason the improvement plan ranks a label-attention readout (its
-experiment 5) behind a matched-label probe test rather than ahead of it.
+it (§131) only with ten times the labels; at equal labels it ties, −0.0005 AP (§209). The Prior
+Labs change is the closest published relative of what that probe does. The improvement plan
+ranked a label-attention readout (its experiment 5) behind that matched-label probe test, and the
+test (§209) found no readout gap for it to close.
 
 **Label entry.** TabICLv2's target-aware embedding, "E2[i,j] = E1[i,j] + EmbedTAE(yi), i ∈ Dtrain",
 is the same idea as FinTFM's `cell_labels`, which §172 measured at +0.0520 AP with cell
