@@ -5,6 +5,7 @@ a drift guard compares the two key by key. The kernel must refuse to run unpinne
 """
 
 import ast
+import re
 from pathlib import Path
 
 import numpy as np
@@ -60,8 +61,11 @@ def test_arm_prior_emits_wide_and_narrow_tasks_within_the_cap() -> None:
     assert min(widths) < 512  # not padded to the cap
 
 
-def test_kernel_is_unpinned_trains_only_and_checkpoints() -> None:
-    """The kernel refuses to run until a pushed sha is set, and trains the same 48,000 tasks."""
+def test_kernel_is_unpinned_or_pinned_trains_only_and_checkpoints() -> None:
+    """The kernel refuses to run until a pushed sha is set, and trains the same 48,000 tasks.
+
+    ``COMMIT`` is the placeholder before pinning and a hex sha after; the refusal guard stays.
+    """
     src = KERNEL.read_text()
     tree = ast.parse(src)
     consts = {
@@ -71,7 +75,7 @@ def test_kernel_is_unpinned_trains_only_and_checkpoints() -> None:
         for t in [t if isinstance(t, ast.Assign) else ast.Assign(targets=[t.target], value=t.value)]
         if isinstance(t.targets[0], ast.Name) and isinstance(t.value, (ast.Constant, ast.List))
     }
-    assert consts["COMMIT"] == "UNPINNED"
+    assert consts["COMMIT"] == "UNPINNED" or re.fullmatch(r"[0-9a-f]{7,40}", consts["COMMIT"])
     assert 'if COMMIT == "UNPINNED"' in src
     assert '"--checkpoint-every"' in src
     assert consts["SCORE_V4"] is False

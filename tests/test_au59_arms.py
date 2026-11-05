@@ -8,6 +8,7 @@ not pushed (the pin is set by hand after the push).
 import ast
 import importlib.util
 import json
+import re
 from dataclasses import asdict
 from pathlib import Path
 
@@ -37,15 +38,24 @@ def test_arm_and_control_differ_only_in_the_flag_and_from_the_recipe_in_two_keys
     assert ctx.train.steps * ctx.train.batch_size == 48_000
 
 
-def test_committed_kernels_match_the_generator_and_are_unpinned_until_pushed():
+def test_committed_kernels_match_the_generator_and_are_unpinned_or_pinned_to_a_sha():
+    """Each committed kernel is the generator's output at its own ``COMMIT``.
+
+    That value is the placeholder until the kernel is pinned with ``--commit <pushed sha>``,
+    and then a short or full hex sha; anything else would install fintfm from an unknown ref.
+    """
     gen = _gen()
     for key in gen.ARMS:
-        src, meta = gen.render(key, gen.PLACEHOLDER)
         d = gen.kernel_dir(key)
-        assert (d / "kernel.py").read_text() == src
+        committed = (d / "kernel.py").read_text()
+        match = re.search(r'^COMMIT = "([^"]+)"$', committed, flags=re.MULTILINE)
+        assert match, f"{key}: no COMMIT line"
+        commit = match.group(1)
+        assert commit == gen.PLACEHOLDER or re.fullmatch(r"[0-9a-f]{7,40}", commit), commit
+        src, meta = gen.render(key, commit)
+        assert committed == src
         assert json.loads((d / "kernel-metadata.json").read_text()) == meta
         ast.parse(src)
-        assert f'COMMIT = "{gen.PLACEHOLDER}"' in src
 
 
 def test_kernel_flags_carry_checkpoints_horizons_and_only_the_arm_has_the_flag():
