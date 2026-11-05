@@ -104,3 +104,100 @@ kaggle kernels push -p scripts/kaggle/task_au515_throughput
   is a code change, not made here; the session shows whether it would matter.
 - The measurement is at 8 tasks per step and 320 generated batches; per_shard generation at
   K=4 on 4 vCPUs shares cores with the training process only in the real run, not here.
+
+## MEASURED 2026-11-05: the throughput kernel ran
+
+Kernel `muhakabartay/fintfm-task-au515-throughput`, fintfm pinned at 62a73c3, 2x Tesla T4, 4 vCPUs,
+fp16 split attention, batch 8, seed 0, 885,650 parameters. Data: `summary.json`, the per-stage logs
+and the kernel log in `runs/kaggle-fintfm-task-au515-throughput/` (main checkout, untracked).
+`smoke: false`. The sections above ("Status", "What the session measures") describe the plan
+before launch; the numbers below replace the "nothing measured" statement.
+
+### Generation, per_shard, 320 batches (2,560 tasks), 4 vCPUs (MEASURED)
+
+| K | batches/s | tasks/s | tasks per CPU-hour | MB per batch |
+| --- | --- | --- | --- | --- |
+| 1 | 9.56 | 76.5 | 275,266 | 2.37 |
+| 2 | 18.51 | 148.1 | 266,548 | 2.37 |
+| 4 | 20.25 | 162.0 | 145,808 | 2.37 |
+
+On an idle 4-vCPU machine K=2 doubles K=1 and K=4 adds only 9% over K=2. The saturated local
+result in the task text (K=1 4.94 batches/s, K=4 3.43) is not representative of an idle machine.
+Dump size: 592,894 MB per 2M tasks, about 296 KB per task (MEASURED size, extrapolated linearly).
+
+### Training benchmarks, one GPU, `--benchmark-steps 50` (MEASURED; exit 0 each)
+
+| arm | s/step (total) | sample s per step | tasks/h | peak GPU memory |
+| --- | --- | --- | --- | --- |
+| live sampling | 0.748 | 0.101 | 38,503 | 10.2 GB |
+| `--task-dump` (K=4 dump) | 0.677 | 0.005 | 42,519 | 10.2 GB |
+| `--loader stream --loader-workers 2` | 0.702 | 0.001 | 41,014 | 10.1 GB |
+
+The GPU step itself is about 0.65 s in all three, matching §170's fp16 split 0.66 s/step (37,367
+tasks/h, fintfm 49f415c, `docs/results/FINDINGS.md` §170 addendum, re-read). Live generation costs
+about 0.10 s per step here, 13.5% of a step, against about 5% in §170's fp32 runs (a step there
+was 1.9 s, so the same generation cost mattered less). A dump removes it: +10.4% tasks/h over
+live. Stream with two workers gets +6.5%.
+
+### Short real runs, 300 steps, `--checkpoint-every 100` (MEASURED; all exit 0)
+
+| arm | GPUs | s/step | tasks/s | tasks per GPU-hour | wall s |
+| --- | --- | --- | --- | --- | --- |
+| live, no checkpoints | 1 | 0.804 | 9.96 | 35,840 | 248 |
+| live, checkpoints | 1 | 0.800 | 10.00 | 36,000 | 246 |
+| `--task-dump`, checkpoints | 1 | 0.704 | 11.37 | 40,934 | 217 |
+| DDP stream, checkpoints (global batch 8, 4 per rank) | 2 | 0.500 | 16.00 | 28,800 | 161 |
+
+Rates come from the train log's cumulative seconds (1 s resolution, 15 stamps), so each is good to
+about 1%; checkpointing costs nothing measurable (0.800 against 0.804). The runs are about 7%
+slower than the 50-step benchmarks (live 0.80 against 0.75 s/step).
+
+Checkpointing worked in all four runs: `.step100`, `.step200`, `.step300` plus the final file were
+written and logged, including by the two-rank DDP run. Single-GPU sizes: checkpoint 3.59 MB,
+resume state 10.78 MB. **Resume from a state file was not exercised** (only writing), and the DDP
+checkpoint sizes were not recorded. DDP printed PyTorch's `find_unused_parameters=True` warning
+(no unused parameters found; the flag adds a graph traversal per step), so DDP may have slack.
+
+### Against the baselines FINDINGS.md and CLAUDE.md quote
+
+- 1.90 s/step (fp32 masked, T4; §86, reproduced by §170 at 1.93, 14,172 tasks/h): the fp16 split
+  recipe at 0.80 s/step live is 2.4x faster, 36,000 tasks/h.
+- §170 fp16 split 0.66 s/step, 37,367 tasks/h: this kernel's benchmark gives 0.748 and 38,503,
+  within 3%.
+- §170 DDP (fp32 split, 20 steps): about 1.9x one GPU. Measured here: 1.6x in wall-clock (0.50
+  against 0.80 s/step), which is 0.80x per GPU-hour. Different recipes (fp16 against fp32); with
+  fp16 the step is short enough that gradient synchronisation takes a larger share.
+
+### What it implies for 1M and 2M tasks (ESTIMATED from the MEASURED rates above)
+
+GPU-hours = tasks / tasks-per-GPU-hour. Kaggle quota (30 GPU-hours per week) is the constraint.
+
+| arm | 1M tasks | 2M tasks | wall hours for 1M |
+| --- | --- | --- | --- |
+| CLAUDE.md baseline, 1.90 s/step fp32 | 66 | 132 | 66 |
+| live, 1 GPU (36,000/h) | 27.8 | 55.6 | 27.8 |
+| `--task-dump`, 1 GPU (40,934/h) | 24.4 | 48.9 | 24.4 |
+| stream, 2 workers, 1 GPU (41,014/h, 50-step benchmark only) | 24.4 | 48.8 | 24.4 |
+| DDP stream, 2 GPUs (28,800 per GPU-hour) | 34.7 | 69.4 | 17.4 |
+
+- **Cheapest in quota: one GPU with pre-generated or streamed tasks, about 24.4 GPU-hours per
+  million.** Live generation costs about 14% more (27.8). DDP is fastest in wall-clock (17.4 h
+  against 24.4 h per million) but costs 42% more quota (34.7 GPU-hours), so it is the choice only
+  when time, not quota, binds.
+- **A full dump is not practical on Kaggle.** About 296 GB per million tasks, far above the
+  output-area limit (about 20 GB, ESTIMATED, to be checked), so a dump must be produced and
+  consumed in chunks. That machinery buys +10.4%, while the stream loader with two workers already
+  gets +6.5% (50 steps). A 300-step single-GPU stream run is the missing cell. Generation is not
+  the limit: K=2 makes 148 tasks/s against a training demand of about 11 tasks/s.
+- 1M tasks is 0.8 to 0.93 of a weekly quota (24.4 to 27.8 of 30 GPU-hours), 2M about 1.6 to 1.85
+  weeks. Against §127's L4 estimate (about $28 per million tasks, ESTIMATED), the Kaggle route costs
+  no dollars but about a week of quota per million.
+- Rates are for the published recipe at batch 8 and 4 vCPUs; a wider or deeper model changes the
+  arithmetic proportionally.
+
+### Status of the task
+
+The Verify's measurement clause (tasks per GPU-hour and cost measured on one Kaggle session before
+the full run) is met by the tables above. The remaining clause, scoring the full run against a
+48k-task control under §159's rule on V4FinBench and then TabArena-Lite, belongs to the pretraining
+run itself, which has not started.
