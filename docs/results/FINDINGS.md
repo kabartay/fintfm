@@ -13624,3 +13624,48 @@ by 48.24's majority-downsample and uniform-4000 context arms and by AU4.3 (queue
 kernels). A label-attention or MLP readout (`docs/paper/RELATED_WORK.md`, the Prior Labs paragraph) is not
 supported by this result and stays behind those. §203's action stands for the prior: real-data
 improvement goes to the prior's coverage of real tables.
+
+## §210: §204's adapter fixes on TabArena-Lite: squash is the one large move; retrieval cannot run inside TabArena's time limit
+
+**MEASURED, 2026-11-05/06.** Results of the fixes §204 proposed, which its status column still
+shows as queued. Detail, per-dataset changes and logs: `docs/results/drafts/
+tabarena_loss_analysis_2026-11.md` ("Results of fixes 1, 2, 3 and 6"). One process per dataset
+(`runs/lite2611/queue_rest.sh`), split 0, the 27 binary datasets, paired with
+`scripts/compare_lite_arms.py`; ROC-AUC, the only metric the Lite results hold.
+
+| fix | arm | baseline | better / worse / tied | sign test p | mean ROC-AUC change | Elo |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1, probe rows stratified | `fintfm_linprobe_d1fix_1104` | `fintfm_linprobe_lite` (910) | 5 / 2 / 20 | 0.45 | +0.00339 | 914 |
+| 2, minority coded as 1 | `fintfm_lite_minpos_1105` | `fintfm_lite_nan_1019` (756) | 4 / 1 / 22 | 0.38 | +0.00104 | 756 |
+| 2 + 3, positive cap 0.3 | `fintfm_lite_minpos_cap30_1105` | `fintfm_lite_nan_1019` | 9 / 2 / 16 | 0.065 | +0.00157 | 756 |
+| 3 over 2 | `fintfm_lite_minpos_cap30_1105` | `fintfm_lite_minpos_1105` | 9 / 1 / 17 | 0.021 | +0.00053 | 756 |
+| 6, `feature_transform="squash"` | `fintfm_lite_squash_1104` | `fintfm_lite_nan_1019` | 18 / 8 / 1 | 0.076 | +0.01004 | 777 |
+
+Fixes 1 to 3 moved what they targeted and little else, and stay inside §204's ceiling (LR).
+Fix 2 changed exactly the five datasets predicted, the other 22 bit-identical. Fixes 2 and 3
+leave Elo at 756 because FinTFM ranks 96th of 96 on the datasets they move, before and after.
+Fix 6 is the one large move, the same size as the rank+squash member transforms (+0.01023,
+20 / 6 / 1, DR3.5); general-tabular only, it decides nothing until V4FinBench agrees, and AU5.12's
+V4FinBench kernels test the member-transform version first.
+
+**Fix 5, `context_strategy="retrieval"`, closed as infeasible (2026-11-06).** It cannot finish
+inside TabArena's per-fit limit at the configuration §187 selected (64 query groups, 8 members):
+
+- On MPS, each fit of the four datasets attempted ran out of Metal memory (2026-11-05).
+- On CPU, `blood-transfusion-service-center` (748 rows, the smallest Lite table) spent about
+  600 s on the first of its 8 bagged folds, after which AutoGluon raised `TimeLimitExceeded`
+  for the remaining folds against the 3,600 s limit (local smoke of the Kaggle kernel below,
+  `FINTFM_DEVICE=cpu`, fork 342dbb5, fintfm b21847e). The default arm's whole 8-fold fit of
+  the same dataset took 8.3 s on MPS (`fintfm_lite_nan_1019`). MEASURED, on different devices.
+- Retrieval runs one forward pass per query group per member, 512 against the default's 8. From
+  the default arm's MEASURED ~2.5 h for the 27 datasets on MPS, retrieval on one T4 is ESTIMATED
+  at the order of 100 h, against Kaggle's 12-hour session. Not measured on GPU.
+
+An inference setting that cannot complete within the benchmark's per-fit limit cannot be the
+default, whatever its accuracy, and the credit evidence is already against it: retrieval dropped
+V4FinBench AP by 0.133 in §70 and collapsed it to 0.0126 in §194. A GPU timing probe was
+considered and not run, because no GPU measurement would make the arm usable. A cheaper retrieval
+configuration would be a different arm needing its own pre-registration, and is not proposed.
+The kernel stays in the repository, not launched (`scripts/kaggle/task_lite_retrieval/`).
+
+**Still open from §204:** fix 4, tree-partitioned contexts on TabArena, not run.
