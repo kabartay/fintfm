@@ -585,7 +585,8 @@ The team's account is theirs and unverified.
 `website_leaderboard.csv`. See `docs/paper/RELATED_WORK.md`, section "Peer read of 2026-11-05".
 
 **Other entrants newly on the board, repositories read:** FTFM (`machinelearningnuremberg/ftfm-official`,
-code Apache-2.0, weights CC-BY-NC-4.0, no paper or training-data statement on the README);
+code Apache-2.0, weights CC-BY-NC-4.0, no paper or training-data statement on the README as of
+2026-11-05; the paper, arXiv:2610.25558, and its training data are in the 2026-11-06 addendum);
 Xiaomi-TabLDM, TabAbax and Seldon as above.
 
 ### Still unverified — do not cite
