@@ -498,7 +498,7 @@
       softmax scaling), early target inclusion; also the fix for AU4.3 if context length is the
       problem.
       Verify: each change behind a flag, scored at matched tasks.
-- [ ] AU5.18 **Run script ready (2026-11-02, `scripts/tabarena_imbalanced_run.py`); run open.**
+- [x] AU5.18 **Done (2026-11-06, `docs/results/TABARENA.md`, "The imbalanced subset, every split"): Elo 1018.2 (+142.1/-332.8), 85th of 96, over the 7 covered datasets, all 9 splits (63 fits, none imputed), MEASURED; above `RF (default)` 1000.0, below `LR (default)` 1086.7; same per-dataset standing as DR3.6 (above RF on 3 of 7, LR on 2 of 7).** **Run script ready (2026-11-02, `scripts/tabarena_imbalanced_run.py`); run open.**
       Default config, every split of the 7 covered binary datasets of the subset's 15 (63 fits;
       `--dry-run` confirms the count and the 8 exclusions), Elo over those 7 only, no imputation
       of FinTFM. Cost ESTIMATED from the 2026-10-19 Lite run's split-0 times on these 7 (MEASURED

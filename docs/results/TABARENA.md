@@ -199,6 +199,60 @@ use average ties over the 95 methods' split-0 errors.
 datasets, and FinTFM is not on it. This is one split, 7 datasets, against §122's 2026-09-25
 snapshot of the board.
 
+## The imbalanced subset, every split (AU5.18, 2026-11-06)
+
+**Result: Elo 1018.2 (+142.1/-332.8), 85th of 96, over the 7 covered datasets of the subset's
+15, all 9 splits each (63 fits, none imputed).** MEASURED, 2026-11-05/06, the default config of
+the published checkpoint through the fork's adapter (branch `fintfm-audit-fixes` at be201d7, NaN
+passed through), on MPS. Above `RF (default)` (1000.0, 88th), below `LR (default)` (1086.7,
+83rd). The interval is as wide as DR3.6's: 7 datasets are few.
+
+| scope | splits | datasets | Elo | position | win rate | mean rank |
+| --- | --- | --- | --- | --- | --- | --- |
+| DR3.6, re-aggregated from §122 (above) | 1 | 7 | 914.1 (+127.3/-343.6) | 87 of 95 | 0.147 | 81.14 |
+| **AU5.18, fitted** | **9** | **7** | **1018.2 (+142.1/-332.8)** | **85 of 96** | 0.176 | 79.30 |
+
+**Not comparable to DR3.6 as a change.** Three things differ at once: nine splits against one,
+the fork's current pool of 95 other methods against §122's 2026-09-25 snapshot (the top three
+are now `TA-LIMIX-2`, `TA-TABPFN-3.5` and `MITRA_V2`), and NaN passed through against filled
+with 0. The per-dataset standing did not move: above `RF (default)` on the same 3 of 7 and
+above `LR (default)` on the same 2 of 7.
+
+**Per dataset**, ROC-AUC averaged over the 9 splits (the only metric the results hold; no
+average precision for these low-base-rate sets):
+
+| dataset | FinTFM | RF (default) | LR (default) | best of 96 | FinTFM rank of 96 |
+| --- | --- | --- | --- | --- | --- |
+| Amazon_employee_access | 0.8302 | 0.8392 | 0.8482 | 0.8864 | 83 |
+| Diabetes130US | 0.6524 | 0.6308 | 0.6480 | 0.6834 | 66 |
+| GiveMeSomeCredit | 0.8251 | 0.8464 | 0.8408 | 0.8691 | 94 |
+| coil2000_insurance_policies | 0.7200 | 0.6970 | 0.7368 | 0.7878 | 88 |
+| polish_companies_bankruptcy | 0.8498 | 0.9274 | 0.8675 | 0.9966 | 92 |
+| seismic-bumps | 0.7711 | 0.7475 | 0.7587 | 0.7940 | 45 |
+| taiwanese_bankruptcy_prediction | 0.9259 | 0.9325 | 0.9359 | 0.9589 | 87 |
+| **mean** | **0.7964** | 0.8030 | 0.8051 | 0.8537 | 79.29 |
+
+Ranks are of each method's 9-split mean error, average ties. The two credit-default sets
+(`GiveMeSomeCredit`, 94th) and the corporate-bankruptcy sets (`polish_companies_bankruptcy`
+92nd, `taiwanese_bankruptcy_prediction` 87th) are among FinTFM's worst; its best is
+`seismic-bumps` (45th).
+
+**Imputation.** None for FinTFM. 108 of 6,048 rows are imputed in the frame, the same four
+methods as DR3.6 (`TABPFNV2_GPU` default, tuned and tuned + ensemble, `MITRA_GPU (default)`) on
+`Amazon_employee_access`, `Diabetes130US` and `GiveMeSomeCredit`.
+
+**How it was run.** `scripts/tabarena_imbalanced_run.py --run-name fintfm_imbalanced_1105`, from
+the fork's root in its environment; results in the fork's `experiments/fintfm_imbalanced_1105/`,
+leaderboard in `eval/fintfm_imbalanced_1105/`; logs in `runs/au518/`. A single process grew
+memory across fits on MPS and was stopped by a 10 GB-free watchdog after one dataset; the rest
+ran one process per (dataset, repeat) of 3 splits (`runs/au518/queue.sh`), with results cached
+per (config, dataset, split), and a final unnarrowed pass fitted the 4 `Diabetes130US` splits
+the watchdog had stopped and printed the row. Wall time about 9 h, of which `GiveMeSomeCredit`
+took 4.
+
+**Not a public-board number.** The published imbalanced board scores all 15 datasets; FinTFM
+covers 7 and is not on it. Imputing the other 8 from another method would score that method.
+
 ## NaN passed through against NaN filled with 0 (DR3.5, AU1.19; 2026-10-19)
 
 **MEASURED, null.** TabArena-Lite, the 27 binary datasets, split 0, the published checkpoint
