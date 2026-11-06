@@ -414,3 +414,18 @@
       statement in `docs/paper/` made relative to LimiX-2. Verify: both read at primary source and
       recorded in `docs/research/REFERENCES.md` and `docs/paper/RELATED_WORK.md`; Seldon counts as
       a real peer if its classification-only Elo exceeds TabICLv2's there.
+- [ ] 48.27 **Test whether row and column latents can replace two-way cell attention at matched
+      quality and lower cost (peer read 2026-11-06, FTFM, arXiv:2610.25558).** FTFM updates each
+      cell from one contextual latent per row and one per column, so "cells no longer attend to
+      one another directly"; the paper's complexity table puts its attention at the row count
+      squared plus the column count squared in the latent dimension, against cell attention's
+      cell-wise cost. Our cell attention is the capacity fix of Claim 10 and also what limits
+      `max_context` and the benchmark wall time. Scope: a paper-spec implementation behind a flag
+      (no FTFM code or weights; its weights are non-commercial and reading is not ingesting), a
+      small model at the current reference recipe and step count, same seed and tasks as the
+      cell-attention control. Verify: five-fold V4FinBench mean AP against the cell-attention
+      control at matched steps, AP first, plus MEASURED seconds per step and peak memory on the
+      same device; adopt only if AP is within the seed noise floor (0.0117, §173) on at least 4 of
+      5 folds and cost per step falls by at least 1.5x; falsified if AP falls below the control
+      by more than 0.0117 on at least 3 of 5 folds, or if the cost gain is under 1.5x at the
+      context sizes we use (the latent route may only pay off where the table is large).

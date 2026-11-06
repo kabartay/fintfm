@@ -672,3 +672,66 @@ except the licence and card text files below (plain unauthenticated HTTP GET).
   V1.1.0, 2025-11-10) and its last commit (2026-10-30, a README_cn model-name fix) show no
   replacement and no technical-report update; the README still carries the 1935 Elo claim and the
   16 September release line. A web search found nothing further.
+
+### Addendum 2026-11-06: FTFM, TabSTAR-v1.1, Seldon integration, PrismBoost, Chakra-Tab
+
+Read 2026-11-06 from primary files. Upstream integration files via the GitHub contents API on
+`autogluon/tabarena` main (`packages/tabarena/src/tabarena/models/{ftfm,tabstar_v1p1,seldon,prismboost}`
+and `systems/chakra_tab`, `info.py` and `model.py`); board numbers from the Space CSV at commit
+`0cec481` (`data/entrants_models/imputation_yes/.../datasets_all/website_leaderboard.csv`, the
+default view). Nothing was downloaded except text; no weights, no code, no data.
+
+**Grabocka (2026).** *FTFM: Factorized Tabular Foundation Models.*
+[arXiv:2610.25558](https://arxiv.org/abs/2610.25558) (v1, 18 Oct 2026; PDF read with `pdftotext`).
+Single author, University of Technology Nuremberg. 121.6M parameters, 16 factorized blocks, width 512,
+8 heads; each cell is updated from one contextual latent per row and one per column instead of
+cell-to-cell attention. Classification only. **Prior: not synthetic-only.** Stage A is the TabICLv2
+graph-SCM prior (500k updates); stages B and C draw each batch from that prior or, with equal
+probability, from self-supervised episodes over the TabDPT real-table corpus (Table 2; the paper
+text says "equal probability"). The appendix states the corpus was filtered of tables overlapping
+TabArena or BeyondArena, 123 to 108 tables; the model card adds that "a later content-level audit
+found that this name filter missed a small number of benchmark tables". **Licences, checked
+separately:** code Apache-2.0 and weights CC BY-NC 4.0 (HF card `josifgrabocka/ftfm`, and
+`LICENSE-WEIGHTS.md` named there; derived weights inherit NC). In-context, no training loop at
+inference. **Placement, as read:** the paper reports TabArena full protocol Elo 1723, rank 3
+behind TabFM 1762 and EXAONE 1761 (appendix Figure 7, the author's own run), and BeyondArena Elo
+1280, first of 29 (Figure 3). The board (default view, imputed included) has FTFM at Elo 1477, rank
+21, with 25.49% imputed (classification-only entrant), which is not comparable to the paper's
+figure.
+
+**TabSTAR-v1.1** (Technion; Arazi, Shapira, Reichart; repo `github.com/alanarazi7/TabSTAR`, last push
+2026-10-16). The README says a writeup "will follow"; the TabArena entry cites the 2025 paper
+(arXiv:2505.18125), which does not describe v1.1. The model cards
+(`docs/model_cards/tabstar-v1.1-cls.md` in the repo, HF `alana89/TabSTAR-v1.1-cls-20261011`) were
+read. **Real-data pretraining**: 200,142 classification tables from TabLib (GitHub-scraped), 50,000
+sampled per epoch, 25 epochs planned, filtered by MinHash content sketches against TabArena,
+BeyondArena, STRABLE and MulTaBench. Six interaction layers, `d_model` 384, E5-small-v2 text
+encoder with the top 6 layers unfrozen, checkpoint chosen by downstream finetuning Elo. **Not
+in-context**: `fit` is LoRA finetuning (rank 32, up to 50 epochs). Classification and regression
+are separate checkpoints. **Licences:** code MIT (GitHub API and README badge); weights: the v1.1
+HF card and its metadata declare **no licence**; the v1 checkpoint is `cc-by-4.0` per its Hub
+metadata, and TabArena's `info.py` lists "MIT (code); CC-BY-4.0 (weights)" for v1.1, which the
+checkpoint's own page does not confirm. **Board:** Elo 1178 (+65/-83), rank 74, 0% imputed, 40.4
+s per 1K fit (default view). A 200K-table real-data model sits 372 Elo below TabICLv2 (1550) in the
+same view.
+
+**Seldon and Seldon-Mini, integration facts** (`models/seldon/info.py`, `model.py`, PR #701/#706).
+Date introduced 2026-11-02, runs `seldonfix_03112026` and `seldonminifix_03112026` dated
+2026-11-03: the 38 classification datasets, every split, `Seldon_c1_default_BAG_L1` (bagged,
+`refit_folds`), 8x1 validation, 32 RTX PRO 6000 pools. Wrapper pins HF revisions
+`b113e1c...` (Seldon) and `2850730...` (Seldon-Mini) and depends on `neuralk-oss==0.2.3`; the code
+is "Apache-2.0" by the wrapper docstring only: the PyPI page shows no licence and the
+`Neuralk-AI/neuralk_oss` GitHub URL returned 404, so the code licence is unverified at source.
+The released package supplies the ensemble size, per-member preprocessing and context size, so the
+board number is the vendor's own recipe through AutoGluon bagging. Weights licences as in the
+2026-11-05 addendum; no change.
+
+**PrismBoost** (MIT code, `github.com/PrismBoost/PrismBoost`; PyPI 0.5.1). Gradient boosting with
+SEFR oblique (hyperplane) splits; no weights. Board Elo 1215 tuned plus ensembled (rank 64), 1127
+default (rank 82), CPU-only. **Chakra-Tab** (Yhat Labs): hosted API system, tag
+`closed-source-api`, licence "Proprietary (hosted API; YHat Labs terms of service)"; architecture
+and training data are not disclosed anywhere read. The API-systems board shows Elo 1884 (+86/-65)
+for `full` (8-fold bagging) and 1873 for `medium` (3-fold), 0% imputed, fit-at-predict.
+
+**LimiX-2 leakage flag (PR #691):** already recorded in the 2026-11-05 addendum above; nothing
+added.

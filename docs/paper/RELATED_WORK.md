@@ -1384,3 +1384,64 @@ invalidated by the new facts.
   it is next revised.
 - `docs/results/FINDINGS.md` lines ~6761 (our rank beside "leader LimiX-2: 1878"), ~7589, ~7646,
   ~7919 (the Elo-per-doubling quote): dated results; the leader score is the flagged entry's.
+
+## Peer read of 2026-11-06: FTFM, TabSTAR-v1.1 and the Seldon integration
+
+**Status.** Gap-filling pass over the TabArena entrants added 2026-10-06 to 2026-11-05. Sources
+and licences are in `docs/research/REFERENCES.md`, "Addendum 2026-11-06". The FTFM paper was read
+as a PDF, TabSTAR-v1.1 from its model cards, the integrations from the upstream `info.py` and
+`model.py` files, board numbers from the Space CSV at commit `0cec481`. The Seldon, Kumo, LimiX-2
+and LightPFN sections above are not repeated.
+
+**FTFM (arXiv:2610.25558): a real-data-mixed in-context peer, not a synthetic-only one.** One
+latent per row and one per column replace cell-to-cell attention (121.6M parameters, 16 blocks,
+width 512). Weights are CC BY-NC 4.0 and code Apache-2.0, so for FinTFM it is a
+published-numbers peer only. Three things bear on us.
+
+1. **It is not evidence about synthetic-only scaling or about Claim 2.** Stages B and C feed it
+   half real tables (the TabDPT corpus, 108 tables after removing overlap with the benchmarks),
+   and the model card says the name-based filter "missed a small number of benchmark tables". Its
+   TabArena placement is that of a real-data model with a disclosed leak risk: 3rd of 72 in the
+   paper's own run (Elo 1723), but Elo 1477, rank 21, on the board (25.49% imputed, because it
+   covers classification only). Neither number is "FTFM's Elo" without naming the view.
+2. **Its stage ablation is the one same-architecture synthetic-versus-real comparison we have
+   read, and it is confounded.** On TabArena Lite, stage A (synthetic only, 1,024 support rows)
+   scores mean error 0.1692, stage B 0.1620 and stage C 0.1614; C beats A on 30 of 38 datasets
+   (p < 0.001) and B on 24 of 38 (p = 0.030) (paper Table 3, as read). The paper credits "the
+   larger tables and the real datasets of stage B" together, so real data is not isolated from
+   table size. It does not contradict Claim 17 (different mix, scale and benchmark, no credit
+   panel), but it is the one published hint that real data may help at a larger context; Claim 17
+   now says so.
+3. **It separates architecture from prior.** The authors train FTFM on exactly TabICLv2's stage-1
+   prior and step count and score both on 4K held-out tables from that prior; FTFM wins, and they
+   conclude the architecture has no expressivity bias. We have never run that control against
+   our own gap to TabICLv2 (Claim 11), and it needs a paper-spec reimplementation of their prior,
+   so it is noted here and not filed. The paper also reports that, without ensembling (a single
+   z-normalised table), FTFM is not significantly worse than TabFM, and concludes that part of the
+   reported performance of models comes from ensembling; Claim 18 already measured our side of it.
+
+**TabSTAR-v1.1: real data at scale, finetuned, low on the board.** 200,142 decontaminated
+TabLib-derived classification tables, E5-small text encoder, LoRA finetuning at `fit`; MIT code,
+weights licence undeclared on the v1.1 card (TabArena lists CC-BY-4.0). It is not an in-context
+model and not a competitor for FinTFM's use. Board Elo 1178 (rank 74), 372 below TabICLv2 in the
+same view: real-table scale with a text-aware architecture, finetuned, does not beat a
+synthetic-prior in-context model on a mostly numeric benchmark. It says nothing about credit. The
+v1.1 writeup "will follow" per the repository, so the 2025 paper above remains the only one.
+
+**Seldon and Seldon-Mini on TabArena: integration facts only.** Both ran through AutoGluon
+bagging (`BAG_L1`, refit) on the 38 classification datasets with the vendor's packaged
+configuration, on 2026-11-03 (PRs #701, #706); the placement figures are in the 2026-11-05
+addendum. Weights are pinned to Hub revisions, so the board number cannot drift. The package's
+code licence is unverified at source (PyPI shows none; the repository URL returned 404).
+
+**PrismBoost and Chakra-Tab, one line each.** PrismBoost (MIT; oblique SEFR splits in boosting) is
+a GBDT at Elo 1215 tuned, far below every foundation model on the board: no positioning risk.
+Chakra-Tab is a closed-source hosted-API system (Elo 1884 for `full` on the API board) with
+architecture and data undisclosed: a managed-service comparator, and no claim can be made against
+it.
+
+**LimiX-2's leakage flag (PR #691)** is already recorded in the 2026-11-05 addendum; unchanged.
+
+**What is left for us.** (i) FTFM's factorized row and column latents are an architecture idea for
+our cost problem: two-way cell attention is what caps `max_context` (task 48.27). (ii) When
+quoting FTFM, name the view (paper 1723, board 1477) and call it a real-data-mixed model.

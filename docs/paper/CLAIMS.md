@@ -836,6 +836,13 @@ has no support at this recipe. Other shares, step counts and sources are unteste
 not evidence that real data cannot help. No FinTFM-R result may be described as an
 improvement.
 
+**Peer note 2026-11-06 (`docs/paper/RELATED_WORK.md`, "Peer read of 2026-11-06").** FTFM
+(arXiv:2610.25558) reports, for one architecture on TabArena Lite, a synthetic-only stage at mean
+error 0.1692 against 0.1620 once real tables and larger tables are added (as read from its Table 3;
+real data is confounded with table size). That is a different mix, scale and benchmark from the
+recipe above, so Claim 17 stays a null at one recipe, but "real data cannot help" is also not
+supported by the field.
+
 ---
 
 ## Claim 18 — Four training ablations and context size do not move V4FinBench AP
