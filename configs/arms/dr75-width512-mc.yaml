@@ -1,0 +1,135 @@
+# Design review DR7.5 / DR7.6: the multiclass half of DR8.3's 512-column arm. NOT PRODUCTION. NOT RUN.
+# Pre-registration and launch gate: docs/results/drafts/dr8.3_2026-11.md (section 7).
+#
+# Equals configs/arms/dr83-width512.yaml except the four keys that make DR7.4's multiclass recipe
+# (FINDINGS 185, kernel ts_dr74_mc_s0: the published recipe plus `--max-classes 10
+# --p-financial 0.5 --scm-legacy --permute-classes`):
+#
+#   model.max_classes         2 -> 10
+#   prior.p_financial         1.0 -> 0.5   (the rest is the generic SCM, classes uniform 2 to 10)
+#   prior.scm_legacy          false -> true (the control's SCM sampler, FINDINGS 185)
+#   prior.permute_classes     false -> true (AU5.5; in the multiclass recipe since FINDINGS 197)
+#
+# plus DR8.3's three width levers (max_features 512, feature_ratio_bands, pad_to_batch_width),
+# which also govern the SCM half: draw_width caps at max_features for both sources.
+# Enforced by tests/test_dr83_arm.py.
+#
+# Launch: scripts/kaggle/ts_dr75_width512_mc_s0/ (T4x2, per-GPU batch 2, 12,000 steps = 48,000
+# tasks at global batch 4; DR7.4 ran per-GPU 4, global 8, so a batch confound as in DR8.3).
+
+model:
+  max_features: 512             # DR8.3: the one model change; 136 in the reference
+  max_classes: 10                # DR7.5: multiclass; 2 in DR8.3
+  d_cell: 48
+  d_model: 128
+  n_heads: 4
+  n_col_layers: 2
+  n_layers: 4
+  d_ff: 512                     # 4 x d_model, as the CLI resolved it
+  dropout: 0.0
+  pooling: meanmax
+  column_id_dim: 16             # §104: the curve peaks here
+  n_horizons: null
+  n_cell_blocks: 1
+  cell_labels: true             # §91: jointly necessary with the cell-attention block
+  mask_embedding: false
+  head_type: binned
+  n_quantiles: 99
+  n_cell_heads: null
+  n_summary_tokens: 1
+  value_embedding: mlp
+  value_basis_size: 16
+  value_basis_learnable: false
+  value_ecdf: false
+  attn_length_scale: false
+  attn_length_ref: 512
+  attn_impl: masked
+  hazard_period_context: false
+  cell_row_attn: full
+  cell_mixing: attention
+  n_inducing: 64
+  readout: pool
+  n_readout: 4
+  head_mlp: false
+
+train:
+  steps: 6000
+  batch_size: 8
+  lr: 3.0e-4                    # §127: the default wins at this recipe
+  warmup_steps: 500
+  log_every: 50
+  eval_every: 500
+  checkpoint_every: 1000        # §90's runs set it; saving changes no weight
+  seed: 0
+  feature_chunk: 8              # identity-preserving (§81); bounds memory on a T4
+  optimizer: adamw
+  task_dump: null
+  task_dump_allow_code_mismatch: false
+  decay_norm_bias: true
+  masked_column_prob: 0.0
+  amp: "none"
+  muon_lr: null                 # Muon keys unused: the recipe is adamw
+  muon_scale: rms_match
+  loader: sync                  # DR5.2/DR5.4 keys: the recipe predates them
+  loader_workers: 0
+  loader_prefetch: 2
+  ddp: false
+  schedule: cosine
+  decay_frac: 0.1               # unused under cosine
+  lr_min: 0.0                   # unused under cosine
+  eval_set_seed: null
+  eval_batches: 5
+
+prior:
+  sharpness_min: 0.3
+  sharpness_max: 12.0
+  min_expected_positives: 2.0
+  absolute_rate_floor: 0.001
+  rate_ceiling: 0.30
+  n_sectors: 12
+  min_ctx_per_class: 0
+  permute_classes: true         # DR7.5: AU5.5, in the DR7.4 recipe
+  feature_transforms: []
+  max_query_rows: null
+  pad_to_batch_width: true      # DR8.3: a batch is padded to its widest task, not to 512 (DR6.1)
+  n_rows: 256                   # unused: n_rows_choices is set
+  n_rows_choices: [256, 512, 1024]
+  p_financial: 0.5              # DR7.5: half financial, half generic SCM
+  p_tree: 0.0
+  p_trivial: 0.0
+  p_crossed: 0.0
+  p_task_family: 0.0
+  p_regression: 0.0
+  p_learnability_filter: 0.0
+  scm_legacy: true              # DR7.5: the DR7.4 control SCM sampler
+  scm_reuse_graph: 1
+  identity_shuffle: false
+  discretize_frac: 0.0
+  n_noise_features: 0
+  n_correlated_block_features: 0
+  label_noise_rate: 0.0
+  p_real_edgar: 0.0
+  real_edgar_panel_path: data/edgar/panel.parquet
+  p_real_mortgage: 0.0
+  real_mortgage_panel_path: data/mortgage/panel.parquet
+  p_real_lendingclub: 0.0
+  real_lendingclub_panel_path: data/lendingclub/panel.parquet
+  real_panels: ""
+  source_weights: null            # the sequential source draw; DR2.1's weighted draw came later
+  financial_gate_prob: 0.0      # design review DR2.2; the published run had no gated labels
+  financial_sign_flip_prob: 0.0 # DR2.2's ratio sign flip; the published run had none
+  feature_ratio_bands:          # DR8.3: [weight, lo, hi] features per row; the reference draws U[4, 136]
+    - [0.6, 0.004, 0.15]
+    - [0.3, 0.15, 0.5]
+    - [0.1, 0.5, 2.0]
+  p_binary: null
+  imbalance_draws: false
+  categorical_mode: ordered
+  missing_mode: mcar
+  tie_column_prob: 0.0
+  irrelevant_frac_max: 0.0
+  duplicate_frac_max: 0.0
+  label_flip_max: 0.0
+  heavy_tail_column_prob: 0.0   # AU5.11 knobs at their pre-knob behaviour, as the published recipe
+  tree_split_by: std
+  missing_label: false

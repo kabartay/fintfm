@@ -218,3 +218,73 @@ stays and the 7 excluded datasets stay a documented gap.
 - The extension family (differences over a third account) is new prior content that only the
   tail of a wide task above about 380 columns uses; whether it teaches anything is part of what
   the run tests.
+
+## 7. The multiclass 512-column arm, prepared (2026-11-07, DR7.5 / DR7.6)
+
+**Preparation only: nothing was launched, trained at scale or scored.** The arm is
+`configs/arms/dr75-width512-mc.yaml`; the kernel is `scripts/kaggle/ts_dr75_width512_mc_s0/`,
+unpinned (`COMMIT = "UNPINNED"`, refuses to run until a pushed sha that holds the yaml is set).
+
+**Recipe.** DR7.4's multiclass recipe (§185, kernel `ts_dr74_mc_s0`: the published recipe plus
+`--max-classes 10 --p-financial 0.5 --scm-legacy --permute-classes`, 48,000 tasks) with DR8.3's
+three width levers. The file equals `dr83-width512.yaml` except four keys, enforced by
+`tests/test_dr83_arm.py`:
+
+| key | DR8.3 binary arm | multiclass arm |
+| --- | --- | --- |
+| `model.max_classes` | 2 | 10 |
+| `prior.p_financial` | 1.0 | 0.5 (rest: generic SCM, classes uniform on 2 to 10) |
+| `prior.scm_legacy` | false | true (the control's sampler, §185) |
+| `prior.permute_classes` | false | true |
+
+The settings sit in the file, so the kernel's flags are DR8.3's (`--batch-size 2 --steps 12000`,
+DDP, fp16, split attention), not DR7.4's `--batch-size 4 --steps 6000`: the same 48,000 tasks at
+global batch 4 against DR7.4's global 8, the same batch confound as DR8.3's binary arm.
+
+**Prior check (SMOKE-TEST, CPU, 300 single-task draws, seed 1).** The multiclass prior emits wide
+tasks too: maximum width 512, median 65, 27% of tasks above 136 columns and 11% above 370 (the
+old financial cap). Among the 123 draws with more than 2 classes, 25% are above 136 and 11% above
+370 (maximum 512). Class counts run 2 to 10. The wide multiclass tasks come from the generic SCM,
+which is not width-capped like the financial prior, so the DR8.3 top-up matters for the financial
+half only (binary tasks: 28% above 136, maximum 512, so the top-up reaches the cap here too).
+Training smoke at `max_features` 512 with these settings (`fintfm-train --config
+configs/arms/dr75-width512-mc.yaml --device cpu --steps 6 --batch-size 2 --d-cell 8 --d-model 16
+--n-layers 1 --n-col-layers 1 --n-rows-choices 256 --checkpoint-every 3 --eval-every 3`, 20,226
+parameters): trained, evaluated twice, wrote `.step3`, `.step6` and the final file. This says
+nothing about quality.
+
+**GPU-hours (ESTIMATED, not measured).** Same shape as the binary arm (§3 above): about 41,000
+to 44,000 tasks per hour on a T4x2, so 48,000 tasks in about 1.1 to 1.2 h, allow up to 2 h:
+**about 2.2 to 4 T4 GPU-hours (1.1 to 2 h of the T4x2 quota)**. The SCM half costs more than the
+financial half at equal width, which the binary arm's ratio does not capture, so read the upper
+end as the likelier. For reference DR7.4's narrow arm took 3,233 s at global batch 8 (MEASURED,
+§185/§197). At 480,000 tasks, about 11 to 12 h (ESTIMATED), two sessions. Peak RAM on the Mac:
+not needed, nothing runs here.
+
+### Launch gate (decided before the binary result exists)
+
+The multiclass arm launches when the binary 512 arm passes, in this order, the draft's own
+sanity steps from section 5:
+
+1. **Step 0, cost.** One V4FinBench fold with the binary 512 checkpoint on a T4 takes at most 4
+   times `e1-v48-s0`'s fold (130 columns padded to 512). If not, the unpadded-inference task is
+   written first and the launch waits.
+2. **Step 2, V4FinBench sanity.** Mean AP over the five full-panel folds is at least 0.1810 (the
+   mean of the controls 0.1975 and 0.1878, which is 0.1927, minus §173's yardstick 0.0117), and
+   no fold is a Holm-significant loss, read with AP first.
+3. **Training health.** The binary arm's training log shows no divergence and 12,000 steps
+   completed (`tasks_seen` 48,000), so the same recipe shape is known to train at 512 columns.
+
+Step 1 (the wide proxy tasks) does not gate the launch, because the multiclass checkpoint is what
+lets mfeat-factors and the 4 excluded multiclass datasets be scored at all, and 1.1 to 2 h of
+quota is cheap beside that. It gates the TabArena-Lite rerun (DR7.5), as before. If Step 0 or 2
+fails, do not launch; record that DR7.5's 4 multiclass datasets and DR7.6's joint declaration stay
+blocked.
+
+**Multiclass sanity after training (pre-registered here).** On the proxy suite's multiclass tasks
+(6, 11, 12, 14, 16, 18, 22, 23, splits 0 to 2, DR7.4's command) the arm is compared with
+`dr74-mc-s0` (994 proxy Elo, 6 of 8 tasks scorable at 136 columns, §185) by the same per-task and
+per-split sign test; `letter` stays out (26 classes against the 10-class cap) and mfeat-factors
+(216 columns) is newly scorable and reported on its own against the 2.30 uniform guess. A task
+that regresses against `dr74-mc-s0` on 4 or more of the 6 shared tasks is reported as a loss of
+the width change, and the TabArena-Lite rerun does not use this checkpoint for multiclass.
