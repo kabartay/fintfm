@@ -285,6 +285,6 @@ blocked.
 (6, 11, 12, 14, 16, 18, 22, 23, splits 0 to 2, DR7.4's command) the arm is compared with
 `dr74-mc-s0` (994 proxy Elo, 6 of 8 tasks scorable at 136 columns, §185) by the same per-task and
 per-split sign test; `letter` stays out (26 classes against the 10-class cap) and mfeat-factors
-(216 columns) is newly scorable and reported on its own against the 2.30 uniform guess. A task
-that regresses against `dr74-mc-s0` on 4 or more of the 6 shared tasks is reported as a loss of
+(216 columns) is newly scorable and reported on its own against the 2.30 uniform guess. A checkpoint that regresses against `dr74-mc-s0` on 4 or more of the 6 shared tasks is reported as a loss of
 the width change, and the TabArena-Lite rerun does not use this checkpoint for multiclass.
+This rule was proposed with the arm and confirmed by the owner on 2026-11-07, before any training.
