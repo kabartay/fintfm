@@ -36,7 +36,7 @@ import sys
 import urllib.request
 from pathlib import Path
 
-COMMIT = "PIN-AFTER-MERGE"  # not a commit: pip install fails until set after the merge
+COMMIT = "304ea7f"
 ARM = "4827-latent-s0"
 ARM_FLAGS: list[str] = ["--amp", "fp16", "--attn-impl", "split", "--loader", "stream", "--ddp", "--batch-size", "4", "--seed", "0", "--steps", "6000", "--cell-mixing", "latent"]
 DDP = True
