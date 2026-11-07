@@ -7,9 +7,15 @@
 # (runs/lrsweep/eval-published, one member) and the first arm, §196's `ens8`
 # (runs/v4-lever-ens8, 8 members, no shift), so only the shift differs from `ens8`.
 #
+# Same recipe as runs/v4-lever-ens8 (its v4_protocol.json config block: model
+# runs/v4-cellattn-labels.pt, config configs/arms/proxy/ens8.yaml, horizon 0, folds 0-4,
+# max_rows null, --no-boosting, --device cpu), with the shift switched on. Run one fold per job
+# (--folds K --out runs/dr32-ens8-cshift/fK); per-fold commands and the merge and compare steps
+# are in docs/results/drafts/dr3.2_2026-11.md.
+#
 #   uv run --frozen --extra bench --extra hf fintfm-v4protocol --model runs/v4-cellattn-labels.pt \
-#     --config configs/arms/dr32-ens8-cshift.yaml --no-boosting --device cpu \
-#     --out runs/dr32/ens8-cshift
+#     --config configs/arms/dr32-ens8-cshift.yaml --no-boosting --device cpu --folds 0 \
+#     --out runs/dr32-ens8-cshift/f0
 
 inference:
   n_ensemble: 8

@@ -51,19 +51,67 @@ before averaging; on a binary task, a label swap on every other member). Same ch
 protocol, so it differs from `ens8` in the shift alone and from the control in members and shift.
 Compare it against both: the control (the task's rule) and `ens8` (isolates the shift).
 
-Command (from the repository root; needs the `data/cache` link; do not launch without a go-ahead):
+### Ready to run, one fold per job (prepared 2026-11-07, SMOKE-TEST only)
+
+Recipe check. `runs/v4-lever-ens8/v4_protocol.json` records `model` `runs/v4-cellattn-labels.pt`,
+`horizon` 0, `folds` 0-4, `max_rows` null, `boosting` [], `classical` logistic_regression,
+`context_strategy` uniform, `max_context` 2,000, `n_ensemble` 8, `ensemble_class_shift` false,
+`config_sources` = packaged `default.yaml` plus `configs/arms/proxy/ens8.yaml`. The arm config
+is the same plus `ensemble_class_shift: true`, and loads under the current CLI (`config_sources`
+in the smoke record show `default.yaml <- configs/arms/dr32-ens8-cshift.yaml`; both
+`n_ensemble: 8` and `ensemble_class_shift: true` appear in the record). The command that made the
+reference is therefore
+`fintfm-v4protocol --model runs/v4-cellattn-labels.pt --config configs/arms/proxy/ens8.yaml
+--no-boosting --device cpu`; the arm swaps the config and adds `--folds K --out`.
+
+The `data/cache` link must exist in the checkout the job runs from (the main checkout has it).
+Each fold writes its own directory (`v4_protocol.json` is rewritten by every invocation, so folds
+must not share one), and a finished fold is skipped by checking for its `predictions_fold<K>.npz`.
+Run from `/Users/morganoko/proj/fintfm`, serially, after `uptime` and a go-ahead:
 
 ```bash
-cd /Users/morganoko/proj/fintfm && OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 PYTHONUNBUFFERED=1 \
-nice -n 19 uv run --frozen --extra bench --extra hf fintfm-v4protocol \
-  --model runs/v4-cellattn-labels.pt --config configs/arms/dr32-ens8-cshift.yaml \
-  --no-boosting --device cpu --out runs/dr32/ens8-cshift > runs/dr32-ens8-cshift.log 2>&1; echo EXIT=$?
-
-uv run --frozen --extra bench --extra hf python scripts/compare_v4_scores.py --cluster \
-  --control runs/lrsweep/eval-published cshift=runs/dr32/ens8-cshift
-uv run --frozen --extra bench --extra hf python scripts/compare_v4_scores.py --cluster \
-  --control runs/v4-lever-ens8 cshift=runs/dr32/ens8-cshift   # shift-only contrast
+cd /Users/morganoko/proj/fintfm
+for K in 0 1 2 3 4; do
+  [ -f runs/dr32-ens8-cshift/f$K/predictions_fold$K.npz ] && continue
+  OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 PYTHONUNBUFFERED=1 nice -n 19 \
+  uv run --frozen --extra bench --extra hf fintfm-v4protocol \
+    --model runs/v4-cellattn-labels.pt --config configs/arms/dr32-ens8-cshift.yaml \
+    --no-boosting --device cpu --folds $K --out runs/dr32-ens8-cshift/f$K \
+    > runs/dr32-ens8-cshift-f$K.log 2>&1; echo "fold $K EXIT=$?"
+done
 ```
+
+(Do not pipe the run; read each `EXIT=`. A fold that dies leaves no `.npz` and reruns from its
+start; there is no mid-fold resume.) After the folds, merge the per-fold predictions into one
+directory, which is what the compare script reads, and compare:
+
+```bash
+cd /Users/morganoko/proj/fintfm && mkdir -p runs/dr32-ens8-cshift
+cp runs/dr32-ens8-cshift/f?/predictions_fold?.npz runs/dr32-ens8-cshift/
+cp runs/dr32-ens8-cshift/f0/v4_protocol.json runs/dr32-ens8-cshift/v4_protocol.json
+uv run --frozen --extra bench --extra hf python scripts/compare_v4_scores.py --cluster \
+  --control runs/lrsweep/eval-published cshift=runs/dr32-ens8-cshift \
+  > runs/dr32-ens8-cshift/cmp_vs_default.txt
+uv run --frozen --extra bench --extra hf python scripts/compare_v4_scores.py --cluster \
+  --control runs/v4-lever-ens8 cshift=runs/dr32-ens8-cshift \
+  > runs/dr32-ens8-cshift/cmp_vs_ens8.txt    # shift-only contrast
+```
+
+The compare script is the paired bootstrap behind `runs/v4-lever-ens8/cmp_vs_default.txt`
+(`--cluster` adds the company-clustered interval); it refuses folds whose rows differ.
+The merged `v4_protocol.json` is fold 0's (config block identical across folds); per-fold AP
+and ROC-AUC are in each `f<K>/v4_protocol.json` and the log.
+
+**SMOKE-TEST (2026-11-07, not a result):** `--folds 0 --max-rows 3000` (2,650 rows, 9 positives,
+553 test rows, 3 test positives), `nice -n 19`, `/usr/bin/time -l`, shared Mac at load average
+about 28: exit 0, 480 s wall, 568 s user CPU, maximum resident set size 5.24 GB. The AP printed
+(0.5286) rests on 3 positives and says nothing about the arm. A first attempt at
+`--max-rows 20000` ran 38 min of CPU on the loaded Mac without finishing and was stopped; the
+pipeline loads the 0.9 GB horizon parquet first, so keep smoke tests at 3,000 rows. Peak RAM at
+full scale is **not measured**: 5.24 GB is for 2,650 rows and the full fold holds about 800,000
+rows plus 200,000 test rows, so keep the earlier "at least 14 GB free" planning figure
+(ESTIMATED) until fold 0 reports its own `maximum resident set size` (run it under
+`/usr/bin/time -l` if wanted).
 
 **Cost, ESTIMATED:** the class shift changes only how each member's context is labelled, so the
 forward-pass count matches `ens8`. Taking §196's about 7 h per fold under load, five folds are
