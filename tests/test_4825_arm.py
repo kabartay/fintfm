@@ -52,9 +52,9 @@ def test_kernel_flags_build_the_arm_files_configs() -> None:
     assert a == b
 
 
-def test_kernel_is_unpinned_and_checkpoints() -> None:
-    """The commit is the placeholder, the start is hash-pinned, and saves are on."""
-    assert _constant("COMMIT") == "UNPINNED"
+def test_kernel_is_pinned_and_checkpoints() -> None:
+    """The commit is pinned (4f46460, with the arm's cell_mixing pins), the start is hash-pinned, saves are on."""
+    assert _constant("COMMIT") == "4f46460"
     assert len(str(_constant("INIT_SHA256"))) == 64
     assert "--checkpoint-every" in KERNEL.read_text()
     assert 'if COMMIT == "UNPINNED"' in KERNEL.read_text()

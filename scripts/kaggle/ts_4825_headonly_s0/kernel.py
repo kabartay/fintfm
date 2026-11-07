@@ -41,7 +41,7 @@ import sys
 import urllib.request
 from pathlib import Path
 
-COMMIT = "UNPINNED"
+COMMIT = "4f46460"
 ARM = "4825-headonly-s0"
 ARM_FLAGS: list[str] = ["--amp", "fp16", "--loader", "stream", "--seed", "0", "--steps", "6000", "--train-only", "head", "--reinit-trained"]
 DDP = False
