@@ -145,3 +145,47 @@ Build when every pending arm above has a seed-0 verdict in FINDINGS and every se
 has a seed-1 verdict. Count qualifiers by the rule. Write the bundle's flags and commit into an
 update of this draft before any kernel is pushed, and merge it into FINDINGS as the DR6.4
 pre-registration at that point. Until then nothing is launched.
+
+## Progress, 2026-11-07: the scoring and verdict script
+
+`scripts/dr64_arm_verdict.py` (tests: `tests/test_dr64_arm_verdict.py`, 10 pass on synthetic
+outputs; no real scoring was run). No earlier script did this: `scripts/compare_v4_scores.py`
+compares two scored directories and `scripts/c5_verdict.py` applies §159/§163 at the 0.0073
+yardstick, so the new script reuses `compare` and states §175's 0.0117 rule itself.
+
+- `prepare <fetched dir>`: finds the one checkpoint (ignores `.step<N>`, `.phase1`, `.session1`),
+  reads the arm's flags from its `scripts/kaggle/ts_*/kernel.py`, checks the kernel log for a GPU
+  and the command echo, and train.log for the DDP line, the last step and `model parameters:`,
+  then writes `dr64_score_command.sh`: the command of `launch_queue.sh`, with horizon, folds,
+  classical arms and boosting read from the control's `v4_protocol.json` and the control's
+  `score.yaml` as `--config`.
+- `verdict <fetched dir>`: `compare(..., cluster=True)` against `e1-v48-s<seed>`, §175's rule,
+  writes `dr64_verdict.json` (per-fold table, verdict, flags, whether batch size and steps match
+  the control).
+- `compose <runs root> [--expect lever,...] [--not-composable lever,...]`: the composition rule
+  above; outcome `bundle`, `single-lever`, `none`, or `wait` while any lever is pending.
+
+Findings while building it (each checked, none fixed, since the kernels are queued):
+
+1. **The `ts_*` kernels print `GPUs: Tesla T4`, not `CUDA available: True`** (that line comes
+   only from `make_real_arm_kernel.py`). The check accepts either and fails on `False`.
+2. **Most arms are already scored on the Kaggle T4** in `<ARM>/score/`; the verdict uses that.
+   `dr83-width512-s0` is train-only (`SCORE_V4 = False`) and the two AU5.9 kernels run a period
+   probe instead, so those three need the CPU command. Whether a six-horizon survival checkpoint
+   scores under `fintfm-v4protocol --horizon 0` is untested.
+3. **The two AU5.9 kernels pass `--amp fp16` with `--n-horizons 6`.** `_autocast` refuses fp16
+   for a model with a hazard head (MEASURED on a tiny model, 2026-11-07, and the check is present
+   at the pinned commit 62a73c3), so they are likely to fail at training start. The arm yamls set
+   `amp: "none"`; the CLI flag overrides that.
+4. `dr83-width512` runs at batch 2 and 12,000 steps against the control's batch 4 and 6,000; the
+   verdict file records that confound.
+
+### Cost of one checkpoint's five-fold CPU scoring (ESTIMATED from existing logs)
+
+From `runs/kaggle_queue/*.log` start and end stamps of `fintfm-v4protocol --device cpu`, full
+panel, `--no-boosting`, one classical arm: `fintfm-r-edgar-s0` 3.05 h and `-s1` 3.4 h (2026-10-10
+to 11, serial chain, bwa running), `task-48-9-schedulefree-retuned` 2.65 h. These overlapped a
+second scoring chain, so about 2.7 to 3.4 h per checkpoint is a fair figure, not a clean one.
+Peak RAM: 12 to 14 GB per scoring, recorded in the comment of `scripts/kaggle/launch_queue.sh`
+(observed with `top`, 2026-10-10), not as a per-run peak; only one scoring at a time. For
+comparison the Kaggle T4 scored the control in about 35 minutes (MEASURED, kernel log).
