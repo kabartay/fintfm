@@ -142,6 +142,59 @@ def test_partition_leaf_contexts_carry_the_fixed_positive_count():
     _valid(clf.predict_proba(X[:30]), 30)
 
 
+@pytest.mark.parametrize("depth", [1, 2, 3])
+def test_partition_depth_bounds_the_leaves_and_routes_every_query(depth):
+    """DR3.11: depth 1 and 3 (§169's addendum measured them), not only the default 2."""
+    X, y = _data(n=800)
+    clf = PartitionedTFMClassifier(
+        _base(), max_depth=depth, min_samples_leaf=0.05, min_leaf_rows=20
+    ).fit(X, y)
+    tree = clf.trees_[0]
+    assert 1 <= tree.get_depth() <= depth
+    assert 2 <= len(clf.leaf_estimators_[0]) <= 2**depth
+    routes = clf.route(X[:60])
+    assert set(np.unique(routes[0])) <= set(clf.leaf_estimators_[0])
+    _valid(clf.predict_proba(X[:60]), 60)
+
+
+@pytest.mark.parametrize("n_bags", [4, 8])
+def test_partition_forest_of_four_to_eight_trees_averages_every_bag(n_bags):
+    """DR3.11: ``dr311-bag4`` and ``dr311-bag8``; one tree and one leaf table per bag."""
+    X, y = _data(n=800)
+    clf = PartitionedTFMClassifier(
+        _base(), n_bags=n_bags, bag_frac=0.6, min_samples_leaf=0.05, min_leaf_rows=20
+    ).fit(X, y)
+    assert len(clf.trees_) == len(clf.leaf_estimators_) == len(clf.bag_rows_) == n_bags
+    assert {r.size for r in clf.bag_rows_} == {480}
+    assert len({r.tobytes() for r in clf.bag_rows_}) == n_bags  # no two bags the same rows
+    Xq = X[:40]
+    routes = clf.route(Xq)
+    assert routes.shape == (n_bags, 40)
+    per_bag = []
+    for b, leaves in enumerate(clf.leaf_estimators_):
+        out = np.zeros((40, 2))
+        for leaf in np.unique(routes[b]):
+            rows = np.flatnonzero(routes[b] == leaf)
+            out[rows] = (leaves[int(leaf)] or clf.global_estimator_).predict_proba(Xq[rows])
+        per_bag.append(out)
+    p = clf.predict_proba(Xq)
+    _valid(p, 40)
+    np.testing.assert_allclose(p, np.mean(per_bag, axis=0), atol=1e-6)
+
+
+def test_partition_hands_the_member_count_to_every_leaf_context():
+    """DR3.11: ``dr311-ens8``; every leaf and the global fallback average eight members."""
+    X, y = _data(n=800)
+    clf = PartitionedTFMClassifier(
+        _base(n_ensemble=8), min_samples_leaf=0.05, min_leaf_rows=20
+    ).fit(X, y)
+    inner = [clf.global_estimator_] + [e for e in clf.leaf_estimators_[0].values() if e]
+    assert len(inner) >= 2 and all(e.n_ensemble == 8 for e in inner)
+    p = clf.predict_proba(X[:30])
+    _valid(p, 30)
+    assert all(e.n_members_ == 8 for e in inner)
+
+
 @pytest.mark.parametrize("kw", [{"max_depth": 4}, {"n_bags": 0}, {"bag_frac": 0.0}])
 def test_partition_refuses_out_of_range_settings(kw):
     X, y = _data(n=100)

@@ -1,5 +1,5 @@
 # DR3.11 follow-up of §169: partitioned contexts (depth 2) with §163's fine-tuning (200 steps) in
-# each leaf. NOT PRODUCTION. Compared against §169's arm (runs/dr31/partition).
+# each leaf. MEASURED NULL (§208: +0.0049 mean AP, 4 of 5 folds). NOT PRODUCTION. Compared against §169's arm (runs/dr31/partition).
 large_n:
   method: partition
 inference:

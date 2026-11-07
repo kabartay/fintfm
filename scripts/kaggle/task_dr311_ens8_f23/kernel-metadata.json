@@ -1,0 +1,17 @@
+{
+  "id": "muhakabartay/fintfm-task-dr311-ens8-f23",
+  "title": "fintfm-task-dr311-ens8-f23",
+  "code_file": "task_dr311_ens8_f23.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": "true",
+  "enable_gpu": "true",
+  "enable_tpu": "false",
+  "enable_internet": "true",
+  "dataset_sources": [
+    "sebastiantomczak10/v4-group-corporate-bankruptcy"
+  ],
+  "competition_sources": [],
+  "kernel_sources": [],
+  "model_sources": []
+}
