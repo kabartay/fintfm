@@ -247,7 +247,7 @@
       credit performance has been measured on **one prior, retrospectively**: the instrument
       now asks a question it previously could not, which is not the same as its answers being
       established.
-- [ ] 48.15 **Evaluate moving the objective from `p(y | x, D)` to `p(x, y | D)`.** LimiX-2 —
+- [ ] 48.15 **Progress (2026-11-07, docs/results/drafts/48.15_2026-11.md): the masked-column objective is implemented behind `--masked-column-prob` (default 0.0, task sequence unchanged; binary target cut at a context quantile, replacing tasks so counts match), tested on CPU, and the Kaggle arm `ts_4815_maskcol_s0` is prepared at P = 0.25 with a placeholder commit; nothing has trained, the pre-registration names the small-model failure mode, and the task stays open until the arm is scored.** Evaluate moving the objective from `p(y | x, D)` to `p(x, y | D)`.** LimiX-2 —
       **rank 0 on TabArena, Elo 1872, synthetic-only, SCM-pretrained, Apache-2.0** — replaces
       target-centric prediction with "a context-dependent representation of the joint structure
       underlying data generation", trained by context-conditional masked modelling. This project

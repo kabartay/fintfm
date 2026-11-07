@@ -249,6 +249,7 @@ class TrainConfigDefaults:
     task_dump_allow_code_mismatch: bool = False
     amp: str = "none"
     decay_norm_bias: bool = True
+    masked_column_prob: float = 0.0
     muon_lr: float | None = None
     muon_scale: str = "rms_match"
     loader: str = "sync"
@@ -613,6 +614,8 @@ def _validate(cfg: Config) -> None:
         raise ConfigError(f"train.warmup_steps must be at least 0, got {t.warmup_steps}")
     if not isinstance(t.decay_norm_bias, bool):
         raise ConfigError(f"train.decay_norm_bias must be true or false, got {t.decay_norm_bias!r}")
+    if not 0.0 <= t.masked_column_prob <= 1.0:
+        raise ConfigError(f"train.masked_column_prob must be in [0, 1], got {t.masked_column_prob}")
     if t.muon_lr is not None and t.muon_lr <= 0:
         raise ConfigError(f"train.muon_lr must be positive or null, got {t.muon_lr}")
     if t.muon_scale not in ("rms_match", "keller"):

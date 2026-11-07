@@ -66,6 +66,7 @@ train:
   task_dump: null
   task_dump_allow_code_mismatch: false
   decay_norm_bias: true
+  masked_column_prob: 0.0       # 48.15 lever, off: every checkpoint trained target-only
   amp: "none"
   muon_lr: null                 # Muon keys unused: the recipe is adamw
   muon_scale: rms_match

@@ -225,6 +225,7 @@ train:
   task_dump: null          # pre-generated batches (AU5.15); null samples live
   task_dump_allow_code_mismatch: false
   decay_norm_bias: true    # true = AdamW decays every parameter; false exempts norms/biases/embeddings
+  masked_column_prob: 0.0  # share of tasks replaced by a masked-column task (48.15); 0 = target-only objective
   amp: "none"              # "none" (float32), "bf16" or "fp16" autocast; quoted, YAML reads off as false
   # Muon, read only under --optimizer muon (design review DR1.7). muon_lr null = --lr under
   # rms_match (0.2*sqrt(max(n, m)) scaling, sized to share AdamW's rate), 0.02 under keller.

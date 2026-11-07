@@ -26,6 +26,7 @@ import torch
 
 from fintfm.config import Config, load_config
 from fintfm.modeling.loader import LOADERS, stream_batches
+from fintfm.modeling.masked_column import swap_batch, swap_key
 from fintfm.modeling.model import ATTN_IMPLS, CELL_ROW_ATTNS, READOUTS, FinancialTFM, ModelConfig
 from fintfm.prior import PriorConfig
 from fintfm.prior.base import TaskBatch
@@ -165,6 +166,12 @@ class TrainConfig:
     #: embedding tables and the free token parameters, the usual transformer practice.
     #: ``"adamw"`` and ``"muon"`` only; schedule-free applies no weight decay to exempt.
     decay_norm_bias: bool = True
+    #: Probability that a sampled task is replaced by its masked-column version (openspec task
+    #: 48.15, :mod:`fintfm.modeling.masked_column`): a randomly chosen fully observed feature
+    #: column becomes a binary target cut at a context quantile, and the original label becomes
+    #: a feature. A replacement, so tasks seen are unchanged. ``0.0`` (default) never touches a
+    #: batch and reproduces every checkpoint's task sequence exactly. Binned head only.
+    masked_column_prob: float = 0.0
     #: Base learning rate of Muon's matrix groups under ``optimizer="muon"``; the AdamW side
     #: keeps :attr:`lr`. ``None`` (default) follows :attr:`muon_scale`: :attr:`lr` under
     #: ``"rms_match"``, whose scaling exists to share AdamW's rate, and the write-up's 0.02
@@ -308,6 +315,10 @@ def _check_train_config(train_cfg: TrainConfig) -> None:
         raise ValueError(f"schedule must be one of {SCHEDULES}, got {train_cfg.schedule!r}")
     if train_cfg.eval_batches < 1:
         raise ValueError(f"eval_batches must be at least 1, got {train_cfg.eval_batches}")
+    if not 0.0 <= train_cfg.masked_column_prob <= 1.0:
+        raise ValueError(
+            f"masked_column_prob must be in [0, 1], got {train_cfg.masked_column_prob}"
+        )
     if train_cfg.schedule == "wsd":
         if train_cfg.optimizer == "schedulefree":
             raise ValueError(
@@ -1465,6 +1476,11 @@ def train(
     """
     check_model_matches_prior(model_cfg, prior_cfg)
     _check_train_config(train_cfg)
+    if train_cfg.masked_column_prob > 0 and model_cfg.head_type != "binned":
+        raise ValueError(
+            "--masked-column-prob relabels tasks with binary targets; it needs head_type "
+            f"'binned', got {model_cfg.head_type!r}"
+        )
     rank, world, local_rank, device, owns_group = _ddp_setup(train_cfg)
     say = print if rank == 0 else _silent
     rng = np.random.default_rng(train_cfg.seed)
@@ -1686,6 +1702,7 @@ def train(
         )
 
     planned_stop = stop_step
+    swapped_total = 0
     time_budget: dict[str, Any] | None = None
     loop_t0 = _training_clock() if train_cfg.run_seconds is not None else 0.0
     for step in range(start_step, stop_step):
@@ -1697,6 +1714,15 @@ def train(
                 if dump is None
                 else dump.batch(step)
             ).to(device)
+        if train_cfg.masked_column_prob > 0:
+            # its own stateless stream per step: the task sequence above is untouched, and a
+            # resumed run swaps the same tasks an uninterrupted one would
+            batch, n_swapped = swap_batch(
+                batch,
+                train_cfg.masked_column_prob,
+                np.random.default_rng(swap_key(train_cfg.seed, rank, step)),
+            )
+            swapped_total += n_swapped
         loss = _training_step(
             model, batch, opt, sched, train_cfg.amp, objectives, scaler, ddp_module
         )
@@ -1712,6 +1738,11 @@ def train(
             say(
                 f"step {step + 1}/{train_cfg.steps}  loss {running / train_cfg.log_every:.4f}  "
                 f"lr {sched.get_last_lr()[0]:.2e}  {elapsed:.0f}s"
+                + (
+                    f"  masked-column swaps {swapped_total}"
+                    if train_cfg.masked_column_prob > 0
+                    else ""
+                )
             )
             running = 0.0
         every = train_cfg.checkpoint_every
@@ -1994,6 +2025,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="apply AdamW weight decay to LayerNorm gains, biases, embeddings and token "
         "parameters too (audit AU5.10). Defaults to the config's train.decay_norm_bias, "
         "true, which is every checkpoint's behaviour; --no-decay-norm-bias exempts them",
+    )
+    p.add_argument(
+        "--masked-column-prob",
+        type=float,
+        default=None,
+        help="probability that a sampled task is replaced by a masked-column task (openspec "
+        "48.15): a random fully observed feature column becomes a binary target cut at a "
+        "context quantile and the original label becomes a feature. A replacement, so the "
+        "task count is unchanged. Defaults to the config's train.masked_column_prob, 0.0, "
+        "which reproduces every checkpoint's task sequence; binned head only",
     )
     p.add_argument(
         "--amp",
