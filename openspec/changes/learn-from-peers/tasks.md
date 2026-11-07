@@ -414,7 +414,7 @@
       statement in `docs/paper/` made relative to LimiX-2. Verify: both read at primary source and
       recorded in `docs/research/REFERENCES.md` and `docs/paper/RELATED_WORK.md`; Seldon counts as
       a real peer if its classification-only Elo exceeds TabICLv2's there.
-- [ ] 48.27 **Test whether row and column latents can replace two-way cell attention at matched
+- [ ] 48.27 **Progress (2026-11-07, `docs/results/drafts/48.27_2026-11.md`): implemented behind a flag, default off; the Kaggle arm is prepared, not pushed, not run.** `ModelConfig.cell_mixing="latent"` (`fintfm-train --cell-mixing latent`) replaces both cell stages with row and column latents (`LatentCellBlock`, 923,618 parameters against the control's 885,650); the default leaves the model byte-identical and old checkpoints load. Tests cover query isolation, column permutation, chunked prediction and a CLI training smoke. A CPU SMOKE-TEST step at 512 rows by 64 features ran faster and used less memory than attention, but the machine was heavily loaded and it is not the Verify's GPU measurement. Arm `scripts/kaggle/ts_4827_latent_s0/` (commit pinned to `PIN-AFTER-MERGE`), control `e1-v48-s0`, GPU cost ESTIMATED 1.2 to 1.9 h. **Test whether row and column latents can replace two-way cell attention at matched
       quality and lower cost (peer read 2026-11-06, FTFM, arXiv:2610.25558).** FTFM updates each
       cell from one contextual latent per row and one per column, so "cells no longer attend to
       one another directly"; the paper's complexity table puts its attention at the row count

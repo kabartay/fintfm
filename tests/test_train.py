@@ -790,9 +790,12 @@ _TINY_CLI = [
          {"n_cell_blocks": 1, "cell_row_attn": "induced", "n_inducing": 4}),
         (["--readout", "cls", "--n-readout", "2"], {"readout": "cls", "n_readout": 2}),
         (["--head-mlp"], {"head_mlp": True}),
+        (["--n-cell-blocks", "1", "--cell-mixing", "latent"],
+         {"n_cell_blocks": 1, "cell_mixing": "latent"}),
     ],
     ids=["n-heads", "n-cell-heads", "summary-tokens", "rbf", "fourier", "ecdf",
-         "length-scale", "hazard-period", "induced-cell-rows", "readout-cls", "head-mlp"],
+         "length-scale", "hazard-period", "induced-cell-rows", "readout-cls", "head-mlp",
+         "latent-cell-mixing"],
 )
 def test_each_model_lever_trains_from_the_cli(tmp_path, monkeypatch, flags, expected):
     """Smoke test per Phase 5 model lever: the flag reaches the model, two steps train, and

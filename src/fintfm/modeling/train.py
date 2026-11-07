@@ -27,7 +27,14 @@ import torch
 from fintfm.config import Config, load_config
 from fintfm.modeling.loader import LOADERS, stream_batches
 from fintfm.modeling.masked_column import swap_batch, swap_key
-from fintfm.modeling.model import ATTN_IMPLS, CELL_ROW_ATTNS, READOUTS, FinancialTFM, ModelConfig
+from fintfm.modeling.model import (
+    ATTN_IMPLS,
+    CELL_MIXINGS,
+    CELL_ROW_ATTNS,
+    READOUTS,
+    FinancialTFM,
+    ModelConfig,
+)
 from fintfm.prior import PriorConfig
 from fintfm.prior.base import TaskBatch
 from fintfm.prior.dump import TaskDump, open_task_dump
@@ -2570,6 +2577,16 @@ def build_parser() -> argparse.ArgumentParser:
         "config default, is today's N x N attention; 'induced' gathers each feature's "
         "context cells through --n-inducing learned vectors and lets every cell read the "
         "summaries, linear in rows. Requires --n-cell-blocks >= 1",
+    )
+    p.add_argument(
+        "--cell-mixing",
+        type=str,
+        default=None,
+        choices=CELL_MIXINGS,
+        help="how cell blocks mix cells (task 48.27): 'attention', the config default, is "
+        "today's two-way cell attention; 'latent' replaces it with one latent per row and one "
+        "per column (rows^2 + columns^2 attention). Requires --n-cell-blocks >= 1, "
+        "--cell-row-attn full and --readout pool",
     )
     p.add_argument(
         "--n-inducing",

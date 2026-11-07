@@ -309,6 +309,7 @@ class ModelConfigDefaults:
     readout: str = "pool"
     n_readout: int = 4
     head_mlp: bool = False
+    cell_mixing: str = "attention"
 
 
 @dataclass(frozen=True)
@@ -655,6 +656,10 @@ def _validate(cfg: Config) -> None:
         )
     if m.readout not in ("pool", "cls"):
         raise ConfigError(f"model.readout must be 'pool' or 'cls', got {m.readout!r}")
+    if m.cell_mixing not in ("attention", "latent"):
+        raise ConfigError(
+            f"model.cell_mixing must be 'attention' or 'latent', got {m.cell_mixing!r}"
+        )
 
 
 #: Section name to dataclass. Declared explicitly rather than read off ``Config``'s

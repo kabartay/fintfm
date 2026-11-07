@@ -284,6 +284,7 @@ model:
   readout: pool                 # or cls: readout tokens inside column attention (DR6.3)
   n_readout: 4                  # readout tokens per row; unused for pool
   head_mlp: false               # two-layer MLP output head instead of a linear one (DR6.3)
+  cell_mixing: attention        # or latent: row and column latents replace cell attention (48.27)
 
 # Large-table wrappers for the fintfm arm of fintfm-v4protocol (audit AU5.8). The partition_*
 # and boost_* keys MIRROR the literal defaults of PartitionedTFMClassifier and

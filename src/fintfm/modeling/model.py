@@ -54,6 +54,8 @@ ATTN_IMPLS: tuple[str, ...] = ("masked", "split")
 CELL_ROW_ATTNS: tuple[str, ...] = ("full", "induced")
 #: Accepted values of :attr:`ModelConfig.readout` (design review DR6.3).
 READOUTS: tuple[str, ...] = ("pool", "cls")
+#: Accepted values of :attr:`ModelConfig.cell_mixing` (task 48.27).
+CELL_MIXINGS: tuple[str, ...] = ("attention", "latent")
 
 #: What :meth:`FinancialTFM.predict_context` returns for the query rows.
 ContextOutput = Literal["logits", "term_structure", "representation"]
@@ -272,6 +274,39 @@ class ModelConfig:
         head_mlp: Replace the linear output head with a two-layer MLP (``d_model -> d_ff ->
             out``, GELU) (DR6.3). Applies to the binned and quantile heads; the hazard head is
             unchanged. ``False`` (default) keeps the linear head.
+
+        **Task 48.27 lever** (``openspec/changes/learn-from-peers``). Same contract as the
+        levers above: the default builds exactly the model that existed before the field, and
+        a checkpoint without the key loads with the default. No measured effect yet.
+
+        cell_mixing: How a cell block mixes information between cells. ``"attention"``
+            (default) is the existing two-way cell attention: a row-within-feature stage
+            (``cell_row_attn``) then a column-within-row stage. ``"latent"`` replaces both
+            stages, per block, with row and column latents, so cells never attend to one
+            another directly (paper spec, FTFM arXiv:2610.25558; an independent
+            implementation, no code or weights). Each block, see :class:`LatentCellBlock`: a
+            learned query pools every row's unpadded cells into a row latent and every
+            column's **context** cells into a column latent; row latents attend to one
+            another under :meth:`FinancialTFM._row_mask` (context rows only, plus self) and
+            column latents attend to one another with padding masked and no positional
+            encoding; each cell is then updated from itself, its row latent and its column
+            latent by a pre-norm MLP with a residual. Attention scores cost ``B * N**2`` for
+            rows and ``B * F**2`` for columns, against ``B * F * N**2`` and ``B * N * F**2``
+            for ``"attention"``. A query row is never a key of a column latent or of another
+            row's latent, so it cannot affect any other row and chunked prediction stays
+            exact; column-order invariance (D4) holds exactly without column identities and
+            in distribution with them, as for ``"attention"``. Requires
+            ``n_cell_blocks >= 1``, ``cell_row_attn="full"`` (the induced stage is another
+            row stage and would be dead weight), ``readout="pool"`` (the readout tokens live
+            inside the column attention this removes). ``attn_impl`` does not apply to the
+            cell stage (its row-latent attention is ``N x N`` over rows, not cells, under the
+            row mask) and still selects the row encoder's attention, so the reference recipe's
+            ``attn_impl="split"`` is allowed. ``n_summary_tokens`` and ``pooling`` act on the
+            final cells as before; ``n_cell_heads`` sets the latents' head count. As for
+            ``"attention"``, the ``n_cell_blocks`` passes share one set of weights (one
+            :class:`LatentCellBlock` run repeatedly), and the block has one mixing layer per
+            latent kind regardless of ``n_col_layers``, its depth being its pooling plus its
+            mixing.
     """
 
     max_features: int = 24
@@ -306,6 +341,7 @@ class ModelConfig:
     readout: str = "pool"
     n_readout: int = 4
     head_mlp: bool = False
+    cell_mixing: str = "attention"
 
     def __post_init__(self) -> None:
         """Validate ``head_type``, the Phase 5 and DR6 levers, and their interactions.
@@ -318,7 +354,26 @@ class ModelConfig:
                 attention pooling, ``hazard_period_context`` without a hazard head, an
                 unknown ``attn_impl``, ``cell_row_attn`` or ``readout``, an induced stage
                 without cell blocks, or readout tokens combined with another readout.
+                Also for an unknown ``cell_mixing``, or ``cell_mixing="latent"`` without cell
+                blocks or with ``cell_row_attn="induced"`` or ``readout="cls"``.
         """
+        if self.cell_mixing not in CELL_MIXINGS:
+            raise ValueError(
+                f"cell_mixing must be one of {CELL_MIXINGS}, got {self.cell_mixing!r}"
+            )
+        if self.cell_mixing == "latent":
+            if self.n_cell_blocks < 1:
+                raise ValueError("cell_mixing='latent' requires n_cell_blocks >= 1")
+            if self.cell_row_attn != "full":
+                raise ValueError(
+                    "cell_mixing='latent' replaces the row-within-feature stage, so it "
+                    "cannot be combined with cell_row_attn='induced'"
+                )
+            if self.readout == "cls":
+                raise ValueError(
+                    "cell_mixing='latent' removes the column attention the readout tokens "
+                    "live in, so it cannot be combined with readout='cls'"
+                )
         if self.cell_row_attn not in CELL_ROW_ATTNS:
             raise ValueError(
                 f"cell_row_attn must be one of {CELL_ROW_ATTNS}, got {self.cell_row_attn!r}"
@@ -744,6 +799,111 @@ class ValueBasis(nn.Module):
         return torch.cat([torch.sin(angle), torch.cos(angle)], dim=-1)
 
 
+class LatentCellBlock(nn.Module):
+    """One cell block of ``cell_mixing="latent"``: row and column latents (task 48.27).
+
+    Paper spec of FTFM (arXiv:2610.25558), "each cell is updated from one contextual latent
+    per row and one per column"; written from that sentence and the complexity table, no code.
+    The block's steps, for cells ``(B, N, F, d)`` with context rows first:
+
+    1. **Pool.** A learned query attends over a row's unpadded cells (row latent) and over a
+       column's **context** cells (column latent), each through a LayerNorm on the keys.
+    2. **Mix.** Row latents run one pre-norm transformer layer under the row mask (context
+       rows attend to context rows; a query row to the context and itself); column latents run
+       one with padded columns masked as keys. Neither has a positional encoding.
+    3. **Update.** ``cells + MLP(LayerNorm([cell, row latent, column latent]))``.
+
+    A query row feeds only its own row latent and no column latent, so it cannot reach any
+    other row. The learned pooling queries are owned by the model (``latent_row_query`` and
+    ``latent_col_query``), as the other free tokens are, so weight-decay exemption treats
+    them alike.
+
+    Args:
+        d_cell: Cell width.
+        n_heads: Heads of the pooling and mixing attention.
+        dropout: Dropout of the attention and feed-forward sublayers.
+    """
+
+    def __init__(self, d_cell: int, n_heads: int, dropout: float) -> None:
+        super().__init__()
+        self.row_norm = nn.LayerNorm(d_cell)
+        self.col_norm = nn.LayerNorm(d_cell)
+        self.row_pool = nn.MultiheadAttention(d_cell, n_heads, dropout=dropout, batch_first=True)
+        self.col_pool = nn.MultiheadAttention(d_cell, n_heads, dropout=dropout, batch_first=True)
+
+        def mixer() -> nn.TransformerEncoderLayer:
+            """A pre-norm layer of the stock shape the other cell stages use."""
+            return nn.TransformerEncoderLayer(
+                d_model=d_cell,
+                nhead=n_heads,
+                dim_feedforward=2 * d_cell,
+                dropout=dropout,
+                activation="gelu",
+                batch_first=True,
+                norm_first=True,
+            )
+
+        self.row_mix = mixer()
+        self.col_mix = mixer()
+        self.update_norm = nn.LayerNorm(3 * d_cell)
+        self.update = nn.Sequential(
+            nn.Linear(3 * d_cell, 2 * d_cell), nn.GELU(), nn.Linear(2 * d_cell, d_cell)
+        )
+
+    def forward(
+        self,
+        cells: torch.Tensor,
+        row_query: torch.Tensor,
+        col_query: torch.Tensor,
+        n_ctx: int,
+        pad: torch.Tensor,
+        row_mask: torch.Tensor,
+    ) -> torch.Tensor:
+        """Update every cell from its row latent and its column latent.
+
+        Args:
+            cells: ``(B, N, F, d_cell)``, rows ordered context first.
+            row_query: ``(1, 1, d_cell)`` learned row-pooling query.
+            col_query: ``(1, 1, d_cell)`` learned column-pooling query.
+            n_ctx: Context/query split, ``>= 1``.
+            pad: ``(B, F)`` boolean, True = a padded column.
+            row_mask: ``(N, N)`` boolean, True = blocked (``FinancialTFM._row_mask``).
+
+        Returns:
+            ``(B, N, F, d_cell)``.
+
+        Raises:
+            ValueError: If ``n_ctx < 1``: with no context there is nothing to pool columns from.
+        """
+        if n_ctx < 1:
+            raise ValueError("cell_mixing='latent' needs at least one context row")
+        B, N, Fdim, d = cells.shape
+        # a row (or task) of only padding would give a fully masked softmax; keep one key open
+        pad_rows = pad.repeat_interleave(N, dim=0)
+        safe_rows = pad_rows & ~pad_rows.all(dim=1, keepdim=True)
+        safe_cols = pad & ~pad.all(dim=1, keepdim=True)
+
+        keys = self.row_norm(cells).reshape(B * N, Fdim, d)
+        q = row_query.expand(B * N, -1, -1).to(cells.dtype)
+        row_lat, _ = self.row_pool(q, keys, keys, key_padding_mask=safe_rows, need_weights=False)
+        row_lat = self.row_mix(row_lat.reshape(B, N, d), src_mask=row_mask)  # (B, N, d)
+
+        ctx = self.col_norm(cells[:, :n_ctx]).permute(0, 2, 1, 3).reshape(B * Fdim, n_ctx, d)
+        q = col_query.expand(B * Fdim, -1, -1).to(cells.dtype)
+        col_lat, _ = self.col_pool(q, ctx, ctx, need_weights=False)
+        col_lat = self.col_mix(col_lat.reshape(B, Fdim, d), src_key_padding_mask=safe_cols)
+
+        joint = torch.cat(
+            [
+                cells,
+                row_lat[:, :, None, :].expand(-1, -1, Fdim, -1),
+                col_lat[:, None, :, :].expand(-1, N, -1, -1),
+            ],
+            dim=-1,
+        )
+        return cells + self.update(self.update_norm(joint))
+
+
 class FinancialTFM(nn.Module):
     """Tabular in-context classifier.
 
@@ -842,7 +1002,16 @@ class FinancialTFM(nn.Module):
                 batch_first=True,
                 norm_first=True,
             )
-            if cfg.cell_row_attn == "full":
+            if cfg.cell_mixing == "latent":
+                # Task 48.27: a LatentCellBlock replaces both the row-within-feature and the
+                # column-within-row stage, so neither encoder is built. One block, run
+                # n_cell_blocks times, as the stock stages are (tied weights). The pooling
+                # queries sit on the model, like the inducing points, so the optimiser groups
+                # them with the other free tokens.
+                self.latent_block = LatentCellBlock(cfg.d_cell, cell_heads, cfg.dropout)
+                self.latent_row_query = nn.Parameter(torch.randn(1, 1, cfg.d_cell) * 0.02)
+                self.latent_col_query = nn.Parameter(torch.randn(1, 1, cfg.d_cell) * 0.02)
+            elif cfg.cell_row_attn == "full":
                 self.row_within_feature_encoder = nn.TransformerEncoder(
                     row_within_feature_layer,
                     num_layers=cfg.n_col_layers,
@@ -1322,12 +1491,22 @@ class FinancialTFM(nn.Module):
                 cells = cells + cell_y[:, :, None, :]
             # attn_impl="split" needs no mask (AU5.2), nor does the induced stage (DR6.2);
             # "masked" builds the one it always has
+            latent = self.cfg.cell_mixing == "latent"
             row_mask = (
                 None
-                if self.cfg.attn_impl == "split" or self.cfg.cell_row_attn == "induced"
-                else self._row_mask(N, n_ctx, X.device)
+                if not latent
+                and (self.cfg.attn_impl == "split" or self.cfg.cell_row_attn == "induced")
+                else self._row_mask(N, n_ctx, X.device)  # the latent stage always needs it
             )
             for _ in range(self.cfg.n_cell_blocks):
+                if latent:
+                    # Task 48.27: row and column latents replace both stages below.
+                    assert row_mask is not None
+                    cells = self.latent_block(
+                        cells, self.latent_row_query, self.latent_col_query, n_ctx, pad, row_mask
+                    )
+                    flat = cells.reshape(B * N, Fdim, self.cfg.d_cell)
+                    continue
                 # Row attention within one feature: a cell attends to the same feature's
                 # cells in every other row -- a data-derived column identity, computed from
                 # the column's own distribution rather than a random tag. (B,F,N,d) so the

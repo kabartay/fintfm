@@ -926,7 +926,8 @@ _P5_KEYS = ("n_cell_heads", "n_summary_tokens", "value_embedding", "value_basis_
             "attn_impl", "hazard_period_context")
 #: The design review DR6 levers (DR6.2, DR6.3), deleted alongside: a checkpoint saved before
 #: them lacks their keys too.
-_DR6_KEYS = ("cell_row_attn", "n_inducing", "readout", "n_readout", "head_mlp")
+_DR6_KEYS = ("cell_row_attn", "n_inducing", "readout", "n_readout", "head_mlp",
+              "cell_mixing")
 
 
 def _p5_inputs(max_classes):
@@ -1735,3 +1736,139 @@ def test_induced_stage_refuses_an_empty_context():
     X, y = _p5_inputs(3)
     with pytest.raises(ValueError, match="at least one context row"):
         model(X, y, 0)
+
+
+# --- Task 48.27: cell_mixing="latent", row and column latents instead of cell attention ---
+
+_LATENT = {"n_cell_blocks": 2, "cell_labels": True, "cell_mixing": "latent"}
+
+
+def test_latent_default_builds_no_latent_module_and_changes_nothing():
+    """48.27: the default has no latent parameter, and naming the default is the same model
+    (the pre-lever fingerprint above and tests/test_golden_outputs.py pin the outputs)."""
+    model = _dr6_model(n_cell_blocks=1)
+    assert not any(n.startswith("latent_") for n, _ in model.named_parameters())
+    assert model.cfg.cell_mixing == "attention"
+    explicit = _dr6_model(n_cell_blocks=1, cell_mixing="attention")
+    assert sum(p.numel() for p in explicit.parameters()) == sum(
+        p.numel() for p in model.parameters()
+    )
+    X, y = _p5_inputs(3)
+    torch.testing.assert_close(_p5_run(explicit, X, y), _p5_run(model, X, y), rtol=0, atol=0)
+
+
+def test_latent_mode_replaces_both_cell_stages():
+    model = _dr6_model(**_LATENT)
+    names = {n for n, _ in model.named_parameters()}
+    assert any(n.startswith("latent_block.") for n in names)
+    assert {"latent_row_query", "latent_col_query"} <= names
+    assert not hasattr(model, "row_within_feature_encoder")
+    X, y = _p5_inputs(3)
+    out = _p5_run(model, X, y)
+    assert torch.isfinite(out).all()
+
+
+@pytest.mark.parametrize("attn_impl", ["masked", "split"])
+def test_latent_mode_lets_no_query_reach_another_row(attn_impl):
+    """48.27: a query row is never a key of a column latent or of another row's latent, so
+    changing one query row's values (and every query label) moves no other row."""
+    model = _dr6_model(**_LATENT, attn_impl=attn_impl)
+    X, y = _p5_inputs(3)
+    n_ctx, row = 9, 12
+    X2, y2 = X.clone(), y.clone()
+    X2[:, row, :5] = 5.0 * torch.randn(2, 5, generator=torch.Generator().manual_seed(4))
+    y2[:, n_ctx:] = (y2[:, n_ctx:] + 1) % 3
+    base, moved = _p5_run(model, X, y, n_ctx), _p5_run(model, X2, y2, n_ctx)
+    others = [r for r in range(X.shape[1]) if r != row]
+    torch.testing.assert_close(moved[:, others], base[:, others], rtol=0, atol=1e-6)
+    assert not torch.allclose(moved[:, row], base[:, row])
+
+
+def test_latent_mode_is_invariant_to_column_permutation():
+    """48.27: no positional encoding anywhere, so without column identities permuting the
+    feature columns (a padded one included) leaves every output unchanged."""
+    model = _dr6_model(**_LATENT, column_id_dim=0)
+    X, y = _p5_inputs(3)
+    perm = torch.tensor([3, 0, 5, 1, 4, 2])
+    torch.testing.assert_close(
+        _p5_run(model, X[:, :, perm], y), _p5_run(model, X, y), rtol=1e-4, atol=1e-5
+    )
+
+
+def test_latent_mode_ignores_padded_columns():
+    model = _dr6_model(**_LATENT, column_id_dim=0)
+    X, y = _p5_inputs(3)  # column 5 is padding
+    torch.testing.assert_close(
+        _p5_run(model, X[:, :, :5], y), _p5_run(model, X, y), rtol=1e-5, atol=1e-6
+    )
+
+
+def test_latent_mode_scores_in_query_chunks_exactly():
+    """Queries scored two at a time give the one-pass logits (predict_context's chunking)."""
+    model = _dr6_model(**_LATENT)
+    X, y = _p5_inputs(3)
+    Xc, yc, Xq = X[0, :9].numpy(), y[0, :9].numpy(), X[0, 9:].numpy()
+    whole = model.predict_context(Xc, yc, Xq, n_classes=3, pad_features=False)
+    chunked = torch.cat([
+        model.predict_context(Xc, yc, Xq[i : i + 2], n_classes=3, pad_features=False)
+        for i in range(0, len(Xq), 2)
+    ])
+    torch.testing.assert_close(chunked, whole, rtol=1e-5, atol=1e-6)
+
+
+def test_latent_attention_is_rows_squared_plus_columns_squared(monkeypatch):
+    """48.27: no cell-width attention is cells x cells. The block's calls are the row latent
+    pooling the 6 features of each row, the column latent pooling the 9 context rows, and the
+    latents' own 14 x 14 and 6 x 6 mixing. Gradients reach both pooling queries."""
+    model = _dr6_model(**{**_LATENT, "n_cell_blocks": 1}).train()
+    calls = _record_attention_shapes(monkeypatch)
+    X, y = _p5_inputs(3)
+    model.loss(X, y, 9, torch.tensor([3, 3])).backward()
+    cell = {(lq, lk) for width, lq, lk in calls if width == 8}
+    assert cell <= {(1, 6), (1, 9), (14, 14), (6, 6)}, cell
+    assert {(14, 14), (6, 6)} <= cell
+    for name in ("latent_row_query", "latent_col_query"):
+        grad = getattr(model, name).grad
+        assert grad is not None and grad.abs().sum() > 0
+
+
+def test_latent_queries_are_exempt_from_weight_decay():
+    from fintfm.modeling.train import _no_decay_parameters
+
+    model = _dr6_model(**_LATENT)
+    exempt = _no_decay_parameters(model)
+    assert id(model.latent_row_query) in exempt and id(model.latent_col_query) in exempt
+
+
+def test_latent_mode_refuses_an_empty_context():
+    model = _dr6_model(**_LATENT)
+    X, y = _p5_inputs(3)
+    with pytest.raises(ValueError, match="at least one context row"):
+        model(X, y, 0)
+
+
+def test_checkpoint_without_cell_mixing_key_loads_with_the_default(tmp_path):
+    model = _dr6_model(n_cell_blocks=1)
+    path = tmp_path / "old.pt"
+    model.save(str(path))
+    ckpt = torch.load(str(path), weights_only=True)
+    del ckpt["config"]["cell_mixing"]
+    torch.save(ckpt, str(path))
+    loaded = FinancialTFM.load(str(path))
+    assert loaded.cfg.cell_mixing == "attention"
+    X, y = _p5_inputs(3)
+    torch.testing.assert_close(_p5_run(loaded, X, y), _p5_run(model, X, y), rtol=0, atol=0)
+
+
+@pytest.mark.parametrize(
+    "bad, match",
+    [
+        ({"cell_mixing": "mamba", "n_cell_blocks": 1}, "cell_mixing"),
+        ({"cell_mixing": "latent"}, "requires n_cell_blocks"),
+        ({"cell_mixing": "latent", "n_cell_blocks": 1, "cell_row_attn": "induced"}, "induced"),
+        ({"cell_mixing": "latent", "n_cell_blocks": 1, "readout": "cls"}, "readout='cls'"),
+    ],
+)
+def test_latent_config_refuses_nonsense(bad, match):
+    with pytest.raises(ValueError, match=match):
+        ModelConfig(**{**_P5_BASE, **bad})
