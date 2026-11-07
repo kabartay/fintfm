@@ -72,3 +72,71 @@ LightGBM is on ULB, which is §189's own reading.
   out-of-fold FinTFM logits, which §189 did not save; regenerating them took up to 1,791 s per split
   on SBA (§189). The V4FinBench half of DR8.4 stays open.
 - Three splits per dataset; no interval. A system result, as §189 says, not a model result.
+
+## 2026-11-07: tooling for the open halves, smoke-tested, not run at scale
+
+No new result. Both open halves now have code, tests and a SMOKE-TEST; the full runs are queued for
+the coordinator (commands below). Every number in this section is SMOKE-TEST or ESTIMATED.
+
+**(a) A tuned booster plus the FinTFM logit, credit suite.**
+
+- `credit_suite --save-oof DIR` (needs `--hybrid`) writes `<dataset>_split<k>.npz` per split: the
+  out-of-fold logits of the training rows, the test logits of the one FinTFM fitted on all training
+  rows, the row indices, the inner-fold index and the labels. Off by default; with it off the
+  code path is untouched, and a test checks that the CSV rows (every column but `seconds`) equal
+  those of a run with it on. The folds are the ones §189's hybrid already used: stratified, and
+  grouped by borrower where a dataset has an id (neither SBA nor ULB has one), and every inner
+  context is checked against the test rows before any fit. SBA's embargo is therefore met by
+  construction: contexts hold training rows only, as in §189.
+- `credit_suite --max-rows N` is a seeded development cap (smoke tests only).
+- `scripts/credit_lightgbm_tuned.py --oof-dir DIR` runs the same seeded search of up to 30 configs
+  as the tuned control (same inner split, same early stopping, same budget) twice per split:
+  `feature` (logit as one more column) and `init` (logit as the starting score). Inner validation
+  scores include the starting score. The worker's untuned control starts from the same logits, so it
+  reproduces §189's hybrid rows: SMOKE-TEST, SBA capped at 6,000 rows, split 0, untuned feature AP
+  0.1082 and init AP 0.1173 in the tuned JSONs, equal to the hybrid CSV rows' 0.1082 and 0.1173.
+- SMOKE-TEST numbers (6,000 rows, 4 configs, 60 s budget, 2 inner folds) are plumbing only and
+  say nothing about quality: tuned feature AP 0.1457 / 0.1477 / 0.2562 and tuned init AP 0.2258 /
+  0.1897 / 0.2245 on splits 0 to 2, against 36 test positives in split 0. Peak RAM
+  (`/usr/bin/time -l`, includes children): 8.1 GB for the capped credit run, which loads the full
+  SBA file before capping, and 1.8 GB for the tuned stage.
+
+**(b) V4FinBench.** `hybrid_catboost --booster lightgbm_tuned` adds three arms to the AU4.4 layout
+(`lightgbm_tuned`, `lightgbm_tuned_fintfm_baseline`, `lightgbm_tuned_fintfm_feature`), each a
+separate seeded search in the torch-free worker, on an inner split of the training rows by whole
+company (new in `inner_split`: undated rows with groups split by group; a row split would put
+nearly every multi-year company on both sides). Validation and test rows are never read by the
+search. Output files pair with `scripts/compare_v4_scores.py`. Default `--booster catboost`
+leaves AU4.4's outputs as before. SMOKE-TEST (fold 0, panel capped at 20,000 rows, 4,000 training
+rows, 3 configs, 2 inner folds): all four arms scored, 210 s wall on a loaded machine, peak RAM
+14.2 GB (full 1,000,087-row panel is loaded before the cap). Capped-run APs
+(0.2288 / 0.2184 / 0.2239 tuned alone / init / feature; FinTFM 0.3131) are SMOKE-TEST.
+
+**Commands for the coordinator, serial, run from the main checkout after merging**
+(`cd /Users/morganoko/proj/fintfm`; prefix each with `PYTHONUNBUFFERED=1 nice -n 19 uv run --frozen
+--extra bench`, redirect to a log, check `$?`, one at a time, check `uptime` first). Times are
+ESTIMATED from §189 and AU4.4's measured runtimes (SBA out-of-fold up to 1,791 s per split; AU4.4
+folds took 40 to 68 min at 1,000,087 query rows including three CatBoost fits) and the 600 s search
+budget; not measured at scale. Peak RAM at scale is not measured: expect 10 to 15 GB while the
+panel loads.
+
+1. SBA logits: `python -m fintfm.evaluation.credit_suite --model runs/v4-cellattn-labels.pt
+   --datasets sba --hybrid --save-oof runs/dr84-credit-oof --out runs/dr84-credit-oof/sba.csv`.
+   ESTIMATED 0.5 to 0.8 h.
+2. ULB logits: same with `--datasets ulb_fraud` and `--out runs/dr84-credit-oof/ulb_fraud.csv`.
+   ESTIMATED 1.2 to 1.6 h.
+3. Tuned hybrids: `python scripts/credit_lightgbm_tuned.py --datasets sba ulb_fraud --oof-dir
+   runs/dr84-credit-oof --out runs/dr84-credit-tuned --inner-embargo 0 --total-budget 18000`.
+   ESTIMATED 2.5 to 3.5 h (12 searches of up to 720 s plus refits).
+4. V4FinBench, capped training rows (validation and test untouched, so arms pair with AU4.4's):
+   `python -m fintfm.experiments.hybrid_catboost --model runs/v4-cellattn-labels.pt --booster
+   lightgbm_tuned --max-train-rows 200000 --inner-folds 5 --tuned-configs 30 --tuned-budget 300
+   --out runs/dr84-v4`. ESTIMATED 5 to 6.5 h for five folds (about 25 to 40 min of FinTFM plus about
+   35 min of three searches per fold); add `--folds 0,1,2` for about 3 to 4 h. Then
+   `scripts/compare_v4_scores.py --control runs/dr84-v4/arms/lightgbm_tuned
+   baseline=runs/dr84-v4/arms/lightgbm_tuned_fintfm_baseline
+   feature=runs/dr84-v4/arms/lightgbm_tuned_fintfm_feature`. Read AP first.
+
+Caveats to carry into the result: the capped V4 run trains on at most 200,000 rows against AU4.4's
+about 600,000, so it is a different control from AU4.4's CatBoost; the within-run tuned-versus-hybrid
+pairing is the comparison. SBA's inner tuning split has no embargo, as above.

@@ -75,6 +75,12 @@ ARMS: tuple[str, ...] = (
     "fintfm", "catboost", "catboost_fintfm_baseline", "catboost_fintfm_feature",
 )
 
+#: The arms of ``--booster lightgbm_tuned`` (DR8.4): tuned LightGBM alone, from FinTFM's
+#: out-of-fold logit as its starting score, and with it as one more feature. ``fintfm`` first.
+TUNED_ARMS: tuple[str, ...] = (
+    "fintfm", "lightgbm_tuned", "lightgbm_tuned_fintfm_baseline", "lightgbm_tuned_fintfm_feature",
+)
+
 #: Probability clip before a logit, so a saturated FinTFM score cannot become infinite.
 _P_CLIP = 1e-6
 
@@ -323,6 +329,9 @@ def run_arrays(
     max_train_rows: int | None = None,
     catboost_params: dict[str, Any] | None = None,
     protocol: dict[str, Any] | None = None,
+    booster: str = "catboost",
+    tuned_configs: int = 30,
+    tuned_budget_s: float | None = 600.0,
 ) -> dict:
     """Score the hybrid arms on an already-loaded panel, fold by fold.
 
@@ -342,6 +351,13 @@ def run_arrays(
         protocol: Protocol settings recorded for ``compare_v4_scores.py``'s check (``horizon``,
             ``max_rows``); the run's own ``n_features``, ``fold_seed``, ``n_splits`` and
             ``dataset`` are added.
+        booster: ``"catboost"`` (the AU4.4 arms, the default; outputs as before) or
+            ``"lightgbm_tuned"`` (:data:`TUNED_ARMS`, DR8.4): a seeded search of up to
+            ``tuned_configs`` LightGBM configs on a company-grouped inner split of the fold's
+            training rows (the validation and test rows are never read by the search), for the
+            booster alone and for each hybrid, the same search each time.
+        tuned_configs: Configs per search, with ``booster="lightgbm_tuned"``.
+        tuned_budget_s: Seconds after which a search starts no new config.
 
     Returns:
         The run record, also written as ``hybrid_catboost.json`` and ``v4_protocol.json``.
@@ -397,20 +413,24 @@ def run_arrays(
         b_held = to_logit(p_held)
 
         arms: dict[str, np.ndarray] = {"fintfm": p_held}
-        base = fit_predict_catboost(Z[tr], y[tr], Z[held], catboost_params)
-        if base is not None:
-            arms["catboost"] = base
-        hybrid = fit_predict_catboost(
-            Z[tr], y[tr], Z[held], catboost_params, baseline_train=oof, baseline_test=b_held
-        )
-        if hybrid is not None:
-            arms["catboost_fintfm_baseline"] = hybrid
-        feature = fit_predict_catboost(
-            np.column_stack([Z[tr], oof]), y[tr], np.column_stack([Z[held], b_held]),
-            catboost_params,
-        )
-        if feature is not None:
-            arms["catboost_fintfm_feature"] = feature
+        if booster == "lightgbm_tuned":
+            arms |= _tuned_arms(Z, y, company, tr, held, oof, b_held, tuned_configs,
+                                tuned_budget_s, fold)
+        else:
+            base = fit_predict_catboost(Z[tr], y[tr], Z[held], catboost_params)
+            if base is not None:
+                arms["catboost"] = base
+            hybrid = fit_predict_catboost(
+                Z[tr], y[tr], Z[held], catboost_params, baseline_train=oof, baseline_test=b_held
+            )
+            if hybrid is not None:
+                arms["catboost_fintfm_baseline"] = hybrid
+            feature = fit_predict_catboost(
+                np.column_stack([Z[tr], oof]), y[tr], np.column_stack([Z[held], b_held]),
+                catboost_params,
+            )
+            if feature is not None:
+                arms["catboost_fintfm_feature"] = feature
 
         nv = len(va)
         common = {
@@ -432,7 +452,7 @@ def run_arrays(
             )
         scores = {a: {"test": _metrics(y[te], p[nv:]), "val": _metrics(y[va], p[:nv])}
                   for a, p in arms.items()}
-        for a in ARMS:
+        for a in (TUNED_ARMS if booster == "lightgbm_tuned" else ARMS):
             if a in scores:
                 t = scores[a]["test"]
                 print(f"  fold {fold} {a:>26}: AP {t['avg_precision']:.4f}  ROC-AUC "
@@ -453,24 +473,77 @@ def run_arrays(
         **(protocol or {}),
         "n_features": int(X.shape[1]), "fold_seed": FOLD_SEED, "n_splits": N_SPLITS,
         "folds": list(folds), "inner_folds": n_inner, "max_train_rows": max_train_rows,
-        "catboost_params": catboost_params or {}, "inference": asdict(cfg.inference),
+        "catboost_params": catboost_params or {}, "booster": booster,
+        "tuned_configs": tuned_configs, "tuned_budget_s": tuned_budget_s, "inference": asdict(cfg.inference),
         "config_sources": list(cfg.sources),
     }
     record = {
         "dataset": "v4finbench",
         "protocol": "V4FinBench published protocol (5-fold, company-grouped within country)",
-        "measures": "a system (CatBoost plus FinTFM logits), not FinTFM; audit AU4.4",
+        "measures": (
+            "a system (tuned LightGBM plus FinTFM logits), not FinTFM; DR8.4"
+            if booster == "lightgbm_tuned"
+            else "a system (CatBoost plus FinTFM logits), not FinTFM; audit AU4.4"
+        ),
         "config": config,
         "folds": fold_records,
     }
     (out_dir / "hybrid_catboost.json").write_text(json.dumps(record, indent=2))
     # what compare_v4_scores.py checks before pairing two directories
     (out_dir / "v4_protocol.json").write_text(json.dumps(record, indent=2))
-    for a in ARMS:
+    for a in sorted({*ARMS, *TUNED_ARMS}):
         d = out_dir / "arms" / a
         if d.exists():
             (d / "v4_protocol.json").write_text(json.dumps({**record, "arm": a}, indent=2))
     return record
+
+
+def _tuned_arms(
+    Z: np.ndarray, y: np.ndarray, company: np.ndarray, tr: np.ndarray, held: np.ndarray,
+    oof: np.ndarray, b_held: np.ndarray, n_configs: int, budget_s: float | None, fold: int,
+) -> dict[str, np.ndarray]:
+    """The three tuned-LightGBM arms of one outer fold (:data:`TUNED_ARMS`, minus ``fintfm``).
+
+    Each is a separate seeded search in the torch-free worker
+    (:func:`fintfm.evaluation.tuned_boosting.run_tuned`), on an inner split of the training
+    rows by whole company, so the search never reads a validation or test row. The worker's own
+    AP is over the pooled validation and test rows and is not reported; the arms are scored
+    from the returned probabilities like every other arm.
+
+    Args:
+        Z: ``(n, F)`` preprocessed panel features.
+        y: ``(n,)`` labels.
+        company: ``(n,)`` company per panel row, the inner split's groups.
+        tr: Panel indices of the (capped) training rows.
+        held: Panel indices of the validation then test rows.
+        oof: ``(len(tr),)`` out-of-fold FinTFM logits aligned with ``tr``.
+        b_held: ``(len(held),)`` logits of the one FinTFM fitted on all training rows.
+        n_configs: Configs per search.
+        budget_s: Search seconds per arm.
+        fold: The outer fold, the searches' seed.
+
+    Returns:
+        Probabilities for ``held`` by arm name; an arm whose worker failed is absent (printed).
+    """
+    from fintfm.evaluation.tuned_boosting import run_tuned
+
+    base = {"ytr": y[tr], "yte": y[held], "gtr": company_codes(company)[tr]}
+    variants = {
+        "lightgbm_tuned": {"Xtr": Z[tr], "Xte": Z[held]},
+        "lightgbm_tuned_fintfm_baseline": {"Xtr": Z[tr], "Xte": Z[held], "btr": oof,
+                                           "bte": b_held},
+        "lightgbm_tuned_fintfm_feature": {"Xtr": np.column_stack([Z[tr], oof]),
+                                          "Xte": np.column_stack([Z[held], b_held])},
+    }
+    out: dict[str, np.ndarray] = {}
+    for name, arrays in variants.items():
+        res = run_tuned({**base, **arrays}, n_configs, budget_s, seed=fold, predictions=True)
+        if res is None:
+            continue
+        print(f"  fold {fold} {name}: {res['n_trials']} configs in {res['tune_seconds']}s, "
+              f"best inner-validation AP {res['val_ap']:.4f}", flush=True)
+        out[name] = res["predictions"]
+    return out
 
 
 def main() -> None:
@@ -498,6 +571,14 @@ def main() -> None:
                    help="k=v,... for every CatBoost arm, e.g. iterations=200,depth=6; "
                         "empty is library defaults (1,000 iterations)")
     p.add_argument("--device", type=str, default="cpu")
+    p.add_argument("--booster", choices=["catboost", "lightgbm_tuned"], default="catboost",
+                   help="catboost: the AU4.4 arms (default). lightgbm_tuned: a tuned LightGBM "
+                        "alone and with the FinTFM logit as init score and as a feature (DR8.4)")
+    p.add_argument("--tuned-configs", type=int, default=30,
+                   help="configs per search with --booster lightgbm_tuned")
+    p.add_argument("--tuned-budget", type=float, default=600.0,
+                   help="seconds per search with --booster lightgbm_tuned; 0 runs the first "
+                        "config only")
     args = p.parse_args()
     if args.inner_folds < 2:
         p.error("--inner-folds must be at least 2")
@@ -512,7 +593,8 @@ def main() -> None:
         X, y, country, company, FinancialTFM.load(args.model), Path(args.out),
         folds=tuple(int(v) for v in args.folds.split(",")), cfg=cfg, device=args.device,
         n_inner=args.inner_folds, max_train_rows=args.max_train_rows,
-        catboost_params=params,
+        catboost_params=params, booster=args.booster, tuned_configs=args.tuned_configs,
+        tuned_budget_s=args.tuned_budget,
         protocol={"model": args.model, "horizon": args.horizon, "max_rows": args.max_rows},
     )
     print(f"\n{record['measures']}. config: {cfg.provenance()}")

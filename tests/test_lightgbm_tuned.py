@@ -51,6 +51,31 @@ SNIPPET = LOAD + textwrap.dedent('''
         raise SystemExit("no error")
     except ValueError:
         pass
+    # grouped, undated: whole groups on one side, near the requested share of rows
+    f4, v4 = lt.inner_split(y, groups=g, seed=4)
+    assert not set(g[f4]) & set(g[v4]) and abs(len(v4) / 1200 - 0.25) < 0.05
+    assert len(f4) + len(v4) == 1200
+    # a starting score: the search and the refit both take it
+    init = 2.0 * X[:, 0]
+    tuned_i = lt.tune_lightgbm(X, y, n_configs=3, seed=3, max_trees=40, init_score=init)
+    assert len(tuned_i["trials"]) == 3
+    p_i = lt.fit_predict_tuned(X[:900], y[:900], X[900:], tuned_i, init_train=init[:900],
+                               init_test=init[900:])
+    assert p_i.shape == (300,) and ((p_i >= 0) & (p_i <= 1)).all()
+    try:
+        lt.fit_predict_tuned(X[:900], y[:900], X[900:], tuned_i, init_train=init[:900])
+        raise SystemExit("no error")
+    except ValueError:
+        pass
+    # the command-line entry takes a starting score and saves the predictions
+    import os
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        npz, out, pr = (os.path.join(tmp, n) for n in ("d.npz", "o.json", "p.npy"))
+        np.savez(npz, Xtr=X[:900], ytr=y[:900], Xte=X[900:], yte=y[900:],
+                 btr=init[:900], bte=init[900:])
+        assert lt.main([npz, out, "2", "30", "0", pr]) == 0
+        assert np.load(pr).shape == (300,) and json.load(open(out))["n_trials"] == 2
     print(json.dumps({"ok": True}))
 ''')
 

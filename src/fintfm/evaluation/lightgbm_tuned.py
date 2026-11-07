@@ -33,7 +33,9 @@ def inner_split(
 
     Dated rows: validation is the latest ``frac`` of rows by date and the fit side stops
     ``embargo`` before it (as the outer out-of-time split does). Undated rows: a stratified
-    random ``frac``. With ``groups``, fit rows sharing a group with a validation row are dropped.
+    random ``frac``; with ``groups`` and no dates, a random ``frac`` of whole groups (a row
+    split would put nearly every multi-year company on both sides). With dates and ``groups``,
+    fit rows sharing a group with a validation row are dropped.
 
     Args:
         y: ``(n,)`` binary training labels.
@@ -56,6 +58,13 @@ def inner_split(
         cut = np.quantile(time_, 1 - frac)
         val = np.flatnonzero(time_ >= cut)
         fit_mask = time_ < cut - embargo
+    elif groups is not None:
+        rng = np.random.RandomState(seed)
+        names = rng.permutation(np.unique(groups))
+        size = {g: c for g, c in zip(*np.unique(groups, return_counts=True), strict=True)}
+        cum = np.cumsum([size[g] for g in names])
+        val_mask = np.isin(groups, names[: int(np.searchsorted(cum, frac * n)) + 1])
+        val, fit_mask = np.flatnonzero(val_mask), ~val_mask
     else:
         rng = np.random.RandomState(seed)
         val_mask = np.zeros(n, dtype=bool)
@@ -99,6 +108,7 @@ def tune_lightgbm(
     X: np.ndarray, y: np.ndarray, *, n_configs: int = 30, seed: int = 0,
     time_: np.ndarray | None = None, groups: np.ndarray | None = None, embargo: float = 0.0,
     n_jobs: int = 2, time_budget_s: float | None = None, max_trees: int = MAX_TREES,
+    init_score: np.ndarray | None = None,
 ) -> dict[str, Any]:
     """Random-search LightGBM on an inner split of the training rows.
 
@@ -118,6 +128,10 @@ def tune_lightgbm(
         n_jobs: LightGBM threads.
         time_budget_s: Stop starting new configs after this many seconds (the first always runs).
         max_trees: Tree cap per config after the first.
+        init_score: Optional ``(n,)`` starting log-odds per training row (FinTFM's
+            out-of-fold logit, DR8.4). The trees then fit what it leaves over, and the
+            validation score is the starting score plus the trees. ``None`` leaves the
+            search exactly as before.
 
     Returns:
         ``{"best_params", "best_iteration", "val_ap", "trials"}``; each trial has its params,
@@ -139,9 +153,15 @@ def tune_lightgbm(
             n_estimators=min(1000, max_trees) if i == 0 else max_trees,
             metric="average_precision", n_jobs=n_jobs, random_state=seed, verbosity=-1, **params,
         )
-        est.fit(X[fit], y[fit], eval_set=[(X[val], y[val])],
-                callbacks=[early_stopping(PATIENCE, verbose=False)])
-        p = est.predict_proba(X[val])[:, 1]
+        if init_score is None:
+            est.fit(X[fit], y[fit], eval_set=[(X[val], y[val])],
+                    callbacks=[early_stopping(PATIENCE, verbose=False)])
+            p = est.predict_proba(X[val])[:, 1]
+        else:
+            est.fit(X[fit], y[fit], init_score=init_score[fit], eval_set=[(X[val], y[val])],
+                    eval_init_score=[init_score[val]],
+                    callbacks=[early_stopping(PATIENCE, verbose=False)])
+            p = est.predict(X[val], raw_score=True) + init_score[val]
         trials.append({
             "params": params, "val_ap": float(average_precision_score(y[val], p)),
             "best_iteration": int(est.best_iteration_ or est.n_estimators),
@@ -154,7 +174,7 @@ def tune_lightgbm(
 
 def fit_predict_tuned(
     Xtr: np.ndarray, ytr: np.ndarray, Xte: np.ndarray, tuned: dict[str, Any], seed: int = 0,
-    n_jobs: int = 2,
+    n_jobs: int = 2, init_train: np.ndarray | None = None, init_test: np.ndarray | None = None,
 ) -> np.ndarray:
     """Refit the chosen config on all training rows and score the test rows.
 
@@ -167,24 +187,39 @@ def fit_predict_tuned(
         tuned: Output of :func:`tune_lightgbm`.
         seed: Fit seed.
         n_jobs: LightGBM threads.
+        init_train: Optional ``(n_train,)`` starting log-odds, as in :func:`tune_lightgbm`.
+        init_test: Starting log-odds of the test rows; required with ``init_train``. The
+            result is the sigmoid of the trees' raw score plus this.
 
     Returns:
         ``(n_test,)`` positive-class probabilities.
+
+    Raises:
+        ValueError: If only one of the two starting scores is given.
     """
     from lightgbm import LGBMClassifier
 
+    if (init_train is None) != (init_test is None):
+        raise ValueError("init_train and init_test go together")
     est = LGBMClassifier(
         n_estimators=max(10, round(tuned["best_iteration"] * 1.1)), n_jobs=n_jobs,
         random_state=seed, verbosity=-1, **tuned["best_params"],
-    ).fit(Xtr, ytr)
-    return est.predict_proba(Xte)[:, 1]
+    )
+    if init_train is None:
+        return est.fit(Xtr, ytr).predict_proba(Xte)[:, 1]
+    raw = est.fit(Xtr, ytr, init_score=init_train).predict(Xte, raw_score=True) + init_test
+    return 1.0 / (1.0 + np.exp(-raw))
 
 
 def main(argv: list[str]) -> int:
-    """Tune and score one split: ``data.npz out.json [n_configs] [time_budget_s] [seed]``.
+    """Tune and score one split: ``data.npz out.json [n_configs] [time_budget_s] [seed] [preds.npy]``.
 
-    The npz holds ``Xtr, ytr, Xte, yte`` and optionally ``ttr, gtr, embargo``. The output JSON
-    carries the tuned and the untuned (1,000 trees, 0.05) test average precision and ROC-AUC.
+    With ``preds.npy`` the tuned model's probabilities for every ``Xte`` row are saved there.
+
+    The npz holds ``Xtr, ytr, Xte, yte`` and optionally ``ttr, gtr, embargo``, and ``btr, bte``
+    (starting log-odds of the training and test rows: the hybrid as init score; the feature
+    hybrid is the same call with the logit as an extra column of ``Xtr`` and ``Xte``). The
+    untuned control then starts from the same scores. The output JSON carries the tuned and the untuned (1,000 trees, 0.05) test average precision and ROC-AUC.
 
     Args:
         argv: Command-line arguments after the script name.
@@ -199,18 +234,27 @@ def main(argv: list[str]) -> int:
     n_configs = int(argv[2]) if len(argv) > 2 else 30
     budget = float(argv[3]) if len(argv) > 3 else None
     seed = int(argv[4]) if len(argv) > 4 else 0
+    btr = d["btr"] if "btr" in d.files else None
+    bte = d["bte"] if btr is not None else None
     t0 = time.perf_counter()
     tuned = tune_lightgbm(
         d["Xtr"], d["ytr"], n_configs=n_configs, seed=seed, time_budget_s=budget,
-        time_=d["ttr"] if "ttr" in d.files else None,
+        time_=d["ttr"] if "ttr" in d.files else None, init_score=btr,
         groups=d["gtr"] if "gtr" in d.files else None,
         embargo=float(d["embargo"]) if "embargo" in d.files else 0.0,
     )
     tune_s = time.perf_counter() - t0
     yte = d["yte"]
-    p = fit_predict_tuned(d["Xtr"], d["ytr"], d["Xte"], tuned, seed=seed)
-    p0 = LGBMClassifier(n_estimators=1000, learning_rate=0.05, n_jobs=2, verbosity=-1,
-                        random_state=seed).fit(d["Xtr"], d["ytr"]).predict_proba(d["Xte"])[:, 1]
+    p = fit_predict_tuned(d["Xtr"], d["ytr"], d["Xte"], tuned, seed=seed,
+                          init_train=btr, init_test=bte)
+    control = LGBMClassifier(n_estimators=1000, learning_rate=0.05, n_jobs=2, verbosity=-1,
+                             random_state=seed)
+    if btr is None:
+        p0 = control.fit(d["Xtr"], d["ytr"]).predict_proba(d["Xte"])[:, 1]
+    else:
+        raw0 = control.fit(d["Xtr"], d["ytr"], init_score=btr).predict(
+            d["Xte"], raw_score=True) + bte
+        p0 = 1.0 / (1.0 + np.exp(-raw0))
     out = {
         "tuned_ap": float(average_precision_score(yte, p)),
         "tuned_auc": float(roc_auc_score(yte, p)),
@@ -218,6 +262,8 @@ def main(argv: list[str]) -> int:
         "untuned_auc": float(roc_auc_score(yte, p0)),
         "n_trials": len(tuned["trials"]), "tune_seconds": round(tune_s, 1), **tuned,
     }
+    if len(argv) > 5:
+        np.save(argv[5], p)
     with open(argv[1], "w") as f:
         json.dump(out, f, indent=1)
     return 0

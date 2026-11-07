@@ -268,3 +268,55 @@ def test_hybrid_needs_a_checkpoint_and_lightgbm(tmp_path):
     with pytest.raises(SystemExit):
         cs.main(["--out", str(tmp_path / "r.csv"), "--hybrid"])
     assert not (tmp_path / "r.csv").exists()
+
+
+def _scores(rows: list[dict]) -> list[tuple]:
+    """Every column but the wall time, which is the only one that differs between runs."""
+    return [tuple(v for k, v in r.items() if k != "seconds") for r in rows]
+
+
+@needs_lightgbm
+def test_saving_the_oof_logits_changes_no_output_and_saves_the_logits(tmp_path, monkeypatch):
+    """DR8.4: ``save_oof`` is additive; the CSV rows are those of a run without it."""
+    _admit(monkeypatch, undated=lambda root: _panel(600, False, False, 1, "undated"))
+    monkeypatch.setattr(cs, "LIGHTGBM_PARAMS", {"n_estimators": 5})
+    ckpt = _tiny_checkpoint(tmp_path)
+    kw = {"datasets": ("undated",), "root": tmp_path, "hybrid": True, "n_inner": 2}
+    plain = cs.run(tmp_path / "plain.csv", ckpt, **kw)
+    saved = cs.run(tmp_path / "saved.csv", ckpt, save_oof=tmp_path / "oof", **kw)
+    assert _scores(plain) == _scores(saved)
+    assert sorted(f.name for f in (tmp_path / "oof").iterdir()) == [
+        f"undated_split{k}.npz" for k in range(3)]
+    panel = _panel(600, False, False, 1, "undated")
+    for k, (tr, te) in enumerate(cs.suite_splits(panel)):
+        d = np.load(tmp_path / "oof" / f"undated_split{k}.npz")
+        np.testing.assert_array_equal(d["train_rows"], tr)
+        np.testing.assert_array_equal(d["test_rows"], te)
+        assert d["oof_train"].shape == (len(tr),) and np.isfinite(d["oof_train"]).all()
+        assert d["logit_test"].shape == (len(te),)
+        assert set(np.unique(d["inner_fold"])) == {0, 1}
+        np.testing.assert_array_equal(d["y_train"], panel.y[tr])
+    # the logits are the ones a run without saving also fits its hybrid rows from
+    again = cs.run(tmp_path / "again.csv", ckpt, save_oof=tmp_path / "oof2", **kw)
+    np.testing.assert_array_equal(
+        np.load(tmp_path / "oof" / "undated_split0.npz")["oof_train"],
+        np.load(tmp_path / "oof2" / "undated_split0.npz")["oof_train"])
+    assert _scores(again) == _scores(plain)
+
+
+def test_save_oof_needs_the_hybrid_arms(tmp_path):
+    with pytest.raises(ValueError, match="save_oof needs"):
+        cs.run(tmp_path / "r.csv", "m.pt", datasets=("sba",), save_oof=tmp_path / "o")
+    with pytest.raises(SystemExit):
+        cs.main(["--model", "m.pt", "--out", str(tmp_path / "r.csv"),
+                 "--save-oof", str(tmp_path / "o")])
+
+
+def test_cap_panel_keeps_a_seeded_subset_in_order():
+    panel = _panel(500, True, True, 3, "p")
+    capped = cs.cap_panel(panel, 120)
+    assert len(capped.y) == 120 and np.all(np.diff(capped.time) >= 0)
+    again = cs.cap_panel(panel, 120)
+    np.testing.assert_array_equal(capped.X, again.X)
+    assert cs.cap_panel(panel, 500) is panel
+    assert capped.groups.shape == (120,) and capped.embargo == panel.embargo

@@ -181,6 +181,32 @@ def test_run_writes_the_v4protocol_layout_and_pairs_with_compare(tmp_path):
     assert np.isfinite(rows[0]["arm"]) and np.isfinite(rows[0]["control"])
 
 
+@pytest.mark.skipif(importlib.util.find_spec("lightgbm") is None, reason="needs lightgbm")
+def test_tuned_lightgbm_booster_writes_the_three_arms_and_pairs_with_compare(tmp_path):
+    """DR8.4: the tuned arms use the same layout, and the default outputs are not touched."""
+    X, y, country, company = _panel()
+    out = tmp_path / "tuned"
+    record = run_arrays(
+        X, y, country, company, _model(), out, folds=(0,), cfg=_cfg(), n_inner=3,
+        max_train_rows=200, protocol={"horizon": 0, "max_rows": None},
+        booster="lightgbm_tuned", tuned_configs=2, tuned_budget_s=None,
+    )
+    assert record["config"]["booster"] == "lightgbm_tuned"
+    d = np.load(out / "predictions_fold0.npz")
+    arms = ("lightgbm_tuned", "lightgbm_tuned_fintfm_baseline", "lightgbm_tuned_fintfm_feature")
+    for a in arms:
+        assert d[f"pred_{a}"].shape == d["y_true"].shape and d[f"val_{a}"].shape == d["y_val"].shape
+        assert ((d[f"pred_{a}"] >= 0) & (d[f"pred_{a}"] <= 1)).all()
+        assert record["folds"][0]["scores"][a]["test"]["avg_precision"] >= 0
+    assert "pred_catboost" not in d.files
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+    from compare_v4_scores import compare
+
+    rows = compare(out / "arms" / "lightgbm_tuned", out / "arms" / "lightgbm_tuned_fintfm_baseline",
+                   n_boot=50, cluster=True)
+    assert [r["fold"] for r in rows] == [0]
+
+
 def test_a_company_name_in_two_countries_is_two_fold_groups():
     """The leak check keys on (country, company), the unit the outer folds deal."""
     key = fold_group_key(np.array([1, 2, 1]), np.array(["MOL Nyrt.", "MOL Nyrt.", "MOL Nyrt."]))

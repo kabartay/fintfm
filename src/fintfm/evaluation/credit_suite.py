@@ -985,6 +985,63 @@ def oof_fintfm_logits(
     return logits, plan
 
 
+def cap_panel(panel: CreditPanel, max_rows: int, seed: int = SPLIT_SEED) -> CreditPanel:
+    """Keep a seeded random subset of a panel's rows, in their original order.
+
+    A development cap for smoke tests; it changes the data scored, so no number from a capped
+    run is comparable with an uncapped one.
+
+    Args:
+        panel: The dataset.
+        max_rows: Rows to keep; a panel at or under it is returned unchanged.
+        seed: Seed of the subset.
+
+    Returns:
+        The panel restricted to the kept rows.
+    """
+    n = len(panel.y)
+    if n <= max_rows:
+        return panel
+    keep = np.sort(np.random.RandomState(seed).choice(n, size=max_rows, replace=False))
+    return CreditPanel(
+        name=panel.name, X=panel.X[keep], feature_names=panel.feature_names, y=panel.y[keep],
+        groups=panel.groups[keep] if panel.groups is not None else None,
+        time=panel.time[keep] if panel.time is not None else None, embargo=panel.embargo,
+    )
+
+
+def save_oof_logits(
+    path: Path, panel: CreditPanel, train_rows: np.ndarray, test_rows: np.ndarray,
+    oof_train: np.ndarray, logit_test: np.ndarray, n_inner: int, split: int,
+) -> None:
+    """Save one split's FinTFM logits for a booster that starts from them.
+
+    The inner folds are re-dealt with :func:`inner_folds` and the seed
+    :func:`_hybrid_oof` used, so ``inner_fold`` records which fold scored each training row;
+    folds keep ``panel.groups`` whole where the dataset has them, and every inner context was
+    checked against the test rows before the logits were made (:func:`oof_fintfm_logits`).
+
+    Args:
+        path: The ``.npz`` to write.
+        panel: The dataset, for its labels and borrower ids.
+        train_rows: Panel indices of the split's training rows.
+        test_rows: Panel indices of the split's test rows.
+        oof_train: ``(n_train,)`` out-of-fold logits aligned with ``train_rows``.
+        logit_test: ``(n_test,)`` logits of the test rows from the one FinTFM fitted on all
+            training rows.
+        n_inner: Inner folds used.
+        split: The split index.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fold = inner_folds(
+        panel.y[train_rows], panel.groups[train_rows] if panel.groups is not None else None,
+        n_inner, SPLIT_SEED + INNER_SEED_OFFSET + split,
+    )
+    np.savez(path, oof_train=oof_train, logit_test=logit_test, train_rows=train_rows,
+             test_rows=test_rows, inner_fold=fold, y_train=panel.y[train_rows],
+             y_test=panel.y[test_rows], n_inner=np.array(n_inner), split=np.array(split))
+
+
 def _write(rows: list[dict], out: Path) -> None:
     """Write every row so far, so a run that dies keeps what it finished."""
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -1004,6 +1061,8 @@ def run(
     with_lightgbm: bool = True,
     hybrid: bool = False,
     n_inner: int = INNER_FOLDS,
+    save_oof: Path | None = None,
+    max_rows: int | None = None,
 ) -> list[dict]:
     """Score every model on every split of the named datasets and write the CSV.
 
@@ -1021,6 +1080,12 @@ def run(
         hybrid: Also score :data:`HYBRID_MODELS` (module docstring, "Hybrid arms"); needs
             ``model_path`` and ``with_lightgbm``.
         n_inner: Inner folds for the hybrid arms' out-of-fold FinTFM logits.
+        save_oof: Directory to which each split's out-of-fold logits are saved as
+            ``<dataset>_split<k>.npz`` (see :func:`save_oof_logits`), for a tuned booster that
+            starts from them (DR8.4). ``None``, the default, writes nothing and leaves every
+            output as before; needs ``hybrid``.
+        max_rows: Development cap: keep a seeded random subset of each panel's rows (see
+            :func:`cap_panel`). ``None`` keeps every row.
 
     Returns:
         The rows written, one per dataset, split and model.
@@ -1034,6 +1099,8 @@ def run(
         raise ValueError("the hybrid arms need a FinTFM checkpoint and LightGBM")
     if hybrid and n_inner < 2:
         raise ValueError(f"n_inner must be at least 2, got {n_inner}")
+    if save_oof is not None and not hybrid:
+        raise ValueError("save_oof needs the hybrid arms, which make the logits")
     from sklearn.impute import SimpleImputer
     from sklearn.preprocessing import StandardScaler
 
@@ -1060,6 +1127,8 @@ def run(
     rows: list[dict] = []
     for key in datasets:
         panel = DATASETS[key].loader(root)
+        if max_rows is not None:
+            panel = cap_panel(panel, max_rows)
         print(f"{key}: {len(panel.y):,} rows, {panel.X.shape[1]} features, "
               f"{int(panel.y.sum()):,} positive ({panel.y.mean():.3%}), {panel.split_kind}",
               flush=True)
@@ -1095,6 +1164,9 @@ def run(
                     if isinstance(oof, str):
                         row["skipped"] = oof
                     else:
+                        if save_oof is not None and not (save_oof / f"{key}_split{k}.npz").exists():
+                            save_oof_logits(save_oof / f"{key}_split{k}.npz", panel, tr, te,
+                                            oof[0], to_logit(p_fintfm), n_inner, k)
                         t0 = time.perf_counter()
                         p = _predict_hybrid(name, Xtr, y_tr, Xte, oof[0], to_logit(p_fintfm))
                         row["seconds"] = round(oof[1] + time.perf_counter() - t0, 1)
@@ -1300,7 +1372,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     p.add_argument("--inner-folds", type=int, default=INNER_FOLDS,
                    help=f"inner folds for the hybrid arms' out-of-fold logits "
                         f"(default {INNER_FOLDS})")
+    p.add_argument("--save-oof", type=Path, default=None,
+                   help="directory for each split's out-of-fold FinTFM logits, as "
+                        "<dataset>_split<k>.npz, for a tuned booster that starts from them "
+                        "(DR8.4); needs --hybrid; off by default")
+    p.add_argument("--max-rows", type=int, default=None,
+                   help="development cap: a seeded random subset of each panel's rows "
+                        "(smoke tests only; the scores are not comparable with a full run)")
     args = p.parse_args(argv)
+    if args.save_oof is not None and not args.hybrid:
+        p.error("--save-oof needs --hybrid")
     if args.hybrid and (args.model is None or args.no_lightgbm):
         p.error("--hybrid needs --model and LightGBM")
     if args.inner_folds < 2:
@@ -1308,7 +1389,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     run(
         args.out, args.model, tuple(filter(None, args.datasets.split(","))), args.root,
         args.config, args.device, with_lightgbm=not args.no_lightgbm, hybrid=args.hybrid,
-        n_inner=args.inner_folds,
+        n_inner=args.inner_folds, save_oof=args.save_oof, max_rows=args.max_rows,
     )
     return 0
 
