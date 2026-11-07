@@ -72,6 +72,31 @@ uv run --frozen --extra bench --extra hf python -m fintfm.experiments.hazard_per
   must be for a model this untrained. Flag-off: 0.3391 in both arms, not passed.
 - This says the plumbing works. It says nothing about the architecture or the flag.
 
+## Update 2026-11-07: hazard loss fixed for half precision
+
+The two kernels were held because `_autocast` refused `--amp` for any model with a hazard
+head: the survival NLL takes `log1p(-h)` of hazards clamped at 0.999, which half precision
+rounds to one (bf16 spacing near one is 2^-8, so 0.999 becomes 1.0 and the log is `-inf`). The
+owner chose to fix the loss rather than train in float32 (which would cost about 2.4x the GPU
+time, ESTIMATED from section 86).
+
+- **Fix.** `HazardHead.hazards` (`src/fintfm/modeling/hazard.py`) casts its input to float32
+  and runs the projection, sigmoid and clamp with autocast disabled. `cumulative_pd` and
+  `loss` both go through it, so the whole NLL is float32. Float32 input gives bit-identical
+  output (tested), so `--amp none` is unchanged.
+- **Refusal.** `_autocast` (`train.py`) now refuses only a non-binned (quantile) head. The
+  quantile pinball loss is not made safe here: it would need a float32 cast of predictions and
+  targets in `model.py`, which is not trivially safe, so the refusal stays.
+- **Tests (SMOKE-TEST, CPU).** bf16 autocast NLL equals the float32 NLL within 1e-6 on hazards
+  at the clamp, where the bf16-rounded hazards are exactly one; `_autocast` accepts hazard
+  under bf16 and refuses quantile; a 3-step `--amp bf16 --n-horizons 6` run through `train`
+  and `_training_step` has finite float32 loss. CUDA fp16 with the grad scaler on a hazard
+  model is **not run**: no GPU here. The first T4 step is the real check.
+- **Kernels.** Both reset to `COMMIT = "UNPINNED"` (refuse-unpinned guard intact) by running
+  `make_au59_kernels.py` without `--commit`. `ARM_FLAGS` match `configs/arms/au59-hazard-*.yaml`
+  (n_horizons 6; the ctx arm adds `--hazard-period-context`), checked by
+  `tests/test_au59_arms.py` (3 pass). Pin after pushing.
+
 ## The arms
 
 | arm | `--n-horizons` | `--hazard-period-context` | config | kernel |

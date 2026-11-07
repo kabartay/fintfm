@@ -165,8 +165,9 @@ class TrainConfig:
     #: weights, gradients, the loss reduction and the optimiser stay float32, and held-out
     #: evaluation stays float32. ``"fp16"`` does the same in float16 with a loss scaler, on
     #: CUDA only, for GPUs without native bf16 (T4, P100). Both are refused on MPS, bf16 on
-    #: GPUs without native bf16, and both for the quantile and survival objectives, whose
-    #: losses would reduce in half precision (:func:`_autocast`).
+    #: GPUs without native bf16, and both for the quantile objective, whose loss would reduce
+    #: in half precision (:func:`_autocast`). The survival objective is allowed: the hazard head
+    #: computes in float32 with autocast disabled (AU5.9).
     amp: str = "none"
     #: ``True`` (default) applies AdamW's weight decay to every parameter, which is what every
     #: checkpoint trained with. ``False`` (audit AU5.10) exempts LayerNorm gains, every bias,
@@ -562,7 +563,7 @@ def _autocast(model: torch.nn.Module, amp: str) -> contextlib.AbstractContextMan
         A context manager to wrap the forward pass and loss in.
 
     Raises:
-        ValueError: For an unknown mode; a quantile or survival model; MPS; ``"bf16"`` on a
+        ValueError: For an unknown mode; a quantile model; MPS; ``"bf16"`` on a
             CUDA device without native bf16 (an emulated bf16 would run and report a
             throughput the lever does not deliver); ``"fp16"`` anywhere but CUDA.
     """
@@ -570,15 +571,14 @@ def _autocast(model: torch.nn.Module, amp: str) -> contextlib.AbstractContextMan
         raise ValueError(f"amp must be one of {AMP_MODES}, got {amp!r}")
     if amp == "none":
         return contextlib.nullcontext()
-    if getattr(model, "hazard", None) is not None or model.cfg.head_type != "binned":
+    if model.cfg.head_type != "binned":
         # Only the binned head's cross-entropy is on autocast's float32 list. The pinball
-        # loss would be reduced in half precision against a rounded target, and the hazard
-        # NLL takes log1p(-h) of hazards clamped just below one, which bf16 rounds to one.
-        # Both live in model.py/hazard.py; until they cast to float32 themselves, refuse.
+        # loss would be reduced in half precision against a rounded target; it lives in
+        # model.py and is not cast to float32 yet, so refuse. (The hazard head is allowed:
+        # HazardHead.hazards computes in float32 with autocast disabled, AU5.9.)
         raise ValueError(
-            f"--amp {amp} supports the binned classification objective only; this model has "
-            f"head_type={model.cfg.head_type!r} and "
-            f"{'a' if getattr(model, 'hazard', None) is not None else 'no'} hazard head"
+            f"--amp {amp} supports the binned classification and hazard objectives only; "
+            f"this model has head_type={model.cfg.head_type!r}"
         )
     device_type = next(model.parameters()).device.type
     if device_type == "mps":

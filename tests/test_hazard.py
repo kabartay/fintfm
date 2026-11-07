@@ -576,3 +576,38 @@ def test_classifier_term_structure_draws_column_identities_at_random_state(monke
     seeds.clear()
     clf.predict_term_structure(X[100:])
     assert proba_seeds == set(seeds) == {3}
+
+
+def test_hazard_nll_under_bf16_autocast_matches_float32_near_one():
+    """AU5.9: with logits that put hazards at the 0.999 clamp, bf16 would round them to one
+    and ``log1p(-h)`` would be ``-inf``. The head computes in float32 under autocast, so the
+    NLL equals the float32 one and is finite."""
+    torch.manual_seed(0)
+    head = HazardHead(d_model=8, n_horizons=6)
+    with torch.no_grad():
+        head.proj.weight.zero_()
+        head.proj.bias.copy_(torch.tensor([9.0, 8.0, 7.0, 0.0, -3.0, 12.0]))
+    h = torch.randn(64, 8)
+    period = torch.randint(-1, 6, (64,))
+    assert (head.hazards(h)[:, [0, 5]] == head.max_hazard).all()
+    # the failure this guards against: the same hazards rounded to bf16 are one
+    assert torch.equal(head.hazards(h)[:, 0].to(torch.bfloat16).float(), torch.ones(64))
+    ref = head.loss(h, period)
+    with torch.autocast(device_type="cpu", dtype=torch.bfloat16):
+        half = head.loss(h, period)
+        hz = head.hazards(h)
+        pd = head.cumulative_pd(h)
+    assert hz.dtype == torch.float32 and pd.dtype == torch.float32
+    assert torch.isfinite(half) and half.dtype == torch.float32
+    assert torch.allclose(half, ref, rtol=1e-6, atol=1e-6)
+    # a bf16 input representation (what autocast hands the head) stays finite too
+    with torch.autocast(device_type="cpu", dtype=torch.bfloat16):
+        assert torch.isfinite(head.loss(h.bfloat16(), period))
+
+
+def test_hazard_head_float32_path_is_unchanged_without_autocast():
+    torch.manual_seed(1)
+    head = HazardHead(d_model=8, n_horizons=4)
+    h = torch.randn(32, 8)
+    old = torch.sigmoid(head.proj(h)).clamp(1e-7, head.max_hazard)
+    assert torch.equal(head.hazards(h), old)

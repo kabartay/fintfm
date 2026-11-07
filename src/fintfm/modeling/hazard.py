@@ -73,9 +73,13 @@ class HazardHead(nn.Module):
             h: ``(..., d_model)`` row representations.
 
         Returns:
-            ``(..., K)`` hazards.
+            ``(..., K)`` hazards, always float32: the projection, sigmoid and clamp run with
+            autocast disabled and the input cast up, so under ``--amp`` a hazard near
+            ``max_hazard`` is not rounded to one by half precision (``log1p(-h)`` in
+            :meth:`loss` would then be ``-inf``). Float32 input is unchanged.
         """
-        return torch.sigmoid(self.proj(h)).clamp(1e-7, self.max_hazard)
+        with torch.autocast(device_type=h.device.type, enabled=False):
+            return torch.sigmoid(self.proj(h.float())).clamp(1e-7, self.max_hazard)
 
     def cumulative_pd(self, h: torch.Tensor) -> torch.Tensor:
         """Cumulative default probability at each horizon, non-decreasing by construction.

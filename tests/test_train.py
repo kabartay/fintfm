@@ -410,22 +410,63 @@ def test_bf16_autocast_runs_the_forward_in_bf16_and_keeps_loss_and_weights_float
 
 
 @pytest.mark.parametrize("amp", ["bf16", "fp16"])
-@pytest.mark.parametrize(
-    "extra",
-    [{"head_type": "quantile"}, {"n_horizons": 3}],
-    ids=["quantile", "survival"],
-)
-def test_half_precision_refuses_objectives_whose_loss_would_reduce_in_it(extra, amp):
-    """The pinball and survival losses are not on autocast's float32 list; under bf16 or
-    fp16 they would be reduced in half precision (the survival NLL takes ``log1p(-h)`` of
-    hazards bf16 rounds to one), so the flag must refuse them rather than train on a degraded
-    loss. Checked before the device, so this runs on CPU for fp16 too."""
+def test_half_precision_refuses_the_quantile_objective(amp):
+    """The pinball loss is not on autocast's float32 list; under bf16 or fp16 it would be
+    reduced in half precision against a rounded target, so the flag refuses it rather than
+    train on a degraded loss. Checked before the device, so this runs on CPU for fp16 too."""
     from fintfm.modeling.model import FinancialTFM
     from fintfm.modeling.train import _autocast
 
-    cfg = {**_TINY_RICH, "cell_labels": False, **extra}
+    cfg = {**_TINY_RICH, "cell_labels": False, "head_type": "quantile"}
     with pytest.raises(ValueError, match="binned classification"):
         _autocast(FinancialTFM(ModelConfig(**cfg)), amp)
+
+
+def test_half_precision_no_longer_refuses_the_hazard_head():
+    """AU5.9: the hazard head computes its hazards in float32 with autocast disabled, so
+    ``--amp`` is accepted for it. bf16 builds a context on CPU; fp16 passes the head check and
+    is then refused only for being off CUDA (the device message, not the objective one)."""
+    from fintfm.modeling.model import FinancialTFM
+    from fintfm.modeling.train import _autocast
+
+    model = FinancialTFM(ModelConfig(**{**_TINY_RICH, "cell_labels": False, "n_horizons": 3}))
+    with _autocast(model, "bf16"):
+        pass
+    with pytest.raises(ValueError, match="CUDA GPUs"):
+        _autocast(model, "fp16")
+
+
+def test_bf16_hazard_training_smoke_runs_with_finite_loss(tmp_path):
+    """AU5.9 SMOKE-TEST: a few CPU steps with ``--amp bf16`` and a six-horizon hazard head
+    through the real :func:`train`; every optimiser step's loss is finite."""
+    import numpy as np
+
+    from fintfm.modeling.model import FinancialTFM
+    from fintfm.modeling.train import (
+        TrainConfig,
+        _build_optimizer,
+        _training_step,
+        train,
+    )
+    from fintfm.prior.mixture import sample_batch
+
+    prior_cfg = PriorConfig(max_features=8, max_classes=2, p_financial=1.0, n_rows=48,
+                            n_horizons=6)
+    cfg = ModelConfig(**{**_TINY_RICH, "cell_labels": False, "n_horizons": 6})
+    model = train(cfg, prior_cfg,
+                  TrainConfig(steps=3, batch_size=2, eval_every=2, log_every=1000, seed=0,
+                              amp="bf16"), str(tmp_path / "h.pt"))
+    assert all(torch.isfinite(p).all() for p in model.parameters())
+
+    torch.manual_seed(0)
+    model = FinancialTFM(cfg)
+    tc = TrainConfig(steps=3, batch_size=2, amp="bf16")
+    opt, sched = _build_optimizer(model, tc)
+    rng = np.random.default_rng(0)
+    for _ in range(3):
+        batch = sample_batch(rng, prior_cfg, 2)
+        loss = _training_step(model, batch, opt, sched, "bf16", set())
+        assert torch.isfinite(loss) and loss.dtype == torch.float32
 
 
 def test_amp_refuses_an_unknown_mode_fp16_off_cuda_and_mps():
