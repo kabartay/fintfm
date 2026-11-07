@@ -55,6 +55,7 @@ model:
   attn_impl: masked
   hazard_period_context: false
   cell_row_attn: full
+  cell_mixing: attention
   n_inducing: 64
   readout: pool
   n_readout: 4
@@ -74,6 +75,7 @@ train:
   task_dump: null
   task_dump_allow_code_mismatch: false
   decay_norm_bias: true
+  masked_column_prob: 0.0
   amp: "none"
   muon_lr: null                 # Muon keys unused: the recipe is adamw
   muon_scale: rms_match
