@@ -36,7 +36,7 @@ import sys
 import urllib.request
 from pathlib import Path
 
-COMMIT = "PIN-AFTER-MERGE"
+COMMIT = "3f16cb1"
 ARM = "4815-maskcol-s0"
 ARM_FLAGS: list[str] = ["--amp", "fp16", "--attn-impl", "split", "--loader", "stream", "--ddp", "--batch-size", "4", "--seed", "0", "--steps", "6000", "--masked-column-prob", "0.25"]
 DDP = True

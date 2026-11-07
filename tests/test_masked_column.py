@@ -202,7 +202,7 @@ def test_flag_and_config_reach_train_config_and_bad_values_are_refused():
 
 
 def test_kernel_differs_from_its_control_by_the_lever_alone_and_cannot_launch():
-    """The 48.15 kernel is au53's with one flag swapped, and its commit is the placeholder."""
+    """The 48.15 kernel is au53's with one flag swapped, pinned at the commit that adds the flag."""
     import ast
     from pathlib import Path
 
@@ -218,4 +218,4 @@ def test_kernel_differs_from_its_control_by_the_lever_alone_and_cannot_launch():
     assert arm[:-2] == ref[:-2] == arm[: len(arm) - 2]
     assert arm[-2:] == ["--masked-column-prob", "0.25"] and ref[-2:] == ["--n-cell-blocks", "2"]
     text = (root / "ts_4815_maskcol_s0" / "kernel.py").read_text()
-    assert 'COMMIT = "PIN-AFTER-MERGE"' in text and "--checkpoint-every" in text
+    assert 'COMMIT = "3f16cb1"' in text and "--checkpoint-every" in text
