@@ -12,6 +12,9 @@
 # kernels that score on Kaggle themselves (the train-and-score template, fine-tuning evaluations)
 # or produce no checkpoint, where a local full-panel scoring would only repeat the kernel's work.
 #
+# An item prefixed `@` (`@DIR:CHECKPOINT`) is a kernel already pushed and running: the lane skips the
+# push and waits on it, so a lane restarted mid-kernel does not push (and so restart) it again.
+#
 # Usage (detached, survives the session):
 #   nohup scripts/kaggle/launch_queue.sh lane1 task_158_matched_control:v4-cellattn-labels-mc10.pt \
 #       fintfm_r_sba_s1:fintfm-r-sba-s1.pt > /dev/null 2>&1 &
@@ -33,12 +36,15 @@ MAX_SCORING=${MAX_SCORING:-1}
 log() { echo "[$(date '+%m-%d %H:%M:%S')] $*" >> "$LOG"; }
 
 for item in "$@"; do
+  attach=0
+  if [ "${item:0:1}" = "@" ]; then attach=1; item=${item:1}; fi
   dir=scripts/kaggle/${item%%:*}
   ckpt=${item#*:}
   id=$(python3 -c "import json; print(json.load(open('$dir/kernel-metadata.json'))['id'])")
   out=runs/kaggle-${id#*/}
 
-  while true; do
+  [ "$attach" = 1 ] && log "attached to running $id (not pushed again)"
+  while [ "$attach" = 0 ]; do
     msg=$(kaggle kernels push -p "$dir" 2>&1)
     if grep -qi "quota" <<<"$msg"; then
       log "quota: $id -- retry in ${RETRY_S}s"; sleep "$RETRY_S"; continue
