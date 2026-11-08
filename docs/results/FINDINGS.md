@@ -13827,3 +13827,46 @@ seeded 30-config LightGBM search, same inner split and early stopping as the tun
 Raw comparisons: `runs/local_queue/au58-pc16-compare.log`, `runs/au58/cmp_vs_ft163.txt`,
 `runs/kaggle-fintfm-ts-au516-rbf-s0/dr64_verdict.json` (fold 1 to 4 predictions re-fetched from the
 kernel output after the first fetch brought only fold 0), `runs/local_queue/dr84-credit-tuned.log`.
+
+## §214: DR8.4, V4FinBench half: the FinTFM logit lifts a capped tuned LightGBM, which stays below uncapped CatBoost
+
+**MEASURED, 2026-11-08. A system (tuned LightGBM plus FinTFM logits), not FinTFM.** `python -m
+fintfm.experiments.hybrid_catboost --model runs/v4-cellattn-labels.pt --booster lightgbm_tuned
+--max-train-rows 200000 --inner-folds 5 --tuned-configs 30 --tuned-budget 300 --out
+runs/dr84-v4`, local CPU, 5.6 h wall, 20.2 GB peak RSS. Full V4FinBench test folds (about
+200,000 rows each); each outer fold's training rows capped at about 200,000 of about 600,000
+(whole companies). Out-of-fold FinTFM logits come from a company-grouped inner 5-fold; every arm
+runs the same seeded LightGBM search (up to 30 configs, 300 s budget). Paired company bootstrap
+against tuned LightGBM alone, Holm across folds (`scripts/compare_v4_scores.py`, output in
+`runs/dr84_v4_cmp.txt`).
+
+| fold | FinTFM alone | tuned LightGBM | + logit as init score | + logit as feature |
+| --- | --- | --- | --- | --- |
+| 0 | 0.1945 | 0.3799 | 0.4052 (+0.0253) | 0.4084 (+0.0286) |
+| 1 | 0.1888 | 0.3536 | 0.3547 (+0.0010) | 0.3683 (+0.0147) |
+| 2 | 0.1818 | 0.3807 | 0.4675 (+0.0868, p 0.002) | 0.4035 (+0.0228) |
+| 3 | 0.2045 | 0.3839 | 0.4040 (+0.0201) | 0.3716 (−0.0123) |
+| 4 | 0.2269 | 0.3329 | 0.3519 (+0.0190) | 0.3437 (+0.0108) |
+| mean | 0.1993 | 0.3662 | **0.3967 (+0.0304, 5 of 5 up)** | 0.3791 (+0.0129, 4 of 5 up) |
+
+p values are Holm-adjusted, shown where below 0.05; every other fold is at 0.070 or above.
+
+Mean predicted default rate against observed, mean over folds: tuned LightGBM 0.464% against
+0.359%; init score 0.310%; feature 0.453%; FinTFM alone 0.584%. Per fold the init-score arm
+ranges 0.216% to 0.376% and tuned LightGBM 0.285% to 0.697%.
+
+- **The init-score hybrid clears the §211 rule against its own control**: +0.0304 with 5 of 5
+  folds up, against the +0.0117 bar. Only fold 2 survives Holm, and fold 2 carries more than half
+  of the mean (+0.0868); without it the mean is +0.0164. The feature arm passes the size bar
+  (+0.0129, 4 of 5) by a narrow margin, with no fold significant.
+- **The control is weak, and that bounds the reading.** Tuned LightGBM on 200,000 training rows
+  scores 0.3662, below §201's CatBoost on the uncapped training pool (0.4005, same test folds).
+  The init-score hybrid (0.3967) does not reach that CatBoost, and §201's CatBoost plus FinTFM
+  baseline (0.4044) remains the best V4FinBench system row. The two runs differ in booster,
+  tuning and training pool, so this is a comparison of rows, not a paired test.
+- **Fold 4's hybrid arms searched fewer configs** (16 and 18 against the control's 30) because
+  the larger feature set hit the 300 s budget; both still beat the control on that fold.
+- **Across DR8.4 the logit as init score is the more consistent form**: up on V4FinBench (5 of 5)
+  and ULB (3 of 3, §213), flat on SBA. As a feature it adds nothing on SBA once tuned and splits
+  on V4FinBench. The practical answer for credit: the FinTFM logit helps a booster that is weak
+  on the panel at hand and adds little to one that is already strong (§201, §213 SBA).
