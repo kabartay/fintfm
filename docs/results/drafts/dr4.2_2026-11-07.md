@@ -1,6 +1,24 @@
-# DR4.2: preparing the n = 9 Spearman run (2026-11-07)
+# DR4.2: the n = 9 Spearman run (prepared 2026-11-07, run and read 2026-11-08)
 
-Status: prepared and smoke-tested, not run. No full proxy scoring was done. Numbers are labelled MEASURED, SMOKE-TEST or ESTIMATED.
+Status: run. Result and verdict in section 0 (added 2026-11-08); sections 1 to 6 are the 2026-11-07 preparation, kept as written (its 'not run' wording is superseded). Numbers are labelled MEASURED, SMOKE-TEST or ESTIMATED.
+
+## 0. Result (2026-11-08, MEASURED)
+
+Proxy suite against TabArena-Lite Elo, Spearman rho, n = 9 distinct checkpoints, from `runs/local_queue/dr42-spearman.log` (script `scripts/dr42_spearman.py`, run by the queue at 20:26 on 7 Nov after the last proxy run finished; I did not rerun it). All three new proxy runs finished with 48 of 48 scored split rows (`proxy_priorctl-s1.csv`, `proxy_treeclean-s1.csv`, `proxy_widerprior.csv`).
+
+| proxy score | vs Lite Elo, common pool | vs Lite Elo, stored pool |
+| --- | --- | --- |
+| proxy Elo | rho +0.717, exact two-sided p 0.037, bootstrap 95% [0.105, 0.982] | rho +0.750, p 0.026, [0.128, 1.000] |
+| mean AP | +0.500, p 0.178, [-0.385, 0.914] | +0.517, p 0.162, [-0.368, 0.947] |
+| mean ROC-AUC | +0.267, p 0.493, [-0.670, 0.895] | +0.350, p 0.359, [-0.535, 0.896] |
+
+Checkpoints that entered (9, none dropped; every one has 48 scored rows and a Lite Elo): published, e1-v480-s0, priorctl, priorctl-s1, treeclean, treeclean-s1, treeprior, widerprior, priorwide. Proxy Elo (RF = 1000, refit jointly with the five baselines): published 584.8, e1-v480-s0 691.8, priorctl 674.8, priorctl-s1 606.2, treeclean 736.6, treeclean-s1 697.4, treeprior 760.1, widerprior 561.0, priorwide 688.0. Lite Elo common pool 732 to 841 (published 755.9, e1-v480-s0 841.8, treeclean 840.8).
+
+Against the pre-registration: the bar (rho at or above 0.8 across 6 or more checkpoints) is the same, n = 9 meets the count, and the task set is the same (18 task ids, 16 scorable, 3 splits, 48 rows). Differences: (a) the published row's proxy Elo moved from 574 (n = 6) to 584.8 because the Elo is refit with the added arms; (b) three of the nine are second seeds or near-siblings of arms already in (priorctl and priorctl-s1, treeclean and treeclean-s1, widerprior and priorwide), so n = 9 is nine distinct weight files but not nine independent draws; (c) no spread-widening checkpoint (ens1, linprobe) was added, so the Lite spread is 732 to 841; (d) the checkpoint-to-Lite-directory match still rests on name and timestamps, not a recorded hash.
+
+**Verdict: no.** The headline correlation, proxy Elo vs Lite Elo, is +0.717 (common pool) and +0.750 (stored pool), both below 0.8; the bootstrap interval reaches down to 0.105, so the data do not exclude a weak relation either. The Verify is not met. Under the pre-stated bar the proxy is not validated and decides nothing: it is not usable to choose between checkpoints or to gate a release. What the run does show (MEASURED): the rank relation is positive and unlikely under no association (exact p 0.026 to 0.037), up from +0.600 (p 0.24) at n = 6, so the proxy Elo is informative about Lite Elo but too noisy at this spread. Mean AP and ROC-AUC are weaker (rho 0.27 to 0.52, p above 0.16). Using the proxy for anything would need either a higher rho on a wider Lite spread or a lower bar set before looking, and neither is available now.
+
+Open: the licence half of the Verify for binary and multiclass CC18 tasks (another agent is on it; not touched here).
 
 ## 1. Checkpoints (MEASURED, on disk)
 
