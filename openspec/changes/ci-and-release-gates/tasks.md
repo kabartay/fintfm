@@ -17,8 +17,8 @@
 - [ ] 8.6 Add `ruff format --check` as a gate. **Deliberately excluded 2026-09-09**: it would
       reformat 18 of 29 files, and that diff must not be mixed into substantive work. Verify:
       run the reformat as its own isolated commit, then add the gate.
-- [ ] 8.4 Add a release workflow firing on `release: published`, and record in `CLAUDE.md`
+- [ ] 8.4 **Progress (2026-11-08): `.github/workflows/release.yml` already existed (tag-push trigger, gates, wheel, PyPI Trusted Publishing); its trigger is now `release: published` and `CLAUDE.md` "Releases" records that a bare tag fires nothing. `actionlint` reports only an info-level SC2012 (`ls` in the wheel-install step, unchanged). Open: the Verify (a green run on the next release) cannot be met until the next release.** Add a release workflow firing on `release: published`, and record in `CLAUDE.md`
       that a bare tag ships nothing. Verify: the next release shows a green run.
-- [ ] 8.5 Retrospectively verify `v0.1.0` against the clean-clone procedure and note the
+- [ ] 8.5 **Progress (2026-11-08): clean clone of `v0.1.0` (`uv sync --extra bench`, `uv run pytest -q`) gives 30 passed, 0 skipped in 28.6 s, and `ruff check src/ tests/` passes. The README quickstart train and bench steps were not run (5000-step training). Open: the note is not yet on the release (`gh release edit` writes to GitHub); the owner posts it.** Retrospectively verify `v0.1.0` against the clean-clone procedure and note the
       result on the release, since it was cut before any of this existed. Verify:
       `gh release view v0.1.0` carries a note stating the clean-clone pass/skip counts.

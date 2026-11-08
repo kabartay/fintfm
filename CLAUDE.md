@@ -212,8 +212,13 @@ every extra whose code path reads.
 
 ## Releases
 
-A release is a git tag **and** a GitHub Release. A bare tag ships nothing and, once a release
-workflow exists, fires nothing.
+A release is a git tag **and** a GitHub Release. A bare tag ships nothing and fires nothing:
+`.github/workflows/release.yml` triggers on `release: published` (since 2026-11-08; it used to
+trigger on a tag push). It re-runs lint, the openspec validator, licence and link checks and
+the tests, builds the wheel, checks that tag, wheel, `CITATION.cff` and `.zenodo.json` agree,
+attaches `dist/*` to the release, then the `publish` job uploads to PyPI through Trusted
+Publishing (`pypi` environment). A draft release runs nothing until it is published. If the
+run goes red after publishing, supersede with the next version; never re-tag.
 
 **Title carries the version:** `vX.Y.Z — Title`, with an em dash.
 

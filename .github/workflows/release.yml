@@ -1,4 +1,4 @@
-# Fires on a version tag. Builds the distributions, re-runs the checks that matter for a
+# Fires when a GitHub Release is published. Builds the distributions, re-runs the checks that matter for a
 # *shipped* artifact rather than a working tree, and attaches them to the GitHub release.
 #
 # Why this exists: v0.4.0 was tagged by hand at a commit whose lint check was red, and its
@@ -8,9 +8,13 @@
 # more than a check after it.
 name: Release
 
+# `release: published` is the event that also fires Zenodo, so one action starts both. A draft
+# release (CLAUDE.md "Releases") fires nothing until it is published. For this event
+# GITHUB_REF is refs/tags/<tag> and GITHUB_REF_NAME is the tag, so the tag-keyed steps below
+# work unchanged. A bare tag push now ships nothing.
 on:
-  push:
-    tags: ["v*"]
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
