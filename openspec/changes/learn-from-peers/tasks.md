@@ -265,7 +265,7 @@
       The failure mode to name in advance: masked modelling spends capacity on reconstructing
       features nobody will ever query, and at 885K parameters that trade may be strictly bad —
       LimiX-2 is 16M and its 2M variant is the relevant comparison, not its headline.
-- [ ] 48.16 **Progress (2026-11-07, docs/results/drafts/48.16_2026-11-07.md): heterogeneous
+- [ ] 48.16 **Narrowed (2026-11-08, owner, `docs/results/drafts/path-to-bar_2026-11-08.md`): the colid 18 validation run is dropped:** the two surrogates' predictions differ by 0.0095 AP, below the 0.0117 seed-noise bar (§173), so one trained checkpoint cannot tell them apart. **Progress (2026-11-07, docs/results/drafts/48.16_2026-11-07.md): heterogeneous
       surrogate built and run, no GPU; not closed.** Twelve already-scored V4FinBench checkpoints
       (full panel, n_ensemble=8, MEASURED), levers to five-fold mean AP,
       `scripts/colid_surrogate.py`. Leave-one-out MAE: all 12 rows mean 0.0196, ridge 0.0082, GBM

@@ -201,3 +201,20 @@ nonlinear capability on the proxy and on Lite.
 - AU4.2's prototype result comes from the task brief; it is not yet in FINDINGS.
 - Whether §191's checkpoints are still on disk, and whether the probe path runs inside TabArena's
   time limit for the 27 datasets.
+
+## Owner decisions, 2026-11-08
+
+Recommendations accepted: the Lite stack run, the drops (AU5.8 boost, DR3.11 8-member and 8-bag
+arms, the 48.16 colid 18 check) and the deferral of AU5.15's 2M-task run, each recorded in its task.
+
+**Correction to recommendation 1.** The probe cannot be stacked with the `rank, squash` *member*
+transforms: `FinancialTFMClassifier.transform_representation` reads one forward pass on the base
+context, so ensemble members never reach the probe, and that run would reproduce the probe alone.
+The run stacks the probe with the single-pass `feature_transform="squash"` instead (§210 fix 6,
+777, +0.01004 mean ROC-AUC over the default), which the probe does read through the conditioner.
+Queued locally as `fintfm_linprobe_squash_1108` (`runs/local_queue/lite_stack.sh`: CPU, one
+process per dataset, 27 binary datasets), paired against `fintfm_linprobe_d1fix_1104` (914) and
+the default `fintfm_lite_nan_1019` (756). SMOKE-TEST on blood-transfusion-service-center: exit 0,
+70 s, 2.4 GB peak, override seen. Label any result "FinTFM with a trained linear readout", and if
+it wins, a Lite-only declared configuration: squash is null on V4FinBench (§211), so it never
+becomes the credit default.
