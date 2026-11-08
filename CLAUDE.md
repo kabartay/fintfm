@@ -51,6 +51,13 @@ freeze, but check memory growth (`top -l 1 -n 3`, watch `PhysMem` free) within t
 minutes of *any* local MPS training launch at this scale, not just CPU load, until this is
 root-caused.
 
+**Inference grows too, just later.** On 2026-11-09 a zero-shot V4FinBench run on MPS with
+`n_ensemble: 8` (`configs/arms/dr32-ens8-cshift.yaml`) sat at 2-4 GB for the first eight
+minutes, then reached a 27 GB footprint by minute 40 and left 23 MB unused beside a Finkele
+solver campaign; it was killed and the arm went back to CPU. A three-minute memory check does
+not clear an MPS run: keep watching until the first fold completes, and check `ps` for a
+`finkele_solver.campaign_runner` before any local GPU job.
+
 ## Every HF Jobs training launch carries `--checkpoint-every`, no exceptions
 
 Cost about $15 and six wasted launches on 2026-10-01/02, replicating §91's ablation at a
