@@ -17,34 +17,34 @@ V4FinBench results are read first and every Lite figure is reporting, not select
   The only measured sign of movement there is on the proxy suite, which DR4.2 has not yet
   validated against TabArena.
 - DR7.6 also says "binary and multiclass declared together". Multiclass is at Elo 306
-  (+76/-2619), 94th of 95, over 7 datasets (`TABARENA.md`, 2026-10-26, MEASURED). That is a
+  (+76/-2619), 94th of 95, over 7 datasets (`docs/results/TABARENA.md`, 2026-10-26, MEASURED). That is a
   second gap, not counted in the +254.
 
 ## 1. Inventory of measured levers
 
 ### 1a. TabArena-Lite (27 binary datasets, split 0, ROC-AUC, Elo against the 95-method pool)
 
-Baseline: published `v4-cellattn-labels.pt`, NaN passed through, 756 (`TABARENA.md`, DR3.5,
+Baseline: published `v4-cellattn-labels.pt`, NaN passed through, 756 (`docs/results/TABARENA.md`, DR3.5,
 MEASURED). Intervals are +/-125 to 215 wide; every arm below overlaps the baseline.
-Reference rows (`TABARENA_BAR.md`): KNN (tuned) 859, Linear (default) 936, Linear (tuned + ens.)
+Reference rows (`docs/roadmap/TABARENA_BAR.md`): KNN (tuned) 859, Linear (default) 936, Linear (tuned + ens.)
 984, RF (default) 1000, KNN (tuned + ens.) 1008.
 
 | lever | Lite Elo (change) | paired result | source |
 | --- | --- | --- | --- |
-| Linear probe on the representation (§132, zero-fill era) | 910 (+154) | n/a | `TABARENA.md` §132 line; §204 |
+| Linear probe on the representation (§132, zero-fill era) | 910 (+154) | n/a | `docs/results/TABARENA.md` §132 line; §204 |
 | Probe, stratified probe rows (fix 1) | 914 (+4 over probe) | 5/2/20, p 0.45 | §210, MEASURED |
-| Member transforms `rank, squash` | 807 (+51) | 20/6/1, p 0.009, +0.01023 AUC | `TABARENA.md` AU5.7/AU5.12, §210 |
+| Member transforms `rank, squash` | 807 (+51) | 20/6/1, p 0.009, +0.01023 AUC | `docs/results/TABARENA.md` AU5.7/AU5.12, §210 |
 | `feature_transform="squash"` (fix 6) | 777 (+21) | 18/8/1, p 0.076, +0.01004 | §210 |
-| SVD 16 components | 782 (+26) | 17/10, p 0.25 | `TABARENA.md` |
-| Class-shift ensemble | 716 (-40) | 10/17, p 0.25 | `TABARENA.md` |
-| One member instead of 8 | 696 (-60) | 7/20, p 0.019 | `TABARENA.md` |
-| Context 500 / 750 rows against 1,000 | 702 (-54) / 745 (-11) | p 0.85 / 0.29 | `TABARENA.md` AU5.14, DR3.5 pairing |
+| SVD 16 components | 782 (+26) | 17/10, p 0.25 | `docs/results/TABARENA.md` |
+| Class-shift ensemble | 716 (-40) | 10/17, p 0.25 | `docs/results/TABARENA.md` |
+| One member instead of 8 | 696 (-60) | 7/20, p 0.019 | `docs/results/TABARENA.md` |
+| Context 500 / 750 rows against 1,000 | 702 (-54) / 745 (-11) | p 0.85 / 0.29 | `docs/results/TABARENA.md` AU5.14, DR3.5 pairing |
 | Minority coded as 1; positive cap 0.3 | 756 (0) | 4/1/22; 9/2/16 | §210 |
-| E1, 480,000 tasks (`e1-v480-s0`) | 842 (+86) | not paired | `TABARENA.md`, 2026-10-24 |
+| E1, 480,000 tasks (`e1-v480-s0`) | 842 (+86) | not paired | `docs/results/TABARENA.md`, 2026-10-24 |
 | Other checkpoints: priorctl-s1 / treeclean-s1 / widerprior / mixedprior | 737 / 826 / 761 / 813 | n/a | `drafts/dr4.2_2026-11-07.md` section 2, 5 (stored pool; match by name and timestamp) |
-| NaN passed through against filled with 0 | 756 against 763 | 2/4 of 6 differing, p 0.69 | `TABARENA.md` DR3.5 |
-| Multiclass checkpoint, 7 datasets | 306 | n/a | `TABARENA.md` 2026-10-26 |
-| `retrieval` | not run | 0 of 4 completed (MPS OOM, then time limit) | `TABARENA.md`, §210 |
+| NaN passed through against filled with 0 | 756 against 763 | 2/4 of 6 differing, p 0.69 | `docs/results/TABARENA.md` DR3.5 |
+| Multiclass checkpoint, 7 datasets | 306 | n/a | `docs/results/TABARENA.md` 2026-10-26 |
+| `retrieval` | not run | 0 of 4 completed (MPS OOM, then time limit) | `docs/results/TABARENA.md`, §210 |
 | Fine-tuning, partition | **not measured on Lite** | | see section 2 |
 
 Why the gap exists (§204, MEASURED from cached results): FinTFM is below `LR (default)` on 23 of
@@ -131,7 +131,7 @@ Linear probe with stratified rows (914) plus `rank, squash` member transforms (8
 about 960 if additive (ESTIMATED: 914 plus part of +51; additivity is unmeasured), so this run
 either confirms a ceiling near LR level or finds more. It also tells us where the stack stops,
 which decides whether anything else is worth buying. Cost: a single-fold Lite run is about an hour
-(CLAUDE.md), one process per dataset on MPS (`TABARENA.md`), nothing while `bwa` and a solver
+(CLAUDE.md), one process per dataset on MPS (`docs/results/TABARENA.md`), nothing while `bwa` and a solver
 campaign contend. Label the result "FinTFM with a trained linear readout", not zero-shot. The probe's
 V4 advantage is a label-count effect (§209), so on Lite it is a use of the training rows beyond
 the context, which is legitimate but not the zero-shot claim.
@@ -182,7 +182,7 @@ has not been tried on Lite.
 **Evidence that would change this reading:**
 
 - Probe plus transforms on Lite at or above about 980 (then the bar is a few inside-interval steps
-  away, and a paired per-dataset pass, as `TABARENA_BAR.md` requires, is the next test).
+  away, and a paired per-dataset pass, as `docs/roadmap/TABARENA_BAR.md` requires, is the next test).
 - Fine-tuning pilot at least +100 on the five nonlinear datasets.
 - DR4.2 n = 9 with rho at or above 0.8 and a general-trunk checkpoint at or above about 900 on Lite
   (then a separate general family is the route).

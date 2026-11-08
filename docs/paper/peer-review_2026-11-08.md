@@ -14,14 +14,14 @@ for two papers, as PDFs (`pdftotext`). Nothing here enters the repository: no pe
 - **The LimiX-2 replacement was not re-checked** at source this pass (issue #648 was last read
   2026-11-05); the standing recheck of task 48.26(b) carries over.
 - **No new credit- or finance-specific tabular foundation model** turned up. The credit papers
-  found (arXiv:2605.18635, 2605.18147) were already in `REFERENCES.md`; 2605.18147 is now at v3
+  found (arXiv:2605.18635, 2605.18147) were already in `docs/research/REFERENCES.md`; 2605.18147 is now at v3
   (revised 2026-10-23; the page does not say what changed).
 - Several items below were read from the abstract only. Where a number is missing it is missing
   in the source page and is not estimated.
 
 ## Already recorded, nothing new
 
-TabAbax (arXiv:2611.00562; `REFERENCES.md` has the repository, the weights licence CC-BY-NC-4.0 and
+TabAbax (arXiv:2611.00562; `docs/research/REFERENCES.md` has the repository, the weights licence CC-BY-NC-4.0 and
 the classification/regression split), Mitra-v2 (arXiv:2609.04540, Apache-2.0 per its abstract),
 TabDPT-Turbo (arXiv:2608.01400), Xiaomi-TabLDM (arXiv:2609.03880), LimiX-2M, TabPFN-3, TabFlex,
 Seldon, FTFM. One caution on quoting TabAbax: its abstract gives TabArena overall Elo 1,676 on 51

@@ -29,5 +29,5 @@
 - [ ] 14.5 Record the outcome in `docs/design/DECISIONS.md` as a new decision on what the defensible
       claim is, with its reversal condition. Verify:
       `uv run python openspec/tools/validate.py` passes.
-      **Progress (2026-11-08): drafted as a PROPOSED decision, `DECISIONS.md` D20, from FINDINGS
+      **Progress (2026-11-08): drafted as a PROPOSED decision, `docs/design/DECISIONS.md` D20, from FINDINGS
       §13, §15, §16, §17. Awaiting owner adoption and the fitted-calibration results.**
