@@ -27,10 +27,13 @@ from sklearn.preprocessing import StandardScaler
 from fintfm.evaluation.boosting import BOOSTING_MODELS, fit_predict_boosting
 from fintfm.evaluation.datasets import (
     CreditDataset,
+    SurvivalDataset,
     load_polish_bankruptcy,
     load_taiwan_bankruptcy,
+    load_v4finbench,
 )
 from fintfm.evaluation.metrics import evaluate_binary
+from fintfm.evaluation.splits import time_based_split
 from fintfm.inference.classifier import ContextStrategy, FinancialTFMClassifier
 from fintfm.modeling.model import FinancialTFM
 from fintfm.prior import PriorConfig
@@ -75,14 +78,37 @@ def _baselines() -> dict[str, object]:
     }
 
 
-def run_one(name: str, X: np.ndarray, y: np.ndarray, model_path: str, seed: int = 0) -> dict[str, float]:
-    """Fit every model on a train split and report test AUC."""
+def run_one(
+    name: str,
+    X: np.ndarray,
+    y: np.ndarray,
+    model_path: str,
+    seed: int = 0,
+    split: tuple[np.ndarray, np.ndarray] | None = None,
+) -> dict[str, float]:
+    """Fit every model on a train split and report test AUC.
+
+    Args:
+        name: Label used in the printed rows.
+        X: Features ``(n, n_features)``.
+        y: Labels ``(n,)``.
+        model_path: Checkpoint for the fintfm arm.
+        seed: Seed for the default random split.
+        split: Optional ``(train_idx, test_idx)`` row indices into ``X``/``y``. ``None``
+            (default) keeps the stratified random 70/30 split.
+
+    Returns:
+        Test AUC per model name.
+    """
     values, counts = np.unique(y, return_counts=True)
     # stratify requires >= 2 members per class; synthetic multiclass tasks can be this rare
     can_stratify = len(values) > 1 and counts.min() >= 2
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.3, random_state=seed, stratify=y if can_stratify else None
-    )
+    if split is None:
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=0.3, random_state=seed, stratify=y if can_stratify else None
+        )
+    else:
+        X_train, X_test, y_train, y_test = X[split[0]], X[split[1]], y[split[0]], y[split[1]]
     classes = np.unique(y)
     results: dict[str, float] = {}
 
@@ -218,6 +244,66 @@ def run_credit(model_path: str, horizons: tuple[int, ...] = (1, 3, 5)) -> None:
             _compare_context_strategies(ds, model_path, strategies)
 
 
+def run_time_vs_random(
+    ds: SurvivalDataset,
+    model_path: str,
+    train_until: int = 2016,
+    test_from: int = 2017,
+    seed: int = 0,
+) -> dict[str, dict[str, float]]:
+    """Report random-split and time-based test AUC side by side on a dated panel.
+
+    The time split trains on ``year <= train_until`` and tests on ``year >= test_from``, with
+    any company present in both windows removed from training (the count is printed). The
+    random split draws the same number of train and test rows, stratified, from the same row
+    pool, so the gap is not confounded by sample size. Firms may sit on both sides of it,
+    which is the optimism being measured.
+
+    Args:
+        ds: A panel with ``year`` and ``groups`` (V4FinBench).
+        model_path: Checkpoint for the fintfm arm; features beyond its ``max_features`` are
+            cut (first columns kept) and the cut is printed.
+        train_until: Last training year (inclusive).
+        test_from: First test year (inclusive).
+        seed: Seed for the random split.
+
+    Returns:
+        ``{"random": {model: auc}, "time": {model: auc}}``.
+
+    Raises:
+        ValueError: If the panel has no period labels or no identifiers, or the split would
+            leak (see :func:`fintfm.evaluation.splits.time_based_split`).
+    """
+    if not ds.has_period_labels or ds.year is None or ds.groups is None:
+        raise ValueError(
+            f"{ds.name} has no period/identifier columns, so it cannot support a time-based "
+            "split; see docs/results/FINDINGS.md §7"
+        )
+    ts = time_based_split(ds.year, ds.groups, train_until, test_from, on_overlap="drop_from_train")
+    cfg = FinancialTFM.load(model_path).cfg
+    X = ds.X[:, : cfg.max_features]
+    print(f"\n=== {ds.name}: random vs time-based (train<={train_until}, test>={test_from}) ===")
+    print(f"    {len(ts.train)} train / {len(ts.test)} test rows; {ts.n_shared_ids} companies in "
+          f"both windows, {ts.n_train_dropped} train rows dropped for it")
+    if ds.X.shape[1] > cfg.max_features:
+        print(f"    NOTE: model takes {cfg.max_features} features, data has {ds.X.shape[1]}; "
+              f"first {cfg.max_features} columns used")
+    pool = np.concatenate([ts.train, ts.test])
+    rtr, rte = train_test_split(
+        pool, train_size=len(ts.train), test_size=len(ts.test), random_state=seed,
+        stratify=ds.y[pool],
+    )
+    out = {
+        "random": run_one(f"{ds.name}-random", X, ds.y, model_path, split=(rtr, rte)),
+        "time": run_one(f"{ds.name}-time", X, ds.y, model_path, split=(ts.train, ts.test)),
+    }
+    print(f"\n    {'model':<14}{'random AUC':>12}{'time AUC':>12}{'gap':>9}")
+    for model_name in out["random"]:
+        r, t = out["random"][model_name], out["time"].get(model_name, float("nan"))
+        print(f"    {model_name:<14}{r:>12.4f}{t:>12.4f}{r - t:>+9.4f}")
+    return out
+
+
 def _compare_context_strategies(
     ds: CreditDataset, model_path: str, strategies: tuple[ContextStrategy, ...], seed: int = 0
 ) -> None:
@@ -246,7 +332,15 @@ def main() -> None:
     p.add_argument("--synthetic-tasks", type=int, default=20)
     p.add_argument("--openml-id", type=int, action="append", default=[])
     p.add_argument("--credit", action="store_true", help="benchmark on real corporate-default data")
+    p.add_argument("--time-split", action="store_true",
+                   help="V4FinBench random vs time-based AUC side by side (needs the cached data)")
+    p.add_argument("--max-rows", type=int, default=None,
+                   help="with --time-split: subsample this many company-years")
+    p.add_argument("--v4-root", type=str, default=None, help="V4FinBench parquet directory")
     args = p.parse_args()
+    if args.time_split:
+        run_time_vs_random(load_v4finbench(args.v4_root, max_rows=args.max_rows), args.model)
+        return
     if args.credit:
         run_credit(args.model)
         return

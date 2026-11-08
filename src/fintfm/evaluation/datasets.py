@@ -233,6 +233,8 @@ class SurvivalDataset:
         licence: SPDX identifier of the source data.
         attribution: Text that must accompany any published use.
         feature_names: Column names, in order.
+        groups: Company identifier per row (``emis_id``), or ``None`` when the loader did not
+            carry one. Needed to refuse identifier leakage across a time split.
     """
 
     X: np.ndarray
@@ -245,6 +247,7 @@ class SurvivalDataset:
     licence: str
     attribution: str
     feature_names: tuple[str, ...] = ()
+    groups: np.ndarray | None = None
 
     @property
     def default_rate(self) -> float:
@@ -373,4 +376,5 @@ def load_v4finbench(
             "arXiv:2605.10896. Data CC BY 4.0."
         ),
         feature_names=tuple(feature_cols),
+        groups=frame["emis_id"].to_numpy(),
     )
