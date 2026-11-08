@@ -13716,3 +13716,114 @@ Prediction record: AU4.2 predicted "not a candidate", AU4.3 "null or harmful", A
 against ens8": all three held. Raw comparisons: `runs/au42/prototype` (queue log
 `runs/local_queue/au42-compare.log`), `runs/kaggle-fintfm-task-v4inf-ctx900e3-f01234/cmp_vs_default.txt`,
 `runs/au512-tfsq8/cmp_vs_{ens8,default}.txt`, `runs/kaggle-fintfm-ts-{au517-muon,au54-ctx2k}-s0/dr64_verdict.json`.
+
+## §212: TabArena-Lite, probe plus squash reaches 969 Elo and partition 888; neither clears 1,010
+
+**MEASURED, 2026-11-08. TabArena-Lite is breadth only (V4FinBench decides, §211); these are
+general-tabular numbers, not credit results.** 27 binary Lite datasets, split 0, the published
+checkpoint through the fork's adapter, ROC-AUC per dataset (`scripts/compare_lite_arms.py`: sign
+test over untied datasets, Elo from each run's own leaderboard against the full TabArena field).
+The bar is about 1,010 Elo (`docs/roadmap/TABARENA_BAR.md`); the default is 756
+(`fintfm_lite_nan_1019`).
+
+| arm | run | paired against | better / worse / tied | sign p | mean ROC-AUC change | Elo (+ / −) |
+| --- | --- | --- | --- | --- | --- | --- |
+| linear probe + `feature_transform="squash"`, CPU | `fintfm_linprobe_squash_1108` | probe alone `fintfm_linprobe_d1fix_1104` (914) | 18 / 9 / 0 | 0.12 | +0.00437 | 969 (+142 / −183) |
+| same | same | default (756) | 25 / 2 / 0 | < 0.01 | +0.03501 | 969 |
+| partitioned contexts (`FINTFM_PARTITION={}`: depth 2, `min_samples_leaf` 0.05, one bag), Kaggle T4 | `fintfm_lite_partition_kaggle` | default on the same GPU `fintfm_lite_default_kaggle` | 23 / 4 / 0 | < 0.01 | +0.02738 | 888 (+137 / −163) |
+| default, Kaggle T4 (device check) | `fintfm_lite_default_kaggle` | default on MPS (756) | 7 / 7 / 13 | 1.00 | +0.00001 | 751 |
+
+**Label for the probe rows: "FinTFM with a trained linear readout"**, not zero-shot FinTFM: a
+logistic regression is fitted on the network's pre-head representation of each training split.
+
+What this settles:
+
+- **Probe plus squash is the best measured Lite configuration, 969 Elo, 41 short of the bar.**
+  Squash adds 55 Elo to the probe, but the pairing against the probe alone is not significant
+  (p 0.12), and the Elo intervals are about ±150. The memo's ESTIMATED 960 for this stack was
+  close; additivity is roughly what was measured. Largest moves against the probe: churn
+  +0.0519, credit-g +0.0188, E-CommereShippingData +0.0184; largest loss
+  online_shoppers_intention −0.0094. If it is ever declared, it is a Lite-only configuration:
+  squash is null on V4FinBench (§211).
+- **Partitioned contexts help on Lite too** (+132 Elo over the same-GPU default), so §169's
+  V4FinBench win (+0.0375 mean AP, 5 of 5 folds) also holds on Lite. The DR3.11 "must not lose" gate passes. The gain
+  is broad but carries one large move: churn +0.1700; without it the mean is +0.0219. The four
+  losses are Is-this-a-good-customer −0.0257, diabetes −0.0157, NATICUSdroid −0.0031 and heloc
+  −0.0021. The draft's prediction ("loses below about 2,000 training rows, ties above",
+  `docs/results/drafts/dr3.11_2026-11-07.md`) did not hold: credit-g gains +0.0638 and the arm
+  beats the default on 23 of 27.
+- **The device does not move the default**: the T4 default and the MPS default tie on 13
+  datasets and split 7 / 7 on the rest, so a Kaggle arm may be paired against the MPS default
+  where a same-GPU default is missing.
+- **Probe and partition do not compose in the current adapter.** With `FINTFM_PARTITION` set,
+  the estimator is a `PartitionedTFMClassifier`, which has no `transform_representation`, so a
+  probe run cannot read it. Combining the two largest Lite levers needs a probe per leaf (new
+  adapter code), not a run.
+
+Cost, MEASURED: the stack took 3.0 h of CPU over 27 processes (`runs/local_queue/lite-stack.log`,
+0 failures); on the T4 the partition arm took 2.65 h and the default 1.84 h
+(`runs/kaggle-fintfm-task-lite-partition/summary.json`, 27 of 27 each, override seen on every
+dataset). AU5.13's reduced T+E sizing uses the 1.84 h: 8 seeded draws come to about 14.7 to 21
+GPU-h, ESTIMATED (14.7 if no draw partitions, 21 if every draw does), around the 15 GPU-h line
+the owner set for deferring it. Comparisons: `runs/lite_stack_vs_{probe,default}.md`,
+`runs/lite_partition_vs_default_kaggle.md`, `runs/lite_kaggle_vs_mps_default.md`.
+
+## §213: per-class retrieval and the RBF value embedding are harmful; the FinTFM logit helps a tuned booster on ULB, not on SBA
+
+**MEASURED, 2026-11-08.** V4FinBench rows: five folds, full panel, paired company-level bootstrap
+with Holm across folds; rule as in §211 (mean AP change above +0.0117 with at least 4 of 5 folds
+positive is a candidate, the mirror is harmful). Credit-suite rows: three splits, no bootstrap.
+
+| task | arm | control | mean AP | change | folds + / − | Holm-significant (companies) | verdict |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| AU5.8 | `retrieval_per_class` 16 (16 nearest positives + 1,984 nearest negatives per query group), local CPU, `runs/au58/retrieval-pc16` | zero-shot default `runs/lrsweep/eval-published` (0.1986) | 0.0052 | −0.1934 | 0 / 5 | all five | **harmful** |
+| AU5.8 | same | §163's fine-tuned arm `runs/ft/B_lr1e5` (0.2062), the task's Verify | 0.0052 | −0.2010 | 0 / 5 | all five | **harmful** |
+| AU5.16 | `--value-embedding rbf`, 16 fixed centres, no ECDF channel, 48,000 tasks, seed 0 (Kaggle T4) | `e1-v48-s0` (0.1975) | 0.1654 | −0.0321 | 0 / 5 | all five | **harmful** |
+
+Per fold, control then arm AP:
+
+- AU5.8 against the default: 0.2113/0.0056, 0.2050/0.0048, 0.1786/0.0052, 0.1810/0.0052,
+  0.2172/0.0053; ROC-AUC 0.7000, 0.6718, 0.6958, 0.6816, 0.6923 (logistic regression 0.98 on
+  every fold of the same run).
+- AU5.8 against §163: 0.2181/0.0056, 0.2068/0.0048, 0.1901/0.0052, 0.1955/0.0052, 0.2205/0.0053.
+- AU5.16: 0.2071/0.1778, 0.2031/0.1721, 0.1821/0.1514, 0.1734/0.1489, 0.2215/0.1765.
+
+**Per-class retrieval collapses further than §194's single neighbourhood.** §194 filled each
+2,000-row context with 45 to 222 positives and AP fell to 0.0126; capping positives at 16 (0.8%,
+near DR3.3's floor16) takes AP to 0.0052, close to a random ranking at the panel's 0.35% base
+rate, while ROC-AUC stays near 0.69. So the collapse is the neighbourhood, not the class share:
+contexts of each query's nearest rows lose what the uniform 2,000-row context carries. This
+closes AU5.8 with its three arms: partition wins (+0.0299 over §163, §205), boost was dropped
+by the owner (2026-11-08), per-class retrieval is harmful. Nearest-neighbour context selection is
+not worth another arm on this panel.
+
+**The RBF value embedding is harmful at matched tasks**, −0.0321 with every fold significant: the
+MLP on (z, missing) stays. The Fourier basis and the ECDF channel were not trained.
+
+**DR8.4, credit-suite half: a tuned booster with and without the out-of-fold FinTFM logit.** Same
+seeded 30-config LightGBM search, same inner split and early stopping as the tuned control of
+`docs/results/drafts/dr8.4_2026-11.md` (`scripts/credit_lightgbm_tuned.py --oof-dir`,
+`runs/dr84-credit-tuned/`, out-of-fold logits regenerated in `runs/dr84-credit-oof/`).
+
+| dataset | split | tuned LightGBM | + logit as feature, tuned | + logit as init score, tuned |
+| --- | --- | --- | --- | --- |
+| SBA 7(a) | 0 | 0.4503 | 0.4543 | 0.4555 |
+| | 1 | 0.4571 | 0.4500 | 0.4460 |
+| | 2 | 0.2988 | 0.2978 | 0.3047 |
+| | **mean** | **0.4021** | 0.4007 (−0.0014, 1 of 3 up) | 0.4021 (0.0000, 2 of 3 up) |
+| ULB fraud | 0 | 0.7988 | 0.8435 | 0.8466 |
+| | 1 | 0.8419 | 0.8606 | 0.8552 |
+| | 2 | 0.8490 | 0.8405 | 0.8511 |
+| | **mean** | 0.8299 | 0.8482 (+0.0183, 2 of 3 up) | **0.8510** (+0.0211, 3 of 3 up) |
+
+- **On SBA the FinTFM logit adds nothing once the booster is tuned.** §189's +0.011 feature gain
+  was a gain over an untuned booster, and tuning alone is worth more (+0.0159).
+- **On ULB the logit as init score still helps a tuned booster**, +0.0211 on 3 of 3 splits; most of
+  it is split 0, where the tuned control is weakest (0.7988). §189's untuned init-score hybrid
+  (0.8534) remains the best ULB row.
+- Three splits and no bootstrap: these are directions, not significance. The V4FinBench half
+  (`runs/dr84-v4`, tuned LightGBM on a 200,000-row cap, company-grouped inner split) is running.
+
+Raw comparisons: `runs/local_queue/au58-pc16-compare.log`, `runs/au58/cmp_vs_ft163.txt`,
+`runs/kaggle-fintfm-ts-au516-rbf-s0/dr64_verdict.json` (fold 1 to 4 predictions re-fetched from the
+kernel output after the first fetch brought only fold 0), `runs/local_queue/dr84-credit-tuned.log`.

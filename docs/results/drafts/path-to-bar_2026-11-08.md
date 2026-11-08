@@ -218,3 +218,14 @@ the default `fintfm_lite_nan_1019` (756). SMOKE-TEST on blood-transfusion-servic
 70 s, 2.4 GB peak, override seen. Label any result "FinTFM with a trained linear readout", and if
 it wins, a Lite-only declared configuration: squash is null on V4FinBench (§211), so it never
 becomes the credit default.
+
+## Results, 2026-11-08 (FINDINGS §212)
+
+- Probe plus squash: **969 Elo**, MEASURED, against the ESTIMATED 960 above; 41 short of 1,010.
+  Against the probe alone 18 / 9, sign p 0.12; Elo intervals about ±150.
+- Partition on Lite (Kaggle T4): **888 Elo**, 23 / 4 against the same-GPU default (751).
+- The next candidate stack is probe plus partition, but the adapter cannot run it: the
+  partition wrapper has no `transform_representation`, so it needs a probe per leaf (new fork
+  code, then a CPU smoke test, then a Kaggle run). Not started; owner to decide.
+- AU5.13's reduced T+E: about 14.7 to 21 GPU-h for 8 draws, ESTIMATED from the 1.84 T4-h
+  default; recommended deferral, owner to decide.
