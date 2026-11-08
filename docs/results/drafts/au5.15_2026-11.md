@@ -201,3 +201,43 @@ The Verify's measurement clause (tasks per GPU-hour and cost measured on one Kag
 the full run) is met by the tables above. The remaining clause, scoring the full run against a
 48k-task control under §159's rule on V4FinBench and then TabArena-Lite, belongs to the pretraining
 run itself, which has not started.
+
+## Pricing 500k, 1M and 2M tasks across Kaggle sessions (2026-11-08)
+
+**Tasks per GPU-hour is already MEASURED; no second one-session run is needed and no new kernel
+was written.** `scripts/kaggle/task_au515_throughput/` ran on 2026-11-05 (section above, 300-step
+runs, batch 8, fp16 split, 1 T4: live 36,000, `--task-dump` 40,934 tasks per GPU-hour; DDP stream
+28,800 per GPU-hour). The stream loader on one GPU has only a 50-step figure (41,014 tasks/h,
+MEASURED, benchmark table above), so it is priced from that and flagged.
+
+GPU-hours = tasks / rate (ESTIMATED, arithmetic on MEASURED rates). Weeks at 30 GPU-hours per week
+(`preregs_2026-11.md`), one T4 per session.
+
+| tasks | steps at batch 8 | live 36,000/h | dump 40,934/h | stream 41,014/h (50-step) | weeks, live | weeks, dump |
+| --- | --- | --- | --- | --- | --- | --- |
+| 500k | 62,500 | 13.9 | 12.2 | 12.2 | 0.46 | 0.41 |
+| 1M | 125,000 | 27.8 | 24.4 | 24.4 | 0.93 | 0.81 |
+| 2M | 250,000 | 55.6 | 48.9 | 48.8 | 1.85 | 1.63 |
+
+DDP stream on two T4s costs 34.7 / 69.4 GPU-hours for 1M / 2M (1.16 / 2.31 weeks) and is the
+choice only if wall-clock binds (17.4 h per 1M).
+
+With 9-hour sessions (the session length used in the plan above, ESTIMATED), 2M tasks is 7
+sessions live or 6 with a dump or stream (55.6 / 9 = 6.2; 48.9 / 9 = 5.4), so it spans two quota
+weeks; 1M is 4 sessions (3.1 / 2.7), inside one week for the dump or stream route, with no slack
+for live; 500k is 2 sessions. A full dump is about 296 GB per 1M tasks (MEASURED size), so the
+stream loader is the route.
+
+**Resume across sessions is the open risk.** Writing `.stepN` and `.state` was MEASURED in all four
+300-step runs (checkpoint 3.59 MB, state 10.78 MB single GPU, no measurable cost), but resuming
+from a state file was not exercised on Kaggle, and the cost of restart (re-install, recipe
+download, loader warm-up) per session is not measured. Each of the 6 to 7 sessions loses that
+overhead, so the GPU-hour figures above are lower bounds by that amount. Closing it needs one
+kernel that trains 100 steps, stops, and resumes from the state in a second session; not run.
+
+**Prerequisites.** AU1.13 done (2026-10-16, tasks.md). AU5.2 done (closed 2026-11-05, §170).
+`--checkpoint-every` implemented and measured above. Pre-generated dumps implemented but not
+needed (stream route). Still missing: (1) a measured cross-session resume; (2) a 300-step
+single-GPU stream run (only the 50-step number exists); (3) the 48k-task control at the same
+commit and seed replicates for §159's rule (§171 `V480` design); (4) the owner's go-ahead and a
+free quota week; (5) a scoring plan on V4FinBench then TabArena-Lite after the run.
