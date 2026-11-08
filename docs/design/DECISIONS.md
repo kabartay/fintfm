@@ -778,3 +778,47 @@ What changed (2026-10-20):
 checkpoint has been released. The §157 pilot arm that trained on it is not held out on
 `lending_club_1m`. **Revisit** only if BeyondArena drops `lending_club_1m`; a new FinTFM-R
 source is found through the registry and the overlap report (DR4.1), not by reopening this one.
+
+---
+
+## D20 — The defensible calibration claim: a method property that is partly shrinkage, never "best ECE"
+
+**Date:** 2026-11-08. **Status:** PROPOSED, not yet adopted. Closes the decision half of
+`openspec/changes/calibration-mechanism` task 14.5; adopt it once the owner has read it and the
+fitted-calibration results (the separate `FinancialTFMClassifier` work) are in, because those may
+change the second reversal condition.
+
+**What the evidence supports** (all MEASURED, single seed unless stated, `mixed` checkpoint where
+a checkpoint is named):
+
+- The 2.3-11.7× ECE advantage over gradient boosting (§12) is a shrinkage effect: it decays
+  monotonically with n (§13), and the predictions have a small spread (pred sd 0.017-0.027,
+  p99/p50 2.8-4.8, against 49-396,829 for boosting at n = 100-4,000), so it is partly conservatism.
+- Against Platt- or isotonic-calibrated boosting the ECE gap at n = 100 is about 2× (0.0070
+  against 0.0127), and calibrated boosting is the better model above roughly 1,000 rows (§16).
+- Pretraining of any prior buys calibration (ECE 0.532 untrained, 0.004-0.011 trained, §15), so
+  calibration is a property of the method, not of the financial prior (14.2).
+- A feature-free constant predictor has ECE 0.0002 against our best 0.00255 and a Brier skill of
+  only 1-2% for our model (§17), so a low ECE alone is not skill.
+
+**Chose.** State the calibration claim narrowly: below a few hundred obligors the model gives
+probability estimates with the lowest Brier score among the arms measured and a measured ECE
+below the calibrated incumbents, **reported with Brier skill, AUC and prediction spread
+(`pred_sd`, `pred_p99_over_p50`, `is_near_constant` on `CreditMetrics`) beside every ECE**. Describe
+the mechanism as shrinkage toward the prior base rate, a property of prior-fitted networks that
+we share with them, not as a differentiator. The differentiator is the protocol, the certificate
+and the domain prior's measured AUC gain (§14), not calibration.
+
+**Rejected.** (1) "Best calibrated at every size" (§12, §16 first reading): true on ECE only,
+and §17's constant predictor beats it. (2) Any use of the 11.7× figure: it was against an
+uncalibrated incumbent. (3) Dropping the calibration claim entirely: the Brier lead below a few
+hundred rows survived calibrated boosting (§16), so it is real, if small.
+
+**Reversed if:** (a) a multi-seed run (at least three) puts the Brier crossover below 250 rows or
+removes the lead, in which case the claim is withdrawn; (b) the fitted-calibration work gives a
+model whose ECE and Brier skill hold at n above 1,000 against calibrated boosting with a spread
+that is not near-constant, in which case the size limit is lifted; (c) a properly trained
+checkpoint (the `mixed` one is under-trained, §16) changes the ordering.
+
+**Not yet measured:** the spread fields were added on 2026-11-08, so no existing result carries
+them except §13's 3-year panel table; re-run before quoting spread for any other panel.

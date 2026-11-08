@@ -23,6 +23,11 @@ from dataclasses import dataclass, field
 import numpy as np
 from sklearn.metrics import average_precision_score, brier_score_loss, roc_auc_score
 
+#: A predictor whose 99th-percentile probability is under this multiple of its median is treated
+#: as near-constant: it is not separating risk, so its ECE says nothing about skill. A model
+#: that ranks a low-base-rate population has a tail many times its median.
+NEAR_CONSTANT_P99_OVER_P50 = 1.5
+
 
 @dataclass
 class CreditMetrics:
@@ -51,6 +56,16 @@ class CreditMetrics:
             (AUC at or below 0.55) *despite* possibly excellent calibration. A constant
             base-rate predictor has ECE near zero and AUC exactly 0.5, so calibration alone
             must never read as success.
+        pred_sd: Standard deviation of the predicted probabilities. Report it beside every
+            calibration number: a low ECE with a near-zero spread is conservatism, not skill.
+        pred_p50: Median predicted probability.
+        pred_p99: 99th percentile of the predicted probabilities.
+        pred_p99_over_p50: ``pred_p99 / pred_p50``, the tail-to-median ratio. A predictor
+            that spreads its risk across the population has a large ratio; a near-constant
+            one sits near 1. NaN when the median is zero.
+        is_near_constant: True when the predictions barely vary (``pred_p99_over_p50`` below
+            ``NEAR_CONSTANT_P99_OVER_P50``, or a zero spread), so a small ECE cannot be read
+            as calibration skill. Independent of ``is_degenerate``, which looks at AUC.
     """
 
     roc_auc: float
@@ -64,6 +79,11 @@ class CreditMetrics:
     n_positive: int
     brier_skill: float = float("nan")
     is_degenerate: bool = False
+    pred_sd: float = float("nan")
+    pred_p50: float = float("nan")
+    pred_p99: float = float("nan")
+    pred_p99_over_p50: float = float("nan")
+    is_near_constant: bool = False
     bins: list[tuple[float, float, int]] = field(default_factory=list)
 
     def summary(self) -> str:
@@ -77,10 +97,12 @@ class CreditMetrics:
         S60 ranked fintfm second of five on V4FinBench by AUC and third by AP.
         """
         flag = "  [DEGENERATE: no discriminative content]" if self.is_degenerate else ""
+        flag += "  [NEAR-CONSTANT: ECE is not skill]" if self.is_near_constant else ""
         return (
             f"AUC={self.roc_auc:.4f} AP={self.average_precision:.4f} "
             f"Brier={self.brier:.4f} (skill={self.brier_skill:+.2%}) "
-            f"ECE={self.ece:.4f} recall@{self.base_rate:.1%}={self.recall_at_base_rate:.3f} "
+            f"ECE={self.ece:.4f} spread(sd={self.pred_sd:.4f}, "
+            f"p99/p50={self.pred_p99_over_p50:.2f}) recall@{self.base_rate:.1%}={self.recall_at_base_rate:.3f} "
             f"(pred mean {self.mean_predicted:.3%} vs actual {self.base_rate:.3%}, "
             f"{self.n_positive}/{self.n} positive){flag}"
         )
@@ -112,6 +134,28 @@ def expected_calibration_error(
         bins.append((predicted, observed, count))
         total += count * abs(predicted - observed)
     return total / max(len(p), 1), bins
+
+
+def prediction_spread(p: np.ndarray) -> tuple[float, float, float, float, bool]:
+    """Summarise how much a set of predicted probabilities varies.
+
+    Args:
+        p: Predicted probability of the positive class.
+
+    Returns:
+        ``(sd, p50, p99, p99_over_p50, near_constant)``. The ratio is NaN when the median is
+        zero (and then ``near_constant`` is True only if the spread is zero). All NaN and False
+        for empty input. ``near_constant`` is True when the spread is zero or the ratio is
+        below :data:`NEAR_CONSTANT_P99_OVER_P50`.
+    """
+    p = np.asarray(p, dtype=float)
+    if len(p) == 0:
+        return float("nan"), float("nan"), float("nan"), float("nan"), False
+    sd = float(p.std())
+    p50, p99 = (float(v) for v in np.percentile(p, [50, 99]))
+    ratio = p99 / p50 if p50 > 0 else float("nan")
+    near_constant = bool(sd == 0.0 or (np.isfinite(ratio) and ratio < NEAR_CONSTANT_P99_OVER_P50))
+    return sd, p50, p99, float(ratio), near_constant
 
 
 def recall_at_top_k(y_true: np.ndarray, p: np.ndarray, k: int) -> float:
@@ -160,6 +204,7 @@ def evaluate_binary(y_true: np.ndarray, p: np.ndarray, n_bins: int = 10) -> Cred
     skill = 1.0 - brier / brier_ref if brier_ref and np.isfinite(brier) else float("nan")
     degenerate = bool(np.isfinite(auc) and auc <= 0.55)
     ap = average_precision_score(y_true, p) if len(np.unique(y_true)) > 1 else float("nan")
+    sd, p50, p99, ratio, near_constant = prediction_spread(p)
     return CreditMetrics(
         roc_auc=float(auc),
         average_precision=float(ap),
@@ -167,6 +212,11 @@ def evaluate_binary(y_true: np.ndarray, p: np.ndarray, n_bins: int = 10) -> Cred
         brier_skill=float(skill),
         is_degenerate=degenerate,
         ece=float(ece),
+        pred_sd=sd,
+        pred_p50=p50,
+        pred_p99=p99,
+        pred_p99_over_p50=ratio,
+        is_near_constant=near_constant,
         base_rate=base_rate,
         mean_predicted=float(p.mean()) if len(p) else float("nan"),
         recall_at_base_rate=recall_at_top_k(y_true, p, round(base_rate * len(y_true))),

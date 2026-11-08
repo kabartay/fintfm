@@ -60,6 +60,8 @@ class SweepCell:
     mean_ece: float
     auc_by_horizon: list[float]
     seconds: float
+    mean_pred_sd: float = float("nan")
+    mean_pred_p99_over_p50: float = float("nan")
 
 
 def run(
@@ -122,7 +124,7 @@ def run(
                 ).fit(ds.X[tr], ds.y[tr], periods=ds.period[tr])
                 curve = clf.predict_term_structure(ds.X[te])
                 elapsed = time.perf_counter() - started
-                aucs, eces = [], []
+                aucs, eces, sds, ratios = [], [], [], []
                 for k in range(curve.shape[1]):
                     m = seen[:, k]
                     if (
@@ -133,6 +135,8 @@ def run(
                     met = evaluate_binary(truth[m, k], curve[m, k])
                     aucs.append(met.roc_auc)
                     eces.append(met.ece)
+                    sds.append(met.pred_sd)
+                    ratios.append(met.pred_p99_over_p50)
                 # for retrieval, the stored context is the whole pool and its rate says
                 # nothing about what was actually retrieved; report the pooled rate instead
                 summary = clf.context_summary_
@@ -151,6 +155,8 @@ def run(
                     n_context_positive=n_pos,
                     mean_auc=float(np.mean(aucs)),
                     mean_ece=float(np.mean(eces)),
+                    mean_pred_sd=float(np.mean(sds)),
+                    mean_pred_p99_over_p50=float(np.nanmean(ratios)),
                     auc_by_horizon=[float(a) for a in aucs],
                     seconds=float(elapsed),
                 )
@@ -158,7 +164,8 @@ def run(
                 print(
                     f"  {strategy:>9} ctx={max_context:<5} rate={cell.context_rate:>7.2%} "
                     f"pos={cell.n_context_positive:<5} AUC={cell.mean_auc:.4f} "
-                    f"ECE={cell.mean_ece:.4f} {cell.seconds:>6.0f}s",
+                    f"ECE={cell.mean_ece:.4f} sd={cell.mean_pred_sd:.4f} "
+                    f"p99/p50={cell.mean_pred_p99_over_p50:.2f} {cell.seconds:>6.0f}s",
                     flush=True,
                 )
 

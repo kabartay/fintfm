@@ -49,6 +49,8 @@ class HorizonScore:
     brier_skill: float
     observed_rate: float
     mean_predicted: float
+    pred_sd: float = float("nan")
+    pred_p99_over_p50: float = float("nan")
 
 
 @dataclass
@@ -154,7 +156,8 @@ def score_curve(
             HorizonScore(
                 horizon=k, n_eval=met.n, n_positive=met.n_positive, auc=met.roc_auc,
                 ece=met.ece, brier_skill=met.brier_skill, observed_rate=met.base_rate,
-                mean_predicted=met.mean_predicted,
+                mean_predicted=met.mean_predicted, pred_sd=met.pred_sd,
+                pred_p99_over_p50=met.pred_p99_over_p50,
             )
         )
     d = np.diff(pd_curve, axis=1)
@@ -319,6 +322,13 @@ def summarise(record: dict) -> str:
     lines += ["", "calibration (ECE) by horizon:"]
     for a in record["arms"]:
         lines.append(f"{a['name']:>26} " + " ".join(f"{h['ece']:>8.4f}" for h in a["horizons"]))
+    # spread beside every calibration number: a low ECE with p99/p50 near 1 is conservatism
+    lines += ["", "prediction spread (p99/p50) by horizon:"]
+    for a in record["arms"]:
+        lines.append(
+            f"{a['name']:>26} "
+            + " ".join(f"{h.get('pred_p99_over_p50', float('nan')):>8.2f}" for h in a["horizons"])
+        )
     # The level, printed beside the truth. A term structure can be perfectly monotone and
     # perfectly ranked while stating a default rate 27x too high, and AUC and the violation
     # rate both report that curve as healthy (docs/results/FINDINGS.md §28).

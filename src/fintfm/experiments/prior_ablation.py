@@ -255,14 +255,18 @@ def summarise(record: dict) -> str:
             f"(identical across variants) | steps: {record['config']['steps']}"
         ),
         "",
-        (f"{'dataset/strategy':38s} " + " ".join(f"{n:>22s}" for n in variants)),
+        (f"{'dataset/strategy':38s} " + " ".join(f"{n:>36s}" for n in variants)),
     ]
     for key in keys:
         cells = []
         for name in variants:
             m = variants[name]["metrics"].get(key)
-            cells.append("".ljust(22) if m is None else f"AUC {m['roc_auc']:.4f} ECE {m['ece']:.4f}")
-        lines.append(f"{key:38s} " + " ".join(f"{c:>22s}" for c in cells))
+            cells.append(
+                "".ljust(36) if m is None
+                else f"AUC {m['roc_auc']:.4f} ECE {m['ece']:.4f} "
+                     f"p99/p50 {m.get('pred_p99_over_p50', float('nan')):.2f}"
+            )
+        lines.append(f"{key:38s} " + " ".join(f"{c:>36s}" for c in cells))
 
     if "financial" in variants and "generic" in variants:
         fin, gen = variants["financial"]["metrics"], variants["generic"]["metrics"]
@@ -530,7 +534,8 @@ def sample_efficiency_probe(
                 continue
             print(
                 f"      {name:<18} AUC={m.roc_auc:.4f} ECE={m.ece:.4f} "
-                f"Brier={m.brier:.4f} predmean={m.mean_predicted:.3%}"
+                f"Brier={m.brier:.4f} predmean={m.mean_predicted:.3%} "
+                f"sd={m.pred_sd:.4f} p99/p50={m.pred_p99_over_p50:.2f}"
             )
 
     # the crossover is the largest size at which the TFM still leads

@@ -12,6 +12,11 @@
       field and a test asserts a near-constant predictor is flagged despite a near-zero ECE.
       **Partly done 2026-09-08 via 14.4's skill score and degenerate flag; the explicit
       spread fields (sd, p99/p50) are still open.**
+      **Done (2026-11-08, `CreditMetrics.pred_sd/pred_p50/pred_p99/pred_p99_over_p50/is_near_constant`,
+      `prediction_spread()`, test `test_near_constant_predictor_is_flagged_despite_near_zero_ece`).
+      Spread now reaches every `evaluate_binary` caller and the printed lines of bench, the prior
+      probe, the context sweep and the V4 out-of-time table. No emitter writes a calibration
+      slope; none was added.**
 - [x] 14.4 Add a degenerate-predictor guard: a model predicting the base rate for everyone has
       ECE near zero and AUC 0.5, and must never read as a success. Verify: a test constructing
       that predictor and asserting the scorecard marks it useless.
@@ -24,3 +29,5 @@
 - [ ] 14.5 Record the outcome in `docs/design/DECISIONS.md` as a new decision on what the defensible
       claim is, with its reversal condition. Verify:
       `uv run python openspec/tools/validate.py` passes.
+      **Progress (2026-11-08): drafted as a PROPOSED decision, `DECISIONS.md` D20, from FINDINGS
+      §13, §15, §16, §17. Awaiting owner adoption and the fitted-calibration results.**
