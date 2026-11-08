@@ -1,0 +1,128 @@
+# What did not work: a sourced ledger of negative results
+
+This file collects the measured nulls, harmful levers, refuted predictions and closed or deferred work for FinTFM, the in-context tabular foundation model for credit risk. It supersedes the shorter list in section 5.5 of `docs/paper/OUTLINE.md`. V4FinBench (the credit panel) decides; TabArena and TabArena-Lite give breadth only, and the proxy suite is not validated against TabArena (§188). The decision rule for a V4FinBench lever is §173's: a mean AP change above +0.0117 with at least 4 of 5 folds positive is a candidate, the mirror is harmful, anything else is null (§159 used +0.0073 before §173 and is named where it applies). Every row cites its section in `docs/results/FINDINGS.md` and quotes that section's number, unit and metric as stated. "Not stated" means the section does not give it. Rows concern FinTFM (synthetic-only prior) unless marked FinTFM-R (real data). Evidence labels are those of the source: MEASURED, ESTIMATED or SMOKE-TEST.
+
+## (a) Harmful: significantly negative
+
+Mean AP is V4FinBench five-fold average precision on the full panel unless stated. Arms are compared with the control named in the section.
+
+| § | Lever | Result | Folds | Evidence | Note |
+| --- | --- | --- | --- | --- | --- |
+| §129 | `feature_transform="power"` (Yeo-Johnson) in place of rank, published checkpoint, inference only | mean AP 0.1369 against 0.1986, change -0.0617 | negative on 5 of 5 | MEASURED | Also below untuned logistic regression (0.1614). |
+| §127 | `--lr` 1e-4 in place of 3e-4 at batch 8, 6,000 steps | mean AP 0.1841 against 0.1957, change -0.0116 | behind on 5 of 5, 2 Holm-significant | MEASURED | §126 found 1e-4 worth +0.0243 AP at batch 2; §127 shows that was a batch-size artefact. |
+| §141 | `--p-task-family 0.3` against `--p-financial 1.0` | mean AP 0.1725 against 0.1986 (control higher by 0.0261) | fold 2 a tie, four folds Holm p < 0.001 for the control | MEASURED | Also cut the financial share by 0.3 (§166), so not yet evidence against the task families themselves. |
+| §118 | `p_financial` 0.5 (SCM 0.5) against 0.7, 6,000 steps at batch 8 | mean AP 0.1342 against 0.1681, change -0.0339 | negative on 5 of 5, all five Holm p ≤ 0.001 | MEASURED | §166: the cost tracks the financial share given up, not the source that replaces it. |
+| §146 | Schedule-free optimiser at the AdamW learning rate | -0.0098 against the matched control (§160); -0.0180 against the original control (§146) | 5 of 5 negative against the matched control | MEASURED | The retuned run is a null (+0.0050 against the matched control, §160; see section (b)). |
+| §147 | Dedicated mask embedding | -0.0230 against the matched control (§160); -0.0312 against the original control (§147) | 5 of 5 negative, all five Holm p < 0.001 against the original | MEASURED | §168: the harness median-imputes, so the missingness reading has no support from this benchmark. |
+| §178 | DR6.2, induced cell rows (64 points) | -0.0186 against `e1-v48-s0` (0.1789 against 0.1975) | 5 of 5 negative, 4 of 5 Holm-significant | MEASURED | Against the lower 48,000-task seed (`e1-v48-s1`) the change is -0.0089, inside the yardstick: better read as no gain. |
+| §178 | DR6.3, 4 readout tokens with MLP head | -0.0261 against `e1-v48-s0` (0.1713 against 0.1975) | 5 of 5 negative, 5 of 5 Holm-significant | MEASURED | -0.0165 against `e1-v48-s1`, so the loss is robust to the control seed. |
+| §191 (arms of §180) | Prior v2 arms at 48,000 tasks: (a) financial v2 alone, (b) general trunk alone, (c) trunk then financial v2, (d) interleaved | -0.0212, -0.1262, -0.0546, -0.0358 against `e1-v48-s0` (0.1975) | 0 of 5 positive for each | MEASURED | Against `e1-v48-s1` (0.1878): -0.0116, -0.1166, -0.0450, -0.0262, so arm (a) is "no gain" rather than a measured loss. These arms rank first on the proxy suite (section (c)). |
+| §194 | `context_strategy: retrieval`, one member, `max_context` 2000, published checkpoint | mean AP 0.0126 against 0.1986; mean ROC-AUC 0.8703 against 0.9886 | 0 of 5 positive | MEASURED | §196 gives -0.1860 mean AP with all 5 folds at Holm p 0.002. Cause (fold 0): contexts held 45 to 222 positives, 540 of 2,128 pool positives ever enter a context. |
+| §70 | Retrieval alone on V4FinBench, one fold, roughly 10x subsample | AP 0.0527 against baseline 0.1853, change -0.133 | one fold only | MEASURED | Flagged in the section as a subsample result; absolute AP not comparable with full-panel rows. §194 is the full-panel confirmation. |
+| §213 | AU5.8 `retrieval_per_class` 16 (16 nearest positives, 1,984 nearest negatives per query group) | mean AP 0.0052; -0.1934 against the default (0.1986); -0.2010 against §163's fine-tuned arm (0.2062) | 0 of 5 positive, all five Holm-significant | MEASURED | ROC-AUC stays near 0.69 (0.7000, 0.6718, 0.6958, 0.6816, 0.6923). The collapse is the neighbourhood, not the class share. |
+| §213 | AU5.16 `--value-embedding rbf`, 16 fixed centres, 48,000 tasks, seed 0 | mean AP 0.1654 against `e1-v48-s0` 0.1975, change -0.0321 | 0 of 5 positive, all five Holm-significant | MEASURED | The Fourier basis and the ECDF channel were not trained. |
+| §211 | AU5.17 `--optimizer muon`, 48,000 tasks, seed 0 | mean AP 0.1849 against 0.1975, change -0.0125 | 0 of 5 positive, folds 1 and 2 Holm-significant | MEASURED | AdamW stays. |
+
+## (b) Measured nulls: inside the bar
+
+Rows are V4FinBench unless the benchmark column says otherwise. "Folds + / -" gives positive and negative folds when the section states them.
+
+| § | Lever | Benchmark | Result | Folds | Evidence | Note |
+| --- | --- | --- | --- | --- | --- | --- |
+| §83 | Context size 1,000, 2,000, 4,000 rows, `n_ensemble` 8, old (pre-cell-attention) architecture | V4FinBench, full panel | mean AP 0.1454, 0.1523, 0.1512; 1,000 to 2,000 +0.0069, 2,000 to 4,000 -0.0011 | not stated as a count | MEASURED | Whole axis spans 0.0069 AP. The cell-attention gain is about seven times this (§83). |
+| §93 | 5x training volume, 240,000 against 48,000 tasks | V4FinBench, full panel | mean AP 0.2061 against 0.2072, change -0.0012 | 3 of 5 nominally positive | MEASURED | One seed per arm. Only fold 1 excludes zero (p = 0.003), and it favours the smaller run. The earlier apparent scale gain came from `column_id_dim=16` and the closed protocol deviation. |
+| §88 | Marginal augmentation in pretraining | Bayes-ceiling synthetic task, not V4FinBench | remaining value about 0.001 regret on cell attention (0.0008 ranking cost); 0.0165 on the old architecture | not applicable | MEASURED | Closed unmeasured: the inference rank transform already delivers the invariance. Not a V4FinBench result. |
+| §89 | Widening the ±10 z-clip to 100 | Bayes-ceiling synthetic task | change 0.0000 to -0.0015 AUC across six cells | not applicable | MEASURED | Never helps, mildly worse on the heaviest tails; no significance test was run. |
+| §96 | Swapping the financial prior for the generic SCM prior, 15 OpenML tasks | OpenML breadth suite, one split per dataset | +0.0100 average, better on 11 of 15; mean deficit to best baseline -0.1442 (financial) and -0.1342 (SCM); behind on 14 of 15 under both | not applicable | MEASURED | Metric not stated in the section text; baselines untuned; one split each. |
+| §108 | 5.7x parameters (4,979,778 against 885,650) at 24,000 tasks | TabArena-Lite, 27 binary datasets | mean ROC-AUC 0.7746 against 0.7823, change -0.0077 | better on 9 of 27 | MEASURED | Confounded with half the training volume (batch 4). |
+| §114 | 5.7x parameters at matched 48,000 tasks | TabArena-Lite, 27 binary datasets | mean ROC-AUC 0.7774 against 0.7823, change -0.0049 | better on 12 of 27, p 0.701 | MEASURED | Holds at 48,000 tasks only (audit AU3.9 scope note). Depth arm: see section (e). |
+| §124, §126 | Depth 16 against 4 layers at `d_model` 128, batch 2 | V4FinBench, full panel | mean AP +0.0019 (§124); depth effect +0.0019 at lr 3e-4 and +0.0000 at lr 1e-4 (§126) | folds disagree in sign (three significant up, one significant down) | MEASURED | Operating point degraded (batch 2, control AP 0.0952 at lr 3e-4). |
+| §144 | Bundled realism augmentations | V4FinBench | +0.0047 against the matched control (§160); -0.0035 against the original control | 1 of 5 negative against the matched control | MEASURED | The original control had a different head size (§158). |
+| §145 | Learnability filter at full strength | V4FinBench | -0.0024 against the matched control (§160); -0.0106 against the original control | 3 of 5 negative against the matched control | MEASURED | |
+| §146 (retune) | Schedule-free, learning rate retuned | V4FinBench | +0.0050 against the matched control; -0.0032 against the `max_classes 2` control (§160 note) | 1 of 5 negative against the matched control | MEASURED | |
+| §157 | Continued pretraining, one arm per real source, fold 0 (FinTFM-R) | V4FinBench, fold 0, scored at the 200,000-row cap | SBA +0.0175 [-0.0065, +0.0364]; PPDai +0.0078; EDGAR -0.0043; ULB fraud -0.0072; Bondora -0.0078; LendingClub -0.0005 | SBA five folds: mean +0.0073, 3 positive, 2 negative | MEASURED | No arm separable from the control. §162 showed the cap can distort a ranking. |
+| §160, §161 | Real-data share of 30%, 6,000 steps from scratch (FinTFM-R) | V4FinBench | SBA seed 0 -0.0355 (5 of 5 negative), seed 1 +0.0024; EDGAR -0.0019 and -0.0029 | SBA seeds 0.0388 apart, 5 of 5 folds | MEASURED | Rule 1 verdict null for both. EDGAR is stable; SBA is unstable. D17's premise has no support at this scale (§161). |
+| §162 | Context 500 rows against the 2,000-row default | V4FinBench, full panel | 1 member -0.0404; 8 members -0.0029 | 1 of 5 and 2 of 5 positive | MEASURED | The fold-0 result at the development cap did not replicate. |
+| §164 | Fine-tuning variants on §163's 200-step arm: second seed, default-enriched queries, 3x steps | V4FinBench | second seed +0.0071 over zero-shot (5 of 5 positive, misses the +0.0073 bar by 0.0002, "not replicated"); enriched queries +0.0009 (3 of 5); 600 steps +0.0024 (3 of 5) | as stated | MEASURED | §163's own gain is +0.0076 mean AP, 5 of 5 folds. Device gap +0.0001. |
+| §188 (with §176) | 480,000 against 48,000 tasks, two seeds | V4FinBench | -0.0109 (seed 0), -0.0103 (seed 1); mean -0.0106 | 1 of 5 and 0 of 5 positive | MEASURED | Verdict null; misses "hurts" by 0.0011. Not funded: no 2M or 10M run at this model size and prior. |
+| §193, §195 | DR8.2 depth 8 at 480,000 tasks | V4FinBench; proxy suite (16 binary tasks) | -0.0047 mean AP; proxy 8 wins, 8 losses, p = 1.0 | 3 of 5 positive | MEASURED | Fold 3 alone carries the loss (-0.0246, Holm-significant). |
+| §202 | DR8.2 width 192 at 480,000 tasks | V4FinBench; proxy | +0.0003 mean AP; proxy 10 wins, 6 losses, p 0.4545 | not stated | MEASURED | Both scale arms lose fold 3 by about 0.02. |
+| §202 | DR7.4 multiclass arm at 480,000 tasks | Proxy suite, 6 scorable multiclass tasks | 4 wins, 2 losses per task (p 0.6875); 12 wins, 6 losses per split (p 0.2379) | not applicable | MEASURED | The registered prediction was candidate and was wrong. |
+| §196 | `n_ensemble` 8 | V4FinBench | +0.0058 mean AP (0.2044 against 0.1986) | 3 up, 2 down; three Holm-significant up | MEASURED | Half the bar. Recorded as a lead for the matched comparison, not adopted. |
+| §200 | DR3.3 positive floor: exact, floor16 | V4FinBench | +0.0024, +0.0055 | exact 2 up, 3 down; floor16 3 up, 2 down | MEASURED | Significant moves in both directions; default stays `context_positive_floor: null`. |
+| §200, §202 | DR3.10, drop `operational_status`, zero-shot and fine-tuned | V4FinBench | -0.0022 zero-shot; -0.0023 fine-tuned | 4 of 5 negative, one significant (zero-shot); 5 of 5 negative, none Holm-significant (fine-tuned) | MEASURED | An ablation, not a lever. FinTFM barely uses the column; CatBoost loses 0.034 AP without it (§167). |
+| §201 | CatBoost plus FinTFM logits (a system, not FinTFM) | V4FinBench | baseline +0.0039 (4 of 5 up); feature +0.0018 (2 up, 3 down) | no fold survives Holm | MEASURED | Does not measurably raise CatBoost's ceiling. |
+| §208 | DR3.11 per-leaf fine-tuning over §169's partition | V4FinBench | +0.0049 mean AP (ROC-AUC +0.0009) | 4 of 5 positive | MEASURED | Below the +0.0073 bar; only fold 3 survives Holm. |
+| §209 | Linear probe on the 2,000 context rows against the model's own head | V4FinBench | -0.0005 mean AP cross-fitted (-0.0010 not cross-fitted) | 3 of 5 positive (2 of 5) | MEASURED | No bootstrap was run. Shows §130 to §136 measured label count (section (d)). |
+| §211 | AU4.2 k-means prototype context | V4FinBench, full panel | +0.0002 mean AP | 2 / 3 | MEASURED | |
+| §211 | AU4.3 `max_context` 900, 3 members | V4FinBench | +0.0093 mean AP over the default | 4 / 1 | MEASURED | Fold-0 loss is Holm-significant. |
+| §211 | AU5.12 8 members, `ensemble_transforms` rank + squash | V4FinBench | +0.0038 against §196's ens8; +0.0095 against the default | 4 / 1 in both | MEASURED | Most of the +0.0095 is the ensemble itself. |
+| §211 | AU5.4 `--n-rows-choices 256,512,1024,2223`, contexts to 2,000 rows, seed 0 | V4FinBench | -0.0042 mean AP (0.1933 against 0.1975) | 1 / 4 | MEASURED | |
+| §206 | AU4.3 context 900 with 3 members; AU5.12 class shift, label-swap twin, transforms, SVD 16 on 8 members | Proxy suite, 16 binary tasks | per task 11/5/0 (p 0.2101); 11/5/0 (p 0.2101); 9/7/0 (p 0.8036); 12/4/0 (p 0.0768); 12/4/0 (p 0.0768) | not applicable | MEASURED | No candidate under §183's per-task rule. SVD is a lead (section (c)). |
+| §206 | DR3.5 context 500 and 750 against 1,000 | TabArena-Lite, 27 binary datasets | 500: 12 better, 14 worse, 1 tied, p 0.845, -0.00048 mean ROC-AUC; 750: 14 / 8 / 5, p 0.286, +0.00096 | not applicable | MEASURED | The 1,000-row arm is a 2026-10-19 run, not same-day. |
+| §210 | Lite fixes 1 to 3: stratified probe rows; minority coded as 1; positive cap 0.3 | TabArena-Lite, 27 binary datasets | +0.00339 (5/2/20, p 0.45); +0.00104 (4/1/22, p 0.38); +0.00157 (9/2/16, p 0.065); cap over minority coding +0.00053 (9/1/17, p 0.021) | not applicable | MEASURED | Moved what they targeted and little else. Elo stays 756 for fixes 2 and 3. |
+| §135 | MLP head on the frozen pre-head representation against the linear probe | V4FinBench, 20,000-row training subsample | -0.0042 mean AP | 1 of 5 positive, 0 of 5 significant | MEASURED | The MLP beats the model's own head (+0.0185) but not the linear probe. |
+| §190 | DR8.3 column selection on the proxy's wide tasks | Proxy suite, 3 wide tasks, 3 splits | 1 - ROC-AUC: madelon 0.385 (select) against 0.377 (subsample); Internet-Advertisements 0.447 against 0.269; mfeat-factors log-loss 1.96 against 1.99 | not applicable | MEASURED | No gain on two tasks and a loss on one. The checkpoint is the limit. |
+| §213 | DR8.4 FinTFM logit as feature and as init score for a tuned LightGBM, SBA 7(a) | Credit suite, three splits, no bootstrap | feature -0.0014 (1 of 3 up); init score 0.0000 (2 of 3 up) against tuned 0.4021 mean AP | 3 splits | MEASURED | Directions, not significance. On ULB the logit helps (+0.0211, 3 of 3). |
+
+## (c) Wins on one benchmark that failed or were not tested on the other
+
+| § | Lever | Where it won | Where it failed or was not tested | Evidence | Note |
+| --- | --- | --- | --- | --- | --- |
+| §115, §116, §166 | Tree-structured prior (`p_tree` 0.3, `p_financial` 0.7) | TabArena, 27 binary datasets: +0.0083 mean ROC-AUC (seed 0, 17 of 27, p 0.248) and +0.0105 (seed 1, 20 of 27, p 0.019); mean +0.0094 | V4FinBench: AP 0.1460 against 0.1681, -0.0221, negative on 5 of 5 folds, three Holm p < 0.001 (§116) | MEASURED | §166 corrects the credit reading. The tree arm also cut the financial share from 0.70 to 0.49. At a matched share (`scm50`) it is +0.0119 mean AP on 4 of 5 folds, one seed, row bootstrap. §116's loss is the financial share's effect. `p_tree` stays 0.0 by default. |
+| §210, §211, §212 | `feature_transform="squash"` and rank + squash member transforms | TabArena-Lite: squash +0.01004 mean ROC-AUC (18 / 8 / 1, p 0.076), 777 Elo; rank + squash +0.01023 (20 / 6 / 1, DR3.5) | V4FinBench: +0.0038 AP over 8 plain members, null (§211) | MEASURED | A Lite-only configuration if declared. Probe plus squash reaches 969 Elo (§212). |
+| §131, §209, §212 | Linear probe on the representation | TabArena-Lite: probe plus squash 969 Elo, 18 / 9 / 0 against the probe alone, p 0.12 (§212) | V4FinBench: at equal labels the probe ties the head, -0.0005 mean AP (§209); the +0.0227 over the head needs 20,000 stratified rows | MEASURED | Label as "FinTFM with a trained linear readout", not zero-shot. |
+| §187, §194, §196 | Retrieval and 8 members | Proxy suite, 16 binary tasks: `ens8` 13 / 2 / 1 (p 0.0074), `retrieval` 8 / 1 / 7 (p 0.039) | V4FinBench: retrieval mean AP 0.0126 (§194); `ens8` +0.0058 (§196) | MEASURED | A proxy gain that costs credit. |
+| §188 | 480,000 against 48,000 tasks | Proxy: +168 Elo, 14 of 16 tasks (p = 0.0042) at seed 0; +186 Elo, 12 of 16 (p 0.077) at seed 1 | V4FinBench: -0.0106 mean AP, null | MEASURED | The proxy is not validated (DR4.2); the branch did not fire. |
+| §191 (§180) | General-trunk priors | Proxy Elo 764, 729, 721 for arms (c), (b), (d) against 548; arm (c) level with KNN (775) | V4FinBench mean AP 0.1428, 0.0713, 0.1616 against 0.1975 | MEASURED | One checkpoint cannot currently serve both benchmarks (§191). |
+| §206 | SVD 16 components on odd members | Proxy: 12 / 4 / 0 per task (p 0.0768), 31 / 14 / 3 per split (p 0.0161); Lite 782 Elo, 17 / 10, p 0.25 (`docs/results/drafts/path-to-bar_2026-11-08.md`) | V4FinBench: not run; components are capped at 6 for a 130-column fold | MEASURED | A lead carried by narrow tables (wilt, banknote-authentication). |
+| §163, §192 | 200-step fine-tuning | Proxy: 16 of 16 tasks (p = 3e-5), one split; V4FinBench +0.0076 mean AP, 5 of 5 folds (§163) | TabArena-Lite: not measured, not queued | MEASURED | Positive on both benchmarks where tested. Cost is the catch (62 to 638 s per fit on an A10G). |
+
+## (d) Refuted predictions and retracted readings
+
+| § | Prediction or reading | What was measured | Evidence |
+| --- | --- | --- | --- |
+| §212 | DR3.11 draft (`docs/results/drafts/dr3.11_2026-11-07.md`): partition loses below about 2,000 training rows on Lite and ties above | Wins on 23 of 27 (4 worse), +0.02738 mean ROC-AUC, 888 Elo, +132 Elo over the same-GPU default; credit-g +0.0638. The "must not lose" gate passes | MEASURED |
+| §118 | §117's prior scorer: SCM prior should lose at credit's base rate | scm50 lost -0.0339 AP, larger than the tree prior's -0.0221; ranking inverted | MEASURED |
+| §124 | Held-out synthetic score: depth 16 hurts (AUC pooled -0.0032, worse on 12 of 12) | Credit AP +0.0019, folds disagree in sign | MEASURED |
+| §83 | §71's +0.031 AP "lever fix" credited to `max_context` 4000 | 2,000 to 4,000 is -0.0011 on the full panel | MEASURED |
+| §164 | Three pre-registered predictions for stronger fine-tuning | Second seed missed the bar by 0.0002; enriched queries +0.0009; 600 steps +0.0024 | MEASURED |
+| §157 | PPDai predicted at or below 0 | +0.0078; the one prediction that held was a null | MEASURED |
+| §162 | Fold-0 evidence that a 500-row in-range context beats 2,000 | Eight members: -0.0029, 2 of 5 positive on the full panel | MEASURED |
+| §195, §202 | DR8.2 and DR7.4 predictions that capacity would move with volume | Depth 8 wins 8, losses 8 (p = 1.0); multiclass 12 wins, 6 losses per split (p 0.2379) | MEASURED |
+| §187 | `ens8-tf` candidate and `retrieval` not a candidate | `ens8-tf` 11 / 5 / 0 (p 0.21), not a candidate; `retrieval` 8 / 1 / 7, a candidate that then collapsed on V4FinBench (§194) | MEASURED |
+| §119, §120 | KV caching would save 17% (143.3 s to 118.8 s at V4FinBench's shape) and larger query chunks would help | Chunk 8,192 is 264.87 s against 24.75 s at 2,048 (10.7x slower, 31.2 GB against 8.6 GB peak RSS) | MEASURED |
+| §209, §203 | §130 to §136: the representation beats the model's own head | At equal labels the probe is -0.0005 mean AP against the head; on the prior's own tasks the head beats the probe (-0.0046 AP, 75 / 125, p 0.0005). The gain is label count | MEASURED |
+| §148 | A pinball quantile head beats the binned head | nRMSE higher by 0.0043 to 0.0239, Spearman lower by 0.0013 to 0.0074, on three synthetic regression probes, 3 seeds; no confidence intervals | MEASURED |
+| §107 | A "specialist profile" from mean rank 86.26 and harmonic rank 20.72 | Median rank 94 of 95; top 25 on 1 of 27 datasets; rank-1 margin 0.0026 ROC-AUC on one fold | MEASURED |
+| §47 | An early checkpoint's accuracy as in-context learning | 48k financial-only checkpoint: AUC 0.6841 with true labels, 0.6895 with shuffled labels, rank correlation 0.977. The fixed feature-to-label mapping in the prior was the cause; §48 confirmed the fix | MEASURED |
+| §50, §52 | 17x parameters and attention pooling leave the feature-width curve unchanged (drop -0.2755, -0.2732, -0.2701) | Measurements stand; the reading is retracted because of the encoder bug of §54 | MEASURED |
+
+## (e) Closed as infeasible or deferred
+
+| Item | Status and date | Reason | Cost | Evidence |
+| --- | --- | --- | --- | --- |
+| Fix 5, `context_strategy="retrieval"` on TabArena-Lite (§210) | Closed as infeasible, 2026-11-06 | MPS ran out of Metal memory on each of the four datasets attempted; on CPU `blood-transfusion-service-center` spent about 600 s on its first of 8 bagged folds, then `TimeLimitExceeded` against the 3,600 s limit; the credit evidence is also against it (§70, §194) | Order of 100 h on one T4 for 27 datasets; against the default's ~2.5 h on MPS | MPS and CPU observations MEASURED (different devices); the 100 h figure ESTIMATED, not measured on GPU |
+| AU5.15, 2,000,000-task run | Deferred 2026-11-08, not dropped, not launched (`openspec/changes/audit-2026-10-15/tasks.md`, AU5.15) | Waits on the owner's go-ahead, a free quota week and a measured cross-session resume; 480,000 tasks was null on V4FinBench at both seeds (§188) | 49 to 56 T4 GPU-h, 1.6 to 1.9 Kaggle quota weeks | Throughput MEASURED (36,000 live, 40,934 `--task-dump` tasks per GPU-hour); GPU-hours ESTIMATED |
+| AU5.13, TabArena tuning plus ensembling | Deferred 2026-11-08 (owner) | A full T+E does not fit Kaggle; the reduced 8-draw T+E sits at or above the 15 GPU-h line; TabArena is breadth only (§212) | 14.7 to 21 GPU-h (14.7 if no draw partitions, 21 if every draw does) | Default 1.84 T4-h MEASURED; T+E ESTIMATED |
+| AU5.8 `--large-n boost` arm | Dropped by the owner, 2026-11-08 | A large-n method with no TabArena-Lite relevance; AU5.8's other arms settled (§205, §213) | About 18 GPU-h; 8 to 25 h per fold with an uncapped residual pool (§205, not measured) | ESTIMATED |
+| DR8.2 deep-narrow arm, 12 layers at width 128, 48,000 tasks (§114) | Closed as infeasible | `TimeLimitExceeded` after 8 of 27 datasets; median predict time already 8.6 s per 1K against a field norm near 0.1 | Not applicable | MEASURED |
+| DR3.11 8-member and 8-bag arms; 48.16 `column_id_dim` 18 | Dropped by the owner, 2026-11-08 (`docs/results/drafts/path-to-bar_2026-11-08.md`) | Stated prediction null (+0.002); surrogates differ by 0.0095, below the 0.0117 bar | ESTIMATED 21 GPU-h each for the DR3.11 arms | ESTIMATED |
+| 2M or 10M run at this model size and prior; larger depth or width arms | Not run on the evidence (§188, §202) | 480,000 tasks null on V4FinBench; depth and width null | Not stated | MEASURED nulls |
+| DR8.3 first route (column selection) | Closed (§190); the second route, a `max_features` 512 checkpoint, remains open | Selector keeps the right columns and FinTFM still cannot use them | Not stated | MEASURED |
+| §207 closure recommendations (AU5.2, DR6.1, AU5.10, DR5.4, AU5.6, DR6.4) | Recommended in a draft; the owner has not decided | See §207 | DR6.4 re-specified bundle about 22 h | ESTIMATED |
+
+## (f) Gaps against baselines
+
+These are not levers, but they are measured failures to beat a comparison and they bound the claims.
+
+| § | Comparison | Result | Evidence |
+| --- | --- | --- | --- |
+| §69 | V4FinBench, tuned baselines, subsample, five folds | FinTFM AP 0.1365; CatBoost 0.3425, XGBoost 0.3406, LightGBM 0.3076 (Holm p < 0.001); logistic regression 0.1493, indistinguishable (p 0.309) | MEASURED |
+| §174 | ULB card fraud, three splits | FinTFM mean AP 0.6830 against logistic regression 0.7489 | MEASURED |
+| §177 | SBA 7(a), three out-of-time splits | FinTFM mean AP 0.1095 against logistic regression 0.1295 and LightGBM 0.3861 | MEASURED |
+| §204 | TabArena-Lite, 27 binary datasets | Below `LR (default)` on 23 of 27 by a mean 0.0297 ROC-AUC (0.7824 against 0.8120); below CatBoost (0.8449) on 27 of 27; Elo 756 | MEASURED |
+
+## What the pattern says
+
+Context-composition levers are exhausted on the full panel (§211): neither the prototype context (+0.0002) nor the positive floor (+0.0055, §200) beats the uniform 2,000-row default. Volume, depth and width are null on V4FinBench at 480,000 tasks (§188, §193, §202), and 5x volume at 48,000 tasks is null too (§93). Of the changes to the prior and optimiser that were run, the matched-control rows are losses or nulls (sections (a) and (b)). Four levers that gain on TabArena-Lite or the proxy suite fail on V4FinBench: the tree prior (§116, though §166 confounds that loss), the general-trunk priors (§191), retrieval (§194) and the transforms (§211). Only partitioned contexts (§169) and fine-tuning (§163) are positive on V4FinBench among inference-side levers (§205, §208).

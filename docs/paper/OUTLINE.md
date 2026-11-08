@@ -115,6 +115,10 @@ direction (§93/§97) — this project misread it once and the correction belong
   domain +0.010 (§96). Plus retrieval, which **actively hurts** at V4FinBench's base rate
   (§70), and the one non-null lever, `column_id_dim` (§97).
 
+  The full, sourced record (harmful levers, nulls, one-benchmark wins, refuted predictions,
+  deferrals and their reasons, through §213) is `docs/paper/NEGATIVE_RESULTS.md`; this list is
+  the 2026-09 subset.
+
   A results section with no negative results is not a measurement paper. This one has the
   unusual property that its *most actionable* recent result is a free hyperparameter nobody
   had ever tuned.

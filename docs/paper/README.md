@@ -11,6 +11,7 @@ ledger rather than from memory at writing time.
 | [RELATED_WORK.md](RELATED_WORK.md) | who has done what, and what is left for us |
 | [LIMITATIONS.md](LIMITATIONS.md) | the section that has to be written first, not last |
 | [FIGURES.md](FIGURES.md) | figures and tables a paper needs, and which command produces each |
+| [NEGATIVE_RESULTS.md](NEGATIVE_RESULTS.md) | what did not work: harmful levers, nulls, one-benchmark wins, refuted predictions, deferrals, each sourced to FINDINGS |
 
 ## Current publishability, as of 2026-09-20
 
