@@ -437,3 +437,18 @@
       5 folds and cost per step falls by at least 1.5x; falsified if AP falls below the control
       by more than 0.0117 on at least 3 of 5 folds, or if the cost gain is under 1.5x at the
       context sizes we use (the latent route may only pay off where the table is large).
+
+- [ ] 48.28 **Score the published checkpoint under label shift on the TableShift HELOC split, the
+      one public credit shift benchmark a peer has run (peer read 2026-11-08, arXiv:2607.26000).**
+      Loza et al. score nine peers on HELOC (2,220 train, 278 ID test, 6,914 OOD test, 38
+      features) by ROC-AUC only; TabICL and TabICLv2 have the highest OOD scores and every model
+      falls below the ID line. We have never measured our own ID-to-OOD gap under a label shift,
+      and the paper reports no average precision. Scope: inference only on CPU, no training, no
+      peer code or weights; the TableShift split is downloaded from its published source and its
+      licence recorded first; context is the 2,220 training rows. Report ID and OOD ROC-AUC and AP
+      over five context-row seeds, with the shift gap as ID minus OOD. Verify: the gap in AP and
+      in ROC-AUC for the published checkpoint, with the five-seed range, beside the paper's gap
+      range of 0.003 to 0.060 ROC-AUC; adopt as a standing robustness check (a row in
+      `docs/paper/LIMITATIONS.md`) only if the ROC-AUC gap is at most 0.060, the paper's largest;
+      falsified (recorded as a stated limitation, not hidden) if the gap exceeds 0.060 or the OOD
+      AP falls below the OOD positive rate. No claim against a peer is made from this run.
