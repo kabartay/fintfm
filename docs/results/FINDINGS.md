@@ -13669,3 +13669,50 @@ configuration would be a different arm needing its own pre-registration, and is 
 The kernel stays in the repository, not launched (`scripts/kaggle/task_lite_retrieval/`).
 
 **Still open from §204:** fix 4, tree-partitioned contexts on TabArena, not run.
+
+## §211: six V4FinBench verdicts of 2026-11-08: no lever clears the bar; muon is harmful
+
+**MEASURED, 2026-11-08.** Five folds each, paired company-level bootstrap with Holm across folds
+(`scripts/compare_v4_scores.py --cluster`, `scripts/dr64_arm_verdict.py verdict`). Rule for every
+row: mean AP difference above +0.0117 (§173) with at least 4 of 5 folds positive is a candidate,
+the mirror is harmful, otherwise null. Inference arms are paired against the zero-shot default
+`runs/lrsweep/eval-published` (mean AP 0.1986) unless stated; pretraining arms against the
+same-seed 48,000-task control `e1-v48-s0` (0.1975). Every Kaggle log shows `CUDA available: True`
+on a Tesla T4.
+
+| task | arm | control | mean AP change | folds + / − | Holm-significant (companies) | verdict |
+| --- | --- | --- | --- | --- | --- | --- |
+| AU4.2 | k-means prototype context, full panel (local CPU, `runs/au42/prototype`) | default | +0.0002 | 2 / 3 | fold 1 down, fold 3 up | null |
+| AU4.3 | `max_context` 900, 3 members (Kaggle) | default | +0.0093 | 4 / 1 | folds 0 (down), 1, 2, 3 | null |
+| AU5.12 | 8 members, `ensemble_transforms` rank + squash (Kaggle, 3 kernels) | §196's ens8 `runs/v4-lever-ens8` | +0.0038 | 4 / 1 | fold 3 | null |
+| AU5.12 | same | default | +0.0095 | 4 / 1 | folds 2, 3, 4 | null |
+| AU5.17 | `--optimizer muon`, 48,000 tasks, seed 0 | `e1-v48-s0` | −0.0125 (0.1849) | 0 / 5 | folds 1, 2 | **harmful** |
+| AU5.4 | `--n-rows-choices 256,512,1024,2223`, contexts to 2,000 rows, seed 0 | `e1-v48-s0` | −0.0042 (0.1933) | 1 / 4 | none | null |
+
+Per fold, control then arm AP:
+
+- AU4.2: 0.2113/0.2073, 0.2050/0.1727, 0.1786/0.1939, 0.1810/0.2138, 0.2172/0.2065.
+- AU4.3: 0.2113/0.1864, 0.2050/0.2154, 0.1786/0.2133, 0.1810/0.1969, 0.2172/0.2276.
+- AU5.12 against ens8: 0.2091/0.2136, 0.1968/0.1963, 0.1892/0.1938, 0.1997/0.2079, 0.2271/0.2291.
+- AU5.17 muon: 0.2071/0.1969, 0.2031/0.1799, 0.1821/0.1674, 0.1734/0.1718, 0.2215/0.2085.
+- AU5.4 ctx2k: 0.2071/0.2013, 0.2031/0.2031, 0.1821/0.1760, 0.1734/0.1684, 0.2215/0.2177.
+
+What this settles:
+
+- **Context composition is exhausted on the full panel.** With §200's floor (+0.0055) and now the
+  prototype (+0.0002), no inference-time context choice beats the uniform 2,000-row default.
+- **The transforms are a TabArena-Lite gain only.** Rank + squash member transforms moved Lite by
+  +0.01023 ROC-AUC (DR3.5) but add +0.0038 AP over 8 plain members here; most of the +0.0095
+  over the default is the ensemble itself (§196's ens8 was +0.0058). The credit default does not
+  change. A Lite-only declared configuration remains open (path-to-bar draft).
+- **Shorter contexts with members are not worse.** 900 rows with 3 members sits +0.0093 above
+  2,000 rows with 1 member on 4 of 5 folds, the fold-0 loss Holm-significant: inside the bar,
+  so null, but no evidence that context beyond the trained ~921 rows (AU4.3) is what limits AP.
+- **Training on longer contexts does not help at 48,000 tasks** (AU5.4, 1 of 5 folds up).
+- **Muon is harmful** at the reference recipe: AdamW stays. Its seed-1 replicate is not needed
+  under DR6.4's composition rule, which requires promising at both seeds.
+
+Prediction record: AU4.2 predicted "not a candidate", AU4.3 "null or harmful", AU5.12 "null
+against ens8": all three held. Raw comparisons: `runs/au42/prototype` (queue log
+`runs/local_queue/au42-compare.log`), `runs/kaggle-fintfm-task-v4inf-ctx900e3-f01234/cmp_vs_default.txt`,
+`runs/au512-tfsq8/cmp_vs_{ens8,default}.txt`, `runs/kaggle-fintfm-ts-{au517-muon,au54-ctx2k}-s0/dr64_verdict.json`.
