@@ -573,6 +573,19 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             arrays (design review DR3.4's probe is fitted on exactly these). Under
             ``context_strategy="retrieval"`` every row, the pool each query group's context
             is drawn from.
+        calibration_val_frac: ``0.0`` (default) fits nothing and every output is byte-identical
+            to a classifier without this argument. A fraction in (0, 1) holds out that share of
+            the rows ``fit`` receives as a calibration slice (openspec ``fitted-calibration``
+            4.1): it is removed *before* conditioning, context selection and fine-tuning, so
+            it is absent from the stored context, the conditioner and every ensemble member's
+            rows (``calibration_rows_`` names it, ``train_rows_`` the rest). Rows are drawn
+            stratified by label, or by whole group when ``fit`` receives ``groups``. A single
+            temperature is then fitted on the slice by minimising log loss of the final
+            probabilities (4.2) and applied in :meth:`predict_proba`, on top of the analytic
+            ``correct_prior`` shift, which stays as it is. Temperature scaling is monotone, so
+            a binary ranking is unchanged. It does not reach :meth:`predict_term_structure`.
+            Costs that share of the context pool; a slice with fewer than two rows of any
+            class raises rather than fitting an unidentified temperature.
     """
 
     def __init__(
@@ -618,6 +631,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         select_method: SelectMethod = "extra_trees",
         select_subsample: int = 20_000,
         context_positive_cap: float | None = None,
+        calibration_val_frac: float = 0.0,
     ) -> None:
         """Configure the classifier. See the class docstring — every argument is documented
         there with the measurement that set its default."""
@@ -664,6 +678,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         self.context_positive_cap = context_positive_cap
         self.select_method = select_method
         self.select_subsample = select_subsample
+        self.calibration_val_frac = calibration_val_frac
         # Placement, eval mode and feature_chunk are applied in fit, not here: applied at
         # construction, a later set_params(device=...) moved nothing and the first forward
         # pass mixed devices. A checkpoint path is still loaded here, so model.cfg is readable
@@ -756,6 +771,18 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         if groups is not None and len(groups) != len(y):
             raise ValueError(f"groups has {len(groups)} entries for {len(y)} rows")
         periods = self._check_periods(periods, len(y))
+        self._temperature = 1.0
+        self.train_rows_ = np.arange(len(y), dtype=np.int64)
+        self.calibration_rows_ = np.empty(0, dtype=np.int64)
+        X_cal: np.ndarray | None = None
+        y_cal: np.ndarray | None = None
+        if self.calibration_val_frac > 0.0:
+            # before any fitting step, so nothing below can read a calibration row
+            self.train_rows_, self.calibration_rows_ = self._split_calibration(y, groups)
+            X_cal, y_cal = X[self.calibration_rows_], y[self.calibration_rows_]
+            X, y = X[self.train_rows_], y[self.train_rows_]
+            groups = None if groups is None else np.asarray(groups)[self.train_rows_]
+            periods = None if periods is None else periods[self.train_rows_]
         self.n_features_in_ = X.shape[1]
         # DR8.3: a wide table is cut to its best columns here, on training rows only, so
         # everything below (conditioning, context, members) sees an ordinary narrow table
@@ -867,7 +894,99 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         self._store_context(
             X[idx], y_coded[idx], None if periods is None else periods[idx], idx, full_prior
         )
+        if X_cal is not None and y_cal is not None:
+            self._temperature = self._fit_temperature(X_cal, y_cal)
         return self
+
+    def _split_calibration(
+        self, y: np.ndarray, groups: np.ndarray | None
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Split row indices into a training part and a calibration slice.
+
+        Args:
+            y: ``(n,)`` labels.
+            groups: Optional ``(n,)`` group labels; when given whole groups are held out, so a
+                company is never in both parts.
+
+        Returns:
+            ``(train_rows, calibration_rows)``, sorted, disjoint, covering every row.
+
+        Raises:
+            ValueError: If ``calibration_val_frac`` is outside (0, 1), or either part lacks two
+                rows of some class.
+        """
+        frac = self.calibration_val_frac
+        if not 0.0 < frac < 1.0:
+            raise ValueError(f"calibration_val_frac must lie in [0, 1), got {frac}")
+        rng = np.random.default_rng([int(self.random_state), 1])
+        n = len(y)
+        if groups is None:
+            chosen = []
+            for c in np.unique(y):
+                rows = rng.permutation(np.flatnonzero(y == c))
+                chosen.append(rows[: max(1, round(frac * len(rows)))])
+            cal = np.sort(np.concatenate(chosen))
+        else:
+            g = np.asarray(groups)
+            order = rng.permutation(np.unique(g))
+            sizes = {k: int(v) for k, v in zip(*np.unique(g, return_counts=True), strict=True)}
+            taken, picked = 0, []
+            for key in order:
+                if taken >= frac * n:
+                    break
+                picked.append(key)
+                taken += sizes[key]
+            cal = np.flatnonzero(np.isin(g, picked))
+        train = np.setdiff1d(np.arange(n), cal)
+        for part, name in ((train, "training"), (cal, "calibration")):
+            counts = np.unique(y[part], return_counts=True)[1]
+            if len(counts) < len(np.unique(y)) or counts.min() < 2:
+                raise ValueError(
+                    f"the {name} part has fewer than two rows of some class at "
+                    f"calibration_val_frac={frac}; use more rows or a larger fraction"
+                )
+        return train, cal
+
+    def _fit_temperature(self, X_cal: np.ndarray, y_cal: np.ndarray) -> float:
+        """Fit one temperature on the calibration slice by minimising log loss.
+
+        Scores the slice through the fitted classifier with the temperature still 1, so the
+        analytic shift and any ensemble are inside what is calibrated. The search is over
+        ``log T`` in ``[-3, 3]``, a one-dimensional convex problem for logits, so the bounded
+        scalar minimiser finds the optimum.
+
+        Args:
+            X_cal: ``(m, n_features)`` raw calibration rows, as ``fit`` received them.
+            y_cal: ``(m,)`` their labels.
+
+        Returns:
+            The temperature ``T > 0``; ``T > 1`` softens, ``T < 1`` sharpens.
+
+        Raises:
+            ValueError: If the slice holds a label the fitted classifier has not seen.
+        """
+        from scipy.optimize import minimize_scalar
+
+        if not np.isin(y_cal, self.classes_).all():
+            raise ValueError("the calibration slice holds a label absent from the training part")
+        p = self._predict_proba_raw(X_cal).astype(np.float64)
+        logp = np.log(np.maximum(p, 1e-12))
+        target = np.searchsorted(self.classes_, y_cal)
+        rows = np.arange(len(target))
+
+        def nll(log_t: float) -> float:
+            z = logp / np.exp(log_t)
+            z = z - z.max(axis=1, keepdims=True)
+            return float(-(z[rows, target] - np.log(np.exp(z).sum(axis=1))).mean())
+
+        res = minimize_scalar(nll, bounds=(-3.0, 3.0), method="bounded")
+        return float(np.exp(res.x))
+
+    @property
+    def temperature_(self) -> float:
+        """The fitted temperature; exactly ``1.0`` when ``calibration_val_frac`` is 0."""
+        check_is_fitted(self, "_ctx_X")
+        return float(self._temperature)
 
     def _store_context(
         self,
@@ -1846,11 +1965,34 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
         """Class probabilities for every row, scored in exact chunks.
 
+        With ``calibration_val_frac > 0`` the fitted temperature is applied to the final
+        probabilities, which equals dividing the corrected logits by it. With the default the
+        raw output is returned untouched.
+
         Args:
             X: ``(n, n_features)`` query rows, matching the width seen by :meth:`fit`.
 
         Returns:
             ``(n, n_classes)`` probabilities.
+        """
+        proba = self._predict_proba_raw(X)
+        t = getattr(self, "_temperature", 1.0)
+        if t == 1.0:
+            return proba
+        z = np.log(np.maximum(proba.astype(np.float64), 1e-12)) / t
+        z -= z.max(axis=1, keepdims=True)
+        e = np.exp(z)
+        return (e / e.sum(axis=1, keepdims=True)).astype(proba.dtype)
+
+    @torch.no_grad()
+    def _predict_proba_raw(self, X: np.ndarray) -> np.ndarray:
+        """Class probabilities before any fitted temperature; :meth:`predict_proba`'s core.
+
+        Args:
+            X: ``(n, n_features)`` query rows, matching the width seen by :meth:`fit`.
+
+        Returns:
+            ``(n, n_classes)`` probabilities with the analytic base-rate correction applied.
         """
         check_is_fitted(self, "_ctx_X")
         self.model_.assert_trained_for("classification")

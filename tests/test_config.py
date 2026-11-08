@@ -83,6 +83,7 @@ _NON_DEFAULT_INFERENCE = {
     "finetune_seed": 4,
     "finetune_clip": 1.0,
     "finetune_val_frac": 0.2,
+    "calibration_val_frac": 0.25,
     "finetune_eval_every": 5,
     "finetune_patience": 3,
     "finetune_val_tasks": 2,

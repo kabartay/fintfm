@@ -96,6 +96,7 @@ class InferenceConfig:
     finetune_seed: int = 0
     finetune_clip: float | None = None
     finetune_val_frac: float = 0.0
+    calibration_val_frac: float = 0.0
     finetune_eval_every: int = 10
     finetune_patience: int = 16
     finetune_val_tasks: int = 4
@@ -495,6 +496,8 @@ def _validate(cfg: Config) -> None:
         )
     if cfg.inference.finetune_clip is not None and cfg.inference.finetune_clip <= 0:
         raise ConfigError("inference.finetune_clip must be null or positive")
+    if not 0.0 <= cfg.inference.calibration_val_frac < 1.0:
+        raise ConfigError("inference.calibration_val_frac must lie in [0, 1)")
     if not 0.0 <= cfg.inference.finetune_val_frac < 1.0:
         raise ConfigError("inference.finetune_val_frac must lie in [0, 1)")
     if cfg.inference.finetune_val_frac > 0 and min(

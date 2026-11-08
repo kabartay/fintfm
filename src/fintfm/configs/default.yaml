@@ -52,6 +52,7 @@ inference:
   finetune_query_pos_frac: null   # §164: e.g. 0.1, importance-weighted
   finetune_seed: 0
   finetune_val_frac: 0.0          # AU5.1: >0 holds out this share of companies, early-stops on them
+  calibration_val_frac: 0.0       # fitted-calibration 4.1: >0 holds out this share, fits a temperature
   finetune_eval_every: 10
   finetune_patience: 16           # evaluations without improvement
   finetune_val_tasks: 4

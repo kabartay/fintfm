@@ -1009,3 +1009,85 @@ def test_majority_downsample_context_reads_its_own_rate_in_the_base_rate_correct
     assert clf.context_summary_.n_positive == 47
     assert raw.predict_proba(Xq)[:, 1].mean() == pytest.approx(47 / 400, rel=1e-5)
     assert clf.predict_proba(Xq)[:, 1].mean() == pytest.approx(47 / 10_000, rel=1e-5)
+
+
+def _calibration_table(n: int = 300) -> tuple[np.ndarray, np.ndarray]:
+    """An imbalanced table whose first feature is a unique row id, so a row is traceable."""
+    rng = np.random.default_rng(3)
+    X = rng.normal(size=(n, 4)).astype(np.float32)
+    X[:, 0] = np.arange(n)
+    y = (rng.random(n) < 0.15).astype(np.int64)
+    y[:6] = 1
+    return X, y
+
+
+def test_calibration_off_is_byte_identical_to_the_baseline():
+    """fitted-calibration 4.1/4.2: the default changes no output, bit for bit."""
+    X, y = _calibration_table()
+    torch.manual_seed(0)
+    model = _tiny_model()
+    base = FinancialTFMClassifier(model, max_context=100).fit(X, y)
+    off = FinancialTFMClassifier(model, max_context=100, calibration_val_frac=0.0).fit(X, y)
+    assert off.temperature_ == 1.0
+    assert off.calibration_rows_.size == 0
+    np.testing.assert_array_equal(base.predict_proba(X), off.predict_proba(X))
+
+
+def test_calibration_slice_never_reaches_the_stored_context():
+    """fitted-calibration 4.1: validation rows are absent from the stored context."""
+    X, y = _calibration_table()
+    torch.manual_seed(0)
+    clf = FinancialTFMClassifier(_tiny_model(), max_context=100, calibration_val_frac=0.3)
+    clf.fit(X, y)
+    cal = clf.calibration_rows_
+    assert 0 < cal.size < len(y)
+    assert np.intersect1d(cal, clf.train_rows_).size == 0
+    assert cal.size + clf.train_rows_.size == len(y)
+    # the stored context's rows, traced back to fit's rows, miss the slice
+    ctx_rows = clf.train_rows_[clf.context_indices_]
+    assert np.intersect1d(cal, ctx_rows).size == 0
+    # and the raw pool every conditioner and member draws from never held them
+    assert np.intersect1d(clf._raw_X[:, 0], X[cal, 0]).size == 0
+    assert set(np.unique(y[cal])) == set(np.unique(y))
+
+
+def test_calibration_slice_holds_out_whole_groups():
+    X, y = _calibration_table()
+    groups = np.arange(len(y)) // 10
+    torch.manual_seed(0)
+    clf = FinancialTFMClassifier(_tiny_model(), max_context=100, calibration_val_frac=0.3)
+    clf.fit(X, y, groups=groups)
+    assert np.intersect1d(groups[clf.calibration_rows_], groups[clf.train_rows_]).size == 0
+
+
+def test_fitted_temperature_preserves_ranking_and_is_valid():
+    """fitted-calibration 4.2: temperature scaling is monotone, as the analytic shift is."""
+    X, y = _calibration_table()
+    torch.manual_seed(0)
+    model = _tiny_model()
+    clf = FinancialTFMClassifier(model, max_context=100, calibration_val_frac=0.3).fit(X, y)
+    raw = clf._predict_proba_raw(X)
+    cal = clf.predict_proba(X)
+    assert clf.temperature_ > 0
+    np.testing.assert_allclose(cal.sum(axis=1), 1.0, atol=1e-5)
+    # identical order on the positive class, so the ranking (AUC) is untouched
+    np.testing.assert_array_equal(
+        np.argsort(raw[:, 1], kind="stable"), np.argsort(cal[:, 1], kind="stable")
+    )
+
+    def log_odds(p: np.ndarray) -> np.ndarray:
+        return np.log(p[:, 1]) - np.log(p[:, 0])
+
+    # the log-odds are divided by T
+    np.testing.assert_allclose(
+        log_odds(cal) * clf.temperature_, log_odds(raw), rtol=1e-3, atol=1e-3
+    )
+
+
+def test_calibration_rejects_a_slice_that_lacks_a_class():
+    X, y = _calibration_table()
+    y[:] = 0
+    y[:2] = 1
+    clf = FinancialTFMClassifier(_tiny_model(), calibration_val_frac=0.3)
+    with pytest.raises(ValueError, match="fewer than two rows"):
+        clf.fit(X, y)
