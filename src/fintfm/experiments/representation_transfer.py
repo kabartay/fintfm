@@ -56,6 +56,19 @@ the same labels with no self-label in either. ``"context-leaky"`` fits on the co
 representations under the full context, label in view: a diagnostic of the leak's size, not
 a result. The stratified sample has the same leak for the context rows it includes, which
 are few (all the context's positives, since the sample keeps every positive).
+
+**Probe plus partitioned contexts (``partition=True``, 2026-11-09).** The fintfm arm becomes a
+:class:`~fintfm.inference.large_n.PartitionedTFMClassifier` at its default settings (``docs/results/FINDINGS.md``
+§169), and the probe is fitted per leaf: in each bag, a leaf with its own estimator gets a
+logistic regression on that estimator's representation of a stratified sample of the leaf's
+training rows (every positive, padded with negatives to the leaf's share of
+``train_sample_size``, at least :data:`LEAF_MIN_SAMPLE`), and scores the test rows routed to
+that leaf; test rows in a fallback leaf take the global probe's probability. Bags are averaged,
+as the wrapper averages its heads. ``own_head`` is then the partitioned head (§169's arm), and
+``own_head_global`` and ``representation_global`` are the global estimator's head and probe,
+which equal the default run's ``own_head`` and ``representation`` (§131's pair). The
+TabArena fork's ``FinTFM-LinProbe`` adapter does the same on Lite (§215). The stratified leak
+above applies per leaf: a leaf sample holds every positive of the leaf's context.
 """
 
 from __future__ import annotations
@@ -76,9 +89,11 @@ from fintfm.experiments.v4_protocol import (
     HORIZON_FILES,
     _load_horizon,
     build_fold_assignments,
+    company_codes,
     split_indices_for_fold,
 )
 from fintfm.inference.classifier import FinancialTFMClassifier
+from fintfm.inference.large_n import PartitionedTFMClassifier
 
 if TYPE_CHECKING:  # the model class is only needed for the annotation
     from fintfm.modeling.model import FinancialTFM
@@ -101,6 +116,12 @@ Stage = Literal["encode_rows", "encoder_mid", "pre_head"]
 #: V4FinBench's positive rate. The held-out test split is never subsampled: every arm, including
 #: this experiment's own_head arm, is scored on the same full test rows every other finding uses.
 TRAIN_SAMPLE_SIZE = 20_000
+
+#: Floor on a leaf probe's sample under ``partition=True``: a leaf's proportional share of
+#: :data:`TRAIN_SAMPLE_SIZE` can be too small to fit a probe on, so it never drops below this
+#: (or the leaf's whole training set, where that is smaller). Matches the TabArena fork's
+#: ``FinTFM-LinProbe`` adapter.
+LEAF_MIN_SAMPLE = 2_000
 
 
 def _stratified_subsample(rng: np.random.Generator, y: np.ndarray, budget: int) -> np.ndarray:
@@ -149,6 +170,63 @@ def _downstream_arms(
         rep_tr = clf.transform_representation(X_fit, stage=stage)
         rep_te = clf.transform_representation(X_test, stage=stage)
         return _fit_arms(rep_tr, X_fit, y_fit, [rep_te], X_test, seed)
+
+
+def _leaf_probe(
+    part: PartitionedTFMClassifier,
+    X_fit: np.ndarray,
+    y_fit: np.ndarray,
+    X_test: np.ndarray,
+    p_global: np.ndarray,
+    stage: Stage,
+    rng: np.random.Generator,
+    train_sample_size: int,
+) -> tuple[np.ndarray, dict[str, int]]:
+    """A linear probe per partition leaf, scored on the test rows each leaf receives.
+
+    Args:
+        part: The fitted partitioned classifier.
+        X_fit: ``(n, F)`` every training row ``part`` was fitted on, scaled.
+        y_fit: ``(n,)`` their labels, 0/1.
+        X_test: ``(m, F)`` the held-out rows.
+        p_global: ``(m,)`` the global probe's test probabilities, used for rows routed to a
+            leaf with no estimator of its own.
+        stage: The representation depth, as in :func:`_downstream_arms`.
+        rng: Draws each leaf's stratified sample.
+        train_sample_size: The whole-split probe budget each leaf takes its share of.
+
+    Returns:
+        Test-row positive-class probabilities averaged over bags, and counts: leaf probes
+        fitted, leaves falling back to the global probe, and leaves whose sample held one
+        class and so were scored by the leaf's own head instead.
+    """
+    routes_fit, routes_test = part.route(X_fit), part.route(X_test)
+    out = np.zeros(len(X_test), dtype=np.float64)
+    counts = {"n_leaf_probes": 0, "n_fallback_leaves": 0, "n_single_class_leaves": 0}
+    for b, leaves in enumerate(part.leaf_estimators_):
+        bag = part.bag_rows_[b]
+        for leaf in np.unique(routes_test[b]):
+            rows = np.flatnonzero(routes_test[b] == leaf)
+            est = leaves.get(int(leaf))
+            if est is None:
+                out[rows] += p_global[rows]
+                counts["n_fallback_leaves"] += 1
+                continue
+            members = bag[routes_fit[b][bag] == leaf]
+            budget = max(LEAF_MIN_SAMPLE, round(train_sample_size * len(members) / len(bag)))
+            sub = members[_stratified_subsample(rng, y_fit[members], budget)]
+            if np.unique(y_fit[sub]).size < 2:
+                out[rows] += est.predict_proba(X_test[rows])[:, 1]
+                counts["n_single_class_leaves"] += 1
+                continue
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                rep_fit = est.transform_representation(X_fit[sub], stage=stage)
+                rep_test = est.transform_representation(X_test[rows], stage=stage)
+                probe = LogisticRegression(max_iter=1000).fit(rep_fit, y_fit[sub])
+            out[rows] += probe.predict_proba(rep_test)[:, 1]
+            counts["n_leaf_probes"] += 1
+    return out / len(part.leaf_estimators_), counts
 
 
 def _gap(n: int) -> dict[str, np.ndarray]:
@@ -305,6 +383,7 @@ def run(
     stage: Stage = "encode_rows",
     probe_rows: ProbeRows = "stratified",
     max_context: int | None = None,
+    partition: bool = False,
 ) -> dict:
     """Score the three arms on V4FinBench's published protocol. See module docstring.
 
@@ -337,18 +416,23 @@ def run(
             row's label in view, for measuring the leak only.
         max_context: The classifier's context size; ``None`` keeps the classifier's default
             of 2,000, the size §130 ran at. A development knob for a small table.
+        partition: Wrap the classifier in partitioned contexts and fit the probe per leaf
+            (see the module docstring); only with ``probe_rows="stratified"``.
 
     Returns:
         The recorded result dictionary, also written to ``out_path``.
 
     Raises:
-        ValueError: For an unknown ``probe_rows``.
+        ValueError: For an unknown ``probe_rows``, or ``partition`` with any other than
+            ``"stratified"``.
     """
     if probe_rows not in ("stratified", "context", "context-leaky"):
         raise ValueError(
             "probe_rows must be 'stratified', 'context' or 'context-leaky', got "
             f"{probe_rows!r}"
         )
+    if partition and probe_rows != "stratified":
+        raise ValueError("partition=True supports probe_rows='stratified' only")
     clf_kwargs = {} if max_context is None else {"max_context": max_context}
     root = root or (CACHE_DIR / "v4finbench")
     if predictions_dir is not None:
@@ -375,7 +459,15 @@ def run(
         # cost, since fit() only stores and subsamples it to max_context. The subsample below
         # is what bounds the downstream classifiers' training cost; the two are independent.
         clf = FinancialTFMClassifier(model_path, device=device, random_state=fold, **clf_kwargs)
-        clf.fit(Xtr_full, ytr_full)
+        part = None
+        if partition:
+            # the global estimator is fitted exactly as `clf` would be (same settings and
+            # seed), so the global arms below reproduce the default run's own_head and
+            # representation; §169's wrapper settings are the class defaults
+            part = PartitionedTFMClassifier(clf, random_state=fold).fit(Xtr_full, ytr_full)
+            clf = part.global_estimator_
+        else:
+            clf.fit(Xtr_full, ytr_full)
 
         sub = _stratified_subsample(rng, ytr_full, train_sample_size)
         Xtr, ytr = Xtr_full[sub], ytr_full[sub]
@@ -390,7 +482,21 @@ def run(
             "n_train_sample": len(sub),
             "n_test": len(te),
         }
-        if probe_rows != "stratified":
+        if part is not None:
+            p_leaf, leaf_counts = _leaf_probe(
+                part, Xtr_full, ytr_full, Xte, stratified["representation"], stage,
+                np.random.default_rng(1000 + fold), train_sample_size,
+            )
+            arms = {
+                "own_head": part.predict_proba(Xte)[:, 1],
+                "representation": p_leaf,
+                "own_head_global": p_own_head,
+                "representation_global": stratified["representation"],
+                "raw_features": stratified["raw_features"],
+                "mlp_head": stratified["mlp_head"],
+            }
+            row.update(leaf_counts)
+        elif probe_rows != "stratified":
             # the rows the head conditions on, so the probe reads exactly as many labels
             ctx = clf.context_indices_
             if probe_rows == "context":
@@ -415,6 +521,14 @@ def run(
             if probe_rows != "stratified"
             else ""
         )
+        partition_note = (
+            f"  (partitioned: {row['n_leaf_probes']} leaf probes, "
+            f"{row['n_fallback_leaves']} fallback, {row['n_single_class_leaves']} single-class; "
+            f"global head AP {row['own_head_global_ap']:.4f}, "
+            f"global probe AP {row['representation_global_ap']:.4f})"
+            if part is not None
+            else ""
+        )
         stratified_note = (
             f"  representation_stratified AP {row['representation_stratified_ap']:.4f}"
             if probe_rows != "stratified"
@@ -429,14 +543,19 @@ def run(
             f"own_head AP {row['own_head_ap']:.4f}  "
             f"representation AP {row['representation_ap']:.4f}  "
             f"mlp_head AP {row['mlp_head_ap']:.4f}  "
-            f"raw_features AP {row['raw_features_ap']:.4f}{stratified_note}",
+            f"raw_features AP {row['raw_features_ap']:.4f}{stratified_note}{partition_note}",
             flush=True,
         )
         if predictions_dir is not None:
+            # company per test row, as v4_protocol saves it, so scripts/compare_v4_scores.py
+            # can resample whole companies; added with the partition arm only, so a default
+            # run still writes the file §130's code wrote
+            extra = {"company_test": company_codes(company)[te]} if part is not None else {}
             np.savez_compressed(
                 predictions_dir / f"predictions_fold{fold}.npz",
                 y_true=yte,
                 **{f"pred_{name}": p for name, p in arms.items()},
+                **extra,
             )
 
     record = {
@@ -448,6 +567,8 @@ def run(
     if probe_rows != "stratified":
         # recorded only off the default, so a default run writes the JSON §130's code wrote
         record["probe_rows"] = probe_rows
+    if partition:
+        record["partition"] = True
     out_path.parent.mkdir(parents=True, exist_ok=True)
     import json
 
@@ -481,6 +602,12 @@ def main() -> None:
              "or context-leaky, the context rows with their labels in view, a diagnostic of "
              "the leak only",
     )
+    p.add_argument(
+        "--partition", action="store_true",
+        help="wrap the classifier in partitioned contexts (FINDINGS §169, default settings) "
+             "and fit the probe per leaf; own_head becomes the partitioned head, and the "
+             "global head and probe are kept as own_head_global and representation_global",
+    )
     args = p.parse_args()
     run(
         args.model,
@@ -493,6 +620,7 @@ def main() -> None:
         predictions_dir=args.predictions_dir,
         stage=args.stage,
         probe_rows=args.probe_rows,
+        partition=args.partition,
     )
 
 

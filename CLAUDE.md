@@ -194,7 +194,7 @@ V4FinBench loader that every out-of-time finding depends on.
 
 ```bash
 uv sync --extra bench --extra hf   # not a bare `uv sync`, and not one extra either
-uv run pytest -q                   # 1 skip is the expected count; more means look
+uv run pytest -q                   # 5 skips, all CUDA-only (2026-11-09); more means look
 ```
 
 **Naming one extra drops the others.** On 2026-09-22 a `uv sync --extra bench` mid-session

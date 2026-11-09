@@ -13884,7 +13884,7 @@ The adapter fits a probe per leaf (§212's blocker): in each bag, each leaf with
 gets a logistic regression on that estimator's representation of the leaf's training rows (budget
 the leaf's share of the probe sample, at least 2,000 rows); fallback leaves use a probe on the
 global estimator. This code is in the TabArena fork's working tree
-(`tabarena/models/fintfm_linprobe/model.py`), **not yet committed**.
+(`tabarena/models/fintfm_linprobe/model.py`), committed to the fork as 11971f1 on `fintfm-audit-fixes` (2026-11-09).
 
 | paired against | its Elo here | better / worse / tied | sign p | mean ROC-AUC change |
 | --- | --- | --- | --- | --- |
@@ -13915,8 +13915,8 @@ from the same `results_per_split.csv` (`~/proj/tabarena/eval/fintfm_linprobe_squ
   −0.0226, credit-g −0.0144, GiveMeSomeCredit −0.0127, taiwanese_bankruptcy_prediction −0.0122,
   heloc −0.0088).
 - **Not yet a declared configuration.** It is Lite-only (squash is null on V4FinBench, §211), and
-  probe plus partition together has no V4FinBench row: each scores there alone (probe §169,
-  partition §205), the combination does not.
+  probe plus partition together has no V4FinBench row: each scores there alone (probe §131,
+  partition §169 and §205), the combination does not.
 
 Cost, MEASURED: 513 min wall on CPU, 27 processes, peak RSS 16.7 GB. One failure on the way:
 Amazon_employee_access stopped with AutoGluon's `TimeLimitExceeded` after 482 s in its own process

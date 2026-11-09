@@ -215,3 +215,44 @@ def test_a_single_class_probe_set_records_a_gap_not_a_crash():
 def test_an_unknown_probe_rows_is_refused(tmp_path):
     with pytest.raises(ValueError, match="probe_rows"):
         rt.run(_model(), tmp_path / "x.json", probe_rows="context_rows")  # type: ignore[arg-type]
+
+
+def test_partition_keeps_the_default_runs_global_arms_bit_for_bit(tmp_path, panel):
+    """Under ``partition=True`` the global estimator is fitted as the default run's classifier
+    is, so its head and probe equal the default's ``own_head`` and ``representation``, and
+    ``own_head`` becomes the partitioned head."""
+    _rec, base, _ = _run(tmp_path, "default")
+    rec, preds, _ = _run(tmp_path, "partition", partition=True)
+    assert rec["partition"] is True
+    assert set(preds) == {"y_true", "company_test"} | {
+        f"pred_{a}" for a in ("own_head", "representation", "own_head_global",
+                              "representation_global", "raw_features", "mlp_head")
+    }
+    assert preds["company_test"].shape == preds["y_true"].shape
+    for arm, ref in (("own_head_global", "own_head"), ("representation_global", "representation"),
+                     ("raw_features", "raw_features"), ("mlp_head", "mlp_head")):
+        assert preds[f"pred_{arm}"].tobytes() == base[f"pred_{ref}"].tobytes()
+    row = rec["folds"][0]
+    assert row["n_leaf_probes"] >= 1
+    assert row["n_leaf_probes"] + row["n_fallback_leaves"] + row["n_single_class_leaves"] >= 2
+    assert not np.array_equal(preds["pred_own_head"], preds["pred_own_head_global"])
+
+
+def test_partition_with_every_leaf_falling_back_is_the_global_probe(tmp_path, panel, monkeypatch):
+    """A tree whose leaves all fall back to the global context scores every test row with
+    the global probe, so the per-leaf arm reduces to ``representation_global``."""
+    import functools
+
+    monkeypatch.setattr(
+        rt, "PartitionedTFMClassifier",
+        functools.partial(rt.PartitionedTFMClassifier, min_leaf_rows=10**9),
+    )
+    rec, preds, _ = _run(tmp_path, "fallback", partition=True)
+    assert rec["folds"][0]["n_leaf_probes"] == 0
+    np.testing.assert_allclose(preds["pred_representation"], preds["pred_representation_global"])
+    np.testing.assert_allclose(preds["pred_own_head"], preds["pred_own_head_global"], rtol=1e-6)
+
+
+def test_partition_refuses_the_context_probe_rows(tmp_path):
+    with pytest.raises(ValueError, match="partition"):
+        rt.run(_model(), tmp_path / "x.json", probe_rows="context", partition=True)
