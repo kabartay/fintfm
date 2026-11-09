@@ -97,6 +97,7 @@ Rows are V4FinBench unless the benchmark column says otherwise. "Folds + / -" gi
 | §107 | A "specialist profile" from mean rank 86.26 and harmonic rank 20.72 | Median rank 94 of 95; top 25 on 1 of 27 datasets; rank-1 margin 0.0026 ROC-AUC on one fold | MEASURED |
 | §47 | An early checkpoint's accuracy as in-context learning | 48k financial-only checkpoint: AUC 0.6841 with true labels, 0.6895 with shuffled labels, rank correlation 0.977. The fixed feature-to-label mapping in the prior was the cause; §48 confirmed the fix | MEASURED |
 | §50, §52 | 17x parameters and attention pooling leave the feature-width curve unchanged (drop -0.2755, -0.2732, -0.2701) | Measurements stand; the reading is retracted because of the encoder bug of §54 | MEASURED |
+| §216 (DR4.2) | The proxy suite ranks checkpoints as TabArena-Lite does (pre-registered bar: Spearman rho at least 0.8) | rho +0.717 on 9 checkpoints (bootstrap 95% [0.105, 0.982]); the proxy decides no arm | MEASURED |
 
 ## (e) Closed as infeasible or deferred
 
@@ -122,6 +123,8 @@ These are not levers, but they are measured failures to beat a comparison and th
 | §69 | V4FinBench, tuned baselines, subsample, five folds | FinTFM AP 0.1365; CatBoost 0.3425, XGBoost 0.3406, LightGBM 0.3076 (Holm p < 0.001); logistic regression 0.1493, indistinguishable (p 0.309) | MEASURED |
 | §174 | ULB card fraud, three splits | FinTFM mean AP 0.6830 against logistic regression 0.7489 | MEASURED |
 | §177 | SBA 7(a), three out-of-time splits | FinTFM mean AP 0.1095 against logistic regression 0.1295 and LightGBM 0.3861 | MEASURED |
+| §216 | FDIC bank failures, three out-of-time splits | FinTFM mean AP 0.1688 against logistic regression 0.1906 and LightGBM 0.1783; ranking flips by split | MEASURED |
+| §216 | Estonia register, three out-of-time splits, survivor-conditioned label | FinTFM mean AP 0.0028 against logistic regression 0.0056; below logistic regression on all four admitted credit datasets | MEASURED |
 | §204 | TabArena-Lite, 27 binary datasets | Below `LR (default)` on 23 of 27 by a mean 0.0297 ROC-AUC (0.7824 against 0.8120); below CatBoost (0.8449) on 27 of 27; Elo 756 | MEASURED |
 
 ## What the pattern says

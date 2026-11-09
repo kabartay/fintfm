@@ -13924,3 +13924,57 @@ and fitted cleanly in the leaderboard call that followed, so all 27 are scored b
 fit time is near TabArena's limit under this configuration, a risk for any submission run.
 Comparisons: `runs/lite_pp_part_vs_{stack,partition,default}.md`; the field pairing was computed
 from the run's `results_per_split.csv` (not saved as a script).
+
+## §216: DR4.2 and DR4.3 closed: the proxy suite fails its validation bar, and FinTFM is below logistic regression on all four credit datasets
+
+**MEASURED, run 2026-11-07/08, recorded and closed 2026-11-09 (owner).** Both results were in
+drafts only (`docs/results/drafts/dr4.2_2026-11-07.md` section 0,
+`docs/results/drafts/dr4.3-runs_2026-11-07.md`, "Full-scale results"); this section is their
+record. Published checkpoint `runs/v4-cellattn-labels.pt` throughout.
+
+### DR4.2: the proxy suite does not rank checkpoints as TabArena-Lite does
+
+Pre-registered bar: Spearman rho at or above 0.8 between proxy Elo and TabArena-Lite Elo over 6 or
+more checkpoints. Run on 9 distinct checkpoints (published, e1-v480-s0, priorctl, priorctl-s1,
+treeclean, treeclean-s1, treeprior, widerprior, priorwide), 18 task ids, 48 scored rows each
+(`scripts/dr42_spearman.py`, `runs/local_queue/dr42-spearman.log`).
+
+| proxy score | rho against Lite Elo, common pool | stored pool |
+| --- | --- | --- |
+| proxy Elo | +0.717 (exact p 0.037, bootstrap 95% [0.105, 0.982]) | +0.750 (p 0.026) |
+| mean AP | +0.500 (p 0.178) | +0.517 (p 0.162) |
+| mean ROC-AUC | +0.267 (p 0.493) | +0.350 (p 0.359) |
+
+- **The Verify is not met**: +0.717 against 0.8, with an interval reaching 0.105. The relation is
+  positive (up from +0.600 at n = 6, `docs/results/drafts/dr4.2_2026-11b.md`) but too noisy to choose
+  between checkpoints or gate a release.
+- **More checkpoints would not settle it cheaply.** Three of the nine are seed or sibling pairs,
+  and the Lite spread is narrow (732 to 841 Elo). The only far points (ens1 at 696, the linear
+  probe at 914) share the published weights or are a different head.
+- **Consequence:** the proxy suite stays a smoke test and a development aid; it decides no arm.
+- **Licence half, settled by the owner 2026-11-08** (`docs/results/drafts/dr4.2-licences_2026-11-08.md`):
+  evaluation-only tasks take the distributor's stated licence (UCI's CC BY 4.0 page statement), as
+  OpenML and TabArena do; training data keeps the strict reading.
+
+### DR4.3: four admitted credit datasets, FinTFM below logistic regression on each
+
+`python -m fintfm.evaluation.credit_suite`, CPU, three fixed out-of-time splits per dataset, one
+seed, no paired test; mean AP over the splits.
+
+| dataset | rows | test positive rate | FinTFM | logistic regression | LightGBM (1,000 trees) | source |
+| --- | --- | --- | --- | --- | --- | --- |
+| ULB card fraud | | 0.173% | 0.6830 | **0.7489** | 0.6751 | §174 |
+| SBA 7(a) | | 3.9% to 4.4% | 0.1095 | 0.1295 | **0.3861** | §177 |
+| FDIC bank failures | 733,528 | 0.052% to 0.735% | 0.1688 | **0.1906** | 0.1783 | this section |
+| Estonia (survivor-conditioned label) | 1,251,575 | 0.027% to 0.035% | 0.0028 | **0.0056** | 0.0028 | this section |
+
+- **FinTFM is below untuned logistic regression on mean AP on all four.** On FDIC the ranking flips
+  by split (FinTFM ahead of logistic regression on split 1 only; LightGBM 0.0107 on split 2), so
+  the three FDIC means are not distinguishable at three splits.
+- **Estonia is not bankruptcy skill**: firms bankrupt and then deleted are absent from the open
+  register, so the label is survivor-conditioned; FinTFM's AP is 6 to 14 times the base rate.
+  FDIC is evaluation-only for the FinTFM family (`EVAL_ONLY_SOURCES`), never FinTFM-R.
+- Cost: FDIC 46.9 min wall, 16.9 GiB peak; Estonia 91.5 min, 18.6 GiB; no errors, skipped models
+  or row caps (`runs/dr43-fdic/`, `runs/dr43-estonia/`).
+- **Narrowed, not completed as named:** PPDai and Bondora stay `include=False` on licence and will
+  not run. The four admitted datasets are the suite.
