@@ -386,6 +386,12 @@ discrimination does not is an open question this ledger does not yet have an ans
 connects directly to task 39.7's proposed task-representation probe (does the model form a
 task posterior, separate from how well that posterior discriminates?).
 
+**Not shown for the published (cell-attention) checkpoint (noted 2026-11-09).** No ECE comparison has been run
+for it on the credit suite. Its mean predicted default level misses the observed rate on ULB (0.212% to
+0.300% against 0.173%, §174, where logistic regression gives 0.167% to 0.177%) and on FDIC splits 1 and 2
+(1.9 and 3.2 times, below it on split 0, §216). This does not refute the claim, which is scoped to the
+older architecture, but nothing may extend it to the current model until the ECE comparison is run.
+
 **Caveat**: single 70/30 split per dataset, not the five-fold paired-bootstrap standard the
 V4FinBench numbers meet (§69, itself on a 10x subsample of 105,900 test rows, §82). Directional, not settled at this precision.
 
