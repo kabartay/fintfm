@@ -13978,3 +13978,30 @@ seed, no paired test; mean AP over the splits.
   or row caps (`runs/dr43-fdic/`, `runs/dr43-estonia/`).
 - **Narrowed, not completed as named:** PPDai and Bondora stay `include=False` on licence and will
   not run. The four admitted datasets are the suite.
+
+## §217: DR3.2 closed: the class-shift ensemble is below both controls on fold 0 and is stopped for futility
+
+**MEASURED, 2026-11-09, fold 0 only; stopped by the owner, not a five-fold verdict.**
+`fintfm-v4protocol --model runs/v4-cellattn-labels.pt --config configs/arms/dr32-ens8-cshift.yaml
+--no-boosting --device cpu --folds 0` (`runs/dr32-ens8-cshift/f0`): 8 members at the default
+2,000-row context, member i relabelling its context by a cyclic class shift of i (on a binary task,
+a label swap on every other member), mapped back before averaging. CPU, 2 threads, 1,058 min,
+19.5 GB peak RSS.
+
+| fold 0 | AP | change |
+| --- | --- | --- |
+| zero-shot default (`runs/lrsweep/eval-published`) | 0.2113 | |
+| `ens8`, §196 (`runs/v4-lever-ens8`) | 0.2091 | −0.0022 against the default |
+| `ens8-cshift` | 0.2033 | −0.0080 against the default, −0.0058 against `ens8` |
+
+- **Why stop at one fold.** DR3.2's rule needs a mean gain above +0.0117 with at least 4 of 5
+  folds positive. With fold 0 at −0.0080, folds 1 to 4 would all have to be positive and average
+  above about +0.0166, while `ens8` without the shift averages +0.0058 over the default (§196). At
+  about 18 h of CPU per fold the remaining four cost more than a day of the shared Mac for an
+  outcome the rule makes very unlikely. The folds are not run; this is a futility stop, recorded as
+  such, not a null.
+- **The shift costs AP on the one fold measured**: relabelling half the members' contexts by a
+  label swap does not average out to a better ranking here.
+- **An MPS attempt was killed** after its footprint grew from 2 to 4 GB to 27 GB in 40 minutes
+  beside other work (CLAUDE.md, "Inference grows too, just later").
+- DR3.2's arm 1 (8 members against 1) is §196: null, +0.0058, 3 of 5 folds.
