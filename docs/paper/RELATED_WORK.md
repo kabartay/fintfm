@@ -1445,3 +1445,39 @@ it.
 **What is left for us.** (i) FTFM's factorized row and column latents are an architecture idea for
 our cost problem: two-way cell attention is what caps `max_context` (task 48.27). (ii) When
 quoting FTFM, name the view (paper 1723, board 1477) and call it a real-data-mixed model.
+
+## Peer read of 2026-11-09: TabH2O, Seldon's BeyondArena slices, and a local-context ablation
+
+**Status.** Sweep of 2026-11-06 to 2026-11-09. Sources and licences in `docs/research/REFERENCES.md`,
+"Addendum 2026-11-09". Upstream PR bodies were read with `gh api`; the arXiv paper from its HTML.
+Little is new; nothing found on credit results in average precision, trained readouts on TFM
+representations, or synthetic-prior scaling curves.
+
+**TabH2O v1.1 (H2O.ai, TabArena PR #716): another non-commercial in-context entrant at the top.**
+TabArena-Lite default configuration, 51 of 51 datasets: Elo 1551 (+63/−59) against TabICLv2's 1558
+and RealTabPFN-2.5 (tuned) 1528, so the leading default-configuration in-context models now sit
+within each other's intervals. Code `h2ofm` Apache-2.0; weights under the H2O Model Non-Commercial
+Licence v1.0, gated: a published-numbers peer only, like FTFM and TabPFN. The model card states no
+training-data description, so whether it is synthetic-only is unknown.
+
+**Seldon on BeyondArena (PR #717): in-context models lose rank on temporal and grouped splits.**
+Seldon is 4th of 42 overall (Elo 1358), 3rd on `binary` (1345) and 2nd on `iid` (1518), but 17th on
+`temporal` (1052), 18th on `grouped` (1135) and 16th of 36 on `large` (1030). Credit evaluation is
+temporal (out-of-time splits) and grouped (whole companies) by construction, so the slices where a
+leading in-context model drops are the ones our setting lives in. This is one model's slice table,
+not a field result; it is consistent with FinTFM's own record, where V4FinBench (grouped,
+company-level folds) and the out-of-time credit suite (§216) are where boosters and logistic
+regression lead.
+
+**Frey (2026), active in-context learning with a frozen TabICLv2 (arXiv:2611.07886): local
+contexts lose to the global one.** Appendix C restricts each query's context to its K nearest
+labelled rows: κ falls by 0.04 to 0.05 at K = 25 and about 0.02 at K = 50, and local contexts of
+100 rows score 0.640 against 0.661 for the global context (worse on 13 of 20 datasets). Small
+budgets (at most 100 labels) and κ, not AP, so it is not a credit result. It agrees in direction
+with §213, where per-query nearest-neighbour contexts collapsed V4FinBench AP, and with §169/§205,
+where partitioned contexts (a few large regions, not per-query neighbourhoods) help.
+
+**What is left for us.** (i) Report FinTFM's results by slice type when comparing to peers: our
+benchmarks are the temporal and grouped kind where the in-context leaders drop, which is a framing
+for the paper, not a claim of an advantage (we lose there too). (ii) No new adoptable lever; no
+openspec task filed.

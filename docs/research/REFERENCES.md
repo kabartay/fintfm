@@ -736,3 +736,31 @@ for `full` (8-fold bagging) and 1873 for `medium` (3-fold), 0% imputed, fit-at-p
 
 **LimiX-2 leakage flag (PR #691):** already recorded in the 2026-11-05 addendum above; nothing
 added.
+
+### Addendum 2026-11-09: TabH2O, Seldon on BeyondArena, active in-context learning
+
+Read 2026-11-09. PR bodies on `autogluon/tabarena` via `gh api` (#716 merged 2026-11-08, #717 merged
+2026-11-09); arXiv HTML for 2611.07886 (Appendix C read). Nothing downloaded except text.
+
+**H2O.ai (2026).** TabH2O v1.1, TabArena integration, [autogluon/tabarena#716](https://github.com/autogluon/tabarena/pull/716).
+In-context TFM, package `h2ofm==0.43.1`. TabArena-Lite default config, 51/51 datasets: Elo 1551
+(+63/−59); TabICLv2 (default) 1558, RealTabPFN-2.5 (tuned) 1528 in the same table. **Licences,
+checked separately:** code Apache-2.0; weights H2O Model Non-Commercial Licence v1.0 (`commercial_use=False`),
+gated. Published numbers only.
+
+**Neuralk-AI (2026).** Seldon and Seldon-Mini on BeyondArena, suite `beyondarena-2026-11-09`,
+[autogluon/tabarena#717](https://github.com/autogluon/tabarena/pull/717). 42 methods (36 on `large`).
+Seldon: core2k #4 (1358, +39/−44), binary #3 (1345), iid #2 (1518), temporal #17 (1052), grouped
+#18 (1135), large #16 (1030). Licences as in the 2026-11-05 addendum.
+
+**Frey (2026).** *When, Where, How: Active In-Context Learning for Tabular Foundation Models.*
+[arXiv:2611.07886](https://arxiv.org/abs/2611.07886). Frozen TabICLv2 backbone, 20 OpenML
+classification datasets (includes credit-g, Bank-Marketing, Blood-Transfusion). Appendix C, Table 5:
+K-nearest local contexts lower κ by 0.037 to 0.046 (K = 25) and 0.013 to 0.020 (K = 50) against the
+global context; 100-row local contexts 0.640 against 0.661. Metrics κ, balanced accuracy, macro
+ROC-AUC; no average precision. Code "on acceptance", no licence stated.
+
+Leads not opened (titles only): arXiv:2611.05141 (PFN priors for hyperparameter optimisation),
+2611.01489 (OOD detection in in-context TFMs), 2611.09400 (causal steering of TFMs), 2611.09052
+(StreamTab), 2611.02936 (TFMs on relational data), 2611.04056 (structured priors for PFNs, paper
+CC BY-NC-ND 4.0).
