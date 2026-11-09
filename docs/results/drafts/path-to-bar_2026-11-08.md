@@ -227,5 +227,9 @@ becomes the credit default.
 - The next candidate stack is probe plus partition, but the adapter cannot run it: the
   partition wrapper has no `transform_representation`, so it needs a probe per leaf (new fork
   code, then a CPU smoke test, then a Kaggle run). Not started; owner to decide.
+  **Update 2026-11-09 (FINDINGS §215):** built (probe per leaf, fork working tree, uncommitted)
+  and run on local CPU instead of Kaggle: **1,000.2 Elo**, MEASURED, level with `RF (default)`
+  (1000.0, 13 / 14 on paired datasets), not above it. The 1,010 figure above came from an older
+  leaderboard; the bar's definition, parity with RF (default), is met as a tie and not exceeded.
 - AU5.13's reduced T+E: about 14.7 to 21 GPU-h for 8 draws, ESTIMATED from the 1.84 T4-h
   default; recommended deferral, owner to decide.

@@ -13870,3 +13870,57 @@ ranges 0.216% to 0.376% and tuned LightGBM 0.285% to 0.697%.
   and ULB (3 of 3, §213), flat on SBA. As a feature it adds nothing on SBA once tuned and splits
   on V4FinBench. The practical answer for credit: the FinTFM logit helps a booster that is weak
   on the panel at hand and adds little to one that is already strong (§201, §213 SBA).
+
+## §215: TabArena-Lite, probe plus squash plus partition reaches 1,000 Elo: level with RF (default), not above it
+
+**MEASURED, 2026-11-09. TabArena-Lite is breadth only (V4FinBench decides, §211); these are
+general-tabular numbers, not credit results. Label: "FinTFM with a trained linear readout"**, a
+logistic regression on the network's pre-head representation, here one per partition leaf. Same
+protocol as §212: 27 binary Lite datasets, split 0, published checkpoint, CPU, ROC-AUC per dataset.
+Run `fintfm_linprobe_squash_part_1108` (`runs/local_queue/lite_pp_part.sh`: `FINTFM_PARTITION={}`,
+`feature_transform="squash"`).
+
+The adapter fits a probe per leaf (§212's blocker): in each bag, each leaf with its own estimator
+gets a logistic regression on that estimator's representation of the leaf's training rows (budget
+the leaf's share of the probe sample, at least 2,000 rows); fallback leaves use a probe on the
+global estimator. This code is in the TabArena fork's working tree
+(`tabarena/models/fintfm_linprobe/model.py`), **not yet committed**.
+
+| paired against | its Elo here | better / worse / tied | sign p | mean ROC-AUC change |
+| --- | --- | --- | --- | --- |
+| probe plus squash, §212 (`fintfm_linprobe_squash_1108`) | 969 | 16 / 10 / 1 | 0.33 | +0.00359 |
+| partition alone, Kaggle T4, §212 (`fintfm_lite_partition_kaggle`) | 888 | 21 / 6 / 0 | < 0.01 | +0.01121 |
+| default (`fintfm_lite_nan_1019`) | 756 | 24 / 3 / 0 | < 0.01 | +0.03860 |
+| `RF (default)`, the bar's anchor | 1000.0 | 13 / 14 / 0 | 1.00 | −0.0031 (median −0.0025) |
+| `KNN (tuned + ensemble)` | 999.8 | 12 / 15 / 0 | 0.70 | −0.0053 |
+| `LR (tuned)` | 1016.0 | 13 / 14 / 0 | 1.00 | +0.0036 |
+
+This arm's Elo is 1000.2 (+156 / −167), rank 100 of 107 in its own leaderboard. Field rows come
+from the same `results_per_split.csv` (`~/proj/tabarena/eval/fintfm_linprobe_squash_part_1108/`).
+
+- **The arm is level with the bar, not above it.** `docs/roadmap/TABARENA_BAR.md` defines the bar
+  as parity with `RF (default)`, then quoted as about 1,010 because `KNN (tuned + ensemble)` scored
+  1008.5 in that file's leaderboard. In this run's leaderboard KNN (tuned + ensemble) scores 999.8
+  and LR (tuned) 1016.0 (966.5 there), so the 1,010 figure does not carry over; the definition
+  does. Against RF (default) the arm is 1000.2 against 1000.0 and 13 / 14 on paired datasets, a
+  tie. It does not beat either bar method on paired differences.
+- **Partition adds 31 Elo to probe plus squash**, not significant on its own pairing (p 0.33).
+  Largest moves against probe plus squash: coil2000_insurance_policies +0.0425,
+  Bank_Customer_Churn +0.0419; largest losses Is-this-a-good-customer −0.0376,
+  customer_satisfaction_in_airline −0.0308.
+- **Against RF (default)** the largest losses are in_vehicle_coupon_recommendation −0.0702,
+  customer_satisfaction_in_airline −0.0636 and hazelnut-spread-contaminant-detection −0.0480;
+  the largest gains coil2000_insurance_policies +0.0571 and blood-transfusion-service-center
+  +0.0497. Five of the 14 losses are credit or bankruptcy sets (polish_companies_bankruptcy
+  −0.0226, credit-g −0.0144, GiveMeSomeCredit −0.0127, taiwanese_bankruptcy_prediction −0.0122,
+  heloc −0.0088).
+- **Not yet a declared configuration.** It is Lite-only (squash is null on V4FinBench, §211), and
+  probe plus partition together has no V4FinBench row: each scores there alone (probe §169,
+  partition §205), the combination does not.
+
+Cost, MEASURED: 513 min wall on CPU, 27 processes, peak RSS 16.7 GB. One failure on the way:
+Amazon_employee_access stopped with AutoGluon's `TimeLimitExceeded` after 482 s in its own process
+and fitted cleanly in the leaderboard call that followed, so all 27 are scored but that dataset's
+fit time is near TabArena's limit under this configuration, a risk for any submission run.
+Comparisons: `runs/lite_pp_part_vs_{stack,partition,default}.md`; the field pairing was computed
+from the run's `results_per_split.csv` (not saved as a script).
