@@ -30,7 +30,7 @@ Unless stated otherwise:
 | method | switch | status | evidence |
 | --- | --- | --- | --- |
 | Partitioned contexts | `large_n.method: partition` | **lead**, best zero-shot lever on V4FinBench; adopted in the Lite entry | +0.0375 AP, 5 of 5 folds (§169); beats §163's fine-tuning by +0.0299, 5 of 5 (§205); Lite 888 Elo (§212) |
-| Linear probe + `feature_transform: squash` + partition, probe per leaf | fork `FinTFM-LinProbe`, `FINTFM_PARTITION`; `representation_transfer --partition` | **Lite-only**, best Lite configuration | Lite 1,000.2 Elo, a tie with RandomForest at defaults (§215); V4FinBench run in progress (2026-11-10) |
+| Linear probe + `feature_transform: squash` + partition, probe per leaf | fork `FinTFM-LinProbe`, `FINTFM_PARTITION`; `representation_transfer --partition` | **Lite-only**, best Lite configuration; **harmful** on V4FinBench | Lite 1,000.2 Elo, a tie with RandomForest at defaults (§215); V4FinBench −0.0570 mean AP, 0 of 5 folds (§218) |
 | `feature_transform: squash` | `feature_transform` (default `rank`) | **Lite-only** | Lite +0.0100 mean ROC-AUC, better on 18 of 27 datasets (§210); V4FinBench null with rank, +0.0095 (§211) |
 | `n_ensemble` 8 | `n_ensemble` (default 1) | **null** on V4FinBench, **adopted** in the Lite adapter | +0.0058, 3 up and 2 down (§196); on Lite one member is worse than eight on 20 of 27 datasets, p 0.019 (`docs/results/TABARENA.md`, AU5.7) |
 | `ensemble_svd_components` | default 0 | **lead** (proxy only) | proxy 12/4/0 (§206); Lite 782 Elo, p 0.25; not run on V4FinBench |

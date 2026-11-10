@@ -231,5 +231,9 @@ becomes the credit default.
   and run on local CPU instead of Kaggle: **1,000.2 Elo**, MEASURED, level with `RF (default)`
   (1000.0, 13 / 14 on paired datasets), not above it. The 1,010 figure above came from an older
   leaderboard; the bar's definition, parity with RF (default), is met as a tie and not exceeded.
+  **Update 2026-11-10 (FINDINGS §218):** on V4FinBench the probe per leaf is harmful, −0.0570
+  mean AP, 0 of 5 folds, all Holm-significant, while the partition head (+0.0375, 5 of 5) and the
+  global probe (+0.0227, 4 of 5) each help alone. The Lite configuration stays Lite-only and must
+  not be described as a credit configuration.
 - AU5.13's reduced T+E: about 14.7 to 21 GPU-h for 8 draws, ESTIMATED from the 1.84 T4-h
   default; recommended deferral, owner to decide.

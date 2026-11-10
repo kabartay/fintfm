@@ -14005,3 +14005,65 @@ a label swap on every other member), mapped back before averaging. CPU, 2 thread
 - **An MPS attempt was killed** after its footprint grew from 2 to 4 GB to 27 GB in 40 minutes
   beside other work (CLAUDE.md, "Inference grows too, just later").
 - DR3.2's arm 1 (8 members against 1) is §196: null, +0.0058, 3 of 5 folds.
+
+## §218: on V4FinBench the probe per partition leaf is harmful, −0.0570 mean AP on 0 of 5 folds, so §215's best Lite configuration stays Lite-only
+
+**MEASURED, 2026-11-09 to 2026-11-10.** `python -m fintfm.experiments.representation_transfer
+--model runs/v4-cellattn-labels.pt --stage pre_head --partition --folds k` for k = 0..4 (commit
+d990009, CPU), predictions split into four arms by `runs/local_queue/pp_v4_split.py` and paired
+with `scripts/compare_v4_scores.py --cluster` (company-level bootstrap, Holm across folds;
+`runs/pp-v4/cmp_vs_{zeroshot,parthead,globalprobe}.txt`). All four arms come from one run, so they
+share every row, fold and checkpoint:
+
+- **global head**: zero-shot default, the control;
+- **partition head**: §169's partitioned contexts at their defaults, scored by their own heads;
+- **global probe**: logistic regression on the pre-head representation, 20,000 stratified
+  training rows, as in §131;
+- **leaf probe**: the arm under test. One probe per partition leaf, each on the leaf's share of
+  the 20,000 rows (at least 2,000). A fallback leaf takes the global probe, and a leaf whose
+  sample holds one class takes the leaf's own head.
+
+| fold | global head AP | partition head | global probe | leaf probe |
+| --- | --- | --- | --- | --- |
+| 0 | 0.2113 | 0.2241 | 0.2349 | 0.0820 |
+| 1 | 0.2050 | 0.2262 | 0.2156 | 0.1589 |
+| 2 | 0.1786 | 0.2411 | 0.2130 | 0.1564 |
+| 3 | 0.1810 | 0.2370 | 0.2392 | 0.1510 |
+| 4 | 0.2172 | 0.2524 | 0.2041 | 0.1598 |
+
+| pairing | mean AP change | folds + / − | Holm-significant (companies) | verdict (`experiment-decisions` D1) |
+| --- | --- | --- | --- | --- |
+| leaf probe against global head | **−0.0570** | 0 / 5 | 5 of 5 | **harmful** |
+| leaf probe against partition head | −0.0945 | 0 / 5 | 5 of 5 | harmful |
+| leaf probe against global probe | −0.0797 | 0 / 5 | 5 of 5 | harmful |
+| partition head against global head | +0.0375 | 5 / 0 | 4 of 5 | candidate; reproduces §169's +0.0375 |
+| global probe against global head | +0.0227 | 4 / 1 | 3 of 5 | reproduces the default harness (§131, §209: label count, not representation) |
+
+**What it says.** The configuration behind §215's 1,000.2 Lite Elo is harmful on the credit
+benchmark that decides (`experiment-decisions` D8). Each component helps alone here: the
+partition head and the global probe both beat the zero-shot head. Combining them through per-leaf
+probes loses to all three other arms on every fold. The two reproduced rows show the harness is
+sound: the partition head matches §169 to four decimals, and the global probe matches the
+default run's arm, which `tests/test_representation_transfer.py` pins bit for bit.
+
+**Likely mechanism, a hypothesis not yet tested.** The run recorded how each fold's rows were
+scored. Folds 0 to 3 each had one leaf with its own probe, one fallback leaf scored by the global
+probe, and one leaf whose stratified sample held only non-defaults, scored by that leaf's own
+head. Fold 4 had two leaf probes and one single-class leaf. So every fold ranks rows from two or
+three different scorers whose outputs are not on one scale. AUC stays between 0.980 and 0.990 in
+every fold, while AP falls by up to 0.13. That pattern fits a ranking failure at the top of the
+score range, where a few non-defaults from one scorer outrank defaults from another. On
+TabArena-Lite the smoke run fitted 4 leaf probes in 9 of 10 fits (§215), with fewer mixed scorers.
+Two cheap repairs follow, neither run:
+
+- score single-class leaves with the global probe instead of the leaf head;
+- map every scorer's output onto its leaf's training base rate before pooling.
+
+**Consequences.**
+- §215's configuration is **Lite-only, and harmful on credit**. A TabArena entry built on it must
+  not be described as a credit configuration.
+- The partition head stays the best zero-shot lever on V4FinBench (§169, §205).
+- Recorded in `docs/paper/NEGATIVE_RESULTS.md` (a) and (c) and in `openspec/specs/METHODS.md`.
+
+Cost, MEASURED: 197, 320, 188, 60 and 78 min for folds 0 to 4 on the shared CPU, with load from
+other jobs. Peak RSS was 14.6 to 21.6 GB, and the comparison took 86 min.
