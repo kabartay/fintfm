@@ -6,6 +6,76 @@ not paste one into the other. See `CLAUDE.md`.
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-11-10
+
+Code and tooling only: no new weights, and the published checkpoint `v4-cellattn-labels.pt`
+scores as before (pinned bit for bit by `tests/test_golden_outputs.py`). Every new option is off
+by default and tested to reproduce 0.8.0's outputs, streams or batches when off. The release
+carries the November screening round: the inference options behind TabArena-Lite's best
+configuration (FINDINGS Section 215), the levers and harnesses of the design review and audit,
+and four credit datasets. Results are in `docs/results/FINDINGS.md` (Sections 195-217) and
+the nulls in `docs/paper/NEGATIVE_RESULTS.md`.
+
+### Added
+
+- **Inference.** `context_positive_cap` bounds the uniform context's positive share (refused
+  beside `context_positive_floor` and non-uniform strategies). `calibration_val_frac` holds out a
+  stratified or company-wise slice before conditioning, fits one temperature on it by log loss
+  and applies it in `predict_proba` (openspec `fitted-calibration` 4.1, 4.2).
+- **Representation probe per partition leaf** (`python -m
+  fintfm.experiments.representation_transfer --partition`): a linear probe per
+  `PartitionedTFMClassifier` leaf on a stratified sample of its training rows, fallback leaves
+  taking the global probe; the global arms equal the default run's bit
+  for bit. On TabArena-Lite, probe plus squash plus partition is the best configuration so far
+  (Section 215: 1,000.2 Elo, a tie with RandomForest at defaults); its V4FinBench run is in
+  progress and not part of this release's claims.
+- **Fine-tuning.** Early stopping on inner-validation companies (`finetune_val_frac`,
+  `finetune_eval_every`, `finetune_patience`, `finetune_val_tasks`, `finetune_val_query`,
+  `finetune_val_pos_frac`; AU5.1). Head-only training on an `--init-from` checkpoint
+  (`--train-only`, `--reinit-trained`; task 48.25).
+- **Training and model levers** (none promoted): `--masked-column-prob`, a masked-column
+  objective (48.15); `cell_mixing: latent`, row and column latents in place of both cell stages
+  (48.27); prior flags `heavy_tail_column_prob`, `tree_split_by` and `missing_label` (AU5.11);
+  the financial prior's ratio family now tops up past about 370 columns, only when a task asks
+  for more (DR8.3; tasks within the old reach are bit-identical).
+- **Evaluation.** `splits.time_based_split`, which refuses a shared identifier by default, and
+  `fintfm-bench --time-split` (openspec `time-based-evaluation` 3.2, 3.3). A tuned LightGBM
+  control for the credit suite with `--inner-embargo` (DR8.4); `credit_suite --save-oof` and
+  `credit_lightgbm_tuned --oof-dir` for the feature and init-score hybrids; `hybrid_catboost
+  --booster lightgbm_tuned` on V4FinBench. Loaders for FDIC bank failures (`credit_fdic`) and
+  the Estonian business register (`credit_estonia`), both evaluation-only and gated off by
+  default (DR4.3). Prediction spread reported beside every calibration number.
+- **openspec**: three new capabilities, `inference-options` (I1-I9), `experiment-decisions`
+  (D1-D8) and `credit-evaluation-data` (L1-L7), each requirement naming the tests that enforce
+  it, and `openspec/specs/METHODS.md`, a register of every method of the round with its status
+  and FINDINGS section.
+- Scripts and kernels: the DR4.2 rank-correlation script, `scripts/head_probe_prior.py`, the
+  surrogate-method test (48.16), Kaggle kernels for every arm of the round, Kaggle host probe
+  kernels, and `scripts/kaggle/make_cpu_kernels.py` (unused: Kaggle CPU sessions measured about
+  10 times slower than the development machine).
+
+### Changed
+
+- **The release workflow runs on `release: published`**, not on a tag push; a draft release
+  runs nothing until it is published.
+- The hazard loss runs in float32 under autocast, so `--amp` is no longer refused for hazard
+  heads (AU5.9); the quantile head is still refused.
+- The credit suite admits Estonia and FDIC as evaluation-only sources (`EVAL_ONLY_SOURCES`);
+  neither can train a model.
+- README and `docs/paper/CLAIMS.md` scope the credit-calibration claim to the pre-cell-attention
+  checkpoint; on the published one the calibration level misses by 1.2-3.2 times.
+
+### Measured in this round, not adopted
+
+Each is null or harmful on V4FinBench under the decision rule (Section 173) and stays off:
+per-leaf fine-tuning (DR3.11, Section 208), the class-shift ensemble (DR3.2, stopped for
+futility, Section 217), the prototype context, a 900-row context and rank-plus-squash members
+(AU4.2, AU4.3, AU5.12, Section 211), Muon (harmful, Section 211), per-class retrieval and the RBF
+value embedding (harmful, Section 213). At equal labels the representation probe ties the head
+(DR3.4, Section 209). FinTFM is below logistic regression on all four admitted credit datasets
+(DR4.3), and the DR4.2 proxy suite ranks configurations with Spearman rho 0.717, under the 0.8
+needed to stand in for TabArena (Section 216).
+
 ## [0.8.0] — 2026-10-26
 
 Code and tooling only: no new weights, and the published checkpoint `v4-cellattn-labels.pt`
