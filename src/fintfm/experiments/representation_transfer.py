@@ -127,12 +127,21 @@ LEAF_MIN_SAMPLE = 2_000
 def _stratified_subsample(rng: np.random.Generator, y: np.ndarray, budget: int) -> np.ndarray:
     """Indices keeping every positive row, padded with a random negative sample to ``budget``.
 
-    Returns all rows when the fold's training split is already at or under budget.
+    Returns all rows when the fold's training split is already at or under budget. When the
+    positives alone fill the budget, which happens in a default-rich partition leaf, both
+    classes are capped instead: negatives take up to half the budget and positives fill the
+    rest. Keeping every positive there left no negatives, so the leaf's probe could not be
+    fitted and the leaf fell back to its own head on another scale (FINDINGS §219).
     """
     if len(y) <= budget:
         return np.arange(len(y))
     positive = np.where(y == 1)[0]
     negative = np.where(y == 0)[0]
+    if len(positive) >= budget:
+        n_negative = min(len(negative), budget // 2)
+        negative = rng.choice(negative, size=n_negative, replace=False)
+        positive = rng.choice(positive, size=budget - n_negative, replace=False)
+        return np.concatenate([positive, negative])
     n_negative = max(budget - len(positive), 0)
     if n_negative < len(negative):
         negative = rng.choice(negative, size=n_negative, replace=False)

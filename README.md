@@ -59,7 +59,7 @@ financial tables, and to say honestly where it currently is not.
 | **Licence** | Apache-2.0, **code and weights** — chosen separately, not inherited (see [Licensing](#licensing--provenance)) |
 | **Checkpoint** | [kabartay/fintfm-binary](https://huggingface.co/kabartay/fintfm-binary) — 885K, binary, ≤136 features |
 | **Tests** | about 1,300 collected (2026-11-09), plus `ruff`, the openspec validator, a dependency-licence check and a documentation-link check — all in CI |
-| **Measurement log** | 218 numbered entries, each declaring how its numbers were produced; pre-registrations are written before their arms run |
+| **Measurement log** | 219 numbered entries, each declaring how its numbers were produced; pre-registrations are written before their arms run |
 | **Problem types** | binary declared; multiclass and regression implemented but **not** declared (§121) |
 
 **Read [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md) before anything else.** Every claim this

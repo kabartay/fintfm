@@ -14067,3 +14067,61 @@ Two cheap repairs follow, neither run:
 
 Cost, MEASURED: 197, 320, 188, 60 and 78 min for folds 0 to 4 on the shared CPU, with load from
 other jobs. Peak RSS was 14.6 to 21.6 GB, and the comparison took 86 min.
+
+## §219: §218's loss is a sampler defect in the harness. The probe per leaf ranks well inside its leaf, and the default-rich leaf never got a probe
+
+**MEASURED from §218's saved predictions, no refit, 2026-11-10; the repaired arm's AP is a post-hoc
+reading, not a verdict.** `uv run python scripts/pp_v4_scorer_mix.py runs/pp-v4`. In each fold the
+script recovers, bit for bit, which scorer handled every test row:
+
+- a fallback leaf copies the global probe's output;
+- a leaf whose probe sample held one class reuses the partition head's output;
+- every other row is a genuine leaf-probe row.
+
+Fold 0 is typical:
+
+| group | rows | defaults | mean score as run | mean global-probe score | AP as run | AP global probe | AP partition head |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| fallback leaf | 180,668 | 1 | 0.0050 | 0.0050 | 0.0008 | 0.0008 | 0.0022 |
+| single-class leaf, own head | 9,859 | 693 | 0.0686 | 0.4160 | 0.2392 | 0.2461 | 0.2392 |
+| leaf probe | 9,834 | 47 | 0.0326 | 0.0374 | 0.1260 | 0.0970 | 0.0943 |
+
+**The leaf that holds the defaults is the one that never got a probe.** In every fold, 93 to 97%
+of the test defaults (664 to 693 of 698 to 741) sit in one leaf of about 10,000 rows, a 7% default
+rate. That leaf counted as single-class, yet it plainly holds both classes. The cause is
+`representation_transfer._stratified_subsample`: it keeps every positive and fills the remaining
+budget with negatives. A leaf with both classes can only come out single-class if its training
+defaults outnumber its 2,000-row budget, so the sample was all defaults, no probe could be fitted, and the leaf's own head scored it. That head's scores
+average 0.06 to 0.07 on a 7% leaf, while the global probe gives the same rows 0.36 to 0.42. Pooled
+with the other leaves' rows, the 7% leaf therefore ranks too low, and AP collapses while AUC stays
+at 0.98 to 0.99.
+
+**Inside its own leaf, the leaf probe ranks better than the global probe in 5 of 5 folds:** 0.1260
+against 0.0970, 0.1165 against 0.0274, 0.0903 against 0.0706, 0.1158 against 0.0443 and 0.0777
+against 0.0379. §218's hypothesis, that pooled scorers sit on different scales, holds. The
+specific cause is the sampler, not something inherent to per-leaf probes.
+
+Post-hoc repairs on the saved predictions, none of which reads a label:
+
+| repair | mean AP | change against the global head | folds above it |
+| --- | --- | --- | --- |
+| as run (§218) | 0.1416 | −0.0570 | 0 of 5 |
+| single-class leaf scored by the global probe | 0.2260 | +0.0274 | 4 of 5 |
+| each group's mean shifted to the global probe's | 0.1738 | −0.0248 | 1 of 5 |
+| both | 0.1864 | −0.0122 | 2 of 5 |
+| global probe alone | 0.2213 | +0.0227 | 4 of 5 |
+
+Only the first repair helps, and it is chosen after seeing the data, so it decides nothing. It is
+also below the partition head's +0.0375 (5 of 5, §169).
+
+**What changed.**
+- `_stratified_subsample` now caps both classes when the positives alone fill the budget:
+  negatives take up to half and positives the rest. This mirrors the TabArena fork's
+  `_probe_rows`, which carried this fix for Amazon_employee_access, so §215's Lite run did not
+  have the defect. Below the budget the draw is unchanged, so the default run's global arms stay
+  bit for bit. Two tests in `tests/test_representation_transfer.py` pin both cases.
+- The five-fold rerun with the fixed sampler is queued after the TabArena-Lite runs:
+  `ppfix-v4-*`, results in `runs/pp-v4-fix/`, with `scorer_mix.txt` beside the comparisons. That
+  rerun is the verdict.
+- §218's measurement stands as a record of the harness as it ran; its reading is replaced by
+  this one.

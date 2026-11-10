@@ -256,3 +256,18 @@ def test_partition_with_every_leaf_falling_back_is_the_global_probe(tmp_path, pa
 def test_partition_refuses_the_context_probe_rows(tmp_path):
     with pytest.raises(ValueError, match="partition"):
         rt.run(_model(), tmp_path / "x.json", probe_rows="context", partition=True)
+
+
+def test_stratified_subsample_keeps_both_classes_when_positives_fill_the_budget():
+    """A default-rich leaf (positives at or above the budget) still gets negatives (FINDINGS §219)."""
+    y = np.r_[np.ones(3_000, dtype=int), np.zeros(27_000, dtype=int)]
+    sub = rt._stratified_subsample(np.random.default_rng(0), y, 2_000)
+    assert len(sub) == 2_000 and len(np.unique(sub)) == 2_000
+    assert (y[sub] == 0).sum() == 1_000 and (y[sub] == 1).sum() == 1_000
+
+
+def test_stratified_subsample_below_the_budget_is_unchanged():
+    """With fewer positives than the budget every positive is kept and negatives fill the rest."""
+    y = np.r_[np.ones(300, dtype=int), np.zeros(29_700, dtype=int)]
+    sub = rt._stratified_subsample(np.random.default_rng(0), y, 2_000)
+    assert (y[sub] == 1).sum() == 300 and len(sub) == 2_000
