@@ -437,3 +437,35 @@ from it.
 
 **Running without error is not working.** Both arms cleared every integration gate and both are
 last; an integration test and a capability claim are different things.
+
+## One entry over every problem type: the merge tool and a 46-dataset assembled estimate (2026-11-10)
+
+**Tool.** The tabarena fork's `merge_fintfm_lite.py` (fork 8aefd8d) reads the cached
+`results.pkl` of several Lite runs, registers them as one new method and places it on the Lite
+leaderboard without fitting anything. It exists because `run_fintfm_lite.py` runs one problem
+type per checkpoint, so a 51-dataset entry is spread over three run directories. Runs of
+different entrants merge only under `--framework`, which relabels them; `merged_from.json` beside
+the leaderboard records which run supplied each dataset. Queued as `merge-all51` after the three
+FinTFM-LinProbe runs (`lite-090`, `lite-mc-pp`, `lite-reg-pp`), with `--expect 51`.
+
+**Assembled estimate, MEASURED components and an ESTIMATED entry.** The best existing result per
+problem type, merged as `FinTFM-assembled-46` (`eval/fintfm_assembled46_1110/` in the fork, log
+`runs/merge_assembled46.log`):
+
+| problem type | datasets | run | entrant |
+| --- | --- | --- | --- |
+| binary | 27 | `fintfm_linprobe_squash_part_1108` (§215) | FinTFM-LinProbe, squash, partition, probe per leaf |
+| multiclass | 7 | `fintfm_lite_dr74_mc` | zero-shot FinTFM, DR7.4 checkpoint |
+| regression | 12 | `cov_regression` (§121) | zero-shot FinTFM, binned regressor |
+
+It scores **862 Elo (+120/−133), 107th of 110 methods, over 46 datasets.** That is above LR
+(default) at 827 and KNN (tuned) at 797, and below LR (tuned) at 923 and RF (default) at 1000.
+The entry mixes two entrants, so it is a planning figure for the 51-dataset decision, not a
+submittable number. The 5 missing datasets are the wide tables. The binary part sits at parity
+with RF (default) on its own (§215), and the other two problem types pull the whole entry down
+to 862. Those two are what `lite-mc-pp` and `lite-reg-pp` measure with the probe.
+
+**A PR also needs the checkpoints public.** Only the binary checkpoint is published
+(`kabartay/fintfm-binary`, Apache-2.0). A 51-dataset entry runs the DR7.4 multiclass
+checkpoint and `v4-regression.pt`, which stay private (see above), so the owner would have to
+publish both before a submission could be reproduced.
