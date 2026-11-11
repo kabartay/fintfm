@@ -14178,3 +14178,61 @@ also below the partition head's +0.0375 (5 of 5, §169).
   rerun is the verdict.
 - §218's measurement stands as a record of the harness as it ran; its reading is replaced by
   this one.
+
+## §220: §215 reproduces exactly on fintfm 0.9.0 from PyPI; all 30 binary datasets give 974 Elo, and the ridge readout beats §121's regression entry on 12 of 12
+
+**MEASURED, TabArena-Lite (repeat 0, fold 0), CPU, 2026-11-11.** Fork `fintfm-audit-fixes` at
+f9ea61d. Logs are in `runs/local_queue/`: `lite-090`, `lite-090-bio` and `lite-reg-pp`.
+Comparisons are in `runs/lite_090_vs_1108.md`, `runs/lite_090_vs_default.md` and
+`runs/lite_reg_pp_vs_default.md`.
+
+**The release reproduces §215 bit for bit on the narrow binary tables.** The run reinstalled the
+fork's venv from the PyPI wheel (`fintfm 0.9.0 .../site-packages/fintfm/__init__.py`,
+`runs/lite_090_fintfm.txt`). It then refit §215's configuration with column selection switched
+on: FinTFM-LinProbe, squash, partitioned contexts, a probe per leaf and
+`max_features_strategy: select`. Against §215's own run (`fintfm_linprobe_squash_part_1108`),
+the 27 shared datasets come out 0 better, 0 worse and 27 tied. On those 27 narrow tables,
+`select` is the default bit for bit, so this is the expected result.
+
+**The three wide binary tables now run, and they cost 26 Elo.** All 30 binary datasets give
+**974 Elo (+138 / −169)**, against §215's 1,000 on 27. The narrow tables are unchanged, so the
+whole difference is the three wide tables entering the pool. On each of them FinTFM is near the
+bottom of 108 methods:
+
+| dataset | columns | ROC-AUC | rank of 108 | best method's error |
+| --- | --- | --- | --- | --- |
+| APSFailure | 170 | 0.9877 | 102 | 0.0019 |
+| Bioresponse | 1,776 | 0.8462 | 103 | 0.1038 |
+| kddcup09_appetency | 212 | 0.7803 | 91 | 0.1474 |
+
+Against the zero-shot default entry (`fintfm_lite_nan_1019`, 756 Elo) the run is better on 24
+paired datasets, worse on 3, sign test p < 0.01, with a mean ROC-AUC gain of +0.0386.
+
+**Bioresponse first failed on a harness defect, not a model one.** The first attempt stopped
+with `feature width at predict time must match fit time`. The fork's probe re-read its training
+rows through the private `_preprocess`, which keeps the columns AutoGluon had dropped for the
+model. The fitted classifier therefore received a wider table than it was fitted on, and refused
+it. Prediction already used the public `preprocess`. Fork commit f9ea61d makes the fix and adds
+a test that fails without it.
+
+The same defect stopped the first multiclass run (`lite-mc-pp`) on its first dataset, and the
+regression run on QSAR-TID-11. On a table where AutoGluon drops no column, both calls return
+the same array. A dropped column always crashed the run, so no earlier Lite number was
+silently affected.
+
+**Regression: the ridge readout beats §121's entry on every paired dataset, and is still near
+the bottom.** `fintfm_linprobe_ridge_reg_1110` uses `v4-regression.pt`, a ridge readout on the
+binned regressor's pre-head representation, squash and `select`. Against `cov_regression` (§121)
+on 12 paired datasets, RMSE falls on 12 of 12: the geometric-mean RMSE ratio is 0.832 and the
+median 0.827. The ratio runs from 0.609 (airfoil_self_noise) to 0.966 (QSAR_fish_toxicity).
+QSAR-TID-11 (1,024 columns) has no §121 counterpart; it is last of 103 methods (RMSE 1.2344,
+best 0.7644). Regression Elo is **436 (+96 / −296)**, against §121's 89. The comparison table's
+"mean ROC-AUC change" of +3,874 is a mean RMSE difference in raw target units, dominated by the
+large-scale targets; read the ratios instead.
+
+**What it says.**
+- PyPI 0.9.0 reproduces §215's result; the release is the configuration the number came from.
+- Column selection covers the wide tables but scores them poorly. That cost is the price of the
+  no-exclusion rule DR7.6 sets for the PR.
+- The multiclass rerun (`lite-mc-pp2`) and the 51-dataset merge (`merge-all51`) are queued; the
+  overall Elo for DR7.6 comes from the merge.
