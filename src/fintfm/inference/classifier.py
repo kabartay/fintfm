@@ -722,6 +722,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         y: np.ndarray,
         groups: np.ndarray | None = None,
         periods: np.ndarray | None = None,
+        n_observed: np.ndarray | None = None,
     ) -> FinancialTFMClassifier:
         """Store the table as in-context evidence. **No gradient steps are taken** unless
         ``finetune_steps > 0`` (see :meth:`_finetune`).
@@ -750,6 +751,13 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
                 periods can then pass them for every checkpoint without changing a flag-off
                 prediction. Query rows never carry a period, so none is asked for at predict
                 time.
+            n_observed: Optional ``(n,)`` non-negative integer count of horizons each row
+                actually carries a label for (``SurvivalDataset.n_observed``), so a row
+                observed for three horizons is not mistaken for a five-horizon survivor
+                (survival-context-labels, task 31.2). Unlike ``periods`` it is stored for
+                **every** checkpoint, because no model reads it yet (task 31.3): it is
+                carried through context selection and exposed by
+                :attr:`context_n_observed_`, and omitting it changes nothing.
 
         Raises:
             ValueError: If the task exceeds the checkpoint's class or feature capacity. It
@@ -763,7 +771,8 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
                 :meth:`_validate_combination` refuses, and for the fine-tuning settings
                 :meth:`_finetune` rejects. Also if ``periods`` does not have one entry per row,
                 or, for a ``hazard_period_context`` checkpoint, is missing, not integer, or
-                outside ``[CENSORED, n_horizons - 1]``.
+                outside ``[CENSORED, n_horizons - 1]``, or if ``n_observed`` has the wrong
+                length or is not a non-negative integer array.
         """
         self._check_ensemble_settings()
         X = np.asarray(X, dtype=np.float32)
@@ -771,6 +780,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         if groups is not None and len(groups) != len(y):
             raise ValueError(f"groups has {len(groups)} entries for {len(y)} rows")
         periods = self._check_periods(periods, len(y))
+        n_observed = self._check_n_observed(n_observed, len(y))
         self._temperature = 1.0
         self.train_rows_ = np.arange(len(y), dtype=np.int64)
         self.calibration_rows_ = np.empty(0, dtype=np.int64)
@@ -783,6 +793,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             X, y = X[self.train_rows_], y[self.train_rows_]
             groups = None if groups is None else np.asarray(groups)[self.train_rows_]
             periods = None if periods is None else periods[self.train_rows_]
+            n_observed = None if n_observed is None else n_observed[self.train_rows_]
         self.n_features_in_ = X.shape[1]
         # DR8.3: a wide table is cut to its best columns here, on training rows only, so
         # everything below (conditioning, context, members) sees an ordinary narrow table
@@ -802,6 +813,8 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         # None unless the checkpoint reads context periods; aligned with _raw_y, so an
         # ensemble member redrawing its own context takes the periods of its own rows
         self._raw_period = periods
+        # None unless the caller passed n_observed; read by no model, stored for every one
+        self._raw_n_observed = n_observed
         # kept unconditioned so an ensemble member can redraw its own context and refit the
         # conditioner from scratch, rather than inheriting this instance's draw
         self._raw_X, self._raw_y = X, y
@@ -892,7 +905,12 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         full_prior = np.bincount(y_coded, minlength=n_classes) / len(y_coded)
         # the same indices as the stored rows, so a context row keeps its own period
         self._store_context(
-            X[idx], y_coded[idx], None if periods is None else periods[idx], idx, full_prior
+            X[idx],
+            y_coded[idx],
+            None if periods is None else periods[idx],
+            idx,
+            full_prior,
+            None if n_observed is None else n_observed[idx],
         )
         if X_cal is not None and y_cal is not None:
             self._temperature = self._fit_temperature(X_cal, y_cal)
@@ -995,6 +1013,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         period: np.ndarray | None,
         idx: np.ndarray,
         full_prior: np.ndarray,
+        n_observed: np.ndarray | None = None,
     ) -> None:
         """Keep a context and the base-rate correction it implies; :meth:`fit`'s last step.
 
@@ -1008,6 +1027,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             period: ``(m,)`` their periods, or ``None`` when the checkpoint reads none.
             idx: ``(m,)`` their indices into :meth:`fit`'s rows.
             full_prior: ``(n_classes,)`` class shares over every row :meth:`fit` received.
+            n_observed: ``(m,)`` their observed-horizon counts, or ``None`` when not given.
         """
         n_classes = len(full_prior)
         self.context_indices_ = np.asarray(idx, dtype=np.int64)
@@ -1015,6 +1035,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         self._ctx_X = X
         self._ctx_y = y_coded
         self._ctx_period = period
+        self._ctx_n_observed = n_observed
         # positive-class rates, kept for the term-structure correction, which needs a
         # scalar log-odds shift rather than the per-class vector below
         pos = n_classes - 1
@@ -1068,6 +1089,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         label_map = {c: i for i, c in enumerate(self.classes_)}
         y_coded = np.array([label_map[v] for v in self._raw_y[rows]], dtype=np.int64)
         period = getattr(self, "_raw_period", None)
+        n_obs = getattr(self, "_raw_n_observed", None)
         twin = copy.copy(self)
         # conditioning is row-wise, so conditioning the subset equals subsetting fit's rows
         twin._store_context(
@@ -1076,8 +1098,64 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             None if period is None else period[rows],
             rows,
             self._full_prior,
+            None if n_obs is None else n_obs[rows],
         )
         return twin
+
+    @property
+    def context_period_(self) -> np.ndarray | None:
+        """Default period of each stored context row, aligned with ``context_indices_``.
+
+        ``None`` unless the checkpoint reads context periods (``hazard_period_context``),
+        which is the only case :meth:`fit` stores them for. A copy: editing it leaves the
+        context untouched. Under retrieval the stored context is the whole pool.
+
+        Raises:
+            sklearn.exceptions.NotFittedError: Before :meth:`fit`.
+        """
+        check_is_fitted(self, "_ctx_X")
+        period = getattr(self, "_ctx_period", None)
+        return None if period is None else period.copy()
+
+    @property
+    def context_n_observed_(self) -> np.ndarray | None:
+        """Observed-horizon count of each stored context row, aligned with ``context_indices_``.
+
+        ``None`` when :meth:`fit` was not given ``n_observed``. A copy.
+
+        Raises:
+            sklearn.exceptions.NotFittedError: Before :meth:`fit`.
+        """
+        check_is_fitted(self, "_ctx_X")
+        n_obs = getattr(self, "_ctx_n_observed", None)
+        return None if n_obs is None else n_obs.copy()
+
+    def _check_n_observed(self, n_observed: np.ndarray | None, n_rows: int) -> np.ndarray | None:
+        """Validate :meth:`fit`'s ``n_observed`` and return what the context should store.
+
+        Args:
+            n_observed: The ``n_observed`` argument of :meth:`fit`.
+            n_rows: Training rows, which it must match one for one.
+
+        Returns:
+            ``None`` when omitted, else a ``(n_rows,)`` int64 array.
+
+        Raises:
+            ValueError: If it has the wrong length, is not integer, or has a negative entry.
+        """
+        if n_observed is None:
+            return None
+        n_observed = np.asarray(n_observed)
+        if n_observed.shape != (n_rows,):
+            raise ValueError(
+                f"n_observed has shape {n_observed.shape} for {n_rows} rows; pass one count "
+                "per row"
+            )
+        if not np.issubdtype(n_observed.dtype, np.integer):
+            raise ValueError(f"n_observed must be integers, got dtype {n_observed.dtype}")
+        if n_observed.size and n_observed.min() < 0:
+            raise ValueError(f"n_observed must be non-negative, got minimum {n_observed.min()}")
+        return n_observed.astype(np.int64)
 
     @property
     def context_summary_(self) -> ContextSummary:
@@ -1892,6 +1970,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             self._raw_X if X is None else X,
             self._raw_y if y is None else y,
             periods=getattr(self, "_raw_period", None),
+            n_observed=getattr(self, "_raw_n_observed", None),
         )
 
     @torch.no_grad()

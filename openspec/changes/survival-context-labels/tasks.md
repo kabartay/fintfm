@@ -10,7 +10,7 @@
       so the filter removes defaulters and drops the context rate from 1.54% to 0.19%; the
       gain is §29's base-rate effect, not an observation-depth effect. No cheap unconfounded
       test exists. Tasks 31.2+ now sit behind `retrieval-context`.
-- [ ] 31.2 Extend `FinancialTFMClassifier.fit` to accept `period` and `n_observed`, carried
+- [x] 31.2 **Done (2026-11-11, src/fintfm/inference/classifier.py, tests/test_context_labels.py: test_selected_context_labels_equal_the_selected_rows_labels, test_omitting_or_adding_n_observed_leaves_the_binary_path_byte_identical; `periods` already existed under AU5.9, so this adds `n_observed` and the public `context_period_` / `context_n_observed_`).** Extend `FinancialTFMClassifier.fit` to accept `period` and `n_observed`, carried
       through context selection intact. Verify: a test asserting the selected context's period
       distribution matches the selected rows, and that omitting them leaves the binary path
       byte-identical.
