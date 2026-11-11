@@ -290,6 +290,43 @@ def find_scores(out_dir: Path, ckpt: Path) -> Path | None:
     return None
 
 
+#: Where an arm's capability-probe record may sit under its fetched directory, in order.
+PROBE_FILES = ("probe/capability.json", "capability.json", "capability/capability.json")
+
+
+def teaching_axis(out_dir: Path, arm: str) -> dict:
+    """The arm's antisymmetric-probe AUC, the "teaching" axis that sits beside protocol AP.
+
+    ``docs/results/FINDINGS.md`` §63 showed a prior can transfer well (high V4FinBench AP) while
+    teaching badly (low antisymmetric-probe AUC), so a verdict that carried AP alone would hide
+    it. The probe record is the ``capability.json`` written by ``fintfm.experiments.capability``.
+
+    Args:
+        out_dir: The fetched directory.
+        arm: The arm (checkpoint stem), as named in the probe record.
+
+    Returns:
+        ``{"antisymmetric_auc": float | None, "symmetric_auc": {probe: float}, "source": str}``.
+        The AUC is ``None`` and ``source`` says why when no record or no row for the arm exists:
+        a missing axis is stated, never silently dropped.
+    """
+    for base, rel in ((b, r) for b in (out_dir / arm, out_dir) for r in PROBE_FILES):
+        f = base / rel
+        if not f.is_file():
+            continue
+        rows = [r for r in json.loads(f.read_text())["results"] if r["arm"] == arm]
+        by = {r["probe"]: float(r["auc_mean"]) for r in rows}
+        if "antisymmetric" in by:
+            return {"antisymmetric_auc": by["antisymmetric"],
+                    "symmetric_auc": {k: by[k] for k in ("symmetric_sum", "symmetric_count")
+                                      if k in by},
+                    "source": str(f)}
+        return {"antisymmetric_auc": None, "symmetric_auc": {},
+                "source": f"{f}: no antisymmetric row for arm {arm}"}
+    return {"antisymmetric_auc": None, "symmetric_auc": {},
+            "source": "not run: no capability.json under " + str(out_dir)}
+
+
 def cmd_prepare(args: argparse.Namespace) -> int:
     """Run the ``prepare`` subcommand; returns the exit status."""
     out_dir: Path = args.out_dir
@@ -348,6 +385,7 @@ def cmd_verdict(args: argparse.Namespace) -> int:
         "mean_ap_control": float(np.mean([r["control"] for r in rows])),
         "folds": [{k: (list(v) if isinstance(v, tuple) else v) for k, v in r.items()}
                   for r in rows],
+        "teaching_axis": teaching_axis(out_dir, arm),
         "lever_flags": lever_flags(kernel["flags"]),
         "differs_from_control": differs,
         "recipe_matches_control_execution": all(
@@ -358,6 +396,10 @@ def cmd_verdict(args: argparse.Namespace) -> int:
     print(f"{arm}: mean AP {rec['mean_ap_arm']:.4f} vs {rec['mean_ap_control']:.4f}, "
           f"diff {rec['mean_diff']:+.4f}, {rec['folds_positive']}/5 positive "
           f"({boot}-level bootstrap) -> {rec['verdict'].upper()}")
+    ta = rec["teaching_axis"]
+    print(f"{arm}: antisymmetric-probe AUC "
+          + (f"{ta['antisymmetric_auc']:.4f}" if ta["antisymmetric_auc"] is not None
+             else f"MISSING ({ta['source']})") + " beside the protocol AP above (§63)")
     if not rec["recipe_matches_control_execution"]:
         print("note: batch size or steps differ from the control's; a confound the verdict "
               "does not remove (dr8.3_2026-11.md)")

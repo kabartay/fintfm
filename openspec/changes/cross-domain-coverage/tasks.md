@@ -10,7 +10,7 @@
       between their priors — missingness, per-column separability, correlation structure.
       Verify: recorded as a finding that names which property tracks transfer and which does
       not. **Gates 38.4-38.6** — building variants before this is guessing.
-- [ ] 38.3 **Report both axes for every checkpoint, always.** Verify: the arm evaluator emits
+- [x] 38.3 **Done (2026-11-11, `scripts/dr64_arm_verdict.py` `teaching_axis` and `cmd_verdict`, `tests/test_dr64_arm_verdict.py::test_verdict_emits_probe_and_ap_side_by_side`).** **Report both axes for every checkpoint, always.** Verify: the arm evaluator emits
       symmetry-probe scores *and* protocol AP side by side, because §63 showed a prior can
       transfer well while teaching badly and a single column hides that.
 - [ ] 38.4 **Strip missingness from the financial generator** and pretrain at §58's

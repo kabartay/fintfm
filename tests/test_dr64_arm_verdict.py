@@ -119,6 +119,33 @@ def test_verdict_writes_file_and_applies_rule(runs):
     assert rec["folds_positive"] == 5
 
 
+def _probe_record(path: Path, arm: str, auc: float | None) -> None:
+    rows = [{"probe": "linear", "arm": arm, "auc_mean": 0.99, "auc_std": 0.0, "n": 3}]
+    if auc is not None:
+        rows.append({"probe": "antisymmetric", "arm": arm, "auc_mean": auc, "auc_std": 0.0,
+                     "n": 3})
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"results": rows}))
+
+
+def test_verdict_emits_probe_and_ap_side_by_side(runs, capsys):
+    out = _fetched(runs)
+    _write_scores(out / ARM / "score", 0.8)
+    _probe_record(out / ARM / "probe" / "capability.json", ARM, 0.5669)
+    assert d.main(["verdict", str(out), "--runs", str(runs), "--n-boot", "50"]) == 0
+    rec = json.loads((out / "dr64_verdict.json").read_text())
+    assert rec["mean_ap_arm"] > 0
+    assert rec["teaching_axis"]["antisymmetric_auc"] == pytest.approx(0.5669)
+    assert "antisymmetric-probe AUC 0.5669" in capsys.readouterr().out
+
+
+def test_missing_probe_is_stated_not_dropped(tmp_path):
+    ta = d.teaching_axis(tmp_path, ARM)
+    assert ta["antisymmetric_auc"] is None and ta["source"].startswith("not run")
+    _probe_record(tmp_path / "capability.json", ARM, None)
+    assert "no antisymmetric row" in d.teaching_axis(tmp_path, ARM)["source"]
+
+
 def test_verdict_refuses_without_scores(runs):
     out = _fetched(runs)
     with pytest.raises(SystemExit):
