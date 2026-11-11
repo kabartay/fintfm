@@ -233,6 +233,41 @@ class CategoricalTargetEncoder:
             out[:, col] = [mapping.get(float(v), fallback) for v in X[:, col]]
         return out.astype(np.float32)
 
+    def unseen_level_fraction(self, X: np.ndarray) -> dict[str, float]:
+        """Fraction of query cells whose level is absent from the fitted context.
+
+        These are exactly the cells :meth:`transform` encodes with the prior (or 0.0 under
+        frequency encoding) because ``maps_`` has no entry for them. An encoder that returns
+        the prior for most of a column is not encoding that column, and a mean score cannot
+        show it, so this is reported beside the score. Predictions are not affected: this
+        method only reads ``maps_``. A NaN level never matches a context key and counts as
+        unseen, which is also what :meth:`transform` does with it.
+
+        Args:
+            X: ``(n, d)`` query features, the same matrix passed to :meth:`transform`.
+
+        Returns:
+            ``{"col<index>": fraction, ..., "total": fraction}``. ``total`` pools every
+            categorical query cell (rows times categorical columns). All values are 0.0
+            when there are no categorical columns or no query rows.
+
+        Raises:
+            RuntimeError: If called before :meth:`fit_transform`.
+        """
+        if not self.maps_ and self.categorical_features:
+            raise RuntimeError("fit_transform must be called before unseen_level_fraction")
+        X = np.asarray(X, dtype=np.float64)
+        out: dict[str, float] = {}
+        unseen_cells = 0
+        for col in self.categorical_features:
+            mapping = self.maps_[col]
+            n_unseen = sum(float(v) not in mapping for v in X[:, col])
+            out[f"col{col}"] = n_unseen / len(X) if len(X) else 0.0
+            unseen_cells += n_unseen
+        cells = len(X) * len(self.categorical_features)
+        out["total"] = unseen_cells / cells if cells else 0.0
+        return out
+
 
 def infer_categorical_features(
     X: np.ndarray, max_levels: int = 2, dtypes: list[str] | None = None

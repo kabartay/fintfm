@@ -22,7 +22,7 @@
 - [ ] 47.4 **Decide on a learned categorical path** from 47.3's result rather than in advance.
       Verify: the decision is recorded in `docs/design/DECISIONS.md` with the measured gain that
       triggered it and the threshold that would reverse it.
-- [ ] 47.5 **Handle the unseen-level case on real data specifically.** High-cardinality columns
+- [x] 47.5 **Done (2026-11-11, `CategoricalTargetEncoder.unseen_level_fraction` in `src/fintfm/inference/categorical.py`; `scripts/categorical_unseen_report.py`; `tests/test_categorical.py::test_unseen_level_fraction_is_exact_per_column_and_in_total`, `::test_unseen_cells_are_exactly_the_cells_that_fall_back_to_the_prior`, `::test_unseen_level_fraction_does_not_change_transform_and_guards_edge_cases`; per-dataset table in `docs/results/drafts/47.5_2026-11-11.md`, measured on a seeded constructed split, not TabArena's fold; predictions unchanged).** **Handle the unseen-level case on real data specifically.** High-cardinality columns
       guarantee query levels absent from context. Verify: the fraction of query cells falling
       back to the prior is reported per dataset — an encoder silently returning the prior for
       most of a column is not encoding that column, and the mean score would hide it.

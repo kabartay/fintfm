@@ -179,3 +179,55 @@ def test_continuous_target_encoding_is_out_of_fold():
     full = enc.transform(X)[:, 0]
     # out-of-fold and full-context encodings must differ; identical means no folding happened
     assert np.abs(oof - full).max() > 1e-6
+
+
+def _unseen_table() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Context with levels {0,1,2} in column 0 and {0,1} in column 1; 10 query rows.
+
+    Column 0 of the query holds 3 levels the context never saw (7, 8, 9); column 1 holds none.
+    """
+    Xc = np.array([[0, 0], [1, 1], [2, 0], [0, 1], [1, 0], [2, 1]], dtype=float)
+    yc = np.array([0, 1, 0, 1, 0, 1])
+    Xq = np.array(
+        [[0, 0], [1, 1], [2, 0], [0, 1], [1, 0], [2, 1], [0, 0], [7, 1], [8, 0], [9, 1]],
+        dtype=float,
+    )
+    return Xc, yc, Xq
+
+
+def test_unseen_level_fraction_is_exact_per_column_and_in_total():
+    """3 of 10 query cells unseen in column 0, 0 of 10 in column 1, so 3 of 20 in total."""
+    Xc, yc, Xq = _unseen_table()
+    enc = CategoricalTargetEncoder(categorical_features=[0, 1])
+    enc.fit_transform(Xc, yc)
+    frac = enc.unseen_level_fraction(Xq)
+    assert frac["col0"] == pytest.approx(0.3)
+    assert frac["col1"] == 0.0
+    assert frac["total"] == pytest.approx(0.15)
+
+
+def test_unseen_cells_are_exactly_the_cells_that_fall_back_to_the_prior():
+    """The reported fraction must describe what transform does, not a parallel definition."""
+    Xc, yc, Xq = _unseen_table()
+    enc = CategoricalTargetEncoder(categorical_features=[0, 1])
+    enc.fit_transform(Xc, yc)
+    out = enc.transform(Xq)
+    assert np.all(out[7:, 0] == np.float32(enc.prior_))
+    assert enc.unseen_level_fraction(Xq)["col0"] == pytest.approx(3 / 10)
+
+
+def test_unseen_level_fraction_does_not_change_transform_and_guards_edge_cases():
+    """Calling the report leaves predictions untouched; no categoricals and unfitted behave."""
+    Xc, yc, Xq = _unseen_table()
+    enc = CategoricalTargetEncoder(categorical_features=[0, 1])
+    enc.fit_transform(Xc, yc)
+    before = enc.transform(Xq)
+    enc.unseen_level_fraction(Xq)
+    assert np.array_equal(before, enc.transform(Xq))
+
+    plain = CategoricalTargetEncoder(categorical_features=[])
+    plain.fit_transform(Xc, yc)
+    assert plain.unseen_level_fraction(Xq) == {"total": 0.0}
+
+    with pytest.raises(RuntimeError):
+        CategoricalTargetEncoder(categorical_features=[0]).unseen_level_fraction(Xq)
