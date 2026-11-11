@@ -86,6 +86,52 @@ is cheaper than being caught.
   halves are jointly necessary: without labels the variant scores **below chance**.
 - **3.4 What it costs.** Column-order invariance becomes distributional rather than exact
   (D12), recovered by ensembling over identity draws.
+- **3.5 The priors, both of them.** Sections 3.1 to 3.4 describe the encoder. What it is
+  trained on is two generators, `src/fintfm/prior/financial.py` and `src/fintfm/prior/scm.py`,
+  drawn per task by `src/fintfm/prior/mixture.py`. Both are ours, nothing in either is fitted
+  to real data, and neither is the paper's subject; the paper needs them described because the
+  evidence about which one to train on is mixed and depends on the panel.
+
+  *The financial prior.* A structural story: a macro regime, a sector mix, company scale, then
+  accounting quantities that obey identities (assets = debt + equity, interest = debt times
+  rate). Features are a derived numerator/denominator ratio family, which is how real panels
+  such as the Polish one are wide. A latent distress score (a signed linear combination of
+  about nine drivers, one optional two-way interaction, a sigmoid) gives the label, at a
+  sampled base rate of 0.1% to 30%, with log or rank transforms, MCAR and MNAR missingness and
+  shuffled column order applied afterwards. Its realised difficulty is bounded: of 92 sampled
+  financial tasks (45 default, 47 sharpened) none reached a realised AUC above 0.99, against
+  17.5% of 57 generic-SCM tasks (§77, MEASURED, gradient boosting on an in-task split).
+
+  *The generic SCM prior.* A TabPFN-style random layered graph: 1 to 4 layers, a randomly
+  chosen activation per layer (seven, including per-column rank and row softmax), Cauchy-
+  weighted sparse edges, and features and target read from random nodes, with up to 10 classes.
+  It encodes no domain. It is the reference for tracking a known Bayes ceiling: on the exact
+  Bayes-AUC probe (§74, MEASURED, 10 seeds by 8 column-identity draws) the old-architecture
+  pure-SCM checkpoint reached 0.997 against a true 0.999, where the pure-financial one
+  reached 0.728. §78 later showed that cap was architectural: with two-way cell attention the
+  pure-financial checkpoint reaches 0.998 (regret 0.001), so §74 is no longer evidence
+  against the financial prior's content. The mixture also holds a tree prior, task families
+  and a gated source (§115, §141, §180), covered in the negative-results record.
+
+  *Which one the real-data evidence favours, by panel.* This is the current state; it is
+  not one verdict.
+
+  | panel | favours | evidence | status |
+  | --- | --- | --- | --- |
+  | V4FinBench, horizon 0 | financial | §63: `finbal` over `fin00` +0.0982 AP, Holm p 0.002, fold 0 only, 79 positives, old architecture, MEASURED. §180/§191, five folds, zero-shot mean AP: financial-only `e1-v48-s0` 0.1975; general trunk (SCM 0.4286, tree, task families, gated; no financial share) 0.0713; MEASURED, one seed each | holds with cell attention. Giving up financial share costs AP: `scm50` (0.5 financial, 0.5 SCM) 0.1342 against 0.1681 at 0.7 (§118, five folds, MEASURED, caveated by §166) |
+  | Polish bankruptcy (1, 3 and 5 years) | SCM | §75: `fin00` over `fin07` in AP, 0.1363 against 0.1185 (1y), 0.1191 against 0.1071 (3y), 0.3021 against 0.2763 (5y); one 70/30 split each, MEASURED | **not re-measured since §78.** Old architecture; §75 itself is marked superseded in part, and the "SCM is the stronger default" reading is weakened |
+  | Taiwanese bankruptcy | SCM | §75: AP 0.3223 against 0.2569 (+0.065), ROC-AUC 0.9220 against 0.8858; one 70/30 split, MEASURED | same: not re-measured with cell attention |
+  | 15 OpenML tasks (general tabular) | SCM, slightly | §96: SCM better on 11 of 15, +0.0100 mean over the financial prior, both behind the best baseline on 14 of 15 (deficit 0.1442 financial, 0.1342 SCM); one split per task, untuned baselines, metric not stated in the section; MEASURED | the SCM arm carried a handicap (`column_id_dim` 12 against 16), so the gap may be near +0.025 |
+  | Proxy suite, 16 binary tasks | general trunk | §191: Elo 764 (trunk then financial v2), 729 (trunk alone) against 548 for `e1-v48-s0`; sign tests 13 to 3 (p 0.021) and 14 to 2 (p 0.0042); MEASURED, one seed per arm | the trunk is a mixture, not pure SCM |
+
+  Read together: the financial prior is the better choice on V4FinBench and the generic side
+  is the better choice on general tabular data and, in the one measurement taken, on Polish
+  and Taiwanese bankruptcy. The Polish and Taiwanese result predates the cell-attention fix
+  and has never been repeated with it, so "SCM wins two of three credit panels" is a
+  statement about the old encoder. One checkpoint cannot currently serve both V4FinBench and
+  the proxy suite (§191); whether to name a credit checkpoint and a general checkpoint is an
+  open decision for the owner. FinTFM-R's real-data sources are a separate family and are not
+  part of either prior described here.
 
 ## 4. Experimental protocol
 
@@ -140,7 +186,7 @@ transfers; and the resulting model is still far from competitive, in a way that 
 
 - Reproduction: `configs/`, the entry points, the packaged default config, and
   `config_sources` recorded in every run's JSON.
-- The prior's generative process in full.
+- The priors' generative processes in full (both; summary in 3.5).
 - **The failure log.** [`../results/POSTMORTEM.md`](../results/POSTMORTEM.md) — wrong diagnoses, each caught by
   measurement rather than review. **Include it.** It is unusual, it is the strongest available
   evidence that the numbers were adversarially checked, and it costs nothing but candour.

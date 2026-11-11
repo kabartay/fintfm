@@ -95,7 +95,7 @@
       it cannot change a task's label-relevant information; and the §74 Bayes-ceiling probe is
       run on the resulting checkpoint before any other claim, since a prior change that
       degrades basic signal extraction must be caught by the instrument built for exactly that.
-- [ ] 40.9 **Document the SCM prior as a method, not only as a comparison arm.** `docs/paper/`
+- [x] 40.9 **Done (2026-11-11, docs/paper/OUTLINE.md §3.5).** **Document the SCM prior as a method, not only as a comparison arm.** `docs/paper/`
       currently mentions it only as a baseline, and `docs/paper/OUTLINE.md` §3.1 describes "the prior" as
       the financial generator alone — while §73/§75 measured the generic SCM prior *beating*
       the financial one on two of three real panels. Verify: `docs/paper/OUTLINE.md`'s method section
