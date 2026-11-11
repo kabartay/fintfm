@@ -1,6 +1,6 @@
 # Tasks
 
-- [ ] 44.1 **Write the cost model down and check it against the three measurements.** Derive
+- [x] 44.1 **Done (2026-11-11, docs/design/attention_cost_model.md).** **Write the cost model down and check it against the three measurements.** Derive
       attention cost for the current encoder and for a three-stage factorization at
       V4FinBench's shape (136 features, N up to 4096), and confirm the derivation reproduces
       §79's measured 16 GB at N=2024 and §94's OOM at `n_rows=1024` for 5M parameters. Verify:
