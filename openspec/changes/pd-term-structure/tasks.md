@@ -34,7 +34,7 @@
       incoherent curves for 2 firms in 3. The trade is now quantified.**
 - [ ] 11.8 Upgrade 11.7 to the Holm-corrected paired bootstrap used in §14, rather than
       across-seed means. Verify: per-cell deltas with CIs and a corrected verdict in §21.
-- [ ] 11.6 Write the IFRS 9 framing down properly before any customer conversation: what
+- [x] 11.6 **Done (2026-11-11, docs/roadmap/STRATEGY.md "IFRS 9 framing: what lifetime ECL needs, what fintfm does not supply, what it does").** Write the IFRS 9 framing down properly before any customer conversation: what
       lifetime ECL requires, what the model supplies, and what it does not (LGD, EAD,
       discounting). Verify: a section in `docs/roadmap/STRATEGY.md` that states the gaps before the
       capabilities.

@@ -166,6 +166,114 @@ a model-risk function can validate is the product.
 `finkele-axiom` transfers directly here: a validation protocol producing a certificate with
 conformal coverage and honest refusals is the same machinery pointed at a different domain.
 
+## IFRS 9 framing: what lifetime ECL needs, what fintfm does not supply, what it does
+
+Written 2026-11-11 for `openspec/changes/pd-term-structure` task 11.6, to be read before any
+customer conversation. **Gaps first.** Every capability below carries its `FINDINGS` section
+and its label (MEASURED, PROVED, ESTIMATED, SMOKE-TEST). Where a number was measured before
+the §54 column-identity fix, it is marked, because §56 lists the survival and hazard work of
+§26-§40 for re-measurement.
+
+### What IFRS 9 requires
+
+Source: IFRS Foundation, *IFRS 9 Financial Instruments, Project Summary*, July 2014
+(`https://www.ifrs.org/content/dam/ifrs/project/fi-impairment/ifrs-standard/published-documents/project-summary-july-2014.pdf`,
+pp. 15-19). The full standard text is behind an IFRS Digital subscription and was **not**
+read, so this section cites no paragraph numbers. Read the standard itself before quoting a
+paragraph to a customer.
+
+- **Expected credit loss (ECL), not incurred loss.** Credit losses are "the present value of
+  all cash shortfalls"; ECL is an estimate of them over the life of the instrument.
+- **Two measurement bases, set by staging.** Stage 1: 12-month ECL from origination. Stage 2:
+  lifetime ECL once credit risk has increased significantly since initial recognition (and
+  the asset is not low credit risk). Stage 3: credit-impaired, lifetime ECL continues.
+- **12-month ECL is not a 12-month cash shortfall.** It is the lifetime ECL from default events
+  possible in the 12 months after the reporting date, "weighted by the probability that this
+  loss will occur in the next 12 months".
+- **Significant increase in credit risk (SICR)** is judged on the likelihood or risk of default
+  since initial recognition. The summary says IFRS 9 "does not mandate the use of an explicit
+  probability of default" for this, and describes a rebuttable presumption at more than 30
+  days past due as a backstop.
+- **The estimate must reflect** (a) a probability-weighted outcome, neither best nor worst
+  case; (b) the time value of money, discounted to the reporting date; and (c) reasonable and
+  supportable information, available without undue cost or effort, covering past events,
+  current conditions and forecasts of future conditions.
+- **No prescribed method.** "IFRS 9 does not prescribe particular measurement methods."
+  PD x LGD x EAD is the usual way lenders build the number, not a requirement of the
+  standard. The summary does not name the discount rate; discounting at the effective
+  interest rate is **to be confirmed against the standard text**, not asserted here.
+
+### What fintfm does not supply
+
+1. **No LGD and no EAD.** `docs/paper/LIMITATIONS.md` ("ECL needs three inputs") states it.
+   A binned regression head now exists (§106 on synthetic probes; §121 on 12 TabArena
+   regression datasets, where it ranks last on 5 of 12, mean rank 93.1, MEASURED). **No LGD
+   or EAD panel has been scored**, so there is no LGD or EAD number to offer.
+2. **No discounting.** The model has no cash-flow schedule, contractual terms, repayment
+   profile or effective interest rate. It emits a probability curve, not a present value.
+3. **No ECL.** Nothing here multiplies PD, LGD, EAD and a discount factor. Any statement that
+   fintfm "computes IFRS 9 ECL" is false. It supplies a PD input.
+4. **No staging and no SICR test.** SICR compares credit risk now with credit risk at
+   origination. The model scores a row as presented and stores no origination PD. Staging
+   rules, the 30-day backstop and low-credit-risk exemptions sit outside it.
+5. **No forward-looking scenarios.** There are no macroeconomic inputs and no scenario
+   weights. The output is one curve per row, not a probability-weighted set of scenario
+   curves. How a lender would condition it on forecasts is unbuilt and unmeasured.
+6. **Point-in-time versus through-the-cycle is undetermined.** `docs/paper/LIMITATIONS.md` lists it as
+   **[verify]**. The prior samples a parametric macro regime, and the base-rate correction
+   (D5) shifts the curve to the population's default rate, but which of the two the output
+   corresponds to has not been tested. Do not describe it as either.
+7. **A short, fixed horizon grid, not a lifetime.** The head predicts K discrete periods
+   (`HazardHead(n_horizons=K)`). The panels are annual: UCI Polish has five horizons and
+   V4FinBench six. Lifetime ECL on a multi-year amortising loan needs the curve to the
+   instrument's maturity. The model supplies nothing beyond the grid it was trained on.
+8. **The 12-month point is not yet mapped to the standard's definition.** The first grid
+   point equals "PD over the next 12 months" only if the label is default within 12 months
+   of the scoring date. That has not been checked against each panel's label definition.
+9. **No valid real-data accuracy or calibration number for the term structure today.** The
+   out-of-time results on V4FinBench (§26, §30, §32, §33) were measured through the §54
+   encoder ceiling and §56 lists them for re-measurement. They are not quoted here. §26's
+   headline level error was also our own bug (§28), and a hazard checkpoint serves the
+   survival path only (§34).
+10. **No IFRS 9 validation evidence.** Coverage and the certificate (Phase 3) are not built
+    for the term structure. Nothing here has been reviewed by a model-risk function or an
+    auditor.
+11. **Marginal PD is not exposed.** `predict_term_structure` returns cumulative PD, shape
+    `(n, n_horizons)`. Period PD is the difference of adjacent columns.
+
+So the accurate sentence for a customer is: *fintfm produces a coherent cumulative PD curve
+over a short annual grid, which is one input to a lifetime ECL calculation. It does not
+produce LGD, EAD, discounting, staging or scenarios.* This is the sentence `docs/paper/LIMITATIONS.md`
+already requires beside any use of the words "IFRS 9".
+
+### What fintfm supplies
+
+Each claim is tied to its evidence. All are about the PD term structure only.
+
+| claim | evidence | label |
+| --- | --- | --- |
+| Cumulative PD is non-decreasing in the horizon for any weights, by construction (`F_k = 1 - prod(1 - h_j)`, hazards in (0, 0.999]). Public path: `FinancialTFMClassifier.predict_term_structure`; the base-rate correction keeps it monotone because the shift is strictly increasing | §20; `tests/test_hazard.py`, including weights scaled 500x | **PROVED** (structural) |
+| 0 violations in 12,000 horizon steps after training on synthetic survival tasks | §20 | MEASURED, synthetic |
+| The same guarantee held out of time on real data: 0.00% violations and 100% monotone curves, against 39.06% and 1.4% for per-horizon logistic regression (V4FinBench, 72,622 train rows to 2016, 47,378 test rows from 2017) | §26 | MEASURED, **before the §54 fix**; the coherence result is structural, the same run's AUC and ECE are not quotable |
+| Independently trained per-horizon models contradict themselves: 11.0% of horizon steps and 39.4% of firms (60.6% fully monotone) on 3,151 held-out UCI Polish rows, five horizons, while the portfolio mean stays monotone | §11 | MEASURED, 5,000-step checkpoint, **before the §54 fix**; the UCI files have no firm identifiers, so this is not a nested panel |
+| Joint hazard prediction costs no discrimination at matched total compute: AUC +0.0008 +/- 0.0025 over 3 seeds; at 5x compute the per-horizon baseline is ahead by 0.0084 +/- 0.0032 AUC and still gives incoherent curves (22.81% of steps violated) | §21 | MEASURED, synthetic survival tasks, 3 seeds, **before the §54 fix**; across-seed means only, Holm-corrected paired bootstrap still owed (task 11.8) |
+| One model serves the whole curve, against five per-horizon models | §21 | MEASURED (a count, not a quality claim) |
+
+What this table does not claim: that the curve is accurate or calibrated on any real book,
+that it beats a calibrated per-horizon baseline on discrimination (at 5x compute it does
+not, in synthetic tests), or that the hazard construction is new. Discrete-time hazard
+models are decades old, and `docs/paper/CLAIMS.md` Claim 1 frames this as a measurement of
+a live defect in the field's standard construction, not a new method.
+
+### Open before the first customer conversation
+
+- Re-measure the real-data term structure (§26-§33) on a post-§54 checkpoint, with the level
+  printed beside the observed rate. Until then gap 9 stands.
+- Read the standard text itself (IFRS Digital) and replace the summary-level citations with
+  paragraph references, including the discount rate.
+- Settle point-in-time versus through-the-cycle by test, then say so in `docs/paper/LIMITATIONS.md`.
+- Score an LGD or EAD panel before the words "three inputs" are said in the present tense.
+
 ## Phases, each with a falsifiable exit condition
 
 ### Phase 0 — foundations. **Done.**
