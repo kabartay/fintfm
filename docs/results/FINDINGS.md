@@ -281,6 +281,59 @@ model has not been pretrained. Recorded because the cheapest moment to start a c
 always now, and because this is the one strategy identified this session that a funded
 competitor cannot simply outspend.
 
+### Power calculation (added 2026-11-11, openspec task 6.2) -- ESTIMATED
+
+**Verdict on scope: a cohort of a few thousand firms detects nothing useful. A difference of
+0.03 AUC or less needs a cohort of roughly 100,000 firms or more.** Nothing below is measured
+on a model or a cohort; it is a calculation from assumed inputs, run by
+`scripts/register_power.py` (Hanley and McNeil 1982 variance for one AUC; the difference of two
+AUCs on the same firms has variance V1 + V2 - 2 r sqrt(V1 V2), the Hanley and McNeil 1983 form
+that DeLong et al. 1988 estimate non-parametrically; alpha 0.05 two-sided, 80% power, one year
+of outcomes, weaker model AUC 0.80 assumed). The correlation r between the two models' AUC
+estimates is **assumed**, not measured. The table shows 0.5; the script prints 0.3, 0.5, 0.7
+and 0.9. Two models built on the same financial ratios will plausibly sit at 0.7 or higher,
+which helps, but no value is established for this project's models.
+
+**Default rate used.** External figure: 49.9 company insolvencies per 10,000 companies on the
+effective register (0.499% a year), England and Wales, 12 months to 30 September 2026
+(Insolvency Service, Company Insolvency Statistics September 2026,
+<https://www.gov.uk/government/statistics/company-insolvencies-september-2026>, published
+2026-10-20). The denominator is registered companies, not active ones; the same series gave
+52.5 per 10,000 for calendar 2025. Insolvency is a narrower event than the V4FinBench default
+label, and a cohort of companies with filed accounts will not match the whole register, so the
+real cohort rate could differ. For comparison, the rate measured in this repo is V4FinBench
+0.36% at h=0 (§22).
+
+Minimum detectable AUC difference (MDD), r = 0.5, weaker-model AUC 0.80:
+
+| cohort | defaults a year, UK 0.499% | CI half-width, one AUC | MDD, UK rate | defaults a year, V4 0.36% | CI half-width | MDD, V4 rate |
+| --- | --- | --- | --- | --- | --- | --- |
+| 5,000 | 24.9 | 0.105 | 0.132 | 18.0 | 0.123 | 0.153 |
+| 20,000 | 99.8 | 0.052 | 0.070 | 72.0 | 0.062 | 0.082 |
+| 100,000 | 499 | 0.023 | 0.033 | 360 | 0.028 | 0.038 |
+| 500,000 | 2,495 | 0.011 | 0.015 | 1,800 | 0.012 | 0.017 |
+| 2,000,000 | 9,980 | 0.005 | 0.007 | 7,200 | 0.006 | 0.009 |
+
+At r = 0.9 the UK-rate MDD is 0.065 at 5,000 firms, 0.033 at 20,000 and 0.015 at 100,000. At a
+weaker-model AUC of 0.90 the 5,000-firm cohort cannot detect any gain at r of 0.7 or below
+(`--auc 0.90`). A derived upper-side illustration with active companies as the denominator
+(about 1.14%: 23,938 insolvencies in 2025 over about 2.1 million active companies, two
+different Insolvency Service releases combined, so rough) roughly halves the cohort needed for
+the same MDD.
+
+**What this means.** (1) At 5,000 firms the register is a credibility exercise, not a
+statistical one: about 25 defaults a year, a single-model AUC known to about +/-0.10, and no
+detectable difference below about 0.13 (r 0.5) or 0.07 (r 0.9). A null there is not parity.
+(2) Even 100,000 firms resolve only differences near 0.03 AUC; the ranking gaps measured
+between model families in this project are mostly smaller (§12 calls the ranking advantage
+narrow), so the register would settle only large ranking gaps. (3) Further years of outcomes
+add defaults roughly linearly and shrink these intervals by about the square root of the years
+elapsed. (4) The feasible cohort size is not yet known: it depends on 6.1 (data source and
+licence), which is open, and no Companies House data has been fetched. If the licensed source
+cannot supply on the order of 100,000 firms with filed accounts, reconsider the scope: describe
+the register as a credibility exercise only, or pool outcomes over several years. Absolute
+calibration needs far fewer defaults than a model comparison and is not covered here.
+
 ## 4. Energy dominates TSFM pretraining because its data is free; finance is empty because its data is not
 
 **Date:** 2026-09-08. **Status:** the absence is MEASURED (read directly from a published
