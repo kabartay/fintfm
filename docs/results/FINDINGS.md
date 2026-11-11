@@ -14236,3 +14236,65 @@ large-scale targets; read the ratios instead.
   no-exclusion rule DR7.6 sets for the PR.
 - The multiclass rerun (`lite-mc-pp2`) and the 51-dataset merge (`merge-all51`) are queued; the
   overall Elo for DR7.6 comes from the merge.
+
+## §221: all 51 TabArena-Lite datasets with no exclusion give 880 Elo, 107th of 110, below RF (default) and Linear (tuned); multiclass gains on 7 of 7
+
+**MEASURED, TabArena-Lite (repeat 0, fold 0), CPU, 2026-11-11.** Fork at f9ea61d. Merged by
+`merge_fintfm_lite.py` (fork 8aefd8d) from three runs, one per problem type, each with its own
+checkpoint. Log: `runs/merge_all51.log`. Leaderboard: the fork's
+`eval/fintfm_linprobe_all51_1110/`; `merged_from.json` there lists which run scored each dataset.
+
+The entry is FinTFM-LinProbe throughout. All three runs use squash and `max_features_strategy:
+select`. Each problem type has its own checkpoint and readout:
+
+| problem type | datasets | checkpoint | readout | run |
+| --- | --- | --- | --- | --- |
+| binary | 30 | published | partition plus a probe per leaf | §220 |
+| multiclass | 8 | `dr74-mc-s0` | partition plus a probe per leaf | `fintfm_linprobe_squash_part_mc_1110` |
+| regression | 13 | `v4-regression.pt` | ridge readout | §220 |
+
+The leaderboard holds 110 methods. Other entrants' results that are imputed are TabArena's own;
+none of FinTFM's 51 are imputed.
+
+**Overall: 880 Elo (+117 / −122), position 107 of 110.** The neighbouring rows:
+
+| method | Elo |
+| --- | --- |
+| RandomForest (default) | 1,000 |
+| KNN (tuned + ensembled) | 967 |
+| Linear (tuned + ensembled) | 937 |
+| Linear (tuned) | 920 |
+| **FinTFM-LinProbe (this entry)** | **880** |
+| KNN (tuned) | 815 |
+| Linear (default) | 811 |
+| KNN (default) | 590 |
+
+By problem type, from the per-run leaderboards: binary 974 (§220), multiclass 751 (+134 / −360),
+regression 436 (+96 / −296). Binary meets the 950 to 1,000 band named for DR7.6. Multiclass and
+regression pull the overall figure below it.
+
+**Multiclass: the probe and partition beat DR7.4's default entry on every paired dataset, and
+the entry still ranks near the bottom.** The default entry is `fintfm_lite_dr74_mc`, the same
+checkpoint, at 306 Elo. Log loss is lower on all 7 paired datasets (sign test p 0.02), with a
+geometric-mean log-loss ratio of 0.576:
+
+| dataset | log loss, arm | log loss, default | ratio | rank of 108 |
+| --- | --- | --- | --- | --- |
+| splice | 0.1245 | 0.6561 | 0.190 | 81 |
+| SDSS17 | 0.1932 | 0.4274 | 0.452 | 106 |
+| anneal | 0.2968 | 0.4802 | 0.618 | 108 |
+| website_phishing | 0.3532 | 0.5554 | 0.636 | 105 |
+| maternal_health_risk | 0.6360 | 0.7643 | 0.832 | 101 |
+| MIC | 0.5666 | 0.6557 | 0.864 | 101 |
+| students_dropout_and_academic_success | 0.6468 | 0.7456 | 0.867 | 100 |
+
+hiva_agnostic (1,617 columns, under `select`) has no default counterpart and ranks 90th of 108.
+The comparison file's "mean ROC-AUC change" of +0.2096 is a mean log-loss difference.
+
+**What it says.**
+- The no-exclusion condition of DR7.6 is met: 51 of 51 datasets are scored.
+- The Elo condition is met for binary only. Overall, 880 is below the 950 to 1,000 band and
+  below RandomForest (default).
+- Whether 880 counts as "near the bar" is the owner's decision under DR7.6.
+- The largest remaining losses are on regression (436) and on four multiclass tables ranked 101
+  to 108. In both, the checkpoints are the weaker ones: one regressor and one multiclass seed.
