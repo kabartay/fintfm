@@ -175,7 +175,7 @@ none is scoped or scheduled yet. Verify: the label-functional-form experiment is
       examples; a 4-way interaction needs many), to separate genuine ICL from a strong global
       prior that happens to score well on average. Verify: the sufficiency curve is plotted against an information-content measure, not row count alone.
 
-- [ ] 39.9 **Feature-selection recovery.** Extremely simple tasks (`y=x_3`, `y=-x_3`, `y=x_7`,
+- [x] 39.9 **Done (2026-11-11, docs/results/drafts/39.9_2026-11-11.md).** `scripts/feature_selection_recovery.py` (MEASURED, CPU, `runs/v4-cellattn-labels.pt`, 5 tasks x context 32/128/512 x 2 seeds): ablation importance (query-AUC drop on permuting each column) puts the true column(s) on top in 30 of 30 runs (true columns hold 0.84-1.00 of the positive importance), while the checkpoint's AUC stays at or just below logistic regression's (gap up to 0.075 at 32 rows, under 0.01 at 512) and below the oracle's 1.000; untrained control 0.36-0.65 AUC. Verify met; limits (two seeds, one permutation, no attention weights) are in the draft. **Feature-selection recovery.** Extremely simple tasks (`y=x_3`, `y=-x_3`, `y=x_7`,
       `y=1[x_2>0]`, `y=1[x_2+x_5>0]`); test directly whether the model identifies the relevant
       feature subset, not just whether it gets the final AUC right. More fundamental than
       overall accuracy — this is "column identity vs column semantics," precisely. Verify: per-feature attention weight or ablation-based importance is compared against the true relevant feature for each task.
