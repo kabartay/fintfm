@@ -1481,3 +1481,17 @@ where partitioned contexts (a few large regions, not per-query neighbourhoods) h
 benchmarks are the temporal and grouped kind where the in-context leaders drop, which is a framing
 for the paper, not a claim of an advantage (we lose there too). (ii) No new adoptable lever; no
 openspec task filed.
+
+## Peer read of 2026-11-11: ExplainerPFN, the one published zero-shot attribution model
+
+**Status.** Read in full from the arXiv HTML (arXiv:2601.23068v2); sources, numbers and licence in
+`docs/research/REFERENCES.md`, "Fonseca & Stoyanovich (2026)". Closes openspec task 12.1.
+
+**Finding for the field: the one zero-shot attribution model we have read does not emit
+attributions and predictions from one pass (no wider survey made).** ExplainerPFN labels synthetic structural-causal-model tasks with SHAP computed on a small
+network fitted to each task, then explains an existing model from its inputs and predictions. On its
+only credit-scoring set (German Credit, RF base) zero-shot Pearson correlation with SHAP is 0.160
+(Table 1). Its quality falls with feature count, and it misestimates scale across features. The
+gap it leaves open is ours: ground-truth attributions from the prior's known weights, in the same
+pass as the PD, with stability across context draws measured. That is a design gap, not a result;
+nothing here is measured on FinTFM yet. No task filed beyond 12.2 to 12.5.

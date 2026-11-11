@@ -1,6 +1,6 @@
 # Tasks
 
-- [ ] 12.1 Read ExplainerPFN in full and record how attribution targets are generated and
+- [x] 12.1 **Done (2026-11-11, docs/research/REFERENCES.md "ExplainerPFN").** Read ExplainerPFN in full and record how attribution targets are generated and
       what fidelity they claim. Verify: entry expanded in `docs/research/REFERENCES.md`; currently
       only the abstract has been read.
 - [ ] 12.2 Establish the baseline to beat: SHAP over gradient boosting on the UCI panels,

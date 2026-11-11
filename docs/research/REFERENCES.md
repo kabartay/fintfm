@@ -187,12 +187,92 @@ TabFM reports its results.
 **Fonseca & Stoyanovich (2026).** *ExplainerPFN: Towards tabular foundation models for
 model-free zero-shot feature importance estimations.*
 [arXiv:2601.23068](https://arxiv.org/abs/2601.23068)
-A TabPFN-based model pretrained on synthetic datasets with Shapley-value labels, predicting
-attributions with no model access, gradients or example explanations. Competitive with
-few-shot surrogates using 2-10 SHAP examples. Honest about the core limitation: several
-models can share predictions yet differ in Shapley decomposition, so attributions are "true
-to the data" rather than "true to the model". Underpins
-`openspec/changes/zero-shot-attribution`.
+Read in full on 2026-11-11 from the arXiv HTML of v2 (15 May 2026; paper licence CC BY 4.0); every
+number below is from text fetched that day, with the table or section named. Underpins
+`openspec/changes/zero-shot-attribution` (task 12.1).
+
+- **What it does.** A TabPFN-style transformer that takes a dataset `X` and a *fixed, inaccessible*
+  model's predictions `ŷ` and returns a per-instance Shapley-value vector, with no model access,
+  gradients or reference explanations (§3, §4). Input is the pair (x, ŷ) per row; `ŷ` is a required
+  input, so this explains an existing model's outputs from the outside. It does not emit a
+  prediction and an attribution from one pass.
+- **How the targets are generated (§4.2, Appendix C).** Per synthetic task: (1) sample a random DAG
+  (Growing Network with Redirection, scale-free, sometimes several disconnected subgraphs so some
+  features are uninformative), edge mappings drawn from identity, log, sigmoid, abs, sin, tanh,
+  rank, square and power functions, softplus, step and modulo; propagate noise, then keep a random
+  subset of nodes as features and one node as a binary target. (2) Train a **base model** on it: a
+  feed-forward network, one hidden layer of 100 ReLU units, 2000 epochs of Adam. (3) Compute SHAP
+  for that trained model over all rows, "exact computation for low-dimensional feature sets and
+  permutation-based SHAP estimation otherwise". So the label is the Shapley value of a *fitted
+  network*, not an attribution read off the generative weights. Labels are diversified by varying
+  base-model initialisation and by mixing several Shapley approximation strategies and seeds. The
+  generation is offline (two VMs, hundreds of thousands of datasets, tasks may be resampled) because
+  training a classifier plus SHAP per task is too slow to run online (Appendix C).
+- **Architecture and objective (§4.1, §4.3).** TabPFN-like row-token encoder with bidirectional
+  attention over rows; unlike TabPFN no label masking, all (x, ŷ) pairs visible, `X` and `ŷ`
+  placed in the first two columns per feature so position maps to attribution. The head is a
+  discretised bucket distribution over the *standardised* attribution (targets divided by the
+  task's own Shapley mean and standard deviation), trained with negative log predictive density;
+  the point estimate is the distribution mean. Three post-hoc corrections follow (§4.4, Appendix
+  E): mean-zero re-centring, per-feature variance rescaling under Linear-SHAP independence, and an
+  instance-level efficiency correction so attributions sum to output minus baseline.
+- **What it claims (§1, §4, Appendix B).** A *posterior mean attribution under the meta-training
+  prior*, "true to the data" not "true to the model", because different models with identical
+  predictions can have different Shapley decompositions (non-identifiable). It makes no claim to
+  recover any one model's SHAP values.
+- **How fidelity is measured (§5).** Reference is exact SHAP of the base predictor (RF with 500
+  trees, or an MLP with two hidden layers of 12) on 11 UCI binary tasks unseen in training
+  (continuous features, majority-vs-rest for multiclass), on scaled features. Primary metric is
+  Pearson correlation between predicted and reference attributions; also Spearman and Jaccard
+  top-K (K = one third of the features, Appendix F.2); bootstrap 95% intervals, 50 resamples (full
+  tables in Appendix I, not read cell by cell). Baselines are few-shot surrogates (TabPFN, MLP,
+  RF regressors) trained on 2 to 10 true SHAP rows.
+- **Reported numbers (Table 1, RF base, Pearson, zero-shot).** BA 0.897, AB 0.177, AN 0.443, CC
+  0.479, EC 0.397, FL 0.098, GC 0.160, HE 0.641, HD 0.580, HP 0.643, TH 0.317. Codes decoded from
+  Appendix D: BA banknote, AB abalone, AN annealing, GC German Credit, FL flags, HE heart, HD
+  heart disease, TH thyroid; EC, CC and HP were not decoded from the fetched text. The text says
+  highest or second highest correlation on 5 of 11 datasets. The one credit-scoring set, German
+  Credit, scores 0.160, below the 10-reference RF surrogate (0.327) and the 10-reference TabPFN
+  surrogate (0.247). ACS Public Coverage case study (4 features, 2,000 train and 2,000 test rows,
+  MLP base): Pearson 0.32 (§5.3). Cost (Table 8, mean seconds for 1,000 attributions): SHAP 1.629
+  (MLP base) and 94.872 (RF base); ExplainerPFN 2.747 and 2.338.
+- **Inconsistencies noticed in the paper.** The abstract says few-shot surrogates reach high SHAP
+  fidelity with as few as two reference observations, but Table 1 gives TabPFN at two references
+  between -0.117 and 0.190 on every dataset; the §5.1 prose itself quotes four references. The
+  Appendix F.3 prose gives SHAP at 8.5 s and a "10x" speedup on RF, while Table 8 gives 94.872 s
+  against 2.338 s; quote the table, not the prose, and neither as a FinTFM-comparable runtime.
+- **Stated limitations (§6, Appendix H, J).** Systematically wrong absolute magnitudes across
+  features (ordering and sign recovered, scale not); degradation as dimensionality grows, which is
+  the dominant predictor (strong negative Spearman correlation with feature count, Appendix J.1;
+  coefficient not transcribed); weaker with interactions; synthetic-to-real gap (Appendix H, UCI
+  sets have higher skewness and higher pairwise correlation than the synthetic draws); SHAP is the
+  only target tried; evaluation limited to continuous-feature binary tasks. The authors call
+  attributions approximate and not necessarily reflective of a model's causal behaviour (ethics
+  statement).
+- **Licence (checked 2026-11-11).** Paper CC BY 4.0. Code: the GitHub repository
+  `joaopfonseca/ExplainerPFN` carries an MIT `LICENSE` file and README badge. Weights: the paper
+  says pretrained weights are released with the code (§1) but the README states no separate
+  weights licence; treat the weights licence as unstated. The model is built on TabPFN, whose own
+  terms govern any TabPFN-derived component; not checked, as nothing is ingested.
+
+**What this means for 12.2 to 12.5.** Ideas only; no code, weights or data from ExplainerPFN or
+from the TabPFN code it adapts enter this repository, whatever the MIT file says (CLAUDE.md,
+"Licensing boundary"). Adoptable ideas: (a) the framing "true to the data, not true to the model"
+for our non-goal, now with a citation and an appendix (B) stating the non-identifiability
+argument; (b) a bucketed-distribution head with NLPD on a per-task standardised target, which our
+own head can replicate in our own code; (c) evaluating with Pearson plus Spearman plus Jaccard
+top-K and an explicit feature-count breakdown, since the paper's own failure mode is
+dimensionality. Where we differ, and the proposal should say so: their label is SHAP of a trained
+network on the synthetic data, so it inherits that network's idiosyncrasies and is stochastic;
+ours (12.3) is read from the prior's known driver weights, the data-generating attribution rather
+than any model's SHAP. These are different quantities, so agreement with SHAP over GBM (12.4) is
+an empirical question, not a given, and ExplainerPFN's weak scale calibration is the risk to test
+first. Their input requires a model's predictions; ours would not, so 12.4 does not reproduce
+their setting. For 12.2, their German Credit result is a low-correlation case (0.160), and SHAP
+over RF cost 94.872 s per 1,000 attributions in their Table 8 on their hardware; our runtime must
+be measured, not taken from it. For 12.5, they report bootstrap intervals over test rows but no
+stability across context resamples or seeds, so there is no published threshold to borrow;
+choose and record ours first, as the task already says.
 
 **Rahimikia, Ni & Wang (2025).** *Re(Visiting) Time Series Foundation Models in Finance.*
 SSRN working paper, 138 pp.
