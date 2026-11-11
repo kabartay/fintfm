@@ -41,7 +41,7 @@ import numpy as np
 import torch
 from sklearn.model_selection import train_test_split
 
-from fintfm.evaluation.datasets import load_polish_bankruptcy
+from fintfm.evaluation.datasets import CreditDataset, load_polish_bankruptcy
 from fintfm.evaluation.metrics import evaluate_binary, holm_bonferroni, paired_auc_difference
 from fintfm.inference.classifier import ContextStrategy, FinancialTFMClassifier
 from fintfm.modeling.model import FinancialTFM, ModelConfig
@@ -438,6 +438,7 @@ def sample_efficiency_probe(
     horizon: int = 3,
     seed: int = 0,
     context_strategy: ContextStrategy = "balanced",
+    ds: CreditDataset | None = None,
 ) -> dict:
     """Measure where the in-context model beats gradient boosting as training data shrinks.
 
@@ -458,6 +459,8 @@ def sample_efficiency_probe(
         horizon: Which bankruptcy horizon to use.
         seed: Seed for the split and the subsampling.
         context_strategy: Context construction for the in-context model.
+        ds: Panel to probe. ``None`` (default) loads the Polish panel at ``horizon``;
+            ``bench.run_credit`` passes one in so the probe reuses its loaded panel.
 
     Returns:
         A record mapping each training size to metrics for the TFM and for gradient
@@ -468,7 +471,7 @@ def sample_efficiency_probe(
     from sklearn.impute import SimpleImputer
     from sklearn.pipeline import make_pipeline
 
-    ds = load_polish_bankruptcy(horizon)
+    ds = ds if ds is not None else load_polish_bankruptcy(horizon)
     X_pool, X_test, y_pool, y_test = train_test_split(
         ds.X, ds.y, test_size=0.3, random_state=seed, stratify=ds.y
     )

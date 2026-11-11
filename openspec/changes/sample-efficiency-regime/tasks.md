@@ -25,5 +25,5 @@
       against it, re-derived from the run.
 - [ ] 13.8 Extend the probe to the Taiwan panel and to V4FinBench once ingested. Verify: the
       calibration advantage reported per panel, and stated plainly if it does not replicate.
-- [ ] 13.6 Add the probe to `bench.py`'s default credit output, so full-panel-only numbers
+- [x] 13.6 **Done (2026-11-11, src/fintfm/evaluation/bench.py `run_credit`/`--no-sample-efficiency`, src/fintfm/experiments/prior_ablation.py `ds=` param, tests/test_bench_credit.py::test_credit_output_includes_the_sample_efficiency_probe).** Add the probe to `bench.py`'s default credit output, so full-panel-only numbers
       cannot be reported again by accident. Verify: `fintfm-bench --credit` includes it.

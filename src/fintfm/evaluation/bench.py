@@ -213,7 +213,18 @@ def run_openml(model_path: str, dataset_ids: list[int]) -> None:
         run_one(f"openml-{did}", X, y, model_path)
 
 
-def run_credit(model_path: str, horizons: tuple[int, ...] = (1, 3, 5)) -> None:
+#: Training sizes the default credit run probes. Small on purpose: the full sweep
+#: (100-4000) is ``fintfm-ablate --sample-efficiency``. These are the sizes below the
+#: roughly 1,000-row mark where Baesens et al. (arXiv:2605.18147) put the TFM advantage.
+DEFAULT_PROBE_SIZES: tuple[int, ...] = (100, 250, 500, 1000)
+
+
+def run_credit(
+    model_path: str,
+    horizons: tuple[int, ...] = (1, 3, 5),
+    sample_efficiency: bool = True,
+    probe_sizes: tuple[int, ...] = DEFAULT_PROBE_SIZES,
+) -> dict:
     """Benchmark on real corporate-default data across context-construction strategies.
 
     This is the task the project exists for, so it is reported separately from the
@@ -226,6 +237,15 @@ def run_credit(model_path: str, horizons: tuple[int, ...] = (1, 3, 5)) -> None:
         model_path: Checkpoint to evaluate. Must have been pretrained with
             ``--max-features`` at least as wide as the dataset (64 here).
         horizons: Which bankruptcy forecast horizons (years) to evaluate.
+        sample_efficiency: Also run the small-n sample-efficiency probe (openspec
+            ``sample-efficiency-regime`` task 13.6), so a full-panel-only number is never
+            the whole credit output. ``--no-sample-efficiency`` turns it off.
+        probe_sizes: Training sizes for that probe, ascending.
+
+    Returns:
+        ``{"sample_efficiency": <probe record>}`` when the probe ran, else ``{}``. The probe
+        record carries per-size metrics, ``crossover_size`` and ``leads_at`` (see
+        :func:`fintfm.experiments.prior_ablation.sample_efficiency_probe`).
     """
     cfg = FinancialTFM.load(model_path).cfg
     panels = [load_polish_bankruptcy(h) for h in horizons]
@@ -242,6 +262,41 @@ def run_credit(model_path: str, horizons: tuple[int, ...] = (1, 3, 5)) -> None:
         if ds.X.shape[1] <= cfg.max_features:
             strategies: tuple[ContextStrategy, ...] = ("uniform", "hybrid", "balanced")
             _compare_context_strategies(ds, model_path, strategies)
+    record: dict = {}
+    if sample_efficiency:
+        record["sample_efficiency"] = _run_sample_efficiency(
+            panels, cfg.max_features, model_path, probe_sizes
+        )
+    return record
+
+
+def _run_sample_efficiency(
+    panels: list[CreditDataset], max_features: int, model_path: str, sizes: tuple[int, ...]
+) -> dict:
+    """Run the small-n probe on the 3-year Polish panel (or the first one that fits).
+
+    Args:
+        panels: The panels ``run_credit`` loaded.
+        max_features: The checkpoint's feature capacity.
+        model_path: Checkpoint to probe.
+        sizes: Training sizes to sweep.
+
+    Returns:
+        The probe record, with ``crossover_size`` and ``leads_at``; prints a summary line.
+        Single seed (0), so read the crossover as indicative, not a range.
+    """
+    from fintfm.experiments.prior_ablation import sample_efficiency_probe
+
+    fitting = [p for p in panels if p.X.shape[1] <= max_features]
+    ds = next((p for p in fitting if p.horizon_years == 3), fitting[0] if fitting else None)
+    print("\n=== sample-efficiency probe (small n, fixed test set, seed 0) ===")
+    if ds is None:
+        print("    SKIPPED: no panel fits the checkpoint's feature capacity")
+        return {"skipped": "no panel fits the checkpoint"}
+    record = sample_efficiency_probe(model_path, train_sizes=sizes, seed=0, ds=ds)
+    print(f"    crossover_size={record['crossover_size']} leads_at={record['leads_at']} "
+          f"(single seed)")
+    return record
 
 
 def run_time_vs_random(
@@ -332,6 +387,8 @@ def main() -> None:
     p.add_argument("--synthetic-tasks", type=int, default=20)
     p.add_argument("--openml-id", type=int, action="append", default=[])
     p.add_argument("--credit", action="store_true", help="benchmark on real corporate-default data")
+    p.add_argument("--no-sample-efficiency", action="store_true",
+                   help="with --credit: skip the small-n sample-efficiency probe (on by default)")
     p.add_argument("--time-split", action="store_true",
                    help="V4FinBench random vs time-based AUC side by side (needs the cached data)")
     p.add_argument("--max-rows", type=int, default=None,
@@ -342,7 +399,7 @@ def main() -> None:
         run_time_vs_random(load_v4finbench(args.v4_root, max_rows=args.max_rows), args.model)
         return
     if args.credit:
-        run_credit(args.model)
+        run_credit(args.model, sample_efficiency=not args.no_sample_efficiency)
         return
     run_synthetic(args.model, n_tasks=args.synthetic_tasks)
     if args.openml_id:
