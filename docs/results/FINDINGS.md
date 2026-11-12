@@ -14298,3 +14298,55 @@ The comparison file's "mean ROC-AUC change" of +0.2096 is a mean log-loss differ
 - Whether 880 counts as "near the bar" is the owner's decision under DR7.6.
 - The largest remaining losses are on regression (436) and on four multiclass tables ranked 101
   to 108. In both, the checkpoints are the weaker ones: one regressor and one multiclass seed.
+
+## §222: a scaled, cross-validated readout with the row's own features lifts multiclass from 751 to 825 Elo, better on 8 of 8; the 480,000-task checkpoint is null
+
+**MEASURED, TabArena-Lite (repeat 0, fold 0), CPU, 2026-11-12.** DR7.6's hold (owner, 2026-11-11):
+improve multiclass and regression before the PR. Fork `fintfm-audit-fixes` at b149d96, which adds
+the opt-in `FINTFM_PROBE` readout options: `scale` (standardise the probe's inputs), `cv` (choose
+the logistic regression's C from 10⁻³ to 10² by 3-fold log loss on the probe rows) and `raw`
+(append the row's own features, squashed on the training rows, missing at the median). Unset, the
+readout is §221's. Every arm otherwise repeats §221's multiclass run
+(`fintfm_linprobe_squash_part_mc_1110`): `dr74-mc-s0`, squash, `select`, partition plus a probe
+per leaf. Script `runs/local_queue/lite_mc_probe.sh`; comparisons in
+`runs/<arm>_vs_1110.md`.
+
+| arm | options | checkpoint | better / worse of 8 | sign test p | multiclass Elo |
+| --- | --- | --- | --- | --- | --- |
+| §221 control | none | `dr74-mc-s0` | | | 751 |
+| `fintfm_lp_mc_scalecv_1111` | scale, cv | `dr74-mc-s0` | 6 / 2 | 0.29 | 806 (+164 / −348) |
+| `fintfm_lp_mc_scalecvraw_1111` | scale, cv, raw | `dr74-mc-s0` | **8 / 0** | **0.01** | **825 (+109 / −291)** |
+| `fintfm_lp_mc_v480_1111` | none | `dr74-mc-v480-s0` | 5 / 3 | 0.73 | 762 (+137 / −361) |
+
+Log loss per dataset:
+
+| dataset | control | scale, cv | scale, cv, raw | ratio to control | v480 |
+| --- | --- | --- | --- | --- | --- |
+| SDSS17 | 0.1932 | 0.1521 | 0.1222 | 0.632 | 0.1629 |
+| anneal | 0.2968 | 0.2190 | 0.2218 | 0.747 | 0.2522 |
+| website_phishing | 0.3532 | 0.3254 | 0.3027 | 0.857 | 0.3460 |
+| MIC | 0.5666 | 0.5517 | 0.5115 | 0.903 | 0.5537 |
+| students_dropout_and_academic_success | 0.6468 | 0.6373 | 0.6208 | 0.960 | 0.6540 |
+| hiva_agnostic | 0.1901 | 0.1799 | 0.1866 | 0.982 | 0.1906 |
+| maternal_health_risk | 0.6360 | 0.6411 | 0.6333 | 0.996 | 0.6101 |
+| splice | 0.1245 | 0.1265 | 0.1241 | 0.997 | 0.1257 |
+
+Geometric-mean log-loss ratio of the three-option arm to the control: 0.874.
+
+**Overall, with that arm in place of §221's multiclass run: 888 Elo (+111 / −115), 106th of 110**,
+against §221's 880 and 107th. Binary and regression runs unchanged; merged by
+`merge_fintfm_lite.py` as `fintfm_linprobe_all51_1112` (log `runs/merge_all51_1112.log`).
+RandomForest (default) 1,000, KNN (tuned + ensembled) 967, Linear (tuned) 920.
+
+**What it says.**
+- The readout was leaving log loss on the table: the unscaled `C=1` probe was neither scaled nor
+  tuned. Scaling and choosing C alone gives 6 of 8; adding the row's features gives 8 of 8.
+- With `raw`, the readout is a linear model over both the network's representation and the
+  features. The entry has to say so; it is still "FinTFM with a trained linear readout", now with
+  the features as extra inputs.
+- 480,000 tasks (`dr74-mc-v480-s0`) does not move TabArena-Lite either (+11 Elo, 5 of 8, p 0.73),
+  matching §198's null on the proxy. Volume is not the multiclass lever at this recipe.
+- Multiclass gained 74 Elo, overall 8. Regression at 436 is now the largest drag; `reg-probe-raw`
+  (the `raw` option on the ridge readout) is running.
+- These options change no binary result, so V4FinBench, which only scores binary, does not gate
+  them.
