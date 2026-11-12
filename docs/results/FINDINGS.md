@@ -14350,3 +14350,52 @@ RandomForest (default) 1,000, KNN (tuned + ensembled) 967, Linear (tuned) 920.
   (the `raw` option on the ridge readout) is running.
 - These options change no binary result, so V4FinBench, which only scores binary, does not gate
   them.
+
+## §223: the row's own features in the ridge readout lift regression from 436 to 578 Elo, better on 12 of 13; overall 898
+
+**MEASURED, TabArena-Lite (repeat 0, fold 0), CPU, 2026-11-12.** Fork at b149d96. Arm
+`fintfm_lp_reg_raw_1111`: §220's regression run (`v4-regression.pt`, squash, `select`, ridge
+readout) with `FINTFM_PROBE='{"raw": true}'`, which appends the row's squashed features to the
+pre-head representation and widens RidgeCV's grid to 10⁻³ to 10⁵. Script
+`runs/local_queue/lite_reg_probe.sh`, log `runs/local_queue/reg-probe-raw.log` (13 of 13 exit 0,
+91 min), comparison `runs/fintfm_lp_reg_raw_1111_vs_1110.md`.
+
+**Regression: 12 better, 1 worse of 13 against §220 (sign test p < 0.01); Elo 436 to 578
+(+109 / −297).** RMSE, sorted by ratio:
+
+| dataset | §220 | raw | ratio |
+| --- | --- | --- | --- |
+| QSAR-TID-11 | 1.2344 | 0.9884 | 0.801 |
+| superconductivity | 17.4905 | 15.8175 | 0.904 |
+| houses | 0.3142 | 0.2880 | 0.917 |
+| miami_housing | 134,394 | 128,751 | 0.958 |
+| Another-Dataset-on-used-Fiat-500 | 737.27 | 721.68 | 0.979 |
+| concrete_compressive_strength | 6.2793 | 6.1632 | 0.982 |
+| diamonds | 1,126.11 | 1,108.91 | 0.985 |
+| physiochemical_protein | 4.8705 | 4.8163 | 0.989 |
+| wine_quality | 0.6926 | 0.6883 | 0.994 |
+| airfoil_self_noise | 3.0378 | 3.0269 | 0.996 |
+| Food_Delivery_Time | 8.1149 | 8.0986 | 0.998 |
+| healthcare_insurance_expenses | 4,746.64 | 4,743.66 | 0.999 |
+| QSAR_fish_toxicity | 0.9491 | 0.9516 | 1.003 |
+
+Geometric-mean RMSE ratio 0.960, median 0.985. The gains are small except on the wide
+QSAR-TID-11 (1,024 columns under `select`), where the readout now sees every column the network
+did not. The Elo gain is large for small error changes because FinTFM's regression results sit
+among many closely spaced methods near the bottom of the table.
+
+**Overall, binary §220 + multiclass §222 + this run: 898 Elo (+104 / −111), 106th of 110**
+(`fintfm_linprobe_all51_1112b`, log `runs/merge_all51_1112b.log`). Neighbours: RandomForest
+(default) 1,000, KNN (tuned + ensembled) 967, Linear (tuned + ensembled) 936, Linear (tuned) 919,
+KNN (tuned) 815.
+
+**What it says.**
+- Overall moved 880 to 898 over §222 and §223. By type: binary 974, multiclass 825, regression
+  578. The overall is still 102 Elo below RandomForest (default) and below both tuned linear
+  entries.
+- Regression is still the weakest type. The readout lever is mostly spent there (median ratio
+  0.985); the remaining lever is the regressor itself, `v4-regression.pt` (6,000 steps, an
+  earlier recipe), which needs GPU.
+- Binary is 30 of 51 datasets, so it moves the overall most. The same readout options are
+  untested on binary; under the V4FinBench-first rule they are scored there before any binary Lite
+  run.
