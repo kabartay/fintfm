@@ -238,6 +238,23 @@ def test_partition_keeps_the_default_runs_global_arms_bit_for_bit(tmp_path, pane
     assert not np.array_equal(preds["pred_own_head"], preds["pred_own_head_global"])
 
 
+def test_probe_options_add_one_arm_and_leave_every_other_arm_bit_for_bit(tmp_path, panel):
+    """``probe_options`` fits a second leaf probe on the same rows and representations, so the
+    plain leaf probe and every other arm match the run without it; the new arm is a valid
+    probability per test row (DR7.6, the binary readout options scored on V4FinBench)."""
+    _rec0, base, _ = _run(tmp_path, "partition", partition=True)
+    opts = {"scale": True, "cv": True, "raw": True, "head": True}
+    rec, preds, _ = _run(tmp_path, "options", partition=True, probe_options=opts)
+    assert rec["probe_options"] == opts
+    assert set(preds) == set(base) | {"pred_representation_opts"}
+    for key in base:
+        assert preds[key].tobytes() == base[key].tobytes()
+    p = preds["pred_representation_opts"]
+    assert p.shape == base["y_true"].shape
+    assert np.all((p >= 0) & (p <= 1))
+    assert "representation_opts_ap" in rec["folds"][0]
+
+
 def test_partition_with_every_leaf_falling_back_is_the_global_probe(tmp_path, panel, monkeypatch):
     """A tree whose leaves all fall back to the global context scores every test row with
     the global probe, so the per-leaf arm reduces to ``representation_global``."""

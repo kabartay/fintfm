@@ -94,6 +94,7 @@ from fintfm.experiments.v4_protocol import (
 )
 from fintfm.inference.classifier import FinancialTFMClassifier
 from fintfm.inference.large_n import PartitionedTFMClassifier
+from fintfm.inference.preprocess import FeatureConditioner
 
 if TYPE_CHECKING:  # the model class is only needed for the annotation
     from fintfm.modeling.model import FinancialTFM
@@ -190,7 +191,9 @@ def _leaf_probe(
     stage: Stage,
     rng: np.random.Generator,
     train_sample_size: int,
-) -> tuple[np.ndarray, dict[str, int]]:
+    probe_options: dict | None = None,
+    raw_conditioner: FeatureConditioner | None = None,
+) -> tuple[np.ndarray, dict[str, int], np.ndarray | None]:
     """A linear probe per partition leaf, scored on the test rows each leaf receives.
 
     Args:
@@ -203,14 +206,21 @@ def _leaf_probe(
         stage: The representation depth, as in :func:`_downstream_arms`.
         rng: Draws each leaf's stratified sample.
         train_sample_size: The whole-split probe budget each leaf takes its share of.
+        probe_options: When given, a second probe per leaf is fitted on the same rows and
+            representations with these readout options (:func:`_options_probe`), so the
+            plain probe and its draws are unchanged.
+        raw_conditioner: The squash for the ``raw`` option, fitted on the training rows.
 
     Returns:
-        Test-row positive-class probabilities averaged over bags, and counts: leaf probes
+        Test-row positive-class probabilities averaged over bags; counts: leaf probes
         fitted, leaves falling back to the global probe, and leaves whose sample held one
-        class and so were scored by the leaf's own head instead.
+        class and so were scored by the leaf's own head instead; and the options probe's
+        probabilities (``None`` without ``probe_options``). Where the plain probe falls back
+        to the global probe or the head, the options probe takes the same value.
     """
     routes_fit, routes_test = part.route(X_fit), part.route(X_test)
     out = np.zeros(len(X_test), dtype=np.float64)
+    out_opts = np.zeros(len(X_test), dtype=np.float64) if probe_options else None
     counts = {"n_leaf_probes": 0, "n_fallback_leaves": 0, "n_single_class_leaves": 0}
     for b, leaves in enumerate(part.leaf_estimators_):
         bag = part.bag_rows_[b]
@@ -219,13 +229,18 @@ def _leaf_probe(
             est = leaves.get(int(leaf))
             if est is None:
                 out[rows] += p_global[rows]
+                if out_opts is not None:
+                    out_opts[rows] += p_global[rows]
                 counts["n_fallback_leaves"] += 1
                 continue
             members = bag[routes_fit[b][bag] == leaf]
             budget = max(LEAF_MIN_SAMPLE, round(train_sample_size * len(members) / len(bag)))
             sub = members[_stratified_subsample(rng, y_fit[members], budget)]
             if np.unique(y_fit[sub]).size < 2:
-                out[rows] += est.predict_proba(X_test[rows])[:, 1]
+                p_head = est.predict_proba(X_test[rows])[:, 1]
+                out[rows] += p_head
+                if out_opts is not None:
+                    out_opts[rows] += p_head
                 counts["n_single_class_leaves"] += 1
                 continue
             with warnings.catch_warnings():
@@ -233,9 +248,74 @@ def _leaf_probe(
                 rep_fit = est.transform_representation(X_fit[sub], stage=stage)
                 rep_test = est.transform_representation(X_test[rows], stage=stage)
                 probe = LogisticRegression(max_iter=1000).fit(rep_fit, y_fit[sub])
+                if out_opts is not None:
+                    out_opts[rows] += _options_probe(
+                        est, rep_fit, X_fit[sub], y_fit[sub], rep_test, X_test[rows],
+                        probe_options, raw_conditioner,
+                    )
             out[rows] += probe.predict_proba(rep_test)[:, 1]
             counts["n_leaf_probes"] += 1
-    return out / len(part.leaf_estimators_), counts
+    n_bags = len(part.leaf_estimators_)
+    return out / n_bags, counts, (None if out_opts is None else out_opts / n_bags)
+
+
+#: Keys ``--probe-options`` accepts; see :func:`_options_probe`.
+PROBE_OPTIONS = frozenset({"scale", "cv", "raw", "head"})
+
+
+def _options_probe(
+    est: FinancialTFMClassifier,
+    rep_fit: np.ndarray,
+    X_fit: np.ndarray,
+    y_fit: np.ndarray,
+    rep_test: np.ndarray,
+    X_test: np.ndarray,
+    options: dict,
+    raw_conditioner: FeatureConditioner | None,
+) -> np.ndarray:
+    """Fit a probe with readout options on given representations and score the test rows.
+
+    The V4FinBench counterpart of the TabArena fork's ``FINTFM_PROBE`` (fintfm DR7.6,
+    FINDINGS §222/§223), so a binary readout change is scored here before TabArena.
+
+    Args:
+        est: The leaf's fitted classifier, read for the ``head`` option.
+        rep_fit: ``(m, d)`` the probe rows' representations.
+        X_fit: ``(m, F)`` the same rows' features, as the classifier received them.
+        y_fit: ``(m,)`` their labels, both classes present.
+        rep_test: ``(n, d)`` the test rows' representations.
+        X_test: ``(n, F)`` the test rows' features.
+        options: ``scale`` standardises the inputs; ``cv`` picks C from 1e-3 to 1e2 by 3-fold
+            log loss; ``raw`` appends the squashed features (``raw_conditioner``), missing at
+            the median; ``head`` appends the log of the classifier's own probabilities.
+        raw_conditioner: Fitted squash for ``raw``.
+
+    Returns:
+        ``(n,)`` positive-class probabilities.
+    """
+    from sklearn.linear_model import LogisticRegressionCV
+    from sklearn.pipeline import make_pipeline
+
+    def inputs(rep: np.ndarray, X: np.ndarray) -> np.ndarray:
+        """The probe's input: the representation plus the blocks the options add."""
+        blocks = [np.asarray(rep, dtype=np.float64)]
+        if options.get("raw"):
+            z = raw_conditioner.transform(X)
+            blocks.append(np.nan_to_num(z, nan=0.0, posinf=3.0, neginf=-3.0).astype(np.float64))
+        if options.get("head"):
+            proba = np.asarray(est.predict_proba(X), dtype=np.float64)
+            blocks.append(np.log(np.clip(proba, 1e-6, 1.0)))
+        return blocks[0] if len(blocks) == 1 else np.hstack(blocks)
+
+    if options.get("cv"):
+        lr = LogisticRegressionCV(
+            Cs=np.logspace(-3, 2, 6), cv=3, scoring="neg_log_loss", max_iter=2000
+        )
+    else:
+        lr = LogisticRegression(max_iter=1000)
+    probe = make_pipeline(StandardScaler(), lr) if options.get("scale") else lr
+    probe.fit(inputs(rep_fit, X_fit), y_fit)
+    return probe.predict_proba(inputs(rep_test, X_test))[:, 1]
 
 
 def _gap(n: int) -> dict[str, np.ndarray]:
@@ -393,6 +473,7 @@ def run(
     probe_rows: ProbeRows = "stratified",
     max_context: int | None = None,
     partition: bool = False,
+    probe_options: dict | None = None,
 ) -> dict:
     """Score the three arms on V4FinBench's published protocol. See module docstring.
 
@@ -492,9 +573,13 @@ def run(
             "n_test": len(te),
         }
         if part is not None:
-            p_leaf, leaf_counts = _leaf_probe(
+            cond = None
+            if probe_options and probe_options.get("raw"):
+                cond = FeatureConditioner("squash", random_state=fold).fit(Xtr_full)
+            p_leaf, leaf_counts, p_leaf_opts = _leaf_probe(
                 part, Xtr_full, ytr_full, Xte, stratified["representation"], stage,
                 np.random.default_rng(1000 + fold), train_sample_size,
+                probe_options, cond,
             )
             arms = {
                 "own_head": part.predict_proba(Xte)[:, 1],
@@ -504,6 +589,8 @@ def run(
                 "raw_features": stratified["raw_features"],
                 "mlp_head": stratified["mlp_head"],
             }
+            if p_leaf_opts is not None:
+                arms["representation_opts"] = p_leaf_opts
             row.update(leaf_counts)
         elif probe_rows != "stratified":
             # the rows the head conditions on, so the probe reads exactly as many labels
@@ -534,7 +621,13 @@ def run(
             f"  (partitioned: {row['n_leaf_probes']} leaf probes, "
             f"{row['n_fallback_leaves']} fallback, {row['n_single_class_leaves']} single-class; "
             f"global head AP {row['own_head_global_ap']:.4f}, "
-            f"global probe AP {row['representation_global_ap']:.4f})"
+            f"global probe AP {row['representation_global_ap']:.4f}"
+            + (
+                f", options probe AP {row['representation_opts_ap']:.4f}"
+                if "representation_opts_ap" in row
+                else ""
+            )
+            + ")"
             if part is not None
             else ""
         )
@@ -578,6 +671,8 @@ def run(
         record["probe_rows"] = probe_rows
     if partition:
         record["partition"] = True
+    if probe_options:
+        record["probe_options"] = probe_options
     out_path.parent.mkdir(parents=True, exist_ok=True)
     import json
 
@@ -617,7 +712,22 @@ def main() -> None:
              "and fit the probe per leaf; own_head becomes the partitioned head, and the "
              "global head and probe are kept as own_head_global and representation_global",
     )
+    p.add_argument(
+        "--probe-options", type=str, default=None,
+        help="with --partition: a JSON object of readout options (scale, cv, raw, head) for a "
+             "second leaf probe, written as the representation_opts arm beside the plain one",
+    )
     args = p.parse_args()
+    probe_options = None
+    if args.probe_options:
+        import json
+
+        probe_options = json.loads(args.probe_options)
+        unknown = set(probe_options) - PROBE_OPTIONS
+        if not isinstance(probe_options, dict) or unknown:
+            p.error(f"--probe-options: unknown key(s) {sorted(unknown)}; known {sorted(PROBE_OPTIONS)}")
+        if not args.partition:
+            p.error("--probe-options needs --partition")
     run(
         args.model,
         args.out,
@@ -630,6 +740,7 @@ def main() -> None:
         stage=args.stage,
         probe_rows=args.probe_rows,
         partition=args.partition,
+        probe_options=probe_options,
     )
 
 
