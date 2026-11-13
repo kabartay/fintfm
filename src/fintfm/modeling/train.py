@@ -728,11 +728,10 @@ class _NullSchedule:
     """No-op stand-in for ``torch.optim.lr_scheduler`` when the optimiser needs no schedule.
 
     Schedule-free optimisers need no *external* LR curve. They are not warmup-free, though:
-    ``schedulefree.AdamWScheduleFree`` takes its own ``warmup_steps`` argument (default 0,
-    recommended by the package in place of a schedule), which the construction site below
-    does not pass -- so a run under ``--optimizer schedulefree`` as currently wired gets zero
-    warmup, not an automatic one. §146's addendum (2026-10-05) found this after the fact,
-    once a negative result made the configuration worth re-reading rather than assuming.
+    ``schedulefree.AdamWScheduleFree`` takes its own ``warmup_steps`` argument, which
+    :func:`_build_optimizer` fills from :attr:`TrainConfig.warmup_steps` (wired since §146's
+    addendum, 2026-10-05; the run that addendum describes predates the wiring), so warmup
+    comes from the optimiser, not from this class.
     Standing a no-op in for the scheduler keeps every call site in the training loop uniform
     across both optimiser choices, rather than branching on the choice at every call.
     """
@@ -1074,6 +1073,22 @@ def _eval_quality_quantile(
     return {"pinball": float(np.mean(pinballs)), "nrmse": rmse / sd}
 
 
+def _restore_cuda_rng(states: list[torch.Tensor] | None) -> None:
+    """Restore every CUDA generator from a saved training state, when it can be done.
+
+    States written before this field existed carry ``None`` or no key; a machine without CUDA,
+    or with fewer devices than the state saved, restores nothing for the missing ones.
+
+    Args:
+        states: ``torch.cuda.get_rng_state_all()`` as saved, or ``None``.
+    """
+    if not states or not torch.cuda.is_available():
+        return
+    if len(states) != torch.cuda.device_count():
+        return
+    torch.cuda.set_rng_state_all([s.cpu() for s in states])
+
+
 def _save_training_state(
     path: str,
     model: FinancialTFM,
@@ -1141,6 +1156,7 @@ def _save_training_state(
         "scheduler": sched.state_dict(),
         "numpy_rng": rng.bit_generator.state,
         "torch_rng": torch.get_rng_state(),
+        "cuda_rng": torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None,
         "step": step,
         "objectives": sorted(objectives),
         "total_steps": total_steps,
@@ -1607,6 +1623,7 @@ def train(
         if "torch_rng_ranks" in state:  # a --ddp state: this rank's own generator
             torch_rng = state["torch_rng_ranks"][rank]
         torch.set_rng_state(torch_rng.cpu() if hasattr(torch_rng, "cpu") else torch_rng)
+        _restore_cuda_rng(state.get("cuda_rng"))
         start_step = int(state["step"])
         objectives = set(state["objectives"])
         if new_horizon:

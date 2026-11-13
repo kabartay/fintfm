@@ -902,8 +902,14 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         # Identity-preserving, so it is safe to default on: asserted byte-for-byte by
         # tests/test_model.py::test_feature_chunking_is_an_identity. No effect on a
         # checkpoint with n_cell_blocks=0, which has no row-within-feature stage at all.
-        self.model.feature_chunk = self.feature_chunk
-        self.model_ = self.model.to(self.device).eval()
+        #
+        # A shallow copy, so ``feature_chunk`` is this estimator's own: setting it on
+        # ``self.model`` leaked one estimator's value into every other estimator built on the
+        # same loaded model (task 49.9 f). Parameters and submodules stay shared, so no
+        # memory is added and the outputs are identical.
+        self.model_ = copy.copy(self.model)
+        self.model_.feature_chunk = self.feature_chunk
+        self.model_ = self.model_.to(self.device).eval()
         if self.finetune_steps > 0:
             # on the full conditioned pool, before the stored context is cut from it
             self._finetune(X, y_coded, groups, n_classes)

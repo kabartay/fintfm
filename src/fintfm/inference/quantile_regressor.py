@@ -160,8 +160,6 @@ class FinancialTFMQuantileRegressor(BaseEstimator, RegressorMixin):
         self.random_state = random_state
         self.query_chunk = query_chunk
         self.model.to(device).eval()
-        self.scaler_ = ContinuousTargetScaler()
-        self.taus_ = self.model.quantile_taus.detach().cpu().numpy()
 
     def fit(self, X: np.ndarray, y: np.ndarray) -> FinancialTFMQuantileRegressor:
         """Condition features, subsample to ``max_context``, and fit the target scaler.
@@ -196,6 +194,9 @@ class FinancialTFMQuantileRegressor(BaseEstimator, RegressorMixin):
                 f"got {Xc.shape[1]}"
             )
         self.n_features_in_ = X.shape[1]
+        # fitted attributes are created here, not in __init__ (scikit-learn convention)
+        self.scaler_ = ContinuousTargetScaler()
+        self.taus_ = self.model.quantile_taus.detach().cpu().numpy()
         rng = np.random.default_rng(self.random_state)
         n = Xc.shape[0]
         idx = np.sort(rng.choice(n, size=self.max_context, replace=False)) if n > self.max_context else np.arange(n)

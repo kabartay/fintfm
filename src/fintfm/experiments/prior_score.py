@@ -43,6 +43,7 @@ B's tasks — needs checkpoints and belongs with the training runs, not here.
 from __future__ import annotations
 
 import argparse
+import inspect
 import json
 from collections.abc import Callable
 from pathlib import Path
@@ -118,6 +119,25 @@ def _subsample_to_rate(
     return idx
 
 
+def _accepts_max_classes(sampler: Callable[..., Task]) -> bool:
+    """Whether ``sampler`` can be called with a ``max_classes`` keyword.
+
+    Args:
+        sampler: A prior's task-sampling function.
+
+    Returns:
+        True when the signature names ``max_classes`` or takes ``**kwargs``; True as well when
+        no signature can be read, so the call is attempted and any error surfaces.
+    """
+    try:
+        params = inspect.signature(sampler).parameters
+    except (TypeError, ValueError):
+        return True
+    return "max_classes" in params or any(
+        p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values()
+    )
+
+
 def score_prior(
     sampler: Callable[..., Task],
     n_tasks: int = 30,
@@ -158,10 +178,12 @@ def score_prior(
     linear_aucs: list[float] = []
     for seed in range(seed0, seed0 + n_tasks):
         rng = np.random.default_rng(seed)
-        try:
+        # Not every prior takes max_classes; the financial one is binary by construction.
+        # Decided from the signature, not by catching TypeError: a TypeError raised inside a
+        # sampler is a bug that a blanket except retried silently (task 49.9 g).
+        if _accepts_max_classes(sampler):
             t = sampler(rng, n_rows, max_classes=2)
-        except TypeError:
-            # Not every prior takes max_classes; the financial one is binary by construction.
+        else:
             t = sampler(rng, n_rows)
         X, y = np.nan_to_num(np.asarray(t.X, dtype=np.float64)), np.asarray(t.y)
         if base_rate is not None:

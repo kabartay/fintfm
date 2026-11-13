@@ -518,7 +518,7 @@ def feature_sweep(
         max_context: Context rows for the in-context arms.
 
     Returns:
-        ``{"widths": [...], "arms": {name: [auc per width]}}``.
+        ``{"widths": [...], "arms": {name: [auc per width]}, "n_seeds_scored": [seeds scored per width]}``.
     """
     from sklearn.linear_model import LogisticRegression
     from sklearn.metrics import roc_auc_score
@@ -529,12 +529,15 @@ def feature_sweep(
     models = {n: FinancialTFM.load(p) for n, p in model_paths.items()}
     arms: dict[str, list[float]] = {n: [] for n in models}
     arms["logistic_regression"] = []
+    n_scored: list[int] = []
     for width in widths:
         per_arm: dict[str, list[float]] = {n: [] for n in arms}
+        scored = 0
         for seed in seeds:
             Xtr, ytr, Xte, yte = make_probe("linear", n_features=width, seed=seed)
             if len(np.unique(yte)) < 2:
-                continue
+                continue  # skipped, and the cell's scored count says so
+            scored += 1
             for name, m in models.items():
                 clf = FinancialTFMClassifier(
                     m, max_context=max_context, context_strategy="uniform",
@@ -547,8 +550,9 @@ def feature_sweep(
             )
         for name, vals in per_arm.items():
             arms[name].append(float(np.mean(vals)) if vals else float("nan"))
+        n_scored.append(scored)
         print(f"  width {width} done", flush=True)
-    return {"widths": list(widths), "arms": arms}
+    return {"widths": list(widths), "arms": arms, "n_seeds_scored": n_scored}
 
 
 def summarise_sweep(sweep: dict) -> str:
@@ -601,7 +605,7 @@ def base_rate_sweep(
         max_context: Context rows for the in-context arms.
 
     Returns:
-        ``{"rates": [...], "arms": {name: [auc per rate]}}``.
+        ``{"rates": [...], "arms": {name: [auc per rate]}, "n_seeds_scored": [seeds scored per rate]}``.
     """
     from sklearn.linear_model import LogisticRegression
     from sklearn.metrics import roc_auc_score
@@ -612,14 +616,17 @@ def base_rate_sweep(
     models = {n: FinancialTFM.load(p) for n, p in model_paths.items()}
     arms: dict[str, list[float]] = {n: [] for n in models}
     arms["logistic_regression"] = []
+    n_scored: list[int] = []
     for rate in rates:
         per_arm: dict[str, list[float]] = {n: [] for n in arms}
+        scored = 0
         for seed in seeds:
             Xtr, ytr, Xte, yte = make_probe(
                 "linear", n=16000, n_features=n_features, rate=rate, seed=seed
             )
             if len(np.unique(yte)) < 2:
-                continue
+                continue  # skipped, and the cell's scored count says so
+            scored += 1
             for name, m in models.items():
                 clf = FinancialTFMClassifier(
                     m, max_context=max_context, context_strategy="uniform",
@@ -632,8 +639,9 @@ def base_rate_sweep(
             )
         for name, vals in per_arm.items():
             arms[name].append(float(np.mean(vals)) if vals else float("nan"))
+        n_scored.append(scored)
         print(f"  rate {rate:.0%} done", flush=True)
-    return {"rates": list(rates), "arms": arms}
+    return {"rates": list(rates), "arms": arms, "n_seeds_scored": n_scored}
 
 
 def summarise_rate_sweep(sweep: dict) -> str:
@@ -748,6 +756,7 @@ def multiclass_sweep(
     }
     skipped: list[str] = []
     majority: list[float] = []
+    n_scored: list[int] = []
     for n_classes in class_counts:
         per_seed_majority: list[float] = []
         cell: dict[str, dict[str, list[float]]] = {
@@ -790,11 +799,13 @@ def multiclass_sweep(
         majority.append(
             float(np.mean(per_seed_majority)) if per_seed_majority else float("nan")
         )
+        n_scored.append(len(per_seed_majority))
         print(f"  K={n_classes} done", flush=True)
     return {
         "class_counts": list(class_counts),
         "majority_rate": majority,
         "arms": arms,
+        "n_seeds_scored": n_scored,
         "skipped": skipped,
         "config": {
             "models": model_paths, "seeds": list(seeds),

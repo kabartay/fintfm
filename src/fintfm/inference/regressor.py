@@ -123,8 +123,6 @@ class FinancialTFMRegressor(BaseEstimator, RegressorMixin):
         # Stored as passed, not copied: sklearn.clone checks the attribute *is* the object
         # it handed to the constructor.
         self.classifier_params = classifier_params
-        self.binner_: QuantileBinner | None = None
-        self.classifier_: FinancialTFMClassifier | None = None
 
     def fit(self, X: np.ndarray, y: np.ndarray) -> FinancialTFMRegressor:
         """Bin ``y`` on the training rows and fit the classifier on the bin indices.
@@ -268,5 +266,5 @@ class FinancialTFMRegressor(BaseEstimator, RegressorMixin):
         Raises:
             RuntimeError: If either the binner or the wrapped classifier is missing.
         """
-        if self.classifier_ is None or self.binner_ is None:
+        if not hasattr(self, "classifier_") or not hasattr(self, "binner_"):
             raise RuntimeError("fit must be called before predicting")
