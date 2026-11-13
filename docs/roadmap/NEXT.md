@@ -1,5 +1,8 @@
 # The queue
 
+> **Support status, 2026-11-13.** The project states it is no longer actively supported from
+> mid-November 2026. Open items below are a record of intent, not a commitment.
+
 [`ROADMAP.md`](ROADMAP.md) is the ordering since 2026-09-25 (see Tier 0 below). This file keeps
 the earlier tiers, with the reasoning behind each, and the "Found while working" list. Proposals
 live in [`openspec/changes/`](../../openspec/changes/).

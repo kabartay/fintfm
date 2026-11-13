@@ -1,5 +1,9 @@
 # Roadmap: from 94th of 95 to listable
 
+> **Support status, 2026-11-13.** The project states it is no longer actively supported from
+> mid-November 2026. Steps below that are not yet done will not be carried out by this project;
+> they are a record of intent.
+
 The ordered execution list for one goal: **make FinTFM good enough to be listed on TabArena.**
 [`TABARENA_BAR.md`](TABARENA_BAR.md) says what the bar is, [`NEXT.md`](NEXT.md) is the standing
 tier queue, [`STRATEGY.md`](STRATEGY.md) is the thesis. This file is what to do next and in what

@@ -14,7 +14,7 @@ trusting these after an architecture change, because they will move.
 ## The machine
 
 Apple M3 Max, 16 CPU cores (12 performance, 4 efficiency), 40 GPU cores, 64 GB unified
-memory, macOS. **Shared** with a genomics pipeline (`bwa`, `samtools`) that runs
+memory, macOS. **Shared** with an unrelated long-running batch pipeline that runs
 continuously — see `CLAUDE.md`. Observed CPU load averages on 2026-09-08 ranged from 21 to
 **145** across the day, the upper end being roughly ninefold oversubscription of 16 cores.
 

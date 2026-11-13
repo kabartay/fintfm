@@ -1,5 +1,8 @@
 # What it would take to be listed on TabArena
 
+> **Support status, 2026-11-13.** The project states it is no longer actively supported from
+> mid-November 2026, so a resubmission is unlikely to be made by this project.
+
 [PR #616](https://github.com/autogluon/tabarena/pull/616) was reviewed, confirmed correct, and
 declined. §122 records the outcome. This file records what would have to change before
 resubmitting, and in what order.

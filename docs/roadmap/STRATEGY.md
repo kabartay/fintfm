@@ -17,6 +17,10 @@ datasets). Dated notes below mark each place. Two commercial entrants were remov
 file by owner decision (2026-11-13), together with the points that rested on their own
 publications.
 
+**Support status, 2026-11-13.** The project states it is no longer actively supported from
+mid-November 2026. The phases below are the plan as written, and phases not yet done will not
+be carried out by this project.
+
 ## The thesis, in one sentence
 
 **A coherent, auditable probability-of-default term structure for small and low-default
@@ -165,8 +169,7 @@ gradient boosting.
 specialty and trade-credit finance, regional banks, credit insurers, and anyone managing a
 **low-default portfolio** — a named Basel category where a handful of defaults makes point
 estimation unreliable by any method, so supervisors demand uncertainty and conservatism.
-That is the one place where the hardest statistics and the highest willingness to pay for a
-certificate coincide.
+That is the one place where the hardest statistics and the need for a certificate coincide.
 
 The incumbent is not gradient boosting alone. Baesens et al. name the quasi-standard as
 **gradient boosting paired with SHAP**, so the comparison includes explanations, and a model
@@ -178,13 +181,14 @@ single 6% or provision against it. That distance, between a bare number and some
 model-risk function can validate, is the product. (2026-11-13: the earlier paragraph here cited
 a competitor's own page for it; the point stands without the citation.)
 
-`finkele-axiom` transfers directly here: a validation protocol producing a certificate with
-conformal coverage and honest refusals is the same machinery pointed at a different domain.
+A validation protocol producing a certificate with conformal coverage and honest refusals is
+the machinery this project would point at this domain. (2026-11-13: a reference to a private
+sibling project was removed.)
 
 ## IFRS 9 framing: what lifetime ECL needs, what fintfm does not supply, what it does
 
 Written 2026-11-11 for `openspec/changes/pd-term-structure` task 11.6, to be read before any
-customer conversation. **Gaps first.** Every capability below carries its `FINDINGS` section
+customer conversation (none has taken place; 2026-11-13). **Gaps first.** Every capability below carries its `FINDINGS` section
 and its label (MEASURED, PROVED, ESTIMATED, SMOKE-TEST). Where a number was measured before
 the §54 column-identity fix, it is marked, because §56 lists the survival and hazard work of
 §26-§40 for re-measurement.
@@ -410,7 +414,8 @@ path, and no longer the justification for renting NVIDIA.
   comparable ranks.) (2026-11-13: an earlier sentence here cited a competitor's own
   published account of TFM scaling as corroboration of §112; it was removed with that
   competitor, and §112 and §114 stand on this project's own measurements.)
-- Fraud. Owned by Kumo and Feedzai, and needs real-time serving infrastructure.
+- Fraud. Targeted by Kumo and Feedzai according to their own material, and needs real-time
+  serving infrastructure.
 - Time-series forecasting. Google has 330M parameters and 10^12 time points in BigQuery.
 - Market or return prediction. Harder science, severe validation traps, sophisticated
   proprietary competition.
@@ -468,9 +473,10 @@ therefore **cannot deploy the best available models at all**. That is not a qual
 no amount of their accuracy work closes it. It is the same opening FinGPT took against
 Bloomberg's privileged data and closed APIs.
 
-Combined with the coherence guarantee, the honest pitch shape is: *a model a lender can
-actually run in production, whose PD curve cannot contradict itself, with the evidence to
-show a validator* — rather than a claim to be more accurate than Google.
+Combined with the coherence guarantee, the claim this project can support is: *a model a
+lender could run in production, whose PD curve cannot contradict itself, with the evidence to
+show a validator* — rather than a claim to be more accurate than Google. (2026-11-13: nothing
+here has been tested with a lender.)
 
 ## The honest risk register
 
@@ -486,12 +492,13 @@ show a validator* — rather than a claim to be more accurate than Google.
 - **Low-default-portfolio benefit is conjecture.** The field's own authoritative benchmark
   named it and did not test it (mean default rate 22%). We would be first, which is the
   opportunity and the risk in one sentence.
-- **A funded general-tabular team verticalises into finance.** A go-to-market motion for
-  them, not research. Only regulatory depth and elapsed track record answer it. (A judgement,
-  not an observation of any named company; 2026-11-13.)
+- **A funded general-tabular team verticalises into finance.** Only regulatory depth and
+  elapsed track record answer it. (A judgement, not an observation of any named company;
+  2026-11-13.)
 - **Data access is the binding constraint**, and it may cap what can be shown without capital.
 - **Homogenisation is a real risk of the category**, not a talking point: if many lenders
   score with one model their failures correlate, which is systemic risk. Say it to a
   supervisor before they say it to us.
-- **Solo founder against funded teams with distribution.** Unfixable head-on; the whole plan
-  competes on axes where that asymmetry does not decide the outcome.
+- **A small team against funded teams.** Unfixable head-on; the plan competes on axes where
+  that asymmetry does not decide the outcome. (2026-11-13: the project is no longer actively
+  supported from mid-November 2026.)

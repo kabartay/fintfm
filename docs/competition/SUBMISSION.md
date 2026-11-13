@@ -9,6 +9,9 @@
 > did not take place (`docs/results/FINDINGS.md` §122). The rest of this file is kept as the
 > procedure for a future submission.
 
+> **Support status, 2026-11-13.** The project states it is no longer actively supported from
+> mid-November 2026, so a resubmission is unlikely to be made by this project.
+
 > **Update, 2026-11-13.** Nothing has been resubmitted. The owner holds the PR (DR7.6,
 > 2026-11-11) until multiclass and regression improve. The entry that would be submitted is no
 > longer the one tabulated below: it is "FinTFM with a trained linear readout" over all 51

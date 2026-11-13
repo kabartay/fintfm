@@ -8,6 +8,8 @@ official repository files and model cards fetched raw), never from a summariser
 (`docs/results/POSTMORTEM.md`); `docs/paper/RELATED_WORK.md` carries the full peer notes with
 page and section locations.
 
+**Support status, 2026-11-13.** The project states it is no longer actively supported from mid-November 2026; experiments not yet run will not be run by this project.
+
 **Status note, 2026-11-13.** The plan below is kept as written on 2026-11-02. Each of the eight
 experiments carries a dated status line, read on 2026-11-13 from `docs/results/FINDINGS.md`
 (§203-§224) and the openspec task files, and the lever tables in section 1 are not updated: for

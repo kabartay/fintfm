@@ -33,11 +33,7 @@ differentiates any more; both are table stakes messaging. **The repo description
 leads with "no training on your data" and should not survive into a pitch deck in that
 form.**
 
-**Distribution is the asymmetry, not the model.** KumoRFM appearing in NVIDIA's
-documentation puts it inside a stack enterprise buyers already run. That channel cannot be
-matched by a solo founder and it decides more outcomes than model quality does. Plan around
-it rather than against it: pick a buyer and a problem where a general platform's default
-presence is not sufficient.
+**Distribution is the asymmetry, not the model.** (2026-11-13: commercial planning removed from the public repository)
 
 **Fraud is claimed; corporate credit is not.** Kumo (real-time serving, relational) and
 Feedzai (RiskFM) both target fraud with infrastructure that would have to be rebuilt to
@@ -46,12 +42,13 @@ why this repository targets it.
 
 **Kumo's relational framing is the most serious threat to the credit use case**, more than
 the single-table TFM companies are. Bank risk data is natively relational (customers,
-accounts, transactions, filings over time). Expect a sophisticated buyer to ask why they
-should not point a relational platform at the warehouse instead. Have an answer.
+accounts, transactions, filings over time). A reader may reasonably ask why
+a relational platform should not be pointed at the warehouse instead; this project has not
+measured that comparison.
 
-**Their latency moat does not transfer.** Sub-100 ms serving is decisive for fraud, where
-the model sits inside transaction authorization. Corporate credit underwriting takes days.
-Kumo's hardest engineering is on an axis this market does not price.
+**Latency matters less here.** Sub-100 ms serving is decisive for fraud, where the model sits
+inside transaction authorization. Corporate credit underwriting takes days. (A judgement,
+not a measurement; 2026-11-13.)
 
 **The financial prior is thinner protection than it first appears.** Kumo trains on real
 *and synthetic* relational data; synthetic-prior pretraining is not this project's private
@@ -63,8 +60,9 @@ does not win on accuracy; it wins on surviving validation — calibrated PD, sta
 economic regimes, documented time-based backtesting, explainability a regulator accepts,
 evidence for Basel / IFRS 9 review. "Upload data, get predictions" platforms structurally
 cannot ship that, because there the certificate *is* the product. This is also the one place
-where `finkele-axiom` (validation protocol, conformal coverage, honest refusals) is directly
-transferable. See `docs/POSITIONING.md` if that thesis is ever written up properly.
+where a validation protocol (conformal coverage, honest refusals) is directly
+transferable. (2026-11-13: a reference to a private sibling project was removed here; no
+public positioning document exists.)
 
 **Tabular is the right frame for this problem, and that is contested ground worth knowing
 about.** The Forecasting Company argues tabular priors do not transfer to temporal data:
@@ -94,8 +92,8 @@ FinTFM is below logistic regression (§216), and on V4FinBench zero-shot mean AP
 assumption that "the accuracy bar is low" therefore has not been borne out by this project's own
 runs.
 
-Specialising by vertical rather than chasing a general model is the playbook this project
-follows. Assume the wedge is defended by regulatory depth and evidence, not by being first.
+Specialising by vertical rather than chasing a general model is the approach this project
+follows. (2026-11-13: the project is no longer actively supported from mid-November 2026.)
 
 ## Technical notes worth keeping
 

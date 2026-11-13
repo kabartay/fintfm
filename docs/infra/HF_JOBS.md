@@ -1,7 +1,7 @@
 # GPU pretraining on Hugging Face Jobs
 
-**Status: the recipe below has been executed.** Following the sibling
-`finkele-axiom/scripts/hf_job_recipe.md`, every line here was run rather than inferred, and the
+**Status: the recipe below has been executed.** Following the recipe of a private
+sibling project, every line here was run rather than inferred, and the
 failures are kept because each one cost a probe and would otherwise be rediscovered. Six probes
 established the working configuration. **Status 2026-10-15:** the scaling runs described
 below have completed; their results are `docs/results/FINDINGS.md` §108 and §114.
@@ -136,7 +136,7 @@ Repositories > Write contents/settings of your repos
 Repositories > Read contents of public gated repos you can access
 ```
 
-Same set as `finkele-axiom`. Note this makes the token spend-capable, which is a deliberate
+Same set as that sibling project. Note this makes the token spend-capable, which is a deliberate
 change from its original dataset-read-only purpose.
 
 ## `--detach`, or a loop launches exactly one job
@@ -158,7 +158,7 @@ the explanation alone did not prevent a repeat.
 
 ## Secrets: `--secrets`, never `-e`
 
-Carried over from `finkele-axiom` (their FINDINGS 1.58), where it cost a revoked token:
+Carried over from the sibling project, where it cost a revoked token:
 
 `-e HF_TOKEN=...` stores the value as **plaintext in the job's metadata**, and
 `hf jobs inspect <id>` prints it back in full. There is no `hf jobs delete`. Use:
@@ -217,7 +217,7 @@ resumable with `--resume`, but the intermediate files live in the container's `/
 with it (§90), so a run that must survive a crash also has to upload them. Replace
 `fintfm-0.7.1-py3-none-any.whl` with the wheel you actually built and uploaded.
 
-Carried lessons from `finkele-axiom`, each of which cost a probe there:
+Carried lessons from the sibling project, each of which cost a probe there:
 
 | choice | why |
 | --- | --- |
