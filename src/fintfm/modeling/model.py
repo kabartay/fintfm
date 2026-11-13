@@ -825,6 +825,7 @@ class LatentCellBlock(nn.Module):
     """
 
     def __init__(self, d_cell: int, n_heads: int, dropout: float) -> None:
+        """Build the pooling and mixing layers; arguments are documented on the class."""
         super().__init__()
         self.row_norm = nn.LayerNorm(d_cell)
         self.col_norm = nn.LayerNorm(d_cell)
