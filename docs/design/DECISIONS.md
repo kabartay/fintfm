@@ -22,8 +22,8 @@ infrastructure — Kumo's Online Serving distils to sub-100 ms, and Feedzai's Ri
 fraud explicitly — and matching that means rebuilding an infrastructure stack, not a model.
 Market prediction is harder science with severe temporal-validation traps and sophisticated
 proprietary competition. Corporate credit is comparatively uncontested, is genuinely a
-*tabular* problem rather than a temporal one, and its buyers are under supervisory obligation,
-which is the wedge (D3).
+*tabular* problem rather than a temporal one, and its users are under supervisory obligation,
+which is where auditability matters most (D3).
 
 **Reversed if:** a credible party ships a validated corporate-credit foundation model with
 regulatory evidence, or a credit panel with usable licensing proves impossible to obtain,
@@ -74,9 +74,8 @@ The obvious product is "upload a table, get predictions, no training required". 
 because every mechanism claim in it is already owned — Kumo's is in NVIDIA's documentation
 and AP and Forbes, Google's TabFM is in BigQuery, Prior Labs and Feedzai each hold a piece.
 Competing there means competing on capital and distribution against funded vendors. That is an
-unwinnable fight and picking it would be the main way this project fails. (2026-11-13: the
-original text named a "$255M Series A"; that figure is not sourced in this repository and was
-removed with the vendor names.)
+unwinnable fight and picking it would be the main way this project fails. (2026-11-13: an unsourced
+funding figure was removed.)
 
 **Chose the validation layer.** Credit scorecards are logistic regression *because*
 regulators demand interpretability, which is why the commercial comparison is linear or
@@ -155,11 +154,11 @@ private" half is closed: the repository went public on 2026-09-25 with `LICENSE`
 
 Considered AGPLv3 with a commercial dual licence.
 
-**Chose Apache-2.0.** Dual licensing has no revenue model here: customers would consume
+**Chose Apache-2.0.** Dual licensing would gain nothing here: users would consume
 predictions through an API or licensed weights and never deploy the training code, so there
 is no copyleft obligation for them to pay to escape. Meanwhile AGPL is blanket-banned at many
-banks and insurers, which are precisely the target buyers, and Apache's patent grant is what
-their counsel looks for. The moat is the weights and the mature prior, not the training code,
+banks and insurers, the intended users, and Apache's patent grant is what their counsel looks
+for. The valuable part is the weights and the mature prior, not the training code,
 which is reproducible from the public PFN literature in days.
 
 **Reversed if:** the code itself turns out to be the differentiator, which would be evidence
@@ -433,7 +432,7 @@ genuinely is not there.
 it — plausibly real, unmeasured here — in exchange for D2's auditability claim: a model that
 never saw real data cannot have memorised a benchmark, and the leakage literature quantifies
 that risk at up to 32 points of MAPE (`FINDINGS` §1). The three peers made the opposite trade.
-Neither side is wrong; they are optimising different things, and this project's target buyer
+Neither side is wrong; they are optimising different things, and this project's intended user
 (a bank or insurer whose compliance review is the actual gate, per `docs/roadmap/STRATEGY.md`) is
 one for whom the auditability side of that trade is likely to matter more than for an open
 leaderboard entrant.
@@ -547,7 +546,7 @@ about this architecture specifically, not just in general.
 evidence rather than assumed.** Not raw accuracy — nothing above claims that. The bet (D2,
 D14) is that synthetic-only, architecturally-legible pretraining buys **auditability**: a
 model that provably never saw real data cannot have memorised a benchmark, which is the
-property this project's target buyer (a bank's compliance review, per `docs/roadmap/STRATEGY.md`)
+property this project's intended user (a bank's compliance review, per `docs/roadmap/STRATEGY.md`)
 is claimed to value enough to accept whatever the architecture-tinkering nulls above cost in
 raw rank. That is the actual trade this project is making, and it is not the same trade as
 "architecture work will eventually find a win" — this file's own position is closer to "we
@@ -556,11 +555,11 @@ accept architecture work is low-expected-value and are paying for something else
 **What would show the trade is not worth it — the falsification this critique needs to not be
 a slogan.** Three observations, any one sufficient:
 
-1. **A real customer engagement is lost or blocked specifically on an accuracy gap this
+1. **A real lender's evaluation is lost or blocked specifically on an accuracy gap this
    architecture family's own compute/data levers (more real data, bigger pretraining budget)
-   would close, and auditability is not raised as a mitigating factor by the buyer.** This
-   would mean the auditability premium this project is pricing in does not exist at the price
-   this project is paying for it.
+   would close, and auditability is not raised as a mitigating factor by the lender.** This
+   would mean auditability is not valued enough to justify the accuracy this project gives up
+   for it.
 2. **A size/minority-fraction slice of V4FinBench (D15's own open reversal condition) shows
    this architecture's gap against gradient boosting is driven by something data volume would
    fix** — not architecture, not prior mechanism — which would mean the lever this project is

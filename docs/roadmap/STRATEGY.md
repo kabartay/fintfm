@@ -31,7 +31,7 @@ validation evidence a model-risk committee needs.**
 argument.** The previous version led with accuracy and calibration. Both were measured and
 both are *small* (`docs/results/FINDINGS.md` "Where we stand"): +0.033 AUC over logistic regression,
 ~2× calibration over a *calibrated* incumbent and only below ~250 rows, 1-2% Brier skill over
-a feature-free predictor. A sophisticated buyer finds that ceiling in an afternoon.
+a feature-free predictor. A careful evaluator finds that ceiling in an afternoon.
 
 **What is large is the incoherence.** 39% of firms receive a term structure where a longer
 horizon carries a *lower* cumulative default probability, and the portfolio aggregate looks
@@ -162,7 +162,7 @@ internally incoherent, and that is checkable today with no new modelling
 
 ## Who this is for
 
-Not a data scientist wanting better AutoML; that buyer compares AUC and is served by
+Not a data scientist wanting better AutoML; that user compares AUC and is served by
 gradient boosting.
 
 **A credit risk function under supervisory obligation, with a small book.** SME lenders,
@@ -188,7 +188,7 @@ sibling project was removed.)
 ## IFRS 9 framing: what lifetime ECL needs, what fintfm does not supply, what it does
 
 Written 2026-11-11 for `openspec/changes/pd-term-structure` task 11.6, to be read before any
-customer conversation (none has taken place; 2026-11-13). **Gaps first.** Every capability below carries its `FINDINGS` section
+conversation with a lender (none has taken place; 2026-11-13). **Gaps first.** Every capability below carries its `FINDINGS` section
 and its label (MEASURED, PROVED, ESTIMATED, SMOKE-TEST). Where a number was measured before
 the §54 column-identity fix, it is marked, because §56 lists the survival and hazard work of
 §26-§40 for re-measurement.
@@ -199,7 +199,7 @@ Source: IFRS Foundation, *IFRS 9 Financial Instruments, Project Summary*, July 2
 (`https://www.ifrs.org/content/dam/ifrs/project/fi-impairment/ifrs-standard/published-documents/project-summary-july-2014.pdf`,
 pp. 15-19). The full standard text is behind an IFRS Digital subscription and was **not**
 read, so this section cites no paragraph numbers. Read the standard itself before quoting a
-paragraph to a customer.
+paragraph to a lender.
 
 - **Expected credit loss (ECL), not incurred loss.** Credit losses are "the present value of
   all cash shortfalls"; ECL is an estimate of them over the life of the instrument.
@@ -263,7 +263,7 @@ paragraph to a customer.
 11. **Marginal PD is not exposed.** `predict_term_structure` returns cumulative PD, shape
     `(n, n_horizons)`. Period PD is the difference of adjacent columns.
 
-So the accurate sentence for a customer is: *fintfm produces a coherent cumulative PD curve
+So the accurate sentence for a lender is: *fintfm produces a coherent cumulative PD curve
 over a short annual grid, which is one input to a lifetime ECL calculation. It does not
 produce LGD, EAD, discounting, staging or scenarios.* This is the sentence `docs/paper/LIMITATIONS.md`
 already requires beside any use of the words "IFRS 9".
@@ -287,7 +287,7 @@ not, in synthetic tests), or that the hazard construction is new. Discrete-time 
 models are decades old, and `docs/paper/CLAIMS.md` Claim 1 frames this as a measurement of
 a live defect in the field's standard construction, not a new method.
 
-### Open before the first customer conversation
+### Open before the first conversation with a lender
 
 - Re-measure the real-data term structure (§26-§33) on a post-§54 checkpoint, with the level
   printed beside the observed rate. Until then gap 9 stands.
@@ -483,12 +483,12 @@ here has been tested with a lender.)
 - **The credit result may stay below logistic regression.** (Added 2026-11-13, §216.) On the
   four admitted credit datasets FinTFM is below logistic regression, and on V4FinBench it is
   below CatBoost (§167). The thesis does not depend on beating either on accuracy, but a
-  buyer will ask, and the answer today is the one the evidence gives.
+  lender will ask, and the answer today is the one the evidence gives.
 - **The prior may not transfer.** Unmeasured. Phase 1 exists to kill it fast. (Since measured:
   exit condition A met, §14, amended by §15; see Phase 1 above.)
 - **The margins in this domain are small.** Baesens et al. found significance in 22 of 406
   comparisons. Even a positive Phase 1 may be a small effect, and a small effect cannot carry
-  a pitch built on accuracy — which is another reason the certificate is the product.
+  a case built on accuracy, which is another reason the certificate is the contribution.
 - **Low-default-portfolio benefit is conjecture.** The field's own authoritative benchmark
   named it and did not test it (mean default rate 22%). We would be first, which is the
   opportunity and the risk in one sentence.

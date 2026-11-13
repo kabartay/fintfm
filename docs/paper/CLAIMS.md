@@ -392,7 +392,7 @@ the artefact a validation committee accepts.
 
 ## Claim 9 — Calibration generalises across independent real credit panels; discrimination does not
 
-**Status: SURVIVES, on the pre-cell-attention architecture.** (Re-read 2026-11-13: the caveat
+**Status: SINGLE DRAW (owner decision, 2026-11-13).** Each of the four panels is one 70/30 split with no seeds, the evidence is on the pre-cell-attention architecture, and the published checkpoint misses the default rate (§174 and the DR4.3 run record), so the agreement of four single draws is directional, not a surviving claim. Re-tagging needs ECE on the published checkpoint over five splits of the credit suite. Earlier tag, kept: **Status: SURVIVES, on the pre-cell-attention architecture.** (Re-read 2026-11-13: the caveat
 below, one 70/30 split per dataset and no seeds, means each panel is a single draw by this
 ledger's own vocabulary, and the four panels agreeing is what keeps the tag. Quote it as
 directional; flagged for the owner.) Evidence: §73, four real panels

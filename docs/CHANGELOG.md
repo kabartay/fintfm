@@ -6,6 +6,47 @@ not paste one into the other. See `CLAUDE.md`.
 
 ## [Unreleased]
 
+## [0.10.1] — 2026-11-13
+
+A patch release: no new weights, and the published checkpoint scores as before (pinned bit for
+bit by `tests/test_golden_outputs.py`). It carries the leaderboard-position correction, the
+documentation revision and the fixes from the 2026-11-13 inspection, so the archived code
+agrees with the Zenodo description. From mid-November 2026 the project is no longer actively
+supported.
+
+### Fixed
+
+- **Leaderboard positions** (Section 225). TabArena's printed leaderboard numbers its rows from
+  0, and every rank read from it was one place too high: the 51-dataset TabArena-Lite entry is
+  107th of 110, not 106th, and the September arms were 94th of 95, not 93rd.
+  `scripts/lite_positions.py` derives positions from the stored leaderboards; each affected
+  finding carries a dated note.
+- **`FeatureConditioner`** refuses an unknown `kind` instead of running it as `"rank"`.
+- **Retrieval grouping** with zero queries returns no groups instead of failing in k-means.
+- **`python -m fintfm.experiments.prior_ablation --sample-efficiency`** and `--coherence` no
+  longer fail with `NameError` (the `__main__` guard sat before the functions they call).
+- **V4FinBench harness:** the MLP baseline is seeded (`random_state=0`, overridable), and the
+  summary flags an arm scored on fewer folds than the others.
+- Docstrings and error messages in the inference package (the documented default context
+  strategy is `"uniform"`; `BoostedTFMClassifier` names the offending setting).
+
+### Added
+
+- `scripts/build_leaderboard_page.py`: the Pages leaderboard is generated from a stored
+  TabArena-Lite run (`docs/leaderboard/data/`), and a test fails when the committed page
+  drifts from the build.
+- `openspec/changes/deferred-work-2026-11`: the work that stopped, with how to resume it, and an
+  index of the open tasks in other changes.
+
+### Changed
+
+- Claim 9 (calibration across four credit panels) is SINGLE DRAW, and design review DR2.4 is
+  decided as two checkpoints, one for credit and one for general-tabular breadth (owner,
+  2026-11-13).
+- README and `docs/` revised against FINDINGS Sections 195-225; commercial planning and sales
+  wording, local machine paths and references to unrelated private projects removed from
+  public files.
+
 ## [0.10.0] — 2026-11-13
 
 Code and tooling only: no new weights, and the published checkpoint `v4-cellattn-labels.pt`

@@ -86,7 +86,7 @@
 
 ## Owner decisions and release
 
-- [ ] 49.10 **Decide Claim 9's tag and DR2.4's checkpoint count.** Recommended on 2026-11-13:
+- [x] 49.10 **Done (2026-11-13, owner): Claim 9 is SINGLE DRAW in `docs/paper/CLAIMS.md`; DR2.4 is two checkpoints.** **Decide Claim 9's tag and DR2.4's checkpoint count.** Recommended on 2026-11-13:
       Claim 9 to SINGLE DRAW (each of its four panels is one 70/30 split, it was measured on the
       pre-cell-attention architecture, and the published checkpoint misses the default rate,
       §174 and the DR4.3 run record), and two checkpoints for DR2.4 (all four mixed-prior arms
