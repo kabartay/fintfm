@@ -208,7 +208,7 @@ transfers; and the resulting model is still far from competitive, in a way that 
 
 ## What a second paper would be
 
-Claim 1, alone: per-horizon PD construction is incoherent for 39% of real firms while the
+Claim 1, alone: per-horizon PD construction is incoherent for 98.7% of firms out of time on V4FinBench (§229) while the
 portfolio aggregate hides it; a discrete-time hazard parameterisation makes that impossible by
 construction at zero accuracy cost, holding at 0.00% violations out of time. Structural rather
 than statistical, decades-old mathematics, and a live defect in something IFRS 9 consumes

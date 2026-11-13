@@ -33,9 +33,10 @@ both are *small* (`docs/results/FINDINGS.md` "Where we stand"): +0.033 AUC over 
 ~2× calibration over a *calibrated* incumbent and only below ~250 rows, 1-2% Brier skill over
 a feature-free predictor. A careful evaluator finds that ceiling in an afternoon.
 
-**What is large is the incoherence.** 39% of firms receive a term structure where a longer
+**What is large is the incoherence.** Out of time on V4FinBench, per-horizon logistic regression gives
+98.7% of firms a term structure where a longer
 horizon carries a *lower* cumulative default probability, and the portfolio aggregate looks
-monotone and conceals it entirely (§11). That is not a ranking imperfection; it is an
+monotone and conceals it entirely (§229; §11's earlier 39% does not reproduce, §228). That is not a ranking imperfection; it is an
 incoherent object that IFRS 9 lifetime expected credit loss consumes directly. So the thesis
 now leads with it.
 
@@ -43,7 +44,7 @@ Four claims, ordered by how much evidence each carries:
 
 1. **Coherence, and it is the strongest card — and it is free.** The object is a hazard path
    — PD at 12 months, 24 months, lifetime — because IFRS 9 requires lifetime ECL. Independent
-   per-horizon models contradict themselves 39% of the time on real data (§11) and 12-29% on
+   per-horizon models contradict themselves on 40% of horizon steps out of time on real data (§229) and 12-29% on
    synthetic (§21), while a hazard parameterisation is monotone **by construction** (§20).
    Measured across three seeds (§21): at **equal compute** joint prediction costs nothing in
    discrimination (+0.0008 ± 0.0025) while eliminating incoherence entirely, using **one
@@ -341,7 +342,7 @@ Measured on 3,151 held-out rows across all five horizons (`FINDINGS` §11):
 - **11.0% violation rate per step; only 60.6% of firms get a fully monotone curve.**
 - Mean predicted PD *is* monotone at every step, so a portfolio-level report looks correct
   and conceals it entirely. That is why the diagnostic must be permanent.
-- Two firms in five therefore receive a term structure where a longer horizon carries a
+- Nearly every firm (98.7% out of time, §229) therefore receives a term structure where a longer horizon carries a
   lower default probability, which an IFRS 9 lifetime ECL calculation consumes directly.
 - **Nothing in the architecture or the loss forbids a violation**, so training cannot drive
   this to zero. The term-structure direction is founded rather than speculative.
@@ -353,7 +354,7 @@ joint versus per-horizon at matched compute.
 - **Exit condition:** joint prediction beats independent per-horizon models on AUC per
   horizon *and* on coherence, and the output is what an IFRS 9 provisioning calculation
   consumes.
-- **Why it moved up:** §11 measured a 39% incoherence rate, which is an order of magnitude
+- **Why it moved up:** per-horizon models are incoherent for 98.7% of firms out of time (§229; §11's 39% does not reproduce, §228), which is an order of magnitude
   larger than any accuracy or calibration edge this project has measured. It is also the only
   finding where the gap is structural rather than incremental — nothing in the architecture
   or loss forbids a violation, so no amount of training or scale closes it.

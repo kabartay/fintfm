@@ -115,8 +115,8 @@ class ModelConfig:
             reproducibility.
         n_horizons: When set, the model also carries a :class:`HazardHead` producing a
             **provably monotone** cumulative-PD term structure over this many periods. The
-            object IFRS 9 lifetime expected credit loss consumes, and the fix for the 39%
-            incoherence measured in ``docs/results/FINDINGS.md`` §11. ``None`` keeps the model
+            object IFRS 9 lifetime expected credit loss consumes, and the fix for the per-horizon
+            incoherence measured in ``docs/results/FINDINGS.md`` §229. ``None`` keeps the model
             classification-only.
         n_cell_blocks: Number of alternating two-way cell-attention blocks run **before**
             pooling. ``0`` (default) reproduces every checkpoint trained before this field

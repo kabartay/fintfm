@@ -1,7 +1,8 @@
 """Does fitting the whole curve also help discrimination, or only coherence?
 
 `docs/results/FINDINGS.md` §20 established that a hazard parameterisation makes the PD term structure
-monotone **by construction**, fixing the 39% incoherence measured in §11. That is a coherence
+monotone **by construction**, fixing the incoherence of per-horizon models
+(98.7% of firms out of time on V4FinBench, §229). That is a coherence
 result and it says nothing about accuracy.
 
 This experiment asks the remaining question. Two ways to produce a term structure over ``K``

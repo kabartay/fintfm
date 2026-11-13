@@ -18,7 +18,7 @@ against the observed rate at that horizon, because a monotone curve can still st
 wrong levels (§17).
 
 **Compare against what the field does**: independent per-horizon models, which is the
-construction §11 measured as incoherent 39% of the time.
+construction §229 measured as incoherent on 40% of horizon steps out of time.
 """
 
 from __future__ import annotations

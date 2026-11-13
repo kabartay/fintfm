@@ -34,11 +34,11 @@ accuracy below should be read as provisional until the prior and the training me
 
 | claim | evidence | § |
 | --- | --- | --- |
-| **PD term structures are incoherent** — 39% of firms get a curve where a longer horizon carries *lower* default probability, while the portfolio aggregate looks monotone and hides it | measured, real data | §11 |
+| **PD term structures are incoherent** (2026-11-13: §11's 39% does not reproduce, §228; out of time on V4FinBench it is 98.7% of firms, §229) — 39% of firms get a curve where a longer horizon carries *lower* default probability, while the portfolio aggregate looks monotone and hides it | measured, real data | §11 |
 | **Pretraining buys calibration** — 7× on Brier, up to 130× on ECE against an untrained model that predicts a 39% default rate against a 4.7% base | measured, untrained control | §15 |
 | **Firm-level financial data is licence-locked**, so synthetic pretraining is the only clean route into this domain, which is why the space is empty while energy is crowded | dataset census | §4, §8 |
 | **The prior matches real task difficulty** — logistic-regression AUC 0.743 synthetic against 0.769 real | measured, held-out seed | §18, §19 |
-| **Coherence transfers to real out-of-time data** — 0% violations against 39% for per-horizon models, 98.6% of firms affected | measured, V4FinBench | §26 |
+| **Coherence transfers to real out-of-time data** — 0% violations against 39% for per-horizon models, 98.6% of firms affected (2026-11-13, §229: 40.3% and 98.7% with no firm on both sides and a six-year embargo) | measured, V4FinBench | §26 |
 | **A base-rate error is invisible to every guard we had** — a 27× level error passed AUC, passed the coherence check, and was not printed; the fix cut fourth-horizon ECE 32× | measured, same checkpoint | §28 |
 | **Context construction dominates**: the best construction beats the worst by ~0.22 AUC out of time (0.8143 against 0.5938 for balanced), which is larger than any architectural change measured here | measured, 3 seeds | §29, §33, §35, §38 |
 | ~~Query-conditioned retrieval is our accuracy contribution~~ — **retired**: the published prototype context matches it on AUC, beats it significantly at horizon 0, is 1.6× better calibrated, 4× cheaper, and stays batch-independent | measured, 3 seeds, paired bootstrap | §32 → §36, §38 |
@@ -1940,6 +1940,8 @@ ECE margins are larger but still one draw. Three seeds before this is quoted any
 
 ## 28. §26's headline was our own bug: the term-structure path skipped the base-rate correction
 
+> (2026-11-13, §229: rerun with no firm on both sides and a six-year embargo, per-horizon logistic regression violates 40.3% of steps (39.1% under the old split, which reproduces this entry) and the hazard head 0%; mean AUC falls 0.027 to 0.044.)
+
 **Date:** 2026-09-09. **MEASURED.** **Command:**
 
 ```bash
@@ -2015,6 +2017,8 @@ saved 6,372 seconds of retraining. It is now printed by the harness on every run
 ---
 
 ## 29. Balanced context sampling costs 10-12 AUC points here, reversing the default we adopted from the literature
+
+> (2026-11-13, §229: on today's code balanced sampling is about 0.04 AUC above uniform under either split; this entry's ordering belongs to its own code. Its output is not stored, so it was not rerun exactly.)
 
 **Date:** 2026-09-09. **MEASURED**, single seed per cell. **Command:**
 
@@ -2192,6 +2196,8 @@ identical in a summary table and imply completely different work.
 
 ## 32. Retrieval is the first change that moves accuracy: +0.066 to +0.095 AUC over the best blind strategy, Holm-significant
 
+> (2026-11-13, §229: on today's code retrieval is below hybrid and balanced under either split; the corrected split lowers every strategy by up to 0.026 AUC without changing the ordering.)
+
 **Date:** 2026-09-09. **MEASURED**, single seed. **Command:**
 
 ```bash
@@ -2289,6 +2295,8 @@ named for what they return.
 
 ## 33. Three seeds: retrieval replicates cleanly, and §32's "rises monotonically" was noise
 
+> (2026-11-13, §229: as for §32: on today's code retrieval does not lead, and the corrected split changes no ordering.)
+
 **Date:** 2026-09-09. **MEASURED**, three seeds per cell. **Command:**
 
 ```bash
@@ -2381,6 +2389,8 @@ should not be reachable.**
 ---
 
 ## 35. Rank-transforming features is worth +0.086 AUC, and it resolves D9
+
+> (2026-11-13, §229: rank is now the default, so the rerun is identical to §33's and does not test this entry's comparison; it is not re-measured.)
 
 **Date:** 2026-09-09. **MEASURED**, three seeds, three panels.
 
@@ -2591,6 +2601,8 @@ answers confidently without the thing behind it being what it claims.
 
 ## 37. The retrieval grouping approximation costs about 0.012 AUC, and moves individual firms by up to 0.24
 
+> (2026-11-13, §229: the cost holds in size under the corrected split (0.000 to 0.011 at group sizes 2 to 128; 0.053 at 400).)
+
 **Date:** 2026-09-09. **MEASURED**, single seed. **Command:**
 
 ```bash
@@ -2669,6 +2681,8 @@ noise, not a real gain from coarser grouping.
 ---
 
 ## 38. Query-conditioned retrieval loses to the published global prototype context, on every axis
+
+> (2026-11-13, §229: under the corrected split retrieval is 0.003 AUC ahead of the prototype (0.007 behind under the old split); one seed, within noise.)
 
 **Date:** 2026-09-09. **MEASURED**, three seeds, plus a Holm-corrected paired bootstrap.
 **This finding retires §32's contribution claim.**
@@ -14632,3 +14646,57 @@ with today's code (`runs/coherence-fixed/`, `runs/coherence-legacy/`, about 8 s 
   be quoted.
 - The out-of-time version of the claim (§28) is being rerun under task 49.7; documents quoting
   the 39% are corrected once that lands.
+
+## §229: with no firm on both sides and a six-year label embargo, coherence holds and out-of-time accuracy falls 0.01 to 0.04 AUC; the strategy ordering does not change
+
+**MEASURED, 2026-11-13.** Task 49.7, fix b34612d: the out-of-time, context-sweep and
+retrieval-grouping harnesses now split with `time_based_split(on_overlap="drop_from_train")`
+and a six-year embargo, because a V4FinBench row from year y carries labels up to y+6. Each
+affected entry was rerun twice on today's code and the stored checkpoint
+`runs/v4-hazard-ldp.pt`: `--split legacy` (the old split) and the corrected default, outputs
+`runs/<run>-legacynow/` and `runs/<run>-emb/`. Comparing the two isolates the split; comparing
+`-legacynow` with the original run shows what else changed since. Queue log
+`runs/local_queue/queue.log`, 14 jobs, all exit 0.
+
+**The split.** Training years to 2016 and test from 2017, `--max-rows 120000`. Legacy trains
+on 72,622 rows; 5,714 firms appear on both sides. Corrected trains on 20,351 rows up to 2010
+(base rate 1.81% against 1.54%); the 47,378 test rows are unchanged.
+
+**§28, term structure out of time:**
+
+| arm | violation rate per step, legacy / corrected | fully monotone, legacy / corrected | mean AUC, legacy / corrected |
+| --- | --- | --- | --- |
+| FinTFM hazard head | 0% / 0% | 100% / 100% | 0.818 / 0.791 |
+| FinTFM hazard, uniform context | 0% / 0% | 100% / 100% | 0.794 / 0.774 |
+| per-horizon logistic regression | 39.1% / 40.3% | 1.4% / 1.3% | 0.862 / 0.817 |
+
+The legacy row for logistic regression reproduces the stored §28 run exactly (39.06%).
+
+**§32 and §33, context strategies** (best cell per strategy, mean AUC over three seeds,
+legacy / corrected): hybrid 0.838 / 0.830, balanced 0.833 / 0.825, retrieval 0.814 / 0.799,
+uniform 0.793 / 0.777. Cell by cell the corrected split moves AUC by −0.026 to +0.021. The
+one-seed §32 grid gives the same ordering.
+
+**§37, retrieval grouping** (AUC change against exact per-query retrieval, legacy / corrected):
+group size 2, −0.013 / 0.000; 8, −0.023 / −0.011; 32, +0.005 / +0.008; 128, −0.006 / −0.003;
+400, −0.075 / −0.053.
+
+**§38, prototype against retrieval** (best configuration): prototype ahead by 0.007 AUC under
+the legacy split, behind by 0.003 under the corrected one. One seed.
+
+**What it says.**
+- The coherence result survives the correction: per-horizon logistic regression contradicts
+  itself on 40.3% of horizon steps and gives a monotone curve for 1.3% of firms; the hazard head
+  is monotone by construction. This is the V4FinBench figure ("0% against 39%") Claim 1 quotes,
+  distinct from §11's Polish figure, which does not reproduce (§228).
+- The leak inflated out-of-time accuracy by 0.01 to 0.04 AUC: FinTFM's hazard head 0.027,
+  logistic regression 0.044. The gap to logistic regression narrows from 0.044 to 0.027.
+- No ordering changes with the split. But several September conclusions do not reproduce on
+  today's code even with the old split: retrieval is below hybrid and balanced (§32 and §33
+  reported +0.066 to +0.095 over the best blind strategy), and balanced is above uniform (§29
+  reported 10 to 12 points below). The cause is the code since then, not the leak; the rank
+  feature transform, now the default, is the obvious candidate, and the §35 rerun cannot isolate
+  it because under today's defaults it is identical to §33's.
+- §37's grouping cost holds in size. §38's "on every axis" no longer holds for AUC under the
+  corrected split, within one seed's noise.
+- Not rerun exactly: §29's original output is gone and §30's other checkpoints are unnamed.

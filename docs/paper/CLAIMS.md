@@ -58,7 +58,7 @@ and the fix transferred**: +0.0486 AP at matched context, +0.0417 best-vs-best, 
 
 ## Claim 1 — PD term structures produced by per-horizon models are incoherent, and a hazard head fixes it by construction
 
-**Status: SURVIVES.** Evidence: §11 (39% of firms receive a curve where a longer horizon
+**Status: SURVIVES.** (2026-11-13, §228, §229: §11's 39% of firms does not reproduce on the stored checkpoint and is no longer evidence. The out-of-time evidence survives a split with no firm on both sides and a six-year label embargo: per-horizon logistic regression violates 40.3% of horizon steps and leaves 98.7% of firms non-monotone, against 0% for the hazard head. Quote those.) Evidence: §11 (39% of firms receive a curve where a longer horizon
 carries lower cumulative default probability, while the portfolio aggregate stays monotone and
 hides it), §20 (the fix), §21 (coherence is free — joint prediction matches per-horizon on
 AUC), §26 and §32 (0.00% violations out of time on real data against 39.06%, with only 1.4% of

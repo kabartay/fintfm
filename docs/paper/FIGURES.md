@@ -13,7 +13,7 @@ Cite theirs; do not re-derive.
 
 Cumulative PD curves from per-horizon models that *decrease* with horizon, against hazard-head
 curves that cannot. Per-firm, with the portfolio aggregate overlaid to show it hiding the
-violations. **The paper's most important figure**, because it makes a 39% failure rate visible
+violations. **The paper's most important figure**, because it makes a failure rate of 98.7% of firms out of time on V4FinBench (§229) visible
 that a portfolio-level view conceals.
 
 Data exists (§11, §26, §32); the plot does not. Needs a small plotting script over

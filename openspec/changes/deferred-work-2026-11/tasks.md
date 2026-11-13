@@ -51,7 +51,7 @@
 
 ## Harness defects found by the 2026-11-13 inspection (not fixed; each changes recorded numbers)
 
-- [ ] 49.7 **Progress (2026-11-13): code fixed in b34612d. The out-of-time, context-sweep and retrieval-grouping harnesses default to `time_based_split(on_overlap="drop_from_train")` with a 6-year label embargo (V4FinBench labels reach up to six years ahead); `--split legacy` reproduces the old split. Reruns of §28, §32, §33, §35, §37 and §38 (`-emb` outputs) are queued locally; §29's original output is gone and §30's other checkpoints are unnamed, so those two can only be redone on the current checkpoint.** **Out-of-time split: add a company check and an embargo.**
+- [x] 49.7 **Done (2026-11-13, FINDINGS §229): seven entries rerun under both splits on today's code; coherence holds (40.3% against 0%), accuracy falls 0.01 to 0.04 AUC, no ordering flips; dated notes on §28, §29, §32, §33, §35, §37, §38.** **Progress (2026-11-13): code fixed in b34612d. The out-of-time, context-sweep and retrieval-grouping harnesses default to `time_based_split(on_overlap="drop_from_train")` with a 6-year label embargo (V4FinBench labels reach up to six years ahead); `--split legacy` reproduces the old split. Reruns of §28, §32, §33, §35, §37 and §38 (`-emb` outputs) are queued locally; §29's original output is gone and §30's other checkpoints are unnamed, so those two can only be redone on the current checkpoint.** **Out-of-time split: add a company check and an embargo.**
       `src/fintfm/experiments/v4_out_of_time.py` `time_split` (also used by the context-sweep
       and retrieval-grouping harnesses) does not check companies, so a firm seen in a training
       year can appear in the test years, and a training row's labels span up to six years into

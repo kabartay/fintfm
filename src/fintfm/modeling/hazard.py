@@ -3,9 +3,9 @@
 Why this exists
 ---------------
 Independent per-horizon predictions produce curves that disagree with themselves. Measured
-on real data (``docs/results/FINDINGS.md`` §11): **11% of horizon steps and 39% of firms** received a
-cumulative default probability that *fell* as the horizon grew, while the portfolio aggregate
-stayed monotone and hid it. A firm that has defaulted by year three has defaulted by year
+out of time on V4FinBench (``docs/results/FINDINGS.md`` §229): per-horizon logistic regression
+gave **40% of horizon steps and 98.7% of firms** a cumulative default probability that *fell*
+as the horizon grew. A firm that has defaulted by year three has defaulted by year
 five, so such a curve is not merely inaccurate, it is incoherent — and IFRS 9 lifetime
 expected credit loss consumes exactly this curve.
 

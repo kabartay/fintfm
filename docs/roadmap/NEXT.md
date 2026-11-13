@@ -109,7 +109,8 @@ small; coherence was measured large. The queue follows the evidence.
 
 2. **`pd-term-structure` tasks 11.2-11.6** — hazard-path output and a permanent coherence
    diagnostic. **11.2, 11.4 (§20) and 11.5 (§21) done; 11.3 and 11.6 open.** §11 measured
-   39% of firms getting a self-contradicting curve, an order of magnitude larger than any
+   39% of firms getting a self-contradicting curve (2026-11-13: not reproducible, §228; out of
+   time on V4FinBench it is 98.7% of firms, §229), an order of magnitude larger than any
    accuracy edge here, and structural rather than incremental: nothing in the loss forbids a
    violation, so training cannot fix it. **This is now the product.**
 3. **`prior-width-and-fidelity` task 15.5** — retrain at matched compute against the old

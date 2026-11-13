@@ -646,8 +646,8 @@ licence, and Apache-2.0 on Nori's weights changes only whether we may *evaluate*
 
 After the above, the defensible list is short and should be stated as such:
 
-1. **Measuring that the field's standard PD term structure is incoherent on 39% of real
-   firms**, invisibly at portfolio level, and removing it by construction (Claim 1).
+1. **Measuring that the field's standard PD term structure is incoherent for 98.7% of firms
+   out of time on V4FinBench** (§229), invisibly at portfolio level, and removing it by construction (Claim 1).
 2. **A ~~synthetic-only prior~~ *financial* prior with an auditable provenance argument**
    that transfers to real corporate default data (Claim 2). **Narrowed 2026-09-21:** Nori is
    synthetic-only, in-context, Apache-2.0 in both code and weights, and further along. The
