@@ -1,5 +1,9 @@
 # Task 39.25: re-score V4FinBench at a context §81's chunking fix made reachable.
 #
+# THIS FILE is the max_context=2000 point; configs/v4-ctx4000.yaml is the 4000 point. The two
+# headers share the text below, written for the 4000 point, so the ms/query and GB figures in it
+# are the ctx=4000 measurements, not 2000 ones.
+#
 # NOT PRODUCTION. One point in the context sweep §80 could not run. §79 measured cell
 # attention's attention tensor as (batch*F, heads, N, N); §81 chunked it over F, which is
 # identity-preserving (asserted byte-for-byte in tests/test_model.py) and brought
