@@ -180,7 +180,7 @@ def _classical_estimator(name: str, params: dict) -> ClassifierMixin:
     if name == "logistic_regression":
         return LogisticRegression(max_iter=1000, **params)
     if name == "mlp":
-        return MLPClassifier(max_iter=300, early_stopping=True, random_state=0, **params)
+        return MLPClassifier(**{"max_iter": 300, "early_stopping": True, "random_state": 0, **params})
     if name == "random_forest":
         return RandomForestClassifier(n_jobs=-1, random_state=0, **params)
     raise ValueError(f"unknown classical baseline {name!r}")
