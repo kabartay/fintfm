@@ -5,7 +5,7 @@ puts a method one place higher than it is (FINDINGS §225). This script derives 
 from ``tabarena_leaderboard.csv`` instead: one plus the number of methods with a strictly higher
 Elo, out of every row in that leaderboard.
 
-    uv run python scripts/lite_positions.py ~/proj/tabarena/eval
+    uv run python scripts/lite_positions.py <tabarena-fork>/eval
 """
 
 from __future__ import annotations

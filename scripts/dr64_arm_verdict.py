@@ -21,11 +21,11 @@ what pre-registration forbids. The arm is read from the kernel, not from a table
 
 Usage:
     uv run --frozen python scripts/dr64_arm_verdict.py prepare \\
-        /Users/morganoko/proj/fintfm/runs/kaggle-fintfm-ts-au517-lenscale-s0
+        <repo>/runs/kaggle-fintfm-ts-au517-lenscale-s0
     uv run --frozen python scripts/dr64_arm_verdict.py verdict \\
-        /Users/morganoko/proj/fintfm/runs/kaggle-fintfm-ts-au517-lenscale-s0
+        <repo>/runs/kaggle-fintfm-ts-au517-lenscale-s0
     uv run --frozen python scripts/dr64_arm_verdict.py compose \\
-        /Users/morganoko/proj/fintfm/runs
+        <repo>/runs
 """
 
 from __future__ import annotations
@@ -53,7 +53,7 @@ EXEC_NOVALUE = {"--ddp"}
 CONTROL_ARMS = ("au59-hazard-ctrl",)
 REPO = Path(__file__).resolve().parents[1]
 KERNELS = REPO / "scripts" / "kaggle"
-DEFAULT_RUNS = Path("/Users/morganoko/proj/fintfm/runs")
+DEFAULT_RUNS = Path(__file__).resolve().parents[1] / "runs"
 #: Extra train.log lines a flag must produce, beyond the shared ones (train.py's `say` calls).
 FLAG_LOG_LINES = {"--masked-column-prob": "masked-column swaps"}
 

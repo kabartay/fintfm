@@ -15,7 +15,7 @@ metadata (row count, omitted count, source run, CSV name) goes into ``page.json`
 written by hand and must quote ``docs/results/FINDINGS.md``.
 
     uv run python scripts/build_leaderboard_page.py extract \\
-        ~/proj/tabarena/eval/fintfm_linprobe_all51_1113 --omit 'REGEX'
+        <tabarena-fork>/eval/fintfm_linprobe_all51_1113 --omit 'REGEX'
     uv run python scripts/build_leaderboard_page.py build
 """
 

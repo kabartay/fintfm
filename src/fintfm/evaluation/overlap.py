@@ -6,7 +6,7 @@ datasets with TabArena bias the eventual TabArena number (design review 2026-10-
 and DR4.2). This is evaluation, not training, so decision D2 is untouched; the harm is
 selection bias, and nothing would warn of it.
 
-The lists below are copied from the local TabArena fork (``~/proj/tabarena``, branch
+The lists below are copied from a local TabArena fork (branch
 ``fintfm-audit-fixes`` at commit 2d8f7cfba072379587a78a820ec079d0e51fe3fa), so the checks run
 without the fork or a network:
 

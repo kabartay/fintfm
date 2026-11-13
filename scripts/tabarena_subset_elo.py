@@ -8,8 +8,8 @@ that frame again on fewer datasets gives the subset Elo against exactly the same
 Runs in the TabArena fork's environment, not this one (``tabarena`` is not a fintfm
 dependency), read-only::
 
-    ~/proj/tabarena/.venv/bin/python -P scripts/tabarena_subset_elo.py \\
-        ~/proj/tabarena/eval/fintfm_lite_tafintfm/results_per_split.csv --subset imbalanced
+    <tabarena-fork>/.venv/bin/python -P scripts/tabarena_subset_elo.py \\
+        <tabarena-fork>/eval/fintfm_lite_tafintfm/results_per_split.csv --subset imbalanced
 
 It first re-scores the whole frame, so a reader can check the reproduction against the
 original leaderboard before trusting the subset number.

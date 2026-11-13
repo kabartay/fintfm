@@ -34,3 +34,13 @@ kaggle.json
 # noticing the file had stopped being tracked.
 !.env.example
 
+
+# Local/editor noise and other weight or checkpoint formats
+.DS_Store
+.idea/
+.vscode/
+*.pth
+*.ckpt
+*.safetensors
+*.state
+*.pt.step*

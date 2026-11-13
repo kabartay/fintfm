@@ -10,7 +10,7 @@ and never imputes FinTFM on them, which would score the imputing method instead.
 Runs in the TabArena fork's environment (``tabarena`` is not a fintfm dependency), from the
 fork's root, because Ray puts the driver's working directory on every worker's path::
 
-    cd ~/proj/tabarena
+    cd <tabarena-fork>
     PYTHONUNBUFFERED=1 .venv/bin/python -P <fintfm>/scripts/tabarena_imbalanced_run.py \\
         --run-name fintfm_imbalanced_<MMDD> > <fintfm>/runs/au518_imbalanced.log 2>&1; echo "EXIT=$?"
 

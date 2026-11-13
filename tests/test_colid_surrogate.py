@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import sys
 from pathlib import Path
 
@@ -10,7 +11,7 @@ import numpy as np
 import pytest
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "colid_surrogate.py"
-RUNS = Path("/Users/morganoko/proj/fintfm/runs")
+RUNS = Path(os.environ.get("FINTFM_RUNS", Path(__file__).resolve().parents[1] / "runs"))
 
 
 def _load():
@@ -58,7 +59,10 @@ def test_untried_predictions_cover_requested_values_and_are_finite() -> None:
     assert all(np.isfinite(v) for p in preds.values() for v in p.values())
 
 
-@pytest.mark.skipif(not RUNS.exists(), reason="needs the main checkout's runs/")
+@pytest.mark.skipif(
+    not (RUNS.is_dir() and any(p.is_dir() for p in RUNS.iterdir())),
+    reason="needs the main checkout's runs/ (or FINTFM_RUNS)",
+)
 def test_embedded_numbers_match_the_run_files() -> None:
     """The embedded APs equal the per-run v4_protocol.json values, full panel, ensemble 8."""
     assert _load().verify_rows(RUNS) == []

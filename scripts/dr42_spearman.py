@@ -8,7 +8,7 @@ runs directory and ``lite_elo.csv`` (from ``runs/agents1104/DR4.2/lite_elo.py``)
 Usage::
 
     nice -n 19 uv run --frozen python scripts/dr42_spearman.py \
-        [--runs /Users/morganoko/proj/fintfm/runs] [--out-dir <dir>] [--arms a,b,c]
+        [--runs <repo>/runs] [--out-dir <dir>] [--arms a,b,c]
 
 ``--out-dir`` defaults to ``<runs>/agents1104/DR4.2`` and receives ``spearman_inputs.csv``.
 A checkpoint missing from ``lite_elo.csv`` or with fewer than 48 scored rows is skipped with a
