@@ -14399,3 +14399,49 @@ KNN (tuned) 815.
 - Binary is 30 of 51 datasets, so it moves the overall most. The same readout options are
   untested on binary; under the V4FinBench-first rule they are scored there before any binary Lite
   run.
+
+## §224: four partition bags lift multiclass from 825 to 865 Elo, overall 903; the head's probabilities and a 4,000-row context are null
+
+**MEASURED, TabArena-Lite (repeat 0, fold 0), CPU, 2026-11-13.** Fork at 7f0b062, which adds the
+`head` probe option (append the log of the head's class probabilities, clipped at 10⁻⁶; for
+regression, the head's prediction). Three arms, each §222's winner (`fintfm_lp_mc_scalecvraw_1111`:
+`dr74-mc-s0`, squash, `select`, partition, `FINTFM_PROBE` scale + cv + raw) with one change:
+
+| arm | change | better / worse of 8 vs §222 | multiclass Elo | time |
+| --- | --- | --- | --- | --- |
+| §222 winner | | | 825 (+109 / −291) | 14 min |
+| `fintfm_lp_mc_scrh_1112` | `head` added | 7 / 1 | 825 (+109 / −291) | 112 min |
+| `fintfm_lp_mc_scr_bag4_1112` | `FINTFM_PARTITION` `n_bags` 4 (was 1) | 5 / 3 | **865 (+120 / −293)** | 26 min |
+| `fintfm_lp_mc_scr_ctx4k_1112` | `FINTFM_MAX_CONTEXT` 4,000 (was 1,000) | 2 / 3 (3 tied) | 820 (+108 / −285) | 41 min |
+
+Against §221's control all three are 8 of 8 better (sign test p 0.01 for head and ctx4k, 0.07 for
+bag4, which is worse than the control on maternal_health_risk, 0.6428 against 0.6360). Comparisons in
+`runs/<arm>_vs_1110.md`; logs `runs/local_queue/mc-{head,bag4,ctx4k}.log`.
+
+Log loss per dataset:
+
+| dataset | §222 winner | head | bag4 | ctx4k |
+| --- | --- | --- | --- | --- |
+| MIC | 0.5115 | 0.5104 | 0.4940 | 0.5123 |
+| students_dropout_and_academic_success | 0.6208 | 0.6208 | 0.6081 | 0.6211 |
+| hiva_agnostic | 0.1866 | 0.1869 | 0.1828 | 0.1874 |
+| splice | 0.1241 | 0.1240 | 0.1225 | 0.1238 |
+| SDSS17 | 0.1222 | 0.1206 | 0.1214 | 0.1205 |
+| anneal | 0.2218 | 0.2204 | 0.2218 | 0.2218 |
+| maternal_health_risk | 0.6333 | 0.6332 | 0.6428 | 0.6333 |
+| website_phishing | 0.3027 | 0.3012 | 0.3157 | 0.3027 |
+
+**Overall, binary §220 + bag4 + regression §223: 903 Elo (+102 / −110), 106th of 110**
+(`fintfm_linprobe_all51_1113`, log `runs/merge_all51_1113.log`), against §223's 898. Neighbours
+unchanged: Linear (tuned) 919, Linear (tuned + ensembled) 936, RandomForest (default) 1,000.
+
+**What it says.**
+- Bagging the partition is the only one of the three that moves the Elo. It is noisy: three
+  datasets get worse, website_phishing by 4.3%. `mc-bag8` (8 bags) is queued to see whether more
+  bags keep the gains and remove the losses.
+- The head's probabilities improve 7 of 8 by at most 1.3%, too little to change any rank, and
+  make the run eight times slower (112 min against 14). Not kept.
+- A 4,000-row context changes nothing: SDSS17 is the only dataset that gains by more than 0.5%, and
+  three datasets are identical to four decimals, so the 1,000-row cap did not bind there.
+- Multiclass gained 40 Elo but is 8 of 51 datasets, so the overall moved 5. The remaining gap to
+  1,000 overall is regression (578) and binary (974, 30 of 51 datasets).
