@@ -1,3 +1,11 @@
+# NOTE (2026-11-13): "best to date" below is historical, as of §38 (V4FinBench out of time, AUC/ECE).
+# Later entries in docs/results/FINDINGS.md supersede it as the strongest inference setting on later
+# protocols and benchmarks: §130-§131 (the linear probe on the model's representation beats its own
+# head), §169 (partitioned contexts: +0.0375 mean AP on V4FinBench, 5 of 5 folds), §215 and §221
+# (TabArena-Lite configurations; §218 shows the probe per partition leaf is harmful on V4FinBench,
+# so the best setting depends on the benchmark) and §224 (partition bags, multiclass). This file is
+# kept unchanged so that §38 stays reproducible; no value below was altered.
+#
 # The best configuration measured to date on V4FinBench out of time (docs/results/FINDINGS.md §38):
 # mean AUC 0.8143 ± 0.0038, mean ECE 0.0072 ± 0.0005, 0% coherence violations, ~56 s.
 #

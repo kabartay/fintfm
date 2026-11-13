@@ -1,5 +1,8 @@
 """Draw images/logo.png: `python3 scripts/draw_logo.py images/logo.png` (needs Pillow).
 
+Pillow is deliberately not a fintfm dependency or extra: this is a one-off script, so install it ad hoc
+(`pip install pillow`, HPND licence, accepted by scripts/check_licences.py) in a throwaway environment.
+
 FinTFM mark: a table whose labelled rows are the context, read in one forward pass,
 and a new row whose last cell is the predicted default probability."""
 import sys
