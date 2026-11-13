@@ -1,7 +1,8 @@
 # Working conventions
 
-Instructions for anyone, human or agent, working in this repository. Short by design: the
-project is one day old. Grows as mistakes actually happen here, following the pattern in the
+Instructions for anyone, human or agent, working in this repository. Written when the
+project was one day old (September 2026; by 2026-11-13 it is far longer, so "short by design" no longer
+describes it). Grows as mistakes actually happen here, following the pattern in the
 sibling `finkele`/`finkele-axiom`/`jile` repos — a rule earns its place by being violated once,
 not by being imaginable in advance.
 
@@ -282,7 +283,7 @@ and nothing else" while a `ruff` error sat red on the release commit. Local `pyt
 lint was not, and `uv run pytest` does not run `ruff`.
 
 ```bash
-uv run ruff check src/ tests/     # CI runs this and pytest does not
+uv run ruff check src/ tests/ scripts/ openspec/tools/   # CI runs this and pytest does not (paths as in ci.yml, checked 2026-11-13)
 uv run pytest -q
 gh run list --limit 3             # after pushing a tag, before announcing anything
 ```
@@ -697,3 +698,15 @@ Both are one line away in the source finding, and both were printed in each run'
 - **`max_context` is a fraction of the pool it samples from.** A context conclusion drawn at
   63,588 training rows does not transfer to 800,000. State the pool whenever stating a context
   finding.
+
+## Quote a leaderboard position from `scripts/lite_positions.py`, never from the printed table
+
+Cost every rank in `docs/results/FINDINGS.md` read from TabArena's printed leaderboard between
+§98 and §224, one place too high (§225, found 2026-11-13). The printed table numbers its rows
+from 0, so `Kumo-Tabular (default)` is row 0 and a model printed at row 106 is 107th.
+
+- **Derive the position**: `scripts/lite_positions.py` counts one plus the number of methods
+  with a strictly higher Elo, from every stored leaderboard in the fork's `eval/`.
+- **State the field size beside the position** ("107th of 110"). The September field was 95
+  methods, October 96, today's 108 to 110; a position is only comparable within one field.
+- Per-dataset ranks come from a computed column, not the printed index, and are not affected.
