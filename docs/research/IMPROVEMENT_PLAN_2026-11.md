@@ -53,7 +53,7 @@ representation, not in scale.
 | linear-probe variant 910 Elo | 910 against the own head's 765 on §132's cache; the current own-head figure, 756, is a later run (NaN passed through) | §132, `docs/results/TABARENA.md` |
 
 The other figures in the brief match their sources: 0.1986 (§130's own-head mean), 0.2362
-(§169), 0.4005 (§167), 756 Elo and 94th of 95 (`docs/results/TABARENA.md`, 2026-10-19 run), 936 for
+(§169), 0.4005 (§167), 756 Elo and 94th of 95 [§225: one place lower] (`docs/results/TABARENA.md`, 2026-10-19 run), 936 for
 `Linear (default)` on §132's cache.
 
 Two facts the plan depends on, also from the source:
@@ -220,7 +220,7 @@ proxy suite first.
 
 ### 2. Goal (a): a general-tabular checkpoint with a linear readout
 
-**Status, 2026-11-13: not run as specified; superseded in practice by the readout stack on the published checkpoint.** All figures are TabArena-Lite, label "FinTFM with a trained linear readout", and breadth only. Probe plus squash 969 Elo (§212); plus partition 1,000.2 Elo, level with RF (default), not above it (§215); binary 974 on 30 datasets (§220); multiclass 865 (§224); regression 578 (§223); all 51 datasets 903 Elo, 106th of 110 (§224), with Linear (tuned) at 919 and RF (default) at 1,000. The 480,000-task checkpoint is null on multiclass (§222). The proxy suite that this experiment selects on failed its validation bar, rho +0.717 against 0.8 (§216, DR4.2), so the plan's selection step no longer stands. Success criterion stated above (above `Linear (default)` on §132's cache) is superseded by the bar in `docs/roadmap/TABARENA_BAR.md`, not met on the 51-dataset run.
+**Status, 2026-11-13: not run as specified; superseded in practice by the readout stack on the published checkpoint.** All figures are TabArena-Lite, label "FinTFM with a trained linear readout", and breadth only. Probe plus squash 969 Elo (§212); plus partition 1,000.2 Elo, level with RF (default), not above it (§215); binary 974 on 30 datasets (§220); multiclass 865 (§224); regression 578 (§223); all 51 datasets 903 Elo, 107th of 110 (§224), with Linear (tuned) at 919 and RF (default) at 1,000. The 480,000-task checkpoint is null on multiclass (§222). The proxy suite that this experiment selects on failed its validation bar, rho +0.717 against 0.8 (§216, DR4.2), so the plan's selection step no longer stands. Success criterion stated above (above `Linear (default)` on §132's cache) is superseded by the bar in `docs/roadmap/TABARENA_BAR.md`, not met on the 51-dataset run.
 
 - **Hypothesis.** For TabArena the right checkpoint is a general-trunk one, not the credit one,
   and the probe's gain stacks with it. The two strongest general-tabular signals measured here,

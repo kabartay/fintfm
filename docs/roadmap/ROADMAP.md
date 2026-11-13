@@ -24,7 +24,7 @@ See `TABARENA_BAR.md` on why the two cannot be mixed.
 the record. The standing entry since is "FinTFM with a trained linear readout", a logistic
 regression (ridge for regression) on the network's pre-head representation, in the TabArena
 fork, not on the public board. Over **all 51 TabArena-Lite datasets with no exclusion it scores
-903 Elo (+102 / −110), 106th of 110** (§224), against RandomForest (default) at 1,000, Linear
+903 Elo (+102 / −110), 107th of 110** (§224), against RandomForest (default) at 1,000, Linear
 (tuned + ensembled) at 936 and Linear (tuned) at 919. By problem type: binary 974 on 30
 datasets (§220), multiclass 865 on 8 (§224), regression 578 on 13 (§223). On the earlier
 27-dataset binary pool the same readout with squash and partition scored 1,000.2 (+156 / −167),
@@ -120,7 +120,7 @@ checkpoint) is now closed too (§136); Phase A' is done and the next real lever 
    +0.0214), 5/5 folds win (against 4/5), 3/5 significant after Holm. Not a quirk of one
    training run.
 5. ~~**Check whether this transfers to TabArena's Lite protocol.**~~ **Done (§132): it does.**
-   +145 Elo, 93rd of 95 against 94th, 26 of 27 datasets used the linear probe cleanly. Still
+   +145 Elo, 93rd of 95 [§225: one place lower] against 94th, 26 of 27 datasets used the linear probe cleanly. Still
    below every real method -- 910 sits a whisker under `Linear (default)` at 936 (the
    resubmission bar is about 1,010, corrected 2026-10-16; see Phase E), the next
    milestone this file already named. Timed one dataset first (249s), confirming the discipline
@@ -264,7 +264,7 @@ pretraining run on an entry that still cannot be listed.
     tables cost 26 Elo, 974 on 30 datasets against 1,000 on 27. The retrain route past 1,776
     features has not been costed or run, so the comparison this item asks for is not made.)
 28. ~~**Re-run TabArena-Lite across all 51 datasets**~~ **Done (§221, 2026-11-11): 880 Elo,
-    107th of 110, no exclusion; latest 903 Elo, 106th of 110 (§224, 2026-11-13).** Original
+    107th of 110, no exclusion; latest 903 Elo, 107th of 110 (§224, 2026-11-13).** Original
     text: confirm the aggregate, remembering that
     multiclass and regression rank worse than binary (93.4 and 93.1 against 86.3), so full
     coverage will lower the aggregate before it raises anything. It did: binary 1,000.2 on 27
@@ -293,7 +293,7 @@ pretraining run on an entry that still cannot be listed.
     per-dataset differences, not on one Elo reading.)
 
     (2026-11-13, §215, §224: binary alone reached 1,000.2 on 27 datasets, level with
-    `RF (default)`; the all-51 entry is 903 Elo, 106th of 110, so the bar is not met. Owner
+    `RF (default)`; the all-51 entry is 903 Elo, 107th of 110, so the bar is not met. Owner
     decision DR7.6 (2026-11-11): hold the PR until multiclass and regression improve; the target
     is about 1,000 overall Elo. The pool is the 110-method TabArena-Lite leaderboard of §221,
     not §122's, so the baseline rows above are the §122 pool's.)
@@ -387,7 +387,7 @@ set the order from here, ahead of the audit's Phase 4 and 5 measurements:
    multiclass baseline and arm chosen on the proxy suite, no capability exclusions, and a
    resubmission only at the bar. The maintainers are not asked about coverage (DR7.2).
    (2026-11-13: DR7.3 and DR7.4 done, DR7.5 and DR7.6 open. Coverage is complete, 51 of 51
-   (§221). Latest 903 Elo, 106th of 110 (§224). Owner decision 2026-11-11: hold the PR until
+   (§221). Latest 903 Elo, 107th of 110 (§224). Owner decision 2026-11-11: hold the PR until
    multiclass and regression improve. Queued at the time of writing, per DR7.6: `mc-bag8`,
    `reg-head`, `reg-ctx4k`; results not yet in `FINDINGS`.)
 

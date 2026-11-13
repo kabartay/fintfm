@@ -9,15 +9,15 @@ submission was reviewed by a TabArena collaborator, who confirmed the integratio
 numbers are correct and declined the entry because it does not meet the leaderboard's
 competitiveness requirement.
 
-Earlier runs reported 93rd. §98 first measured mean ROC-AUC **0.7642** over 26 of 27 eligible
+Earlier runs reported 93rd [§225: read from a table numbered from 0; §98's own leaderboard is not stored]. §98 first measured mean ROC-AUC **0.7642** over 26 of 27 eligible
 datasets; §100 located most of that deficit in categorical preprocessing rather than
 architecture, and §101's fix lifted the mean to **0.7823** with the rank unchanged. Every
 binary arm since has landed between 0.7746 and 0.7926, and none has moved the rank, except
-§132's unpublished linear-probe variant: Elo 910, 93rd of 95.
+§132's unpublished linear-probe variant: Elo 910, 93rd of 95 [§225: one place lower].
 
 (2026-11-13, §224): the figures above are the submitted entry, zero-shot and binary only. The
 current work is a different entry, "FinTFM with a trained linear readout", over all 51
-datasets: **903 Elo (+102 / -110), 106th of 110** on TabArena-Lite (repeat 0, fold 0). It is
+datasets: **903 Elo (+102 / -110), 107th of 110** on TabArena-Lite (repeat 0, fold 0). It is
 Lite-only, not a public-board number, and the PR is on hold (DR7.6). See "The 51-dataset Lite
 entry" at the end of this file.
 
@@ -329,7 +329,7 @@ v480-s0/e1-v480-s0/e1-v480-s0.pt`, fintfm `FINDINGS.md` §176), the adapter's de
 `fintfm-audit-fixes`. Log `runs/lite_e1v480s0.log`; results under the fork's
 `experiments/fintfm_lite_e1v480s0_1024/`.
 
-Elo **842 (+139/-213), 94th of 95**, against 756 (+126/-180) for the published checkpoint with
+Elo **842 (+139/-213), 94th of 95 [§225: one place lower]**, against 756 (+126/-180) for the published checkpoint with
 NaN passed through in the 2026-10-19 run above: +86 Elo, inside either interval, same rank. Lite
 reports and never selects (DR4.1), and E1's verdict was already taken on V4FinBench (§188: null
 at both seeds), so this changes nothing; it records that ten times the pretraining tasks does not
@@ -386,7 +386,7 @@ The 1000-row arm is a 2026-10-19 run, not same-day.
 binary datasets, split 0, the published checkpoint, NaN passed through, MPS. Each arm changes one
 inference setting of `FinancialTFMClassifier` against `fintfm_lite_nan_1019` (the adapter's default
 of 8 members, `max_context` 1000, 2026-10-19; **not a same-day run**), paired per dataset with
-`scripts/compare_lite_arms.py` on ROC-AUC. Baseline Elo 756 (+126/-180), 94th of 95.
+`scripts/compare_lite_arms.py` on ROC-AUC. Baseline Elo 756 (+126/-180), 94th of 95 [§225: one place lower].
 
 | arm | change | better / worse / tied | sign test p | mean ROC-AUC change | Elo |
 | --- | --- | --- | --- | --- | --- |
@@ -510,7 +510,7 @@ publish both before a submission could be reproduced.
 
 ## The 51-dataset Lite entry: "FinTFM with a trained linear readout" (§220 to §224; 2026-11-13)
 
-**Result: 903 Elo (+102 / -110), 106th of 110, over all 51 TabArena-Lite datasets with no
+**Result: 903 Elo (+102 / -110), 107th of 110, over all 51 TabArena-Lite datasets with no
 exclusion** (§224; repeat 0, fold 0, CPU; merged run `fintfm_linprobe_all51_1113`, log
 `runs/merge_all51_1113.log`). MEASURED. This is breadth only: TabArena-Lite
 is general-tabular, V4FinBench decides (§211), and it is not a public-board number (the public

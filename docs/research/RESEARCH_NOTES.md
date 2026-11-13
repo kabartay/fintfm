@@ -72,7 +72,7 @@ A common failure is demonstrating `FM > poorly-tuned NN` when the question is
 | tabular FM | TabPFN, TabFM, TabICL, TabDPT | none (licence care needed: §24) |
 | AutoML | AutoGluon, H2O, auto-sklearn | none |
 
-(2026-11-13: the table above is the founding-session audit. TabArena-Lite Elo is scored against the full TabArena field, which includes tuned neural, boosted and foundation-model entries (§212, §224), but those entries are not run by this project. FinTFM with a trained linear readout is 903 Elo, 106th of 110, on all 51 TabArena-Lite datasets (§224).)
+(2026-11-13: the table above is the founding-session audit. TabArena-Lite Elo is scored against the full TabArena field, which includes tuned neural, boosted and foundation-model entries (§212, §224), but those entries are not run by this project. FinTFM with a trained linear readout is 903 Elo, 107th of 110, on all 51 TabArena-Lite datasets (§224).)
 
 ## Reading order
 

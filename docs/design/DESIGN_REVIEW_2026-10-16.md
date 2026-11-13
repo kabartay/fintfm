@@ -237,7 +237,7 @@ and `docs/results/FINDINGS.md`. Labels are the source's; nothing here is a new m
 
 **Where the resubmission bar stands.** The review's stop rule asks for the proxy to reach about
 950 Elo; the proxy was not validated (§216), so TabArena-Lite carries the question. With a trained
-linear readout, all 51 Lite datasets give 903 Elo, 106th of 110 (§224, MEASURED, repeat 0, fold
+linear readout, all 51 Lite datasets give 903 Elo, 107th of 110 (§224, MEASURED, repeat 0, fold
 0), against the bar of about 1,010; by type, binary 974 (§220), multiclass 865 and regression 578
 (§223, §224). The binary-only configuration of §215 reached 1,000.2 Elo, level with RF (default).
 These are general-tabular numbers for "FinTFM with a trained linear readout", not zero-shot

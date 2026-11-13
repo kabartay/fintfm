@@ -134,7 +134,7 @@ These are not levers, but they are measured failures to beat a comparison and th
 | §204 | TabArena-Lite, 27 binary datasets | Below `LR (default)` on 23 of 27 by a mean 0.0297 ROC-AUC (0.7824 against 0.8120); below CatBoost (0.8449) on 27 of 27; Elo 756 | MEASURED |
 | §220 | TabArena-Lite, three wide binary tables under `max_features_strategy: select` | Near the bottom of 108 methods: APSFailure (170 columns) rank 102, Bioresponse (1,776) rank 103, kddcup09_appetency (212) rank 91. Binary Elo falls from 1,000 on 27 to 974 on 30 | MEASURED |
 | §220, §223 | TabArena-Lite regression, 13 datasets | Elo 436 with the ridge readout (§220), 578 with the row's own features added (§223); QSAR-TID-11 (1,024 columns) last of 103 methods under §220 (RMSE 1.2344, best 0.7644) | MEASURED |
-| §224 | TabArena-Lite, all 51 datasets, no exclusion, FinTFM with a trained linear readout | 903 Elo, 106th of 110; binary 974, multiclass 865, regression 578. Below RandomForest (default) 1,000, Linear (tuned + ensembled) 936 and Linear (tuned) 919 | MEASURED |
+| §224 | TabArena-Lite, all 51 datasets, no exclusion, FinTFM with a trained linear readout | 903 Elo, 107th of 110; binary 974, multiclass 865, regression 578. Below RandomForest (default) 1,000, Linear (tuned + ensembled) 936 and Linear (tuned) 919 | MEASURED |
 
 ## What the pattern says
 

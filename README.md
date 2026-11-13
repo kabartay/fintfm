@@ -15,7 +15,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-green.svg" alt="License"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/python-3.12%20%7C%203.13-blue.svg" alt="Python"></a>
   <a href="https://huggingface.co/kabartay/fintfm-binary"><img src="https://img.shields.io/badge/%F0%9F%A4%97%20weights-fintfm--binary-yellow" alt="Checkpoint"></a>
-  <a href="#status-stated-plainly"><img src="https://img.shields.io/badge/TabArena--Lite-106th%20of%20110-critical" alt="TabArena-Lite"></a>
+  <a href="#status-stated-plainly"><img src="https://img.shields.io/badge/TabArena--Lite-107th%20of%20110-critical" alt="TabArena-Lite"></a>
   <a href="https://kabartay.github.io/fintfm/leaderboard/"><img src="https://img.shields.io/badge/leaderboard-live-8957e5" alt="Leaderboard"></a>
 </p>
 
@@ -53,7 +53,7 @@ financial tables, and to say honestly where it currently is not.
 
 | | |
 | --- | --- |
-| **External benchmark** | **TabArena-Lite, all 51 datasets with no exclusion: 903 Elo, 106th of 110** (§224), one fold, run in this project's TabArena fork and not on [tabarena.ai](https://tabarena.ai). The entry is "FinTFM with a trained linear readout", a linear model fitted on the network's representation, which for multiclass and regression also takes the row's own features. By type: binary 974 on 30 datasets (§220), multiclass 865 on 8 (§224), regression 578 on 13 (§223). RandomForest (default) scores 1,000 and Linear (tuned) 919 on the same board. These are general-tabular numbers, not credit results. Not resubmitted yet (design review DR7.6). The earlier submission, the zero-shot model on 27 binary datasets, ranked **94 of 95**; a maintainer confirmed the integration correct and declined the entry on competitiveness (§122) |
+| **External benchmark** | **TabArena-Lite, all 51 datasets with no exclusion: 903 Elo, 107th of 110** (§224, §225), one fold, run in this project's TabArena fork and not on [tabarena.ai](https://tabarena.ai). The entry is "FinTFM with a trained linear readout", a linear model fitted on the network's representation, which for multiclass and regression also takes the row's own features. By type: binary 974 on 30 datasets (§220), multiclass 865 on 8 (§224), regression 578 on 13 (§223). RandomForest (default) scores 1,000 and Linear (tuned) 919 on the same board. These are general-tabular numbers, not credit results. Not resubmitted yet (design review DR7.6). The earlier submission, the zero-shot model on 27 binary datasets, ranked **94 of 95**, and re-scored on today's field the same zero-shot model is 750 Elo, 107th of 108 (§225); a maintainer confirmed the integration correct and declined the entry on competitiveness (§122) |
 | **On real credit panels** | discrimination loses to gradient boosting on V4FinBench's full panel: untuned CatBoost scores 0.40 mean AP against FinTFM's 0.20 (§163; LightGBM at 1,000 trees 0.3908, §167, so the lead is boosting rounds, not one library). On four further credit datasets (SBA 7(a), ULB, FDIC, Estonia) FinTFM is below untuned logistic regression on mean AP on all four (§216). Calibration was best or near-best on four panels for the pre-cell-attention architecture (Claim 9, §73); the published checkpoint over-predicts the observed default rate by 1.2 to 1.7 times on ULB (§174), and on FDIC by 1.9 and 3.2 times on two splits while under-predicting the third (0.396% against 0.735%; the run record behind §216, `docs/results/drafts/dr4.3-runs_2026-11-07.md`), so the calibration claim is not made for it. |
 | **Fine-tuning** | opt-in per-dataset fine-tuning (`finetune_steps`, 0.7.0) lifts V4FinBench AP on 5 of 5 folds, 0.1986 → 0.2062 — the first lever to move it, closing 3.8% of the gap to CatBoost (§163). Zero-shot partitioned contexts (`fintfm-v4protocol --large-n partition`) then lift it further with no training, 0.1986 → 0.2362, +0.0375 on 5 of 5 folds (§169), and beat the fine-tuned arm on 5 of 5 folds (§205) |
 | **Licence** | Apache-2.0, **code and weights** — chosen separately, not inherited (see [Licensing](#licensing--provenance)) |
@@ -74,21 +74,63 @@ true as prominently as what holds.
 
 ## Results, as measured
 
-TabArena, 27 binary datasets (26 for the §98 row), one fold each. The rank column is as
-measured at the time, against an earlier cached snapshot of the board:
+TabArena-Lite, one fold per dataset, scored against TabArena's cached results for every other
+method. Positions are derived from each run's stored leaderboard (§225); the printed table
+numbers its rows from 0, and ranks quoted from it before 2026-11-13 were one place too high.
 
-| change | mean ROC-AUC | Elo | rank (earlier snapshot) |
-| --- | --- | --- | --- |
-| label encoding (§98), 26 of 27 datasets | 0.7642 | 662 | 93 / 95 |
-| **+ out-of-fold target statistics** (§101) | **0.7823** | 765 | 93 / 95 |
-| + multiclass-capable prior (§105) | 0.7817 | **813** | 93 / 95 |
-| + 5.0M parameters, matched task count (§114) | 0.7774 | 751 | 93 / 95 |
-| + tree-structured prior (§115), two seeds | 0.7926 / 0.7913 | 842 / 826 | 93 / 95 |
+**Where FinTFM stands today (2026-11-13):**
 
-The §101 model, unchanged at 0.7823 mean ROC-AUC, ranks **94 of 95** against the snapshot the
-TabArena review used (§122, Elo 765), and still 94 of 95 at Elo 763 after a refreshed baseline
-cache (§150), and at Elo 756 with missing values passed through rather than zero-filled
-(2026-10-19, `docs/results/TABARENA.md`). The move from 93 to 94 is the board changing, not the model.
+| entry | datasets | Elo | position | source |
+| --- | --- | --- | --- | --- |
+| **FinTFM with a trained linear readout** | all 51, no exclusion | **903** (+102 / −110) | **107th of 110** | §224, §225 |
+| the published model, zero-shot, own head | 27 binary | 750 (+134 / −186) | 107th of 108 | §225 |
+| RandomForest (default), the resubmission bar | all 51 | 1,000 | 100th of 110 | §224, §225 |
+
+The zero-shot row is the stored predictions of §204's run re-scored against today's field, with
+no refit. **No change so far has moved FinTFM's position on the field it was scored against:**
+Elo rose from 880 to 903 across §221 to §224 at 107th of 110 throughout.
+
+### TabArena-Lite, with a trained linear readout
+
+From §204 on, the work moved to the readout and the adapter in this project's TabArena fork.
+Every row below except the first is labelled **"FinTFM with a trained linear readout"**: a
+logistic regression (ridge for regression) fitted on the network's pre-head representation of
+each training split, so it is not the zero-shot model. Elo comes from each run's own leaderboard
+against the full TabArena field. Each Elo carries an interval of roughly ±100 to ±180, so a step
+of a few Elo between rows is not significant on its own; the cited entries give the paired
+per-dataset tests.
+
+| change | datasets | Elo | position | source |
+| --- | --- | --- | --- | --- |
+| zero-shot default (missing values passed through) | 27 binary | 756 | 95th of 96 | §210, §225 |
+| linear readout + `feature_transform="squash"` | 27 binary | 969 | 104th of 108 | §212, §225 |
+| + partitioned contexts, one readout per leaf | 27 binary | 1,000.2, level with RandomForest (default) at 1,000.0, 13 datasets better and 14 worse | 101st of 108 | §215, §225 |
+| + the three wide binary tables, via `max_features_strategy: select` | 30 binary | 974 | 104th of 108 | §220, §225 |
+| all 51 datasets, no exclusion | 51 | 880 | 107th of 110 | §221 |
+| multiclass readout scaled, C cross-validated, row features appended | 51 | 888 | 107th of 110 | §222, §225 |
+| regression readout with row features appended | 51 | 898 | 107th of 110 | §223, §225 |
+| four partition bags for multiclass | 51 | **903** | **107th of 110** | §224, §225 |
+
+**These are breadth results, not credit results.** On V4FinBench, a readout per partition leaf
+scored −0.0570 mean AP, higher on 0 of 5 folds (§218). §219 traced that to a sampling
+defect in the harness, fixed in 0.10.0; the rerun is pending, so no credit claim rests on this
+table.
+
+### The first series: the zero-shot model on 27 binary datasets
+
+September 2026, one fold each, against the 95-method field of the time. Every arm placed 94th of
+95 whatever its Elo (§225; these rows were first recorded as 93rd, the printed index):
+
+| change | mean ROC-AUC | Elo | position | source |
+| --- | --- | --- | --- | --- |
+| label encoding, 26 of 27 datasets | 0.7642 | 662 | not stored | §98 |
+| **+ out-of-fold target statistics** | **0.7823** | 765 | 94th of 95 | §101, §225 |
+| + multiclass-capable prior | 0.7817 | **813** | 94th of 95 | §105, §225 |
+| + 5.0M parameters, matched task count | 0.7774 | 751 | 94th of 95 | §114, §225 |
+| + tree-structured prior, two seeds | 0.7926 / 0.7913 | 842 / 826 | 94th of 95 | §115, §225 |
+
+The §101 model is the entry submitted to TabArena: 94th of 95, confirmed correct by a maintainer
+and declined on competitiveness (§122).
 
 **In this series, one change moved the TabArena number, and it was preprocessing rather than
 architecture.** The tree prior adds a further +0.0094 here and replicates across two
@@ -102,40 +144,13 @@ a matched share and two seeds. DR2.4 (§180, §191) ran mixed-prior arms instead
 on V4FinBench, and is not that test.)
 
 Everything else tried on the pretrained model (parameter scale at matched task volume, training
-volume, a widened structural-causal prior) has been null or negative, and **none of it moved the
-published model's rank.** What has moved the number since is the readout and the adapter, on
-TabArena-Lite.
+volume, a widened structural-causal prior) has been null or negative.
 
-### TabArena-Lite, with a trained linear readout
-
-From §204 on, the work moved to TabArena-Lite (one fold per dataset) and to the adapter in this
-project's TabArena fork. Every row below is labelled **"FinTFM with a trained linear readout"**:
-a logistic regression (ridge for regression) fitted on the network's pre-head representation of
-each training split, so it is not the zero-shot model. Elo comes from each run's own leaderboard
-against the full TabArena field (110 methods by §221). Each Elo carries an interval of roughly
-±100 to ±180, so a step of a few Elo between rows is not significant on its own; the cited
-entries give the paired per-dataset tests.
-
-| change | datasets | Elo | source |
-| --- | --- | --- | --- |
-| zero-shot default (missing values passed through) | 27 binary | 756 | §210 |
-| linear readout + `feature_transform="squash"` | 27 binary | 969 | §212 |
-| + partitioned contexts, one readout per leaf | 27 binary | 1,000.2, level with RandomForest (default) at 1,000.0, 13 datasets better and 14 worse | §215 |
-| + the three wide binary tables, via `max_features_strategy: select` | 30 binary | 974 | §220 |
-| all 51 datasets, no exclusion | 51 | 880, 107th of 110 | §221 |
-| multiclass readout scaled, C cross-validated, row features appended | 51 | 888 | §222 |
-| regression readout with row features appended | 51 | 898 | §223 |
-| four partition bags for multiclass | 51 | **903, 106th of 110** | §224 |
-
-**These are breadth results, not credit results.** On V4FinBench, a readout per partition leaf
-scored −0.0570 mean AP, higher on 0 of 5 folds (§218). §219 traced that to a sampling
-defect in the harness, fixed in 0.10.0; the rerun is pending, so no credit claim rests on this
-table.
-
-The earlier 27-dataset series, including a linear-probe variant at 910 Elo (§132), is published
-at **[kabartay.github.io/fintfm/leaderboard](https://kabartay.github.io/fintfm/leaderboard/)**.
-That is this project's own comparison, not [tabarena.ai](https://tabarena.ai), and its Elo is
-comparable only within the population it was computed over.
+The full current leaderboard, with every method's Elo and interval, is published at
+**[kabartay.github.io/fintfm/leaderboard](https://kabartay.github.io/fintfm/leaderboard/)**,
+generated from the stored run by `scripts/build_leaderboard_page.py`. That is this project's own
+comparison, not [tabarena.ai](https://tabarena.ai), and its Elo is comparable only within the
+population it was computed over.
 
 ## What this project does
 

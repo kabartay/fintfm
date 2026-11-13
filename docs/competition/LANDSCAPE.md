@@ -177,10 +177,10 @@ does not match this project's own measurement of it (their README claims Elo pos
 1792.9; our live run puts them 6th at 1751, recorded in `docs/research/REFERENCES.md`). Leading
 with rank is rational when you have one.
 
-**We place 94th of 95** (§122; §98's earlier 93rd was over 26 datasets against an older
+**We place 94th of 95** (§122; §98's earlier 93rd [§225: read from a table numbered from 0; §98's own leaderboard is not stored] was over 26 datasets against an older
 snapshot). (2026-11-13, §224: with the linear-readout entry over all 51 TabArena-Lite datasets,
-903 Elo, 106th of 110, "FinTFM with a trained linear readout"; the pools differ, so 94th of 95 and
-106th of 110 are not comparable ranks.) So rank-first presentation is unavailable, and imitating it would mean
+903 Elo, 107th of 110, "FinTFM with a trained linear readout"; the pools differ, so 94th of 95 and
+107th of 110 are not comparable ranks.) So rank-first presentation is unavailable, and imitating it would mean
 either burying the number or reporting a favourable slice of it — which is exactly the
 absolute-AUC-without-rank error §107 already retracted once.
 

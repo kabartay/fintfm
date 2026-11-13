@@ -1,0 +1,65 @@
+{
+  "date": "2026-11-13",
+  "finding": "FINDINGS &sect;224",
+  "self_method": "[New] TA-FINTFM-LINPROBE (default)",
+  "self_label": "FinTFM with a trained linear readout",
+  "n_datasets": 51,
+  "bar_text": "RandomForest (default), at 1,000 Elo, is the bar for resubmitting to TabArena: 1,000 overall Elo (design review DR7.6, owner decision 2026-11-13).",
+  "entry_text": "It is not the zero-shot model. A logistic regression (ridge for regression) is fitted on the network's representation of each training split, one per partition leaf for classification; for multiclass and regression it also takes the row's own features. Binary runs on the published checkpoint, multiclass and regression on unpublished checkpoints. These are general-tabular results, not credit results: on real credit panels FinTFM currently loses to gradient boosting (FINDINGS &sect;216).",
+  "types_note": "Each figure comes from a leaderboard over that problem type's datasets only, so the four are not on one scale with each other or with the headline.",
+  "types": [
+    {
+      "elo": "974",
+      "name": "Binary, 30 datasets",
+      "sub": "linear readout, published checkpoint &middot; &sect;220",
+      "self": true
+    },
+    {
+      "elo": "865",
+      "name": "Multiclass, 8 datasets",
+      "sub": "linear readout, unpublished checkpoint &middot; &sect;224",
+      "self": true
+    },
+    {
+      "elo": "578",
+      "name": "Regression, 13 datasets",
+      "sub": "ridge readout, unpublished checkpoint &middot; &sect;223",
+      "self": true
+    },
+    {
+      "elo": "750",
+      "name": "Zero-shot published model",
+      "sub": "own classification head, 27 binary datasets, today's field: 107th of 108 &middot; &sect;225",
+      "self": false
+    }
+  ],
+  "history_text": "The entry submitted to TabArena used the zero-shot head on 27 binary datasets, ranked 94th of 95 and was <a href=\"https://github.com/autogluon/tabarena/pull/616\">declined on competitiveness</a> (FINDINGS &sect;122); a resubmission is on hold until the bar is met.",
+  "anchors": [
+    {
+      "label": "KNN",
+      "match": "KNN (default)"
+    },
+    {
+      "label": "LogReg",
+      "match": "LR (default)"
+    },
+    {
+      "label": "RF (bar)",
+      "match": "RF (default)"
+    },
+    {
+      "label": "CatBoost",
+      "match": "CAT (default)"
+    },
+    {
+      "label": "TabPFN 3.5",
+      "match": "TA-TABPFN-3.5 (default)"
+    }
+  ],
+  "board": {
+    "csv": "tabarena_lite_51_2026-11-13.csv",
+    "source_run": "fintfm_linprobe_all51_1113",
+    "n_total": 110,
+    "n_omitted": 2
+  }
+}

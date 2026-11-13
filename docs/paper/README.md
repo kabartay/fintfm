@@ -20,7 +20,7 @@ ledger rather than from memory at writing time.
 are `docs/results/FINDINGS.md` sections.
 
 - **Placement.** FinTFM with a trained linear readout scores 903 Elo on all 51 TabArena-Lite
-  datasets, 106th of 110 (§224); binary 974 on 30 (§220), multiclass 865 on 8 (§224), regression
+  datasets, 107th of 110 (§224); binary 974 on 30 (§220), multiclass 865 on 8 (§224), regression
   578 on 13 (§223). RandomForest (default) is 1,000. §98's 94th of 95 is the earlier zero-shot rank.
 - **Credit.** FinTFM is below untuned logistic regression on mean AP on all four admitted credit
   datasets (§216). On V4FinBench no lever tested since §211 clears the bar, and 480,000-task
@@ -38,7 +38,7 @@ evidence now settles a framing question [OUTLINE.md](OUTLINE.md) had left open s
 | candidate paper | state |
 | --- | --- |
 | **The architecture diagnosis** (symmetric-encoder limit, Bayes-ceiling probe, cell-attention fix) | **writable now.** Provable ceiling, closed-form instrument, seven eliminated alternatives, controlled fix, real-data confirmation at +0.042 AP on 5/5 folds |
-| **A synthetic prior transfers to credit risk** | **not writable.** §96 found the deficit is general rather than credit-specific; §98 placed the model 93rd of 95 on the field's own benchmark (94th of 95 on the later board snapshot, §122). The claim is comparative and the comparison is lost |
+| **A synthetic prior transfers to credit risk** | **not writable.** §96 found the deficit is general rather than credit-specific; §98 placed the model 93rd of 95 [§225: read from a table numbered from 0; §98's own leaderboard is not stored] on the field's own benchmark (94th of 95 on the later board snapshot, §122). The claim is comparative and the comparison is lost |
 | **Term-structure coherence** (Claim 1) | **writable now, separately.** Small, structural, independent of the above. Folding it into the diagnosis paper would dilute both |
 
 **What changed the answer was external measurement.** §98 is the first placement in this

@@ -106,7 +106,7 @@ shortened accordingly.
 - **The Elo gap quoted in "Ranking by expected value" has changed.** The 756 Elo on 27 binary
   datasets was the zero-shot default (§204). A trained linear readout with squash and partitioned
   contexts reached 1,000.2 on the same 27 (§215), level with RF (default); on all 30 binary datasets
-  it is 974 (§220), and on all 51 datasets 903, 106th of 110 (§224). The "bar of about 1,010" did not
+  it is 974 (§220), and on all 51 datasets 903, 107th of 110 (§224). The "bar of about 1,010" did not
   carry over to the later leaderboard (§215).
 - **Board snapshot (gap 1):** the 110-method leaderboard used by §221 to §224 is the fork's own
   merged copy, not a re-read of the public board; a public-board snapshot is not recorded in

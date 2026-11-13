@@ -31,7 +31,7 @@ order was what it was.
 
 ## Tier 0 — reordered 2026-09-20, after the first external measurement
 
-§98 placed the project 93rd of 95 on TabArena and §100 decomposed that result. The queue now
+§98 placed the project 93rd of 95 [§225: read from a table numbered from 0; §98's own leaderboard is not stored] on TabArena and §100 decomposed that result. The queue now
 follows the decomposition rather than intuition, because for the first time there is a
 measured share attached to each candidate.
 

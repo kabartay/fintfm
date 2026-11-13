@@ -8,7 +8,7 @@ it, so none of this is hedging language — every entry is a measured fact.
 (Added 2026-11-13; sources are the sections cited.) The limitations below date from the
 dates they carry. The current measured position is:
 
-- **TabArena-Lite, all 51 datasets, none excluded: 903 Elo, 106th of 110** (§224, MEASURED,
+- **TabArena-Lite, all 51 datasets, none excluded: 903 Elo, 107th of 110** (§224, MEASURED,
   repeat 0, fold 0, CPU). By problem type: binary 974 on 30 datasets (§220), multiclass 865 on
   8 (§224), regression 578 on 13 (§223). RandomForest (default) is 1,000, Linear (tuned +
   ensembled) 936 and Linear (tuned) 919. The entry is "FinTFM with a trained linear readout",
@@ -333,14 +333,14 @@ project ran itself. §98 is the first placement against the field: `fintfm-0.3` 
 model in TabArena and run under TabArena's protocol — their preprocessing, their splits, 8
 bagged child models per dataset — against a cached leaderboard of 95 methods.
 
-**Rank 93 of 95 at §98. Mean ROC-AUC 0.7642 against leaders at ~0.90.** Below every linear
+**Rank 93 of 95 [§225: read from a table numbered from 0; §98's own leaderboard is not stored] at §98. Mean ROC-AUC 0.7642 against leaders at ~0.90.** Below every linear
 baseline; above only `KNN (default)`. 26 of 27 eligible datasets, zero failures. **On the later
 board snapshot used for the submission the rank is 94 of 95** at mean ROC-AUC 0.7823, over 27
 of 27 datasets (§122), unchanged against a refreshed baseline cache (§150). Quote 94 of 95.
 
 (2026-11-13, §204, §215, §224: the board has since changed to 110 methods and the entry is a
 different one. The zero-shot default scored 756 Elo on the 27 binary datasets (§204). The
-trained-readout entry on all 51 datasets is 903 Elo, 106th of 110 (§224). The 94 of 95 above
+trained-readout entry on all 51 datasets is 903 Elo, 107th of 110 (§224). The 94 of 95 above
 is the 2026-10 zero-shot rank and is kept as a record. The "coverage is 51%" sentence below no
 longer applies to the readout entry, which is scored on 51 of 51 datasets (§221).)
 
@@ -368,7 +368,7 @@ and declined it on competitiveness, §122.)
 
 **Fixed, and the rank still did not move (§101).** Out-of-fold target statistics lifted the
 mean to 0.7823 and destroyed the cardinality correlation (−0.668 → −0.025), with the eight
-numeric-only datasets unchanged to four decimals. Rank: **93 of 95, unchanged** (94 of 95 on the later board snapshot, §122). The residual
+numeric-only datasets unchanged to four decimals. Rank: **93 of 95 [§225: one place lower], unchanged** (94 of 95 on the later board snapshot, §122). The residual
 is now uniform at ~0.035 across every bucket, so the deficit is one population rather than
 two — sharper to attack, and no smaller where it counts. **The project's stated target,
 untuned trees < fintfm < tuned trees, is not reached:** default random forest leads on 21 of

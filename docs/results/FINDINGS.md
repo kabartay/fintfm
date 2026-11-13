@@ -6796,6 +6796,8 @@ be a peak at 16 as a monotone climb. **One seed per cell**, as with §91 and §9
 
 ## 98. TabArena places fintfm 93rd of 95 — and its three best datasets are corporate credit
 
+> (Corrected 2026-11-13, §225: TabArena's printed leaderboard numbers rows from 0, so ranks read from it are one place too high. §98's own leaderboard (662 Elo) is not stored, so its position cannot be re-derived; every stored leaderboard of that 95-method field places FinTFM 94th.)
+
 > **RETRACTED IN PART (added 2026-10-15, §107).** The placement stands. The heading's "three
 > best datasets are corporate credit" and the closing reading that the best public results are
 > the credit panels do not hold: by rank the credit panels sit at 83-95 of 95 (§107).
@@ -6992,6 +6994,8 @@ infer the effect was localised there. It is not: Amazon is 21% of the gap and th
 story as a whole is 82%.
 
 ## §101 — Native categoricals: the diagnosis was right, the gain is a third of the bound, and the deficit is now one number
+
+> (Corrected 2026-11-13, §225: "93 of 95" is 94 of 95 in the stored leaderboard (`cat_full`, 764.6 Elo); the printed index starts at 0.)
 
 **How these numbers were produced.** The full TabArena eligible suite re-run under
 `FINTFM_RUN_NAME=cat_full` with `FINTFM_CATEGORICAL=target`, on
@@ -7287,6 +7291,8 @@ changes the picture, this curve is the thing to re-run — not the thing to cite
 
 ## §105 — Training for 10 classes and regression costs binary accuracy nothing measurable
 
+> (Corrected 2026-11-13, §225: "93 / 95" is 94 of 95 in the stored leaderboard (`mixedprior`, 813.0 Elo); the printed index starts at 0.)
+
 **How these numbers were produced.** MEASURED. `run_fintfm_lite.py --full` on TabArena's 27
 eligible binary datasets, `FINTFM_RUN_NAME=mixedprior` so the results cache could not return
 §101's numbers (the failure mode `docs/results/TABARENA.md` records). The arm is `v4-multiclass.pt` —
@@ -7507,6 +7513,8 @@ Ranks aggregated over 27 datasets are usable; a statement about one dataset is a
 must be labelled as one.
 
 ## §108 — 5.7× the parameters lost 0.0077, on a design that also halved the task count
+
+> (Corrected 2026-11-13, §225: "93 of 95" is 94 of 95 in the stored leaderboards (`medium5m` 750.9, `medium-matched` 766.9 Elo); the printed index starts at 0.)
 
 **How these numbers were produced.** MEASURED. `run_fintfm_lite.py --full` on TabArena's 27
 eligible binary datasets, `FINTFM_RUN_NAME=medium5m`, scoring a 4,979,778-parameter checkpoint
@@ -8036,6 +8044,8 @@ urgent than they were this morning.
 
 ## §115 — The tree-structured prior is the first change since §101 to survive replication
 
+> (Corrected 2026-11-13, §225: "93 of 95" is 94 of 95 in the stored leaderboards (`treeclean` 842.4, `treeclean-s1` 825.7 Elo); the printed index starts at 0.)
+
 **How these numbers were produced.** MEASURED. Four checkpoints, 6,000 steps at batch 8 =
 48,000 tasks each, identical architecture (885K), differing **only** in whether the mixture
 contains the tree prior: `p_financial=0.7, p_tree=0.3` against `p_financial=0.7` alone. Trained
@@ -8478,6 +8488,8 @@ kind of not-yet-evidence.
 
 ## §121 — Multiclass and regression run correctly and rank last; the binning limit is not the binding constraint
 
+> (Corrected 2026-11-13, §225: the submission's "93 of 95" is 94 of 95 (`fintfm_lite_tafintfm`, 764.6 Elo); the printed index starts at 0.)
+
 **How these numbers were produced.** MEASURED. `run_fintfm_lite.py --full` with
 `FINTFM_PROBLEM_TYPES` set to each type in turn, scoring the arms declared in §106 on real data
 for the first time. `v4-multiclass.pt` on TabArena's 7 eligible multiclass datasets and
@@ -8546,6 +8558,8 @@ capability claim are different things, and §106 established only the first whil
 though it established the second.
 
 ## §122 — TabArena reviewed the submission, confirmed it correct, and declined it on competitiveness
+
+> (Corrected 2026-11-13, §225: 94 of 95 is right (`fintfm_lite_tafintfm`). The earlier "93" it replaces was the printed index, which starts at 0, not a different snapshot: the rank never moved.)
 
 **How these numbers were produced.** MEASURED, then EXTERNALLY REVIEWED. `run_fintfm_lite.py
 --full` against `fintfm==0.5.5` installed from PyPI and the published checkpoint pinned at
@@ -9263,6 +9277,8 @@ representation's advantage on V4FinBench's binary task transfers to TabArena's L
 where the comparison is against 94 other methods rather than two arms of the same model.
 
 ## §132 — §131's advantage transfers to TabArena: +145 Elo, one position up, still 93rd of 95
+
+> (Corrected 2026-11-13, §225: "93rd of 95" is 94th of 96 in the stored leaderboard (`fintfm_linprobe_lite`, 910.4 Elo). The zero-shot run on the same 96-method field is 95th, so "one position up" holds.)
 
 **How these numbers were produced.** MEASURED. A new AutoGluon-registered sibling model,
 `FinTFMLinearProbeModel` (`ag_key="TA-FINTFM-LINPROBE"`, in `tabarena/models/fintfm_linprobe/`,
@@ -10440,6 +10456,8 @@ while GPU quota was unavailable, and leaves the task's literal ask — the heter
 surrogate validated against a genuinely new run — for whenever that quota returns.
 
 ## §150 — The TabArena placement is reverified against a refreshed baseline cache; barely moves
+
+> (Corrected 2026-11-13, §225: the stored leaderboard for this run (`fintfm_lite_full`, 762.8 Elo) holds 96 methods and places FinTFM 95th; whether §150's own field had 95 cannot be re-derived from it.)
 
 **How these numbers were produced.** MEASURED. Upstream TabArena (`autogluon/tabarena`) gained
 17 commits since this project's local clone was last synced, including a correctness fix to
@@ -12847,6 +12865,8 @@ AP, all 5 folds at Holm p 0.002.
 
 ## §197 — DR7.4's seed-1 replicate: a candidate again, so class permutation enters the multiclass recipe
 
+> (Corrected 2026-11-13, §225: "94th of 95" for the 306-Elo multiclass run is 95th of 96 in the stored leaderboard (`fintfm_lite_dr74_mc`).)
+
 **MEASURED, 2026-10-26**, `dr74-mc-s1`: §185's arm at seed 1, otherwise identical (Kaggle T4x2,
 a901cdc, flags as seed 0's apart from `--seed 1`; kernel `scripts/kaggle/ts_dr74_mc_s1/`, 6,000
 steps in 3,285 s against seed 0's 3,233 s), trained only, scored on this Mac with §185's command
@@ -13112,6 +13132,8 @@ the test.
 
 
 ## §204: where FinTFM loses on TabArena-Lite: a weaker logistic regression, with nonlinear headroom untouched
+
+> (Corrected 2026-11-13, §225: 756 Elo is 95th of 96 (`fintfm_lite_nan_1019`) and 910 is 94th of 96 (`fintfm_linprobe_lite`), not 94th and 93rd of 95.)
 
 **MEASURED, 2026-11-02, from cached results; no model was fitted or scored.** TabArena-Lite's 27
 binary datasets (27 of 51), split 0, ROC-AUC. Head: the 2026-10-19 run with NaN passed through
@@ -13926,6 +13948,8 @@ ranges 0.216% to 0.376% and tuned LightGBM 0.285% to 0.697%.
 
 ## §215: TabArena-Lite, probe plus squash plus partition reaches 1,000 Elo: level with RF (default), not above it
 
+> (Corrected 2026-11-13, §225: "rank 100 of 107" is 101st of 108 (`fintfm_linprobe_squash_part_1108`); the printed index starts at 0 and the leaderboard holds 108 rows.)
+
 **MEASURED, 2026-11-09. TabArena-Lite is breadth only (V4FinBench decides, §211); these are
 general-tabular numbers, not credit results. Label: "FinTFM with a trained linear readout"**, a
 logistic regression on the network's pre-head representation, here one per partition leaf. Same
@@ -14333,7 +14357,7 @@ Log loss per dataset:
 
 Geometric-mean log-loss ratio of the three-option arm to the control: 0.874.
 
-**Overall, with that arm in place of §221's multiclass run: 888 Elo (+111 / −115), 106th of 110**,
+**Overall, with that arm in place of §221's multiclass run: 888 Elo (+111 / −115), 106th of 110** (corrected 2026-11-13, §225: 107th of 110),
 against §221's 880 and 107th. Binary and regression runs unchanged; merged by
 `merge_fintfm_lite.py` as `fintfm_linprobe_all51_1112` (log `runs/merge_all51_1112.log`).
 RandomForest (default) 1,000, KNN (tuned + ensembled) 967, Linear (tuned) 920.
@@ -14384,7 +14408,7 @@ QSAR-TID-11 (1,024 columns under `select`), where the readout now sees every col
 did not. The Elo gain is large for small error changes because FinTFM's regression results sit
 among many closely spaced methods near the bottom of the table.
 
-**Overall, binary §220 + multiclass §222 + this run: 898 Elo (+104 / −111), 106th of 110**
+**Overall, binary §220 + multiclass §222 + this run: 898 Elo (+104 / −111), 106th of 110** (corrected 2026-11-13, §225: 107th of 110)
 (`fintfm_linprobe_all51_1112b`, log `runs/merge_all51_1112b.log`). Neighbours: RandomForest
 (default) 1,000, KNN (tuned + ensembled) 967, Linear (tuned + ensembled) 936, Linear (tuned) 919,
 KNN (tuned) 815.
@@ -14431,7 +14455,7 @@ Log loss per dataset:
 | maternal_health_risk | 0.6333 | 0.6332 | 0.6428 | 0.6333 |
 | website_phishing | 0.3027 | 0.3012 | 0.3157 | 0.3027 |
 
-**Overall, binary §220 + bag4 + regression §223: 903 Elo (+102 / −110), 106th of 110**
+**Overall, binary §220 + bag4 + regression §223: 903 Elo (+102 / −110), 106th of 110** (corrected 2026-11-13, §225: 107th of 110)
 (`fintfm_linprobe_all51_1113`, log `runs/merge_all51_1113.log`), against §223's 898. Neighbours
 unchanged: Linear (tuned) 919, Linear (tuned + ensembled) 936, RandomForest (default) 1,000.
 
@@ -14445,3 +14469,49 @@ unchanged: Linear (tuned) 919, Linear (tuned + ensembled) 936, RandomForest (def
   three datasets are identical to four decimals, so the 1,000-row cap did not bind there.
 - Multiclass gained 40 Elo but is 8 of 51 datasets, so the overall moved 5. The remaining gap to
   1,000 overall is regression (578) and binary (974, 30 of 51 datasets).
+
+## §225: TabArena's printed leaderboard numbers rows from 0, so every rank read from it was one place too high; re-scored on today's field, the zero-shot model is 107th of 108
+
+**MEASURED, 2026-11-13.** Found while generating the Pages leaderboard from the fork's
+`tabarena_leaderboard.csv`. The printed table in each evaluation log numbers its rows from 0
+(`Kumo-Tabular (default)` is row 0 in `runs/merge_all51_1113.log`), and ranks in this log were
+read from that index. `scripts/lite_positions.py` derives the position instead, as one plus the
+number of methods with a strictly higher Elo, from every stored leaderboard in the fork's
+`eval/`; its output is `runs/lite_positions_1113.md`. Each affected entry carries a dated note.
+
+| entry | stated | position in the stored leaderboard | run (Elo) |
+| --- | --- | --- | --- |
+| §98 | 93rd of 95 | not stored, cannot be re-derived | |
+| §101 | 93 of 95 | 94 of 95 | `cat_full` (764.6) |
+| §105 | 93 / 95 | 94 of 95 | `mixedprior` (813.0) |
+| §108 | 93 of 95 | 94 of 95 | `medium5m` (750.9) |
+| §115 | 93 of 95 | 94 of 95 | `treeclean` (842.4), `treeclean-s1` (825.7) |
+| §121 | 93 of 95 | 94 of 95 | `fintfm_lite_tafintfm` (764.6) |
+| §122 | 94 of 95 | 94 of 95, correct | `fintfm_lite_tafintfm` |
+| §132 | 93rd of 95 | 94th of 96 | `fintfm_linprobe_lite` (910.4) |
+| §150 | 94 of 95 | 95th of 96 (stored field) | `fintfm_lite_full` (762.8) |
+| §197 | 94th of 95 | 95th of 96 | `fintfm_lite_dr74_mc` (306.1) |
+| §204 | 94th and 93rd of 95 | 95th and 94th of 96 | `fintfm_lite_nan_1019` (755.9), `fintfm_linprobe_lite` |
+| §215 | 100 of 107 | 101st of 108 | `fintfm_linprobe_squash_part_1108` (1000.2) |
+| §221 | 107 of 110 | 107 of 110, correct | `fintfm_linprobe_all51_1110` (879.8) |
+| §222, §223, §224 | 106th of 110 | 107th of 110 | `fintfm_linprobe_all51_1112`, `_1112b`, `_1113` (887.8, 898.3, 903.0) |
+
+**The zero-shot published model on today's field.** `fintfm_lite_nan_1019` (27 binary datasets,
+own classification head, missing values passed through; §204's 756-Elo run) re-scored from its
+stored predictions, with no refit, against the fork's current cached results
+(`merge_fintfm_lite.py --name fintfm_lite_nan_rescore_1113 fintfm_lite_nan_1019 --expect 27`, log
+`runs/rescore_zeroshot_1113.log`): **750 Elo (+134 / −186), 107th of 108.** RandomForest
+(default) 1,000, LR (tuned) 1,018, LR (default) 926; KNN (default), at 614, is the one method
+below it. The 6-Elo change from 756 is the field changing, since the predictions are the same.
+
+**What it says.**
+- No change has moved FinTFM's position on the field it was scored against. The September
+  95-method field placed every arm 94th (§101 to §121), whatever its Elo; the zero-shot head is
+  95th of 96 in October and 107th of 108 today; every 51-dataset merge is 107th of 110, from 880
+  to 903 Elo. Elo moved; position did not.
+- The README's "the move from 93 to 94 is the board changing, not the model" was wrong: there
+  was no move. §132's "one position up" holds, because the zero-shot run on the same 96-method
+  field is 95th.
+- Per-dataset ranks (the "rank of 108" columns in §220 and §221) come from a computed column,
+  not the printed index; they are not re-checked here.
+- Quote positions from `scripts/lite_positions.py`, never from the printed index.

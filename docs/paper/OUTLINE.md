@@ -26,7 +26,7 @@ Four measurements since then make **B** the only defensible one:
 | --- | --- |
 | §80/§84 — the fix transfers to real data, +0.042 AP best-vs-best, 5/5 folds | B's central result holds outside synthetic probes |
 | §96 — the accuracy deficit is **general, not credit-specific**; behind on 14 of 15 public tasks | A's premise is weakened at its core |
-| §98 — 93rd of 95 on TabArena (94th of 95 on the later board snapshot, §122) | A cannot be written at all: there is no transfer story to tell against the field |
+| §98 — 93rd of 95 [§225: read from a table numbered from 0; §98's own leaderboard is not stored] on TabArena (94th of 95 on the later board snapshot, §122) | A cannot be written at all: there is no transfer story to tell against the field |
 | §100 — up to 82% of that gap sits on datasets with categorical columns (a ceiling; §101 recovered 34%), −0.668 correlation with log cardinality | B's residual is small and *characterised*, which is what a diagnosis paper needs |
 
 **A is not currently writable.** Its claim is comparative and the comparison is lost, on our
@@ -54,7 +54,7 @@ an exactly-known Bayes-optimal AUC shows the resulting cap is severe and indepen
 difficulty; seven content-side explanations are eliminated one at a time; two-way cell
 attention with per-cell label injection closes the regret to 0.001–0.005 and transfers to one
 real credit panel, V4FinBench, at +0.042 AP best-vs-best on 5 of 5 folds; **and the fixed model
-still places 94th of 95 on TabArena (§122; 2026-11-13: the readout entry on all 51 datasets is 106th of 110, §224). Native categorical handling recovered 34% of the gap
+still places 94th of 95 on TabArena (§122; 2026-11-13: the readout entry on all 51 datasets is 107th of 110, §224). Native categorical handling recovered 34% of the gap
 to tuned logistic regression (§101), leaving a uniform deficit of about 0.035 ROC-AUC.**
 
 That last clause is not self-flagellation — it is what makes the diagnosis credible. A paper
@@ -158,7 +158,7 @@ direction (§93/§97) — this project misread it once and the correction belong
   overstates the architectural deficit by 2.8×.
 
   (2026-11-13: the placement has moved. On TabArena-Lite, all 51 datasets with none excluded,
-  FinTFM with a trained linear readout scores 903 Elo, 106th of 110 (§224; binary 974 on 30,
+  FinTFM with a trained linear readout scores 903 Elo, 107th of 110 (§224; binary 974 on 30,
   §220; multiclass 865, §224; regression 578, §223), against RandomForest (default) at 1,000.
   Wide tables rank near the bottom under column selection (§220). On four credit datasets
   FinTFM is below untuned logistic regression on mean AP (§216). The 94 of 95 in the abstract

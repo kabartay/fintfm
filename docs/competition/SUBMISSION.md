@@ -12,7 +12,7 @@
 > **Update, 2026-11-13.** Nothing has been resubmitted. The owner holds the PR (DR7.6,
 > 2026-11-11) until multiclass and regression improve. The entry that would be submitted is no
 > longer the one tabulated below: it is "FinTFM with a trained linear readout" over all 51
-> datasets, 903 Elo, 106th of 110 on TabArena-Lite (`docs/results/FINDINGS.md` §224), and the
+> datasets, 903 Elo, 107th of 110 on TabArena-Lite (`docs/results/FINDINGS.md` §224), and the
 > tabarena fork's `fintfm` extra pins `fintfm==0.10.0` (fork commit 48c0101, pushed 2026-11-13).
 > The checkpoint, configuration and coverage rows, the sign-off checks and the "roughly 0.78 mean
 > ROC-AUC" sanity range below describe the `fintfm==0.5.5` binary entry and would all change.

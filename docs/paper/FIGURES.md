@@ -187,7 +187,7 @@ All 51 TabArena-Lite datasets with none excluded, FinTFM with a trained linear r
 per problem type: datasets, checkpoint, readout, Elo (with its interval) and rank, against
 RandomForest (default) at 1,000, Linear (tuned) and Linear (tuned + ensembled). Sources: binary 974
 Elo on 30 datasets (§220); multiclass 865 on 8 (§224); regression 578 on 13 (§223); overall 903,
-106th of 110 (§224). Add the three wide binary tables as a footnote row (ranks 102, 103 and 91 of
+107th of 110 (§224). Add the three wide binary tables as a footnote row (ranks 102, 103 and 91 of
 108, §220). The label on the table is "FinTFM with a trained linear readout", and it must say
 that TabArena-Lite is breadth only and V4FinBench decides (§211).
 

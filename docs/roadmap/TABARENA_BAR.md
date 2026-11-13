@@ -5,7 +5,7 @@ declined. §122 records the outcome. This file records what would have to change
 resubmitting, and in what order.
 
 (2026-11-13, §224): standing now. The 51-dataset Lite entry "FinTFM with a trained linear
-readout" scores 903 Elo (+102 / -110), 106th of 110, with no dataset excluded (binary 974 on 30,
+readout" scores 903 Elo (+102 / -110), 107th of 110, with no dataset excluded (binary 974 on 30,
 multiclass 865 on 8, regression 578 on 13). Requirement 1 is met on Lite and requirement 2 is not.
 The PR is held (owner decision DR7.6, 2026-11-11) until multiclass and regression improve. The
 recipe is in the last section of [the TabArena recipe](../results/TABARENA.md); the dated notes below

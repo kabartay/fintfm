@@ -34,7 +34,7 @@ stays.
 one real panel, V4FinBench (§80/§84, Claim 10), five candidate explanations for the residual accuracy deficit
 were measured and eliminated (training volume, context size, marginal augmentation, z-clip,
 prior domain), and the project was measured **externally for the first time**: TabArena places
-it 93rd of 95 (§98, new Claim 11; 94th of 95 on a later board snapshot, §122). §100 then
+it 93rd of 95 [§225: read from a table numbered from 0; §98's own leaderboard is not stored] (§98, new Claim 11; 94th of 95 on a later board snapshot, §122). §100 then
 decomposed that result and found much of the deficit is a *preprocessing* artefact rather than
 an architectural one: it correlates −0.668 with log categorical cardinality, and 82% of the
 distance to the method ranked #89 sits on datasets with categorical columns. That 82% is a
@@ -171,7 +171,7 @@ claim until it was. That measurement is done, and three results now bear on it:
 
 - **§96** — the accuracy deficit is **general, not credit-specific**: the model is behind on
   14 of 15 public OpenML binary tasks, and the prior's domain is worth only +0.010.
-- **§98** — externally, on TabArena, **93rd of 95** (94th of 95 on a later board snapshot,
+- **§98** — externally, on TabArena, **93rd of 95 [§225: read from a table numbered from 0; §98's own leaderboard is not stored]** (94th of 95 on a later board snapshot,
   §122), losing to every linear baseline.
 - **§100** — the deficit tracks categorical cardinality at **−0.668**, i.e. much of it is not
   about domain transfer at all.
@@ -533,7 +533,7 @@ so the architecture is not obviously capacity-limited on credit at this volume e
 **Status: SURVIVES.** Evidence: §98 (placement), §100 (decomposition). This is the only claim
 in this ledger whose baselines and protocol belong to someone else.
 
-TabArena, 27 eligible datasets, zero failures: **rank 93 of 95**, mean ROC-AUC **0.7642** at
+TabArena, 27 eligible datasets, zero failures: **rank 93 of 95 [§225: read from a table numbered from 0; §98's own leaderboard is not stored]**, mean ROC-AUC **0.7642** at
 §98, improved to **0.7823** by native categorical handling (§101) **with the rank unchanged**.
 **On the later board snapshot used for the submission the rank is 94 of 95** at the same
 0.7823 (§122), and a refreshed baseline cache left it at 94 of 95 (§150). Quote 94 of 95.
@@ -596,7 +596,7 @@ number is reproducible.
 second, different entry now exists.** The zero-shot default on the 27 binary datasets scores 756
 Elo, 94th of 95 (the 2026-10-19 run, §204). The all-51-dataset entry that DR7.6 requires is a
 different model configuration ("FinTFM with a trained linear readout", Claim 19), not an update
-of this one, and it ranks 106th of 110 at 903 Elo (§224). Read the two rows as separate
+of this one, and it ranks 107th of 110 at 903 Elo (§224). Read the two rows as separate
 entries. The "Four bounds" paragraph still applies to every TabArena-Lite figure: fold 0 only.
 
 ---
@@ -674,7 +674,7 @@ account of the residual must explain a uniform ~0.035 deficit independent of cat
 content, cardinality and width — a far sharper target than §98 presented.
 
 **What this claim must not become.** It is not a route to competitiveness. **The rank did not
-move: 93 of 95, unchanged** (94 of 95 on the later board snapshot, §122), because a uniform −0.035 still loses to the methods above.
+move: 93 of 95 [§225: one place lower], unchanged** (94 of 95 on the later board snapshot, §122), because a uniform −0.035 still loses to the methods above.
 `RF (default)` leads on 21 of 27 datasets. The stated target — untuned trees < fintfm < tuned
 trees — is not reached.
 
@@ -719,7 +719,7 @@ leaf (§221), 825 with a scaled, cross-validated readout plus the row's own feat
 better on 8 of 8, sign test p 0.01), 865 with four partition bags (§224, better than §222 on 5
 of 8). Regression, 13 datasets: 436 Elo with a ridge readout (§220), 578 with the row's own
 features added (§223, better on 12 of 13). These are readout results, not the zero-shot head, and
-both types still rank near the bottom of the leaderboard (overall 106th of 110, §224).
+both types still rank near the bottom of the leaderboard (overall 107th of 110, §224).
 
 **The trap this claim exists to flag.** On a bimodal target, an *untrained* model scores
 **higher** outer-third mass (0.8628) than the trained one (0.8083) and the truth (0.8362),
@@ -1013,7 +1013,7 @@ credit lever; whether it is a general-tabular one is unmeasured on a validated b
 
 ---
 
-## Claim 19: "FinTFM with a trained linear readout" reaches 903 Elo on all 51 TabArena-Lite datasets, 106th of 110, and is a general-tabular result
+## Claim 19: "FinTFM with a trained linear readout" reaches 903 Elo on all 51 TabArena-Lite datasets, 107th of 110, and is a general-tabular result
 
 **Status: SINGLE DRAW** (TabArena-Lite runs repeat 0, fold 0 only; one checkpoint per problem type).
 Family: FinTFM (synthetic-only). Evidence: §212, §215, §220-§224. Added 2026-11-13. **This is a
@@ -1032,7 +1032,7 @@ representation, so none of this is evidence that the head is the bottleneck on c
 | 30 binary datasets, `select` columns for the wide tables | 974 (+138 / -169) | | §220 |
 | multiclass, 8 datasets | 865 (+120 / -293) | | §224 |
 | regression, 13 datasets | 578 (+109 / -297) | | §223 |
-| **all 51 datasets, no exclusion** | **903 (+102 / -110)** | **106th of 110** | §224 |
+| **all 51 datasets, no exclusion** | **903 (+102 / -110)** | **107th of 110** | §224 |
 
 Reference rows in the same leaderboard: `RF (default)` 1,000, `Linear (tuned + ensembled)` 936,
 `Linear (tuned)` 919, `KNN (tuned + ensembled)` 967 (§223, §224). The overall entry is below
@@ -1067,5 +1067,5 @@ binary datasets (§204). The progression of the overall figure was 880 (§221), 
   intervals are about ±100 to ±170.
 
 **Do not write** that FinTFM "beats" or "matches" random forest on TabArena, or quote 903 Elo
-without "106th of 110", "fold 0 only" and the readout label. DR7.6 leaves open whether this counts
+without "107th of 110", "fold 0 only" and the readout label. DR7.6 leaves open whether this counts
 as near enough to the bar for a submission; that is an owner decision.

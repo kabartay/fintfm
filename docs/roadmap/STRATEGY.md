@@ -10,7 +10,7 @@ Opinionated on purpose. Where a claim rests on evidence, the evidence is in
 
 **Checked against `FINDINGS` §195-§224 and `docs/paper/CLAIMS.md` on 2026-11-13.** The thesis
 and the term-structure evidence stand. What moved since this file was written is the
-general-tabular standing (now 903 Elo, 106th of 110 over all 51 TabArena-Lite datasets, §224,
+general-tabular standing (now 903 Elo, 107th of 110 over all 51 TabArena-Lite datasets, §224,
 "FinTFM with a trained linear readout"; the zero-shot entry was 94th of 95 on 27 datasets, §122)
 and the credit comparison (§216: FinTFM is below logistic regression on all four admitted credit
 datasets). Dated notes below mark each place. Two commercial entrants were removed from this
@@ -396,17 +396,17 @@ path, and no longer the justification for renting NVIDIA.
   came back null. **The conclusion this
   supports is not "stop measuring general-tabular standing" -- `docs/roadmap/ROADMAP.md`'s
   Phase A' and Phase C were still worth running, because a differently-shaped decision layer
-  (§130-§133) moved an unpublished exploratory variant up one position (§132, 94th to 93rd of
+  (§130-§133) moved an unpublished exploratory variant up one position (§132, 94th to 93rd [§225: one place lower] of
   95) and prior diversity was untested (since run: Phase A' closed at §136, and Phase C's
   combined prior measured negative on V4FinBench, §141) -- it is
   "the credit-panel thesis below is the actual bet, and every general-tabular result is a
   calibration check on that bet's cost, not a competing goal in its own right."**
   (2026-11-13, §224: the standing since §122 is a linear readout on the network's
-  representation, not the zero-shot model: 903 Elo, 106th of 110 over all 51 TabArena-Lite
+  representation, not the zero-shot model: 903 Elo, 107th of 110 over all 51 TabArena-Lite
   datasets, against 1,000 for RandomForest (default). By problem type: binary 974 on 30 datasets
   (§220), multiclass 865 on 8, regression 578 on 13 (§223, §224). Owner decision DR7.6
   (2026-11-11): hold the TabArena PR until multiclass and regression improve; the target is about
-  1,000 overall Elo. The pools differ from §122's, so 94th of 95 and 106th of 110 are not
+  1,000 overall Elo. The pools differ from §122's, so 94th of 95 and 107th of 110 are not
   comparable ranks.) (2026-11-13: an earlier sentence here cited a competitor's own
   published account of TFM scaling as corroboration of §112; it was removed with that
   competitor, and §112 and §114 stand on this project's own measurements.)
