@@ -311,7 +311,7 @@ the fork's `experiments/fintfm_lite_{nan,zerofill}_1019/`.
 Passing NaN through is better on 2 of 6 and worse on 4; the mean difference over all 27 is
 +0.00008 ROC-AUC, and the two-sided sign test over the 6 gives p = 0.69. Elo, which the task
 says does not decide, is 756 (+126/-180) with NaN passed through and 763 (+123/-175) with zero
-fill, 94th of 95 either way. The zero-fill arm reproduces this page's earlier numbers
+fill, 94th of 95 either way [§225: 95th of 96 in the stored leaderboards]. The zero-fill arm reproduces this page's earlier numbers
 (`polish_companies_bankruptcy` 0.8436, `GiveMeSomeCredit` 0.8373, `Diabetes130US` 0.6566), so the
 two runs are comparable.
 
@@ -344,7 +344,7 @@ it needs the adapter to accept multiclass first.
 tabarena fork 5cb019c; unset, the declaration stays binary only). `dr74-mc-s0` on the 7 multiclass
 datasets within the caps (MIC, SDSS17, anneal, maternal_health_risk, splice,
 students_dropout_and_academic_success, website_phishing), default config, log
-`runs/lite_dr74_mc.log`: **Elo 306 (+76/-2619), 94th of 95, mean rank 93.86**, against §121's
+`runs/lite_dr74_mc.log`: **Elo 306 (+76/-2619), 94th of 95 [§225: 95th of 96], mean rank 93.86**, against §121's
 93.4 mean rank on the same 7 for the earlier multiclass checkpoint. No gain on TabArena; reporting
 only, so it does not weigh against §186's proxy candidate, which DR7.4's seed-1 replicate decides.
 
@@ -358,9 +358,9 @@ just beyond it.
 
 | `max_context` | Elo | interval | rank |
 | --- | --- | --- | --- |
-| 500 | 702 | +113/-179 | 94 of 95 |
-| 750 | 745 | +125/-183 | 94 of 95 |
-| 1000 (2026-10-19, above) | 756 | +126/-180 | 94 of 95 |
+| 500 | 702 | +113/-179 | 94 of 95 [§225: 95th of 96] |
+| 750 | 745 | +125/-183 | 94 of 95 [§225: 95th of 96] |
+| 1000 (2026-10-19, above) | 756 | +126/-180 | 94 of 95 [§225: 95th of 96] |
 
 Elo rises with context and every interval overlaps the others; the rank does not move. **Keep the
 default of 1000.** Staying inside the trained range buys nothing here, and the shorter contexts
