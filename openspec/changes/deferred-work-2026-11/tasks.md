@@ -100,7 +100,7 @@
 
 ## Repository leftovers
 
-- [ ] 49.12 **Small items from the 2026-11-13 inspection.** `scripts/draw_logo.py` needs Pillow,
+- [x] 49.12 **Done (2026-11-13): `scripts/draw_logo.py` documents installing Pillow (HPND) ad hoc, since a `logo` extra would change `uv.lock`; `scripts/kaggle/README.md` records the four slug/title mismatches as historical (ids unchanged); of the kernels named below only `ts_dr75_width512_mc_s0` is unpinned (the `task_dr311_*` kernels pin e89def2 or 027e0cc), and it stays unpinned until launch because its gate is unmet; `configs/best.yaml` carries a dated note naming the later entries that supersede §38.** **Small items from the 2026-11-13 inspection.** `scripts/draw_logo.py` needs Pillow,
       which no extra declares; four Kaggle kernels (`task_39_28_replicate_s91`,
       `task_48_3_binned_control`, `task_48_3_quantile_head`, `task_48_9_schedulefree`) have an
       `id` slug that does not match their title; five kernels (`task_dr311_*`,
