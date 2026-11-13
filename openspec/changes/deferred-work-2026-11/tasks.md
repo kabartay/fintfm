@@ -15,7 +15,7 @@
       `n_bins`, with `--checkpoint-every` (CLAUDE.md). State the cost from a measured step time
       (§127, §171) before launch. Verify: the 13 regression datasets scored against §223's run
       in a FINDINGS entry, per-dataset RMSE and Elo, and the merged overall Elo.
-- [ ] 49.3 **Decide the multiclass partition bag count.** Four bags lifted multiclass from 825
+- [x] 49.3 **Done (2026-11-13, FINDINGS §227): eight bags tie four (4 better, 4 worse; 874 against 865 Elo); `fintfm_lp_mc_scr_bag8_1113` is the multiclass run in the 905.2 Elo merge.** **Decide the multiclass partition bag count.** Four bags lifted multiclass from 825
       to 865 Elo but was worse on 3 of 8 datasets (§224); `mc-bag8` (8 bags) is queued.
       Verify: `mc-bag8` against `fintfm_lp_mc_scr_bag4_1112` per dataset in a FINDINGS entry;
       the better of the two is the multiclass run in the next merge.
@@ -60,7 +60,7 @@
       harnesses use `time_based_split` (`on_overlap="drop_from_train"`) with an embargo, a test
       shows a firm cannot be on both sides, and the affected findings are rerun with dated notes
       on each.
-- [ ] 49.8 **Progress (2026-11-13): code fixed in 07b40a7. The query horizon's context is the 70% training pool, other horizons drop rows identical to a query row; the horizon files carry no firm identifiers, so a firm can still appear in a context and the query with different years' ratios (documented). `--coherence-legacy` reproduces §11. The corrected and legacy reruns are queued locally.** **Term-structure coherence: keep query rows out of the context.**
+- [x] 49.8 **Done (2026-11-13, FINDINGS §228): §11 recomputed; the leak moved it about four points (44.0% to 47.8% of steps), and §11's own figure does not reproduce on the stored checkpoint; §11 and the README carry dated notes. Other documents quoting 39% are corrected with 49.7.** **Progress (2026-11-13): code fixed in 07b40a7. The query horizon's context is the 70% training pool, other horizons drop rows identical to a query row; the horizon files carry no firm identifiers, so a firm can still appear in a context and the query with different years' ratios (documented). `--coherence-legacy` reproduces §11. The corrected and legacy reruns are queued locally.** **Term-structure coherence: keep query rows out of the context.**
       `src/fintfm/experiments/prior_ablation.py` `term_structure_coherence` loads the whole
       panel as context, so when the context horizon equals the query horizon the held-out query
       rows and their labels are in the context; horizon files may also share firms. §11's

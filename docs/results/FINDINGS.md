@@ -731,6 +731,8 @@ must deliver — coverage guarantees and honest refusal, not merely intervals.
 
 ## 11. Two firms in five get an incoherent PD term structure, and the aggregate hides it
 
+> (2026-11-13, §228: this figure does not reproduce. On the stored checkpoint with today's code, the same selection gives 44.0% of steps and 0.03% fully monotone rows, and with the query rows kept out of the context 47.8% and 0.0%. The direction holds; the 39% is not to be quoted.)
+
 **Date:** 2026-09-08. **Status:** MEASURED on real data with a real (if under-trained)
 checkpoint. Resolves `openspec/changes/pd-term-structure` task 11.1 — **in favour of the
 change**. Re-derivable:
@@ -14553,3 +14555,80 @@ RMSE on the seven datasets that finished, against §223's run (`fintfm_lp_reg_ra
   were not run: the project stopped on 2026-11-13 and the queue was trimmed after this arm
   (`openspec/changes/deferred-work-2026-11`, tasks 49.1, 49.3, 49.5). The overall entry stays
   §224's 903 Elo, 107th of 110.
+
+## §227: eight partition bags tie four on multiclass; a pure-regression checkpoint beats the mixed one; overall 905 Elo, still 107th of 110
+
+**MEASURED, TabArena-Lite (repeat 0, fold 0), CPU, 2026-11-13.** Two arms from the deferred-work
+queue (`openspec/changes/deferred-work-2026-11`, tasks 49.3 and 49.2's CPU precursor).
+
+**Multiclass, `fintfm_lp_mc_scr_bag8_1113`** (§224's winner with `FINTFM_PARTITION` `n_bags` 8):
+874 Elo (+110 / −273) against §224's four bags at 865. Paired against four bags it is better on 4
+of 8 datasets and worse on 4; the largest moves are students_dropout_and_academic_success −0.9%
+log loss and website_phishing +2.0%. A tie: more bags do not remove four bags' losses (§224).
+66 min, peak RSS 7.3 GB (`runs/local_queue/mc-bag8.log`).
+
+**Regression, `fintfm_lp_reg_raw_pure_1113`**: §223's configuration (squash, `select`, ridge
+readout with the row's features) on `runs/task48-3-kaggle/v4-binned48_3-control.pt`, the §148
+matched control trained with `--p-regression 1.0` (pure regression tasks, 6,000 steps, the
+published architecture, `--max-classes 10`), in place of `v4-regression.pt`
+(`--p-financial 0.35 --p-regression 0.35`, otherwise the same architecture and steps). 582 Elo
+(+96 / −221) against §223's 578. RMSE per dataset against §223:
+
+| dataset | §223 (mixed) | pure regression | change |
+| --- | --- | --- | --- |
+| concrete_compressive_strength | 6.1632 | 5.7319 | −7.0% |
+| diamonds | 1,108.91 | 1,033.48 | −6.8% |
+| airfoil_self_noise | 3.0269 | 2.8304 | −6.5% |
+| healthcare_insurance_expenses | 4,743.66 | 4,450.50 | −6.2% |
+| miami_housing | 128,751 | 125,455 | −2.6% |
+| superconductivity | 15.8175 | 15.5543 | −1.7% |
+| wine_quality | 0.6883 | 0.6844 | −0.6% |
+| Food_Delivery_Time | 8.0986 | 8.0885 | −0.1% |
+| physiochemical_protein | 4.8163 | 4.8214 | +0.1% |
+| QSAR-TID-11 | 0.9884 | 0.9906 | +0.2% |
+| houses | 0.2880 | 0.2893 | +0.4% |
+| Another-Dataset-on-used-Fiat-500 | 721.68 | 727.72 | +0.8% |
+| QSAR_fish_toxicity | 0.9516 | 0.9666 | +1.6% |
+
+8 better, 5 worse; geometric-mean RMSE ratio 0.978. The gains are four datasets at 6% to 7%;
+no loss exceeds 1.6%. 85 min, peak RSS 13.1 GB, all 13 datasets exit 0.
+
+**Overall, binary §220 + bag8 + pure regression: 905.2 Elo, 107th of 110**
+(`fintfm_linprobe_all51_1113b`, log `runs/merge_all51_1113b.log`; position from
+`scripts/lite_positions.py`). §224 was 903.0, also 107th.
+
+**What it says.**
+- The share of regression tasks in pretraining is a regression lever the readout is not: the
+  same architecture and steps with every task a regression task lower RMSE on 8 of 13. It is
+  one seed per arm, so a direction, not a verdict.
+- It sets the overnight GPU run (task 49.2, kernel `scripts/kaggle/ts_reg_pure_v480_s0`): this
+  recipe at 480,000 tasks.
+- Eight bags add nothing over four. Multiclass stays at four or eight bags interchangeably.
+
+## §228: §11's term-structure figure does not reproduce; with the query rows kept out of the context, no firm's curve is monotone
+
+**MEASURED, 2026-11-13.** Task 49.8. §11 measured coherence on the 3-year Polish query split
+(3,151 rows) with contexts from each horizon file in turn; for the 3-year horizon that context
+was the whole file, query rows and labels included. Fixed in 07b40a7 (the query horizon's
+context is the 70% training pool; other horizons drop rows identical to a query row; the horizon
+files carry no firm identifiers, so a firm may still appear in a context with another year's
+ratios). Both selections rerun on the same stored checkpoint, `runs/phase1-5k/financial.pt`,
+with today's code (`runs/coherence-fixed/`, `runs/coherence-legacy/`, about 8 s each):
+
+| selection | violation rate per step | fully monotone rows | mean PD by horizon 1 to 5 |
+| --- | --- | --- | --- |
+| §11 as published (2026-09) | 11.0% | 60.6% | |
+| legacy (whole file), today's code | 44.0% | 0.03% | 0.048, 0.037, 0.040, 0.045, 0.067 |
+| corrected (query rows excluded) | 47.8% | 0.0% | 0.048, 0.037, 0.044, 0.045, 0.067 |
+
+**What it says.**
+- The leak itself moved the figure about four points (44.0% to 47.8% of steps); it was not what
+  kept §11 low. The gap between §11 and today's legacy run is drift: §11 records that its
+  checkpoint was from a 5,000-step run that had not finished, so the file measured today is not
+  the one §11 measured, and the inference defaults have changed since.
+- On the stored checkpoint with no leak, the per-horizon construction is incoherent for every
+  one of the 3,151 firms, and even the mean PD falls from horizon 1 to 2. The direction of §11's
+  conclusion holds and is stronger; its number, 39% of firms, cannot be reproduced and is not to
+  be quoted.
+- The out-of-time version of the claim (§28) is being rerun under task 49.7; documents quoting
+  the 39% are corrected once that lands.

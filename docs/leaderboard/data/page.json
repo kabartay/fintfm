@@ -1,6 +1,6 @@
 {
   "date": "2026-11-13",
-  "finding": "FINDINGS &sect;224",
+  "finding": "FINDINGS &sect;227",
   "self_method": "[New] TA-FINTFM-LINPROBE (default)",
   "self_label": "FinTFM with a trained linear readout",
   "n_datasets": 51,
@@ -15,15 +15,15 @@
       "self": true
     },
     {
-      "elo": "865",
+      "elo": "874",
       "name": "Multiclass, 8 datasets",
-      "sub": "linear readout, unpublished checkpoint &middot; &sect;224",
+      "sub": "linear readout, eight partition bags, unpublished checkpoint &middot; &sect;227",
       "self": true
     },
     {
-      "elo": "578",
+      "elo": "582",
       "name": "Regression, 13 datasets",
-      "sub": "ridge readout, unpublished checkpoint &middot; &sect;223",
+      "sub": "ridge readout, pure-regression checkpoint, unpublished &middot; &sect;227",
       "self": true
     },
     {
@@ -57,8 +57,8 @@
     }
   ],
   "board": {
-    "csv": "tabarena_lite_51_2026-11-13.csv",
-    "source_run": "fintfm_linprobe_all51_1113",
+    "csv": "tabarena_lite_51_2026-11-13b.csv",
+    "source_run": "fintfm_linprobe_all51_1113b",
     "n_total": 110,
     "n_omitted": 2
   }
