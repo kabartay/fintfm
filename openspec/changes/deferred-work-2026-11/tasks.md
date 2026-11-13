@@ -51,7 +51,7 @@
 
 ## Harness defects found by the 2026-11-13 inspection (not fixed; each changes recorded numbers)
 
-- [ ] 49.7 **Out-of-time split: add a company check and an embargo.**
+- [ ] 49.7 **Progress (2026-11-13): code fixed in b34612d. The out-of-time, context-sweep and retrieval-grouping harnesses default to `time_based_split(on_overlap="drop_from_train")` with a 6-year label embargo (V4FinBench labels reach up to six years ahead); `--split legacy` reproduces the old split. Reruns of §28, §32, §33, §35, §37 and §38 (`-emb` outputs) are queued locally; §29's original output is gone and §30's other checkpoints are unnamed, so those two can only be redone on the current checkpoint.** **Out-of-time split: add a company check and an embargo.**
       `src/fintfm/experiments/v4_out_of_time.py` `time_split` (also used by the context-sweep
       and retrieval-grouping harnesses) does not check companies, so a firm seen in a training
       year can appear in the test years, and a training row's labels span up to six years into
@@ -60,14 +60,14 @@
       harnesses use `time_based_split` (`on_overlap="drop_from_train"`) with an embargo, a test
       shows a firm cannot be on both sides, and the affected findings are rerun with dated notes
       on each.
-- [ ] 49.8 **Term-structure coherence: keep query rows out of the context.**
+- [ ] 49.8 **Progress (2026-11-13): code fixed in 07b40a7. The query horizon's context is the 70% training pool, other horizons drop rows identical to a query row; the horizon files carry no firm identifiers, so a firm can still appear in a context and the query with different years' ratios (documented). `--coherence-legacy` reproduces §11. The corrected and legacy reruns are queued locally.** **Term-structure coherence: keep query rows out of the context.**
       `src/fintfm/experiments/prior_ablation.py` `term_structure_coherence` loads the whole
       panel as context, so when the context horizon equals the query horizon the held-out query
       rows and their labels are in the context; horizon files may also share firms. §11's
       figure (11.0% of horizon steps, 39% of firms), quoted in the README, rests on it. Verify:
       a test shows no query row in the context, §11's figure is recomputed in a new FINDINGS
       entry, and §11 and the README carry dated notes if it moves.
-- [ ] 49.9 **Smaller defects, fix or record a reason not to.**
+- [x] 49.9 **Done (2026-11-13): (a), (b), (e), (f), (g) fixed with tests in `tests/test_defects_49_9.py` (e090300); (c) and (d) fixed with 49.7 (b34612d, `tests/test_v4_split_and_sweep.py`); (h) was already wired (c8c3027 passes `warmup_steps` to schedule-free), only the `_NullSchedule` docstring was stale and is corrected. None changes a recorded number; `tests/test_golden_outputs.py` passes unchanged.** **Smaller defects, fix or record a reason not to.**
       (a) `src/fintfm/modeling/train.py` `_save_training_state` saves the CPU torch RNG only, so
       a resumed CUDA run with dropout differs from an uninterrupted one;
       (b) `capability.py` sweeps skip seeds with a single-class test split silently, so cell
