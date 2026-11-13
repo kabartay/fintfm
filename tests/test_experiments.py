@@ -357,3 +357,14 @@ def test_regression_sweep_scores_a_quantile_head_checkpoint(tmp_path):
     for arm in ("quantile_head", "untrained_control"):
         assert 0.0 <= sweep["arms"][arm]["coverage"][0] <= 1.0
         assert 0.0 <= sweep["arms"][arm]["outer_mass"][0] <= 1.0
+
+
+def test_prior_ablation_main_guard_is_the_last_statement():
+    """`python -m` must reach every function the CLI flags call, so the guard goes last."""
+    import ast
+    from pathlib import Path
+
+    import fintfm.experiments.prior_ablation as mod
+
+    last = ast.parse(Path(mod.__file__).read_text()).body[-1]
+    assert isinstance(last, ast.If) and "__main__" in ast.unparse(last.test)

@@ -316,7 +316,8 @@ def summarise(record: dict) -> str:
             f"{a['name']:>26} {a['mean_auc']:>9.4f} {a['violation_rate']:>11.2%} "
             f"{a['fully_monotone']:>9.1%}"
         )
-    lines += ["", f"{'arm':>26} " + " ".join(f"{'h'+str(k):>8}" for k in range(6))]
+    n_h = len(record["arms"][0]["horizons"])
+    lines += ["", f"{'arm':>26} " + " ".join(f"{'h'+str(k):>8}" for k in range(n_h))]
     for a in record["arms"]:
         lines.append(f"{a['name']:>26} " + " ".join(f"{h['auc']:>8.4f}" for h in a["horizons"]))
     lines += ["", "calibration (ECE) by horizon:"]

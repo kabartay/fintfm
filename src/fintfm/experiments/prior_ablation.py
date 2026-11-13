@@ -65,7 +65,7 @@ class VariantResult:
         p_financial: Probability of drawing a financial task during pretraining.
         n_parameters: Model size, recorded to prove compute was matched.
         train_seconds: Wall-clock training time.
-        final_loss: Mean training loss over the last logging window.
+        final_loss: Always NaN: ``train`` does not return its loss, so none is recorded here.
         steps: Gradient steps actually taken. Zero identifies the untrained control.
         metrics: Real-data scores keyed by ``"<dataset>/<context_strategy>"``.
     """
@@ -428,10 +428,6 @@ def main() -> None:
     print("\n" + summarise(record))
 
 
-if __name__ == "__main__":
-    main()
-
-
 def sample_efficiency_probe(
     model_path: str,
     train_sizes: tuple[int, ...] = (100, 250, 500, 1000, 2000, 4000),
@@ -627,3 +623,7 @@ def term_structure_coherence(
         ),
     }
     return record
+
+
+if __name__ == "__main__":
+    main()

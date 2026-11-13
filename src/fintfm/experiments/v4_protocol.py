@@ -180,7 +180,7 @@ def _classical_estimator(name: str, params: dict) -> ClassifierMixin:
     if name == "logistic_regression":
         return LogisticRegression(max_iter=1000, **params)
     if name == "mlp":
-        return MLPClassifier(max_iter=300, early_stopping=True, **params)
+        return MLPClassifier(max_iter=300, early_stopping=True, random_state=0, **params)
     if name == "random_forest":
         return RandomForestClassifier(n_jobs=-1, random_state=0, **params)
     raise ValueError(f"unknown classical baseline {name!r}")
@@ -776,6 +776,16 @@ def summarise(record: dict) -> str:
             f"   {a.get('avg_precision_mean', float('nan')):.4f}"
             f"   {a.get('f1_oracle_mean', float('nan')):9.4f}"
         )
+    n_run = len(c["folds"])
+    short = {a["arm"]: len(a["folds"]) for a in record["arms"] if len(a["folds"]) < n_run}
+    if short:
+        lines += [
+            "",
+            (
+                f"*** INCOMPLETE ARMS: scored on fewer than the {n_run} folds run, so their "
+                f"means cover different folds from the other arms': {short}. ***"
+            ),
+        ]
     lines += [
         "",
         (

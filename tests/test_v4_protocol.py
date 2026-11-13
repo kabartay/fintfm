@@ -435,3 +435,25 @@ def test_from_config_scores_exactly_as_the_old_explicit_construction(tmp_path, c
     p_new = new.fit(X[:80], y[:80]).predict_proba(X[80:])
     p_old = old.fit(X[:80], y[:80]).predict_proba(X[80:])
     assert np.array_equal(p_new, p_old)
+
+
+
+def test_mlp_baseline_is_seeded():
+    from fintfm.experiments.v4_protocol import _classical_estimator
+
+    assert _classical_estimator("mlp", {}).random_state == 0
+
+
+def test_summarise_flags_an_arm_scored_on_fewer_folds():
+    from fintfm.experiments.v4_protocol import summarise
+
+    def arm(name, n_folds):
+        return {"arm": name, "roc_auc_mean": 0.9, "roc_auc_std": 0.0, "f1_mean": 0.1,
+                "f1_std": 0.0, "folds": [{}] * n_folds}
+
+    record = {"config": {"horizon": 0, "folds": [0, 1, 2], "n_features": 3,
+                         "finetune_steps": 0, "tuned": True},
+              "arms": [arm("logistic_regression", 3), arm("xgboost", 2)]}
+    assert "INCOMPLETE ARMS" in summarise(record)
+    record["arms"][1]["folds"] = [{}] * 3
+    assert "INCOMPLETE ARMS" not in summarise(record)
