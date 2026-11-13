@@ -30,7 +30,7 @@ kaggle.json
 .env
 .env.*
 # The negation must follow the pattern it exempts, or `.env.*` swallows it silently. That
-# happened in finkele-axiom and was caught by `git check-ignore -v .env.example`, not by
+# happened in a sibling repository and was caught by `git check-ignore -v .env.example`, not by
 # noticing the file had stopped being tracked.
 !.env.example
 
@@ -44,3 +44,6 @@ kaggle.json
 *.safetensors
 *.state
 *.pt.step*
+
+# Claude Code agent worktrees (local only)
+.claude/worktrees/

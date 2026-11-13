@@ -280,7 +280,7 @@ three can change predictions, but only on the inputs named:
 ### Documentation
 
 - The 2026-10-15 audit filed as an openspec change (`audit-2026-10-15`), the 2026-10-15 peer
-  sweep recorded in `docs/paper/RELATED_WORK.md`, and the AXIOM harness licence no longer stated
+  sweep recorded in `docs/paper/RELATED_WORK.md`, and a sibling project's licence no longer stated
   in public documents.
 - README, `docs/README.md`, this file and the GitHub Pages: TabArena rank stated as 94 of 95
   (Sections 122, 150), the 910 Elo linear probe labelled as an unpublished exploratory variant

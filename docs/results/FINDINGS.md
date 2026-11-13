@@ -256,7 +256,7 @@ favour the incumbents. This is the one axis where being early beats being funded
 converts the current weaknesses (no customers, no proprietary data, no compute) into the one
 asset nobody else can hold.
 
-It is also the same discipline as `finkele-axiom`'s pre-registration freeze — commit the
+It is also the same discipline as a sibling project's pre-registration freeze — commit the
 splits, the config and the predictions *before* the outcome is knowable — applied to a market
 where the certificate is the product.
 

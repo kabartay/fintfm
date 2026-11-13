@@ -28,7 +28,7 @@ folds, as in §159), and is written up in FINDINGS whatever the answer.
 ## Non-goals
 
 - No training on TabArena or BeyondArena datasets.
-- No importing the AXIOM harness.
+- No importing the sibling validation harness.
 - No GPL or AGPL dependencies.
 
 ## Blocked by

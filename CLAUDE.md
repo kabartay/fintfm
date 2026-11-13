@@ -3,7 +3,7 @@
 Instructions for anyone, human or agent, working in this repository. Written when the
 project was one day old (September 2026; by 2026-11-13 it is far longer, so "short by design" no longer
 describes it). Grows as mistakes actually happen here, following the pattern in the
-sibling `finkele`/`finkele-axiom`/`jile` repos — a rule earns its place by being violated once,
+owner's sibling repositories — a rule earns its place by being violated once,
 not by being imaginable in advance.
 
 ## Identity
@@ -12,8 +12,8 @@ not by being imaginable in advance.
 | --- | --- |
 | Commit author, human contact | `mukharbek.organokov@gmail.com` |
 
-**Use only the address above: never another employer's address, and never a `finkele.com`
-address in commits or account identities** (`finkele.com` is the Finkele company website). The
+**Use only the address above: never another employer's address, and never a company-domain
+address in commits or account identities**. The
 shell environment on this machine carries a different address by default for anything that
 reads "the user's email" — it has reached a monitoring channel on an unrelated project before.
 Check before creating anything (a commit, a cloud resource, a registration) that carries an
@@ -32,14 +32,14 @@ uv run fintfm-train --steps 5000 --out runs/name.pt
 uv run fintfm-bench --model runs/name.pt
 ```
 
-This machine has other projects' venvs (e.g. `finkele-alert/.venv`) that leak in via
+This machine has other projects' venvs (another project's `.venv`) that leak in via
 `$VIRTUAL_ENV` and print a harmless `uv` warning; ignore the warning, don't `source` another
 project's activate script here, and don't invoke a bare `python`/`pytest` and assume it resolves
 to this project.
 
 ## The machine is shared
 
-`bwa` runs 24/7 on roughly three cores as part of an unrelated pipeline. Never launch a real
+An unrelated batch pipeline runs 24/7 on roughly three cores. Never launch a real
 pretraining run (anything past a smoke test — thousands of steps, GPU-scale batch/model size)
 without checking `uptime` first and getting an explicit go-ahead; that combination has frozen
 this Mac before. Ports `8080` (mlflow), `8001` (an unrelated API) and `3000` (Docker) are taken.
@@ -54,10 +54,10 @@ root-caused.
 
 **Inference grows too, just later.** On 2026-11-09 a zero-shot V4FinBench run on MPS with
 `n_ensemble: 8` (`configs/arms/dr32-ens8-cshift.yaml`) sat at 2-4 GB for the first eight
-minutes, then reached a 27 GB footprint by minute 40 and left 23 MB unused beside a Finkele
-solver campaign; it was killed and the arm went back to CPU. A three-minute memory check does
-not clear an MPS run: keep watching until the first fold completes, and check `ps` for a
-`finkele_solver.campaign_runner` before any local GPU job.
+minutes, then reached a 27 GB footprint by minute 40 and left 23 MB unused beside another
+project's solver campaign; it was killed and the arm went back to CPU. A three-minute memory check does
+not clear an MPS run: keep watching until the first fold completes, and check `ps` for
+another project's long-running solver or training job before any local GPU job.
 
 ## Every HF Jobs training launch carries `--checkpoint-every`, no exceptions
 
@@ -205,7 +205,7 @@ uninstalled; the command simply stopped existing. Sync every extra the session n
 
 **And `uv pip install` obeys the leaked `$VIRTUAL_ENV`.** The obvious recovery — `uv pip
 install huggingface_hub` — reported `Using Python 3.13.7 environment at
-<home>/proj/finkele-alert/.venv` and installed into **another project's venv**, which
+<home>/proj/<other-project>/.venv` and installed into **another project's venv**, which
 is the leak this file already warns about one section above, now with a way to act on it:
 
 ```bash
@@ -396,7 +396,7 @@ Three rules follow, and all three are easy to break by accident:
 ## Secrets: `.env`, and never anywhere else
 
 `.env` holds credentials and is gitignored; `.env.example` documents every key it may contain
-and is committed. Same convention as `finkele-axiom`.
+and is committed. Same convention as the owner's sibling repositories.
 
 **Nothing loads `.env` automatically, on purpose.** A file sourced implicitly is a file nobody
 re-reads. Source it for the call that needs it:
@@ -408,7 +408,7 @@ set -a; . ./.env; set +a
 Two rules that cost someone a debugging session already:
 
 - **The negation must follow the pattern it exempts.** `.env.*` swallows `!.env.example` if
-  the negation comes first, silently. That happened in `finkele-axiom`.
+  the negation comes first, silently. That happened in a sibling repository.
 - **`git check-ignore -v` does not answer this question.** It exits 0 when *any* pattern
   matches, negations included, so a correctly-exempted file looks ignored. Use
   `git status --porcelain --ignored`: `!!` means ignored, `??` means visible.
@@ -535,7 +535,7 @@ measured reasoning for them.
 New code gets full treatment in the same pass it's written, not after being asked separately:
 a module docstring saying what the file is for, a docstring on every public function/class
 (Args/Returns, not restating the name), and explicit type hints throughout. This mirrors
-`finkele-axiom`'s convention.
+a sibling repository's convention.
 
 **This used to say "don't retrofit — nothing here predates the convention", and by 2026-09-25
 that was false:** an AST sweep before going public found **47 functions and classes without a

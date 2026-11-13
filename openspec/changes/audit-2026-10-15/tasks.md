@@ -20,7 +20,7 @@
       Verify: one wording, the same in all three places.
 - [x] AU0.3 **Done (2026-10-20).** `CLAUDE.md` no longer names the other employer's domain or a home-directory path; this task's own text is redacted the same way (the one exception to prepend-only, since the Verify forbids the string anywhere), and FINDINGS' one home-directory path reads `<venv>/...`. Both greps print nothing outside history.
       **`CLAUDE.md` is public and names another employer's domain and a local home-directory path**
-      (`CLAUDE.md:14-16,199`). Owner's file. The AXIOM harness licence was removed from three
+      (`CLAUDE.md:14-16,199`). Owner's file. A sibling project's licence was removed from three
       public files in b78a52c; it remains in git history.
       Verify: `git grep` for that domain and for the macOS home-directory prefix prints nothing outside history.
 

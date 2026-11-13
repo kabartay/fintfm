@@ -7,7 +7,7 @@ produce. A credit risk function under supervisory obligation does not buy a poin
 it buys the ability to answer "where can I trust this, and where must I not" in a document a
 validation committee accepts without the vendor in the room.
 
-The machinery is already proven in a sibling project: `finkele-axiom` is a validation
+The machinery is already proven in a sibling project: a private validation harness is a validation
 protocol producing a certificate with conformal coverage, out-of-distribution escalation and
 honest refusals, generalised across physics. Pointing it at credit risk is a port, not
 research — which is why this is the highest-leverage work in the repository once Phase 1
@@ -32,7 +32,7 @@ contribution is the protocol, the pre-registration, the certificate and the pack
 
 - Not a UI. The deliverable is files.
 - Not LGD or EAD; PD only, initially.
-- Not importing `finkele-axiom` as a dependency. It is a separate private codebase and this
+- Not importing the sibling validation harness as a dependency. It is a separate private codebase and this
   repo is Apache-2.0. Reimplement, or exchange files.
 
 ## Falsified by
