@@ -14515,3 +14515,41 @@ below it. The 6-Elo change from 756 is the field changing, since the predictions
 - Per-dataset ranks (the "rank of 108" columns in §220 and §221) come from a computed column,
   not the printed index; they are not re-checked here.
 - Quote positions from `scripts/lite_positions.py`, never from the printed index.
+
+## §226: the head's prediction in the regression readout breaks TabArena's time limit on 6 of 13 datasets and is null on the other 7
+
+**MEASURED, TabArena-Lite (repeat 0, fold 0), CPU, 2026-11-13.** Arm `fintfm_lp_reg_rawhead_1112`:
+§223's regression run (`v4-regression.pt`, squash, `select`, ridge readout with the row's
+squashed features) with `FINTFM_PROBE='{"raw": true, "head": true}'`, which also appends the
+regressor head's prediction (fork 7f0b062). Script `runs/local_queue/lite_reg_probe.sh`, log
+`runs/local_queue/reg-head.log` (214 min, exit 6, peak RSS 12.1 GB).
+
+**Six datasets stopped on AutoGluon's `TimeLimitExceeded`**: miami_housing, houses,
+superconductivity, Food_Delivery_Time, physiochemical_protein and diamonds, the six largest. The
+`head` option predicts with the network a second time over every training row, and with eight
+bagged folds that does not fit TabArena's limit. The merged evaluation then had no results for
+them and did not run, so the arm has no Elo. As in §224 for multiclass, `head` is not a viable
+setting for an entry.
+
+RMSE on the seven datasets that finished, against §223's run (`fintfm_lp_reg_raw_1111`):
+
+| dataset | §223 | with head | change |
+| --- | --- | --- | --- |
+| airfoil_self_noise | 3.0269 | 2.9707 | −1.9% |
+| healthcare_insurance_expenses | 4,743.66 | 4,728.72 | −0.3% |
+| wine_quality | 0.6883 | 0.6872 | −0.2% |
+| concrete_compressive_strength | 6.1632 | 6.1586 | −0.1% |
+| QSAR-TID-11 | 0.9884 | 0.9884 | 0.0% |
+| Another-Dataset-on-used-Fiat-500 | 721.68 | 721.68 | +0.0% |
+| QSAR_fish_toxicity | 0.9516 | 0.9518 | +0.0% |
+
+4 better, 3 worse or tied; the largest change is 1.9%. Null.
+
+**What it says.**
+- The head's output adds almost nothing a ridge readout on the representation and the raw
+  features does not already have, for multiclass (§224) and regression alike, and it costs a
+  second pass that the time limit does not allow on large tables.
+- `reg-ctx4k` and the remaining queued arms (`mc-bag8`, the `ppfix-v4` folds, `4824-uni4000c`)
+  were not run: the project stopped on 2026-11-13 and the queue was trimmed after this arm
+  (`openspec/changes/deferred-work-2026-11`, tasks 49.1, 49.3, 49.5). The overall entry stays
+  §224's 903 Elo, 107th of 110.

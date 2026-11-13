@@ -2,7 +2,7 @@
 
 ## Regression and multiclass (design review DR7.6: overall bar 1,000 Elo, 903 at §224)
 
-- [ ] 49.1 **Score the two queued regression readout arms.** `reg-head` appends the head's
+- [ ] 49.1 **Progress (2026-11-13, FINDINGS §226): `reg-head` hit TabArena's time limit on 6 of 13 datasets and is null on the other 7 (4 better, 3 worse, at most 1.9%); not viable. `reg-ctx4k` was not run (project stopped).** **Score the two queued regression readout arms.** `reg-head` appends the head's
       prediction to the ridge readout (`FINTFM_PROBE` `{"raw": true, "head": true}`) and
       `reg-ctx4k` raises `FINTFM_MAX_CONTEXT` to 4,000 (`runs/local_queue/lite_reg_probe.sh`).
       Both pair against `fintfm_lp_reg_raw_1111` (578 Elo, §223). Verify: a FINDINGS entry with
@@ -92,7 +92,7 @@
       §174 and the DR4.3 run record), and two checkpoints for DR2.4 (all four mixed-prior arms
       were harmful on V4FinBench, §180, §191). Verify: the owner's decisions are recorded in
       `docs/paper/CLAIMS.md` and in DR2.4's note.
-- [ ] 49.11 **Release 0.10.1.** The Zenodo record of 0.10.0 describes the model as 107th of 110,
+- [ ] 49.11 **Progress (2026-11-13): v0.10.1 published from 47c89aa; CI, the release workflow and the PyPI upload are green (wheel and sdist on PyPI); the Zenodo version DOI was not yet minted when this was written. The TabArena fork pins 0.10.1 (af7da60).** **Release 0.10.1.** The Zenodo record of 0.10.0 describes the model as 107th of 110,
       while that version's archived FINDINGS still says 106th; the correction is §225, on main
       after the release. A patch release carries §225, the 2026-11-13 documentation revision and
       the inspection fixes. Verify: v0.10.1 is published with CI and the release workflow green,

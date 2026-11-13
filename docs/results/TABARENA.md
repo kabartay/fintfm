@@ -49,7 +49,7 @@ To test an unreleased change, install the local checkout into the TabArena envir
 editable install instead, as §132 did; a change here is then live there with no reinstall.
 
 (2026-11-13): the pin above is the one PR #616 was submitted with. The fork's `fintfm` extra now
-pins `fintfm==0.10.0` (fork commit 48c0101 on `fintfm-audit-fixes`, pushed 2026-11-13). §220
+pins `fintfm==0.10.1` (fork commit af7da60 on `fintfm-audit-fixes`, pushed 2026-11-13). §220
 reproduced §215's configuration bit for bit on 27 of 27 binary datasets from the 0.9.0 PyPI wheel.
 
 ## Running it
