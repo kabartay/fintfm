@@ -105,7 +105,9 @@ def group_queries(
         A list of index arrays into ``Zq``, together covering every row exactly once.
     """
     n = Zq.shape[0]
-    if n_groups <= 1 or n <= max_group and n_groups == 1:
+    if n == 0:
+        return []
+    if n_groups <= 1:
         return [np.arange(n)]
     from sklearn.cluster import MiniBatchKMeans
 

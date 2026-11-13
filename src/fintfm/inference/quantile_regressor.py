@@ -286,7 +286,8 @@ class FinancialTFMQuantileRegressor(BaseEstimator, RegressorMixin):
 
         Args:
             X: ``(n, n_features)`` query features.
-            q: Quantile in ``(0, 1)``.
+            q: Quantile in ``(0, 1)``. A ``q`` below the smallest or above the largest trained
+                level returns that end column's value (``np.interp`` clamps; no extrapolation).
 
         Returns:
             ``(n,)`` quantile estimates.

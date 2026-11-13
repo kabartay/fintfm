@@ -33,7 +33,7 @@ everything else here.
 from __future__ import annotations
 
 import warnings
-from typing import Literal
+from typing import Literal, get_args
 
 import numpy as np
 
@@ -80,6 +80,8 @@ class FeatureConditioner:
         random_state: int = 0,
     ) -> None:
         """Configure the conditioner. See the class docstring for what each argument means."""
+        if kind not in get_args(FeatureTransform):
+            raise ValueError(f"kind must be one of {get_args(FeatureTransform)}, got {kind!r}")
         if not 0.0 <= quantile < 0.5:
             raise ValueError(f"quantile must lie in [0, 0.5), got {quantile}")
         self.kind = kind

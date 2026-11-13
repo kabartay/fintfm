@@ -8,8 +8,8 @@ alongside the query rows. This mirrors how TabPFN-style models are used.
 *Data Presentation Over Architecture* (arXiv:2605.18635), benchmark seven
 context-construction strategies for credit-risk TFMs and find balanced and hybrid sampling
 worth 3-4 AUC points over uniform sampling — a gap wider than the spread between model
-families. That is why :class:`ContextStrategy` exists and why the default is ``"balanced"``
-(``docs/results/FINDINGS.md`` §5).
+families. That is why :class:`ContextStrategy` exists (``docs/results/FINDINGS.md`` §5). The
+default started as ``"balanced"`` on that evidence and is now ``"uniform"``, as set out below.
 
 **The premise held and the conclusion did not.** Measured on the V4FinBench out-of-time
 split, the ordering is reversed and three times larger: **uniform beats balanced by 10-12
@@ -464,6 +464,9 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             column identities are drawn from torch's generator in training mode -- inside a
             forked RNG, so the caller's random state, CPU and CUDA/MPS, is untouched.
         finetune_clip: Gradient-norm clip per fine-tuning step, as pretraining applies at 1.0.
+            **``None`` (the default) does not clip**, because §163 and §164 were measured
+            without clipping and clipping changes the tuned weights; pass 1.0 to match
+            pretraining in a new experiment.
         finetune_val_frac: ``0.0`` (default) fine-tunes for exactly ``finetune_steps`` steps, as
             §163 and §164 did. A fraction in (0, 1) holds out that share of the training
             companies (groups) as an inner validation set: they supply no fine-tuning context or
@@ -481,9 +484,6 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             importance weights (as ``finetune_query_pos_frac``), so the weighted loss estimates
             the uniform-query loss with far less noise at a low default rate; ``None`` draws
             uniformly.
-            **``None`` (the default) does not clip**, because §163 and §164 were measured
-            without clipping and clipping changes the tuned weights; pass 1.0 to match
-            pretraining in a new experiment.
         ensemble_transforms: Per-member feature conditioning (audit AU5.12/AU5.6). **``None``
             (the default) gives every member ``feature_transform``**, today's behaviour. A
             sequence, e.g. ``("rank", "power", "squash")``, gives member ``i`` the transform
@@ -553,8 +553,23 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         select_subsample: Training rows (drawn at ``random_state``) the ranking is computed
             on, bounding its cost on a large table. Unused unless ``"select"`` narrows the
             table.
+        calibration_val_frac: ``0.0`` (default) fits nothing and every output is byte-identical
+            to a classifier without this argument. A fraction in (0, 1) holds out that share of
+            the rows ``fit`` receives as a calibration slice (openspec ``fitted-calibration``
+            4.1): it is removed *before* conditioning, context selection and fine-tuning, so
+            it is absent from the stored context, the conditioner and every ensemble member's
+            rows (``calibration_rows_`` names it, ``train_rows_`` the rest). Rows are drawn
+            stratified by label, or by whole group when ``fit`` receives ``groups``. A single
+            temperature is then fitted on the slice by minimising log loss of the final
+            probabilities (4.2) and applied in :meth:`predict_proba`, on top of the analytic
+            ``correct_prior`` shift, which stays as it is. Temperature scaling is monotone, so
+            a binary ranking is unchanged. It does not reach :meth:`predict_term_structure`.
+            Costs that share of the context pool; a slice with fewer than two rows of any
+            class raises rather than fitting an unidentified temperature.
 
     Attributes:
+        classes_: Sorted distinct labels seen by :meth:`fit`; ``predict_proba`` columns follow
+            this order.
         model_: The network predictions run through: ``model`` itself, placed on ``device``
             and in eval mode at :meth:`fit`, or its fine-tuned copy when ``finetune_steps > 0``.
         n_features_in_: Feature count seen by :meth:`fit`, before any column selection;
@@ -573,19 +588,6 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             arrays (design review DR3.4's probe is fitted on exactly these). Under
             ``context_strategy="retrieval"`` every row, the pool each query group's context
             is drawn from.
-        calibration_val_frac: ``0.0`` (default) fits nothing and every output is byte-identical
-            to a classifier without this argument. A fraction in (0, 1) holds out that share of
-            the rows ``fit`` receives as a calibration slice (openspec ``fitted-calibration``
-            4.1): it is removed *before* conditioning, context selection and fine-tuning, so
-            it is absent from the stored context, the conditioner and every ensemble member's
-            rows (``calibration_rows_`` names it, ``train_rows_`` the rest). Rows are drawn
-            stratified by label, or by whole group when ``fit`` receives ``groups``. A single
-            temperature is then fitted on the slice by minimising log loss of the final
-            probabilities (4.2) and applied in :meth:`predict_proba`, on top of the analytic
-            ``correct_prior`` shift, which stays as it is. Temperature scaling is monotone, so
-            a binary ranking is unchanged. It does not reach :meth:`predict_term_structure`.
-            Costs that share of the context pool; a slice with fewer than two rows of any
-            class raises rather than fitting an unidentified temperature.
     """
 
     def __init__(
@@ -758,6 +760,9 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
                 **every** checkpoint, because no model reads it yet (task 31.3): it is
                 carried through context selection and exposed by
                 :attr:`context_n_observed_`, and omitting it changes nothing.
+
+        Returns:
+            self.
 
         Raises:
             ValueError: If the task exceeds the checkpoint's class or feature capacity. It
@@ -935,7 +940,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         """
         frac = self.calibration_val_frac
         if not 0.0 < frac < 1.0:
-            raise ValueError(f"calibration_val_frac must lie in [0, 1), got {frac}")
+            raise ValueError(f"calibration_val_frac must lie in (0, 1), got {frac}")
         rng = np.random.default_rng([int(self.random_state), 1])
         n = len(y)
         if groups is None:

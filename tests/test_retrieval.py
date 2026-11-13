@@ -128,6 +128,15 @@ def test_grouping_respects_the_size_cap_even_with_one_dense_cluster():
     np.testing.assert_array_equal(np.sort(np.concatenate(groups)), np.arange(len(Z)))
 
 
+def test_grouping_no_queries_yields_no_groups_and_one_group_covers_all():
+    rng = np.random.default_rng(0)
+    # zero queries: k-means cannot be fitted on nothing, and there is nothing to cover
+    assert group_queries(np.empty((0, 3), dtype=np.float32), 8, 64, rng) == []
+    Z = np.random.default_rng(1).normal(size=(10, 3)).astype(np.float32)
+    (only,) = group_queries(Z, 1, 4, rng)
+    np.testing.assert_array_equal(only, np.arange(10))
+
+
 def _assert_same_ranking(a: np.ndarray, b: np.ndarray, tol: float = 1e-6) -> None:
     """Assert two score vectors rank rows identically, tolerating exact ties.
 

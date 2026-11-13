@@ -143,3 +143,10 @@ def test_power_leaves_a_column_with_no_finite_training_value_untransformed():
     assert np.isnan(cond.transform(X)[:, 1]).all()
     # without an empty column the fit takes the path it always took
     assert FeatureConditioner("power").fit(X[:, [0, 2]])._pt_cols is None
+
+
+def test_unknown_conditioning_kind_is_refused_not_run_as_rank():
+    # an unrecognised kind used to fall through to the quantile-normal branch, so a
+    # misspelling ran and reported numbers measured with "rank"
+    with pytest.raises(ValueError, match="kind must be one of"):
+        FeatureConditioner("rnak")  # type: ignore[arg-type]

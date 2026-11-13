@@ -102,7 +102,9 @@ class PartitionedTFMClassifier(BaseEstimator, ClassifierMixin):
         min_leaf_rows: A leaf with fewer training rows than this uses the global context.
         min_class_rows: A leaf with fewer than this many rows of any class uses the global
             context; a leaf with one class could not score the others at all.
-        random_state: Seed for the bags, the trees and the leaf contexts.
+        random_state: Seed for the bags and the trees. Each leaf's context and column-identity
+            draw is seeded from ``estimator.random_state`` (plus a per-bag, per-leaf offset),
+            not from this argument; :func:`wrap_large_n` sets the two equal.
 
     Attributes:
         classes_: Class labels, from :meth:`fit`.
@@ -473,8 +475,12 @@ class BoostedTFMClassifier(BaseEstimator, ClassifierMixin):
             raise ValueError(
                 f"BoostedTFMClassifier is binary only, got {len(self.classes_)} classes"
             )
-        if self.n_rounds < 1 or self.context_rows < 2 or self.learning_rate <= 0:
-            raise ValueError("n_rounds >= 1, context_rows >= 2 and learning_rate > 0 required")
+        if self.n_rounds < 1:
+            raise ValueError(f"n_rounds must be at least 1, got {self.n_rounds}")
+        if self.context_rows < 2:
+            raise ValueError(f"context_rows must be at least 2, got {self.context_rows}")
+        if self.learning_rate <= 0:
+            raise ValueError(f"learning_rate must be positive, got {self.learning_rate}")
         self.n_features_in_ = X.shape[1]
         self._validate_combination(2, X.shape[1])
         yc = (y == self.classes_[1]).astype(np.float64)
