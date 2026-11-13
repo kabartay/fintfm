@@ -167,8 +167,9 @@ Three things, at their true weight.
 
 **Incoherent PD term structures are impossible by construction.** The field's standard
 per-horizon construction gives non-monotone cumulative default curves for **39% of firms** on
-real data: a 3-year default probability below the 2-year one. A hazard head makes that
-unrepresentable, at no measured accuracy cost.
+real data: a 3-year default probability below the 2-year one (§11). A hazard head makes that
+unrepresentable, at no measured accuracy cost. (2026-11-13: the check behind the 39% can put
+query rows in its context; the figure is not re-verified, see task 49.8.)
 
 **A capacity defect was found by measurement, not review.** The original architecture capped
 discrimination whatever the task's true difficulty, which showed against an exactly known
