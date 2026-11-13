@@ -387,10 +387,18 @@ def main() -> None:
         metavar="CHECKPOINT",
         help="skip training; check PD term-structure monotonicity on an existing checkpoint",
     )
+    p.add_argument(
+        "--coherence-legacy",
+        action="store_true",
+        help="with --coherence: reproduce FINDINGS s11 (whole panel as context, query rows "
+        "included, leaky); default excludes the query rows",
+    )
     args = p.parse_args()
     if args.coherence:
         print("=== PD term-structure coherence: is cumulative PD monotone in horizon? ===")
-        record = term_structure_coherence(args.coherence)
+        record = term_structure_coherence(
+            args.coherence, legacy_full_panel_context=args.coherence_legacy
+        )
         out = Path(args.out) / "coherence.json"
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(json.dumps(record, indent=2))
@@ -550,6 +558,7 @@ def term_structure_coherence(
     horizons: tuple[int, ...] = (1, 2, 3, 4, 5),
     seed: int = 0,
     context_strategy: ContextStrategy = "balanced",
+    legacy_full_panel_context: bool = False,
 ) -> dict:
     """Is the predicted PD term structure monotone across horizons?
 
@@ -570,29 +579,53 @@ def term_structure_coherence(
     rates do rise with horizon (3.86%, 4.71%, 6.94% at 1, 3 and 5 years), so the expected
     direction is unambiguous even though the samples are not nested.
 
+    **Leakage guard (openspec 49.8).** The query rows are the 30% held-out split of the
+    ``query_horizon`` file. The context for the query horizon itself is only the remaining
+    70% pool, so no query row or query label is ever in a context. For every other horizon
+    the whole file is used, minus any row whose feature vector is bit-identical to a query
+    row. Residual risk that cannot be removed: the files carry no firm identifiers, and a
+    firm appears in different files with different years' ratios, so the same *firm* (not
+    the same row) may be in a context and in the query; only exact-row duplicates are
+    detectable. The pre-fix behaviour used every file whole, so the query horizon's context
+    contained the query rows and labels (``FINDINGS`` §11 was measured that way).
+
     Args:
         model_path: Checkpoint to evaluate.
         query_horizon: Which panel supplies the fixed query rows.
         horizons: Horizons whose labelled data supplies the context, ascending.
         seed: Split seed.
         context_strategy: Context construction.
+        legacy_full_panel_context: Reproduce the pre-fix selection (whole panel as
+            context for every horizon, query rows included). Only for reproducing §11.
 
     Returns:
         A record with mean predicted PD per horizon, the per-row violation rate, and the
-        fraction of rows whose whole curve is monotone.
+        fraction of rows whose whole curve is monotone, plus ``context_selection``
+        (``"legacy_full_panel"`` or ``"query_rows_excluded"``).
     """
     query_ds = load_polish_bankruptcy(query_horizon)
-    _pool, X_query, _y_pool, _y_query = train_test_split(
+    X_pool, X_query, y_pool, _y_query = train_test_split(
         query_ds.X, query_ds.y, test_size=0.3, random_state=seed, stratify=query_ds.y
     )
+    query_keys = {row.tobytes() for row in np.ascontiguousarray(X_query)}
 
     curves, used = [], []
     for h in horizons:
         ctx = load_polish_bankruptcy(h)
         if ctx.X.shape[1] != X_query.shape[1]:
             continue
+        if legacy_full_panel_context:
+            ctx_X, ctx_y = ctx.X, ctx.y
+        elif h == query_horizon:
+            ctx_X, ctx_y = X_pool, y_pool
+        else:
+            keep = np.array(
+                [r.tobytes() not in query_keys for r in np.ascontiguousarray(ctx.X)],
+                dtype=bool,
+            )
+            ctx_X, ctx_y = ctx.X[keep], ctx.y[keep]
         clf = FinancialTFMClassifier(model_path, context_strategy=context_strategy).fit(
-            ctx.X, ctx.y
+            ctx_X, ctx_y
         )
         pd_h = clf.predict_proba(X_query)[:, 1]
         curves.append(pd_h)
@@ -612,6 +645,9 @@ def term_structure_coherence(
         "query_dataset": query_ds.name,
         "n_query_rows": int(matrix.shape[0]),
         "horizons": used,
+        "context_selection": (
+            "legacy_full_panel" if legacy_full_panel_context else "query_rows_excluded"
+        ),
         "mean_pd_by_horizon": {str(h): float(matrix[:, i].mean()) for i, h in enumerate(used)},
         "violation_rate_per_step": float(violations.mean()),
         "fully_monotone_row_fraction": float((~violations.any(axis=1)).mean()),
