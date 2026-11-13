@@ -19,15 +19,14 @@
   <a href="https://kabartay.github.io/fintfm/leaderboard/"><img src="https://img.shields.io/badge/leaderboard-live-8957e5" alt="Leaderboard"></a>
 </p>
 
-Given a table of labelled rows, FinTFM predicts new rows in a **single forward pass**, with your
-data supplied as context rather than trained on. By default there are no gradient steps at fit
-time and no per-dataset tuning; dataset-specific fine-tuning is opt-in (`finetune_steps`). The
-model is pretrained once, on **synthetic data only**, and never sees a real table during
-pretraining.
 
-That last property is the point. A model that never saw your benchmark in pretraining cannot have
-memorised it, and in a regulated domain the ability to *demonstrate* that is worth more than a
-few points of accuracy.
+FinTFM predicts new rows of a labelled table in a **single forward pass**: your data is the
+context, not training data. By default `fit()` takes no gradient steps and does no per-dataset
+tuning; fine-tuning is opt-in (`finetune_steps`). The model is pretrained once, on **synthetic
+data only**, and never sees a real table.
+
+That is the point. A model that never saw your benchmark cannot have memorised it, and in a
+regulated domain being able to *show* that is worth more than a few points of accuracy.
 
 ```python
 from huggingface_hub import hf_hub_download
@@ -43,11 +42,9 @@ clf.fit(X_train, y_train)            # stores the table as context; no training 
 pd_estimates = clf.predict_proba(X_test)[:, 1]
 ```
 
-The checkpoint is on Hugging Face at
-[**kabartay/fintfm-binary**](https://huggingface.co/kabartay/fintfm-binary) — 885K parameters,
-binary, up to 136 features, **Apache-2.0**. It is the checkpoint every published binary number
-below was measured on, so those results are reproducible against this file rather than a
-variant of it.
+The checkpoint, [**kabartay/fintfm-binary**](https://huggingface.co/kabartay/fintfm-binary) on
+Hugging Face, has 885K parameters, takes binary targets with up to 136 features, and is
+**Apache-2.0**. Every published binary number below was measured on this exact file.
 
 **Contents:** [Status](#status-stated-plainly) ·
 [Results](#results-as-measured) ·
@@ -64,80 +61,77 @@ variant of it.
 
 ## Status, stated plainly
 
-**FinTFM is a research codebase with a public claims ledger, not a product.** It exists to find
-out whether in-context tabular learning can be made competitive with gradient-boosted trees on
-financial tables, and to say honestly where it currently is not.
+**FinTFM is a research codebase with a public claims ledger, not a product.** It asks whether
+in-context tabular learning can compete with gradient-boosted trees on financial tables, and
+says plainly where it does not yet.
 
 | | |
 | --- | --- |
-| **TabArena-Lite (own run)** | **all 51 datasets with no exclusion: 903 Elo, 107th of 110** (§224, §225), one fold, run in this project's TabArena fork and not on [tabarena.ai](https://tabarena.ai). The entry is "FinTFM with a trained linear readout": a linear model fitted on the network's representation, which for multiclass and regression also takes the row's own features. By type: binary 974 on 30 datasets (§220), multiclass 865 on 8 (§224), regression 578 on 13 (§223). RandomForest (default), the resubmission bar, scores 1,000 and Linear (tuned) 919 on the same board. General-tabular numbers, not credit results |
-| **TabArena submission** | the zero-shot model on 27 binary datasets ranked **94 of 95**; a maintainer confirmed the integration correct and declined the entry on competitiveness (§122). Re-scored on today's field it is 750 Elo, 107th of 108 (§225). Not resubmitted until the readout entry reaches 1,000 overall Elo (design review DR7.6) |
-| **On real credit panels** | discrimination loses to gradient boosting on V4FinBench's full panel: untuned CatBoost scores 0.40 mean AP against FinTFM's 0.20 (§163; LightGBM at 1,000 trees 0.3908, §167, so the lead is boosting rounds, not one library). On four further credit datasets (SBA 7(a), ULB, FDIC, Estonia) FinTFM is below untuned logistic regression on mean AP on all four (§216). Calibration was best or near-best on four panels for the pre-cell-attention architecture (Claim 9, §73); the published checkpoint over-predicts the observed default rate by 1.2 to 1.7 times on ULB (§174), and on FDIC by 1.9 and 3.2 times on two splits while under-predicting the third (0.396% against 0.735%; the run record behind §216, `docs/results/drafts/dr4.3-runs_2026-11-07.md`), so the calibration claim is not made for it. |
-| **Fine-tuning** | opt-in per-dataset fine-tuning (`finetune_steps`, 0.7.0) lifts V4FinBench AP on 5 of 5 folds, 0.1986 → 0.2062 — the first lever to move it, closing 3.8% of the gap to CatBoost (§163). Zero-shot partitioned contexts (`fintfm-v4protocol --large-n partition`) then lift it further with no training, 0.1986 → 0.2362, +0.0375 on 5 of 5 folds (§169), and beat the fine-tuned arm on 5 of 5 folds (§205) |
-| **Licence** | Apache-2.0, **code and weights** — chosen separately, not inherited (see [Licensing](#licensing--provenance)) |
-| **Checkpoint** | [kabartay/fintfm-binary](https://huggingface.co/kabartay/fintfm-binary) — 885K, binary, ≤136 features |
-| **Tests** | about 1,350 collected (2026-11-13), plus `ruff`, the openspec validator, a dependency-licence check and a documentation-link check — all in CI |
-| **Measurement log** | 225 numbered entries, each declaring how its numbers were produced; pre-registrations are written before their arms run |
-| **Problem types** | binary declared, and the only published checkpoint. Multiclass and regression run on TabArena-Lite with their own unpublished checkpoints (§221-§224) but are **not** declared (§121) |
+| **TabArena-Lite (own run)** | **903 Elo, 107th of 110, all 51 datasets, none excluded** (§224, §225). One fold, run in this project's TabArena fork, not on [tabarena.ai](https://tabarena.ai). The entry is "FinTFM with a trained linear readout": a linear model on the network's representation, which for multiclass and regression also takes the row's own features. By type: binary 974 on 30 datasets (§220), multiclass 865 on 8 (§224), regression 578 on 13 (§223). On the same board RandomForest (default), the resubmission bar, scores 1,000 and Linear (tuned) 919. General-tabular results, not credit results |
+| **TabArena submission** | The zero-shot model on 27 binary datasets ranked **94th of 95**; a maintainer confirmed the integration and declined the entry on competitiveness (§122). On today's field it scores 750 Elo, 107th of 108 (§225). No resubmission until the readout entry reaches 1,000 overall Elo (design review DR7.6) |
+| **Real credit panels** | Gradient boosting wins. On V4FinBench's full panel FinTFM scores 0.20 mean AP against 0.40 for untuned CatBoost (§163); LightGBM at 1,000 trees reaches 0.3908 (§167), so the gap is boosting rounds, not one library. On four more credit datasets (SBA 7(a), ULB, FDIC, Estonia) FinTFM is below untuned logistic regression on mean AP (§216). Calibration was best or near-best on four panels for the pre-cell-attention architecture (Claim 9, §73) but is not claimed for the published checkpoint: it over-predicts the default rate 1.2 to 1.7 times on ULB (§174), and 1.9 and 3.2 times on two FDIC splits while under-predicting the third (0.396% against 0.735%; run record behind §216, `docs/results/drafts/dr4.3-runs_2026-11-07.md`) |
+| **Levers on V4FinBench** | Opt-in fine-tuning (`finetune_steps`, 0.7.0): mean AP 0.1986 to 0.2062, better on 5 of 5 folds, 3.8% of the gap to CatBoost (§163). Zero-shot partitioned contexts (`fintfm-v4protocol --large-n partition`): 0.1986 to 0.2362, +0.0375, 5 of 5 folds (§169), and ahead of fine-tuning on 5 of 5 (§205) |
+| **Licence** | Apache-2.0 for **code and weights**, each chosen separately (see [Licensing](#licensing--provenance)) |
+| **Checkpoint** | [kabartay/fintfm-binary](https://huggingface.co/kabartay/fintfm-binary): 885K parameters, binary, up to 136 features |
+| **Tests** | about 1,350 (2026-11-13), plus `ruff`, the openspec validator, a dependency-licence check and a documentation-link check, all in CI |
+| **Measurement log** | 225 numbered entries, each stating how its numbers were produced; pre-registrations are written before their arms run |
+| **Problem types** | Binary is declared and is the only published checkpoint. Multiclass and regression run on TabArena-Lite with unpublished checkpoints (§221-§224) and are **not** declared (§121) |
 
-**Read [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md) before anything else.** Every claim this
-project could make is tagged SURVIVES / SINGLE DRAW / SUPERSEDED / RETRACTED / OPEN against its
-evidence. That file, not this one, is the source of truth — and it records what stopped being
+**Read [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md) before anything else.** It tags every
+claim the project could make as SURVIVES, SINGLE DRAW, SUPERSEDED, RETRACTED or OPEN against
+its evidence. It, not this README, is the source of truth, and it records what stopped being
 true as prominently as what holds.
 
-> Throughout this repository, **§N** refers to entry N in
-> [`docs/results/FINDINGS.md`](docs/results/FINDINGS.md), a measurement log in which every number states how it
-> was produced (MEASURED, SMOKE-TEST, SIMULATED or ESTIMATED) and negative results are kept
-> deliberately, because they are what stops the same wrong conclusion being reached twice.
+> **§N** means entry N in [`docs/results/FINDINGS.md`](docs/results/FINDINGS.md), the
+> measurement log. Every number there is labelled MEASURED, SMOKE-TEST, SIMULATED or
+> ESTIMATED, and negative results stay in, so the same wrong conclusion is not reached twice.
 
 ## Results, as measured
 
 TabArena-Lite, one fold per dataset, scored against TabArena's cached results for every other
-method. Positions are derived from each run's stored leaderboard (§225); the printed table
-numbers its rows from 0, and ranks quoted from it before 2026-11-13 were one place too high.
+method. Positions come from each run's stored leaderboard (§225). TabArena's printed table
+numbers its rows from 0, so ranks quoted from it before 2026-11-13 were one place too high.
 
-**Where FinTFM stands today (2026-11-13):**
+**Standing on 2026-11-13:**
 
 | entry | datasets | Elo | position | source |
 | --- | --- | --- | --- | --- |
-| **FinTFM with a trained linear readout** | all 51, no exclusion | **903** (+102 / −110) | **107th of 110** | §224, §225 |
+| **FinTFM with a trained linear readout** | all 51, none excluded | **903** (+102 / −110) | **107th of 110** | §224, §225 |
 | the published model, zero-shot, own head | 27 binary | 750 (+134 / −186) | 107th of 108 | §225 |
 | RandomForest (default), the resubmission bar | all 51 | 1,000 | 100th of 110 | §224, §225 |
 
-The zero-shot row is the stored predictions of §204's run re-scored against today's field, with
-no refit. **No change so far has moved FinTFM's position on the field it was scored against:**
-Elo rose from 880 to 903 across §221 to §224 at 107th of 110 throughout.
+The zero-shot row re-scores §204's stored predictions against today's field, with no refit.
+**No change so far has moved FinTFM's position on the field it was scored against:** Elo rose
+from 880 to 903 over §221 to §224, and the position stayed 107th of 110.
 
 ### TabArena-Lite, with a trained linear readout
 
-From §204 on, the work moved to the readout and the adapter in this project's TabArena fork.
-Every row below except the first is labelled **"FinTFM with a trained linear readout"**: a
+From §204 on, the work moved to the readout and to the adapter in this project's TabArena
+fork. Every row below except the first is **"FinTFM with a trained linear readout"**: a
 logistic regression (ridge for regression) fitted on the network's pre-head representation of
-each training split, so it is not the zero-shot model. Elo comes from each run's own leaderboard
-against the full TabArena field. Each Elo carries an interval of roughly ±100 to ±180, so a step
-of a few Elo between rows is not significant on its own; the cited entries give the paired
-per-dataset tests.
+each training split, so not the zero-shot model. Each Elo comes from that run's own
+leaderboard and carries an interval of roughly ±100 to ±180, so a step of a few Elo is not
+significant on its own; the cited entries give the paired per-dataset tests.
 
 | change | datasets | Elo | position | source |
 | --- | --- | --- | --- | --- |
 | zero-shot default (missing values passed through) | 27 binary | 756 | 95th of 96 | §210, §225 |
 | linear readout + `feature_transform="squash"` | 27 binary | 969 | 104th of 108 | §212, §225 |
-| + partitioned contexts, one readout per leaf | 27 binary | 1,000.2, level with RandomForest (default) at 1,000.0, 13 datasets better and 14 worse | 101st of 108 | §215, §225 |
+| + partitioned contexts, one readout per leaf | 27 binary | 1,000.2, level with RandomForest (default) at 1,000.0: 13 datasets better, 14 worse | 101st of 108 | §215, §225 |
 | + the three wide binary tables, via `max_features_strategy: select` | 30 binary | 974 | 104th of 108 | §220, §225 |
-| all 51 datasets, no exclusion | 51 | 880 | 107th of 110 | §221 |
+| all 51 datasets, none excluded | 51 | 880 | 107th of 110 | §221 |
 | multiclass readout scaled, C cross-validated, row features appended | 51 | 888 | 107th of 110 | §222, §225 |
 | regression readout with row features appended | 51 | 898 | 107th of 110 | §223, §225 |
 | four partition bags for multiclass | 51 | **903** | **107th of 110** | §224, §225 |
 
-**These are breadth results, not credit results.** On V4FinBench, a readout per partition leaf
-scored −0.0570 mean AP, higher on 0 of 5 folds (§218). §219 traced that to a sampling
-defect in the harness, fixed in 0.10.0; the rerun is pending, so no credit claim rests on this
-table.
+**These are breadth results, not credit results.** On V4FinBench a readout per partition leaf
+scored −0.0570 mean AP, better on 0 of 5 folds (§218). §219 traced that to a sampling defect
+in the harness, fixed in 0.10.0; the rerun is pending, so no credit claim rests on this table.
 
 ### The first series: the zero-shot model on 27 binary datasets
 
-September 2026, one fold each, against the 95-method field of the time. Every arm placed 94th of
-95 whatever its Elo (§225; these rows were first recorded as 93rd, the printed index):
+September 2026, one fold each, against the 95-method field of the time. Every arm placed 94th
+of 95, whatever its Elo (§225; first recorded as 93rd from the printed index):
 
 | change | mean ROC-AUC | Elo | position | source |
 | --- | --- | --- | --- | --- |
@@ -147,122 +141,117 @@ September 2026, one fold each, against the 95-method field of the time. Every ar
 | + 5.0M parameters, matched task count | 0.7774 | 751 | 94th of 95 | §114, §225 |
 | + tree-structured prior, two seeds | 0.7926 / 0.7913 | 842 / 826 | 94th of 95 | §115, §225 |
 
-The §101 model is the entry submitted to TabArena: 94th of 95, confirmed correct by a maintainer
-and declined on competitiveness (§122).
+The §101 model is the entry submitted to TabArena and declined on competitiveness (§122).
 
-**In this series, one change moved the TabArena number, and it was preprocessing rather than
-architecture.** The tree prior adds a further +0.0094 here and replicates across two
-seeds — but costs **−0.0221 average precision on credit data** (§116), negative on 5 of 5 folds
-with three surviving multiple-comparison correction at p < 0.001, so it ships off by default.
-(§166, 2026-10-16: that comparison is confounded. The prior draws the tree source first, so
-the tree arm also cut the financial share from 0.70 to 0.49. Against a control at the same
-financial share the tree arm is +0.0119 mean AP, 4 of 5 folds positive, one seed per arm. The
-evidence that the tree prior hurts credit is gone; it still ships off, now pending a re-test at
-a matched share and two seeds. DR2.4 (§180, §191) ran mixed-prior arms instead, all four harmful
-on V4FinBench, and is not that test.)
+**The largest step in this series came from preprocessing (§101), not architecture.** The tree
+prior adds +0.0094 mean ROC-AUC and replicates across two seeds, but it cost **−0.0221 average
+precision on credit data** (§116: worse on 5 of 5 folds, three surviving multiple-comparison
+correction at p < 0.001), so it ships off. §166 later found that comparison confounded: drawing
+the tree source first also cut the financial share from 0.70 to 0.49, and at a matched share
+the tree arm is +0.0119 mean AP (4 of 5 folds, one seed per arm). It still ships off until a
+matched re-test at two seeds; DR2.4's mixed-prior arms (§180, §191, all four harmful on
+V4FinBench) are not that test.
 
 Everything else tried on the pretrained model (parameter scale at matched task volume, training
-volume, a widened structural-causal prior) has been null or negative.
+volume, a widened structural-causal prior) was null or negative.
 
-The full current leaderboard, with every method's Elo and interval, is published at
+The full current leaderboard, with every method's Elo and interval, is at
 **[kabartay.github.io/fintfm/leaderboard](https://kabartay.github.io/fintfm/leaderboard/)**,
-generated from the stored run by `scripts/build_leaderboard_page.py`. That is this project's own
+generated from the stored run by `scripts/build_leaderboard_page.py`. It is this project's own
 comparison, not [tabarena.ai](https://tabarena.ai), and its Elo is comparable only within the
-population it was computed over.
+methods it was computed over.
 
 ## What this project does
 
-Three things, stated at their true weight:
+Three things, at their true weight.
 
 **Incoherent PD term structures are impossible by construction.** The field's standard
-per-horizon construction produces non-monotone cumulative default curves for **39% of firms** on
-real data — a firm whose 3-year default probability is below its 2-year. A hazard head makes
-that unrepresentable, at zero measured accuracy cost.
+per-horizon construction gives non-monotone cumulative default curves for **39% of firms** on
+real data: a 3-year default probability below the 2-year one. A hazard head makes that
+unrepresentable, at no measured accuracy cost.
 
-**A severe capacity defect was found by measurement, not review.** The original architecture had
-capped discrimination regardless of true task difficulty, caught against an exactly-known
-Bayes-optimal AUC. Its cause was isolated to the architecture rather than the prior after
-eliminating seven other candidates one at a time, then closed by a two-way cell-attention change
-worth +0.042 average precision on real data. That comparison also changed the prior mix
-(100% against 70% financial tasks; confirmed 2026-10-16, audit task AU2.8). Resolved
-2026-10-18 (§172): with both arms re-trained at a matched prior and protocol (seed 0, 48,000
-tasks, `p_financial` 1.0), the cell-attention block and its labels are worth +0.0520 mean
-average precision on V4FinBench (0.1947 against 0.1428), higher on 5 of 5 folds, each
-significant on a company-level bootstrap.
+**A capacity defect was found by measurement, not review.** The original architecture capped
+discrimination whatever the task's true difficulty, which showed against an exactly known
+Bayes-optimal AUC. Seven other candidate causes were eliminated one at a time before the cause
+was traced to the architecture rather than the prior. A two-way cell-attention change closed
+it. Its first estimate, +0.042 average precision on real data, also changed the prior mix (100%
+against 70% financial tasks; audit AU2.8). Retrained at a matched prior and protocol (seed 0,
+48,000 tasks, `p_financial` 1.0), the cell-attention block and its labels are worth +0.0520 mean
+AP on V4FinBench (0.1947 against 0.1428), higher on 5 of 5 folds, each significant on a
+company-level bootstrap (§172).
 
 **The record corrects itself in public.** This README has been wrong about its own results at
-least twice (§107, §112). Both are retracted in place, with the reasoning kept, and
-`docs/paper/CLAIMS.md` tags retracted claims as prominently as the ones that hold. In a domain
-where a model must arrive with its own validation evidence, that record is part of what is
-offered.
+least three times (§107, §112, §225). Each is corrected in place with the reasoning kept, and
+`docs/paper/CLAIMS.md` shows retracted claims as prominently as the ones that hold. When a model
+must arrive with its own validation evidence, that record is part of what is offered.
 
 ## How it works
 
-1. **Priors** (`src/fintfm/prior/`) — synthetic task generators, sampled and mixed per batch
+1. **Priors** (`src/fintfm/prior/`): synthetic task generators, sampled and mixed per batch
    (`mixture.py`).
-   - `financial.py` — a structural generative story for company balance sheets, P&L and
-     default labels: accounting identities, sector and macro effects, a wide derived-ratio
-     family, missingness, a sharpness (signal-to-noise) knob, and a default-rate envelope that
-     can reach real low-default-portfolio rates (~0.2%).
-   - `scm.py` — a generic random-graph structural-causal-model prior (the TabPFN/TabICL-style
-     idea): random layered functions with several nonlinearities, for general nonlinear and
-     multiclass structure the financial prior does not cover.
-   - `tree.py` — ensembles of oblivious decision trees, generating the **axis-aligned,
-     piecewise-constant** structure real tabular data is full of and the other priors do not.
-     Added on *distinctiveness* grounds after `fintfm-priorscore` measured it as the only
-     member of the mixture with a positive tree-versus-linear gap (§112). Off by default
-     (`p_tree=0.0`).
-   - `trivial.py`, `crossed.py` — diagnostic-only priors used to isolate specific hypotheses
-     (whether the architecture can learn at all; whether a prior's features or its label
-     mechanism carries a measured effect). Not part of the default training mixture.
-2. **Model** (`src/fintfm/modeling/model.py`) — a from-scratch Transformer. Cells are embedded
-   individually and carry a random per-task column identity (so the model can tell columns
-   apart without a positional embedding, which would break invariance to column order).
-   Columns attend to each other within a row; optionally (`ModelConfig.n_cell_blocks`, 0 by
-   default but used by the published checkpoint) cells also attend across rows *within one
-   feature* before that, giving each column a distribution-derived identity rather than only a random tag. Rows are
-   then pooled and attend to context rows to perform in-context learning. An optional hazard
-   head (`modeling/hazard.py`) produces a cumulative PD term structure that is monotone by
-   construction. Independent implementation of ideas described in the public TabPFN / TabICL
-   literature — no code or weights from any existing project (see Licensing below).
-3. **Training** (`src/fintfm/modeling/train.py`, `fintfm-train`) — infinite synthetic data, one
-   gradient step per fresh batch, cosine LR schedule, checkpointing, a held-out quality metric
-   that reports per-task AUC (not the pooled-across-tasks number, which is inflated whenever
-   task base rates differ) and Brier skill against a base-rate-only predictor.
-4. **Inference** (`src/fintfm/inference/`) — an sklearn-compatible `FinancialTFMClassifier`:
-   `fit()` stores the table as context, `predict_proba()` runs the frozen network. Several
-   context-construction strategies (uniform, balanced, hybrid, retrieval, prototype) and a
-   base-rate correction, plus ensembling over column-identity draws (`n_ensemble`, default 1; the TabArena adapter uses 8, kept after §196 and the Lite arms in `docs/results/TABARENA.md`) to recover the
-   distributional column-order invariance a random identity trades for expressiveness.
-   `inference/categorical.py` encodes categorical columns as **out-of-fold** smoothed target
-   statistics, because the model reads every cell as an ordered scalar and label encoding's
-   arbitrary order is measurably worse than no order at all (§100). The out-of-fold step is
-   not a refinement: the naive form puts a row's own label into its own encoding, which makes
-   the context self-predictive and the feature absent at query time — it harms the model
-   rather than flattering the score, so it survives careless validation.
-   `inference/regressor.py` adds a `FinancialTFMRegressor` on the same frozen network and no
-   new architecture: a continuous target cut into K quantile bins is an integer index over K
-   outcomes, so the existing classification head regresses as-is, and the output is natively
-   **distributional** — quantiles and prediction intervals come free, and the predicted
-   density can be bimodal, which is what loss given default actually is and what a Gaussian
-   head cannot represent.
-5. **Evaluation** (`src/fintfm/evaluation/`, `src/fintfm/experiments/`) — real corporate-default
-   panels (V4FinBench via its published protocol, `fintfm-v4protocol`; Polish and Taiwan
-   bankruptcy, `fintfm-bench`), an out-of-time harness, a synthetic capability suite
-   (`fintfm-capability`, including a class-count sweep for multiclass, §99) with probes of a
-   *known* ceiling — some with a closed-form
-   Bayes-optimal AUC — specifically built to catch a model that looks fine on average while
-   capped in a way an aggregate score cannot see. Average precision is reported alongside
-   ROC-AUC everywhere, and read first at low base rates (ROC-AUC's chance floor is 0.5
-   regardless of prevalence; AP's floor is the prevalence itself, so it stays legible at the
-   base rates this project's target segment actually has).
-   `fintfm/evaluation/credit_suite.py` is a second credit suite outside V4FinBench, evaluation
-   only and never training; it currently admits ULB card fraud, SBA, Estonia and FDIC (§174 and
-   §177 for the first two results, §216 for all four).
-   `fintfm-priorscore` scores a *prior* rather than a model, on the three criteria the
-   literature converged on — performance, diversity, distinctiveness — using **fitted**
-   baselines only, so it cannot confuse "the prior lacks this structure" with "our model cannot
-   learn it". Its first version could, and §112 is the record of what that cost.
+   - `financial.py`: a structural story for company balance sheets, P&L and default labels,
+     with accounting identities, sector and macro effects, a wide family of derived ratios,
+     missingness, a sharpness (signal-to-noise) knob and a default-rate envelope that reaches
+     real low-default-portfolio rates (about 0.2%).
+   - `scm.py`: a random-graph structural-causal-model prior (the TabPFN/TabICL idea), random
+     layered functions with several nonlinearities, for general nonlinear and multiclass
+     structure the financial prior does not cover.
+   - `tree.py`: ensembles of oblivious decision trees, for the **axis-aligned,
+     piecewise-constant** structure common in real tables and absent from the other priors.
+     Added because `fintfm-priorscore` measured it as the only mixture member with a positive
+     tree-versus-linear gap (§112). Off by default (`p_tree=0.0`).
+   - `trivial.py`, `crossed.py`: diagnostic priors that isolate one hypothesis each (can the
+     architecture learn at all; does a prior's effect come from its features or its labels).
+     Not in the default mixture.
+2. **Model** (`src/fintfm/modeling/model.py`): a Transformer written from scratch. Each cell is
+   embedded with a random per-task column identity, so the model can tell columns apart without
+   a positional embedding, which would break invariance to column order. Optionally
+   (`ModelConfig.n_cell_blocks`, 0 by default but used by the published checkpoint), cells
+   first attend across rows *within one feature*, which gives each column an identity derived
+   from its distribution. Columns then attend to each other within a row; rows are pooled and
+   attend to the context rows, which is the in-context learning step. An optional hazard head
+   (`modeling/hazard.py`) outputs a cumulative PD term structure that is monotone by
+   construction. The ideas come from the public TabPFN and TabICL papers; no code or weights
+   from any project are used (see [Licensing](#licensing--provenance)).
+3. **Training** (`src/fintfm/modeling/train.py`, `fintfm-train`): unlimited synthetic data, one
+   gradient step per fresh batch, a cosine learning-rate schedule and checkpointing. The
+   held-out quality metric reports per-task AUC (the AUC pooled across tasks is inflated
+   whenever base rates differ) and Brier skill against a base-rate-only predictor.
+4. **Inference** (`src/fintfm/inference/`): `FinancialTFMClassifier` follows scikit-learn.
+   `fit()` stores the table as context and `predict_proba()` runs the frozen network. It offers
+   several ways to build the context (uniform, balanced, hybrid, retrieval, prototype), a
+   base-rate correction, and ensembling over column-identity draws (`n_ensemble`, default 1; the
+   TabArena adapter uses 8, kept after §196 and the Lite arms in `docs/results/TABARENA.md`),
+   which recovers the column-order invariance a random identity gives up.
+   - `inference/categorical.py` encodes categorical columns as **out-of-fold** smoothed target
+     statistics. The model reads every cell as an ordered number, and label encoding's arbitrary
+     order is measurably worse than no order at all (§100). The out-of-fold step is required:
+     the naive form puts a row's own label into its encoding, which makes the context
+     self-predictive and the feature useless at query time. It harms the model rather than
+     flattering the score, so careless validation does not catch it.
+   - `inference/regressor.py` adds `FinancialTFMRegressor` on the same frozen network, with no
+     new architecture. Cutting a continuous target into K quantile bins turns it into a K-way
+     label, so the classification head regresses as it is. The output is a distribution:
+     quantiles and prediction intervals come with it, and the predicted density can be bimodal,
+     as loss given default is and a Gaussian head cannot be.
+5. **Evaluation** (`src/fintfm/evaluation/`, `src/fintfm/experiments/`):
+   - real corporate-default panels: V4FinBench under its published protocol
+     (`fintfm-v4protocol`), Polish and Taiwan bankruptcy (`fintfm-bench`), and an out-of-time
+     harness;
+   - `credit_suite.py`, a second credit suite outside V4FinBench, used for evaluation only,
+     never training: ULB card fraud, SBA, Estonia and FDIC (§174 and §177 for the first two,
+     §216 for all four);
+   - `fintfm-capability`, synthetic probes with a *known* ceiling, some with a closed-form
+     Bayes-optimal AUC, built to catch a model that looks fine on average while capped in a way
+     an aggregate score hides (with a class-count sweep for multiclass, §99);
+   - `fintfm-priorscore`, which scores a *prior* rather than a model on performance, diversity
+     and distinctiveness, using **fitted** baselines only, so it cannot mistake "the prior lacks
+     this structure" for "the model cannot learn it". Its first version could, and §112 records
+     what that cost.
+
+   Average precision is reported beside ROC-AUC everywhere and read first at low base rates:
+   ROC-AUC's chance level is 0.5 at any prevalence, while AP's is the prevalence itself, so AP
+   stays readable at the base rates this project targets.
 
 ## Quickstart
 
@@ -282,11 +271,11 @@ ckpt = hf_hub_download(
 )
 ```
 
-To work on the model rather than use it, clone the repository instead:
+To work on the model rather than use it, clone the repository:
 
 ```bash
 uv sync --extra bench --extra hf   # naming one extra uninstalls the others
-uv run pytest                      # about 1,350 tests collected
+uv run pytest                      # about 1,350 tests
 ```
 
 | extra | adds | needed for |
@@ -300,10 +289,10 @@ uv run pytest                      # about 1,350 tests collected
 
 ### Using a checkpoint
 
-The estimators are scikit-learn compatible. By default `fit()` **stores** the table as context
-and takes no gradient steps, and `predict_proba()` runs the frozen network once. Dataset-specific
-fine-tuning is opt-in (`finetune_steps`); a fine-tuned model has seen your training rows and is
-not the zero-shot model (§163).
+The estimators follow scikit-learn. By default `fit()` **stores** the table as context with no
+gradient steps, and `predict_proba()` runs the frozen network once. Fine-tuning is opt-in
+(`finetune_steps`); a fine-tuned model has seen your training rows and is no longer the
+zero-shot model (§163).
 
 ```python
 from fintfm.inference import FinancialTFMClassifier, FinancialTFMRegressor
@@ -317,13 +306,13 @@ proba = clf.predict_proba(X_test)[:, 1]
 reg = FinancialTFMRegressor("runs/v4-regression.pt", n_bins=10)
 reg.fit(X_train, y_cont)
 point = reg.predict(X_test)                     # distribution mean
-lo, hi = reg.predict_interval(X_test, 0.8)      # 80% interval, free from the same head
+lo, hi = reg.predict_interval(X_test, 0.8)      # 80% interval, from the same head
 ```
 
-Categorical columns need encoding before they reach the model — it reads every cell as an
-ordered scalar, and label encoding is measurably worse than no order at all (§100). Use
+Encode categorical columns before they reach the model: it reads every cell as an ordered
+number, and label encoding is measurably worse than no order at all (§100). Use
 `fintfm.inference.categorical.CategoricalTargetEncoder`, which is out-of-fold on the context
-rows for reasons that are **not** optional; see [How it works](#how-it-works).
+rows for reasons that are **not** optional (see [How it works](#how-it-works)).
 
 ### Training a checkpoint
 
@@ -333,208 +322,205 @@ uv run fintfm-train --steps 300 --d-model 32 --d-cell 16 --n-layers 2 --max-feat
 uv run fintfm-bench --model runs/v0-smoke.pt --credit      # real corporate-default panels
 ```
 
-That smoke config exists to check the pipeline runs, not to produce a usable checkpoint — see
-[`docs/infra/COMPUTE.md`](docs/infra/COMPUTE.md) for measured step costs at real scale. A real pretraining
-run (thousands of steps, `--d-model 128`+, `--max-features` matching your data) takes
-hours-to-a-day and needs a GPU: `--device mps` on Apple Silicon, `--device cuda`, or see
-[`docs/infra/HF_JOBS.md`](docs/infra/HF_JOBS.md) for the Hugging Face Jobs recipe this project actually
-uses for training runs. **Check `uptime` before running anything heavy locally** — see
-[`CLAUDE.md`](CLAUDE.md) for why.
+This smoke configuration checks that the pipeline runs; it does not produce a usable
+checkpoint. Measured step costs at real scale are in
+[`docs/infra/COMPUTE.md`](docs/infra/COMPUTE.md). A real pretraining run (thousands of steps,
+`--d-model` 128 or more, `--max-features` matching your data) takes hours to a day and needs a
+GPU: `--device mps` on Apple Silicon, `--device cuda`, or the Hugging Face Jobs recipe this
+project uses, in [`docs/infra/HF_JOBS.md`](docs/infra/HF_JOBS.md). **Check `uptime` before
+running anything heavy locally**; [`CLAUDE.md`](CLAUDE.md) says why.
 
-Both `fintfm-bench --credit` (Polish/Taiwan need 64/95 features) and `fintfm-v4protocol`
-(V4FinBench needs 136) will print `SKIPPED for fintfm: model takes 16 features, data has N` —
-correct, expected behaviour for the smoke checkpoint above, not a bug. Baselines still run and
-score normally; only the FinTFM arm needs a checkpoint pretrained with a matching
-`--max-features` to be evaluated.
+With the smoke checkpoint, `fintfm-bench --credit` (Polish and Taiwan need 64 and 95 features)
+and `fintfm-v4protocol` (V4FinBench needs 136) print `SKIPPED for fintfm: model takes 16
+features, data has N`. That is expected, not a bug: the baselines still run, and only the FinTFM
+arm needs a checkpoint pretrained with a matching `--max-features`.
 
 ## Configuration
 
-The numbers experiments use — split years, context sizes, strategies, seeds, scoring
-thresholds, the prior's default-rate and sharpness envelope — live in
-[`src/fintfm/configs/default.yaml`](src/fintfm/configs/default.yaml), not scattered through
-the code. Every entry point takes `--config` with a file that is **deep-merged** over that
-default, so an override carries only what it changes:
+The numbers experiments use (split years, context sizes, strategies, seeds, scoring
+thresholds, the prior's default-rate and sharpness envelope) live in
+[`src/fintfm/configs/default.yaml`](src/fintfm/configs/default.yaml), not in the code. Every
+entry point takes `--config` with a file **deep-merged** over that default, so an override holds
+only what it changes:
 
 ```bash
 uv run fintfm-ctxsweep --model runs/m.pt --config configs/context-sweep-3seed.yaml
 uv run fintfm-v4oot    --model runs/m.pt --config configs/retrieval-best.yaml
 ```
 
-Resolution order is packaged default → `--config` (or `$FINTFM_CONFIG`) → explicit CLI flag.
-Runs print the layers they used and record them as `config_sources` in their output JSON.
-Unknown keys are refused by name rather than ignored, and an overlapping train/test split is
-rejected before the run starts. [`configs/README.md`](configs/README.md) explains what
-belongs in configuration and what deliberately stays in code; several files under
-[`configs/`](configs/) are **deliberately diagnostic, not production** (their own headers say
-so), used to isolate a single variable while chasing a specific finding.
+Precedence runs packaged default, then `--config` (or `$FINTFM_CONFIG`), then an explicit CLI
+flag. Runs print the layers they used and record them as `config_sources` in their output JSON.
+Unknown keys are refused by name, and an overlapping train/test split is rejected before the run
+starts. [`configs/README.md`](configs/README.md) explains what belongs in configuration and what
+stays in code. Several files under [`configs/`](configs/) are **diagnostic, not production**, as
+their headers say: each isolates one variable for one finding.
 
 ## Two model families
 
-**FinTFM** is the synthetic-only model this repository has shipped from the start, and is
-what every result, release and benchmark number here refers to unless a page says otherwise.
-Its provenance argument — the model cannot have memorised a benchmark, because it never saw
-real data — depends on that and is the project's differentiator (decisions D2, D14).
+**FinTFM** is the synthetic-only model this repository has shipped from the start. Every
+result, release and benchmark number here refers to it unless a page says otherwise. Its
+provenance argument (it cannot have memorised a benchmark because it never saw real data)
+depends on that, and is the project's differentiator (decisions D2, D14).
 
 **FinTFM-R** (**R** for *real data*) is a second family, opened by decision **D17** on
-2026-10-06. It mixes real tabular data into pretraining: SEC EDGAR's public-domain Financial
-Statement Data Sets with 8-K Item 1.03 bankruptcy disclosures as labels (§151-§152), plus
-loaders for Freddie Mac's loan-level sample (§154) and LendingClub (§155), and a generic
-real-panel sampler that SBA loans are fed through (§157). It exists to
-test the one lever D16 showed this project had never pulled, after seven architecture and prior
-changes returned seven nulls or losses.
+2026-10-06. It mixes real tables into pretraining: SEC EDGAR's public-domain Financial Statement
+Data Sets with 8-K Item 1.03 bankruptcy disclosures as labels (§151-§152), loaders for Freddie
+Mac's loan-level sample (§154) and LendingClub (§155), and a generic real-panel sampler that
+SBA loans go through (§157). It tests the one lever D16 showed had never been pulled, after
+seven architecture and prior changes returned seven nulls or losses.
 
-**So far it has not helped.** At a 30% real share, 6,000 steps from scratch, two seeds each,
-neither real source improved V4FinBench mean average precision over five folds: EDGAR is a
-stable null (−0.0019 and −0.0029 mean AP at seeds 0 and 1), and SBA a null whose seeds disagree
-(−0.0355 and +0.0024 mean AP) (§160-§161). No FinTFM-R checkpoint is published.
+**So far it has not helped.** At a 30% real share, 6,000 steps from scratch and two seeds each,
+neither real source improved V4FinBench mean AP over five folds: EDGAR is a stable null (−0.0019
+and −0.0029 at seeds 0 and 1), and SBA a null whose seeds disagree (−0.0355 and +0.0024)
+(§160-§161). No FinTFM-R checkpoint is published.
 
-The two are not interchangeable, and the difference is the part this project sells: **the
-provenance claim holds for FinTFM and does not hold for FinTFM-R.** Any statement about one
-names which one. FinTFM is not renamed by this — it keeps its name, package, DOI and TabArena
-entry; "FinTFM (synthetic-only)" is prose for when the contrast needs stating, not a new
-identifier.
+The two are not interchangeable: **the provenance claim holds for FinTFM and not for
+FinTFM-R**, so every statement names which one it is about. FinTFM keeps its name, package, DOI
+and TabArena entry; "FinTFM (synthetic-only)" is wording for when the contrast matters, not a
+new name.
 
 ## Licensing / provenance
 
-Everything here — the prior, the architecture, the training loop — is original code written
-for this project. **No weights, datasets, or source from Google TabFM, TabPFN, TabICL, TabDPT,
-or any other tabular-foundation-model product are used or may be added.** Those are cited in project discussion purely as public
-research/product context. Every third-party dataset or dependency's licence is checked before
-use, and a *weight* licence is checked separately from its *code* licence, every time — never
-assumed from a prior check. Direct dependencies are all permissive — numpy, pandas and
-scikit-learn BSD-3, scipy BSD-3, torch BSD-3, PyYAML MIT, and the optional benchmark extras
-lightgbm MIT, xgboost Apache-2.0, catboost Apache-2.0, pyarrow Apache-2.0, and the `overlap`
-extra's openml BSD-3 and huggingface_hub Apache-2.0 (fetching TabArena-v0.1 and BeyondArena
-for the overlap report, evaluation hashing only) — and
-`scripts/check_licences.py` enforces that in CI rather than leaving it to this paragraph.
+The prior, the architecture and the training loop are original code written for this project.
+**No weights, datasets or source from Google TabFM, TabPFN, TabICL, TabDPT or any other
+tabular-foundation-model product are used or may be added**; they are cited only as public
+research context. Every third-party dataset and dependency licence is checked before use, and a
+*weights* licence is checked separately from its *code* licence, every time.
 
-**FinTFM-R's real-data sources, checked and dated.** SEC EDGAR's Financial Statement Data
-Sets and 8-K full-text search (`efts.sec.gov`) — a US federal government work, public domain,
-no stated copyright restriction, commercially usable, verified 2026-10-06 by direct access
-(`curl` returns 200 with a descriptive `User-Agent`; without one, SEC's Akamai front end
-returns 403 — a bot filter, not a licensing gate). Freddie Mac's Single-Family Loan-Level
-Dataset is registered and in use under its **free tier**, read in full rather than assumed
-(`docs/results/FINDINGS.md` §153): royalty-free for internal use (training, evaluating,
-including against public benchmarks) and for academic/research use, which explicitly covers
-publishing research results and derived products **provided distribution is itself
-noncommercial** — which fintfm is (Apache-2.0, free checkpoints, no paid product). A separate
-fee-based agreement ($27,562.50) exists for a licensee who resells or commercially
-redistributes the Data or Derived Products; that applies only if fintfm's status changes, not
-to the research release this project does today. One obligation binds regardless of tier:
-**no correlating the data to individuals** — this is consumer loan-level data, unlike EDGAR's
-corporate filings.
+Direct dependencies are all permissive: numpy, pandas, scikit-learn, scipy and torch (BSD-3),
+PyYAML (MIT); the optional benchmark extras lightgbm (MIT), xgboost, catboost and pyarrow
+(Apache-2.0); and the `overlap` extra's openml (BSD-3) and huggingface_hub (Apache-2.0), used to
+fetch TabArena-v0.1 and BeyondArena for the overlap report, for evaluation hashing only.
+`scripts/check_licences.py` enforces this in CI.
 
-**One honest exception, which CI found and this paragraph previously did not mention.** On
-**Linux**, `torch` pulls in around fifteen NVIDIA CUDA runtime packages that are **NVIDIA
-Proprietary**, not permissive. They are a transitive runtime dependency rather than a choice
-made here, this project does **not redistribute them** — `uv build` produces a pure-Python
-wheel and pip fetches them from PyPI under NVIDIA's own terms — and they are absent on macOS,
-which is why a check run only on a developer's Mac reported everything permissive while CI did
-not. **Anyone shipping this in a product must read NVIDIA's EULA themselves**; it is not
-something this repository can assert on their behalf.
+**FinTFM-R's real-data sources, checked and dated.**
+- *SEC EDGAR* Financial Statement Data Sets and 8-K full-text search (`efts.sec.gov`): a US
+  federal government work, public domain, commercially usable, verified 2026-10-06 by direct
+  access. (`curl` returns 200 with a descriptive `User-Agent`; without one, SEC's Akamai front
+  end returns 403, a bot filter, not a licensing gate.)
+- *Freddie Mac's Single-Family Loan-Level Dataset*, registered and used under its **free
+  tier**, whose terms were read in full (§153). They allow internal use (training and
+  evaluating, including against public benchmarks) and academic or research use, including
+  publishing results and derived products, **provided the distribution is itself
+  noncommercial**, as fintfm's is (Apache-2.0, free checkpoints, no paid product). A separate
+  fee-based agreement ($27,562.50) covers reselling or commercially redistributing the data or
+  derived products; it would apply only if fintfm's status changed. One obligation binds on any
+  tier: **never correlate the data to individuals**, since this is consumer loan-level data,
+  unlike EDGAR's corporate filings.
+
+**One exception, which CI found.** On **Linux**, `torch` pulls in about fifteen NVIDIA CUDA
+runtime packages under **NVIDIA's proprietary licence**. They are a transitive runtime
+dependency, not a choice made here, and this project does **not redistribute them**: `uv build`
+produces a pure-Python wheel, and pip fetches them from PyPI under NVIDIA's terms. They are
+absent on macOS, which is why a licence check on a developer's Mac passed while CI did not.
+**Anyone shipping this in a product must read NVIDIA's EULA themselves**; this repository cannot
+answer for them.
 
 ## What would change the picture
 
-Stated so the project is falsifiable rather than open-ended. Two deficits are measured
-separately. On TabArena, zero-shot FinTFM trailed tuned logistic regression by ~0.035 mean
-ROC-AUC over 27 datasets (§101); with a trained linear readout, squash and partitioned contexts
-it is level with it (+0.0036 mean ROC-AUC, 13 of 27 datasets better, §215). On V4FinBench's full panel, untuned CatBoost (library defaults, 1,000
-iterations) leads it by about 0.19 mean average precision over five folds (0.4005 against 0.2062
-fine-tuned, §163). (§167, 2026-10-16: both figures use V4FinBench's published features, which
-keep `operational_status`. On the same features LightGBM at 1,000 trees and learning rate 0.05
-scores 0.3908, so a booster given enough rounds reaches about 0.39-0.40 mean AP; the 100-tree
-LightGBM (0.2666) and XGBoost (0.2229) defaults are under-trained and are not the field. Without
-`operational_status`, CatBoost's defaults score 0.3662.)
+Stated so the project can be proven wrong, not left open-ended. Two gaps are measured
+separately:
 
-The first lever to move V4FinBench was opt-in fine-tuning on each fold's training rows, +0.0076 mean AP,
-positive on 5 of 5 folds (0.1986 to 0.2062, §163). That closes 3.8% of the gap to CatBoost, and
-a fine-tuned model is no longer the zero-shot model. Partitioned contexts (a depth-2 tree, each leaf
-its own 2,000-row context) are a zero-shot lever that moved it more: 0.1986 to 0.2362, +0.0375,
-positive on 5 of 5 folds (§169), ahead of the fine-tuned arm on 5 of 5 folds (§205). Real-data pretraining (FinTFM-R) was null at
-GPU scale (§160-§161). These are the remaining candidates:
+- **TabArena:** zero-shot FinTFM trailed tuned logistic regression by about 0.035 mean ROC-AUC
+  over 27 datasets (§101). With a trained linear readout, squash and partitioned contexts it is
+  level with it: +0.0036 mean ROC-AUC, 13 of 27 datasets better (§215).
+- **V4FinBench, full panel:** untuned CatBoost (library defaults, 1,000 iterations) leads by
+  about 0.19 mean AP over five folds (0.4005 against FinTFM's 0.2062 fine-tuned, §163). Both
+  use V4FinBench's published features, which keep `operational_status`. On those features
+  LightGBM at 1,000 trees and learning rate 0.05 scores 0.3908, so a booster given enough rounds
+  reaches about 0.39 to 0.40; the 100-tree LightGBM (0.2666) and XGBoost (0.2229) defaults are
+  under-trained and are not the field. Without `operational_status`, CatBoost's defaults score
+  0.3662 (§167).
+
+Fine-tuning on each fold's training rows was the first lever to move V4FinBench: +0.0076 mean
+AP, 5 of 5 folds (0.1986 to 0.2062, §163), 3.8% of the gap to CatBoost, at the cost of no
+longer being the zero-shot model. Partitioned contexts (a depth-2 tree, each leaf its own
+2,000-row context) moved it more with no training: 0.1986 to 0.2362, +0.0375, 5 of 5 folds
+(§169), ahead of fine-tuning on 5 of 5 (§205). Real-data pretraining (FinTFM-R) was null at GPU
+scale (§160-§161). The remaining candidates:
 
 | still open | why it is a candidate | status |
 | --- | --- | --- |
 | **factorized attention** | the encoder is memory-bound at every turn, and three peers independently chose the cheaper form | cost model written and checked against measured runs (44.1, [`docs/design/attention_cost_model.md`](docs/design/attention_cost_model.md)); the encoder is not built |
 | **a joint objective** | `p(x, y \| D)` rather than `p(y \| x, D)` makes every column a training signal, not just the target | masked-column objective implemented (`--masked-column-prob`, 0.9.0); its 48,000-task arm is queued, not measured (48.15) |
-| **prior design** | the only lever a peer's own ablations identify as decisive | instrument built and partly falsified — see below |
+| **prior design** | the only lever a peer's own ablations identify as decisive | instrument built and partly falsified (below) |
 
 ### Closed by measurement
 
-Not abandoned — **tested and ruled out**, which is the more useful half of the record and the
+**Tested and ruled out**, not abandoned. This is the more useful half of the record, and the
 reason the list above is short:
 
 | candidate | what the measurement said |
 | --- | --- |
-| parameter scale | **−0.0049** at 5.7× the parameters on *matched* task volume (§114). A peer's published curve returns +0.0049 R² for 16.7×, against a 0.035 deficit. |
+| parameter scale | **−0.0049** at 5.7× the parameters on *matched* task volume (§114). A peer's published curve gives +0.0049 R² for 16.7×, against a 0.035 deficit. |
 | training volume | null at 5× (§93); **+0.0028** at 2× (§114); **−0.0106** mean AP at 10× over two seeds on V4FinBench, 9 of 10 folds negative (§188). For multiclass, 480,000 tasks is null on the proxy (§198) and on TabArena-Lite (+11 Elo, 5 of 8 datasets, §222). |
 | the Muon optimiser | **−0.0125** mean AP at 48,000 tasks, 0 of 5 folds positive: harmful (§211). |
-| longer training contexts | rows up to 2,000 per training task: −0.0042 mean AP, 1 of 5 folds positive, null (§211). |
-| depth over width | on TabArena it could not be scored: the harness's per-dataset time limit stopped it after 8 of 27 datasets (§114). On V4FinBench, 16 layers against 4 at width 128 is null: +0.0010 mean AP over five folds at a matched learning rate (§124, §126); at 480,000 tasks depth is null again, −0.0047 mean AP, 3 of 5 folds positive (§195). |
-| `column_id_dim` | peaks at the value chosen by accident; all four non-peak arms below it on all five folds (§104). |
+| longer training contexts | up to 2,000 rows per training task: −0.0042 mean AP, 1 of 5 folds positive, null (§211). |
+| depth over width | on TabArena it could not be scored: the per-dataset time limit stopped it after 8 of 27 datasets (§114). On V4FinBench, 16 layers against 4 at width 128 is null, +0.0010 mean AP over five folds at a matched learning rate (§124, §126); at 480,000 tasks depth is null again, −0.0047 mean AP, 3 of 5 folds positive (§195). |
+| `column_id_dim` | peaks at the value chosen by accident; all four other values score below it on all five folds (§104). |
 | a widened structural-causal prior | **p = 1.000** against its own matched control. |
-| a tree-structured prior | +0.0094 on general tabular data, replicated across two seeds (§115) — and **−0.0221 average precision on credit** (§116). Ships off by default. (§166, 2026-10-16: §116's arms differed in financial share, 0.49 against 0.70; at a matched share the tree arm is +0.0119 mean AP, 4 of 5 folds, one seed, so the credit loss is not the tree prior's.) |
+| a tree-structured prior | +0.0094 on general tabular data, replicated across two seeds (§115), and **−0.0221 average precision on credit** (§116), so it ships off. (§166, 2026-10-16: §116's arms differed in financial share, 0.49 against 0.70; at a matched share the tree arm is +0.0119 mean AP, 4 of 5 folds, one seed, so the credit loss is not the tree prior's.) |
 
-**The prior-scoring instrument is half-confirmed and half-falsified.** It predicted the
-general-tabular gain above before it was measured (§112 → §115). A second arm, added to ask the
-credit question, then predicted the wrong direction on its first real test — raising the
-structural-causal prior's share cost **−0.0339 AP**, 0 of 5 folds, all five significant (§118).
-So it predicts **breadth, not fit**, and no claim rests on its credit arm.
+**The prior-scoring instrument is half confirmed, half falsified.** It predicted the
+general-tabular gain above before it was measured (§112, then §115). A second arm, added for the
+credit question, predicted the wrong direction on its first real test: raising the
+structural-causal prior's share cost **−0.0339 AP**, worse on 5 of 5 folds, all significant
+(§118). So it predicts **breadth, not fit**, and no claim rests on its credit arm.
 
 ## Reproducing the measurements
 
-Every number in [`docs/results/FINDINGS.md`](docs/results/FINDINGS.md) names the command that produced it.
-The entry points:
+Every number in [`docs/results/FINDINGS.md`](docs/results/FINDINGS.md) names the command that
+produced it. The entry points:
 
 | command | what it measures |
 | --- | --- |
-| `fintfm-v4protocol` | V4FinBench under its **published** five-fold protocol — the benchmark this project's claims rest on |
+| `fintfm-v4protocol` | V4FinBench under its **published** five-fold protocol, the benchmark this project's claims rest on |
 | `fintfm-bench --credit` | Polish and Taiwan bankruptcy panels |
-| `fintfm-v4oot` | out-of-time split, which the published protocol is not |
+| `fintfm-v4oot` | an out-of-time split, which the published protocol is not |
 | `fintfm-capability` | synthetic probes with a **known** ceiling, some with a closed-form Bayes-optimal AUC |
-| `fintfm-priorscore` | scores a *prior*, not a model, on performance / diversity / distinctiveness |
-| TabArena-Lite, in the fork | the recipe, the fork's environment variables and the 51-dataset merge are in [`docs/results/TABARENA.md`](docs/results/TABARENA.md); `scripts/lite_positions.py` derives positions from the stored leaderboards (§225), and `scripts/build_leaderboard_page.py` regenerates the [leaderboard page](https://kabartay.github.io/fintfm/leaderboard/) |
+| `fintfm-priorscore` | a *prior*, not a model, on performance, diversity and distinctiveness |
 | `fintfm-ctxsweep` | context strategy against context size, out of time. Strategy mattered at smoke-test scale (§5); on V4FinBench's full panel, context size is not what limits average precision (§162) |
+| TabArena-Lite, in the fork | the recipe, the fork's environment variables and the 51-dataset merge are in [`docs/results/TABARENA.md`](docs/results/TABARENA.md); `scripts/lite_positions.py` derives positions from the stored leaderboards (§225), and `scripts/build_leaderboard_page.py` regenerates the [leaderboard page](https://kabartay.github.io/fintfm/leaderboard/) |
 
-Two conventions worth knowing before reading any of it. **Every number declares how it was
-produced** — SMOKE-TEST, MEASURED, SIMULATED or ESTIMATED — because in an ML repository a wrong
-number does not crash, it looks like a result. And **negative and superseded results are kept**,
-because they are what stops the same wrong conclusion being reached twice.
+Two conventions to know first. **Every number states how it was produced** (SMOKE-TEST,
+MEASURED, SIMULATED or ESTIMATED), because in an ML repository a wrong number does not crash; it
+looks like a result. And **negative and superseded results are kept**, so the same wrong
+conclusion is not reached twice.
 
 ## Where this is going
 
 [`docs/`](docs/) holds the project's reasoning, indexed in [`docs/README.md`](docs/README.md).
 
-- [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md) — **start here.** Every claim this project
-  could make, tagged by status, newest evidence wins.
-- [`docs/results/FINDINGS.md`](docs/results/FINDINGS.md) — the full measurement log, numbered sequentially
-  (225 entries on 2026-11-13), each declaring how its numbers were produced.
-- [`docs/design/DECISIONS.md`](docs/design/DECISIONS.md) — why the project is built the way it is, and what
-  would reverse each choice.
-- [`docs/roadmap/STRATEGY.md`](docs/roadmap/STRATEGY.md) — the plan of record.
-- [`docs/design/ARCHITECTURE.md`](docs/design/ARCHITECTURE.md) — how the model works, in more depth than
-  this file.
-- [`docs/results/TABARENA.md`](docs/results/TABARENA.md) — the external-evaluation recipe, the coverage
-  fraction any score must carry, and the silent failure modes found so far, including a results
+- [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md): **start here.** Every claim the project could
+  make, tagged by status; the newest evidence wins.
+- [`docs/results/FINDINGS.md`](docs/results/FINDINGS.md): the measurement log, numbered in
+  order (225 entries on 2026-11-13), each stating how its numbers were produced.
+- [`docs/paper/NEGATIVE_RESULTS.md`](docs/paper/NEGATIVE_RESULTS.md): every null and harmful
+  result in one place, so a lever already ruled out is not tried again by accident.
+- [`docs/paper/LIMITATIONS.md`](docs/paper/LIMITATIONS.md): what the model and the evidence
+  cannot support today.
+- [`docs/design/DECISIONS.md`](docs/design/DECISIONS.md): why the project is built as it is,
+  and what would reverse each choice.
+- [`docs/design/ARCHITECTURE.md`](docs/design/ARCHITECTURE.md): how the model works, in more
+  depth than this file.
+- [`docs/roadmap/STRATEGY.md`](docs/roadmap/STRATEGY.md): the plan of record.
+- [`docs/results/TABARENA.md`](docs/results/TABARENA.md): the external-evaluation recipe, the
+  coverage any score must state, and the silent failure modes found so far, including a results
   cache that returns stale numbers after a preprocessing change.
-- [`docs/paper/RELATED_WORK.md`](docs/paper/RELATED_WORK.md) — the competing models, read from
-  primary sources, with what each costs this project's positioning. Its digest is the shortest
-  useful summary of why the remaining lever is the prior.
-- [`docs/paper/NEGATIVE_RESULTS.md`](docs/paper/NEGATIVE_RESULTS.md) — every null and harmful
-  result in one place, so a lever already ruled out is not tried again unknowingly.
-- [`docs/paper/LIMITATIONS.md`](docs/paper/LIMITATIONS.md) — what the model and the evidence
-  cannot support today, stated before any capability.
-- [`docs/results/POSTMORTEM.md`](docs/results/POSTMORTEM.md) — wrong diagnoses, each caught by measurement
-  rather than review, kept on the record deliberately.
-- [`openspec/changes/`](openspec/changes/) — the live roadmap as structured proposals with
-  verifiable tasks, not prose. `uv run python openspec/tools/validate.py` checks every
-  proposal is well-formed and every finding declares its provenance.
+- [`docs/paper/RELATED_WORK.md`](docs/paper/RELATED_WORK.md): the competing models, read from
+  primary sources, and what each means for this project's position. Its digest is the shortest
+  summary of why the remaining lever is the prior.
+- [`docs/results/POSTMORTEM.md`](docs/results/POSTMORTEM.md): wrong diagnoses, each caught by
+  measurement rather than review, kept on the record.
+- [`openspec/changes/`](openspec/changes/): the live roadmap, as proposals with verifiable
+  tasks. `uv run python openspec/tools/validate.py` checks that every proposal is well formed
+  and every finding states its provenance.
 
-Short version: the mechanism claims ("no training on your data", "no feature engineering") are
-already owned by better-funded competitors, so the thesis is not the mechanism. It is a credit
-model that arrives with its own validation evidence — its calibration measured, auditably free of
-benchmark contamination, and eventually backed by a pre-registered forward track record that cannot be
-bought — plus a public, self-correcting record of what has and has not been shown to be true.
+In short: the mechanism claims ("no training on your data", "no feature engineering") already
+belong to better-funded competitors, so the mechanism is not the thesis. The thesis is a credit
+model that arrives with its own validation evidence (its calibration measured, demonstrably free
+of benchmark contamination, and eventually backed by a pre-registered forward track record that
+cannot be bought), plus a public, self-correcting record of what has and has not been shown.
 
 ## Project structure
 
@@ -560,52 +546,53 @@ docs/
   competition/   LANDSCAPE.md, SUBMISSION.md
   infra/         COMPUTE.md, HF_JOBS.md
   research/      REFERENCES.md, RESEARCH_NOTES.md, IMPROVEMENT_PLAN_2026-11.md
+  leaderboard/   the generated Pages leaderboard, its template and data
 
 openspec/changes/   one proposal per change, with its task list; the queue lives here
-scripts/            the repository's own gates (licence, documentation links, Zenodo metadata)
-                    plus run tooling: real-data panel builders, Kaggle
-                    kernels, score comparison and pre-registered verdicts
+scripts/            the repository's own checks (licences, documentation links, Zenodo metadata)
+                    and run tooling: real-data panel builders, Kaggle kernels, score
+                    comparison, pre-registered verdicts and the leaderboard page
 ```
 
-**Read `docs/results/FINDINGS.md` first.** Every number quoted anywhere in this repository
-points at a numbered entry there stating how it was produced, and entries that were later
-retracted stay in place rather than being edited away.
+Every number quoted in this repository points at a numbered entry in
+`docs/results/FINDINGS.md` that states how it was produced, and retracted entries stay in place
+rather than being edited away.
 
 ## Acknowledgements
 
-**No code, weights, or training data from any tabular foundation model was used here**; see
-[Licensing / provenance](#licensing--provenance). What follows is credit for what *was* used.
+**No code, weights or training data from any tabular foundation model was used here** (see
+[Licensing / provenance](#licensing--provenance)). This is credit for what *was* used.
 
 - **[V4FinBench](https://github.com/genwro-ai/V4FinBench)** (Kostrzewa et al.,
-  [arXiv:2605.10896](https://arxiv.org/abs/2605.10896), CC BY 4.0) for the corporate-default
+  [arXiv:2605.10896](https://arxiv.org/abs/2605.10896), CC BY 4.0), for the corporate-default
   panel and its evaluation protocol, which this project reimplements from the published
-  specification rather than vendoring.
-- **[TabArena](https://tabarena.ai)** for the external protocol, and its maintainers for
-  reviewing the submission and confirming the integration and numbers are correct while
-  declining the entry on competitiveness (§122). That review is the only independent check this
-  project has had.
+  specification rather than copying.
+- **[TabArena](https://tabarena.ai)**, for the external protocol, and its maintainers, for
+  reviewing the submission and confirming the integration and numbers correct while declining
+  the entry on competitiveness (§122). That review is the only independent check this project
+  has had.
 - **The published work of TabPFN, TabICL, TabDPT, LimiX, Nori, MITRA, TabSTAR, TabSwift,
-  OrionMSP, iLTM, ConTextTab and EXAONE-Tabular** — for **ideas**, which this project took
-  freely and then measured:
+  OrionMSP, iLTM, ConTextTab and EXAONE-Tabular**, for **ideas**, which this project took freely
+  and then measured:
 
   | idea | from | what happened |
   | --- | --- | --- |
   | three criteria for scoring a prior: performance, diversity, distinctiveness | MITRA | built into `fintfm-priorscore`; §112 then measured this prior's distinctiveness as weak |
   | a tree-structured prior | TabICLv2, reimplemented from its appendix | **+0.0094** on general tabular data, **−0.0221 AP** on credit; ships off (§116). (§166, 2026-10-16: the credit loss is confounded with a lower financial share; matched, the tree arm is +0.0119 mean AP, one seed.) |
-  | published scaling curve | Nori | capped a scale hypothesis GPU budget was being spent on, before more was spent (§114) |
-  | rejecting unlearnable synthetic tasks | Nori | measured: would reject 35% of this prior, and discards signal the model uses (§125) |
+  | published scaling curve | Nori | capped a scale hypothesis that GPU budget was being spent on, before more was spent (§114) |
+  | rejecting unlearnable synthetic tasks | Nori | measured: it would reject 35% of this prior and discard signal the model uses (§125) |
   | narrow-and-deep shape, 16 layers at width 128 | Nori | measured: null here, +0.0010 AP (§124, §126) |
 
-  Three of those five ideas were measured and **not** adopted. That is the point of taking them:
-  a published result from a different prior and architecture is a hypothesis about this one, not
+  Three of those five ideas were measured and **not** adopted. That is why they were taken: a
+  published result from a different prior and architecture is a hypothesis about this one, not
   a conclusion about it.
 
-Reading a paper is not ingesting a codebase, and the distinction is enforced in `CLAUDE.md`.
+Reading a paper is not ingesting a codebase; `CLAUDE.md` enforces the difference.
 
 ## Citing
 
-A `CITATION.cff` is in the repository root, so GitHub's **"Cite this repository"** button
-renders BibTeX and APA directly. The same entry, to copy:
+`CITATION.cff` in the repository root makes GitHub's **"Cite this repository"** button render
+BibTeX and APA. The same entry, to copy:
 
 ```bibtex
 @software{Organokov_FinTFM_2026,
@@ -620,33 +607,32 @@ renders BibTeX and APA directly. The same entry, to copy:
 }
 ```
 
-There is **no paper**; the numbered measurement log is this project's public record, so the
-software entry above is the citable artifact rather than a stand-in for one.
+There is **no paper**: the numbered measurement log is the public record, so the software entry
+is the citable artifact, not a stand-in for one.
 
-Cite the **repository** for the method, the measurement log or any finding; cite the
-**checkpoint** ([kabartay/fintfm-binary](https://huggingface.co/kabartay/fintfm-binary)) when
-the specific weights matter to what you are reporting. They are different artifacts and a
-reader can only check the one you name.
+Cite the **repository** for the method, the measurement log or a finding, and the
+**checkpoint** ([kabartay/fintfm-binary](https://huggingface.co/kabartay/fintfm-binary)) when the
+specific weights matter. They are different artifacts, and a reader can only check the one you
+name.
 
 Every release is archived on Zenodo with its own DOI. The **concept DOI**
-[10.5281/zenodo.22949759](https://doi.org/10.5281/zenodo.22949759) always resolves to the
-newest version; each release also has one of its own. That distinction is load-bearing here,
-because this repository retracts and supersedes results: §107 and §112 both withdrew earlier
-claims. Cite a **version** DOI to pin what you actually read, and the **concept** DOI to point
-at current state.
+[10.5281/zenodo.22949759](https://doi.org/10.5281/zenodo.22949759) always resolves to the newest
+version. The difference matters here because this repository retracts and supersedes results
+(§107 and §112 both withdrew earlier claims): cite a **version** DOI to pin what you read, and the
+**concept** DOI to point at the current state.
 
 ## Contributing, and what cannot come in
 
-Issues and discussion are welcome. Two hard boundaries, both of which protect the only claim
-this project has that competitors do not:
+**From mid-November 2026 this project is no longer actively supported.** The code, the
+checkpoint and the measurement log stay public, but issues and pull requests may go unanswered.
 
-**No code, weights, or training data from any tabular-foundation-model product** — TabPFN,
-TabICL, TabDPT, LimiX, Nori, MITRA, or any other — may enter this repository. Their published
-papers are legitimate to read and cite, and [`docs/paper/RELATED_WORK.md`](docs/paper/RELATED_WORK.md)
-does exactly that for ten of them. Ingesting any of it would destroy the provenance argument
-above, and nothing would warn us.
+Two hard limits protect the one claim this project has that competitors do not:
 
-**Check a weights licence separately from its code licence, every time.** Four of the ten peer
-projects read in [`docs/paper/RELATED_WORK.md`](docs/paper/RELATED_WORK.md) ship permissive code with **non-commercial weights**, a split
-invisible from a repository's headline licence badge. One of them restricts commercial use of
-the model's *output*, not merely the weights.
+- **No code, weights or training data from any tabular-foundation-model product** (TabPFN,
+  TabICL, TabDPT, LimiX, Nori, MITRA or any other) may enter this repository. Ingesting any of
+  it would destroy the provenance argument above, and nothing would warn us.
+- **Check a weights licence separately from its code licence, every time.** Reading and citing
+  these projects' papers is fine, and [`docs/paper/RELATED_WORK.md`](docs/paper/RELATED_WORK.md)
+  does so for ten of them. Four of the ten ship permissive code with **non-commercial
+  weights**, a split invisible from a repository's licence badge, and one restricts commercial
+  use of the model's *output*, not only the weights.
