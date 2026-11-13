@@ -75,7 +75,7 @@ End to end at SMOKE scale: `fintfm-train --config configs/arms/dr83-width512.yam
 --steps 4 --batch-size 2 --d-cell 8 --d-model 16 --n-layers 1 --n-col-layers 1 --n-rows-choices
 256 --checkpoint-every 2 --eval-every 2` (19,898 parameters, 4 steps, about 5 s): trained,
 evaluated twice, wrote `.step2`, `.step4`, `.state` and the final file
-(`/Users/morganoko/proj/fintfm/runs/agents1104/DR8.3/smoke512.*`). The checkpoint stores
+(`runs/agents1104/DR8.3/smoke512.*`). The checkpoint stores
 `max_features` 512, and `FinancialTFMClassifier` scored a 500-column table with the default
 `max_features_strategy: raise` (11.7 s). **This says nothing about quality.**
 

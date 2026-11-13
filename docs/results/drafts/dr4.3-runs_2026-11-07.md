@@ -34,19 +34,19 @@ embargo per dataset). Checkpoint sha256 `d231b062...c518d2`. FinTFM seconds per 
 Both feature counts are under the checkpoint's `max_features` 136, so FinTFM is not skipped. No
 download needed. Estonia's root differs: the loader reads `<root>/estonia`.
 
-## Full-scale commands (serial, run from /Users/morganoko/proj/fintfm)
+## Full-scale commands (serial, run from .)
 
 ```
 mkdir -p runs/dr43-fdic runs/dr43-estonia
 PYTHONUNBUFFERED=1 nice -n 10 uv run --frozen --extra bench python -m fintfm.evaluation.credit_suite \
-  --model /Users/morganoko/proj/fintfm/runs/v4-cellattn-labels.pt --datasets fdic \
-  --root /Users/morganoko/proj/fintfm/data/real \
-  --out /Users/morganoko/proj/fintfm/runs/dr43-fdic/fdic.csv > /Users/morganoko/proj/fintfm/runs/dr43-fdic/fdic.log 2>&1
+  --model runs/v4-cellattn-labels.pt --datasets fdic \
+  --root data/real \
+  --out runs/dr43-fdic/fdic.csv > runs/dr43-fdic/fdic.log 2>&1
 
 PYTHONUNBUFFERED=1 nice -n 10 uv run --frozen --extra bench python -m fintfm.evaluation.credit_suite \
-  --model /Users/morganoko/proj/fintfm/runs/v4-cellattn-labels.pt --datasets estonia \
-  --root /Users/morganoko/proj/fintfm/data \
-  --out /Users/morganoko/proj/fintfm/runs/dr43-estonia/estonia.csv > /Users/morganoko/proj/fintfm/runs/dr43-estonia/estonia.log 2>&1
+  --model runs/v4-cellattn-labels.pt --datasets estonia \
+  --root data \
+  --out runs/dr43-estonia/estonia.csv > runs/dr43-estonia/estonia.log 2>&1
 ```
 
 Run one at a time, not during a solver campaign or another full-panel scoring (shared Mac).

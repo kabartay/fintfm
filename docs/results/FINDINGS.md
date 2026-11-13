@@ -13973,7 +13973,7 @@ global estimator. This code is in the TabArena fork's working tree
 | `LR (tuned)` | 1016.0 | 13 / 14 / 0 | 1.00 | +0.0036 |
 
 This arm's Elo is 1000.2 (+156 / −167), rank 100 of 107 in its own leaderboard. Field rows come
-from the same `results_per_split.csv` (`~/proj/tabarena/eval/fintfm_linprobe_squash_part_1108/`).
+from the same `results_per_split.csv` (`<tabarena-checkout>/eval/fintfm_linprobe_squash_part_1108/`).
 
 - **The arm is level with the bar, not above it.** `docs/roadmap/TABARENA_BAR.md` defines the bar
   as parity with `RF (default)`, then quoted as about 1,010 because `KNN (tuned + ensemble)` scored

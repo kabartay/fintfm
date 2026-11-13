@@ -33,7 +33,7 @@ All three already have a TabArena-Lite Elo from the fork's own `compare`, so non
 From the n = 6 draft and `proxy_<arm>.json`/`.log` (the `queue.sh` itself is not on disk, so `--out` is reconstructed from the output file names). Same 18 task ids, 3 splits (repeat 0, folds 0-2), `--no-baselines`, 2 threads, 48 of 54 rows scored (the 136-feature cap skips two tasks). Serial commands for the coordinator, one at a time, nice 19, with at least 14 GB free before each (as in the n = 6 queue):
 
 ```
-cd /Users/morganoko/proj/fintfm && PYTHONUNBUFFERED=1 nice -n 19 uv run --frozen --extra bench python -m fintfm.evaluation.proxy_suite run --model /Users/morganoko/proj/fintfm/runs/v4-priorctl-s1.pt --name priorctl-s1 --tasks 3,15,43,49,3918,7592,9946,9976,9977,9978,10093,14952,14954,125920,146819,146820,167120,167125 --no-baselines --n-jobs 2 --out /Users/morganoko/proj/fintfm/runs/agents1104/DR4.2/proxy_priorctl-s1.csv > /Users/morganoko/proj/fintfm/runs/agents1104/DR4.2/proxy_priorctl-s1.log 2>&1; echo EXIT=$?
+cd . && PYTHONUNBUFFERED=1 nice -n 19 uv run --frozen --extra bench python -m fintfm.evaluation.proxy_suite run --model runs/v4-priorctl-s1.pt --name priorctl-s1 --tasks 3,15,43,49,3918,7592,9946,9976,9977,9978,10093,14952,14954,125920,146819,146820,167120,167125 --no-baselines --n-jobs 2 --out runs/agents1104/DR4.2/proxy_priorctl-s1.csv > runs/agents1104/DR4.2/proxy_priorctl-s1.log 2>&1; echo EXIT=$?
 ```
 
 Repeat with `treeclean-s1` (`v4-treeclean-s1.pt`) and `widerprior` (`v4-widerprior.pt`), same task list, same output directory. Then, from a checkout that contains `scripts/dr42_spearman.py` (this branch):

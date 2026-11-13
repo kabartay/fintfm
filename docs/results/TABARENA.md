@@ -196,8 +196,8 @@ Elo anchored at `RF (default)` = 1000. Re-scoring all 27 reproduces §122 exactl
 environment and read-only:
 
 ```bash
-~/proj/tabarena/.venv/bin/python -P scripts/tabarena_subset_elo.py \
-    ~/proj/tabarena/eval/fintfm_lite_tafintfm/results_per_split.csv --subset imbalanced
+<tabarena-checkout>/.venv/bin/python -P scripts/tabarena_subset_elo.py \
+    <tabarena-checkout>/eval/fintfm_lite_tafintfm/results_per_split.csv --subset imbalanced
 ```
 
 **Imputation.** None for FinTFM. In the 7-dataset frame, 12 of 665 rows are imputed, as §122
@@ -542,7 +542,7 @@ multiclass and regression the readout also takes the row's own squashed features
 so. Column selection (`select`) changes what the model sees on wide tables and is declared too.
 The squash transform is null on V4FinBench (§211), so this is a Lite-only configuration.
 
-**Configuration**, all in the tabarena fork (`~/proj/tabarena`, branch `fintfm-audit-fixes`),
+**Configuration**, all in the tabarena fork (`<tabarena-checkout>`, branch `fintfm-audit-fixes`),
 where each run is `run_fintfm_lite.py` with a distinct `FINTFM_RUN_NAME`:
 
 | setting | value | source |

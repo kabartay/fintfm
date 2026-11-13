@@ -90,7 +90,7 @@ Not exercised by the smoke test: the pip install, the recipe download, CUDA, and
 2. After the quota reset:
 
 ```bash
-cd /Users/morganoko/proj/fintfm
+cd .
 kaggle kernels push -p scripts/kaggle/task_au515_throughput
 ```
 

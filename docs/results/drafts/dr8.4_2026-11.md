@@ -113,7 +113,7 @@ rows, 3 configs, 2 inner folds): all four arms scored, 210 s wall on a loaded ma
 (0.2288 / 0.2184 / 0.2239 tuned alone / init / feature; FinTFM 0.3131) are SMOKE-TEST.
 
 **Commands for the coordinator, serial, run from the main checkout after merging**
-(`cd /Users/morganoko/proj/fintfm`; prefix each with `PYTHONUNBUFFERED=1 nice -n 19 uv run --frozen
+(`cd .`; prefix each with `PYTHONUNBUFFERED=1 nice -n 19 uv run --frozen
 --extra bench`, redirect to a log, check `$?`, one at a time, check `uptime` first). Times are
 ESTIMATED from §189 and AU4.4's measured runtimes (SBA out-of-fold up to 1,791 s per split; AU4.4
 folds took 40 to 68 min at 1,000,087 query rows including three CatBoost fits) and the 600 s search

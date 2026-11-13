@@ -898,7 +898,7 @@ Kept in the record rather than quietly edited, because each was propagated befor
 
 ### Added
 
-- **`.env` / `.env.example` for credentials**, mirroring `finkele-axiom`. Nothing sources
+- **`.env` / `.env.example` for credentials**. Nothing sources
   `.env` automatically; commands that need it source it for that call only. First key is a
   read-only fine-grained Hugging Face token for gated public datasets, with the exact scopes
   documented — and with the note that scope **cannot** enforce this repository's licensing

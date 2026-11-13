@@ -67,10 +67,10 @@ reference is therefore
 The `data/cache` link must exist in the checkout the job runs from (the main checkout has it).
 Each fold writes its own directory (`v4_protocol.json` is rewritten by every invocation, so folds
 must not share one), and a finished fold is skipped by checking for its `predictions_fold<K>.npz`.
-Run from `/Users/morganoko/proj/fintfm`, serially, after `uptime` and a go-ahead:
+Run from `.`, serially, after `uptime` and a go-ahead:
 
 ```bash
-cd /Users/morganoko/proj/fintfm
+cd .
 for K in 0 1 2 3 4; do
   [ -f runs/dr32-ens8-cshift/f$K/predictions_fold$K.npz ] && continue
   OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 PYTHONUNBUFFERED=1 nice -n 19 \
@@ -86,7 +86,7 @@ start; there is no mid-fold resume.) After the folds, merge the per-fold predict
 directory, which is what the compare script reads, and compare:
 
 ```bash
-cd /Users/morganoko/proj/fintfm && mkdir -p runs/dr32-ens8-cshift
+cd . && mkdir -p runs/dr32-ens8-cshift
 cp runs/dr32-ens8-cshift/f?/predictions_fold?.npz runs/dr32-ens8-cshift/
 cp runs/dr32-ens8-cshift/f0/v4_protocol.json runs/dr32-ens8-cshift/v4_protocol.json
 uv run --frozen --extra bench --extra hf python scripts/compare_v4_scores.py --cluster \
