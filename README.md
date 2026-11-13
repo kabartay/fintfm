@@ -33,7 +33,11 @@ few points of accuracy.
 from huggingface_hub import hf_hub_download
 from fintfm.inference import FinancialTFMClassifier
 
-ckpt = hf_hub_download("kabartay/fintfm-binary", "v4-cellattn-labels.pt")
+ckpt = hf_hub_download(
+    "kabartay/fintfm-binary",
+    "v4-cellattn-labels.pt",
+    revision="f116bfd43a2b15c65ed3551ea8c38e3364629ddc",  # the weights every number below used
+)
 clf = FinancialTFMClassifier(ckpt, device="cpu")
 clf.fit(X_train, y_train)            # stores the table as context; no training happens
 pd_estimates = clf.predict_proba(X_test)[:, 1]
@@ -45,6 +49,19 @@ binary, up to 136 features, **Apache-2.0**. It is the checkpoint every published
 below was measured on, so those results are reproducible against this file rather than a
 variant of it.
 
+**Contents:** [Status](#status-stated-plainly) ·
+[Results](#results-as-measured) ·
+[What this project does](#what-this-project-does) ·
+[How it works](#how-it-works) ·
+[Quickstart](#quickstart) ·
+[Configuration](#configuration) ·
+[Two model families](#two-model-families) ·
+[Licensing](#licensing--provenance) ·
+[What would change the picture](#what-would-change-the-picture) ·
+[Reproducing](#reproducing-the-measurements) ·
+[Citing](#citing) ·
+[Contributing](#contributing-and-what-cannot-come-in)
+
 ## Status, stated plainly
 
 **FinTFM is a research codebase with a public claims ledger, not a product.** It exists to find
@@ -53,13 +70,14 @@ financial tables, and to say honestly where it currently is not.
 
 | | |
 | --- | --- |
-| **External benchmark** | **TabArena-Lite, all 51 datasets with no exclusion: 903 Elo, 107th of 110** (§224, §225), one fold, run in this project's TabArena fork and not on [tabarena.ai](https://tabarena.ai). The entry is "FinTFM with a trained linear readout", a linear model fitted on the network's representation, which for multiclass and regression also takes the row's own features. By type: binary 974 on 30 datasets (§220), multiclass 865 on 8 (§224), regression 578 on 13 (§223). RandomForest (default) scores 1,000 and Linear (tuned) 919 on the same board. These are general-tabular numbers, not credit results. Not resubmitted yet (design review DR7.6). The earlier submission, the zero-shot model on 27 binary datasets, ranked **94 of 95**, and re-scored on today's field the same zero-shot model is 750 Elo, 107th of 108 (§225); a maintainer confirmed the integration correct and declined the entry on competitiveness (§122) |
+| **TabArena-Lite (own run)** | **all 51 datasets with no exclusion: 903 Elo, 107th of 110** (§224, §225), one fold, run in this project's TabArena fork and not on [tabarena.ai](https://tabarena.ai). The entry is "FinTFM with a trained linear readout": a linear model fitted on the network's representation, which for multiclass and regression also takes the row's own features. By type: binary 974 on 30 datasets (§220), multiclass 865 on 8 (§224), regression 578 on 13 (§223). RandomForest (default), the resubmission bar, scores 1,000 and Linear (tuned) 919 on the same board. General-tabular numbers, not credit results |
+| **TabArena submission** | the zero-shot model on 27 binary datasets ranked **94 of 95**; a maintainer confirmed the integration correct and declined the entry on competitiveness (§122). Re-scored on today's field it is 750 Elo, 107th of 108 (§225). Not resubmitted until the readout entry reaches 1,000 overall Elo (design review DR7.6) |
 | **On real credit panels** | discrimination loses to gradient boosting on V4FinBench's full panel: untuned CatBoost scores 0.40 mean AP against FinTFM's 0.20 (§163; LightGBM at 1,000 trees 0.3908, §167, so the lead is boosting rounds, not one library). On four further credit datasets (SBA 7(a), ULB, FDIC, Estonia) FinTFM is below untuned logistic regression on mean AP on all four (§216). Calibration was best or near-best on four panels for the pre-cell-attention architecture (Claim 9, §73); the published checkpoint over-predicts the observed default rate by 1.2 to 1.7 times on ULB (§174), and on FDIC by 1.9 and 3.2 times on two splits while under-predicting the third (0.396% against 0.735%; the run record behind §216, `docs/results/drafts/dr4.3-runs_2026-11-07.md`), so the calibration claim is not made for it. |
 | **Fine-tuning** | opt-in per-dataset fine-tuning (`finetune_steps`, 0.7.0) lifts V4FinBench AP on 5 of 5 folds, 0.1986 → 0.2062 — the first lever to move it, closing 3.8% of the gap to CatBoost (§163). Zero-shot partitioned contexts (`fintfm-v4protocol --large-n partition`) then lift it further with no training, 0.1986 → 0.2362, +0.0375 on 5 of 5 folds (§169), and beat the fine-tuned arm on 5 of 5 folds (§205) |
 | **Licence** | Apache-2.0, **code and weights** — chosen separately, not inherited (see [Licensing](#licensing--provenance)) |
 | **Checkpoint** | [kabartay/fintfm-binary](https://huggingface.co/kabartay/fintfm-binary) — 885K, binary, ≤136 features |
 | **Tests** | about 1,350 collected (2026-11-13), plus `ruff`, the openspec validator, a dependency-licence check and a documentation-link check — all in CI |
-| **Measurement log** | 224 numbered entries, each declaring how its numbers were produced; pre-registrations are written before their arms run |
+| **Measurement log** | 225 numbered entries, each declaring how its numbers were produced; pre-registrations are written before their arms run |
 | **Problem types** | binary declared, and the only published checkpoint. Multiclass and regression run on TabArena-Lite with their own unpublished checkpoints (§221-§224) but are **not** declared (§121) |
 
 **Read [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md) before anything else.** Every claim this
@@ -271,6 +289,15 @@ uv sync --extra bench --extra hf   # naming one extra uninstalls the others
 uv run pytest                      # about 1,350 tests collected
 ```
 
+| extra | adds | needed for |
+| --- | --- | --- |
+| `bench` | CatBoost, LightGBM, XGBoost, pyarrow | the baselines in every benchmark harness |
+| `hf` | huggingface_hub | downloading the checkpoint, Hugging Face Jobs |
+| `overlap` | openml, huggingface_hub, pyarrow | checking a suite for overlap with TabArena and BeyondArena |
+| `real` | pyarrow, requests | building FinTFM-R's real-data panels and training on them (`--p-real-edgar`) |
+| `kaggle` | kaggle, kagglehub, pyarrow | Kaggle kernels and their datasets |
+| `schedulefree` | schedulefree | the schedule-free optimiser option in training |
+
 ### Using a checkpoint
 
 The estimators are scikit-learn compatible. By default `fit()` **stores** the table as context
@@ -466,6 +493,7 @@ The entry points:
 | `fintfm-v4oot` | out-of-time split, which the published protocol is not |
 | `fintfm-capability` | synthetic probes with a **known** ceiling, some with a closed-form Bayes-optimal AUC |
 | `fintfm-priorscore` | scores a *prior*, not a model, on performance / diversity / distinctiveness |
+| TabArena-Lite, in the fork | the recipe, the fork's environment variables and the 51-dataset merge are in [`docs/results/TABARENA.md`](docs/results/TABARENA.md); `scripts/lite_positions.py` derives positions from the stored leaderboards (§225), and `scripts/build_leaderboard_page.py` regenerates the [leaderboard page](https://kabartay.github.io/fintfm/leaderboard/) |
 | `fintfm-ctxsweep` | context strategy against context size, out of time. Strategy mattered at smoke-test scale (§5); on V4FinBench's full panel, context size is not what limits average precision (§162) |
 
 Two conventions worth knowing before reading any of it. **Every number declares how it was
@@ -480,18 +508,22 @@ because they are what stops the same wrong conclusion being reached twice.
 - [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md) — **start here.** Every claim this project
   could make, tagged by status, newest evidence wins.
 - [`docs/results/FINDINGS.md`](docs/results/FINDINGS.md) — the full measurement log, numbered sequentially
-  (224 entries on 2026-11-13), each declaring how its numbers were produced.
+  (225 entries on 2026-11-13), each declaring how its numbers were produced.
 - [`docs/design/DECISIONS.md`](docs/design/DECISIONS.md) — why the project is built the way it is, and what
   would reverse each choice.
 - [`docs/roadmap/STRATEGY.md`](docs/roadmap/STRATEGY.md) — the plan of record.
 - [`docs/design/ARCHITECTURE.md`](docs/design/ARCHITECTURE.md) — how the model works, in more depth than
   this file.
 - [`docs/results/TABARENA.md`](docs/results/TABARENA.md) — the external-evaluation recipe, the coverage
-  fraction any score must carry, and four silent failure modes including a results cache that
-  returns stale numbers after a preprocessing change.
+  fraction any score must carry, and the silent failure modes found so far, including a results
+  cache that returns stale numbers after a preprocessing change.
 - [`docs/paper/RELATED_WORK.md`](docs/paper/RELATED_WORK.md) — the competing models, read from
   primary sources, with what each costs this project's positioning. Its digest is the shortest
   useful summary of why the remaining lever is the prior.
+- [`docs/paper/NEGATIVE_RESULTS.md`](docs/paper/NEGATIVE_RESULTS.md) — every null and harmful
+  result in one place, so a lever already ruled out is not tried again unknowingly.
+- [`docs/paper/LIMITATIONS.md`](docs/paper/LIMITATIONS.md) — what the model and the evidence
+  cannot support today, stated before any capability.
 - [`docs/results/POSTMORTEM.md`](docs/results/POSTMORTEM.md) — wrong diagnoses, each caught by measurement
   rather than review, kept on the record deliberately.
 - [`openspec/changes/`](openspec/changes/) — the live roadmap as structured proposals with
@@ -500,8 +532,8 @@ because they are what stops the same wrong conclusion being reached twice.
 
 Short version: the mechanism claims ("no training on your data", "no feature engineering") are
 already owned by better-funded competitors, so the thesis is not the mechanism. It is a credit
-model that arrives with its own validation evidence — calibrated, auditably free of benchmark
-contamination, and eventually backed by a pre-registered forward track record that cannot be
+model that arrives with its own validation evidence — its calibration measured, auditably free of
+benchmark contamination, and eventually backed by a pre-registered forward track record that cannot be
 bought — plus a public, self-correcting record of what has and has not been shown to be true.
 
 ## Project structure
