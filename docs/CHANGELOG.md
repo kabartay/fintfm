@@ -40,6 +40,9 @@ supported.
 
 ### Changed
 
+- Dependabot version-update pull requests are switched off (`.github/dependabot.yml`
+  removed), so every commit carries the maintainer's own address; security alerts are a
+  separate setting.
 - Claim 9 (calibration across four credit panels) is SINGLE DRAW, and design review DR2.4 is
   decided as two checkpoints, one for credit and one for general-tabular breadth (owner,
   2026-11-13).

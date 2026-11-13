@@ -560,6 +560,12 @@ implementation detail.
 
 ## Commits
 
+**Every commit carries `mukharbek.organokov@gmail.com` as author and committer.** Two in history
+do not: the repository's "Initial commit" (committer GitHub, created on the website) and one
+merged Dependabot update (2026-10-26). Both are on public `main` and stay. To keep it from
+happening again: merge locally and push, never through GitHub's web interface (it records
+`noreply@github.com` as committer), and Dependabot version updates are off (2026-11-13).
+
 `git add` by path, not `git add -A`/`git add .` — cheap now while the repo is small and single-
 session, worth keeping as the habit before it stops being cheap.
 
