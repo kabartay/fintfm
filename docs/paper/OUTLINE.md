@@ -54,7 +54,7 @@ an exactly-known Bayes-optimal AUC shows the resulting cap is severe and indepen
 difficulty; seven content-side explanations are eliminated one at a time; two-way cell
 attention with per-cell label injection closes the regret to 0.001–0.005 and transfers to one
 real credit panel, V4FinBench, at +0.042 AP best-vs-best on 5 of 5 folds; **and the fixed model
-still places 94th of 95 on TabArena (§122). Native categorical handling recovered 34% of the gap
+still places 94th of 95 on TabArena (§122; 2026-11-13: the readout entry on all 51 datasets is 106th of 110, §224). Native categorical handling recovered 34% of the gap
 to tuned logistic regression (§101), leaving a uniform deficit of about 0.035 ROC-AUC.**
 
 That last clause is not self-flagellation — it is what makes the diagnosis credible. A paper
@@ -156,14 +156,28 @@ direction (§93/§97) — this project misread it once and the correction belong
 - **5.4 Where it still loses, externally.** §98 and §100 together — the placement *and* the
   decomposition. Presented as one result, because the placement without the decomposition
   overstates the architectural deficit by 2.8×.
+
+  (2026-11-13: the placement has moved. On TabArena-Lite, all 51 datasets with none excluded,
+  FinTFM with a trained linear readout scores 903 Elo, 106th of 110 (§224; binary 974 on 30,
+  §220; multiclass 865, §224; regression 578, §223), against RandomForest (default) at 1,000.
+  Wide tables rank near the bottom under column selection (§220). On four credit datasets
+  FinTFM is below untuned logistic regression on mean AP (§216). The 94 of 95 in the abstract
+  is the 2026-10 zero-shot rank. A paper written now would quote §224 and say that the readout
+  is a trained component, not zero-shot. TabArena-Lite is breadth only; V4FinBench decides
+  (§211).)
 - **5.5 What does not work.** Five measured nulls: training volume −0.0012 (§93), the whole
   context axis 0.0069 (§83), marginal augmentation ~0.001 (§88), ±10 z-clip (§89), prior
   domain +0.010 (§96). Plus retrieval, which **actively hurts** at V4FinBench's base rate
   (§70), and the one non-null lever, `column_id_dim` (§97).
 
   The full, sourced record (harmful levers, nulls, one-benchmark wins, refuted predictions,
-  deferrals and their reasons, through §213) is `docs/paper/NEGATIVE_RESULTS.md`; this list is
+  deferrals and their reasons, through §224) is `docs/paper/NEGATIVE_RESULTS.md`; this list is
   the 2026-09 subset.
+
+  (2026-11-13, §211, §222, §224: the 2026-09 subset above is not the current list. Since then
+  no V4FinBench lever has cleared the §173 bar (§211), muon is harmful (§211), 480,000 tasks are
+  null on V4FinBench (§188) and on TabArena-Lite multiclass (§222), and the head's probabilities
+  and a 4,000-row context are null on multiclass (§224). Use `NEGATIVE_RESULTS.md`.)
 
   A results section with no negative results is not a measurement paper. This one has the
   unusual property that its *most actionable* recent result is a free hyperparameter nobody
@@ -173,7 +187,8 @@ direction (§93/§97) — this project misread it once and the correction belong
 
 See [LIMITATIONS.md](LIMITATIONS.md). Written first, cited here. The TabArena placement and
 the absence of any LGD or EAD panel both belong in the paper's own text (a regression head now
-exists, §106, and ranks near last on TabArena regression, mean rank 93.1, §121), not only in this repository.
+exists, §106, and ranks near last on TabArena regression, mean rank 93.1, §121; with a ridge readout it scores 578 Elo, §223), not only in this repository. (2026-11-13: the limitations
+list also needs the wide-table result, §220, and the credit gap, §216.)
 
 ## 7. Conclusion
 

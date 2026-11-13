@@ -334,9 +334,8 @@ has to be in place *before* the first pull request is merged, not after.
 
 ## Licensing boundary: what must never come in
 
-No code, model weights, or **training** data from Neuralk (Seldon), Fundamental (NEXUS),
-Google TabFM, TabPFN/TabICL, or any other tabular-foundation-model product may enter this
-repository.
+No code, model weights, or **training** data from Google TabFM, TabPFN/TabICL, or any other
+tabular-foundation-model product may enter this repository.
 
 **Training and evaluation are different questions, and the rule used to conflate them.**
 Training on such data would destroy decision D2's auditability claim — that the model cannot

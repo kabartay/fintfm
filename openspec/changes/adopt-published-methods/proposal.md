@@ -14,7 +14,7 @@ methods is a separate mistake and a cheaper one to avoid.
 
 Two published data points make the case that the frontier is reachable rather than magical:
 
-- On Neuralk's own TabBench v2, Seldon beats TabPFN v3 on 18 of 22 problems and TabICL v2 on
+- On TabBench v2, one commercial model beats TabPFN v3 on 18 of 22 problems and TabICL v2 on
   15 of 22, while TabPFN v3 edges it by 0.2 AUC inside the noise floor. The honest read is a
   three-way tie at the top, not a runaway leader.
 - Kostrzewa et al.'s fine-tuned TabPFN matches or beats gradient-boosted trees on V4FinBench's
@@ -32,7 +32,7 @@ Five methods, each with a status here, tracked so none is quietly forgotten:
 | prototype undersampling | Kostrzewa et al. | implemented and measured (§38); binary path open under `revisit-context-strategy` 32.6 |
 | ensembling over context draws and feature permutations | TabPFN standard practice | **untried** — task 36.2 |
 | in-context scaling to larger tables | TabICL | **untried** — task 36.3. Directly relevant: we degrade past 2,000 context rows (§33) |
-| native coverage as a reported metric | Seldon runs 100% of TabBench where two of eight models failed on 19% and 29% | **not measured** — task 36.4 |
+| native coverage as a reported metric | the leading commercial model runs 100% of TabBench where two of eight models failed on 19% and 29% | **not measured** — task 36.4 |
 
 ## Non-goals
 

@@ -1,6 +1,6 @@
 # References
 
-Literature this project stands on. **Every entry below was verified against the source**
+Literature this project stands on. *(2026-11-13 spot-check: 19 arXiv entries re-opened on their abstract pages; ids and titles all matched. Corrections: four entries that named an organisation now name the first author the abstract page lists, the arXiv `Mitra` spelling is used, and LimiX is listed with 38 authors, first Xingxuan Zhang. The iLTM venue "KDD '26" was not checked, and the abstract page shows a v2 of 9 August 2026. Commercial-vendor commentary entries were removed by owner decision the same day.)* **Every entry below was verified against the source**
 (title, authors, venue; the first entries on 2026-09-08, later ones dated in their own text,
 with any limit on how far they were read stated there) rather than cited from memory — the
 sibling repos have shipped a fabricated cross-reference before, and a citation reads as
@@ -67,32 +67,6 @@ registered *before* the outcome exists. **M6 went furthest** — live data from 
 assets, predictions registered into the real future. The critique noted there is
 administrative cost and long waiting periods between competitions. See `docs/results/FINDINGS.md` §3
 for why this design matters more to this project than to a forecasting vendor.
-
-## Industry commentary, not literature — read for positioning, not cited as evidence
-
-Blog posts, not peer-reviewed. Kept separate from the sections above on purpose: they carry an
-author's stated claim rather than a reviewed method, and this project's own findings (not the
-posts) are what settles anything for us. See `docs/paper/RELATED_WORK.md` for the full notes.
-
-**Neuralk-AI (2026).** *Why the LLM playbook stops working with TFMs.*
-[neuralk.ai/post/why-the-llm-playbook-stops-working-with-tfms](https://www.neuralk.ai/post/why-the-llm-playbook-stops-working-with-tfms)
-Argues TFM scaling needs matched prior richness, not just capacity, and reports a TFM that
-"failed outright" when paired with an older, less rich prior. Independently consistent with
-this project's own null scaling results (§114, §123/§124/§126) and §112's weak-prior-
-distinctiveness measurement — read together as two independent lines pointing at the same
-diagnosis, not as a source either result depends on.
-
-**Neuralk-AI (2026).** *Feature engineering with Seldon.*
-[neuralk.ai/post/feature-engineering-with-seldon](https://www.neuralk.ai/post/feature-engineering-with-seldon)
-Operational notes on iterating against a hosted TFM with no retraining step. Not directly
-applicable to a from-scratch pretrained-only project; its context-curation observation is a
-useful contrast to this project's own §70 (retrieval harmful at low prevalence).
-
-**Neuralk-AI (2026).** *Foundation models on structured data: tables vs. time series.*
-[neuralk.ai/post/foundation-models-on-structured-data-tables-vs-time-series](https://www.neuralk.ai/post/foundation-models-on-structured-data-tables-vs-time-series)
-Argues TFMs' exchangeable-rows assumption is a real simplification against genuinely temporal
-data. Relevant as a boundary statement for V4FinBench's temporally-split panel, which sits
-closer to the harder case this post describes than to the i.i.d. case TFMs assume.
 
 ## Domain benchmarks and datasets
 
@@ -381,7 +355,7 @@ query-conditioned form (§38, Claim 5). The real-data pretraining is the half th
 off-limits here — not for licence reasons but for the contamination-auditability argument in
 `docs/roadmap/STRATEGY.md`, which is a positioning asset rather than a constraint.
 
-**Amazon Science (2025).** *MITRA: Mixed Synthetic Priors for Enhancing Tabular Foundation
+**Zhang et al. (2025), Amazon Science.** *Mitra: Mixed Synthetic Priors for Enhancing Tabular Foundation
 Models.* [arXiv:2510.21204](https://arxiv.org/abs/2510.21204). **Rank 8 on TabArena, Elo 1729.**
 (Updated 2026-10-16: Mitra-v2 is 9th at Elo 1754 on TabArena v0.1.9.7's default models-only
 board; its own report is entered below.)
@@ -421,7 +395,7 @@ discarded before decoding; a published instance of `explicit-task-representation
 **gated attention** (`sigmoid(W·x)` per head, head-wise or element-wise). Row-wise `(B, N, d)`
 attention rather than element-level 2D — the third peer to choose the cheap form.
 
-**Prior Labs (2025).** *TabPFN-2.5: Advancing the State of the Art in Tabular Foundation
+**Grinsztajn et al. (2025), Prior Labs.** *TabPFN-2.5: Advancing the State of the Art in Tabular Foundation
 Models.* [arXiv:2511.08667](https://arxiv.org/abs/2511.08667). Purely synthetic-pretrained
 (§110's frontier); a separately released real-data variant (Real-TabPFN-2.5) is fine-tuned on
 43 OpenML/Kaggle datasets **deduplicated against the full TabArena suite** — the contamination
@@ -432,7 +406,7 @@ hyperparameter search using TabPFNv2 itself to score 10,000 configurations from 
 Ships a distillation engine converting a fitted model to a dataset-specific MLP or tree
 ensemble for low-latency deployment. See `docs/paper/RELATED_WORK.md`.
 
-**Soda-Inria (2026).** *TabICLv2: A Better, Faster, Scalable, and Open Tabular Foundation
+**Qu, Holzmüller, Varoquaux & Le Morvan (2026), Soda-Inria.** *TabICLv2: A Better, Faster, Scalable, and Open Tabular Foundation
 Model.* [arXiv:2602.11139](https://arxiv.org/abs/2602.11139). Code BSD-3-Clause (a subdirectory
 derived from TabPFN-TS separately Apache-2.0); weights BSD-3-Clause, checked independently via
 the HF API. **Untuned TabICLv2 beats hyperparameter-tuned, ensembled, real-data-fine-tuned
@@ -458,9 +432,7 @@ project's own TabArena run** — the README's self-reported "Elo position 1, 179
 different, higher figure not reconciled here; the discrepancy is recorded, not resolved.
 **Fourth confirmed licence-split**: code Apache-2.0 (verified from the repo's `LICENSE` file),
 weights under a separate non-commercial "Causilo License v1.0" (verified from the README).
-No architectural detail obtained. See `docs/paper/RELATED_WORK.md` for the full note,
-including why a surface resemblance to Neuralk's Seldon is noted as unverified speculation
-and does not change `CLAUDE.md`'s Neuralk boundary either way.
+No architectural detail obtained. See `docs/paper/RELATED_WORK.md` for the full note.
 
 **NVIDIA, via the acquired Kumo ML team (2026).** *Kumo Tabular*.
 [huggingface.co/blog/nvidia/kumo-tabular](https://huggingface.co/blog/nvidia/kumo-tabular);
@@ -576,7 +548,7 @@ Code `github.com/soda-inria/tabicl`, **BSD-3-Clause; weights BSD-3-Clause** (Hub
 about 82 million pretraining datasets. Its paper ensembles over 32 column and class shuffles; the
 repository's default has since dropped to 8.
 
-**LimiX Team, Stable AI and Tsinghua University (2025).** *LimiX: Unleashing Structured-Data
+**Zhang et al. (2025), LimiX Team, Stable AI and Tsinghua University.** *LimiX: Unleashing Structured-Data
 Modeling Capability for Generalist Intelligence.* [arXiv:2509.03505](https://arxiv.org/abs/2509.03505).
 The first LimiX report (LimiX-16M and LimiX-2M), before LimiX-2 above. Hierarchical SCM prior with
 MLP, convolutional and decision-tree edge functions; four inference pipelines for classification,
@@ -625,12 +597,6 @@ confirmed by causal intervention; the paper states the training-data axis (varyi
 prior) is left open. Evaluated on 49 classification datasets including credit-g and
 credit-approval. Entered now; it was cited by TabAbax.
 
-**Neuralk-AI (2026).** *Seldon* model card, `huggingface.co/Neuralk-AI/seldon` (repository created
-2026-11-02 per the Hub API). Classification only, 213.46M parameters, "No real-world data was used
-in pretraining", SCM prior. **Weights gated under the "Neuralk Seldon License"** (named
-`neuralk-seldon-license`; the TabArena board calls it "Seldon Research and Evaluation License");
-terms not read, so treat as non-commercial until read. No paper linked on the card.
-
 **Synthefy (2026).** *Nori 1.5*, `huggingface.co/Synthefy/Nori-1-5` (created 2026-10-20 per the Hub
 API). Apache-2.0, ~21M parameters (20,757,832), "trained entirely on synthetic data". Regression
 only on its own card. License field is the card's; the weights file licence was not separately
@@ -667,7 +633,7 @@ The team's account is theirs and unverified.
 **Other entrants newly on the board, repositories read:** FTFM (`machinelearningnuremberg/ftfm-official`,
 code Apache-2.0, weights CC-BY-NC-4.0, no paper or training-data statement on the README as of
 2026-11-05; the paper, arXiv:2610.25558, and its training data are in the 2026-11-06 addendum);
-Xiaomi-TabLDM, TabAbax and Seldon as above.
+Xiaomi-TabLDM and TabAbax as above.
 
 ### Still unverified — do not cite
 
@@ -694,54 +660,24 @@ what is inside it.
   page; protocol (time split or not) unknown. A lead, not a citation.
 - Mission Lane tech blog on TabICL for enterprise credit risk: the page returned HTTP 403, so
   nothing from it may be quoted (a search snippet claimed "10,000x slower than LGBM"; unverified).
-- Fundamental NEXUS: no benchmark published as of the sources found (press only); nothing citable.
-- Neuralk "NICL 2.0": a talk listing only; superseded in practice by Seldon above.
 
 
-### Addendum 2026-11-05 (task 48.26): Seldon licences, Seldon on the classification-only board, LimiX-2 status
+### Addendum 2026-11-05 (task 48.26): classification-only board, LimiX-2 status
+
+(2026-11-13: entries for two commercial vendors' models, read in this addendum and the two that follow, were removed by owner decision; the other findings stand.)
 
 All opened on 2026-11-05. No terms were accepted, no account was used, nothing was downloaded
-except the licence and card text files below (plain unauthenticated HTTP GET).
+except text files (plain unauthenticated HTTP GET).
 
-- **Seldon weights licence, read at primary source.** The repository is gated (Hub API
-  `gated: auto`; the card shows "You need to agree to share your Hugging Face information"), but the
-  `LICENSE.md` file named in the card's `license_link` is served without login:
-  `huggingface.co/Neuralk-AI/seldon/resolve/main/LICENSE.md` returned HTTP 200 with the full text
-  (15,971 bytes), titled **"Seldon Research and Evaluation License"**. It is **non-commercial**:
-  only (a) research and (b) internal evaluation on public/synthetic/own data "for the sole purpose
-  of deciding whether to obtain a commercial licence" (s.1.7, 2.1-2.3; the evaluation right ends when
-  that decision is made); any commercial use needs a separate licence (s.6.7). Further
-  restrictions: no serving to third parties (s.3.3); **no use of the model or its Outputs to
-  train, distil or otherwise improve any other model, including as features or priors** (s.3.5);
-  **no reverse-engineering of training data or "data-generating priors"** (s.3.6); **no publication
-  of results without Neuralk's prior written consent**, and "Internal Evaluation results may
-  never be published", with research publications needing 15 days' prior notice (s.4.1-4.2);
-  French law, Paris courts. Consequence for this repository: the weights are never run here;
-  Neuralk's own published numbers and the TabArena board's numbers may be cited, nothing
-  measured on Seldon by us.
-- **Seldon-Mini carries a different licence from Seldon**, although both cards say
-  `license_name: neuralk-seldon-license`. `Neuralk-AI/seldon-mini/resolve/main/LICENSE.md` (HTTP 200)
-  is titled **"Seldon Model License Agreement"**: use by the licensee and its affiliates for an
-  **internal business purpose, commercial operations included** (s.1.7, 2.2: it names scoring "its own
-  customers' credit risk" as permitted), but no serving to third parties by any route (API, SaaS,
-  consulting, "prediction-as-a-service", s.3.1), no redistribution, the same no-training-on-Outputs
-  and no-reverse-engineering clauses (s.3.3-3.4), no benchmarking against competing models "for the
-  purpose of developing or marketing a competing product" (s.3.7), and publication of any benchmark
-  result only with prior written consent (s.4.1). Its gate text reads "Neuralk Seldon-mini License".
-  The TabArena board labels **both** rows "Seldon Research and Evaluation License" (board CSV, commit
-  `0cec481`), which is wrong for Seldon-Mini on the evidence of the file itself. Both licences
-  forbid serving the model to a third party, so neither could sit behind a product like FinTFM's.
-  Read from the plain-text files, not a summary; the Hub card's licence field is "other" for both.
 - **TabArena classification-only Elo**, from the Space's raw CSVs at commit `0cec4810` (v0.1.9.15,
   2026-11-04), path
   `data/entrants_models/imputation_yes/splits_all/tasks_classification/datasets_all/website_leaderboard.csv`
   (99 methods, imputed 0% for every row shown; the `imputation_no` twin and the `_noleak` twin, which
   drops LimiX-2, give the same order). Elo (95% CI): LimiX-2 1930 (+136/-76), Kumo-Tabular 1922,
-  **Seldon 1879 (+158/-106)**, Kumo-Medium 1870, TabPFN-3.5 1842 (+102/-66), **Seldon-Mini 1786
-  (+90/-62)**, TabFM 1781, TabPFN-3.5-Fast 1776, Kumo-Small 1769, TabAbax 1635, **TabICLv2 1569
-  (+73/-61)**, LimiX (v1) 1395. Seldon is +310 Elo and Seldon-Mini +217 over TabICLv2, and the
-  intervals do not overlap TabICLv2's. The near-tie on the all-tasks default board (1548 against
-  1550) came with 25.49% imputation, which the classification view does not carry.
+  Kumo-Medium 1870, TabPFN-3.5 1842 (+102/-66), TabFM 1781, TabPFN-3.5-Fast 1776, Kumo-Small 1769,
+  TabAbax 1635, **TabICLv2 1569 (+73/-61)**, LimiX (v1) 1395 (rows for removed entries omitted).
+  Classification-only entrants carry 25.49% imputation on the all-tasks default board (FTFM's row
+  shows the same figure), which the classification view does not.
 - **PR #691 (autogluon/tabarena), merged 2026-10-27 as `4d7494c`**, read at
   `github.com/autogluon/tabarena/issues/691`: TabArena itself flags LimiX-2 as leaky ("shown to have
   seen TabArena test data, with labels, during training", evidence on diabetes and blood-transfusion),
@@ -754,10 +690,10 @@ except the licence and card text files below (plain unauthenticated HTTP GET).
   replacement and no technical-report update; the README still carries the 1935 Elo claim and the
   16 September release line. A web search found nothing further.
 
-### Addendum 2026-11-06: FTFM, TabSTAR-v1.1, Seldon integration, PrismBoost, Chakra-Tab
+### Addendum 2026-11-06: FTFM, TabSTAR-v1.1, PrismBoost, Chakra-Tab
 
 Read 2026-11-06 from primary files. Upstream integration files via the GitHub contents API on
-`autogluon/tabarena` main (`packages/tabarena/src/tabarena/models/{ftfm,tabstar_v1p1,seldon,prismboost}`
+`autogluon/tabarena` main (`packages/tabarena/src/tabarena/models/{ftfm,tabstar_v1p1,prismboost}`
 and `systems/chakra_tab`, `info.py` and `model.py`); board numbers from the Space CSV at commit
 `0cec481` (`data/entrants_models/imputation_yes/.../datasets_all/website_leaderboard.csv`, the
 default view). Nothing was downloaded except text; no weights, no code, no data.
@@ -796,17 +732,6 @@ checkpoint's own page does not confirm. **Board:** Elo 1178 (+65/-83), rank 74, 
 s per 1K fit (default view). A 200K-table real-data model sits 372 Elo below TabICLv2 (1550) in the
 same view.
 
-**Seldon and Seldon-Mini, integration facts** (`models/seldon/info.py`, `model.py`, PR #701/#706).
-Date introduced 2026-11-02, runs `seldonfix_03112026` and `seldonminifix_03112026` dated
-2026-11-03: the 38 classification datasets, every split, `Seldon_c1_default_BAG_L1` (bagged,
-`refit_folds`), 8x1 validation, 32 RTX PRO 6000 pools. Wrapper pins HF revisions
-`b113e1c...` (Seldon) and `2850730...` (Seldon-Mini) and depends on `neuralk-oss==0.2.3`; the code
-is "Apache-2.0" by the wrapper docstring only: the PyPI page shows no licence and the
-`Neuralk-AI/neuralk_oss` GitHub URL returned 404, so the code licence is unverified at source.
-The released package supplies the ensemble size, per-member preprocessing and context size, so the
-board number is the vendor's own recipe through AutoGluon bagging. Weights licences as in the
-2026-11-05 addendum; no change.
-
 **PrismBoost** (MIT code, `github.com/PrismBoost/PrismBoost`; PyPI 0.5.1). Gradient boosting with
 SEFR oblique (hyperplane) splits; no weights. Board Elo 1215 tuned plus ensembled (rank 64), 1127
 default (rank 82), CPU-only. **Chakra-Tab** (Yhat Labs): hosted API system, tag
@@ -817,21 +742,15 @@ for `full` (8-fold bagging) and 1873 for `medium` (3-fold), 0% imputed, fit-at-p
 **LimiX-2 leakage flag (PR #691):** already recorded in the 2026-11-05 addendum above; nothing
 added.
 
-### Addendum 2026-11-09: TabH2O, Seldon on BeyondArena, active in-context learning
+### Addendum 2026-11-09: TabH2O, active in-context learning
 
-Read 2026-11-09. PR bodies on `autogluon/tabarena` via `gh api` (#716 merged 2026-11-08, #717 merged
-2026-11-09); arXiv HTML for 2611.07886 (Appendix C read). Nothing downloaded except text.
+Read 2026-11-09. PR bodies on `autogluon/tabarena` via `gh api` (#716 merged 2026-11-08); arXiv HTML for 2611.07886 (Appendix C read). Nothing downloaded except text.
 
 **H2O.ai (2026).** TabH2O v1.1, TabArena integration, [autogluon/tabarena#716](https://github.com/autogluon/tabarena/pull/716).
 In-context TFM, package `h2ofm==0.43.1`. TabArena-Lite default config, 51/51 datasets: Elo 1551
 (+63/−59); TabICLv2 (default) 1558, RealTabPFN-2.5 (tuned) 1528 in the same table. **Licences,
 checked separately:** code Apache-2.0; weights H2O Model Non-Commercial Licence v1.0 (`commercial_use=False`),
 gated. Published numbers only.
-
-**Neuralk-AI (2026).** Seldon and Seldon-Mini on BeyondArena, suite `beyondarena-2026-11-09`,
-[autogluon/tabarena#717](https://github.com/autogluon/tabarena/pull/717). 42 methods (36 on `large`).
-Seldon: core2k #4 (1358, +39/−44), binary #3 (1345), iid #2 (1518), temporal #17 (1052), grouped
-#18 (1135), large #16 (1030). Licences as in the 2026-11-05 addendum.
 
 **Frey (2026).** *When, Where, How: Active In-Context Learning for Tabular Foundation Models.*
 [arXiv:2611.07886](https://arxiv.org/abs/2611.07886). Frozen TabICLv2 backbone, 20 OpenML

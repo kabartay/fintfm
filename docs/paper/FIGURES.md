@@ -34,6 +34,11 @@ Exists for our arms and logistic regression. **Missing: the boosters on the out-
 — `evaluation/boosting.py` runs them out-of-process (§25) but the out-of-time harness does not
 call them. That is a gap and it is the comparison a reviewer wants most.
 
+(2026-11-13: checked, `src/fintfm/experiments/v4_out_of_time.py` still does not call the boosters.
+Boosters are scored on V4FinBench's own five-fold protocol instead: tuned CatBoost, XGBoost and
+LightGBM in §69, and untuned CatBoost 0.4005 mean AP in §163. That is a different split from
+this table's.)
+
 ## Figure 2 — Context construction ablation
 
 Mean AUC against context default rate, for balanced / hybrid / uniform / prototype / retrieval,
@@ -67,7 +72,10 @@ uv run fintfm-retrgroup --model runs/v4-hazard-ldp.pt --n-positives 150 --n-nega
 ```
 
 Exists (§37), single seed, on a 37.5%-positive subsample. **Needs task 17.7** at a realistic
-base rate before publication.
+base rate before publication. (2026-11-13: still open as named. Its concern was confirmed by
+task 17.8, §70 and §71, where retrieval at V4FinBench's base rate is harmful; the full-panel
+confirmation is §194, mean AP 0.0126 against 0.1986. The figure would show a strategy the
+current checkpoint does not use.)
 
 ## Table 3 — Prior ablation
 
@@ -172,3 +180,30 @@ makes the trained number mean anything. Any version of this table that drops the
 to save space should be rejected.
 
 Data exists (§99, `runs/capability-multiclass/class_sweep.json`); formatting only.
+
+## Table 7 — TabArena-Lite by problem type (new, 2026-11-13)
+
+All 51 TabArena-Lite datasets with none excluded, FinTFM with a trained linear readout, one row
+per problem type: datasets, checkpoint, readout, Elo (with its interval) and rank, against
+RandomForest (default) at 1,000, Linear (tuned) and Linear (tuned + ensembled). Sources: binary 974
+Elo on 30 datasets (§220); multiclass 865 on 8 (§224); regression 578 on 13 (§223); overall 903,
+106th of 110 (§224). Add the three wide binary tables as a footnote row (ranks 102, 103 and 91 of
+108, §220). The label on the table is "FinTFM with a trained linear readout", and it must say
+that TabArena-Lite is breadth only and V4FinBench decides (§211).
+
+**Exists**: the merged leaderboard `eval/fintfm_linprobe_all51_1113/` in the TabArena fork and
+the merge log `runs/merge_all51_1113.log` (§224). Command, from the fork:
+`merge_fintfm_lite.py` (fork 8aefd8d, §221). No plotting script.
+
+## Table 8 — Credit suite against logistic regression (new, 2026-11-13)
+
+Mean AP over three out-of-time splits for FinTFM, untuned logistic regression and LightGBM (1,000
+trees) on the four admitted credit datasets: ULB card fraud, SBA 7(a), FDIC bank failures and
+Estonia (§216, with §174 and §177). FinTFM is below logistic regression on all four. State the
+caveats in the caption: one seed, no paired test, Estonia's label is survivor-conditioned.
+
+```bash
+python -m fintfm.evaluation.credit_suite
+```
+
+**Exists** (§216; outputs in `runs/dr43-fdic/` and `runs/dr43-estonia/`). Formatting only.

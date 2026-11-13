@@ -8,6 +8,15 @@ plan.
 Opinionated on purpose. Where a claim rests on evidence, the evidence is in
 `docs/results/FINDINGS.md`; where it rests on judgment, it says so.
 
+**Checked against `FINDINGS` §195-§224 and `docs/paper/CLAIMS.md` on 2026-11-13.** The thesis
+and the term-structure evidence stand. What moved since this file was written is the
+general-tabular standing (now 903 Elo, 106th of 110 over all 51 TabArena-Lite datasets, §224,
+"FinTFM with a trained linear readout"; the zero-shot entry was 94th of 95 on 27 datasets, §122)
+and the credit comparison (§216: FinTFM is below logistic regression on all four admitted credit
+datasets). Dated notes below mark each place. Two commercial entrants were removed from this
+file by owner decision (2026-11-13), together with the points that rested on their own
+publications.
+
 ## The thesis, in one sentence
 
 **A coherent, auditable probability-of-default term structure for small and low-default
@@ -63,6 +72,12 @@ competitors including tuned gradient boosting on real credit data.** The approac
 scale; ours is not there. (Superseded: §114 closed scale as a lever for this model; see
 "What this revision overturns" below.)
 
+(2026-11-13, §216: the accuracy gap has since been measured on credit data and is against us on
+all four admitted credit datasets, FinTFM below logistic regression; §211: no inference or
+pretraining lever tried on V4FinBench clears the bar of +0.0117 mean AP with 4 of 5 folds.
+§169's partitioned contexts, +0.0375 mean AP to 0.2362 on 5 of 5 folds, remain the largest
+zero-shot gain, against CatBoost's 0.4005, §167. §114 closed scale for this model.)
+
 What is *not* provisional is coherence, the metric-range problem, and calibration being a
 method property rather than a domain one. Those are design and measurement facts that scale
 does not touch — which is precisely why the thesis leads with the one of them that is a
@@ -107,9 +122,11 @@ See `openspec/changes/calibration-mechanism`.
 
 Every *mechanism* claim is owned (`docs/competition/LANDSCAPE.md`): "no feature engineering" by Kumo in
 AP and Forbes, "in-context, no training on your data" by KumoRFM in NVIDIA's own
-documentation, synthetic-prior TFMs by Google TabFM and Prior Labs and Neuralk, "universal
-tabular FM for financial risk" by Feedzai. Competing on mechanism means competing on capital
-and distribution against a $255M Series A and a BigQuery integration. Do not pick that fight.
+documentation, synthetic-prior TFMs by Google TabFM and Prior Labs, a tabular foundation model
+for financial crime by Feedzai (announced 2026-03-24). Competing on mechanism means competing on
+capital and distribution against a BigQuery integration and an NVIDIA documentation listing. Do
+not pick that fight. (The NVIDIA listing is a 2026-09-08 reading, not re-confirmed 2026-11-13;
+`docs/competition/LANDSCAPE.md`.)
 
 Every *size* claim is also dead. Google ships TabFM into BigQuery for warehouse-scale
 tables and TimesFM-3 at 330M parameters over 10^12 time points. The large end is not
@@ -126,7 +143,7 @@ Sort the field by *what object each model predicts* and the hole is obvious:
 | camp | object | who |
 | --- | --- | --- |
 | time series | future values of a sequence | TimesFM-3, Chronos, t0-alpha, Toto |
-| tabular | a label for one row | TabPFN, TabFM, NEXUS, Seldon, RiskFM |
+| tabular | a label for one row | TabPFN, TabFM, RiskFM |
 | relational | a label for a node in a graph | KumoRFM, GraphPFN |
 | **panel hazard** | **an event-probability path per entity over time** | **nobody** |
 
@@ -155,13 +172,11 @@ The incumbent is not gradient boosting alone. Baesens et al. name the quasi-stan
 **gradient boosting paired with SHAP**, so the comparison includes explanations, and a model
 that wins on AUC but cannot say why loses anyway.
 
-**A competitor states the case for us.** Neuralk's financial services page opens by naming
-the two hard constraints as extreme accuracy *and tight regulatory scrutiny*, then addresses
-neither calibration, validation, PD term structure, IFRS 9, Basel nor low-default portfolios.
-Their own demo shows a bare "Default risk 6%" with "Approve at 4.9% APR" attached — a point
-estimate driving a pricing decision, with no interval, no horizon and no refusal path
-(`docs/competition/LANDSCAPE.md`). The distance between naming regulatory scrutiny and shipping something
-a model-risk function can validate is the product.
+A point estimate driving a pricing decision, with no interval, no horizon and no refusal path,
+is the object this project argues is insufficient: a model-risk function cannot validate a
+single 6% or provision against it. That distance, between a bare number and something a
+model-risk function can validate, is the product. (2026-11-13: the earlier paragraph here cited
+a competitor's own page for it; the point stands without the citation.)
 
 `finkele-axiom` transfers directly here: a validation protocol producing a certificate with
 conformal coverage and honest refusals is the same machinery pointed at a different domain.
@@ -208,7 +223,10 @@ paragraph to a customer.
 1. **No LGD and no EAD.** `docs/paper/LIMITATIONS.md` ("ECL needs three inputs") states it.
    A binned regression head now exists (§106 on synthetic probes; §121 on 12 TabArena
    regression datasets, where it ranks last on 5 of 12, mean rank 93.1, MEASURED). **No LGD
-   or EAD panel has been scored**, so there is no LGD or EAD number to offer.
+   or EAD panel has been scored**, so there is no LGD or EAD number to offer. (2026-11-13, §220:
+   a ridge readout on `v4-regression.pt` beats §121's entry on 12 of 12 paired TabArena-Lite
+   regression datasets, geometric-mean RMSE ratio 0.832; §223 gives 578 Elo on 13. These are
+   general regression datasets, not LGD or EAD.)
 2. **No discounting.** The model has no cash-flow schedule, contractual terms, repayment
    profile or effective interest rate. It emits a probability curve, not a present value.
 3. **No ECL.** Nothing here multiplies PD, LGD, EAD and a discount factor. Any statement that
@@ -351,6 +369,10 @@ PD and feature attributions from one forward pass, to displace GBM+SHAP rather t
   advantage across context resamples.
 
 ### Phase 5 — the forward register. **Start now, out of order.**
+(2026-11-13: not started. Only task 6.2, the power calculation, is done, 2026-11-11,
+`scripts/register_power.py`; 6.1, 6.3, 6.4 and 6.5 are open in
+`openspec/changes/forward-prediction-register/tasks.md`, so the elapsed-time asset is still not
+accruing.)
 A pre-registered cohort with hashed, timestamped predictions.
 
 - **Exit condition:** twelve months of elapsed, unfalsifiable record.
@@ -367,14 +389,11 @@ path, and no longer the justification for renting NVIDIA.
 - A general tabular foundation model. Contested on every axis by better-funded teams. **This
   was a position when written; it is now measured, on two independent populations.** TabArena
   places this project 94th of 95 (`docs/results/FINDINGS.md` §122); a private, unpublished
-  comparison against Neuralk-AI's TabBench places it at a mean rank of 15.1 of 16 against the
+  comparison on the TabBench benchmark places it at a mean rank of 15.1 of 16 against the
   same field on a differently-constructed 55-dataset population, and checked that this is not
   a preprocessing artefact -- fintfm loses to matched-preprocessing gradient-boosted trees by
   a mean AUC of −0.0815 (§134). Scale (§114) and depth (§123/§124/§126) were each tried and
-  came back null, and Neuralk-AI's own published account of TFM scaling
-  (`docs/paper/RELATED_WORK.md`) independently corroborates why: a TFM they tested "failed
-  outright" when its capacity outran its prior's richness, which is this project's own §112
-  finding (prior distinctiveness measured weak) from the other side. **The conclusion this
+  came back null. **The conclusion this
   supports is not "stop measuring general-tabular standing" -- `docs/roadmap/ROADMAP.md`'s
   Phase A' and Phase C were still worth running, because a differently-shaped decision layer
   (§130-§133) moved an unpublished exploratory variant up one position (§132, 94th to 93rd of
@@ -382,6 +401,15 @@ path, and no longer the justification for renting NVIDIA.
   combined prior measured negative on V4FinBench, §141) -- it is
   "the credit-panel thesis below is the actual bet, and every general-tabular result is a
   calibration check on that bet's cost, not a competing goal in its own right."**
+  (2026-11-13, §224: the standing since §122 is a linear readout on the network's
+  representation, not the zero-shot model: 903 Elo, 106th of 110 over all 51 TabArena-Lite
+  datasets, against 1,000 for RandomForest (default). By problem type: binary 974 on 30 datasets
+  (§220), multiclass 865 on 8, regression 578 on 13 (§223, §224). Owner decision DR7.6
+  (2026-11-11): hold the TabArena PR until multiclass and regression improve; the target is about
+  1,000 overall Elo. The pools differ from §122's, so 94th of 95 and 106th of 110 are not
+  comparable ranks.) (2026-11-13: an earlier sentence here cited a competitor's own
+  published account of TFM scaling as corroboration of §112; it was removed with that
+  competitor, and §112 and §114 stand on this project's own measurements.)
 - Fraud. Owned by Kumo and Feedzai, and needs real-time serving infrastructure.
 - Time-series forecasting. Google has 330M parameters and 10^12 time points in BigQuery.
 - Market or return prediction. Harder science, severe validation traps, sophisticated
@@ -408,6 +436,10 @@ path, and no longer the justification for renting NVIDIA.
    abstracts, and both bear directly on scope.
 
 Everything before a Phase 1 result is positioning, and positioning is not evidence.
+
+Status 2026-11-13: items 1 and 2 are done (Phase 1 exit condition A, §14, amended by §15;
+coherence, §11); item 4 is done (V4FinBench ingested, §22); item 3 is open (task 6.1); item 5
+(the two full papers) has no record in `FINDINGS` of being done, so it is unverified here.
 
 ## Two structural plays, borrowed as inspiration rather than method
 
@@ -442,6 +474,10 @@ show a validator* — rather than a claim to be more accurate than Google.
 
 ## The honest risk register
 
+- **The credit result may stay below logistic regression.** (Added 2026-11-13, §216.) On the
+  four admitted credit datasets FinTFM is below logistic regression, and on V4FinBench it is
+  below CatBoost (§167). The thesis does not depend on beating either on accuracy, but a
+  buyer will ask, and the answer today is the one the evidence gives.
 - **The prior may not transfer.** Unmeasured. Phase 1 exists to kill it fast. (Since measured:
   exit condition A met, §14, amended by §15; see Phase 1 above.)
 - **The margins in this domain are small.** Baesens et al. found significance in 22 of 406
@@ -450,8 +486,9 @@ show a validator* — rather than a claim to be more accurate than Google.
 - **Low-default-portfolio benefit is conjecture.** The field's own authoritative benchmark
   named it and did not test it (mean default rate 22%). We would be first, which is the
   opportunity and the risk in one sentence.
-- **Fundamental verticalises into finance.** A go-to-market motion for them, not research.
-  Only regulatory depth and elapsed track record answer it.
+- **A funded general-tabular team verticalises into finance.** A go-to-market motion for
+  them, not research. Only regulatory depth and elapsed track record answer it. (A judgement,
+  not an observation of any named company; 2026-11-13.)
 - **Data access is the binding constraint**, and it may cap what can be shown without capital.
 - **Homogenisation is a real risk of the category**, not a talking point: if many lenders
   score with one model their failures correlate, which is systemic risk. Say it to a

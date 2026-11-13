@@ -15,6 +15,12 @@ architecture, and §101's fix lifted the mean to **0.7823** with the rank unchan
 binary arm since has landed between 0.7746 and 0.7926, and none has moved the rank, except
 §132's unpublished linear-probe variant: Elo 910, 93rd of 95.
 
+(2026-11-13, §224): the figures above are the submitted entry, zero-shot and binary only. The
+current work is a different entry, "FinTFM with a trained linear readout", over all 51
+datasets: **903 Elo (+102 / -110), 106th of 110** on TabArena-Lite (repeat 0, fold 0). It is
+Lite-only, not a public-board number, and the PR is on hold (DR7.6). See "The 51-dataset Lite
+entry" at the end of this file.
+
 ## Why bother, given the rank
 
 Every accuracy number this project produced before §98 was measured against baselines this
@@ -41,6 +47,10 @@ because TabArena discovers models from its own registry:
 TabArena's `fintfm` extra pins `fintfm==0.5.5` from PyPI (`packages/tabarena/pyproject.toml`).
 To test an unreleased change, install the local checkout into the TabArena environment as an
 editable install instead, as §132 did; a change here is then live there with no reinstall.
+
+(2026-11-13): the pin above is the one PR #616 was submitted with. The fork's `fintfm` extra now
+pins `fintfm==0.10.0` (fork commit 48c0101 on `fintfm-audit-fixes`, pushed 2026-11-13). §220
+reproduced §215's configuration bit for bit on 27 of 27 binary datasets from the 0.9.0 PyPI wheel.
 
 ## Running it
 
@@ -80,6 +90,26 @@ datasets in the current release. A split computed from them is vacuous and, wors
 plausible — every dataset lands in the "no categoricals" bucket. Read feature types from
 OpenML instead (`openml.tasks.get_task(tid).get_dataset().get_data()`), as §100 does.
 
+**More silent or costly traps found since** (2026-11-13; each is sourced where it is described):
+
+- **A problem-type filter that leaves zero eligible datasets does not fail.** The script prints
+  the existing leaderboard, which reads like a result (the DR7.4 multiclass run, "E1's
+  480,000-task checkpoint" below).
+- **Env-var options do not change the config name**, so the caching trap applies to
+  `FINTFM_PARAMS` and `FINTFM_PROBE` as well (the fork's `fintfm_linprobe/model.py` says so in
+  the docstring of `_probe_options`). Give each arm a new `FINTFM_RUN_NAME`.
+- **MPS memory grows across fits in one process** (85 GB against 3.3 GB of live tensors), so
+  Apple-Silicon arms ran one process per dataset ("Inference arms" below).
+- **A readout that re-reads training rows through a private method can see a wider table than
+  prediction does.** This one was loud: `feature width at predict time must match fit time`
+  stopped Bioresponse, QSAR-TID-11 and the first multiclass run until fork commit f9ea61d
+  (§220). No earlier Lite number was affected.
+- **A dataset near the time limit passes by luck.** Amazon_employee_access hit AutoGluon's
+  `TimeLimitExceeded` after 482 s under probe, squash and partition, and fitted in the next call
+  (§215). Treat it as a risk for any submission run.
+- **A merge can pass with the wrong count.** `merge_fintfm_lite.py` refuses a count other than
+  `--expect`, so always pass `--expect 51` (§221).
+
 ## Coverage, which must be reported with any score
 
 The suite is 30 binary, 13 regression and 8 multiclass. Coverage has moved twice:
@@ -96,6 +126,11 @@ then scored on real data for the first time, and both rank last — multiclass 9
 7 datasets, regression 93.1 of 94 over 12 and **last on 5 of them** (§121). They remain
 implemented and tested; declaring them would publish a capability the measurement says is not
 there. **A higher coverage fraction is not worth a claim that does not hold.**
+
+(2026-11-13, §221): the "5 wide" datasets now run. `max_features_strategy: select` admits them
+without a new checkpoint, and the 51-dataset Lite entry scores 51 of 51 with no exclusion (all
+three problem types declared, each with its own checkpoint). Its ranks on the wide tables are low
+(§220, §221); see the last section. The last table row is the submitted entry, not the current one.
 
 A mean over 27 datasets is not comparable with a mean over 51, and the leaderboard's Elo is
 computed only where a method actually ran, so the fraction goes beside the number every time.
@@ -458,6 +493,9 @@ problem type, merged as `FinTFM-assembled-46` (`eval/fintfm_assembled46_1110/` i
 | multiclass | 7 | `fintfm_lite_dr74_mc` | zero-shot FinTFM, DR7.4 checkpoint |
 | regression | 12 | `cov_regression` (§121) | zero-shot FinTFM, binned regressor |
 
+(2026-11-13, §221: superseded as a planning figure by the real 51-dataset merge, 880 Elo, then
+§224's 903. Kept below as written.)
+
 It scores **862 Elo (+120/−133), 107th of 110 methods, over 46 datasets.** That is above LR
 (default) at 827 and KNN (tuned) at 797, and below LR (tuned) at 923 and RF (default) at 1000.
 The entry mixes two entrants, so it is a planning figure for the 51-dataset decision, not a
@@ -469,3 +507,71 @@ to 862. Those two are what `lite-mc-pp` and `lite-reg-pp` measure with the probe
 (`kabartay/fintfm-binary`, Apache-2.0). A 51-dataset entry runs the DR7.4 multiclass
 checkpoint and `v4-regression.pt`, which stay private (see above), so the owner would have to
 publish both before a submission could be reproduced.
+
+## The 51-dataset Lite entry: "FinTFM with a trained linear readout" (§220 to §224; 2026-11-13)
+
+**Result: 903 Elo (+102 / -110), 106th of 110, over all 51 TabArena-Lite datasets with no
+exclusion** (§224; repeat 0, fold 0, CPU; merged run `fintfm_linprobe_all51_1113`, log
+`runs/merge_all51_1113.log`). MEASURED. This is breadth only: TabArena-Lite
+is general-tabular, V4FinBench decides (§211), and it is not a public-board number (the public
+board scores every split). Below `Linear (tuned)` 919, `Linear (tuned + ensembled)` 936 and
+`RandomForest (default)` 1,000. The PR is **held** (owner decision DR7.6, 2026-11-11) until
+multiclass and regression improve; nothing has been submitted.
+
+| problem type | datasets | Elo | source |
+| --- | --- | --- | --- |
+| binary | 30 | 974 (+138 / -169) | §220 |
+| multiclass | 8 | 865 (+120 / -293) | §224 |
+| regression | 13 | 578 (+109 / -297) | §223 |
+| overall (merge of the three) | 51 | 903 (+102 / -110) | §224 |
+
+On the 27 narrow binary datasets alone, the §215 arm is 1,000.2 (+156 / -167), level with `RF
+(default)` at 1,000.0 and 13 / 14 on paired datasets (§215). The three wide binary tables cost 26
+Elo (§220): APSFailure (170 columns) ranks 102nd of 108, Bioresponse (1,776) 103rd and
+kddcup09_appetency (212) 91st.
+
+**Progression of the overall figure**, each step from its own finding: 880 (§221, 107th of 110),
+888 (§222, multiclass 751 to 825), 898 (§223, regression 436 to 578), 903 (§224, multiclass 865
+via four partition bags).
+
+**What the entry is, and what it must declare.** Label: "FinTFM with a trained linear readout",
+not zero-shot FinTFM. A logistic regression (binary and multiclass) or ridge regression
+(regression) is fitted on the network's pre-head representation of the training split. For
+multiclass and regression the readout also takes the row's own squashed features (`raw`, §222,
+§223), so it is a linear model over the representation plus the features; the entry has to say
+so. Column selection (`select`) changes what the model sees on wide tables and is declared too.
+The squash transform is null on V4FinBench (§211), so this is a Lite-only configuration.
+
+**Configuration**, all in the tabarena fork (`~/proj/tabarena`, branch `fintfm-audit-fixes`),
+where each run is `run_fintfm_lite.py` with a distinct `FINTFM_RUN_NAME`:
+
+| setting | value | source |
+| --- | --- | --- |
+| `max_features_strategy` | `select`, inside `FINTFM_PARAMS`; admits tables wider than the checkpoint | §220 |
+| feature transform | `squash` | §212, §215 |
+| `FINTFM_PARTITION` | JSON; `{}` is depth 2, `min_samples_leaf` 0.05, one bag; `{"n_bags": 4}` for multiclass; a probe is fitted per leaf. Not applied to regression | §212, §215, §224 |
+| `FINTFM_PROBE` | JSON readout options: `scale`, `cv` (C from 10^-3 to 10^2 by 3-fold log loss), `raw`, `head`. Multiclass uses scale + cv + raw; regression uses `{"raw": true}`. `head` is available and not kept (§224) | §222, §223, §224 |
+| `FINTFM_MAX_CONTEXT` | default 1,000; 4,000 changed nothing on multiclass | §224 |
+| `FINTFM_ALLOW_MULTICLASS`, `FINTFM_ALLOW_REGRESSION` | opt-in problem types; each needs its own checkpoint | fork `run_fintfm_lite.py` |
+| checkpoints | binary: published; multiclass: `dr74-mc-s0`; regression: `v4-regression.pt` | §221 |
+
+The multiclass winner and the regression arm are the two with probe options set. The probe code
+is `models/fintfm_linprobe/model.py` in the fork; the head option arrived at fork 7f0b062 and the
+readout options at b149d96.
+
+**The merge.** `merge_fintfm_lite.py` (fork root, introduced at 8aefd8d) registers the three
+runs as one method and fits nothing. It refuses a dataset scored twice, a split other than
+Lite's and a count other than `--expect` (pass `--expect 51`); `merged_from.json` records which
+run scored each dataset. None of the 51 datasets is imputed for FinTFM (§221).
+
+**What was tried on multiclass and did not help** (§222, §224): the 480,000-task checkpoint
+(+11 Elo, 5 of 8 better, p 0.73), the head's log probabilities (825 to 825, 8 times slower), and
+a 4,000-row context (820). Four partition bags give +40 Elo and are noisy: three datasets are
+worse, website_phishing by 4.3%. `mc-bag8` is queued (§224); no result yet.
+
+**Gaps to state first.** (1) Overall is 97 Elo below `RF (default)`. (2) Regression (578) is the
+weakest type; the remaining lever is a regression checkpoint on the current recipe, which needs
+a GPU (§223). (3) The readout options are untested on binary, and under the V4FinBench-first
+rule they are scored there before any binary Lite run (§223). (4) The multiclass checkpoint
+`dr74-mc-s0` and `v4-regression.pt` are private, so a PR would need both published, or the
+entry could not be reproduced.

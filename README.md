@@ -15,7 +15,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-green.svg" alt="License"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/python-3.12%20%7C%203.13-blue.svg" alt="Python"></a>
   <a href="https://huggingface.co/kabartay/fintfm-binary"><img src="https://img.shields.io/badge/%F0%9F%A4%97%20weights-fintfm--binary-yellow" alt="Checkpoint"></a>
-  <a href="docs/results/TABARENA.md"><img src="https://img.shields.io/badge/TabArena-94th%20of%2095-critical" alt="TabArena"></a>
+  <a href="#status-stated-plainly"><img src="https://img.shields.io/badge/TabArena--Lite-106th%20of%20110-critical" alt="TabArena-Lite"></a>
   <a href="https://kabartay.github.io/fintfm/leaderboard/"><img src="https://img.shields.io/badge/leaderboard-live-8957e5" alt="Leaderboard"></a>
 </p>
 
@@ -53,14 +53,14 @@ financial tables, and to say honestly where it currently is not.
 
 | | |
 | --- | --- |
-| **External benchmark** | [TabArena](https://tabarena.ai), 27 binary datasets against 94 other methods: **rank 94 of 95**, integration confirmed correct by a maintainer and the entry declined on competitiveness (§122) |
-| **On real credit panels** | discrimination loses to gradient boosting on V4FinBench's full panel: untuned CatBoost scores 0.40 mean AP against FinTFM's 0.20 (§163; LightGBM at 1,000 trees 0.3908, §167, so the lead is boosting rounds, not one library). On four further credit datasets (SBA 7(a), ULB, FDIC, Estonia) FinTFM is below untuned logistic regression on mean AP on all four (§216). Calibration was best or near-best on four panels for the pre-cell-attention architecture (Claim 9, §73); the published checkpoint's predicted default level misses the observed rate by 1.2 to 3.2 times on ULB and two FDIC splits (§174, §216), so the calibration claim is not made for it. |
+| **External benchmark** | **TabArena-Lite, all 51 datasets with no exclusion: 903 Elo, 106th of 110** (§224), one fold, run in this project's TabArena fork and not on [tabarena.ai](https://tabarena.ai). The entry is "FinTFM with a trained linear readout", a linear model fitted on the network's representation, which for multiclass and regression also takes the row's own features. By type: binary 974 on 30 datasets (§220), multiclass 865 on 8 (§224), regression 578 on 13 (§223). RandomForest (default) scores 1,000 and Linear (tuned) 919 on the same board. These are general-tabular numbers, not credit results. Not resubmitted yet (design review DR7.6). The earlier submission, the zero-shot model on 27 binary datasets, ranked **94 of 95**; a maintainer confirmed the integration correct and declined the entry on competitiveness (§122) |
+| **On real credit panels** | discrimination loses to gradient boosting on V4FinBench's full panel: untuned CatBoost scores 0.40 mean AP against FinTFM's 0.20 (§163; LightGBM at 1,000 trees 0.3908, §167, so the lead is boosting rounds, not one library). On four further credit datasets (SBA 7(a), ULB, FDIC, Estonia) FinTFM is below untuned logistic regression on mean AP on all four (§216). Calibration was best or near-best on four panels for the pre-cell-attention architecture (Claim 9, §73); the published checkpoint over-predicts the observed default rate by 1.2 to 1.7 times on ULB (§174), and on FDIC by 1.9 and 3.2 times on two splits while under-predicting the third (0.396% against 0.735%; the run record behind §216, `docs/results/drafts/dr4.3-runs_2026-11-07.md`), so the calibration claim is not made for it. |
 | **Fine-tuning** | opt-in per-dataset fine-tuning (`finetune_steps`, 0.7.0) lifts V4FinBench AP on 5 of 5 folds, 0.1986 → 0.2062 — the first lever to move it, closing 3.8% of the gap to CatBoost (§163). Zero-shot partitioned contexts (`fintfm-v4protocol --large-n partition`) then lift it further with no training, 0.1986 → 0.2362, +0.0375 on 5 of 5 folds (§169), and beat the fine-tuned arm on 5 of 5 folds (§205) |
 | **Licence** | Apache-2.0, **code and weights** — chosen separately, not inherited (see [Licensing](#licensing--provenance)) |
 | **Checkpoint** | [kabartay/fintfm-binary](https://huggingface.co/kabartay/fintfm-binary) — 885K, binary, ≤136 features |
-| **Tests** | about 1,300 collected (2026-11-09), plus `ruff`, the openspec validator, a dependency-licence check and a documentation-link check — all in CI |
+| **Tests** | about 1,350 collected (2026-11-13), plus `ruff`, the openspec validator, a dependency-licence check and a documentation-link check — all in CI |
 | **Measurement log** | 224 numbered entries, each declaring how its numbers were produced; pre-registrations are written before their arms run |
-| **Problem types** | binary declared; multiclass and regression implemented but **not** declared (§121) |
+| **Problem types** | binary declared, and the only published checkpoint. Multiclass and regression run on TabArena-Lite with their own unpublished checkpoints (§221-§224) but are **not** declared (§121) |
 
 **Read [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md) before anything else.** Every claim this
 project could make is tagged SURVIVES / SINGLE DRAW / SUPERSEDED / RETRACTED / OPEN against its
@@ -90,7 +90,7 @@ TabArena review used (§122, Elo 765), and still 94 of 95 at Elo 763 after a ref
 cache (§150), and at Elo 756 with missing values passed through rather than zero-filled
 (2026-10-19, `docs/results/TABARENA.md`). The move from 93 to 94 is the board changing, not the model.
 
-**One change has moved the TabArena number, and it was preprocessing rather than
+**In this series, one change moved the TabArena number, and it was preprocessing rather than
 architecture.** The tree prior adds a further +0.0094 here and replicates across two
 seeds — but costs **−0.0221 average precision on credit data** (§116), negative on 5 of 5 folds
 with three surviving multiple-comparison correction at p < 0.001, so it ships off by default.
@@ -101,14 +101,41 @@ evidence that the tree prior hurts credit is gone; it still ships off, now pendi
 a matched share and two seeds. DR2.4 (§180, §191) ran mixed-prior arms instead, all four harmful
 on V4FinBench, and is not that test.)
 
-The full table, including an unpublished exploratory variant (a linear probe on the model's
-representation, §132) measured at 910 Elo, is published at
-**[kabartay.github.io/fintfm/leaderboard](https://kabartay.github.io/fintfm/leaderboard/)** —
-this project's own comparison, not [tabarena.ai](https://tabarena.ai), and its Elo is comparable
-only within the population it was computed over.
-Everything else tried — parameter scale at matched task volume, training volume, a widened
-structural-causal prior — has been null or negative. **None of them moved the published
-model's rank**; only the unpublished linear-probe variant moved one position (§132).
+Everything else tried on the pretrained model (parameter scale at matched task volume, training
+volume, a widened structural-causal prior) has been null or negative, and **none of it moved the
+published model's rank.** What has moved the number since is the readout and the adapter, on
+TabArena-Lite.
+
+### TabArena-Lite, with a trained linear readout
+
+From §204 on, the work moved to TabArena-Lite (one fold per dataset) and to the adapter in this
+project's TabArena fork. Every row below is labelled **"FinTFM with a trained linear readout"**:
+a logistic regression (ridge for regression) fitted on the network's pre-head representation of
+each training split, so it is not the zero-shot model. Elo comes from each run's own leaderboard
+against the full TabArena field (110 methods by §221). Each Elo carries an interval of roughly
+±100 to ±180, so a step of a few Elo between rows is not significant on its own; the cited
+entries give the paired per-dataset tests.
+
+| change | datasets | Elo | source |
+| --- | --- | --- | --- |
+| zero-shot default (missing values passed through) | 27 binary | 756 | §210 |
+| linear readout + `feature_transform="squash"` | 27 binary | 969 | §212 |
+| + partitioned contexts, one readout per leaf | 27 binary | 1,000.2, level with RandomForest (default) at 1,000.0, 13 datasets better and 14 worse | §215 |
+| + the three wide binary tables, via `max_features_strategy: select` | 30 binary | 974 | §220 |
+| all 51 datasets, no exclusion | 51 | 880, 107th of 110 | §221 |
+| multiclass readout scaled, C cross-validated, row features appended | 51 | 888 | §222 |
+| regression readout with row features appended | 51 | 898 | §223 |
+| four partition bags for multiclass | 51 | **903, 106th of 110** | §224 |
+
+**These are breadth results, not credit results.** On V4FinBench, a readout per partition leaf
+scored −0.0570 mean AP, higher on 0 of 5 folds (§218). §219 traced that to a sampling
+defect in the harness, fixed in 0.10.0; the rerun is pending, so no credit claim rests on this
+table.
+
+The earlier 27-dataset series, including a linear-probe variant at 910 Elo (§132), is published
+at **[kabartay.github.io/fintfm/leaderboard](https://kabartay.github.io/fintfm/leaderboard/)**.
+That is this project's own comparison, not [tabarena.ai](https://tabarena.ai), and its Elo is
+comparable only within the population it was computed over.
 
 ## What this project does
 
@@ -197,8 +224,8 @@ offered.
    regardless of prevalence; AP's floor is the prevalence itself, so it stays legible at the
    base rates this project's target segment actually has).
    `fintfm/evaluation/credit_suite.py` is a second credit suite outside V4FinBench, evaluation
-   only and never training; it currently admits ULB card fraud, SBA, Estonia and FDIC (§174, §177
-   for the first two results).
+   only and never training; it currently admits ULB card fraud, SBA, Estonia and FDIC (§174 and
+   §177 for the first two results, §216 for all four).
    `fintfm-priorscore` scores a *prior* rather than a model, on the three criteria the
    literature converged on — performance, diversity, distinctiveness — using **fitted**
    baselines only, so it cannot confuse "the prior lacks this structure" with "our model cannot
@@ -328,9 +355,8 @@ identifier.
 ## Licensing / provenance
 
 Everything here — the prior, the architecture, the training loop — is original code written
-for this project. **No weights, datasets, or source from Neuralk (Seldon), Fundamental
-(NEXUS), Google TabFM, TabPFN, TabICL, TabDPT, or any other tabular-foundation-model product
-are used or may be added.** Those are cited in project discussion purely as public
+for this project. **No weights, datasets, or source from Google TabFM, TabPFN, TabICL, TabDPT,
+or any other tabular-foundation-model product are used or may be added.** Those are cited in project discussion purely as public
 research/product context. Every third-party dataset or dependency's licence is checked before
 use, and a *weight* licence is checked separately from its *code* licence, every time — never
 assumed from a prior check. Direct dependencies are all permissive — numpy, pandas and
@@ -368,8 +394,9 @@ something this repository can assert on their behalf.
 ## What would change the picture
 
 Stated so the project is falsifiable rather than open-ended. Two deficits are measured
-separately. On TabArena, FinTFM trails tuned logistic regression by ~0.035 mean ROC-AUC over 27
-datasets (§101). On V4FinBench's full panel, untuned CatBoost (library defaults, 1,000
+separately. On TabArena, zero-shot FinTFM trailed tuned logistic regression by ~0.035 mean
+ROC-AUC over 27 datasets (§101); with a trained linear readout, squash and partitioned contexts
+it is level with it (+0.0036 mean ROC-AUC, 13 of 27 datasets better, §215). On V4FinBench's full panel, untuned CatBoost (library defaults, 1,000
 iterations) leads it by about 0.19 mean average precision over five folds (0.4005 against 0.2062
 fine-tuned, §163). (§167, 2026-10-16: both figures use V4FinBench's published features, which
 keep `operational_status`. On the same features LightGBM at 1,000 trees and learning rate 0.05
@@ -386,8 +413,8 @@ GPU scale (§160-§161). These are the remaining candidates:
 
 | still open | why it is a candidate | status |
 | --- | --- | --- |
-| **factorized attention** | the encoder is memory-bound at every turn, and three peers independently chose the cheaper form | proposed (44.x), prior art recorded |
-| **a joint objective** | `p(x, y \| D)` rather than `p(y \| x, D)` makes every column a training signal, not just the target | proposed (48.15), scoped as a measurement before a rewrite |
+| **factorized attention** | the encoder is memory-bound at every turn, and three peers independently chose the cheaper form | cost model written and checked against measured runs (44.1, [`docs/design/attention_cost_model.md`](docs/design/attention_cost_model.md)); the encoder is not built |
+| **a joint objective** | `p(x, y \| D)` rather than `p(y \| x, D)` makes every column a training signal, not just the target | masked-column objective implemented (`--masked-column-prob`, 0.9.0); its 48,000-task arm is queued, not measured (48.15) |
 | **prior design** | the only lever a peer's own ablations identify as decisive | instrument built and partly falsified — see below |
 
 ### Closed by measurement
@@ -398,7 +425,9 @@ reason the list above is short:
 | candidate | what the measurement said |
 | --- | --- |
 | parameter scale | **−0.0049** at 5.7× the parameters on *matched* task volume (§114). A peer's published curve returns +0.0049 R² for 16.7×, against a 0.035 deficit. |
-| training volume | null at 5× (§93); **+0.0028** at 2× (§114); **−0.0106** mean AP at 10× over two seeds on V4FinBench, 9 of 10 folds negative (§188). |
+| training volume | null at 5× (§93); **+0.0028** at 2× (§114); **−0.0106** mean AP at 10× over two seeds on V4FinBench, 9 of 10 folds negative (§188). For multiclass, 480,000 tasks is null on the proxy (§198) and on TabArena-Lite (+11 Elo, 5 of 8 datasets, §222). |
+| the Muon optimiser | **−0.0125** mean AP at 48,000 tasks, 0 of 5 folds positive: harmful (§211). |
+| longer training contexts | rows up to 2,000 per training task: −0.0042 mean AP, 1 of 5 folds positive, null (§211). |
 | depth over width | on TabArena it could not be scored: the harness's per-dataset time limit stopped it after 8 of 27 datasets (§114). On V4FinBench, 16 layers against 4 at width 128 is null: +0.0010 mean AP over five folds at a matched learning rate (§124, §126); at 480,000 tasks depth is null again, −0.0047 mean AP, 3 of 5 folds positive (§195). |
 | `column_id_dim` | peaks at the value chosen by accident; all four non-peak arms below it on all five folds (§104). |
 | a widened structural-causal prior | **p = 1.000** against its own matched control. |
@@ -436,7 +465,7 @@ because they are what stops the same wrong conclusion being reached twice.
 - [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md) — **start here.** Every claim this project
   could make, tagged by status, newest evidence wins.
 - [`docs/results/FINDINGS.md`](docs/results/FINDINGS.md) — the full measurement log, numbered sequentially
-  (207 entries at the time of writing), each declaring how its numbers were produced.
+  (224 entries on 2026-11-13), each declaring how its numbers were produced.
 - [`docs/design/DECISIONS.md`](docs/design/DECISIONS.md) — why the project is built the way it is, and what
   would reverse each choice.
 - [`docs/roadmap/STRATEGY.md`](docs/roadmap/STRATEGY.md) — the plan of record.
@@ -476,12 +505,14 @@ src/fintfm/
 docs/
   results/       FINDINGS.md, the numbered measurement log this project is organised around,
                  plus TABARENA.md and POSTMORTEM.md
-  paper/         CLAIMS.md (what holds, what was retracted), RELATED_WORK.md, LIMITATIONS.md
-  design/        ARCHITECTURE.md, DECISIONS.md, GLOSSARY.md
+  paper/         CLAIMS.md (what holds, what was retracted), NEGATIVE_RESULTS.md,
+                 RELATED_WORK.md, LIMITATIONS.md, OUTLINE.md, FIGURES.md
+  design/        ARCHITECTURE.md, DECISIONS.md, GLOSSARY.md, DESIGN_REVIEW_2026-10-16.md,
+                 attention_cost_model.md
   roadmap/       ROADMAP.md (what to do next), STRATEGY.md, NEXT.md, TABARENA_BAR.md
   competition/   LANDSCAPE.md, SUBMISSION.md
   infra/         COMPUTE.md, HF_JOBS.md
-  research/      REFERENCES.md, RESEARCH_NOTES.md
+  research/      REFERENCES.md, RESEARCH_NOTES.md, IMPROVEMENT_PLAN_2026-11.md
 
 openspec/changes/   one proposal per change, with its task list; the queue lives here
 scripts/            the repository's own gates (licence, documentation links, Zenodo metadata)
@@ -518,7 +549,7 @@ retracted stay in place rather than being edited away.
   | rejecting unlearnable synthetic tasks | Nori | measured: would reject 35% of this prior, and discards signal the model uses (§125) |
   | narrow-and-deep shape, 16 layers at width 128 | Nori | measured: null here, +0.0010 AP (§124, §126) |
 
-  Four of those five ideas were measured and **not** adopted. That is the point of taking them:
+  Three of those five ideas were measured and **not** adopted. That is the point of taking them:
   a published result from a different prior and architecture is a hypothesis about this one, not
   a conclusion about it.
 
@@ -569,6 +600,6 @@ does exactly that for ten of them. Ingesting any of it would destroy the provena
 above, and nothing would warn us.
 
 **Check a weights licence separately from its code licence, every time.** Four of the ten peer
-projects read for this release ship permissive code with **non-commercial weights**, a split
+projects read in [`docs/paper/RELATED_WORK.md`](docs/paper/RELATED_WORK.md) ship permissive code with **non-commercial weights**, a split
 invisible from a repository's headline licence badge. One of them restricts commercial use of
 the model's *output*, not merely the weights.

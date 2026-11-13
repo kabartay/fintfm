@@ -14,6 +14,11 @@ As of 2026-10-15: **224 open tasks, in 36 of 37 changes**, 61 of them in
 `audit-2026-10-15` (170 across 34 changes on 2026-09-20). The count can rise as well as
 fall: finishing one item often discovers two, and that is the queue working.
 
+**2026-11-13, same command: 165 open tasks, in 36 of 38 changes.** 7 are in `audit-2026-10-15`
+(AU5.1, AU5.3, AU5.9, AU5.11, AU5.13, AU5.15, AU5.17) and 5 in `design-review-2026-10-16`
+(DR3.11, DR6.4, DR7.5, DR7.6, DR8.3). The live ordering is [`ROADMAP.md`](ROADMAP.md); the
+tiers below are history, with a dated status line under each where the task files have moved.
+
 ---
 
 ## Tier 0 — superseded 2026-09-25 by ROADMAP.md
@@ -52,6 +57,10 @@ measured share attached to each candidate.
    **−0.0320 numeric-only residual**, which is what is left after §100 removes the
    preprocessing share. Its cost model must retrodict linear CUDA and quadratic MPS growth
    (§95) before it is trusted.
+
+Status 2026-11-13: item 1 closed by §101 (47.3 checked, 47.4 open); item 2 by §104; item 3
+landed (§121; 46.2 and 46.7 still open in `regression-and-multiclass`); item 4 is
+`factorized-attention`, where 44.1 is done (2026-11-11) and 44.2 to 44.6 are open.
 
 **What is deliberately *not* at the top:** a TabArena leaderboard PR. At 51% coverage with a
 degraded categorical path it would measure the workaround as much as the model
@@ -107,6 +116,11 @@ small; coherence was measured large. The queue follows the evidence.
    observable outcomes. Pure licence reading, no compute. **Out of tier order deliberately:
    start now**, because the asset is elapsed time and delay is the only way to lose it.
 
+(Status 2026-11-13, tier 1: `pd-term-structure` has 11.1, 11.2, 11.4, 11.5, 11.6 (2026-11-11)
+and 11.7 checked; 11.3 and 11.8 are open. `prior-width-and-fidelity` 15.1 to 15.5 are all open.
+`forward-prediction-register` has 6.2 done; 6.1, 6.3, 6.4 and 6.5 are open, so the register has
+not started and its elapsed-time asset is not accruing.)
+
 ## Tier 2 — blocks any external claim
 
 5. **`second-credit-panel` tasks 7.2-7.3** — ingest V4FinBench. **Done in practice: ingested in
@@ -131,11 +145,18 @@ small; coherence was measured large. The queue follows the evidence.
 11. **`zero-shot-attribution`** — the incumbent is gradient boosting **plus SHAP**, so half a
     replacement loses.
 
+(Status 2026-11-13, tier 2: `second-credit-panel` 7.2 to 7.4 are open although V4FinBench is
+ingested and used throughout; `time-based-evaluation` 3.3 and 3.4 are open; `ci-and-release-gates`
+has 8.4 and 8.6 open. Tier 3: `fitted-calibration` 4.1 and 4.2 are done (2026-11-08), 4.3 is a
+SMOKE-TEST only, 4.4 is open; `conformal-pd-certificate` 5.1 to 5.7 are all open, so no
+certificate exists; `zero-shot-attribution` 12.2 to 12.5 are open.)
+
 ## Tier 4 — science, once direction is settled
 
 12. **`temporal-financial-prior`** — largest known gap between prior and task; needs
     V4FinBench.
-13. **`scaling-curve`** — **demoted.** Beyond IID says scale does not fix the non-IID regime,
+13. **`scaling-curve`** — **demoted.** (2026-11-13: tasks 9.1 to 9.5 are open; scale was closed
+    by measurement instead, §114, §188, §195, §202.) Beyond IID says scale does not fix the non-IID regime,
     so this no longer justifies renting NVIDIA and is not on the critical path.
 
 ---
@@ -163,4 +184,9 @@ Discoveries append here rather than into a tier. Triage happens when Tier 0 empt
 - **GraphPFN convergence risk.** If tabular foundation models can be turned into graph ones,
   Kumo's structural advantage becomes reproducible from open weights, which changes the
   competitive picture (`docs/competition/LANDSCAPE.md`).
+- (2026-11-13: the `max_context` item above has since been measured. §211 records
+  `max_context` 900 with 3 members at +0.0093 mean AP on V4FinBench, null, and training with
+  contexts to 2,000 rows at −0.0042, null; a 4,000-row context was null on multiclass
+  TabArena-Lite (§224). Partitioned contexts, +0.0375 mean AP (§169), are the context change
+  that helped.)
 - **Homogenisation** belongs in the certificate's own caveats rather than as a separate change.

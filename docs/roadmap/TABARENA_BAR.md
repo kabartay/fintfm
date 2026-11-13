@@ -4,6 +4,13 @@
 declined. §122 records the outcome. This file records what would have to change before
 resubmitting, and in what order.
 
+(2026-11-13, §224): standing now. The 51-dataset Lite entry "FinTFM with a trained linear
+readout" scores 903 Elo (+102 / -110), 106th of 110, with no dataset excluded (binary 974 on 30,
+multiclass 865 on 8, regression 578 on 13). Requirement 1 is met on Lite and requirement 2 is not.
+The PR is held (owner decision DR7.6, 2026-11-11) until multiclass and regression improve. The
+recipe is in the last section of [the TabArena recipe](../results/TABARENA.md); the dated notes below
+update this file's statements and leave the originals in place.
+
 Two requirements were stated, and only one of them is mechanical.
 
 ## Requirement 1: all 51 datasets
@@ -20,6 +27,13 @@ Coverage today is 27 of 51. The suite is 30 binary, 13 regression, 8 multiclass.
 | regression not declared | 13 | publish the binned-head checkpoint measured in §121 |
 | over the 136-feature cap | 3 binary, 2 other | a checkpoint trained above **1776** features (`Bioresponse`) |
 
+(2026-11-13, §220, §221: the 5 wide datasets, multiclass and regression all run on Lite now.
+`max_features_strategy: select` admits the wide tables with no new checkpoint, so the 1776-feature
+retrain was not needed to score 51 of 51. The wide tables rank low: Bioresponse 103rd of 108,
+APSFailure 102nd, kddcup09_appetency 91st (§220); hiva_agnostic 90th of 108 (§221). The cheaper
+route named below is, in effect, what was measured. Publishing the multiclass and regression
+checkpoints is still open, and the multiclass one is now `dr74-mc-s0`, not the §121 one.)
+
 The first two are publication rather than research: both checkpoints exist and were scored. The
 third is the expensive one. 1776 is 13x the current cap, and the cap is a property of the
 pretrained weights.
@@ -34,6 +48,10 @@ pretraining run. Measure both against the five datasets in question before choos
 
 > "Here, it seems the model does not beat simple baselines. Hence, I recommend withdrawing the
 > submission until the model performance meets a reasonable minimum."
+
+(2026-11-13, §224: FinTFM no longer sits at 765. The zero-shot binary entry is 756 and the
+51-dataset linear-readout entry is 903; see the note under Requirement 2's table. The 765 and the
+gaps below describe the submitted entry.)
 
 FinTFM sits at **Elo 765** (763 on §150's refreshed baseline cache, same rank). The gap, from
 the run in §122:
@@ -56,6 +74,16 @@ defensible bar is parity with `RF (default)`, at 1000.0 by construction, which w
 scored FinTFM at 764.6, the TabArena fork's `eval/fintfm_lite_tafintfm/tabarena_leaderboard.csv`
 (one decimal there: 966.5, 983.6, 1008.5; Linear is `LR` in that file). Their Elo intervals
 in that file (`elo+` plus `elo-`) run 154 to 262 Elo wide, so a pass is decided on paired per-dataset differences.
+
+(2026-11-13, §215: the "about 1,010" figure does not carry over. It came from this fork file's
+leaderboard, where `KNN (tuned + ensemble)` scored 1008.5. In the run that scored the
+probe-plus-squash-plus-partition arm, `KNN (tuned + ensemble)` scores 999.8 and `LR (tuned)`
+1016.0 (966.5 in the file above). The definition stands: parity with `RF (default)`, 1000.0 by
+construction. Against it that arm is 1000.2 (+156 / -167) on the 27 binary datasets and 13 / 14
+on paired datasets, a tie, not a pass; it beats neither bar method on paired differences. Every
+Elo here depends on the pool it was computed in, so the neighbours move between runs. On the
+51-dataset pool, §224 gives `Linear (tuned)` 919, `Linear (tuned + ensembled)` 936 and `RF
+(default)` 1,000, against FinTFM's 903. The table above is the §122 pool and is kept as written.)
 
 **These Elo values are not the ones on the public leaderboard, and the two must not be mixed.**
 Elo is relative to the set of methods and tasks it was computed over. This run covers **27

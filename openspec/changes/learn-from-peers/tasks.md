@@ -366,9 +366,9 @@
       `preprocess.py`: a literal ±inf from a near-zero-denominator ratio, and the Yeo-Johnson
       formula's own overflow on 5 of 78,015,600 cells once the first was fixed. Original task,
       kept for the record: **Ablate Yeo-Johnson power transform against the current rank
-      transform, on the heavy-tailed financial ratios §100 already flagged.** Neuralk-AI's
-      `Seldon` benchmark harness offers `PowerTransformer` as a config-toggled alternative to
-      standard scaling (`docs/paper/RELATED_WORK.md`, Seldon section). `feature_transform="rank"`
+      transform, on the heavy-tailed financial ratios §100 already flagged.** A public
+      benchmark harness offers `PowerTransformer` as a config-toggled alternative to
+      standard scaling (`docs/paper/RELATED_WORK.md`). `feature_transform="rank"`
       is the current default and every real-data number in this project was produced with it on;
       this is a direct swap, not a new pipeline stage. Verify: a checkpoint or evaluation pass
       using Yeo-Johnson in place of the rank transform is compared against the current default
@@ -385,9 +385,9 @@
       different hypotheses this result does not distinguish. See `docs/roadmap/ROADMAP.md`
       Phase A' for the follow-up this opens. Original task, kept for the record: **Test whether
       fintfm's context-conditioned representation is useful as a fixed feature, independent of
-      its own prediction head.** Neuralk-AI's `TabPfnVectorizer` extracts a pretrained TFM's
+      its own prediction head.** A published vectorizer extracts a pretrained TFM's
       embeddings and hands them to a downstream model (LightGBM, logistic regression) rather
-      than using the TFM end-to-end (`docs/paper/RELATED_WORK.md`, Seldon section). Every
+      than using the TFM end-to-end (`docs/paper/RELATED_WORK.md`). Every
       finding to date scores fintfm's own head; this asks a different question, whether the
       representation transfers when the head is replaced. Verify: extract a fixed-size
       representation from a mid-network layer for each row, fit a plain classifier (logistic
@@ -415,12 +415,12 @@
       model's own head and with the linear probe of 48.22/DR3.4. Verify: V4FinBench five-fold
       mean AP at matched context labels; falsified if the new head is below the current own
       head's AP on at least 3 of 5 folds.
-- [x] 48.26 **Done (2026-11-05, both halves read at primary source; `docs/research/REFERENCES.md` and `docs/paper/RELATED_WORK.md` addenda):** (a) Seldon's weights are under the non-commercial "Seldon Research and Evaluation License" (`LICENSE.md` readable without accepting the gate); Seldon-Mini carries a different licence allowing internal commercial use but not third-party serving. On TabArena's classification-only view (Space v0.1.9.15) Seldon is Elo 1879 (+158/−106) and Seldon-Mini 1786 against TabICLv2 1569, so Seldon counts as a real peer and the vendor's 82.3% win rate is consistent with the board. (b) No LimiX-2 replacement as of 2026-11-05 (issue #648 open, last activity 2026-10-29); TabArena flagged LimiX-2 as having seen test data in PR #691 (2026-10-27) and publishes `_noleak` pools; the statements in `docs/` relative to LimiX-2 are listed and none needed changing. The replacement stays a standing recheck at the next peer read. **Re-read two peer facts left open on 2026-11-05.** (a) Neuralk Seldon's weights
+- [x] 48.26 **Done (2026-11-05, both halves read at primary source; `docs/research/REFERENCES.md` and `docs/paper/RELATED_WORK.md` addenda):** (a) The commercial peer's weights are under its own non-commercial research-and-evaluation licence (`LICENSE.md` readable without accepting the gate); its smaller variant carries a different licence allowing internal commercial use but not third-party serving. On TabArena's classification-only view (Space v0.1.9.15) the peer is Elo 1879 (+158/−106) and its smaller variant 1786 against TabICLv2 1569, so the peer counts as a real peer and the vendor's 82.3% win rate is consistent with the board. (b) No LimiX-2 replacement as of 2026-11-05 (issue #648 open, last activity 2026-10-29); TabArena flagged LimiX-2 as having seen test data in PR #691 (2026-10-27) and publishes `_noleak` pools; the statements in `docs/` relative to LimiX-2 are listed and none needed changing. The replacement stays a standing recheck at the next peer read. **Re-read two peer facts left open on 2026-11-05.** (a) The commercial peer's weights
       licence terms (gated; unread, so treated as non-commercial) and its Elo on TabArena's
       classification-only view, where its vendor win rate (82.3% over TabICLv2) would be
       comparable; (b) LimiX-2's replacement model once released (TabArena issue #648), and every
       statement in `docs/paper/` made relative to LimiX-2. Verify: both read at primary source and
-      recorded in `docs/research/REFERENCES.md` and `docs/paper/RELATED_WORK.md`; Seldon counts as
+      recorded in `docs/research/REFERENCES.md` and `docs/paper/RELATED_WORK.md`; the peer counts as
       a real peer if its classification-only Elo exceeds TabICLv2's there.
 - [ ] 48.27 **Progress (2026-11-11): `ts_4827_latent_s0` is pinned to 304ea7f (on origin/main, carries `--cell-mixing`), so `PIN-AFTER-MERGE` below is superseded; sixth in lane 2; Kaggle lanes waiting on the weekly GPU quota since 2026-11-08 and retrying every 30 minutes; not trained.** **Progress (2026-11-07, `docs/results/drafts/48.27_2026-11.md`): implemented behind a flag, default off; the Kaggle arm is prepared, not pushed, not run.** `ModelConfig.cell_mixing="latent"` (`fintfm-train --cell-mixing latent`) replaces both cell stages with row and column latents (`LatentCellBlock`, 923,618 parameters against the control's 885,650); the default leaves the model byte-identical and old checkpoints load. Tests cover query isolation, column permutation, chunked prediction and a CLI training smoke. A CPU SMOKE-TEST step at 512 rows by 64 features ran faster and used less memory than attention, but the machine was heavily loaded and it is not the Verify's GPU measurement. Arm `scripts/kaggle/ts_4827_latent_s0/` (commit pinned to `PIN-AFTER-MERGE`), control `e1-v48-s0`, GPU cost ESTIMATED 1.2 to 1.9 h. **Test whether row and column latents can replace two-way cell attention at matched
       quality and lower cost (peer read 2026-11-06, FTFM, arXiv:2610.25558).** FTFM updates each

@@ -7,7 +7,7 @@
       anything, adding a line to `README.md`'s licensing section. Verify: the licence quoted in
       the finding, not summarised.
 - [ ] 35.3 Read their technical report from the PDF, not a summary, and record the published
-      Seldon / TabPFN v3 / TabICL v2 figures with their protocol. Verify: a finding citing
+      leading-model / TabPFN v3 / TabICL v2 figures with their protocol. Verify: a finding citing
       page-level numbers — §36 is the standing reminder that a fetched summary invented an
       entire results table.
 - [ ] 35.4 Run our checkpoint plus the untrained control under the suite's protocol. Verify:

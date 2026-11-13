@@ -1981,7 +1981,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
 
         Task 48.22: a pretrained TFM's context-conditioned embeddings, handed to a
         downstream model rather than used end-to-end, is a pattern this project had not
-        tried (Neuralk-AI's ``TabPfnVectorizer``, ``docs/paper/RELATED_WORK.md``). §130
+        tried (a published vectorizer, ``TabPfnVectorizer``; ``docs/paper/RELATED_WORK.md``). §130
         measured that a plain classifier on the ``"encode_rows"`` stage beats the model's own
         head, 5 of 5 folds. **That stage is shallower than "the head's own input."**
         :meth:`FinancialTFM.forward` runs three more steps after ``encode_rows`` returns: it

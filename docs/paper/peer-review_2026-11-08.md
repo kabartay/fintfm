@@ -1,15 +1,13 @@
 # Peer review, 2026-11-08
 
-Previous pass: `docs/paper/RELATED_WORK.md`, "Peer read of 2026-11-06" (FTFM, TabSTAR-v1.1,
-Seldon) and `docs/research/REFERENCES.md` addendum 2026-11-06. This pass covers 2026-11-06 to
+Previous pass: `docs/paper/RELATED_WORK.md`, "Peer read of 2026-11-06" (FTFM, TabSTAR-v1.1) and `docs/research/REFERENCES.md` addendum 2026-11-06. This pass covers 2026-11-06 to
 2026-11-08 plus items the earlier passes had not entered. Sources were read as abstract pages and,
 for two papers, as PDFs (`pdftotext`). Nothing here enters the repository: no peer code or weights.
 
 ## Gaps first
 
 - **The TabArena board itself was not readable** (the Space renders client-side). The only board
-  evidence is the `autogluon/tabarena` pull-request list to 2026-11-06: Seldon regression (#714,
-  open), Xiaomi-TabLDM pin updates (#708 closed, #710 merged), no new TabPFN, TabICL, LimiX, Mitra,
+  evidence is the `autogluon/tabarena` pull-request list to 2026-11-06: Xiaomi-TabLDM pin updates (#708 closed, #710 merged), no new TabPFN, TabICL, LimiX, Mitra,
   TabDPT, Kumo or CARTE entry. A board snapshot is still owed.
 - **The LimiX-2 replacement was not re-checked** at source this pass (issue #648 was last read
   2026-11-05); the standing recheck of task 48.26(b) carries over.
@@ -24,7 +22,7 @@ for two papers, as PDFs (`pdftotext`). Nothing here enters the repository: no pe
 TabAbax (arXiv:2611.00562; `docs/research/REFERENCES.md` has the repository, the weights licence CC-BY-NC-4.0 and
 the classification/regression split), Mitra-v2 (arXiv:2609.04540, Apache-2.0 per its abstract),
 TabDPT-Turbo (arXiv:2608.01400), Xiaomi-TabLDM (arXiv:2609.03880), LimiX-2M, TabPFN-3, TabFlex,
-Seldon, FTFM. One caution on quoting TabAbax: its abstract gives TabArena overall Elo 1,676 on 51
+FTFM. One caution on quoting TabAbax: its abstract gives TabArena overall Elo 1,676 on 51
 datasets and 11th of 99 (+115 over TabICLv2), a different view from the classification-only 1,647
 in our reference entry; name the view every time.
 
@@ -94,3 +92,29 @@ AP. None of the items is expected to close the gap; the ranking is of small valu
 Reading for the gap: the one peer lever with a reported size, TabAbax's prior, is +12 Elo on
 classification in its own prior-only ablation, far short of the roughly 254 Elo we lack. Nothing
 read this pass explains the remaining gap.
+
+## Status notes, 2026-11-13
+
+Added after the record above, which is otherwise unchanged. References to commercial
+companies were removed from this file on 2026-11-13 by owner decision; the peer list above is
+shortened accordingly.
+
+- **Item 1, HELOC shift evaluation (task 48.28):** deferred 2026-11-09 by the owner. TableShift's
+  HELOC data sits behind FICO's data access agreement, the agreement page no longer resolves to
+  it, and only unofficial copies remain, so it cannot be used under known terms
+  (`docs/paper/NEGATIVE_RESULTS.md`, section (e)). The ID-to-OOD shift gap stays unmeasured.
+- **The Elo gap quoted in "Ranking by expected value" has changed.** The 756 Elo on 27 binary
+  datasets was the zero-shot default (§204). A trained linear readout with squash and partitioned
+  contexts reached 1,000.2 on the same 27 (§215), level with RF (default); on all 30 binary datasets
+  it is 974 (§220), and on all 51 datasets 903, 106th of 110 (§224). The "bar of about 1,010" did not
+  carry over to the later leaderboard (§215).
+- **Board snapshot (gap 1):** the 110-method leaderboard used by §221 to §224 is the fork's own
+  merged copy, not a re-read of the public board; a public-board snapshot is not recorded in
+  FINDINGS.
+- **Ranking row 1, TabAbax prior-quality finding:** the prior experiments since then are null or
+  harmful at the current recipe (§180, §191, §211, §213); none reproduced a prior gain on
+  V4FinBench.
+- **Item 3, context construction for credit (task 48.24):** the task is in progress
+  (`openspec/changes/learn-from-peers/tasks.md`, 2026-11-11 entry). Related V4FinBench results:
+  the prototype context is +0.0002 mean AP (§211) and the positive floor +0.0055 (§200), both
+  null.

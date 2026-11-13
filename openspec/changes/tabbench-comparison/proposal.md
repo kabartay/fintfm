@@ -1,11 +1,11 @@
-# Compare against Seldon on TabBench v2, using published numbers only
+# Compare against the leading published model on TabBench v2, using published numbers only
 
 ## Why
 
-Neuralk's Seldon is a direct point of comparison and, on published evidence, at the frontier:
-on their TabBench v2 it beats TabPFN v3 on 18 of 22 problems and TabICL v2 on 15 of 22, while
+One commercial model is a direct point of comparison and, on published evidence, at the frontier:
+on TabBench v2 it beats TabPFN v3 on 18 of 22 problems and TabICL v2 on 15 of 22, while
 TabPFN v3 edges it by 0.2 AUC — inside the noise floor — with more outright dataset wins
-(27.5% against 14.8%). The honest reading is a three-way tie at the top. Seldon also ran
+(27.5% against 14.8%). The honest reading is a three-way tie at the top. It also ran
 natively on 100% of the suite where two of eight tested models failed on 19% and 29% of
 datasets.
 
@@ -25,7 +25,7 @@ from it.
 
 - Fetch TabBench v2 and confirm its licence permits our use before anything else.
 - Run our checkpoint through it under the suite's own protocol, reporting the fraction of
-  datasets we can run natively alongside accuracy — Seldon's 100% coverage is a real result
+  datasets we can run natively alongside accuracy — that model's 100% coverage is a real result
   and a model that silently skips hard datasets is flattered by the average.
 - Report against their **published** figures. Never run their checkpoint.
 - Include the untrained control from `fintfm-capability` in every table, so a reader can tell

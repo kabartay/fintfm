@@ -105,17 +105,21 @@
 <a class="feature" href="leaderboard/">
   <div class="f-top">
     <span class="f-title">FinTFM on TabArena</span>
-    <span class="f-badge">Live</span>
+    <span class="f-badge">Own comparison</span>
   </div>
   <div class="f-desc">
-    This project's own comparison under TabArena's protocol, against 95 other methods,
-    with the disclaimers that make the numbers readable. An unpublished exploratory variant
-    (a linear probe on the same weights) reaches 910 Elo.
+    This project's own comparison under TabArena's protocol, not the official board, with the
+    disclaimers that make the numbers readable. The figures below are the published model on
+    27 binary datasets, one split each: 94th of 95 methods. Since then the work has moved to all 51
+    TabArena-Lite datasets with no exclusion, where FinTFM with a trained linear readout (an
+    unpublished variant, one fold) reaches 903 Elo, 106th of 110. These are general-tabular
+    numbers, not credit results: on real credit panels FinTFM currently loses to gradient boosting.
   </div>
   <div class="f-stats">
-    <div class="f-stat"><div class="n">763</div><div class="l">ELO, PUBLISHED MODEL</div></div>
+    <div class="f-stat"><div class="n">763</div><div class="l">ELO, PUBLISHED MODEL, 27 DATASETS</div></div>
     <div class="f-stat"><div class="n">94<span style="font-size:.6em">th</span></div><div class="l">OF 95 METHODS</div></div>
-    <div class="f-stat"><div class="n">27</div><div class="l">DATASETS</div></div>
+    <div class="f-stat"><div class="n">903</div><div class="l">ELO, LINEAR READOUT, ALL 51 DATASETS</div></div>
+    <div class="f-stat"><div class="n">106<span style="font-size:.6em">th</span></div><div class="l">OF 110 METHODS</div></div>
   </div>
 </a>
 
@@ -152,7 +156,7 @@
   rendered and cross-linked.
 </div>
 
-<footer>Apache-2.0. Trained weights are published separately under their own licence.</footer>
+<footer>Apache-2.0 for the code. The published checkpoint is also Apache-2.0, a separate choice from the code licence.</footer>
 
 </div>
 </body>

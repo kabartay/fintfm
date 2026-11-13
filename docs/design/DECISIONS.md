@@ -38,9 +38,14 @@ making the domain undemonstrable.
 **Status updated 2026-10-16:** pretraining stays synthetic-only, but a FinTFM checkpoint can now
 be fine-tuned on the caller's rows at fit time, opt-in and off by default; the provenance
 argument below covers the zero-shot model only (D18).
+**Status updated 2026-11-13:** unchanged; the reversal condition is untested. No FinTFM-R
+source has improved V4FinBench AP (D17 status). A trained linear readout fitted on the caller's
+rows (the TabArena-Lite entry, §215, §224) has, like fine-tuning, seen those rows, so the
+provenance argument covers the zero-shot model only and the entry is labelled "FinTFM with a
+trained linear readout".
 
-The alternative was pretraining on real company panels, which is what Fundamental does with
-"billions of tables" and Kumo does with "real and synthetic relational data".
+The alternative was pretraining on real company panels, which Kumo does with "real and
+synthetic relational data".
 
 **Chose synthetic only**, for two reasons that turned out to be stronger than the original
 cost argument. First, firm-level financial data sits behind Bloomberg, S&P and Moody's, so
@@ -67,15 +72,15 @@ Partially revisited if a genuinely open, commercially licensed firm-level panel 
 
 The obvious product is "upload a table, get predictions, no training required". Rejected
 because every mechanism claim in it is already owned — Kumo's is in NVIDIA's documentation
-and AP and Forbes, Google's TabFM is in BigQuery, Neuralk and Prior Labs and Feedzai each
-hold a piece. Competing there means competing on capital and distribution against a $255M
-Series A. That is an unwinnable fight and picking it would be the main way this project
-fails.
+and AP and Forbes, Google's TabFM is in BigQuery, Prior Labs and Feedzai each hold a piece.
+Competing there means competing on capital and distribution against funded vendors. That is an
+unwinnable fight and picking it would be the main way this project fails. (2026-11-13: the
+original text named a "$255M Series A"; that figure is not sourced in this repository and was
+removed with the vendor names.)
 
 **Chose the validation layer.** Credit scorecards are logistic regression *because*
-regulators demand interpretability, which is why Fundamental's published oil-and-gas result
-beats linear regression rather than gradient boosting (`FINDINGS` §2). The accuracy bar is
-low; the barrier is model risk management. Calibrated PD, stability across regimes,
+regulators demand interpretability, which is why the commercial comparison is linear or
+logistic regression rather than gradient boosting (`FINDINGS` §2). The accuracy bar is low; the barrier is model risk management. Calibrated PD, stability across regimes,
 documented out-of-time backtesting, evidence a validation committee accepts. Vendors whose
 product is the prediction cannot ship that as an afterthought.
 
@@ -135,6 +140,12 @@ systematically. There is already a warning sign — at the 1-year horizon it *wo
 slightly — so the fitted-scaler alternative is the likely successor rather than a
 hypothetical.
 
+**Status updated 2026-11-13:** the fitted-scaler alternative is implemented as
+`calibration_val_frac` (0.9.0, default 0.0: one temperature fitted by log loss on a held-out
+slice and applied in `predict_proba`). The comparison that would decide the default
+(`fitted-calibration` task 4.3) is still SMOKE-TEST only (Polish bankruptcy 3-year, one seed),
+so the default and this reversal condition stand.
+
 ---
 
 ## D6 — Apache-2.0, and no LICENSE while private
@@ -179,6 +190,11 @@ property of the model or recipe in general — the original 3.5x-faster measurem
 current cell-attention architecture's scale and never tested this many rows/features. Do not
 launch this recipe on `--device mps` again until the memory growth is root-caused; a smaller
 smoke config (fewer `--n-rows-choices`, smaller `--feature-chunk`) is untested but may be safe.
+
+**Status 2026-11-13:** not root-caused; the warning stands (`CLAUDE.md`). Inference grows too:
+a zero-shot V4FinBench run on MPS with `n_ensemble: 8` reached a 27 GB footprint within 40
+minutes on 2026-11-09 and was moved back to CPU (`CLAUDE.md`, an operational record, not a
+FINDINGS entry), and §209's run used CPU because MPS aborted on memory on 2026-11-03.
 
 ---
 
@@ -276,6 +292,14 @@ depending on which method you call is worse than either default.
 plausible — it discards magnitude information and the gain here comes from tails that a
 cleaner dataset may not have. That would make it a data-dependent choice rather than a
 default, and `winsor` is the intermediate already implemented.
+
+**Status 2026-11-13:** the defaults are unchanged. Since this entry: `squash` (robust scaling
+then a soft clip) moved TabArena-Lite's 27 binary datasets by +0.01004 mean ROC-AUC against the
+`fintfm_lite_nan_1019` baseline (18 better, 8 worse, 1 tied, sign-test p 0.076, §210, MEASURED,
+general-tabular only); the member-transform version produced no candidate on the proxy suite
+(§206).
+Retrieval stays opt-in, and per-class retrieval is harmful on V4FinBench (§213). A positive floor
+or cap on the uniform context is null (§200).
 
 ---
 
@@ -472,6 +496,9 @@ condition B should be restated in those terms) or shows V4FinBench's gap also wi
 smallest folds (the small-data thesis loses its strongest piece of indirect support and
 `docs/roadmap/STRATEGY.md` should say so rather than continue to assume it).
 
+**Status 2026-11-13:** no size-and-minority-fraction slice of V4FinBench is recorded in
+FINDINGS (searched §195 to §224), so both reversal conditions are still untested.
+
 ---
 
 ## D16 — The Bitter-Lesson critique against this project's own effort allocation (task 48.11)
@@ -554,6 +581,14 @@ still worth their now-small marginal cost, since the infrastructure to test them
 exists and the tests themselves are cheap. It only names, plainly, that the project's actual
 track record on this axis is seven losses and no wins, so the next one should be evaluated
 against that base rate rather than against hope.
+
+**Status 2026-11-13 (§195, §199, §202, §211, §213).** The third falsification condition has
+been met more than once since this entry: levers chosen in advance returned nulls or losses.
+Depth at 480,000 tasks was null on V4FinBench and the proxy (§195), width null (§199, §202),
+Muon harmful at -0.0125 mean AP, 0 of 5 folds positive (§211), and per-class retrieval and the
+RBF value embedding harmful (§213). The wins since are inference-side: partitioned contexts,
++0.0375 mean AP zero-shot (§169), and a trained linear readout on TabArena-Lite (§215, §224).
+Conditions 1 and 2 remain untested.
 
 **Note added 2026-10-15 (documentation audit).** The table above is not the complete record it
 claims to be. Two measured levers are missing from it. §80, two-way cell attention, is a win:
@@ -702,6 +737,11 @@ seeds) nor SBA (a null whose seeds span −0.036 to +0.002) improves V4FinBench 
 pilot over six sources found nothing separable from the control. Not a reversal -- other shares,
 volumes and sources are untested -- but no FinTFM-R result may be described as an improvement.
 
+**Status 2026-11-13:** LendingClub was retired as a training source on 2026-10-20 (D19), so the
+two-family table still stands with two live real sources, EDGAR and Freddie Mac, plus the generic
+`real_panel` sampler. No FinTFM-R checkpoint has been released, and FINDINGS §195 to §224 mention
+FinTFM-R only to keep FDIC out of it (§216), so no new result changes the 2026-10-12 caution.
+
 ---
 
 ## D18 — Opt-in dataset-specific fine-tuning exists, off by default, and the provenance claim covers zero-shot use only
@@ -743,6 +783,14 @@ diagnostic and stops being described as a lever; **or** a fine-tuned number is f
 under the zero-shot provenance claim, in which case the labelling has failed and fine-tuning
 moves behind an explicit acknowledgement in the API. Default-on is reconsidered only if
 fine-tuning closes a material part of the CatBoost gap, and then as a separate decision.
+
+**Status 2026-11-13 (§164, §205, §208):** the first reversal condition was tested and not met.
+The seed replicate `S1` gave +0.0071 mean AP over zero-shot with 5 of 5 folds positive and a
+per-fold seed SD of 0.0008; it missed §163's pre-registered bar of +0.0073 by 0.0002, so the
+verdict is "not replicated", but the effect is consistent across seeds. Fine-tuning is not the
+best lever: zero-shot partitioned contexts beat §163's fine-tuned arm by +0.0299 mean AP, 5 of 5
+folds (§205), and fine-tuning per partition leaf adds +0.0049, 4 of 5 folds (§208). Default
+stays off.
 
 ## D19 — LendingClub is retired as a training source: no benchmark dataset trains a model here
 
@@ -786,7 +834,10 @@ source is found through the registry and the overlap report (DR4.1), not by reop
 **Date:** 2026-11-08. **Status:** PROPOSED, not yet adopted. Closes the decision half of
 `openspec/changes/calibration-mechanism` task 14.5; adopt it once the owner has read it and the
 fitted-calibration results (the separate `FinancialTFMClassifier` work) are in, because those may
-change the second reversal condition.
+change the second reversal condition. **Status 2026-11-13:** still PROPOSED. The fitted
+calibration option shipped in 0.9.0 (`calibration_val_frac`) but its comparison is
+SMOKE-TEST only (`fitted-calibration` 4.3), and `calibration-mechanism` 14.5 is open. Flagged
+for the owner to adopt or defer.
 
 **What the evidence supports** (all MEASURED, single seed unless stated, `mixed` checkpoint where
 a checkpoint is named):

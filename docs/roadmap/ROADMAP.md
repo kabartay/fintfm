@@ -20,6 +20,21 @@ Proposals live in [`openspec/changes/`](../../openspec/changes/); the IDs below 
 Elo here is over the 27 binary datasets at one split each that §122 ran, not the public board.
 See `TABARENA_BAR.md` on why the two cannot be mixed.
 
+**Status 2026-11-13 (§212 to §224).** The table above is §122's zero-shot entry and is kept as
+the record. The standing entry since is "FinTFM with a trained linear readout", a logistic
+regression (ridge for regression) on the network's pre-head representation, in the TabArena
+fork, not on the public board. Over **all 51 TabArena-Lite datasets with no exclusion it scores
+903 Elo (+102 / −110), 106th of 110** (§224), against RandomForest (default) at 1,000, Linear
+(tuned + ensembled) at 936 and Linear (tuned) at 919. By problem type: binary 974 on 30
+datasets (§220), multiclass 865 on 8 (§224), regression 578 on 13 (§223). On the earlier
+27-dataset binary pool the same readout with squash and partition scored 1,000.2 (+156 / −167),
+level with `RF (default)` and not above it (§215). The pools differ, so these ranks are not
+comparable with §122's 94th of 95. **Owner decision DR7.6 (2026-11-11): hold the TabArena PR
+until multiclass and regression improve; the target is about 1,000 overall Elo.** The
+multiclass and regression checkpoints behind these entries are unpublished (README, §221-§224).
+These are general-tabular numbers, not credit results: on V4FinBench the same family of levers
+is separate (§211, §218, §219).
+
 **Screen locally at batch 8, confirm on rented GPU.** §128 found the MPS ceiling is a `2^31`
 indexing bound, `batch x features x heads x rows^2`, not a memory limit: batch 8 at `n_rows 512`
 sits at 0.53x of it and runs at **1.74 s/step, about 2.9 hours per arm, free**. Every item below
@@ -40,21 +55,21 @@ against a multiple of that, not a fraction of it. A result that improves ROC-AUC
 rank is a null result for this goal, and should be written up as one.
 
 **A second population confirms this isn't specific to TabArena.** A private, unpublished
-comparison against Neuralk-AI's TabBench (§134, not committed to this repo, no PR) found the
+comparison on the TabBench benchmark (§134, not committed to this repo, no PR) found the
 same standing on a differently-built 55-dataset overlap: mean rank 15.1 of 16, and checked
 directly that it is not the categorical-encoding difference between fintfm and native-passthrough
-TFM peers -- fintfm loses to matched-preprocessing GBTs by a mean AUC of −0.0815. Combined with
-Neuralk-AI's own published account of why TFM scaling needs matched prior richness
-(`docs/paper/RELATED_WORK.md`), read alongside §112's own weak-prior-distinctiveness measurement,
-this is a second, independent reason scale and depth are closed and prior diversity (Phase C)
-is where an untested lever actually is.
+TFM peers -- fintfm loses to matched-preprocessing GBTs by a mean AUC of −0.0815. Read alongside
+§112's own weak-prior-distinctiveness measurement, this is a second reason scale and depth are
+closed and prior diversity (Phase C) was where an untested lever was. (2026-11-13: Phase C has
+since run, and its combined prior was negative on V4FinBench, §141. Another published account
+of TFM scaling cited here was removed by owner decision, 2026-11-13; the closure rests on §114.)
 
 ## Do not re-run these
 
 Measured closed. Reopening any of them needs a new reason, stated first.
 
-- **Scale**, three independent lines (§114), independently consistent with Neuralk-AI's own
-  published account of TFM scaling requiring matched prior richness (`docs/paper/RELATED_WORK.md`).
+- **Scale**, three independent lines (§114). (2026-11-13: also null at 480,000 tasks, depth and
+  width, §195, §202; ten times the tasks null on V4FinBench, §188.)
 - **The binning head**, rank is flat against the axis it controls (§121).
 - **Inference-time knobs**: context nearly flat (§83/§84), retrieval harmful at low prevalence
   (§70).
@@ -168,9 +183,11 @@ still entirely open: see Phase A' above and the stop rule below.)
 Weeks, not days. Only worth starting if Phase A shows the deficit is structural, or if one
 Phase A arm moves and suggests where.
 
-8. **Write the factorized-attention cost model first** (44.1), and check it retrodicts linear
+8. ~~**Write the factorized-attention cost model first** (44.1)~~ **Done (2026-11-11,
+   `docs/design/attention_cost_model.md`, `scripts/attention_cost_model.py`).** The original
+   item: check it retrodicts linear
    CUDA and quadratic MPS growth (§95). §119 and §120 are both records of a cost model that was
-   not checked before it was trusted.
+   not checked before it was trusted. Items 9 to 13 (44.2 to 44.6) are open.
 9. **Establish what §91's mechanism requires** (44.2) before implementing anything.
 10. **Implement the factorized encoder behind a flag** (44.3), defaulting off.
 11. **Measure cost before accuracy** (44.4): peak training memory and step time.
@@ -233,13 +250,25 @@ Nothing here improves rank. It is the admission ticket, and buying it early spen
 pretraining run on an entry that still cannot be listed.
 
 25. **Publish the multiclass checkpoint** measured in §121, and declare `multiclass`.
+    (2026-11-13: still open. The entry now uses `dr74-mc-s0`, not §121's checkpoint, and it is
+    unpublished; README, §221, §222. Owner decision 2026-10-21: FinTFM covers binary and
+    multiclass, DR7.3 to DR7.6.)
 26. **Publish the regression checkpoint** measured in §121, and declare `regression`.
+    (2026-11-13: still open. The entry uses `v4-regression.pt` with a ridge readout, §220,
+    §223, unpublished.)
 27. **Cost the two routes past the 136-feature cap against each other**: a checkpoint trained
     above 1776 features, versus in-wrapper dimensionality reduction for wide tables. Decide on
-    measurement, not preference, and declare whichever is chosen.
-28. **Re-run TabArena-Lite across all 51 datasets** and confirm the aggregate, remembering that
+    measurement, not preference, and declare whichever is chosen. (2026-11-13: the wrapper
+    route ran, with `max_features_strategy: select`, ExtraTrees importance on the training rows.
+    §190 found it does not rescue wide tasks on the proxy suite; §220 found the three wide binary
+    tables cost 26 Elo, 974 on 30 datasets against 1,000 on 27. The retrain route past 1,776
+    features has not been costed or run, so the comparison this item asks for is not made.)
+28. ~~**Re-run TabArena-Lite across all 51 datasets**~~ **Done (§221, 2026-11-11): 880 Elo,
+    107th of 110, no exclusion; latest 903 Elo, 106th of 110 (§224, 2026-11-13).** Original
+    text: confirm the aggregate, remembering that
     multiclass and regression rank worse than binary (93.4 and 93.1 against 86.3), so full
-    coverage will lower the aggregate before it raises anything.
+    coverage will lower the aggregate before it raises anything. It did: binary 1,000.2 on 27
+    datasets became 903 overall.
 
 ## Phase E — resubmit
 
@@ -263,6 +292,12 @@ pretraining run on an entry that still cannot be listed.
     Those intervals are 154 to 262 Elo wide, so clearing the bar is decided on paired
     per-dataset differences, not on one Elo reading.)
 
+    (2026-11-13, §215, §224: binary alone reached 1,000.2 on 27 datasets, level with
+    `RF (default)`; the all-51 entry is 903 Elo, 106th of 110, so the bar is not met. Owner
+    decision DR7.6 (2026-11-11): hold the PR until multiclass and regression improve; the target
+    is about 1,000 overall Elo. The pool is the 110-method TabArena-Lite leaderboard of §221,
+    not §122's, so the baseline rows above are the §122 pool's.)
+
 ---
 
 ## The stop rule
@@ -278,6 +313,12 @@ calibration result on real credit panels all stand on their own, and a maintaine
 confirmed the integration and the numbers are correct (§122). But it would mean the leaderboard
 is the wrong goal, and continuing to chase it would be the kind of thing §119, §120 and the two
 retracted diagnoses are records of: committing to a direction the evidence had already closed.
+
+(2026-11-13: the rule names `Linear (default)`, which DR7.1 replaced as the bar. The linear
+readout cleared 936 on the 27-dataset binary pool (969 Elo, §212; 1,000.2, §215) without Phase B
+or C completing; over all 51 datasets it is 903, below Linear (tuned) at 919 and Linear (tuned +
+ensembled) at 936 (§224). So the stop rule's premise is neither met nor cleared, and the owner
+decision of 2026-11-11 is to continue on multiclass and regression.)
 
 **Phase A is complete and its own exit condition did not fire.** Every arm in it is done; none
 moved rank by three or more positions. D16 (`docs/design/DECISIONS.md`) read that plainly: seven
@@ -300,6 +341,10 @@ carry a family name forever) is named in full in `CLAUDE.md`'s "Two families" an
 
 ## Audit of 2026-10-15 — ahead of every phase above
 
+(Status 2026-11-13: 55 of its 62 tasks are checked; the 7 open are AU5.1, AU5.3, AU5.9, AU5.11,
+AU5.13, AU5.15 and AU5.17, the strength levers, several waiting on the weekly Kaggle GPU quota
+or deferred by the owner. Counted from `openspec/changes/audit-2026-10-15/tasks.md`.)
+
 [`openspec/changes/audit-2026-10-15/`](../../openspec/changes/audit-2026-10-15/) holds what an
 independent review of the code, evaluation and documents found, each item checked against the
 code or the runs before it was filed. Its order overrides the phases above until it is worked
@@ -318,6 +363,12 @@ through:
 
 ## Design review of 2026-10-16 — the order after the audit
 
+(Status 2026-11-13: 40 of its 45 tasks are checked; open are DR3.11, DR6.4, DR7.5, DR7.6 and
+DR8.3, counted from `openspec/changes/design-review-2026-10-16/tasks.md`. DR3.11, per-leaf
+fine-tuning, reads null in §208 while its box is still open there. DR4.2 closed with the Verify
+not met: the proxy suite stays a smoke test and decides no arm (§216). DR4.3 narrowed to four
+credit datasets, FinTFM below logistic regression on all four (§216).)
+
 [`docs/design/DESIGN_REVIEW_2026-10-16.md`](../design/DESIGN_REVIEW_2026-10-16.md) and
 [`openspec/changes/design-review-2026-10-16/`](../../openspec/changes/design-review-2026-10-16/)
 set the order from here, ahead of the audit's Phase 4 and 5 measurements:
@@ -335,3 +386,15 @@ set the order from here, ahead of the audit's Phase 4 and 5 measurements:
    Coverage is binary **and multiclass** (owner decision 2026-10-21, DR7.3 to DR7.6): a
    multiclass baseline and arm chosen on the proxy suite, no capability exclusions, and a
    resubmission only at the bar. The maintainers are not asked about coverage (DR7.2).
+   (2026-11-13: DR7.3 and DR7.4 done, DR7.5 and DR7.6 open. Coverage is complete, 51 of 51
+   (§221). Latest 903 Elo, 106th of 110 (§224). Owner decision 2026-11-11: hold the PR until
+   multiclass and regression improve. Queued at the time of writing, per DR7.6: `mc-bag8`,
+   `reg-head`, `reg-ctx4k`; results not yet in `FINDINGS`.)
+
+**Not on any phase above, since 2026-11-08 (V4FinBench).** §211: six verdicts, no lever clears
+the bar of +0.0117 mean AP with 4 of 5 folds, and muon is harmful (−0.0125, 0 of 5 folds).
+§218 measured the probe per partition leaf at −0.0570 mean AP on 0 of 5 folds, and §219 traced
+that loss to a sampler defect in the harness (the leaf holding 93 to 97% of the test defaults
+never got a probe); the five-fold rerun with the fixed sampler is queued and is the verdict, so
+§215's best Lite configuration is not yet shown to hold on V4FinBench. The partition result
+stands at 0.2362 mean AP, +0.0375 on 5 of 5 folds (§169, §205).

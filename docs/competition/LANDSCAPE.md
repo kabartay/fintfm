@@ -6,15 +6,19 @@ the company about itself**, not something measured or verified independently. Tr
 positioning intelligence, not as fact about capability. Re-check before citing: this page
 will decay.
 
+**Revised 2026-11-13.** Two commercial entrants were removed from this page by owner decision
+(2026-11-13): their table rows, the sections built on their own sites and posts, and the
+strategic points that rested on those. Peer facts that remain carry the date they were recorded;
+where a primary source was re-read on 2026-11-13 the entry says so. Entries with no
+2026-11-13 date were not re-checked and are 2026-09-08 readings.
+
 ## Who is in this space
 
 | company | what they build | shape of the data | posture |
 | --- | --- | --- | --- |
-| **Fundamental** (NEXUS) | general tabular foundation model, "pretrained on billions of tables"; **now verticalising** — sells NEXUS as purpose-built for oil & gas, in production | single tables | proprietary; $255M Series A per their site |
 | **Prior Labs** | tabular foundation models for spreadsheets/databases; the TabPFN lineage | single tables | open weights/code history, commercial company |
-| **Neuralk** (Seldon) | tabular foundation model, in-context, synthetic-prior pretraining | single tables | proprietary, API + self-hosted |
-| **Kumo** (KumoRFM-2) | relational foundation model, **in-context prediction at query time**, trained on real + synthetic relational data; PQL query language, NL coding agent, optional fine-tuning; Online Serving distils to sub-100 ms | **multi-table relational** | commercial platform; heavy press (AP, Forbes); **documented on docs.nvidia.com** |
-| **Feedzai** (RiskFM) | "universal tabular foundation model" for financial risk | transactional | direct competitor on **fraud** |
+| **Kumo** (KumoRFM-2) | relational foundation model, **in-context prediction at query time**, trained on real + synthetic relational data; PQL query language, NL coding agent, optional fine-tuning; Online Serving distils to sub-100 ms | **multi-table relational** | commercial platform; heavy press (AP, Forbes); **documented on docs.nvidia.com** (2026-09-08 reading; not re-confirmed 2026-11-13, the NVIDIA page tried then did not carry it) |
+| **Feedzai** (RiskFM) | tabular foundation model for financial crime (fraud, AML, risk decisioning); announced 2026-03-24, early adopters per its own release. Search of 2026-11-13 found its press material and trade coverage only: no benchmark figures, paper or independent evaluation | transactional | direct competitor on **fraud** |
 | **Google** (TabFM) | general TFM, hundreds of millions of synthetic datasets | single tables | research release |
 | **The Forecasting Company** | time-series foundation model (t0-alpha), temporal engine, Retrocast UI | **temporal** | argues explicitly that time series are not tables |
 | **Aionic Labs** | time-series *language* models (OpenTSLM lineage), reasoning in NL | temporal + text | SPRIND-funded, up to €26.5M |
@@ -72,28 +76,26 @@ which would need a causal decoder, not this architecture.
 
 ## The competitive bar in enterprise deals is the incumbent, not the SOTA
 
-Fundamental's oil & gas post (2026-09) reports NEXUS at **75% better MAE and 43% better
-RMSE across 13 regional markets, beating the prior approach in 70% of regions and moving to
-production** — and the baseline it beats is **linear regression**. Not gradient boosting,
-not another foundation model. That is the number a funded competitor chose to publish, so
-take it as the shape of what enterprise buyers actually compare against: whatever legacy
-model they run today.
+(2026-11-13: the earlier version of this section rested on a funded entrant's published
+oil-and-gas result and on its verticalisation; both were removed with that entrant. The point
+below stands without it.)
 
-**This is unusually favourable for credit.** Bank credit scorecards genuinely are logistic
-regression, in large part *because* regulators demand interpretability. So the accuracy bar
-in this market is low and the real barrier is regulatory acceptance — the third independent
-signal pointing at validation evidence rather than prediction quality as the product.
+Bank credit scorecards genuinely are logistic regression, in large part *because* regulators
+demand interpretability. So the accuracy bar a buyer applies is the legacy model it runs today,
+and the real barrier is regulatory acceptance. That points at validation evidence rather than
+prediction quality as the product. It is a judgement, not a measurement.
 
 Consequence for `bench.py`: **keep both baselines and read them differently.** Logistic
 regression is the commercially realistic comparison (what a customer would actually
 replace); gradient boosting is the scientific one (what tells you whether the model is any
-good). Never report only the flattering one — see the claims section of `CLAUDE.md`.
+good). Never report only the flattering one — see the claims section of `CLAUDE.md`. The
+measured position against that bar is not favourable: on the four admitted credit datasets
+FinTFM is below logistic regression (§216), and on V4FinBench zero-shot mean AP is 0.1986 against CatBoost's 0.4005 (§169, §167). The
+assumption that "the accuracy bar is low" therefore has not been borne out by this project's own
+runs.
 
-**Verticalisation is the confirmed playbook, and it is also the threat.** Fundamental going
-vertical validates specialising rather than chasing a general TFM. It also means financial
-services is an obvious next vertical for a company that already has the general model, the
-capital and the team, for whom entering it is a GTM motion rather than a research project.
-Assume the wedge is defended by regulatory depth and evidence, not by being first.
+Specialising by vertical rather than chasing a general model is the playbook this project
+follows. Assume the wedge is defended by regulatory depth and evidence, not by being first.
 
 ## Technical notes worth keeping
 
@@ -116,7 +118,7 @@ each camp's model actually predicts. They are not competing for the same target.
 | camp | who | object predicted | rows exchangeable? |
 | --- | --- | --- | --- |
 | **time series** | The Forecasting Company (t0-alpha), Google TimesFM-3, Chronos-2, Toto, Moirai, NXAI TiRex, Aionic (TSLMs) | future values of a sequence | no — order *is* the signal |
-| **tabular** | Neuralk (Seldon), Fundamental (NEXUS), Prior Labs (TabPFN), Google TabFM, Feedzai (RiskFM) | a label for one row | yes, assumed IID |
+| **tabular** | Prior Labs (TabPFN), Google TabFM, Feedzai (RiskFM) | a label for one row | yes, assumed IID |
 | **relational / graph** | Kumo (KumoRFM), GraphPFN | a label for a node in a linked structure | no — edges carry information |
 | **panel hazard** | **nobody** | **the probability path of an event, per entity, over time, given time-varying covariates** | neither |
 
@@ -147,90 +149,6 @@ becomes reproducible from open weights. Encountered via a DeFi credit-risk paper
 beyond its related-work section**, and network contagion is systemic-risk modelling rather
 than single-obligor PD, so it is adjacent rather than a competitor.
 
-## Neuralk as a product and pricing reference
-
-Observed 2026-09-08 from their public site and a trial account.
-
-**Positioning:** "THE PREDICTIVE AI COMPANY" / **"Predict anything."** / "The Foundation
-Model for Prediction. No training. No pipelines."
-
-**Product surface:** a natural-language prompt box ("Predict customer…"), a CSV upload, and
-a Predict button, plus "try API for free". Model served as `nicl-small`.
-
-**Commercials:** credit-based. Roughly **2 credits per inference request of ~2,000 test
-rows**, observed latency ~250ms. A dashboard covers API keys, team members with
-owner/admin/member/viewer roles, usage charts and a voucher redemption box. Notably they
-**auto-refund** requests whose delivery is unconfirmed ("no SDK telemetry after 10m"), which
-implies they treat unverified delivery as a billing risk worth automating away.
-
-**Two things to take from it, and one not to.**
-
-Take the **pricing shape** as a reference point: per-request credits scaled by rows scored,
-not a seat licence. And take the **auto-refund** detail as a signal that inference-billing
-disputes are real enough to engineer around.
-
-Do **not** take the product framing. "Predict anything" from a CSV is the exact generic
-positioning `docs/roadmap/STRATEGY.md` rules out: it competes with Neuralk, Kumo and Google BigQuery
-simultaneously on the one axis where this project has no advantage. An API is eventually the
-delivery mechanism for the certificate, but the thing delivered has to be narrow — a PD term
-structure with its interval, its calibration and its attributions — or it is a worse copy of
-something already shipping.
-
-## Neuralk's Financial Services page names the constraint and does not solve it
-
-Read 2026-09-08 from [neuralk.ai/solutions](https://www.neuralk.ai/solutions). This is the
-single most useful competitive document encountered, because it is a direct competitor
-describing our exact market in their own words.
-
-**Their structure is horizontal with vertical marketing.** Six verticals — financial
-services, telecom, industry and manufacturing, energy and utilities, commerce and retail,
-healthcare and life sciences — each with four use cases, all served by the same model. The
-messaging is explicit: *"one model, every industry"*, no retraining. The financial services
-page is generic capability with domain copy on top, not a purpose-built financial product.
-
-**They name the binding constraint themselves:**
-
-> "Financial institutions face two hard constraints: extreme accuracy requirements and
-> **tight regulatory scrutiny**."
-
-**And then address none of it.** The page has no mention of calibration, model validation,
-probability-of-default term structure, IFRS 9, Basel, low-default portfolios, uncertainty
-quantification, or AML. It names regulatory scrutiny as one of the two hard constraints and
-ships nothing for it.
-
-**Their own demo mockup is the argument.** The financial services illustration shows a
-personal loan applicant with a credit score of 721 and:
-
-> Default risk **6%** — Recommendation: **Approve at 4.9% APR**
-
-A bare point estimate, with a pricing decision attached, and no interval, no horizon, no
-calibration statement, no refusal path for an applicant unlike anything in the context. That
-is precisely the object `docs/roadmap/STRATEGY.md` argues is insufficient: a single 6% carries no
-information about whether 6% means anything, and a model-risk function cannot validate it or
-provision against it.
-
-**Be fair about where the gap actually bites.** For a fast consumer-credit decision, a point
-PD at 250ms may be exactly what the buyer wants, and their retail traction is real (a
-reported 1.3M products at 89.8% zero-shot accuracy). The gap matters for **regulated PD used
-in provisioning and capital** — IFRS 9 lifetime ECL, Basel PD, low-default portfolios — where
-the number must be defensible rather than merely fast. That is a narrower market than
-"financial services" and it is the one this project targets.
-
-**Three further reads:**
-
-- **Their credit angle is consumer, not corporate.** The example is a €14,000 personal loan
-  with a credit-bureau-style score. SME and specialty corporate lending, where the
-  literature places the small-data advantage (`FINDINGS` §9), is not what this page is
-  selling. This project's own TabArena slice points the other way (D15, §102).
-- **They claim time series too** ("alpha generation", "time-series forecasting to power and
-  commodity price data"). Given Beyond IID on non-IID data and The Forecasting Company's
-  argument that time series are not tables, that is a broad claim for a tabular model and
-  not a fight worth joining on either side.
-- **Breadth across six verticals means depth in none** — the structural opening for a
-  specialist. But it cuts both ways: nothing stops them adding depth once a customer pays
-  for it, so the defence has to be regulatory substance and an accumulated track record, not
-  a head start.
-
 ## How the open TFM projects present themselves, and what fintfm should copy
 
 Recorded 2026-09-22 after reading ten peer projects from primary sources. **Licensing posture
@@ -260,7 +178,9 @@ does not match this project's own measurement of it (their README claims Elo pos
 with rank is rational when you have one.
 
 **We place 94th of 95** (§122; §98's earlier 93rd was over 26 datasets against an older
-snapshot). So rank-first presentation is unavailable, and imitating it would mean
+snapshot). (2026-11-13, §224: with the linear-readout entry over all 51 TabArena-Lite datasets,
+903 Elo, 106th of 110, "FinTFM with a trained linear readout"; the pools differ, so 94th of 95 and
+106th of 110 are not comparable ranks.) So rank-first presentation is unavailable, and imitating it would mean
 either burying the number or reporting a favourable slice of it — which is exactly the
 absolute-AUC-without-rank error §107 already retracted once.
 

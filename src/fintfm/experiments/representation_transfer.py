@@ -1,7 +1,7 @@
 """Task 48.22: is fintfm's context-conditioned representation useful without its own head?
 
-Every finding to date scores this project's own classification head. Neuralk-AI's
-``TabPfnVectorizer`` (``docs/paper/RELATED_WORK.md``, Seldon section) treats a pretrained TFM
+Every finding to date scores this project's own classification head. A published vectorizer
+(``TabPfnVectorizer``; see ``docs/paper/RELATED_WORK.md``) treats a pretrained TFM
 as a fixed feature extractor instead: hand its embeddings to a plain downstream model. That is
 a different question, answerable only by comparing four arms on the same held-out rows:
 

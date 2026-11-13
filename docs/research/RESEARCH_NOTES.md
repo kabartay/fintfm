@@ -51,10 +51,10 @@ in-context learning are the right lenses, and it is the framing behind `docs/res
 | leakage-safe evaluation | provenance invariant (FinTFM family, D17); V4FinBench out-of-time split and published protocol in use (§26, §39) |
 | concept drift / distribution shift | measured on V4FinBench's out-of-time split (§26, §31) |
 | quantile regression / CRPS | binned and pinball quantile heads implemented (§106, §148); CRPS not reported; PD coverage still needed by `conformal-pd-certificate` |
-| retrieval-augmented models | implemented, opt-in (`inference/retrieval.py`, §32); beaten by `prototype` (§38) |
-| domain adaptation / LoRA | full fine-tuning opt-in (`finetune_steps`, §163); LoRA not done (`changes/lender-adaptation`) |
+| retrieval-augmented models | implemented, opt-in (`inference/retrieval.py`, §32); beaten by `prototype` (§38); (2026-11-13: retrieval context collapses V4FinBench to 0.0126 mean AP, §194; k-means prototype context is null at +0.0002, §211) |
+| domain adaptation / LoRA | full fine-tuning opt-in (`finetune_steps`, §163); LoRA not done (`changes/lender-adaptation`, tasks 16.1-16.3 open on 2026-11-13); (2026-11-13: fine-tuning per partition leaf is null, +0.0049 mean AP, §208) |
 | masked/self-supervised pretraining | not done (TabDPT's approach: real tables + retrieval) |
-| scaling laws across datasets/tasks | `changes/scaling-curve`, deliberately demoted |
+| scaling laws across datasets/tasks | `changes/scaling-curve`, deliberately demoted (tasks 9.1-9.3 open on 2026-11-13); (2026-11-13: ten times the tasks is null on V4FinBench at two seeds, §188; depth and width at 480,000 tasks null, §195, §202) |
 | patching, tokenization/quantization | time-series concepts, not applicable to tabular |
 | decoder-only vs encoder-decoder | not applicable; rows are not a sequence |
 | covariates / multivariate forecasting | not applicable |
@@ -72,6 +72,8 @@ A common failure is demonstrating `FM > poorly-tuned NN` when the question is
 | tabular FM | TabPFN, TabFM, TabICL, TabDPT | none (licence care needed: §24) |
 | AutoML | AutoGluon, H2O, auto-sklearn | none |
 
+(2026-11-13: the table above is the founding-session audit. TabArena-Lite Elo is scored against the full TabArena field, which includes tuned neural, boosted and foundation-model entries (§212, §224), but those entries are not run by this project. FinTFM with a trained linear readout is 903 Elo, 106th of 110, on all 51 TabArena-Lite datasets (§224).)
+
 ## Reading order
 
 **Tabular:** PFNs conceptually (Müller et al.) → TabPFN → TabICL → TabDPT → Google TabFM.
@@ -85,7 +87,8 @@ the time-series branch, kept separate.
   macro statistics, current index constituents applied to the past (survivorship), and
   analyst estimates all violate it silently.
 - **Never split financial panels at random.** Walk-forward or at minimum a date cut. This is
-  what `changes/time-based-evaluation` exists for, and §7 is why it was blocked so long.
+  what `changes/time-based-evaluation` exists for, and §7 is why it was blocked so long
+  (2026-11-13: the splitter is implemented, tasks 3.1 and 3.2 done 2026-11-08; 3.3 still open).
 - **Returns, not prices**, and expect predictability to be far lower than for ordinary series.
   Spectacular financial forecasting results should trigger a leakage hunt, not celebration.
 - **Volatility is more predictable than returns.** GARCH-style conditional variance is a more
@@ -99,7 +102,7 @@ the time-series branch, kept separate.
 - **Asymmetric cost.** A missed default costs far more than a false alarm, and every metric
   here is symmetric. Cost-sensitive calibration is unexplored.
 - **Sector/country mixture-of-experts.** FinCast uses token-level sparse MoE for domain
-  specialisation. Premature at 850K parameters; revisit if scale grows.
+  specialisation. Premature at 885,650 parameters (§207); revisit if scale grows.
 - **Point-Quantile loss.** FinCast fits point and quantile estimates jointly, claimed to
   prevent collapse under non-stationarity. Relevant to the certificate.
 - **LGD and EAD.** Expected credit loss needs all three of PD, LGD, EAD; we model one.

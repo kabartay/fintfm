@@ -6,6 +6,16 @@ failures are kept because each one cost a probe and would otherwise be rediscove
 established the working configuration. **Status 2026-10-15:** the scaling runs described
 below have completed; their results are `docs/results/FINDINGS.md` §108 and §114.
 
+> **Note (2026-11-13).** The launch command, memory tables and step costs below are for the
+> pre-cell-attention recipe of September 2026 and were not re-run for the published
+> `v4-cellattn-labels.pt` recipe (`configs/published/v4-cellattn-labels.yaml`, which adds
+> `--n-cell-blocks 1 --cell-labels --column-id-dim 16 --feature-chunk 8`). For that recipe the
+> measured step costs are in `docs/infra/COMPUTE.md` ("The published recipe, measured per step"):
+> about 1.02 s/step on `l4x1` (§127) and 1.90 s/step on a T4 (§86). Many later GPU arms
+> ran on Kaggle's free T4x2 quota instead of HF Jobs (§170, §198, §202). The flags in the
+> command exist in `fintfm-train` as of 0.10.0; the wheel name is the one that was uploaded and
+> must be replaced with the build you mean.
+
 ## Why GPU at all
 
 When this was written (2026-09-09), every accuracy number in this project came from a
@@ -229,6 +239,10 @@ Run `small` alone before the other two, on the cheapest flavour that has a GPU, 
 so extrapolation across configurations has burned this project once.
 
 ## Cost
+
+(2026-11-13, §127: two `l4x1` runs of 6,000 steps at the cell-attention recipe took 1 h 42 min and
+1 h 43 min and cost about $2.80 together, so the "three runs for $6-10" estimate below was for the
+smaller architecture.)
 
 `l4x1` is $0.80/h. If `small` matches Metal's 1h 46m, the three runs land in the region of $6-10
 total. Confirm against the probe before launching the larger two.

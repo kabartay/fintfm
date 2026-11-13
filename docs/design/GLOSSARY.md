@@ -16,7 +16,9 @@ This project's target object is the *term structure* of PD, not a single horizon
 
 **LGD — Loss Given Default.** The fraction of exposure expected to be lost if default
 occurs. A regression target, typically bimodal and zero-one-inflated. **Not modelled here
-yet**; Baesens et al. benchmark it and this repository does not.
+as a credit target**; Baesens et al. benchmark it and this repository does not. (2026-11-13: the
+binned-head `FinancialTFMRegressor` exists and is scored on TabArena-Lite's 13 regression
+datasets (§223), but none of them is an LGD dataset.)
 
 **EAD — Exposure at Default.** The amount outstanding when default occurs. Not modelled here.
 
@@ -131,11 +133,13 @@ credit data (Tanna et al., quoted in `docs/results/FINDINGS.md` §5). On the ful
 panel the cell-attention gain measured 6-7 times any context effect (§84), though those arms
 may also differ in prior mix (audit task AU2.8). Resolved 2026-10-18 (§172): at a matched prior
 the cell-attention gain is +0.0520 mean AP at the default context, 5 of 5 folds; §84's context
-sweep was not repeated.
+sweep was not repeated (§85 did not reproduce its preference for less context on a probe with a
+known optimum).
 
 **Context strategy.** How the context is subsampled when the table exceeds `max_context`
 (default 2,000 rows): `uniform` (the default, D10), `balanced`, `hybrid`, `prototype` (§38) or
-`retrieval` (query-conditioned, opt-in).
+`retrieval` (query-conditioned, opt-in). `PartitionedTFMClassifier` instead gives each leaf of a
+shallow tree its own context (§169).
 
 **Base-rate correction.** The logit shift undoing the class-balance distortion that
 resampling the context introduces. Exact under label shift and provably ranking-preserving
@@ -144,10 +148,26 @@ resampling the context introduces. Exact under label shift and provably ranking-
 **Crossover.** The training-set size at which gradient boosting overtakes the in-context
 model on ranking. Measured here around 100-250 rows on an under-trained checkpoint; Baesens
 et al. report roughly 8,000 for LGD. **Do not quote ours as the product's crossover** until a
-properly trained model has been measured.
+properly trained model has been measured. (2026-11-13, §216: on four credit datasets outside
+V4FinBench, at 733,528 to 1,251,575 rows for the two largest, FinTFM's mean AP is below untuned
+logistic regression on all four; three out-of-time splits, one seed, no paired test.)
 
 **Sample-efficiency probe.** The evaluation sweeping training-set size against a fixed test
 set, to find that crossover.
+
+**Linear readout (probe).** A linear model fitted on the encoder's row representation instead of
+the in-context head. TabArena-Lite's FinTFM-LinProbe entry is "FinTFM with a trained linear
+readout", so it is **not** the zero-shot model; label it so (§204, §215, §224). The package side is
+`fintfm.experiments.representation_transfer` (`docs/CHANGELOG.md`, 0.9.0 and 0.10.0); the
+TabArena entry lives in the fork.
+
+**Elo (TabArena-Lite).** The leaderboard rating, with RandomForest (default) anchored at 1,000.
+A figure carries its interval and its dataset set: all 51 Lite datasets give 903 Elo, 106th of
+110, for the trained-readout entry (§224, MEASURED, repeat 0, fold 0); the binary-only figure
+(§215, 1,000.2) uses 27 datasets and is not comparable.
+
+**Fine-tuned (per dataset).** A FinTFM copy that took gradient steps on the caller's training
+rows (`finetune_steps > 0`, D18). Neither the zero-shot FinTFM nor FinTFM-R; every number says so.
 
 **Term structure.** The curve of cumulative PD across horizons. The object this project aims
 to predict, and what IFRS 9 lifetime ECL consumes.

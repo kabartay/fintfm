@@ -20,7 +20,7 @@
       whether the limit is architectural — `docs/infra/COMPUTE.md` prices 2,048-row tasks at 32× per
       step, so cost the experiment before running it.
 - [ ] 36.4 **Report native coverage** — the fraction of datasets or tasks scored without
-      falling back — alongside accuracy, everywhere. Seldon running 100% of TabBench while two
+      falling back — alongside accuracy, everywhere. One commercial model running 100% of TabBench while two
       of eight models silently failed on 19% and 29% is a real result, and an average over
       only the easy cases flatters a model exactly as §25 warned. Verify: every experiment
       harness reports a coverage fraction beside its aggregate, and a test asserts that

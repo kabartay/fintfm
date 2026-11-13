@@ -21,8 +21,8 @@ That stage attends across all `N` rows **for every feature**, giving an attentio
 §81's chunking helps at inference and **not at all** in training (§94), because autograd
 retains every chunk. So the cost is structural, not an implementation detail.
 
-**An external account says the field routed around this.** Neuralk's Seldon technical post
-(relayed 2026-09-19) describes the current generation — Seldon, TabPFN v3, TabICL v2 — as
+**An external account says the field routed around this.** A commercial vendor's technical post
+(relayed 2026-09-19) describes the current generation — its model, TabPFN v3, TabICL v2 — as
 factorizing attention into three stages: a **column transformer** building a latent per
 column, a **row transformer** compressing each row to a single embedding, and an
 **in-context block** attending across row embeddings. They state this cuts cost from naive
@@ -62,7 +62,7 @@ more cheaply.
   assumed, on the same five folds and the same Bayes-ceiling probe.
 - **Not adopting any third-party implementation.** `CLAUDE.md`'s boundary stands: the
   architecture is described in a public post and may be reimplemented from the description,
-  and no code or weights from Seldon, TabPFN or TabICL may enter this repository.
+  and no code or weights from that vendor's model, TabPFN or TabICL may enter this repository.
 - **Not a prior change.** `mechanism-diverse-prior` is a separate axis and is independently
   the leading hypothesis for the accuracy deficit after the breadth result.
 

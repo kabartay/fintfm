@@ -8,6 +8,14 @@ official repository files and model cards fetched raw), never from a summariser
 (`docs/results/POSTMORTEM.md`); `docs/paper/RELATED_WORK.md` carries the full peer notes with
 page and section locations.
 
+**Status note, 2026-11-13.** The plan below is kept as written on 2026-11-02. Each of the eight
+experiments carries a dated status line, read on 2026-11-13 from `docs/results/FINDINGS.md`
+(§203-§224) and the openspec task files, and the lever tables in section 1 are not updated: for
+levers tried since, read the status lines. Summary: experiments 1 and 3 (partial) and 4 (per-leaf
+half) have been run and 1 and 4 closed by their own kill rules; 8 is half run (Muon harmful, RBF
+value embedding harmful, length scaling queued); 2 was overtaken by a different stack on
+TabArena-Lite; 5, 6 and 7 have no result.
+
 ## The question, and the answer this file arrives at
 
 **Question.** What is most likely to make FinTFM (synthetic-only) (a) beat simple baselines,
@@ -28,7 +36,10 @@ representation, not in scale.
    confounded with label count: the probe was fitted on about 2,150 positives, the head
    conditions on about 7 (`docs/design/DESIGN_REVIEW_2026-10-16.md` §1.6). The matched-label
    test (DR3.4) is built and has never been run. It is experiment 1 because it decides which
-   half of the hypothesis to fund.
+   half of the hypothesis to fund. (2026-11-13: run as DR3.4 and closed. At equal labels the
+   probe ties the head, −0.0005 mean AP cross-fitted, 3 of 5 folds positive (§209); on the
+   prior's own tasks the head beats the probe, −0.0046 AP, 75 of 200 tasks (§203). The "head
+   under-reads" half is not supported; §130-§136 measured label count.)
 4. **The prior points in opposite directions on the two goals.** The general trunk lifts the
    proxy suite and harms V4FinBench (§191); ten times the tasks does the same (§188). Goals (a)
    and (b) probably need different checkpoints, and the plan treats them separately.
@@ -135,7 +146,7 @@ against TabArena (DR4.2).
 | fine-tuning on TabArena-Lite | **no** | | |
 | SVD members, class shift on binary tasks | **no** | built, `ensemble_svd_components`, `ensemble_class_shift` | config |
 | FinTFM inside CatBoost | yes | +0.0039: null | §201 |
-| FinTFM inside LightGBM, credit suite | yes | +0.011 AP on SBA | §189 |
+| FinTFM inside LightGBM, credit suite | yes | +0.011 AP on SBA (2026-11-13: flat on SBA once the booster is tuned, §213; lifts a tuned booster on ULB, 3 of 3) | §189, §213 |
 | TabArena imbalanced subset (AU5.18) | **no** | | audit tasks |
 
 ## 2. The field, read for prior, volume and inference
@@ -190,6 +201,8 @@ proxy suite first.
 
 ### 1. Matched-label probe: does the head under-read, or did the probe just see more labels?
 
+**Status, 2026-11-13: done, kill rule met (§209, §203).** V4FinBench, five folds, published checkpoint: head 0.1986, head cross-fitted 0.1981, probe on the 2,000 context rows 0.1976 mean AP, so the context-only probe minus the cross-fitted head is −0.0005 (3 of 5 folds positive; point values, no bootstrap in §209). The 20,000-row stratified probe is 0.2213, so label count explains the earlier gap. Prior-task arm: −0.0046 AP for the probe against the head, 75 of 200 (§203). Experiment 5 is not built, as this experiment's own rule required (openspec DR3.4 closed 2026-11-05).
+
 - **Hypothesis.** The head extracts less than a linear readout of the same representation would,
   at the same labelled rows.
 - **Change.** None to weights. Run `representation_transfer` with `--probe-rows context`
@@ -206,6 +219,8 @@ proxy suite first.
   both, the head is the defect.
 
 ### 2. Goal (a): a general-tabular checkpoint with a linear readout
+
+**Status, 2026-11-13: not run as specified; superseded in practice by the readout stack on the published checkpoint.** All figures are TabArena-Lite, label "FinTFM with a trained linear readout", and breadth only. Probe plus squash 969 Elo (§212); plus partition 1,000.2 Elo, level with RF (default), not above it (§215); binary 974 on 30 datasets (§220); multiclass 865 (§224); regression 578 (§223); all 51 datasets 903 Elo, 106th of 110 (§224), with Linear (tuned) at 919 and RF (default) at 1,000. The 480,000-task checkpoint is null on multiclass (§222). The proxy suite that this experiment selects on failed its validation bar, rho +0.717 against 0.8 (§216, DR4.2), so the plan's selection step no longer stands. Success criterion stated above (above `Linear (default)` on §132's cache) is superseded by the bar in `docs/roadmap/TABARENA_BAR.md`, not met on the 51-dataset run.
 
 - **Hypothesis.** For TabArena the right checkpoint is a general-trunk one, not the credit one,
   and the probe's gain stacks with it. The two strongest general-tabular signals measured here,
@@ -228,6 +243,8 @@ proxy suite first.
 
 ### 3. Goal (b): stack the partition with members and bagging
 
+**Status, 2026-11-13: mostly not run.** Narrowed by the owner on 2026-11-08: the 8-member and 8-bag arms are dropped; only `task_dr311_bag4_f23` stays queued as a futility test, and openspec DR3.11 (2026-11-11 note) still lists it as not run, waiting on Kaggle GPU quota. Related results: partition on TabArena-Lite 888 Elo against 751 for the same-GPU default, 23 of 27 datasets better (§212); the probe per leaf on V4FinBench is −0.0570 mean AP on 0 of 5 folds (§218), traced to a sampler defect in the harness (§219), rerun pending, so no V4FinBench verdict exists for it. The partition's own V4FinBench result stays 0.2362 (§169, §205).
+
 - **Hypothesis.** The gap to CatBoost is mainly context composition around the gate (§168), and
   §169's partition has headroom: one context draw per leaf is noisy (§162 showed one 500-row
   draw collapse a fold to 0.0684).
@@ -242,6 +259,8 @@ proxy suite first.
   numeric-only datasets.
 
 ### 4. Fine-tuning where it has not been scored: TabArena-Lite, and per leaf on V4
+
+**Status, 2026-11-13: per-leaf half closed, Lite half not found.** Fine-tuning per leaf of §169's partition is null: +0.0049 mean AP, 4 of 5 folds, below the +0.0073 bar (§208). I found no FINDINGS entry scoring `finetune_steps: 200` on TabArena-Lite; treat it as not run. §205 reports the zero-shot partition beating §163's fine-tuned arm on 5 of 5 folds.
 
 - **Hypothesis.** Fine-tuning is the only lever positive on both benchmarks (§163, §192), and
   Mitra-v2's TabArena "default" is itself fine-tuned and bagged. Scored zero-shot, FinTFM is
@@ -260,6 +279,8 @@ proxy suite first.
 
 ### 5. A readout that attends over the context's labels (only if experiment 1 survives)
 
+**Status, 2026-11-13: not built, condition failed.** Experiment 1 did not survive (§209), so by this plan's own rule it is not funded.
+
 - **Hypothesis.** A fixed linear head maps the representation to fixed class slots; a readout
   that scores each query against the context rows' representations and labels (TabPFN-3's
   retrieval decoder, TabPFN-3.5's attention over one-hot training labels) fits the rule to the
@@ -276,6 +297,8 @@ proxy suite first.
 
 ### 6. Train on the row counts the model is scored at
 
+**Status, 2026-11-13: the specified resume stage has no result.** A related from-scratch arm, `--n-rows-choices 256,512,1024,2223` with contexts to 2,000 rows (AU5.4), is null: 0.1933 against 0.1975, −0.0042 mean AP, 1 of 5 folds positive (§211). A 4,000-row inference context on TabArena-Lite multiclass is also null, 820 against 825 Elo (§224).
+
 - **Hypothesis.** A model that never saw more than 921 context rows cannot use 2,000 well, and a
   short final stage at longer contexts, as TabICL, TabICLv2, TabPFN v2 and TabFM all use, lets
   it hold more of the gate's positives.
@@ -291,6 +314,8 @@ proxy suite first.
 
 ### 7. The gate alone, in the prior
 
+**Status, 2026-11-13: no result found.** FINDINGS §195-§224 contain no 48,000-task arm with `--financial-gate-prob 0.5` alone; the gated prior appears only inside the bundled prior v2 arms (§180, §191). Treat as not run.
+
 - **Hypothesis.** V4's label is a hard gate (§168) that trees learn in one split, and the prior
   never taught one in isolation. Prior v2 arm (a) bundled the gate with a sign flip and feature
   bands, so the gate's own effect is unmeasured.
@@ -303,6 +328,8 @@ proxy suite first.
   sign flip and bands were not what hurt arm (a)).
 
 ### 8. The peers' encoding and optimiser levers, already built
+
+**Status, 2026-11-13: two of three arms run, both harmful.** Muon: 0.1849 against 0.1975, −0.0125 mean AP, 0 of 5 folds positive (§211). RBF value embedding (AU5.16, without the ECDF channel): 0.1654 against 0.1975, −0.0321, 0 of 5 folds positive (§213); the Fourier basis and the ECDF channel were not trained. Length-scaled attention (`au517-lenscale-s0`) was queued and not trained as of the openspec note of 2026-11-11.
 
 - **Hypothesis.** TabICLv2's leave-one-out ablation gives about 100 Elo each to early target
   inclusion, Muon and QASSMax; FinTFM has the first (`cell_labels`, +0.0520, §172) and has never
@@ -331,4 +358,4 @@ built, which checkpoint goal (a) uses, and whether goal (b) still has an inferen
 timing step alongside. Experiments 5 to 8 total about 7 GPU-hours at one seed (ESTIMATED, before
 6's timing) and are ordered by what 1 to 3 return.
 
-**8 experiments, 3 of them inference-only and runnable today.**
+**8 experiments, 3 of them inference-only and runnable today.** (2026-11-13: see the status lines above; the ordering paragraph is the 2026-11-02 plan and is not revised.)

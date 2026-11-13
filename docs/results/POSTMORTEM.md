@@ -220,3 +220,70 @@ would have corrected immediately. None of these needed a smarter model or a bett
 They needed the cheap number checked against the expensive one before being acted on, which is
 the same rule the first postmortem's failures 1 through 6 were already evidence for, applied
 here to engineering cost rather than to scientific conclusions.
+
+---
+
+# Postmortem: two harness defects read as model results
+
+**Date:** 2026-11-13. Companion to `docs/results/FINDINGS.md` §218-§220, which carry the numbers.
+Nothing here was a wrong diagnosis about the architecture. In both cases the experiment harness,
+not the model, produced the number, and the first reading of that number was a statement about
+the model.
+
+## The chain
+
+| # | The first reading said | What was actually true | Cost |
+| --- | --- | --- | --- |
+| 1 | §218 (MEASURED 2026-11-09 to 11-10): a probe per partition leaf is harmful on V4FinBench, **−0.0570 mean AP against the global head, 0 of 5 folds** (Holm-significant on 5 of 5), so §215's best Lite configuration is "Lite-only, and harmful on credit". The mechanism offered was that pooled scorers sit on different scales | §219 recovered from the saved predictions, bit for bit, which scorer handled each row. In every fold 93 to 97% of the test defaults sit in one leaf of about 10,000 rows, and that leaf got no probe: `_stratified_subsample` kept every positive and filled the budget with negatives, so a leaf whose defaults outnumbered its 2,000-row budget produced an all-default sample, no probe could be fitted and the leaf's own head scored it. Inside its own leaf the leaf probe ranked better than the global probe in 5 of 5 folds (fold 0: 0.1260 against 0.0970). The loss is a **sampler defect in the harness**, not a model result (§219) | Five folds of CPU time (197, 320, 188, 60 and 78 min, §218) and a "harmful" verdict written into the ledgers, `docs/paper/NEGATIVE_RESULTS.md` and `openspec/specs/METHODS.md` before the cause was found |
+| 2 | Bioresponse (TabArena-Lite, binary) stopped with `feature width at predict time must match fit time`, which reads as a model that cannot take wide tables | The fork's probe re-read its training rows through the private `_preprocess`, which keeps the columns AutoGluon dropped; prediction used the public `preprocess`. The classifier was fitted on one width and handed another. The same defect stopped the first multiclass run (`lite-mc-pp`) on its first dataset and the regression run on QSAR-TID-11 (§220) | A failed first run on three problem types. No earlier Lite number was silently affected, because a dropped column always crashed the run |
+
+## What they had in common
+
+**Row 1 is the same shape as the first postmortem's failure 1: a pattern read before it was
+decomposed.** AUC stayed between 0.980 and 0.990 in every fold while AP fell by up to 0.13, which
+is a ranking failure at the top of the score range. §218 recorded that, correctly, as a hypothesis
+("not yet tested"), and then stated the verdict and the consequence ("must not be described as a
+credit configuration") as findings. The test that separated the hypothesis from the cause was
+cheap: no refit, only the saved predictions and a per-row record of which scorer produced each
+score. It was written after the verdict, not before.
+
+**The repaired arm is not the answer, either.** §219's post-hoc repairs are chosen after seeing
+the data. Scoring the single-class leaf with the global probe gives 0.2260 mean AP (+0.0274
+against the global head, 4 of 5 folds), but the global probe alone gives 0.2213, so the repair
+adds little over the arm it falls back to. §219 states that the repaired AP is a post-hoc reading,
+not a verdict. The five-fold rerun with the fixed sampler (`ppfix-v4-*`, `runs/pp-v4-fix/`) is the
+verdict, and it was queued, not run, when §219 was written.
+
+**Row 2 is the opposite case, and the useful one.** The defect failed loudly, on the first dataset
+that exercised it, and a test now fails without the fix (fork commit f9ea61d). A harness that
+crashes on a mismatch costs a run. A harness that silently scored the wider table would have cost
+a number.
+
+## Why nothing caught row 1 sooner
+
+- **Both reproduced rows passed.** The partition head matched §169 to four decimals and the global
+  probe matched the default run's arm. Those checks show the harness is sound for the arms they
+  cover, and said nothing about the arm that combined them.
+- **The sampler was correct below its budget.** The TabArena fork's `_probe_rows` already carried
+  the fix, for `Amazon_employee_access`, so §215's Lite run did not have the defect. The V4FinBench
+  harness had a second copy of the same logic, without it.
+- **The per-fold scorer mix was recorded and not read as a defect.** §218 noted that each fold had
+  one leaf scored by its own head, and attributed the loss to scale differences between scorers
+  rather than asking why a leaf with both classes had been scored as single-class.
+
+## What changed
+
+- **`_stratified_subsample` caps both classes** when the positives alone fill the budget:
+  negatives take up to half and positives the rest. Below the budget the draw is unchanged, so the
+  default run's global arms stay bit for bit. Two tests in
+  `tests/test_representation_transfer.py` pin both cases (§219).
+- **`scripts/pp_v4_scorer_mix.py` reports which scorer handled each row**, so a pooled score can
+  be decomposed by group before it is interpreted.
+- **§218 stands as a record of the harness as it ran**, and its reading is replaced by §219's.
+  The "harmful" consequence in §218 is superseded in cause and not yet in verdict, which waits on
+  the fixed-sampler rerun.
+- **The private/public preprocessing mismatch is fixed and tested** in the fork (§220).
+
+The general rule, added to the earlier ones: **a pooled metric over rows scored by different
+paths is not interpretable until the rows are split by path.** A mean AP can collapse because one
+path is wrong, and nothing in the mean says which.

@@ -11,7 +11,24 @@ ledger rather than from memory at writing time.
 | [RELATED_WORK.md](RELATED_WORK.md) | who has done what, and what is left for us |
 | [LIMITATIONS.md](LIMITATIONS.md) | the section that has to be written first, not last |
 | [FIGURES.md](FIGURES.md) | figures and tables a paper needs, and which command produces each |
+| [peer-review_2026-11-08.md](peer-review_2026-11-08.md) | dated record of a peer-literature pass (2026-11-06 to 2026-11-08), with status notes added later |
 | [NEGATIVE_RESULTS.md](NEGATIVE_RESULTS.md) | what did not work: harmful levers, nulls, one-benchmark wins, refuted predictions, deferrals, each sourced to FINDINGS |
+
+## Status, 2026-11-13
+
+(Added 2026-11-13. The assessment below dates from 2026-09-20 and is kept as written.) Sources
+are `docs/results/FINDINGS.md` sections.
+
+- **Placement.** FinTFM with a trained linear readout scores 903 Elo on all 51 TabArena-Lite
+  datasets, 106th of 110 (§224); binary 974 on 30 (§220), multiclass 865 on 8 (§224), regression
+  578 on 13 (§223). RandomForest (default) is 1,000. §98's 94th of 95 is the earlier zero-shot rank.
+- **Credit.** FinTFM is below untuned logistic regression on mean AP on all four admitted credit
+  datasets (§216). On V4FinBench no lever tested since §211 clears the bar, and 480,000-task
+  volume is null (§188). The probe per partition leaf scored -0.0570 mean AP (§218); §219 found a
+  harness sampler defect and the fixed rerun is pending.
+- **Consequence for the framing.** The diagnosis paper (candidate B in `OUTLINE.md`) is
+  unchanged by these results; the "synthetic prior transfers to credit" paper stays not writable.
+- Release 0.10.0 was published 2026-11-13.
 
 ## Current publishability, as of 2026-09-20
 

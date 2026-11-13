@@ -24,9 +24,18 @@ It also says something the proposal had not yet said, and it should be read befo
 * **On CPU and MPS the factorization does remove the memory wall**, because attention scores
   are materialised there: 36.5 GB per layer per task at N=4096 becomes 1.1 GB.
 
+**Status 2026-11-13.** Tasks 44.2 to 44.6 of `factorized-attention` are still open, so the
+factorized encoder is not built and the section 4 projection is untested. Two later results touch
+the model. DR6.2 (`cell_row_attn="induced"`, 64 points) trained 13% faster to its last
+checkpoint (2,838 s against 3,267 s, §178, MEASURED, Kaggle T4x2) and scored -0.0186 mean AP
+against its control, 5 of 5 folds negative, so it was not adopted. That is compatible with the
+prediction above of no training-memory gain; wall time was not predicted by this model. The
+2026-11-07 `cell_mixing="latent"` option (task 48.27) replaces both cell stages with latents and
+is not modelled here; it has no result yet.
+
 ## 1. What the encoder does (read from `src/fintfm/modeling/model.py`)
 
-`encode_rows` (L1440-1530 in the checked-out file). With `n_cell_blocks=K > 0` and
+`encode_rows` (L1399-1565 in the file as of 2026-11-13; the line numbers below were re-read on that date, and the 2026-11-11 draft's L1440-1530 had drifted). With `n_cell_blocks=K > 0` and
 `cell_labels=True`, per block:
 
 1. **Row-attention within feature**: cells reshaped to `(B*F, N, d_cell)`, attention across the
@@ -40,7 +49,7 @@ It also says something the proposal had not yet said, and it should be read befo
 
 The weights of the two cell stages are tied across blocks, so there are
 `L_cell = 2 * K * n_col_layers` cell layers. Each cell layer uses `dim_feedforward = 2 * d_cell`
-(L981, L997), so a cell layer is not configurable in width ratio. Dropout is 0.
+(L981, L999), so a cell layer is not configurable in width ratio. Dropout is 0.
 
 | symbol | meaning | 885K shape (§79, §81, §95) | 5M shape (§94) |
 | --- | --- | --- | --- |
@@ -74,8 +83,8 @@ Where each value was read from:
   call `nn.TransformerEncoder`, whose attention goes to `scaled_dot_product_attention`.
   On CUDA that selects a flash or memory-efficient kernel (§95 reports both enabled); the score
   matrix is never stored. On CPU in no-grad eval, the stock fast path materialises
-  `(B*F*h, N, N)` scores (measured below). `attn_impl` and `_prenorm_stack` only matter for
-  half precision (L1303).
+  `(B*F*h, N, N)` scores (measured below). `attn_impl` and `_prenorm_stack` (L1658) only matter for
+  half precision (`_needs_aligned_heads`, L1303).
 
 ## 2. Formulas
 

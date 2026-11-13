@@ -34,19 +34,19 @@ context: |
 
   1. Every mechanism claim is already owned. "No feature engineering" is Kumo's, in AP
      and Forbes. "In-context, no training on your data" is KumoRFM's, documented on
-     docs.nvidia.com. Synthetic-prior TFMs are Google TabFM, Neuralk, Prior Labs.
+     docs.nvidia.com. Synthetic-prior TFMs are Google TabFM, Prior Labs and others.
      "Universal tabular FM for financial risk" is Feedzai RiskFM. NEVER pitch the
      mechanism; competing there means competing on capital and distribution against a
      $255M Series A.
   2. The product is the VALIDATION EVIDENCE, not the prediction. Credit scorecards are
      logistic regression because regulators demand interpretability, which is why
-     Fundamental's published result beats linear regression rather than gradient
+     one published commercial result beats linear regression rather than gradient
      boosting. The accuracy bar is low; the barrier is model risk management.
   3. Never claim novelty on the PFN architecture. It is reproducible from the public
      TabPFN/TabICL literature in days. The moat is the weights, the mature prior, the
      certificate and the track record.
-  4. Fundamental is already verticalising (oil & gas, in production). Assume finance is
-     an obvious next vertical for them and that entering it is a go-to-market motion,
+  4. A commercial TFM vendor is already verticalising (oil & gas, in production). Assume
+     finance is an obvious next vertical for it and that entering it is a go-to-market motion,
      not research. Being first is not a defence; regulatory depth and elapsed track
      record are.
 

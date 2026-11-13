@@ -78,11 +78,13 @@ scales with how extreme the rebalancing actually is.
 
 ## Commercial context, cited as context only
 
-Neuralk (Seldon), Fundamental (NEXUS), Kumo (KumoRFM), Google TabFM, Feedzai RiskFM, Prior
-Labs, The Forecasting Company. Public papers and posts are legitimate to read and cite; none
-is a source of code, weights or data (`CLAUDE.md`). Fundamental's published oil-and-gas result
-beats *linear regression* rather than gradient boosting (§2), which is the evidence that the
-accuracy bar in regulated domains is lower than the validation bar.
+Kumo (KumoRFM), Google TabFM, Feedzai RiskFM, Prior Labs, The Forecasting Company. Public
+papers and posts are legitimate to read and cite; none is a source of code, weights or data
+(`CLAUDE.md`). One commercial peer's published industrial result beats *linear regression*
+rather than gradient boosting (§2), which is the evidence that the accuracy bar in regulated
+domains is lower than the validation bar. (2026-11-13: two commercial peers, a tabular model
+vendor and an industrial-AI vendor, were removed from this file by owner decision; ideas taken
+from their public material are kept below without attribution.)
 
 ## The 2026-09-21 peer sweep, and what it costs this project's positioning
 
@@ -522,14 +524,6 @@ description of method, training data, or whether the prior is causal despite the
 enough to compare against this project's own choices; noted as an open item rather than
 guessed at.
 
-**The user's observation that this resembles Neuralk's Seldon is plausible on the surface —
-a causally-named proprietary tabular foundation model — but unverified and not investigatable
-further here.** `docs/competition/LANDSCAPE.md` records Neuralk (Seldon) as proprietary with no public
-technical report; nothing about Causilo's method has been read that would confirm or refute a
-relationship, and `CLAUDE.md`'s boundary against Neuralk's code/weights/training data is
-unaffected either way — Causilo is a separate legal entity (Nums AI Inc.) under its own
-licence, evaluated on its own terms.
-
 ### Xiaomi TabLDM, the model that beat us by 0.0026 on our one first place
 
 **Xiaomi Corporation (2026).** `huggingface.co/occams/Xiaomi-TabLDM`. Code **Apache-2.0**; the
@@ -709,124 +703,57 @@ it applies here too: an abstract or a relayed summary is a lead, not a citation.
   to 0.060 AUC — were explicitly **not verified** when relayed and must not be cited without
   locating and reading the primary source first.
 
-## Seldon (Neuralk-AI), read 2026-09-26 — a benchmarking paper, not an architecture one
+## Ideas taken from a commercial peer's public report, harness and blog, read 2026-09-26 to 09-28
 
-Read via an agent that fetched the technical report PDF (`Seldon: Foundation, made tabular`,
-June 2026), `Neuralk-AI/NeuralkFoundry-CE` (their open benchmark harness, including its
-`feature_engineering/` module) and `docs.neuralk.ai`'s FAQ directly — primary sources, not a
-relayed summary, unlike the leads above. Recorded with the same discipline anyway: an agent's
-report is a lead until the primary claims it rests on are spot-checked here.
+(2026-11-13: the two sections that discussed this peer by name were removed by owner decision;
+the ideas this project took from them are kept here, unattributed. Their findings entries
+stand: §129, §130, §136, §209.) Sources were a technical report, an open benchmark harness
+with a `feature_engineering/` module and a blog, all primary, all read by an agent and not
+spot-checked at the time.
 
-**Seldon itself is architecturally unremarkable relative to what this project has already
-surveyed.** Column-transformer -> row-transformer -> in-context-learning-block, the same
-factorization as TabPFN v3 and TabICL. No prior generator, training curriculum, or loss is
-disclosed; the report is explicitly positioning and benchmarking, not architecture, and its own
-framing places Seldon as tied with TabPFN v3 and TabICL rather than distinct from them.
+**The model is architecturally unremarkable relative to what this project has surveyed.**
+Column transformer, row transformer, in-context block: the same factorisation as TabPFN v3 and
+TabICL. No prior generator, curriculum or loss is disclosed. What was worth taking is
+evaluation method and three ideas, none a mechanism:
 
-**What is worth taking is evaluation methodology, not a mechanism:**
+- **An "industrial gap" finding (peer's claim, not re-measured here).** On 189 OpenML datasets
+  tabular foundation models sweep the top ranks over tuned GBDTs by roughly 0.7 AUC points; on
+  22 private industrial datasets tuned XGBoost and LightGBM become competitive again. That is
+  Claim 2's question asked from outside, and it is why this project measures on a temporally
+  split credit panel rather than citing it.
+- **A native-coverage column**: the fraction of benchmark datasets a model cannot run natively,
+  separating its own score from one borrowed through a GBDT fallback. This project reports
+  coverage for itself (27 of 51 binary datasets at §121; all 51 datasets at §224).
+- **Wilcoxon signed-rank plus Holm** beside the paired bootstrap plus Holm already run. Possible
+  addition, not a gap; not adopted.
+- **A vectoriser** that extracts a pretrained model's context-conditioned embeddings and feeds
+  them to a downstream model. Done: a linear probe on fintfm's representation beats its own head
+  on V4FinBench, +0.039 mean AP, 5 of 5 folds (§130), replicated on a second checkpoint (§136);
+  at equal labels it ties the head (−0.0005, §209), so the gap was label count.
+- **Yeo-Johnson `PowerTransformer`** as an alternative to rank-based `feature_transform`. Done:
+  it loses to rank on every fold (§129).
 
-- **An "industrial gap" finding.** On 189 OpenML datasets, TFMs sweep the top ranks over tuned
-  GBDTs by roughly 0.7 AUC points; on 22 private industrial datasets (retail, churn,
-  credit-adjacent behavioural panels, transport, energy) tuned XGBoost/LightGBM become
-  competitive again and the TFM ranking reshuffles. This is close enough to this project's own
-  domain claim to be worth a dedicated measurement rather than a citation: whether the synthetic
-  prior's advantage survives on a real, temporally-split credit panel is exactly Claim 2's
-  question, asked from the outside.
-- **A native-coverage column.** They report the fraction of benchmark datasets a model cannot
-  run on natively, distinguishing a model's own score from one borrowed via GBDT fallback. This
-  project already reports coverage prominently for itself (27 of 51, §121); applying the same
-  discipline when comparing against a peer that silently falls back would be new.
-- **Wilcoxon signed-rank plus Holm**, alongside the paired bootstrap plus Holm this project
-  already runs. A possible addition, not a gap -- worth checking whether it changes any standing
-  verdict before adopting it as a second test.
+**From the blog, three arguments that line up with findings already on record:**
 
-**Two ideas from `feature_engineering/`, read as source rather than by filename:**
+- *Capacity and prior richness have to move together.* The post reports a newer architecture
+  paired with an older, less rich prior failing outright. Compatible with §114 (scale null at
+  matched tasks) and §123/§124 (depth at constant width null; §126 retested it with a lower learning
+  rate at batch 2, and §127 showed that learning-rate effect was a batch-size artefact while
+  the depth conclusion stood), and with §112's weak measurement of this prior's
+  distinctiveness. Evidence from one post, not a replication.
+- *The effective richness of a prior may be smaller than its generative description.* The post's
+  support is an ensemble-redundancy result across six TFMs. A caution that the prior's described
+  diversity need not equal what the model learns from it.
+- *The correlation between synthetic-prior loss and real-task performance is "assumed more often
+  than checked".* Checked here four times (§127): held-out synthetic AUC gave the wrong sign against
+  V4FinBench AP in §117 and §124, saw nothing in §126, and agreed only in §127.
 
-- **`TabPfnVectorizer`** (`vectorizer/tabpfnvectorizer.py`) extracts a pretrained TabPFN's
-  context-conditioned embeddings and feeds them to a downstream model (LightGBM, logistic
-  regression) rather than using the TFM end-to-end. This is a different question from anything
-  measured here so far: every finding to date scores fintfm's own head, never whether its
-  representation is useful when handed to something else. Worth one experiment: extract fintfm's
-  representation and test it as input to a plain classifier. (Done, noted 2026-10-15: §130-§136.
-  A linear probe on fintfm's representation beats its own head on V4FinBench, +0.039 mean AP,
-  5 of 5 folds, §130; at equal labels it ties the head, −0.0005, so the gap was label count,
-  §209.)
-- **Yeo-Johnson `PowerTransformer`**, offered as a config-toggled alternative to standard
-  scaling. A direct, one-line alternative to this project's rank-based `feature_transform` on
-  the heavy-tailed financial ratios §35 already identified as a preprocessing lever. Cheapest
-  experiment on this list. (Done, noted 2026-10-15: §129, Yeo-Johnson loses to rank on every
-  fold.)
-
-**From the FAQ, for positioning rather than for the roadmap.** Verbatim: "Unlike LLMs, Tabular
-Foundation Models like Seldon do not contain broad, latent world knowledge. They act as
-inference engines that rely almost entirely on the information provided in the context." A
-usable contrastive quote for this project's synthetic-only framing. The FAQ also states no
-native missing-value handling today ("coming soon") and makes no calibration claim anywhere in
-its public docs -- both are precise, checkable points against which this project's own
-calibration reporting (`docs/results/POSTMORTEM.md`, the credit-panel findings) is a real
-difference, not a rhetorical one.
-
-Two smaller conventions, lower priority: `ColumnTypeDetection`'s cardinality-threshold column
-typer (>30 uniques routes numeric-looking strings to text rather than categorical), relevant
-only if this project ever accepts undeclared schemas; and a fixed small per-column embedding
-budget for free-text fields, relevant only if it ever ingests free text, which it does not
-today.
-
-## Neuralk-AI's blog, read 2026-09-27/28 — three posts, one that bears directly on this project's own results
-
-Read as primary source (the posts themselves, `neuralk.ai/post/...`), alongside the TabBench
-academic results files (`docs/roadmap/` records the TabBench comparison itself; this is what
-came out of reading Neuralk-AI's own writing about the field, not about their benchmark).
-
-**"Why the LLM playbook stops working with TFMs" is the one worth acting on.** Its central
-claim: LLMs learn from one fixed empirical distribution (human text); TFMs add a level -- a
-*designed distribution over synthetic priors* -- that LLM scaling intuition says nothing about.
-Two pieces of their evidence line up with findings already on record here, independently
-arrived at:
-
-- **"Capacity and prior richness have to move together."** They report TabICLv2 paired with an
-  older, presumably less rich prior "failed outright: performance stayed below the baseline and
-  validation loss degraded." This project's own §114 (three independent scaling lines, all
-  null) and the depth-at-constant-width result (§123/§124/§126, +0.0010 AP) are the same
-  pattern from the other direction: capacity added without the prior richness to use it buys
-  nothing. §112 already measured this prior's distinctiveness as weak. Read together, the
-  Neuralk result is a second, independent line of evidence that the roadmap's Phase C framing
-  ("the prior is the project's distinctive claim and §112 measured its distinctiveness as
-  weak") is the right diagnosis, not a guess -- a peer working from a richer prior hit the
-  matching failure mode when they took richness away.
-- **"The effective richness of these priors may be smaller than the generative description
-  implies"** (from an ensemble-redundancy result: six modern TFMs' predictions "are too
-  correlated for any combiner to exploit"). A caution against assuming a prior generator's
-  described diversity (interaction orders, task families, SCM structure) equals the diversity
-  the model actually learns from -- exactly the gap Phase C's items 18-24 are designed to
-  measure rather than assume.
-- **Recommendation to track "the correlation between synthetic-prior loss and real-task
-  performance," calling it "assumed more often than checked."** This project already has the
-  sharper version of this warning on record and paid for it three times: §117, §124 and §126
-  all found held-out synthetic AUC gave the wrong sign relative to V4FinBench AP, correct only
-  in §127 (`docs/roadmap/ROADMAP.md`'s "screen downstream, not on held-out synthetic"). Their
-  general warning and this project's specific, repeated measurement are the same finding at
-  two different levels of confidence.
-
-**"Feature engineering with Seldon"** is operational advice for a mode this project's own
-inference wrapper does not have: querying a hosted model interactively (no training step,
-"forty full feature experiments an hour") to iterate on which features and which context rows
-to show it, rather than retraining. Not applicable to a from-scratch pretrained-only project in
-the same way, but the "curated, relevant context beats pooled context" observation (airport-
-specific flight-delay context beating a pooled cross-airport set on F1) is a variant of this
-project's own retrieval finding -- S70 found retrieval harmful at low prevalence, a different
-answer to a related question about what context to show the model, worth keeping as a contrast
-rather than a confirmation.
-
-**"Foundation models on structured data: tables vs. time series"** is a clean, checkable
-argument for why this project's exchangeable-rows assumption (`docs/paper/CLAIMS.md`'s
-framing) is a real simplification rather than a free one: TFMs assume i.i.d. rows, while time
-series carry marginal and conditional distribution shift that turns forecasting into "a far
-higher-dimensional problem" than i.i.d. regression. Relevant here only as a boundary statement
--- V4FinBench's credit panel is temporally split (`docs/results/FINDINGS.md`'s out-of-time
-evaluations), which is closer to the harder time-series case this post describes than to the
-i.i.d. case TFMs are designed for, and is worth stating explicitly next time the exchangeability
-assumption is discussed rather than left implicit.
+Two smaller points. A hosted, interactive "curated context beats pooled context" result is a
+variant of this project's retrieval finding, but §70 found retrieval harmful at low prevalence
+and §213 found per-class retrieval harmful, so it is a contrast, not a confirmation. And the
+post's argument that tables are i.i.d. while time series carry distribution shift is a boundary
+statement for our exchangeable-rows assumption: V4FinBench is split by company and, in the
+out-of-time suites, by date, which is closer to the shifted case.
 
 ## NVIDIA Kumo Tabular, read 2026-10-03 — a new #1, and two architectural ideas worth tracking
 
@@ -1227,15 +1154,14 @@ readout over the context's own labels.
 **Status.** Periodic read (previous: 2026-10-16, with the 2026-11-02 row-count addendum). Every
 figure comes from the source named in `docs/research/REFERENCES.md`, section "Peer read 2026-11-05":
 arXiv PDFs via `pdftotext`, the board as the raw CSV of the TabArena Space at commit `0cec481`
-(v0.1.9.15, 2026-11-04), repository files and releases directly, Seldon's card as raw HTML. A
+(v0.1.9.15, 2026-11-04), repository files and releases directly. A
 WebFetch summary was used first for some pages and is not the basis of any number here.
 
 **The board, default view (models only, imputed included, 51 datasets).** Against the 2026-10-16
 read (Space v0.1.9.7): Kumo-Tabular 1931 (was 1947), LimiX-2 1922 (1940), Kumo-Medium 1870 (1889),
 TabPFN-3.5 1833 (1853), TabFM 1763 (1774), Causilo 1756 (1777), Mitra-v2 1740 (1754), EXAONE-Tabular
 1721 (1738). Elo is relative to the entrant pool, so a uniform drop of 10-20 is new entrants, not
-regression. New rows: **TabAbax 1651** (rank 10), Xiaomi-TabLDM 1571, TabPFN-3 1611, **Seldon 1548
-(CI +117/-117, 25.49% imputed) and Seldon-Mini 1513**, FTFM 1477. TabICLv2 1550; Nori and Nori-30M
+regression. New rows: **TabAbax 1651** (rank 10), Xiaomi-TabLDM 1571, TabPFN-3 1611, FTFM 1477. TabICLv2 1550; Nori and Nori-30M
 sit at 1152 and 1162. Order of the top three is unchanged.
 
 **1. LimiX-2, the #2 entry, carries an open contamination report** (TabArena issue #648,
@@ -1265,15 +1191,8 @@ evidence about a general-tabular board, not about credit, and TabArena's authors
 from the repository's board (their 1,647 is their own 99-method pool; the board shows 1651 for the
 combined entry). Weights CC-BY-NC-4.0, so evaluation of numbers only.
 
-**3. Seldon (Neuralk): a vendor's head-to-head win rates and the board disagree.** Its card (read
-raw) claims win rates on TabArena classification (38 datasets, 594 folds) of 82.3% over TabICLv2,
-63.5% over TabPFN-3.5 and 40.6% over LimiX-2, synthetic SCM prior only, classification only,
-213.5M parameters, gated weights under the Neuralk Seldon License. The board, which imputes the
-missing regression datasets, places it at 1548 against TabICLv2's 1550. These measure different
-things (classification-only win rate against Elo with 25.49% imputation), so neither refutes the
-other; only the classification-only board view would settle it, and it was not read. Licence: not
-read in full; treat as non-commercial until read. For this project: a fourth synthetic-only peer
-whose claim cannot be audited (the generator is not published, unlike ours).
+**3. (Removed 2026-11-13.)** The entry on a commercial entrant's own win-rate claims against
+the board was removed by owner decision; items 4 to 7 keep their numbers.
 
 **4. Nori 1.5 and the CardoAI classification head.** Nori 1.5 (~21M, Apache-2.0 per card,
 "trained entirely on synthetic data") reports R2 on TabArena's 13 regression datasets of 0.8175
@@ -1297,11 +1216,15 @@ Thinking mode (test-time compute, TabPFN-3.5-Thinking) is **hosted-API only**, w
 numbers on its own docs page; the "over 200 Elo" figure seen in a search snippet is not cited
 because its source was not opened. SAP announced the acquisition on 2026-05-04 (terms undisclosed);
 treat later completion reports as unconfirmed.
+(Checked 2026-11-13 against PyPI's JSON record: `tabpfn` is now 9.2.0, code licence expression
+Apache-2.0, README unchanged on weights: 2.5, 2.6, 3 and 3.5 non-commercial, TabPFN-2 under the
+Prior Labs licence. The release date of 9.2.0 was not in the page text read.)
 
-**6. TabICL, TabDPT, Mitra, TabFM, NEXUS: no new model.** TabICL's latest release is v2.2.0
-(2 Sep; adds pre-training code, FlashAttention-3 support), no licence change stated. TabDPT's HF repo
+**6. TabICL, TabDPT, Mitra, TabFM: no new model.** TabICL's latest release is v2.2.0
+(2 Sep; adds pre-training code, FlashAttention-3 support), no licence change stated. (Checked 2026-11-13: PyPI still lists 2.2.0, uploaded 2026-09-02, BSD 3-Clause
+licence text; `src/tabicl/forecast` is Apache-2.0.) TabDPT's HF repo
 last modified 2026-09-08, still Apache-2.0 per the Hub API. TabFM's 1.1.0 card is already recorded.
-No new Mitra release found. Fundamental publishes no benchmark we could find. Mitra-v2 stays at 1740
+No new Mitra release found. Mitra-v2 stays at 1740
 on the board, Apache-2.0.
 
 **7. Credit and finance.** Nothing new that is a paper. The Lessmann seminar (2026-10-01, 14 PD and 7
@@ -1312,7 +1235,7 @@ The Mission Lane post could not be opened. Morgan Stanley's mechanistic paper (B
 credit-g and credit-approval only as two of 49 datasets.
 
 **What it means for the claims.** Claim 2's "synthetic-only" differentiator was already gone; it
-now has three more peers (Seldon, TabAbax, Nori 1.5 plus a classifier head) and one demonstration
+now has two more peers (TabAbax, Nori 1.5 plus a classifier head) and one demonstration
 that the label alone does not prove it (LimiX-2). The defensible part is the *auditable* version:
 published generator, and for FinTFM no real data at all.
 
@@ -1322,34 +1245,10 @@ panels. (ii) The classification read-out is separable (CardoAI), supporting the 
 test before a rebuild. (iii) Check TabArena claims against the replacement LimiX-2 before quoting any
 rank relative to it.
 
-### Addendum 2026-11-05 (task 48.26): Seldon read in full, and LimiX-2 status
+### Addendum 2026-11-05 (task 48.26): LimiX-2 status
 
 Sources and URLs are in `docs/research/REFERENCES.md`, "Addendum 2026-11-05 (task 48.26)". All read
 on 2026-11-05 from the primary file or CSV; nothing accepted, nothing downloaded but text.
-
-**Seldon's licence, closing the licence part of item 3 above.** The Seldon weights are under the
-"Seldon Research and Evaluation License": non-commercial research and internal evaluation only, no
-serving, no use of outputs to train any other model, no probing for the data-generating prior, and
-no publication of results without Neuralk's consent. That is stricter than the earlier "treat as
-non-commercial" assumption. Seldon-Mini is a *different* document (the "Seldon Model License
-Agreement": internal business use, commercial included, but no serving to third parties and the same
-training and reverse-engineering bans), and the TabArena board mislabels it with Seldon's licence.
-For FinTFM both are evaluation-by-published-numbers only.
-
-**Seldon's Elo on the classification-only view, settling the rest of item 3.** TabArena v0.1.9.15,
-classification tasks, 99 methods, no imputation in the shown rows: **Seldon 1879, Seldon-Mini 1786,
-TabICLv2 1569**; TabPFN-3.5 1842, LimiX-2 1930, Kumo-Tabular 1922. The all-tasks board's 1548
-against TabICLv2's 1550 reflected the 25.49% imputation, not the model. Against the vendor's
-head-to-head claims, the Elo gaps convert (ESTIMATED, a standard 400-point logistic, not a board
-output) to expected win rates of 0.86 for Seldon over TabICLv2 (vendor 82.3%), 0.78 for Seldon-Mini
-over TabICLv2 (vendor 78.5%), 0.43 for Seldon against LimiX-2 (vendor 40.6%) and 0.55 against
-TabPFN-3.5 (vendor 63.5%). Three of four agree within about four points; the TabPFN-3.5 pair differs
-by eight, within Seldon's wide interval (+158/-106). The vendor's claim over TabICLv2 is therefore
-corroborated by the independent board. **By the criterion of task 48.26, Seldon is a real peer**:
-its classification-only Elo exceeds TabICLv2's by 310, with non-overlapping intervals. Caveats: Elo is
-relative to the entrant pool; it is TabArena classification (38 datasets), not credit; and Seldon's
-licence forbids us from running it, so nothing about it can be measured here. Its generator remains
-unpublished, so "synthetic SCM prior only" is not auditable (unlike ours).
 
 **LimiX-2, new facts.** (1) TabArena has flagged LimiX-2 as leaky itself: PR #691 (merged
 2026-10-27) states it "is shown to have seen TabArena test data, with labels" and publishes
@@ -1368,7 +1267,7 @@ invalidated by the new facts.
   report, qualifying the §114 scale cap): the slope inherits the doubt about LimiX-2's scores; the
   cap at this project's task budget is unaffected.
 - same file, line ~104 ("every top-14 rank is synthetic-pretrained", Decision D2): the "synthetic"
-  label for LimiX-2 is the disputed part; the finding survives without it (Kumo, Seldon, TabPFN-3.5
+  label for LimiX-2 is the disputed part; the finding survives without it (Kumo, TabPFN-3.5
   and TabICLv2 stay at the top of the `_noleak` board, though their synthetic-only status rests on
   their own statements).
 - lines ~598, 844-847, 961-1021 (2026-10-16 table: LimiX-2 1935/1940, 2nd; the 34.68 slope; top two
@@ -1385,12 +1284,12 @@ invalidated by the new facts.
 - `docs/results/FINDINGS.md` lines ~6761 (our rank beside "leader LimiX-2: 1878"), ~7589, ~7646,
   ~7919 (the Elo-per-doubling quote): dated results; the leader score is the flagged entry's.
 
-## Peer read of 2026-11-06: FTFM, TabSTAR-v1.1 and the Seldon integration
+## Peer read of 2026-11-06: FTFM and TabSTAR-v1.1
 
 **Status.** Gap-filling pass over the TabArena entrants added 2026-10-06 to 2026-11-05. Sources
 and licences are in `docs/research/REFERENCES.md`, "Addendum 2026-11-06". The FTFM paper was read
 as a PDF, TabSTAR-v1.1 from its model cards, the integrations from the upstream `info.py` and
-`model.py` files, board numbers from the Space CSV at commit `0cec481`. The Seldon, Kumo, LimiX-2
+`model.py` files, board numbers from the Space CSV at commit `0cec481`. The Kumo, LimiX-2
 and LightPFN sections above are not repeated.
 
 **FTFM (arXiv:2610.25558): a real-data-mixed in-context peer, not a synthetic-only one.** One
@@ -1428,12 +1327,6 @@ same view: real-table scale with a text-aware architecture, finetuned, does not 
 synthetic-prior in-context model on a mostly numeric benchmark. It says nothing about credit. The
 v1.1 writeup "will follow" per the repository, so the 2025 paper above remains the only one.
 
-**Seldon and Seldon-Mini on TabArena: integration facts only.** Both ran through AutoGluon
-bagging (`BAG_L1`, refit) on the 38 classification datasets with the vendor's packaged
-configuration, on 2026-11-03 (PRs #701, #706); the placement figures are in the 2026-11-05
-addendum. Weights are pinned to Hub revisions, so the board number cannot drift. The package's
-code licence is unverified at source (PyPI shows none; the repository URL returned 404).
-
 **PrismBoost and Chakra-Tab, one line each.** PrismBoost (MIT; oblique SEFR splits in boosting) is
 a GBDT at Elo 1215 tuned, far below every foundation model on the board: no positioning risk.
 Chakra-Tab is a closed-source hosted-API system (Elo 1884 for `full` on the API board) with
@@ -1446,7 +1339,7 @@ it.
 our cost problem: two-way cell attention is what caps `max_context` (task 48.27). (ii) When
 quoting FTFM, name the view (paper 1723, board 1477) and call it a real-data-mixed model.
 
-## Peer read of 2026-11-09: TabH2O, Seldon's BeyondArena slices, and a local-context ablation
+## Peer read of 2026-11-09: TabH2O, BeyondArena slices, and a local-context ablation
 
 **Status.** Sweep of 2026-11-06 to 2026-11-09. Sources and licences in `docs/research/REFERENCES.md`,
 "Addendum 2026-11-09". Upstream PR bodies were read with `gh api`; the arXiv paper from its HTML.
@@ -1460,14 +1353,14 @@ within each other's intervals. Code `h2ofm` Apache-2.0; weights under the H2O Mo
 Licence v1.0, gated: a published-numbers peer only, like FTFM and TabPFN. The model card states no
 training-data description, so whether it is synthetic-only is unknown.
 
-**Seldon on BeyondArena (PR #717): in-context models lose rank on temporal and grouped splits.**
-Seldon is 4th of 42 overall (Elo 1358), 3rd on `binary` (1345) and 2nd on `iid` (1518), but 17th on
-`temporal` (1052), 18th on `grouped` (1135) and 16th of 36 on `large` (1030). Credit evaluation is
-temporal (out-of-time splits) and grouped (whole companies) by construction, so the slices where a
-leading in-context model drops are the ones our setting lives in. This is one model's slice table,
-not a field result; it is consistent with FinTFM's own record, where V4FinBench (grouped,
-company-level folds) and the out-of-time credit suite (§216) are where boosters and logistic
-regression lead.
+**BeyondArena (PR #717): one leading in-context entrant loses rank on temporal and grouped
+splits.** The entrant is 4th of 42 overall (Elo 1358), 3rd on `binary` (1345) and 2nd on `iid`
+(1518), but 17th on `temporal` (1052), 18th on `grouped` (1135) and 16th of 36 on `large` (1030).
+Credit evaluation is temporal (out-of-time splits) and grouped (whole companies) by construction,
+so the slices where a leading in-context model drops are the ones our setting lives in. This is
+one model's slice table, not a field result; it is consistent with FinTFM's own record, where
+V4FinBench (grouped, company-level folds) and the out-of-time credit suite (§216) are where
+boosters and logistic regression lead.
 
 **Frey (2026), active in-context learning with a frozen TabICLv2 (arXiv:2611.07886): local
 contexts lose to the global one.** Appendix C restricts each query's context to its K nearest

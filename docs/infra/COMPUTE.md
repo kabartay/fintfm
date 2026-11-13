@@ -85,6 +85,38 @@ are compute-bound. Two consequences learned the expensive way:
 - **Set ``PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True``.** The failing run had 5.38 GiB
   "reserved but unallocated"; with the flag every previously failing configuration fits.
 
+## The published recipe, measured per step (added 2026-11-13)
+
+The table above is the pre-cell-attention architecture. The published checkpoint
+(`configs/published/v4-cellattn-labels.yaml`: cell attention, cell labels, `--feature-chunk 8`)
+costs more per step. All rows are MEASURED in the finding named; batch 8, rows drawn from
+{256, 512, 1,024}, 6,000 steps unless stated.
+
+| device | s/step | what it was | source |
+| --- | --- | --- | --- |
+| Apple M3 Max (Metal), `n_rows` 512 | 1.74 | idle device, forward, backward and optimiser | §128 |
+| Tesla T4 | 1.90 | about 3 h 10 min per 6,000 steps | §86 |
+| Kaggle T4, fp32 masked attention | 1.93 | 12.3 GB peak; reproduces §86's 1.90 | §170 |
+| Kaggle T4, fp32 split attention | 1.59 | 1.21x faster; with batch-width padding 1.48 (1.29x) | §170 |
+| NVIDIA L4 (`l4x1`) | about 1.02 | two runs of 1 h 42 min and 1 h 43 min for 6,000 steps, about $2.80 for both; the per-step figure is derived from those wall times | §127 |
+| Kaggle T4x2, DDP, split attention | about 0.54 | 3,233 s and 3,285 s for 6,000 steps (E1's recipe, 4 tasks per rank) | §197, §198 |
+
+Facts that change a plan:
+
+- **fp16 is broken on a T4 for this recipe**, not slow: at batch 4 fp32 needs 6.2 GB and fp16 runs
+  out of memory above 14 GB (§170). Do not launch an fp16 arm without re-reading that finding.
+- **Rows pinned at 1,024 cost 4.11 s/step** against 1.93 with sampled rows, at fp32 masked on a T4
+  (§170). Budget a worst-case probe separately from a throughput probe.
+- **A 480,000-task arm (60,000 steps) took 33,505 s on a Kaggle T4x2** (§202, `dr74-mc-v480-s0`).
+- **Five Kaggle T4 sessions took 25.3 h of quota** on 2026-11-02 (§202). Kaggle's weekly GPU quota
+  is the binding constraint there; `scripts/kaggle/launch_queue.sh` runs two lanes, retries a push
+  while the quota is exhausted, refuses a CPU fallback and scores each checkpoint one at a time
+  (`docs/CHANGELOG.md`).
+- **Kaggle CPU sessions were about 10 times slower than the development machine**
+  (`docs/CHANGELOG.md`), which is why `scripts/kaggle/make_cpu_kernels.py` is unused.
+- **Full-panel scoring holds 12 to 14 GB per process**, which is why the queue script scores one at
+  a time.
+
 ## Do we need NVIDIA?
 
 **Not for Phase 1.** A single A100 or H100 would run this perhaps 5-15x faster than Metal,

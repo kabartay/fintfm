@@ -9,6 +9,15 @@
 > did not take place (`docs/results/FINDINGS.md` §122). The rest of this file is kept as the
 > procedure for a future submission.
 
+> **Update, 2026-11-13.** Nothing has been resubmitted. The owner holds the PR (DR7.6,
+> 2026-11-11) until multiclass and regression improve. The entry that would be submitted is no
+> longer the one tabulated below: it is "FinTFM with a trained linear readout" over all 51
+> datasets, 903 Elo, 106th of 110 on TabArena-Lite (`docs/results/FINDINGS.md` §224), and the
+> tabarena fork's `fintfm` extra pins `fintfm==0.10.0` (fork commit 48c0101, pushed 2026-11-13).
+> The checkpoint, configuration and coverage rows, the sign-off checks and the "roughly 0.78 mean
+> ROC-AUC" sanity range below describe the `fintfm==0.5.5` binary entry and would all change.
+> Details: the last section of [`../results/TABARENA.md`](../results/TABARENA.md).
+
 The procedure, and the two points where it needs a person rather than a script. Written down
 because stage 2 can take weeks, by which time the details of stage 1 are no longer in anyone's
 head.
@@ -42,6 +51,18 @@ shortens it.
 The run is produced from the **published** checkpoint rather than a local file, so a maintainer
 fetches the same artifact we measured. A run made from a path only one machine has cannot be
 verified at stage 3.
+
+**For a 51-dataset resubmission** (2026-11-13; sources §221 to §224): the entry declares three
+problem types, each with its own checkpoint (binary: `kabartay/fintfm-binary`; multiclass:
+`dr74-mc-s0`; regression: `v4-regression.pt`), and the last two are private today, so the owner
+would have to publish both first. In the fork the measured runs set their configuration through environment variables
+(`FINTFM_PARTITION`, `FINTFM_PROBE`, `FINTFM_PARAMS` with `max_features_strategy: select`);
+a submission would need that configuration fixed in the entry itself, which has not been done.
+The readout takes the row's own features for multiclass and regression, which the entry must
+state. Whether the search space stays empty is undecided. Its maintainer
+sanity range would be the §224 figures by type (binary 974, multiclass 865, regression 578
+Elo), not 0.78 ROC-AUC. A dataset near the time limit (Amazon_employee_access, §215) is a risk
+on the maintainers' hardware.
 
 ## Handling the sign-off
 

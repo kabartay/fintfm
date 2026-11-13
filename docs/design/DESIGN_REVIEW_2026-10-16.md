@@ -216,3 +216,36 @@ labels) and its checks are in task DR2.
 
 The stop rule stands: if the proxy is still below about 950 Elo after the 2M-task step, the
 honest conclusion is that this line of work does not produce a listable general model.
+
+## 3. Status of each finding, 2026-11-13
+
+Added on 2026-11-13. The review above is kept as written on 2026-10-16. This section reads each
+finding against `openspec/changes/design-review-2026-10-16/tasks.md` (task numbers DR1 to DR8)
+and `docs/results/FINDINGS.md`. Labels are the source's; nothing here is a new measurement.
+
+| finding | task | status on 2026-11-13 |
+| --- | --- | --- |
+| 1.1 gated label, context ignores the gate | DR3.1, DR3.7 | Done. Partitioned contexts lift zero-shot mean AP from 0.1986 to 0.2362 (+0.0375), 5 of 5 folds positive (§169, MEASURED). The data facts are recounted in §168 |
+| 1.2 §116 confounded with the financial share | DR3.8, DR3.9 | Done. Qualifiers and pointers added (§166, README, claims ledger) |
+| 1.3 training volume, cost per million tasks | DR1.6, DR5.1 to DR5.5 | Done. `CLAUDE.md` states 66 T4-hours or about $28 of L4 time per million tasks (ESTIMATED from §86, §127). The 480,000-task volume step is null on V4FinBench, mean -0.0106 AP against the 0.0117 yardstick (§188); no 2M-task run |
+| 1.4 compression, padding, inducing points | DR6.1, DR6.2, DR6.3, DR6.4 | DR6.1 done (`pad_to_batch_width`). DR6.2 (`cell_row_attn: induced`, -0.0186 mean AP) and DR6.3 (`readout: cls` with `head_mlp`, -0.0261) harmful at one seed, not adopted (§178). DR6.4, the v2 bundle, is open: no lever qualifies |
+| 1.5 prior lacks gates, ties, categoricals | DR2.1 to DR2.4 | Levers implemented, off by default (`source_weights`, `financial_sign_flip_prob`, `prior/knobs.py`). DR2.4's four arms were harmful on V4FinBench (§180); on the proxy the trunk arms were best (§191). Owner decision on one checkpoint or two is open |
+| 1.6 harness and adapter data processing | DR3.2, DR3.4, DR3.5 | The adapter's `fillna(0)` was removed on 2026-10-16 in the fork. Eight members against one is null on V4FinBench (+0.0058 mean AP, 3 of 5 folds up, §196). At equal labels the probe ties the head (-0.0005 AP cross-fitted, §209), so §130 to §136 measured label count |
+| 1.7 evaluation bar and loop | DR7.1, DR4.1 to DR4.4 | The bar is about 1,010 Elo (DR7.1). The overlap report exists (DR4.1). The proxy suite failed its validation bar (rho +0.717 against 0.8, §216) and decides no arm. Noise yardstick 0.0117 mean AP (§173); fine-tuning noise SD 0.0008 (§164) |
+| 1.7 coverage precedent | DR7.2 | Closed by the owner on 2026-10-21 without asking; FinTFM covers binary and multiclass (DR7.3) |
+| 1.8 code integrity | DR1.1 to DR1.5, DR1.7 | Done. Golden-output test, provenance in checkpoints and run JSONs, `from_config` passing every key, one inference path (`predict_context`), a combination validator. Muon is implemented at peer settings and is harmful in use: -0.0125 mean AP, 0 of 5 folds positive (§211) |
+
+**Where the resubmission bar stands.** The review's stop rule asks for the proxy to reach about
+950 Elo; the proxy was not validated (§216), so TabArena-Lite carries the question. With a trained
+linear readout, all 51 Lite datasets give 903 Elo, 106th of 110 (§224, MEASURED, repeat 0, fold
+0), against the bar of about 1,010; by type, binary 974 (§220), multiclass 865 and regression 578
+(§223, §224). The binary-only configuration of §215 reached 1,000.2 Elo, level with RF (default).
+These are general-tabular numbers for "FinTFM with a trained linear readout", not zero-shot
+results and not credit results. DR7.5 and DR7.6 remain open.
+
+**Update to the review's own text.** The sentence in 1.3 that every closed architecture verdict was measured at 48,000 tasks is no longer
+complete: depth and width were also tested at 480,000 tasks and were null (§195, §199, §202).
+
+**Open items (tasks.md, `[ ]`):** DR3.11 (fine-tuning per leaf; §208 reports +0.0049 mean AP, 4 of
+5 folds, while the task records the bag-4 arm as not run), DR6.4, DR7.5, DR7.6, DR8.3
+(width-512 arm, not trained).

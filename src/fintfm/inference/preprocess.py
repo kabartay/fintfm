@@ -57,7 +57,7 @@ class FeatureConditioner:
             extremes. ``"rank"`` replaces each value by its quantile mapped to a normal
             distribution, which discards the shape entirely and is therefore immune to tails
             but also to genuine magnitude information. ``"power"`` applies a Yeo-Johnson power
-            transform (task 48.21, surfaced from Neuralk-AI's benchmark harness, see
+            transform (task 48.21, surfaced from a public benchmark harness, see
             ``docs/paper/RELATED_WORK.md``): unlike ``"rank"`` it preserves the relative
             *magnitude* within a monotonic reshaping rather than discarding it for pure order,
             so it is worth comparing against ``"rank"`` rather than assumed better or worse.

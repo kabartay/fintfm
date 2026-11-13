@@ -3,6 +3,36 @@
 Written before the results section, not after it. Each item names the finding that establishes
 it, so none of this is hedging language — every entry is a measured fact.
 
+## Standing of the current release, 2026-11-13
+
+(Added 2026-11-13; sources are the sections cited.) The limitations below date from the
+dates they carry. The current measured position is:
+
+- **TabArena-Lite, all 51 datasets, none excluded: 903 Elo, 106th of 110** (§224, MEASURED,
+  repeat 0, fold 0, CPU). By problem type: binary 974 on 30 datasets (§220), multiclass 865 on
+  8 (§224), regression 578 on 13 (§223). RandomForest (default) is 1,000, Linear (tuned +
+  ensembled) 936 and Linear (tuned) 919. The entry is "FinTFM with a trained linear readout",
+  not the zero-shot model.
+- **Wide tables rank near the bottom under `max_features_strategy: select`** (§220):
+  APSFailure (170 columns) rank 102 of 108, Bioresponse (1,776) rank 103, kddcup09_appetency
+  (212) rank 91. Adding the three to the 27 narrow binary tables moved binary from 1,000 to
+  974 Elo. On regression, QSAR-TID-11 (1,024 columns) was last of 103 methods (§220).
+- **On 27 narrow binary datasets the best configuration is level with RF (default), not above
+  it**: 1,000.2 against 1,000.0 Elo, 13 better and 14 worse on paired datasets (§215).
+- **General-tabular numbers do not carry to credit.** FinTFM is below untuned logistic
+  regression on mean AP on all four admitted credit datasets: ULB 0.6830 against 0.7489, SBA
+  7(a) 0.1095 against 0.1295, FDIC 0.1688 against 0.1906, Estonia 0.0028 against 0.0056
+  (§216, three out-of-time splits, one seed, no paired test). The Lite gains from the readout,
+  squash and partitioned contexts were not reproduced on V4FinBench: squash is null (§211) and
+  the probe per partition leaf scored -0.0570 mean AP, 0 of 5 folds (§218). §219 traced that
+  loss to a sampler defect in the harness; the fixed rerun is pending, so §218 is neither
+  confirmed nor reversed.
+- **No tested lever clears the V4FinBench bar at the current recipe.** §211 (context
+  composition, member transforms, row-count choices) found no candidate and muon harmful;
+  480,000-task volume (§188) and depth and width at 480,000 tasks (§195, §202) are null.
+- **The proxy suite cannot stand in for either benchmark**: Spearman rho +0.717 against the
+  pre-registered 0.8 bar on 9 checkpoints (§216).
+
 ## Behind the incumbent on accuracy and calibration
 
 On the V4FinBench out-of-time split, per-horizon logistic regression fitted on all 72,622
@@ -66,6 +96,11 @@ query group-mates. At the portfolio level the approximation costs about 0.01 AUC
 roughly six-sevenths of retrieval's gain — but **one firm's cumulative PD moved by 0.64**
 depending on which firms were scored alongside it, and the maximum does not shrink as groups
 tighten (§37).
+
+(2026-11-13, §194, §213: the full-panel retrieval strategy also collapses accuracy on
+V4FinBench, mean AP 0.0126 against 0.1986, and per-class retrieval gives 0.0052. The
+property above is therefore moot for the current checkpoint: retrieval is not a usable
+strategy on this panel.)
 
 A credit decision is made per obligor. This is a product constraint, and the honest resolution
 is exact per-query retrieval for individual decisions — 1.05 s per firm, affordable when
@@ -134,6 +169,11 @@ synthetic probes, where it beats ridge where ridge is misspecified, and §121 sc
 TabArena regression datasets, where it ranks last on 5 of 12, mean rank 93.1. No LGD or EAD
 panel has been scored, so the IFRS 9 sentence above still applies.)
 
+(2026-11-13, §223: with a ridge readout over the representation and the row's own features,
+regression scores 578 Elo on 13 TabArena-Lite datasets, up from 436 (§220) and from §121's 89.
+It is still the lowest of the three problem types. Still no LGD or EAD panel, so the IFRS 9
+sentence stands.)
+
 ## Multiclass works but is measured once, against a weak ceiling
 
 §99 verified that a `--max-classes 10` checkpoint clears its own untrained control at K = 3, 5
@@ -145,6 +185,13 @@ three seeds: `SINGLE DRAW` in the ledger's vocabulary, and not quotable external
 (Updated 2026-10-15: §121 then scored the multiclass checkpoint on TabArena's 7 eligible
 multiclass datasets. It runs correctly and ranks near last, mean rank 93.4 of 95, last on 3 of
 7.)
+
+(2026-11-13, §221, §222, §224: on 8 TabArena-Lite multiclass datasets the readout entry scored
+751 Elo (§221), 825 with a scaled, cross-validated readout using the row's own features (§222,
+better on 8 of 8) and 865 with four partition bags (§224, better on 5 of 8, worse on 3). Still
+one checkpoint seed per entry, and still against multinomial logistic regression only as in
+§99. The 480,000-task multiclass checkpoint was null on these datasets, 762 Elo, 5 better and
+3 worse, p 0.73 (§222).)
 
 ## Regulatory terms are used without primary-source verification
 
@@ -250,6 +297,9 @@ against a field norm near 10^7, a ~200x shortfall recorded in `CLAUDE.md` since 
 nothing but volume scores **-0.0012 AP** across five folds, 3 of 5 nominally positive, with the
 only individually-significant fold favouring the *smaller* run.
 
+(2026-11-13, §188: the step was then taken at 480,000 tasks, 10x the 48,000 baseline, and it
+is null on V4FinBench at two seeds, -0.0109 and -0.0103 mean AP. The 2,000,000-task run (AU5.15) is deferred and not launched.)
+
 This does not establish that scale never helps — 5x is a small step on a 200x shortfall, and
 it measures the local slope rather than the asymptote. What it does establish is that the cheap
 version of the scale argument is dead, and that a large scale run must now be justified by
@@ -287,6 +337,12 @@ bagged child models per dataset — against a cached leaderboard of 95 methods.
 baseline; above only `KNN (default)`. 26 of 27 eligible datasets, zero failures. **On the later
 board snapshot used for the submission the rank is 94 of 95** at mean ROC-AUC 0.7823, over 27
 of 27 datasets (§122), unchanged against a refreshed baseline cache (§150). Quote 94 of 95.
+
+(2026-11-13, §204, §215, §224: the board has since changed to 110 methods and the entry is a
+different one. The zero-shot default scored 756 Elo on the 27 binary datasets (§204). The
+trained-readout entry on all 51 datasets is 903 Elo, 106th of 110 (§224). The 94 of 95 above
+is the 2026-10 zero-shot rank and is kept as a record. The "coverage is 51%" sentence below no
+longer applies to the readout entry, which is scored on 51 of 51 datasets (§221).)
 
 Three things bound it, and none of them rescue it. Coverage is **51%** of the suite, since
 binary-only excludes 13 regression and 8 multiclass datasets. Categoricals are label-encoded
@@ -481,6 +537,11 @@ zero-shot, 5 of 5 folds positive and 3 Holm-significant (§163). Four gaps bound
 
 §164 (pre-registered 2026-10-15) measures the seed gap and two stronger settings; no result
 exists yet, and none is implied here.
+
+(2026-11-13, §164: the result exists. A second fine-tuning seed gives +0.0071 over zero-shot on
+5 of 5 folds, 0.0002 short of the +0.0073 bar, recorded as not replicated; default-enriched
+queries +0.0009 (3 of 5); 600 steps +0.0024 (3 of 5). Per-leaf fine-tuning over §169's
+partition is null at +0.0049 mean AP, 4 of 5 folds (§208).)
 
 ## The gap to an untuned CatBoost is about 0.19 AP, and the one lever that moved closes 3.8% of it
 
