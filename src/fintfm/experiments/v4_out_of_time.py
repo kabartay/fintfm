@@ -27,12 +27,14 @@ import argparse
 import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from typing import Literal
 
 import numpy as np
 
 from fintfm.config import Config, load_config
 from fintfm.evaluation.datasets import SurvivalDataset, load_v4finbench
 from fintfm.evaluation.metrics import evaluate_binary
+from fintfm.evaluation.splits import time_based_split
 from fintfm.inference.classifier import FinancialTFMClassifier
 from fintfm.modeling.model import FinancialTFM
 
@@ -61,6 +63,9 @@ class ArmScore:
     horizons: list[HorizonScore] = field(default_factory=list)
     violation_rate: float = float("nan")
     fully_monotone: float = float("nan")
+    n_comparable_pairs: int = 0
+    n_nan_pairs: int = 0
+    n_rows_compared: int = 0
 
     @property
     def mean_auc(self) -> float:
@@ -75,24 +80,97 @@ class ArmScore:
         return float(np.mean(vals)) if vals else float("nan")
 
 
-def time_split(
-    ds: SurvivalDataset, train_until: int, test_from: int
-) -> tuple[np.ndarray, np.ndarray]:
-    """Indices for an out-of-time split, refusing any overlap.
+SplitMode = Literal["embargoed", "legacy"]
+
+
+@dataclass(frozen=True)
+class OutOfTimeSplit:
+    """An out-of-time split of a survival dataset and what it took to make it leak-free.
+
+    Attributes:
+        train: Training row indices.
+        test: Test row indices.
+        mode: ``"embargoed"`` (default) or ``"legacy"``.
+        train_until: The last training year the caller asked for.
+        effective_train_until: The last training year actually used, after the embargo.
+        embargo_years: Years removed before ``test_from`` so no training label window reaches
+            into the test period (0 in legacy mode).
+        n_shared_ids: Companies present in both windows before exclusion (``-1`` in legacy
+            mode, which does not look).
+        n_train_dropped: Training rows removed because their company is in the test window.
+        n_shared_ids_after: Companies on both sides of the returned split, measured after
+            the fact in either mode, so a legacy record states its own leakage (``-1`` when
+            the dataset carries no company identifiers).
+    """
+
+    train: np.ndarray
+    test: np.ndarray
+    mode: str
+    train_until: int
+    effective_train_until: int
+    embargo_years: int
+    n_shared_ids: int
+    n_train_dropped: int
+    n_shared_ids_after: int
+
+    def record(self) -> dict:
+        """Return the split's bookkeeping as a JSON-ready dictionary.
+
+        Returns:
+            Everything except the index arrays, with the row counts added.
+        """
+        return {
+            "mode": self.mode,
+            "train_until": self.train_until,
+            "effective_train_until": self.effective_train_until,
+            "embargo_years": self.embargo_years,
+            "n_shared_ids_before": self.n_shared_ids,
+            "n_train_dropped_for_shared_ids": self.n_train_dropped,
+            "n_shared_ids_after": self.n_shared_ids_after,
+        }
+
+
+def split_dataset(
+    ds: SurvivalDataset,
+    train_until: int,
+    test_from: int,
+    split: SplitMode = "embargoed",
+    embargo_years: int | None = None,
+) -> OutOfTimeSplit:
+    """Split a survival dataset by year with no company on both sides and a label embargo.
+
+    **Embargo.** V4FinBench's horizon files ``h1..h6`` give, for a company-year ``y``, the
+    default indicator within 1..6 years after ``y`` (``n_horizons`` = 6, see
+    :func:`fintfm.evaluation.datasets.load_v4finbench`). A training row therefore carries
+    label information up to year ``y + n_horizons``. For none of that to fall inside the test
+    period we need ``y + n_horizons < test_from``, i.e. the last usable training year is
+    ``test_from - 1 - n_horizons``. The embargo defaults to ``ds.n_horizons`` years, the
+    longest horizon any label spans. Rows with fewer observed horizons (the panel's last
+    years) reach no further and are excluded by the same bound.
+
+    **Companies.** :func:`fintfm.evaluation.splits.time_based_split` is called with
+    ``on_overlap="drop_from_train"``: a company seen in the test window loses its training
+    rows, the test window is never altered, and the count is recorded.
 
     Args:
-        ds: A dataset carrying ``year``.
-        train_until: Last year (inclusive) allowed in training.
-        test_from: First year (inclusive) allowed in test.
+        ds: A dataset carrying ``year`` (and ``groups`` unless ``split="legacy"``).
+        train_until: Last year (inclusive) the caller would allow in training.
+        test_from: First year (inclusive) of the test window.
+        split: ``"embargoed"`` (default, corrected) or ``"legacy"``. ``"legacy"`` reproduces
+            the split used by FINDINGS §28-§35: windows only, no company check, no embargo.
+            It leaks, and exists only to reproduce those entries.
+        embargo_years: Override the embargo (years). ``None`` uses ``ds.n_horizons``.
 
     Returns:
-        ``(train_idx, test_idx)``.
+        An :class:`OutOfTimeSplit`.
 
     Raises:
-        ValueError: If the dataset has no years, or the windows overlap. An overlapping
-            "time split" is a random split wearing a costume, and would be reported as
-            out-of-time validation while not being it.
+        ValueError: If the dataset has no years, ``split`` is unknown, the windows overlap,
+            the embargo leaves no training years, or (embargoed mode) the dataset carries no
+            company identifiers.
     """
+    if split not in ("embargoed", "legacy"):
+        raise ValueError(f"unknown split {split!r}; use 'embargoed' or 'legacy'")
     if ds.year is None:
         raise ValueError(
             f"{ds.name} carries no year column, so it cannot support a time-based split; "
@@ -103,7 +181,56 @@ def time_split(
             f"windows overlap (train<={train_until}, test>={test_from}); an overlapping "
             "split is not out-of-time validation"
         )
-    return np.flatnonzero(ds.year <= train_until), np.flatnonzero(ds.year >= test_from)
+    if split == "legacy":
+        tr = np.flatnonzero(ds.year <= train_until)
+        te = np.flatnonzero(ds.year >= test_from)
+        leaked = (
+            len(np.intersect1d(ds.groups[tr], ds.groups[te])) if ds.groups is not None else -1
+        )
+        return OutOfTimeSplit(tr, te, "legacy", train_until, train_until, 0, -1, 0, leaked)
+    if ds.groups is None:
+        raise ValueError(
+            f"{ds.name} carries no company identifiers, so the company check cannot run; "
+            "pass split='legacy' to reproduce the unchecked split"
+        )
+    embargo = ds.n_horizons if embargo_years is None else int(embargo_years)
+    if embargo < 0:
+        raise ValueError(f"embargo_years must be >= 0, got {embargo}")
+    effective = min(train_until, test_from - 1 - embargo)
+    ts = time_based_split(
+        ds.year, ds.groups, effective, test_from, on_overlap="drop_from_train"
+    )
+    leaked = len(np.intersect1d(ds.groups[ts.train], ds.groups[ts.test]))
+    return OutOfTimeSplit(
+        ts.train, ts.test, "embargoed", train_until, effective, embargo,
+        ts.n_shared_ids, ts.n_train_dropped, leaked,
+    )
+
+
+def time_split(
+    ds: SurvivalDataset,
+    train_until: int,
+    test_from: int,
+    split: SplitMode = "embargoed",
+    embargo_years: int | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Indices for an out-of-time split; see :func:`split_dataset` for the rules.
+
+    Args:
+        ds: A dataset carrying ``year``.
+        train_until: Last year (inclusive) allowed in training.
+        test_from: First year (inclusive) allowed in test.
+        split: ``"embargoed"`` (default) or ``"legacy"`` (the old, leaking split).
+        embargo_years: Embargo override; ``None`` uses ``ds.n_horizons``.
+
+    Returns:
+        ``(train_idx, test_idx)``.
+
+    Raises:
+        ValueError: As :func:`split_dataset`.
+    """
+    sp = split_dataset(ds, train_until, test_from, split, embargo_years)
+    return sp.train, sp.test
 
 
 def _curve_truth(ds: SurvivalDataset, idx: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -134,18 +261,26 @@ def score_curve(
         seen: ``(n, K)`` observation mask.
         min_rows: Minimum observed rows for a horizon to be scored at all; below it the
             horizon is reported as NaN rather than scored, because a handful of rows produces
-            a number that looks like a result. Defaults to
+            a number that looks like a result. A horizon whose predictions contain NaN (no
+            model could be fitted because it was single-class in training) is also NaN.
+            Defaults to
             ``evaluation.min_rows_per_horizon`` from the configuration.
 
     Returns:
-        The scored arm.
+        The scored arm. ``violation_rate`` and ``fully_monotone`` use only comparable pairs
+        of adjacent horizons (both finite); ``n_comparable_pairs``, ``n_nan_pairs`` and
+        ``n_rows_compared`` record how many that was, and both rates are NaN when none.
     """
     if min_rows is None:
         min_rows = load_config().evaluation.min_rows_per_horizon
     arm = ArmScore(name=name)
     for k in range(pd_curve.shape[1]):
         m = seen[:, k]
-        if m.sum() < min_rows or len(np.unique(truth[m, k])) < 2:
+        if (
+            m.sum() < min_rows
+            or len(np.unique(truth[m, k])) < 2
+            or not np.isfinite(pd_curve[m, k]).all()
+        ):
             arm.horizons.append(
                 HorizonScore(k, int(m.sum()), int(truth[m, k].sum()), float("nan"),
                              float("nan"), float("nan"), float("nan"), float("nan"))
@@ -160,9 +295,18 @@ def score_curve(
                 pred_p99_over_p50=met.pred_p99_over_p50,
             )
         )
+    # A NaN comparison is neither a violation nor a pass. Count only pairs of adjacent
+    # horizons where both predictions exist, and record how many that was.
     d = np.diff(pd_curve, axis=1)
-    arm.violation_rate = float((d < 0).mean())
-    arm.fully_monotone = float((d >= 0).all(axis=1).mean())
+    comparable = np.isfinite(d)
+    arm.n_comparable_pairs = int(comparable.sum())
+    arm.n_nan_pairs = int(d.size - comparable.sum())
+    if arm.n_comparable_pairs:
+        bad = (d < 0) & comparable
+        arm.violation_rate = float(bad.sum() / arm.n_comparable_pairs)
+        rows = comparable.any(axis=1)
+        arm.n_rows_compared = int(rows.sum())
+        arm.fully_monotone = float((~bad.any(axis=1))[rows].mean())
     return arm
 
 
@@ -175,6 +319,7 @@ def run(
     max_context: int | None = None,
     seed: int = 0,
     cfg: Config | None = None,
+    split: SplitMode = "embargoed",
 ) -> dict:
     """Score the hazard head and per-horizon baselines out of time on V4FinBench.
 
@@ -189,6 +334,8 @@ def run(
         cfg: Configuration; loaded from the packaged default when omitted. Every value it
             supplies is written into the run record, so a result can be traced to the
             settings that produced it.
+        split: ``"embargoed"`` (default) or ``"legacy"``; see :func:`split_dataset`. Legacy
+            reproduces FINDINGS §28-§35 and leaks companies and label windows.
 
     Returns:
         The recorded result dictionary.
@@ -204,9 +351,13 @@ def run(
     from sklearn.preprocessing import StandardScaler
 
     ds = load_v4finbench(max_rows=max_rows)
-    tr, te = time_split(ds, train_until, test_from)
+    sp = split_dataset(ds, train_until, test_from, split)
+    tr, te = sp.train, sp.test
     print(f"{ds.name}: {ds.X.shape[0]:,} rows, {ds.X.shape[1]} features")
-    print(f"  train {len(tr):,} rows (<= {train_until})   test {len(te):,} rows (>= {test_from})")
+    print(f"  split={sp.mode}: embargo {sp.embargo_years}y, companies on both sides "
+          f"{sp.n_shared_ids_after}, train rows dropped for shared companies "
+          f"{sp.n_train_dropped}")
+    print(f"  train {len(tr):,} rows (<= {sp.effective_train_until})   test {len(te):,} rows (>= {test_from})")
     print(f"  train default rate {ds.y[tr].mean():.3%}   test {ds.y[te].mean():.3%}")
 
     truth, seen = _curve_truth(ds, te)
@@ -284,6 +435,7 @@ def run(
             "model": model_path, "max_rows": max_rows, "train_until": train_until,
             "test_from": test_from, "max_context": max_context, "seed": seed,
             "n_features": int(ds.X.shape[1]), "n_horizons": ds.n_horizons,
+            "split": split,
             "feature_transform": cfg.inference.feature_transform,
             "retrieval_groups": cfg.inference.retrieval_groups,
             "min_rows_per_horizon": cfg.evaluation.min_rows_per_horizon,
@@ -292,6 +444,7 @@ def run(
         "split": {
             "n_train": len(tr), "n_test": len(te),
             "train_rate": float(ds.y[tr].mean()), "test_rate": float(ds.y[te].mean()),
+            **sp.record(),
         },
         "arms": [asdict(a) | {"mean_auc": a.mean_auc} for a in arms],
     }
@@ -309,12 +462,16 @@ def summarise(record: dict) -> str:
             f"({record['split']['n_train']:,} / {record['split']['n_test']:,} rows)"
         ),
         "",
-        f"{'arm':>26} {'mean AUC':>9} {'violations':>11} {'monotone':>9}",
+        (
+            f"{'arm':>26} {'mean AUC':>9} {'violations':>11} {'monotone':>9} "
+            f"{'pairs':>9} {'NaN':>7}"
+        ),
     ]
     for a in record["arms"]:
         lines.append(
             f"{a['name']:>26} {a['mean_auc']:>9.4f} {a['violation_rate']:>11.2%} "
-            f"{a['fully_monotone']:>9.1%}"
+            f"{a['fully_monotone']:>9.1%} {a.get('n_comparable_pairs', -1):>9} "
+            f"{a.get('n_nan_pairs', -1):>7}"
         )
     n_h = len(record["arms"][0]["horizons"])
     lines += ["", f"{'arm':>26} " + " ".join(f"{'h'+str(k):>8}" for k in range(n_h))]
@@ -360,11 +517,17 @@ def main() -> None:
     p.add_argument("--test-from", type=int, default=None)
     p.add_argument("--max-context", type=int, default=None)
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument(
+        "--split", choices=("embargoed", "legacy"), default="embargoed",
+        help="'legacy' reproduces the leaking split of FINDINGS 28-35 (no company check, "
+        "no embargo)",
+    )
     args = p.parse_args()
     cfg = load_config(args.config)
     record = run(
         args.model, Path(args.out), max_rows=args.max_rows, train_until=args.train_until,
         test_from=args.test_from, max_context=args.max_context, seed=args.seed, cfg=cfg,
+        split=args.split,
     )
     print(f"\nconfig: {cfg.provenance()}")
     print("\n" + summarise(record))

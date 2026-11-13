@@ -40,7 +40,7 @@ import numpy as np
 from fintfm.config import Config, load_config
 from fintfm.evaluation.datasets import load_v4finbench
 from fintfm.evaluation.metrics import evaluate_binary
-from fintfm.experiments.v4_out_of_time import _curve_truth, time_split
+from fintfm.experiments.v4_out_of_time import SplitMode, _curve_truth, split_dataset
 from fintfm.inference.classifier import FinancialTFMClassifier
 
 
@@ -87,6 +87,7 @@ def run(
     group_sizes: tuple[int, ...] = (2, 8, 32, 128, 512),
     seed: int = 0,
     cfg: Config | None = None,
+    split: SplitMode = "embargoed",
 ) -> dict:
     """Measure grouped retrieval against exact per-query retrieval.
 
@@ -104,13 +105,16 @@ def run(
             count, so the numbers mean the same thing at any subsample size.
         seed: Seed for the negative sample and for context selection.
         cfg: Configuration; loaded from the packaged default when omitted.
+        split: ``"embargoed"`` (default) or ``"legacy"`` (the leaking split of §35); see
+            :func:`fintfm.experiments.v4_out_of_time.split_dataset`.
 
     Returns:
         The recorded result dictionary.
     """
     cfg = cfg or load_config()
     ds = load_v4finbench(max_rows=cfg.v4finbench.max_rows)
-    tr, te = time_split(ds, cfg.v4finbench.train_until, cfg.v4finbench.test_from)
+    sp = split_dataset(ds, cfg.v4finbench.train_until, cfg.v4finbench.test_from, split)
+    tr, te = sp.train, sp.test
     rng = np.random.default_rng(seed)
 
     # keep every positive, sample the negatives: a random draw at this base rate carries too
@@ -195,6 +199,7 @@ def run(
             "n_test_subsample": len(keep),
             "n_positive": len(pos),
             "pool_rows": len(tr),
+            "split": sp.record(),
             "max_context": cfg.v4finbench.max_context,
             "feature_transform": cfg.inference.feature_transform,
             "seed": seed,
@@ -259,6 +264,10 @@ def main() -> None:
         "--group-sizes", type=str, default="2,8,32,128,512", help="comma-separated"
     )
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument(
+        "--split", choices=("embargoed", "legacy"), default="embargoed",
+        help="'legacy' reproduces the leaking split of FINDINGS 35",
+    )
     args = p.parse_args()
     cfg = load_config(args.config)
     record = run(
@@ -269,6 +278,7 @@ def main() -> None:
         group_sizes=tuple(int(v) for v in args.group_sizes.split(",")),
         seed=args.seed,
         cfg=cfg,
+        split=args.split,
     )
     print("\n" + summarise(record))
     print(f"\nconfig: {cfg.provenance()}")
