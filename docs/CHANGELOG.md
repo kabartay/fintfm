@@ -6,6 +6,45 @@ not paste one into the other. See `CLAUDE.md`.
 
 ## [Unreleased]
 
+## [0.10.0] — 2026-11-13
+
+Code and tooling only: no new weights, and the published checkpoint `v4-cellattn-labels.pt`
+scores as before (pinned bit for bit by `tests/test_golden_outputs.py`). New options are off by
+default except the `fintfm-bench --credit` sample-efficiency probe, which now runs unless
+skipped. Results since 0.9.0 are in `docs/results/FINDINGS.md` (Sections 218-224); the
+TabArena-Lite figures there come from the TabArena fork's FinTFM-LinProbe entry, not from this
+package's defaults.
+
+### Added
+
+- **Context labels** (task 31.2). `FinancialTFMClassifier.fit` takes `n_observed`, validated
+  for length, integer dtype and sign, and carries it through the calibration split, every
+  context strategy, `restrict_context` and ensemble members. New accessors `context_period_`
+  and `context_n_observed_` return copies aligned with `context_indices_`. Model inputs are
+  unchanged.
+- **Unseen categorical levels** (task 47.5). `CategoricalTargetEncoder.unseen_level_fraction`
+  returns, per categorical column and pooled, the share of query cells whose level is absent
+  from the context. Predictions are unchanged. `scripts/categorical_unseen_report.py` prints it
+  per dataset.
+- **Sample-efficiency probe in `fintfm-bench --credit`** (task 13.6): sizes 100, 250, 500 and
+  1,000 on the 3-year Polish panel, on by default; `--no-sample-efficiency` skips it.
+  `sample_efficiency_probe` takes an optional loaded panel.
+- **Readout options for the probe per partition leaf.** `python -m
+  fintfm.experiments.representation_transfer --partition --probe-options '{...}'` adds one arm,
+  `representation_opts`, with any of `scale` (standardise the probe inputs), `cv` (choose C by
+  3-fold log loss) and `raw` (append the row's squashed features). Every other arm is
+  bit-identical to a run without the flag.
+- **Scripts:** `attention_cost_model.py` (task 44.1), `feature_selection_recovery.py` (task
+  39.9), `register_power.py` (forward-prediction register 6.2) and `pp_v4_scorer_mix.py`
+  (Section 219); `dr64_arm_verdict.py` reports probe AUC beside protocol AP (task 38.3).
+
+### Fixed
+
+- **Probe per partition leaf, stratified sample** (Section 219). When the positives alone
+  filled the 2,000-row budget, `_stratified_subsample` kept every positive and the leaf that
+  held most of the defaults never got a probe. Both classes are now capped (negatives up to
+  half); below the budget the draw is unchanged.
+
 ## [0.9.0] — 2026-11-10
 
 Code and tooling only: no new weights, and the published checkpoint `v4-cellattn-labels.pt`
