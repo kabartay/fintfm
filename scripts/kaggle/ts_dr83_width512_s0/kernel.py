@@ -54,7 +54,12 @@ from pathlib import Path
 
 COMMIT = "62a73c3"  # pushed, CI green; has configs/arms/dr83-width512.yaml
 ARM = "dr83-width512-s0"
-ARM_FLAGS: list[str] = ["--amp", "fp16", "--attn-impl", "split", "--loader", "stream", "--ddp", "--batch-size", "2", "--seed", "0", "--steps", "12000"]
+# 2026-11-14: --eval-every 1000000 turns off the in-training held-out evaluation, which ran out of
+# GPU memory at step 500 of the first launch (the fused inference path built a 7.27 GiB
+# 512-column attention; training itself fit, 0.70 s/step). Evaluation has its own random
+# stream (AU1.18), so the training batches are unchanged. --run-seconds 40000 stops cleanly
+# with a resumable state before Kaggle's 12-hour session limit.
+ARM_FLAGS: list[str] = ["--amp", "fp16", "--attn-impl", "split", "--loader", "stream", "--ddp", "--batch-size", "2", "--seed", "0", "--steps", "12000", "--run-seconds", "40000", "--eval-every", "1000000"]
 DDP = True
 SCORE_PARTITION = False
 SWITCH_STEP = 0
