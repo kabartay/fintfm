@@ -7,8 +7,7 @@ rather than as flags. Launch gate and pre-registration: docs/results/drafts/dr8.
 section 7. T4x2, DDP, fp16, split attention; per-GPU batch 2, global batch 4, 12,000 steps for
 the same 48,000 tasks as DR7.4's global 8 at 6,000 steps (a batch confound, as in DR8.3).
 Train only: scoring is on the proxy suite's multiclass tasks and TabArena-Lite, off Kaggle.
-UNPINNED until the commit is pushed; the kernel refuses to run while it is. Launch only when the
-gate in the draft passes.
+Pinned to 1646ba4 (2026-11-14). Launch only when the gate in the draft passes.
 
 Everything below the constants is the template's (scripts/kaggle/ts_au516_rbf_s0/kernel.py), whose
 docstring follows.
@@ -51,9 +50,13 @@ import sys
 import urllib.request
 from pathlib import Path
 
-COMMIT = "UNPINNED"  # set to a pushed sha that has configs/arms/dr75-width512-mc.yaml
+COMMIT = "1646ba4"  # pushed, CI green; has the yaml and the unfused-encoder fix (f55bc3b)
 ARM = "dr75-width512-mc-s0"
-ARM_FLAGS: list[str] = ["--amp", "fp16", "--attn-impl", "split", "--loader", "stream", "--ddp", "--batch-size", "2", "--seed", "0", "--steps", "12000"]
+# 2026-11-14: as DR8.3's kernel. --eval-every 1000000 keeps the in-training held-out
+# evaluation off (it ran DR8.3 out of GPU memory at 62a73c3; 1646ba4 runs the encoders unfused,
+# which should fit, but the run does not depend on it). --run-seconds 40000 stops cleanly before
+# Kaggle's 12-hour limit. Launch gate: docs/results/drafts/dr8.3_2026-11.md section 7.
+ARM_FLAGS: list[str] = ["--amp", "fp16", "--attn-impl", "split", "--loader", "stream", "--ddp", "--batch-size", "2", "--seed", "0", "--steps", "12000", "--run-seconds", "40000", "--eval-every", "1000000"]
 DDP = True
 SCORE_PARTITION = False
 SWITCH_STEP = 0

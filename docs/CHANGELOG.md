@@ -19,6 +19,11 @@ not paste one into the other. See `CLAUDE.md`.
 - `representation_transfer --probe-options` takes `no_rep`: with `raw`, the per-leaf options
   probe reads the squashed features alone on the same leaves and rows, the matched raw-only
   control for FINDINGS §230.
+- `ThresholdTFMRegressor` (`fintfm.inference.threshold_regressor`): regression from `K` binary
+  classifiers on `y > t_k` at the training targets' quantiles, so the grid is `K` rather than
+  the head's `max_classes`. Predicts the mean of the implied step distribution; exposes the
+  survival probabilities and their logits for a fitted readout. Costs `K` forward passes.
+  Opt-in; a pilot on five small TabArena-Lite tables is queued (FINDINGS §234).
 - The `large_n` config section mirrors `missing_classes` as `partition_missing_classes`
   (default `fallback`), so `fintfm-v4protocol --large-n partition` can set it.
 
