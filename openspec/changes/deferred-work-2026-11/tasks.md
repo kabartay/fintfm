@@ -8,7 +8,7 @@
       Both pair against `fintfm_lp_reg_raw_1111` (578 Elo, §223). Verify: a FINDINGS entry with
       per-dataset RMSE ratios over the 13 regression datasets, a sign test and Elo; if either
       arm wins, the re-merged 51-dataset Elo and its position from `scripts/lite_positions.py`.
-- [ ] 49.2 **Train a regression checkpoint on the current recipe.** `v4-regression.pt` is a
+- [x] 49.2 **Done (2026-11-14, FINDINGS §233): the 480,000-task pure-regression checkpoint (35,300 s on a T4x2) scored on all 13 regression datasets against §223/§227's run, per-dataset RMSE and Elo: 642 against 582 unpartitioned (7 of 13, p 1.0) and 603 against 639 partitioned; merged overall 927.9, 106th of 110. No lift; the 48,000-task checkpoint stays.** **Train a regression checkpoint on the current recipe.** `v4-regression.pt` is a
       6,000-step checkpoint on an earlier recipe (§223), and the readout lever is mostly spent
       there (median RMSE ratio 0.985, §223). Train one with cell attention and labels at no
       fewer than the binary checkpoint's 48,000 tasks, `--max-classes` at least the regressor's

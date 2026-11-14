@@ -14919,3 +14919,58 @@ to move the position, by one place.
 - One seed, one fold, as every Lite arm here. A matched raw-only control for §230 is queued
   (`rawonly-v4-*`), which separates the representation's share from the raw columns' share.
 - Credit evidence came first (§230) as CLAUDE.md requires; this is the breadth number after it.
+
+## §233: a 480,000-task pure-regression checkpoint does not lift regression; Elo 642 against 582 unpartitioned, but 7 of 13 better (p 1.0), and 603 against 639 partitioned
+
+**MEASURED, TabArena-Lite (repeat 0, fold 0), CPU, 2026-11-14.** Task 49.2's checkpoint
+`reg-pure-v480-s0`: the published cell-attention recipe at commit a00049b with
+`--max-classes 10 --p-regression 1.0`, per-GPU batch 4 on a T4x2 (8 tasks per step), 60,000
+steps, so 480,000 tasks, ten times §227's 48,000-task control
+(`runs/task48-3-kaggle/v4-binned48_3-control.pt`). Kaggle kernel `fintfm-ts-reg-pure-v480-s0`,
+35,300 s of training (MEASURED from its log, about 9.8 h of the weekly GPU quota), fetched to
+`runs/kaggle-fintfm-ts-reg-pure-v480-s0/`. Both arms use §223's readout (squash, `select`,
+ridge on the representation and the row's squashed features):
+
+| arm | run | against | better / worse | sign p | Elo | position |
+| --- | --- | --- | --- | --- | --- | --- |
+| unpartitioned | `fintfm_lp_reg_raw_v480_1114` | §227 `fintfm_lp_reg_raw_pure_1113` (582) | 7 / 6 | 1.00 | 642 (+145 / −324) | 99th of 103 |
+| partitioned (§231) | `fintfm_lp_reg_rawpart_v480_1114` | §231 `fintfm_lp_reg_rawpart_pure_1114` (639) | 4 / 9 | 0.27 | 603 (+117 / −257) | 99th of 103 |
+
+Comparisons `runs/fintfm_lp_reg_raw_v480_1114_vs_pure.md` and
+`runs/fintfm_lp_reg_rawpart_v480_1114_vs_part.md`. RMSE, sorted by the unpartitioned ratio
+(480,000 tasks over 48,000):
+
+| dataset | 48k | 480k | ratio | 48k partitioned | 480k partitioned | ratio |
+| --- | --- | --- | --- | --- | --- | --- |
+| miami_housing | 125,455 | 118,218 | 0.942 | 112,092 | 110,405 | 0.985 |
+| healthcare_insurance_expenses | 4,450.50 | 4,299.10 | 0.966 | 4,247.45 | 4,262.01 | 1.003 |
+| houses | 0.2893 | 0.2815 | 0.973 | 0.2786 | 0.2821 | 1.013 |
+| superconductivity | 15.5543 | 15.1676 | 0.975 | 12.8381 | 12.9114 | 1.006 |
+| Another-Dataset-on-used-Fiat-500 | 727.72 | 715.16 | 0.983 | 740.98 | 741.48 | 1.001 |
+| physiochemical_protein | 4.8214 | 4.7841 | 0.992 | 4.6299 | 4.6110 | 0.996 |
+| Food_Delivery_Time | 8.0885 | 8.0650 | 0.997 | 7.9122 | 7.9112 | 1.000 |
+| wine_quality | 0.6844 | 0.6844 | 1.000 | 0.6794 | 0.6856 | 1.009 |
+| QSAR-TID-11 | 0.9906 | 0.9925 | 1.002 | 0.9550 | 0.9534 | 0.998 |
+| QSAR_fish_toxicity | 0.9666 | 0.9853 | 1.019 | 0.9717 | 0.9884 | 1.017 |
+| airfoil_self_noise | 2.8304 | 2.9530 | 1.043 | 2.4867 | 2.5214 | 1.014 |
+| concrete_compressive_strength | 5.7319 | 6.1502 | 1.073 | 5.7675 | 6.1566 | 1.067 |
+| diamonds | 1,033.48 | 1,121.16 | 1.085 | 994.78 | 1,007.51 | 1.013 |
+
+Geometric-mean RMSE ratio 1.003 unpartitioned and 1.009 partitioned; medians 0.997 and 1.006.
+The 480,000-task checkpoint helps the large tables slightly when unpartitioned (miami_housing,
+houses, superconductivity) and loses on three small ones and on diamonds; partitioning absorbs
+most of the large-table gain, which is the same resolution the extra training seemed to buy.
+
+**Overall, with this unpartitioned run in place of §231's: 927.9 Elo, 106th of 110**
+(`fintfm_linprobe_all51_1114c`, log `runs/merge_all51_1114c.log`), against §232's 925.6 with
+§231's partitioned run. The two regression runs differ by 3 Elo, inside either interval.
+
+**What it says.**
+- Ten times the training does not move regression on TabArena-Lite: neither run is a sign-test
+  difference, and the Elo intervals overlap entirely. The 48,000-task checkpoint stays the
+  regression checkpoint (it is the one §231's partitioned run uses, and §232's merge).
+- Regression is limited by the readout's grid, not by training volume: the 10-bin head gives
+  every row in a decile the same label, and both levers that helped (§223's raw features,
+  §231's per-leaf bins) add resolution. §234 tests a regressor whose grid is not capped by the
+  head.
+- Not a credit result; V4FinBench is binary.
