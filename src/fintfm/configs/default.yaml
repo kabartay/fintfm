@@ -299,6 +299,7 @@ large_n:
   partition_bag_frac: 0.6
   partition_min_leaf_rows: 200     # smaller leaves use the global context
   partition_min_class_rows: 2      # leaves with fewer rows of any class use the global context
+  partition_missing_classes: fallback # global: a leaf with 2+ classes keeps its context, the rest from the global one
   boost_n_rounds: 8
   boost_context_rows: 512          # context rows per boosting round
   boost_learning_rate: 0.5

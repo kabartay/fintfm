@@ -330,6 +330,7 @@ class LargeNConfig:
     partition_bag_frac: float = 0.6
     partition_min_leaf_rows: int = 200
     partition_min_class_rows: int = 2
+    partition_missing_classes: str = "fallback"  # "global": leaves keep a context over 2+ classes
     boost_n_rounds: int = 8
     boost_context_rows: int = 512
     boost_learning_rate: float = 0.5
@@ -542,6 +543,11 @@ def _validate(cfg: Config) -> None:
         )
     if not 1 <= cfg.large_n.partition_max_depth <= 3:
         raise ConfigError("large_n.partition_max_depth must lie in [1, 3]")
+    if cfg.large_n.partition_missing_classes not in ("fallback", "global"):
+        raise ConfigError(
+            "large_n.partition_missing_classes must be 'fallback' or 'global', "
+            f"got {cfg.large_n.partition_missing_classes!r}"
+        )
     if any(n < 1 for n in cfg.context_sweep.context_sizes):
         raise ConfigError("context_sweep.context_sizes must all be at least 1")
     if not cfg.context_sweep.seeds:
