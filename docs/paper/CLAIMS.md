@@ -1056,6 +1056,11 @@ binary datasets (§204). The progression of the overall figure was 880 (§221), 
   better than §221's on 8 of 8 datasets (p 0.01), and four partition bags move Elo by 40 more, but
   bagging is worse on three datasets and its own sign test is p 0.07 against the §221 control
   (§224). The head's probabilities and a 4,000-row context were null (§224).
+- **2026-11-14, §230:** the five-fold rerun with the repaired sampler is recorded. The probe per
+  partition leaf is a candidate, +0.0580 mean AP on 5 of 5 folds, and the scale, cv and raw
+  readout options take it to 0.3015, +0.1029 over the zero-shot head on 5 of 5 (Holm-significant
+  on every fold). The raw-feature share of that gain has no matched control yet, and the binary
+  Lite arm with the options is queued. The paragraph below is kept as written.
 - **No part of this has a V4FinBench number.** Squash is null on V4FinBench (§211). The probe per
   partition leaf was harmful there at -0.0570 mean AP on 0 of 5 folds (§218); §219 traced that to
   a sampler defect in the harness (the default-rich leaf got no probe), and the five-fold rerun with

@@ -281,7 +281,8 @@ a number.
   be decomposed by group before it is interpreted.
 - **§218 stands as a record of the harness as it ran**, and its reading is replaced by §219's.
   The "harmful" consequence in §218 is superseded in cause and not yet in verdict, which waits on
-  the fixed-sampler rerun.
+  the fixed-sampler rerun. (2026-11-14: the rerun reverses the verdict, +0.0580 mean AP on 5 of
+  5 folds, §230.)
 - **The private/public preprocessing mismatch is fixed and tested** in the fork (§220).
 
 The general rule, added to the earlier ones: **a pooled metric over rows scored by different

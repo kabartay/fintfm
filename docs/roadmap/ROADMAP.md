@@ -399,6 +399,7 @@ set the order from here, ahead of the audit's Phase 4 and 5 measurements:
 the bar of +0.0117 mean AP with 4 of 5 folds, and muon is harmful (−0.0125, 0 of 5 folds).
 §218 measured the probe per partition leaf at −0.0570 mean AP on 0 of 5 folds, and §219 traced
 that loss to a sampler defect in the harness (the leaf holding 93 to 97% of the test defaults
-never got a probe); the five-fold rerun with the fixed sampler is queued and is the verdict, so
-§215's best Lite configuration is not yet shown to hold on V4FinBench. The partition result
+never got a probe). The five-fold rerun with the fixed sampler reverses it (§230, 2026-11-14):
++0.0580 on 5 of 5 folds, and 0.3015 mean AP, +0.1029 on 5 of 5, with the scale, cv and raw
+readout options, a trained readout whose raw-feature share is not yet separated. The partition result
 stands at 0.2362 mean AP, +0.0375 on 5 of 5 folds (§169, §205).

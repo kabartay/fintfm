@@ -14101,6 +14101,9 @@ a label swap on every other member), mapped back before averaging. CPU, 2 thread
 
 ## §218: on V4FinBench the probe per partition leaf is harmful, −0.0570 mean AP on 0 of 5 folds, so §215's best Lite configuration stays Lite-only
 
+> **2026-11-14: verdict reversed by §230.** With §219's sampler fix the same arm is a candidate,
+> +0.0580 mean AP on 5 of 5 folds. This entry stands as the record of the defective harness.
+
 **MEASURED, 2026-11-09 to 2026-11-10.** `python -m fintfm.experiments.representation_transfer
 --model runs/v4-cellattn-labels.pt --stage pre_head --partition --folds k` for k = 0..4 (commit
 d990009, CPU), predictions split into four arms by `runs/local_queue/pp_v4_split.py` and paired
@@ -14700,3 +14703,74 @@ the legacy split, behind by 0.003 under the corrected one. One seed.
 - §37's grouping cost holds in size. §38's "on every axis" no longer holds for AUC under the
   corrected split, within one seed's noise.
 - Not rerun exactly: §29's original output is gone and §30's other checkpoints are unnamed.
+
+## §230: with §219's sampler fix the probe per partition leaf is a candidate on V4FinBench, +0.0580 mean AP on 5 of 5 folds; the scale, cv and raw readout options add +0.0449 more, to 0.3015
+
+**MEASURED, 2026-11-13 to 2026-11-14, CPU.** openspec 49.5. `python -m
+fintfm.experiments.representation_transfer --model runs/v4-cellattn-labels.pt --stage pre_head
+--partition --probe-options '{"scale": true, "cv": true, "raw": true}' --folds k` for k = 0..4
+(main at 97f2b92; `src/` as at a00049b, which carries §219's sampler fix). Predictions were split
+into five arms by `runs/local_queue/pp_v4_split.py` and paired with
+`scripts/compare_v4_scores.py --cluster` (company-level bootstrap, Holm across folds). Files:
+`runs/pp-v4-fix/cmp_*.txt` and `scorer_mix.txt`. All arms come from one run per fold, so they
+share every row, fold and checkpoint. The first four arms are §218's. The fifth, **leaf probe +
+options**, fits each leaf's probe with the fork's `FINTFM_PROBE` readout (§222, §223):
+standardised inputs, C chosen from 1e-3 to 1e2 by 3-fold log loss, and the squashed raw features
+appended to the representation.
+
+| fold | test rows | global head | partition head | global probe | leaf probe | leaf probe + options |
+| --- | --- | --- | --- | --- | --- | --- |
+| 0 | 200,361 | 0.2113 | 0.2241 | 0.2349 | 0.2340 | 0.2857 |
+| 1 | 200,822 | 0.2050 | 0.2262 | 0.2156 | 0.2392 | 0.2835 |
+| 2 | 199,392 | 0.1786 | 0.2411 | 0.2130 | 0.2693 | 0.3212 |
+| 3 | 199,906 | 0.1810 | 0.2370 | 0.2392 | 0.2648 | 0.3147 |
+| 4 | 199,606 | 0.2172 | 0.2524 | 0.2041 | 0.2755 | 0.3026 |
+| **mean** | | 0.1986 | 0.2361 | 0.2213 | 0.2566 | **0.3015** |
+
+| pairing | mean AP change | folds + / − | Holm-significant (companies) | verdict (§173: candidate above +0.0117 on at least 4 of 5) |
+| --- | --- | --- | --- | --- |
+| leaf probe against global head | +0.0580 | 5 / 0 | 5 of 5 | candidate (§218: −0.0570, 0 of 5) |
+| leaf probe against partition head | +0.0204 | 5 / 0 | 3 of 5 | candidate |
+| leaf probe against global probe | +0.0352 | 4 / 1 | 2 of 5 | candidate |
+| **leaf probe + options against global head** | **+0.1029** | 5 / 0 | 5 of 5 | **candidate** |
+| leaf probe + options against partition head | +0.0654 | 5 / 0 | 5 of 5 | candidate |
+| leaf probe + options against leaf probe | +0.0449 | 5 / 0 | 5 of 5 | candidate |
+
+The global head, partition head and global probe match §218 to four decimals in every fold, so
+only the leaf arms changed, as the fix intends.
+
+**§219's diagnosis holds.** No fold has a single-class leaf now (§218 had one in every fold).
+Folds 0 to 3 have two leaf probes and one fallback leaf, and fold 4 has three leaf probes. The
+rows scored by leaf probes now hold 698 to 740 of each fold's defaults; in fold 0 (19,693 rows, 740
+of 741 defaults) they score AP 0.2443 with the leaf probe, against 0.2389 with the global probe and
+0.2325 with the partition head. Rescaling each scorer's output before pooling adds at most 0.0086 in any fold
+(fold 0) and 0.0023 on the mean, so the pooled scorers now sit on one scale.
+
+**Against the field.** 0.3015 is the highest five-fold V4FinBench mean for FinTFM in this log (a search of it finds none above 0.25). The partition
+head was 0.2361 (§169, reproduced here), and §163's fine-tuned model was 0.2062. Untuned CatBoost
+scores 0.4005 on the same features (§163). The gap to it narrows from 0.164 to 0.099.
+
+**What this does not show.**
+- **It is not zero-shot.** Each fold fits logistic-regression readouts on 20,000 labelled
+  training rows, split across the leaves. That is the same label budget as §131's global probe,
+  but it is a trained readout.
+- **The raw-feature share is not isolated.** The `raw` option gives the probe the squashed raw
+  features beside the representation. The harness's own raw-feature arm, logistic regression on
+  the same 20,000 rows with standard scaling, default C and no partition, scores 0.1599, 0.1390,
+  0.1553, 0.1897 and 0.1863 (mean 0.1660). It is not a matched control, because it lacks the
+  squash, the C search and the per-leaf split. The matched control, the same options probe per
+  leaf with the representation removed, was not run. Until it is, part of the +0.0449 may come
+  from a better-regularised linear model on raw features rather than from the representation.
+- **One checkpoint, one seed** (`v4-cellattn-labels.pt`), and the options arm ran with all three
+  options at once. Which option carries the gain is not separated.
+
+**Consequences.**
+- §218's verdict, "harmful on credit", is **replaced**. §218 stands as a record of the harness
+  with the sampler defect. The configuration behind §215's Lite entry is a candidate on
+  V4FinBench, with the readout options a further candidate on top.
+- Per 49.5, a non-harmful verdict releases the binary TabArena-Lite arm: §220's configuration with
+  `FINTFM_PROBE` `{"scale": true, "cv": true, "raw": true}` on all 30 binary datasets, paired
+  against `fintfm_linprobe_squash_part_090` (974 Elo). It is queued as `bin-probe-scr`.
+
+Cost, MEASURED: 65, 56, 56, 64 and 115 min for folds 0 to 4 on the shared CPU. Peak RSS was 16.6
+to 23.6 GB. The three original comparisons took 153 min and the two options comparisons 50 min.

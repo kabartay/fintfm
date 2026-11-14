@@ -74,7 +74,7 @@ says plainly where it does not yet.
 | **Licence** | Apache-2.0 for **code and weights**, each chosen separately (see [Licensing](#licensing--provenance)) |
 | **Checkpoint** | [kabartay/fintfm-binary](https://huggingface.co/kabartay/fintfm-binary): 885K parameters, binary, up to 136 features |
 | **Tests** | about 1,350 (2026-11-13), plus `ruff`, the openspec validator, a dependency-licence check and a documentation-link check, all in CI |
-| **Measurement log** | 229 numbered entries, each stating how its numbers were produced; pre-registrations are written before their arms run |
+| **Measurement log** | 230 numbered entries, each stating how its numbers were produced; pre-registrations are written before their arms run |
 | **Problem types** | Binary is declared and is the only published checkpoint. Multiclass and regression run on TabArena-Lite with unpublished checkpoints (§221-§224) and are **not** declared (§121) |
 
 **Read [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md) before anything else.** It tags every
@@ -126,8 +126,12 @@ significant on its own; the cited entries give the paired per-dataset tests.
 | eight bags for multiclass, and a pure-regression checkpoint (`--p-regression 1.0`) | 51 | **905** | **107th of 110** | §227 |
 
 **These are breadth results, not credit results.** On V4FinBench a readout per partition leaf
-scored −0.0570 mean AP, better on 0 of 5 folds (§218). §219 traced that to a sampling defect
-in the harness, fixed in 0.10.0; the rerun is pending, so no credit claim rests on this table.
+first scored −0.0570 mean AP, better on 0 of 5 folds (§218). §219 traced that to a sampling
+defect in the harness, fixed in 0.10.0. The rerun with the fix scores +0.0580 on 5 of 5 folds,
+and adding the scale, cv and raw readout options gives 0.3015 mean AP, +0.1029 over the
+zero-shot head on 5 of 5 (§230). That readout is trained on 20,000 labelled rows, and how much
+of the gain comes from the raw features rather than the representation is not yet separated.
+The binary Lite entry with these options has not been run, so no row in this table carries them.
 
 ### The first series: the zero-shot model on 27 binary datasets
 
@@ -497,7 +501,7 @@ conclusion is not reached twice.
 - [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md): **start here.** Every claim the project could
   make, tagged by status; the newest evidence wins.
 - [`docs/results/FINDINGS.md`](docs/results/FINDINGS.md): the measurement log, numbered in
-  order (229 entries on 2026-11-13), each stating how its numbers were produced.
+  order (230 entries on 2026-11-14), each stating how its numbers were produced.
 - [`docs/paper/NEGATIVE_RESULTS.md`](docs/paper/NEGATIVE_RESULTS.md): every null and harmful
   result in one place, so a lever already ruled out is not tried again by accident.
 - [`docs/paper/LIMITATIONS.md`](docs/paper/LIMITATIONS.md): what the model and the evidence

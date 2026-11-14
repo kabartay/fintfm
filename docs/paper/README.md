@@ -25,7 +25,8 @@ are `docs/results/FINDINGS.md` sections.
 - **Credit.** FinTFM is below untuned logistic regression on mean AP on all four admitted credit
   datasets (§216). On V4FinBench no lever tested since §211 clears the bar, and 480,000-task
   volume is null (§188). The probe per partition leaf scored -0.0570 mean AP (§218); §219 found a
-  harness sampler defect and the fixed rerun is pending.
+  harness sampler defect, and the fixed rerun reverses it: +0.0580 on 5 of 5 folds, 0.3015 mean
+  AP with the readout options (§230), a trained readout whose raw-feature share is not separated.
 - **Consequence for the framing.** The diagnosis paper (candidate B in `OUTLINE.md`) is
   unchanged by these results; the "synthetic prior transfers to credit" paper stays not writable.
 - Release 0.10.0 was published 2026-11-13.

@@ -25,8 +25,10 @@ dates they carry. The current measured position is:
   (§216, three out-of-time splits, one seed, no paired test). The Lite gains from the readout,
   squash and partitioned contexts were not reproduced on V4FinBench: squash is null (§211) and
   the probe per partition leaf scored -0.0570 mean AP, 0 of 5 folds (§218). §219 traced that
-  loss to a sampler defect in the harness; the fixed rerun is pending, so §218 is neither
-  confirmed nor reversed.
+  loss to a sampler defect in the harness, and the fixed rerun reverses it: +0.0580 on 5 of 5
+  folds, and 0.3015 mean AP with the scale, cv and raw readout options (§230). That readout is
+  trained on 20,000 labelled rows; the share of the raw features in the gain is not separated
+  (no matched raw-only control).
 - **No tested lever clears the V4FinBench bar at the current recipe.** §211 (context
   composition, member transforms, row-count choices) found no candidate and muon harmful;
   480,000-task volume (§188) and depth and width at 480,000 tasks (§195, §202) are null.
