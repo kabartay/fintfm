@@ -19,7 +19,7 @@
       to 865 Elo but was worse on 3 of 8 datasets (§224); `mc-bag8` (8 bags) is queued.
       Verify: `mc-bag8` against `fintfm_lp_mc_scr_bag4_1112` per dataset in a FINDINGS entry;
       the better of the two is the multiclass run in the next merge.
-- [ ] 49.4 **Raise the wide tables.** Under `max_features_strategy: select` the five wide tables
+- [ ] 49.4 **Progress (2026-11-14, FINDINGS §234): the binary 512-column checkpoint rescored the three wide binary tables (ranks 102/103/91 to 101/102/89 of 107-108, per-dataset ranks from the stored leaderboard); its V4FinBench gate failed on one Holm-significant fold, so the multiclass 512 arm is blocked and QSAR-TID-11 and the multiclass wide table are not rescored. `wide512-scr` (with §232's readout options) is queued.** **Raise the wide tables.** Under `max_features_strategy: select` the five wide tables
       rank 90th to 103rd of 108 (§220, §221). The planned route is DR8.3's 512-column binary
       checkpoint and the multiclass arm `configs/arms/dr75-width512-mc.yaml` (DR7.5 note,
       2026-11-07), both waiting on GPU. Verify: the wide tables rescored with the 512 checkpoints,
