@@ -32,6 +32,12 @@ ARM = "dr83-width512-s0"
 CKPT_SHA256 = "20381bf13adaf122f3c8c5d461b755c3ab718f4a73c959a6b7e80105cae19a27"
 CONTROL_FOLD_S = 426.0  # e1-v48-s0, fold 0 on a T4 (MEASURED, see docstring)
 STEP0_FACTOR = 4.0
+#: Folds still to score after fold 0 ran (2026-11-14). The first run's guard timed the whole
+#: call, data loading (about 300 s) included, while the control's 426 s starts after loading:
+#: 1,877 s against 1,704 s read as a fail, but the fold itself took 1,581 s (327 s to 1,908 s
+#: in the kernel log), 3.7 times the control, inside the 4x limit. So Step 0 passed and only
+#: folds 1-4 run here; set to () to repeat the fold-0 timing.
+REMAINING_FOLDS: tuple[int, ...] = (1, 2, 3, 4)
 CONFIG = "inference:\n  query_chunk: 512\n  feature_chunk: 8\n"
 
 
@@ -105,6 +111,10 @@ def main() -> None:
     # this checkpoint on CPU (SMOKE-TEST), float32 rounding.
     torch.backends.mha.set_fastpath_enabled(False)
     out = Path("/kaggle/working/dr83_v4")
+    if REMAINING_FOLDS:
+        score(root, ckpt, out / "f1234", REMAINING_FOLDS)
+        print("done")
+        return
     f0 = score(root, ckpt, out / "f0", (0,))
     limit = STEP0_FACTOR * CONTROL_FOLD_S
     passed = f0 <= limit
