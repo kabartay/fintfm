@@ -255,6 +255,23 @@ def test_probe_options_add_one_arm_and_leave_every_other_arm_bit_for_bit(tmp_pat
     assert "representation_opts_ap" in rec["folds"][0]
 
 
+def test_no_rep_option_is_a_raw_only_probe_on_the_same_rows(tmp_path, panel):
+    """``no_rep`` drops the representation from the options probe, so with ``raw`` it is the
+    matched raw-features-only control for §230: every other arm is unchanged bit for bit and
+    the options arm differs from the one that also reads the representation."""
+    opts = {"scale": True, "cv": True, "raw": True}
+    _rec, with_rep, _ = _run(tmp_path, "with_rep", partition=True, probe_options=opts)
+    rec, raw_only, _ = _run(tmp_path, "raw_only", partition=True,
+                            probe_options={**opts, "no_rep": True})
+    assert rec["probe_options"]["no_rep"] is True
+    for key in with_rep:
+        if key != "pred_representation_opts":
+            assert raw_only[key].tobytes() == with_rep[key].tobytes()
+    p = raw_only["pred_representation_opts"]
+    assert np.all((p >= 0) & (p <= 1))
+    assert not np.array_equal(p, with_rep["pred_representation_opts"])
+
+
 def test_partition_with_every_leaf_falling_back_is_the_global_probe(tmp_path, panel, monkeypatch):
     """A tree whose leaves all fall back to the global context scores every test row with
     the global probe, so the per-leaf arm reduces to ``representation_global``."""

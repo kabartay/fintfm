@@ -260,7 +260,7 @@ def _leaf_probe(
 
 
 #: Keys ``--probe-options`` accepts; see :func:`_options_probe`.
-PROBE_OPTIONS = frozenset({"scale", "cv", "raw", "head"})
+PROBE_OPTIONS = frozenset({"scale", "cv", "raw", "head", "no_rep"})
 
 
 def _options_probe(
@@ -287,7 +287,9 @@ def _options_probe(
         X_test: ``(n, F)`` the test rows' features.
         options: ``scale`` standardises the inputs; ``cv`` picks C from 1e-3 to 1e2 by 3-fold
             log loss; ``raw`` appends the squashed features (``raw_conditioner``), missing at
-            the median; ``head`` appends the log of the classifier's own probabilities.
+            the median; ``head`` appends the log of the classifier's own probabilities;
+            ``no_rep`` drops the representation, so with ``raw`` the probe reads the squashed
+            features alone on the same leaves and rows (the matched raw-only control, §230).
         raw_conditioner: Fitted squash for ``raw``.
 
     Returns:
@@ -298,7 +300,7 @@ def _options_probe(
 
     def inputs(rep: np.ndarray, X: np.ndarray) -> np.ndarray:
         """The probe's input: the representation plus the blocks the options add."""
-        blocks = [np.asarray(rep, dtype=np.float64)]
+        blocks = [] if options.get("no_rep") else [np.asarray(rep, dtype=np.float64)]
         if options.get("raw"):
             z = raw_conditioner.transform(X)
             blocks.append(np.nan_to_num(z, nan=0.0, posinf=3.0, neginf=-3.0).astype(np.float64))
@@ -714,7 +716,7 @@ def main() -> None:
     )
     p.add_argument(
         "--probe-options", type=str, default=None,
-        help="with --partition: a JSON object of readout options (scale, cv, raw, head) for a "
+        help="with --partition: a JSON object of readout options (scale, cv, raw, head, no_rep) for a "
              "second leaf probe, written as the representation_opts arm beside the plain one",
     )
     args = p.parse_args()
@@ -728,6 +730,8 @@ def main() -> None:
             p.error(f"--probe-options: unknown key(s) {sorted(unknown)}; known {sorted(PROBE_OPTIONS)}")
         if not args.partition:
             p.error("--probe-options needs --partition")
+        if probe_options.get("no_rep") and not (probe_options.get("raw") or probe_options.get("head")):
+            p.error("--probe-options: no_rep needs raw or head, or the probe has no input")
     run(
         args.model,
         args.out,
