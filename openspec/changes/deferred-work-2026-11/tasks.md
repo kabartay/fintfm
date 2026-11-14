@@ -27,7 +27,7 @@
 
 ## Binary
 
-- [ ] 49.5 **Progress (2026-11-14, FINDINGS §230): V4FinBench verdict recorded. With §219's sampler fix the probe per leaf is a candidate, +0.0580 mean AP on 5 of 5 folds, and the scale/cv/raw options add +0.0449 (0.3015, +0.1029 over the zero-shot head, 5 of 5, Holm-significant on every fold). Not harmful, so the binary TabArena-Lite arm is queued (`bin-probe-scr`, paired against `fintfm_linprobe_squash_part_090`, 974 Elo); open until it reports. A matched raw-only control was not run.** **Score the readout options on binary, V4FinBench first.** The `scale`, `cv` and `raw`
+- [x] 49.5 **Done (2026-11-14, FINDINGS §232): the binary TabArena-Lite arm ran on §230's not-harmful verdict and lifted binary from 974 to 997 Elo (23 better, 7 worse, p 0.01); overall 925.6, 106th of 110 (`fintfm_linprobe_all51_1114b`). The readout options join the entry's configuration.** **Progress (2026-11-14, FINDINGS §230): V4FinBench verdict recorded. With §219's sampler fix the probe per leaf is a candidate, +0.0580 mean AP on 5 of 5 folds, and the scale/cv/raw options add +0.0449 (0.3015, +0.1029 over the zero-shot head, 5 of 5, Holm-significant on every fold). Not harmful, so the binary TabArena-Lite arm is queued (`bin-probe-scr`, paired against `fintfm_linprobe_squash_part_090`, 974 Elo); open until it reports. A matched raw-only control was not run.** **Score the readout options on binary, V4FinBench first.** The `scale`, `cv` and `raw`
       readout options lifted multiclass and regression on TabArena-Lite (§222, §223) and are
       untested on binary. The `ppfix-v4-f0` to `-f4` folds (`--probe-options`) and
       `ppfix-v4-compare` are queued locally; they also give the verdict on §219's sampler fix

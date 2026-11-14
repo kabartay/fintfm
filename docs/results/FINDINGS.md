@@ -14837,3 +14837,85 @@ datasets, so +57 regression Elo moves the overall by 4.
   task 49.2's 480,000-task pure-regression checkpoint scored with the partition when it lands.
 - Not a credit result: V4FinBench is binary and does not test a regression change. The binary
   path is unchanged (`PartitionedTFMClassifier` defaults, checked bit for bit by the tests).
+
+## §232: the scale, cv and raw readout options lift binary TabArena-Lite from 974 to 997 Elo, better on 23 of 30; overall 926, 106th of 110
+
+**MEASURED, TabArena-Lite (repeat 0, fold 0), CPU, 2026-11-14.** Task 49.5's binary arm, run
+because §230's V4FinBench verdict was not harmful (+0.1029 mean AP over the zero-shot head, 5 of
+5 folds). Run `fintfm_lp_bin_scalecvraw_1114`: §220's configuration (FinTFM-LinProbe, squash,
+`max_features_strategy: select`, partitioned contexts, a probe per leaf) with
+`FINTFM_PROBE='{"scale": true, "cv": true, "raw": true}'`, the published binary checkpoint and
+the editable fintfm checkout. Paired against §220's `fintfm_linprobe_squash_part_090` (974 Elo).
+Logs `runs/local_queue/bin-probe-scr.log` and `bin-probe-scr2.log`; comparison
+`runs/fintfm_lp_bin_scalecvraw_1114_vs_090.md`. Every fit predates the unfused-encoder change
+(f55bc3b), so all 30 come from one code state.
+
+**23 better, 7 worse of 30 (sign test p = 0.01); binary Elo 974 to 997 (+118 / −127); mean
+ROC-AUC change +0.0054, median +0.0034.** ROC-AUC, sorted by change:
+
+| dataset | §220 | options | change |
+| --- | --- | --- | --- |
+| hazelnut-spread-contaminant-detection | 0.9049 | 0.9623 | +0.0574 |
+| Marketing_Campaign | 0.8866 | 0.9227 | +0.0361 |
+| customer_satisfaction_in_airline | 0.9288 | 0.9500 | +0.0212 |
+| Bioresponse | 0.8462 | 0.8669 | +0.0207 |
+| qsar-biodeg | 0.8967 | 0.9107 | +0.0141 |
+| blood-transfusion-service-center | 0.7148 | 0.7235 | +0.0087 |
+| polish_companies_bankruptcy | 0.9131 | 0.9214 | +0.0083 |
+| in_vehicle_coupon_recommendation | 0.7503 | 0.7582 | +0.0078 |
+| Fitness_Club | 0.7899 | 0.7976 | +0.0077 |
+| Is-this-a-good-customer | 0.6955 | 0.7030 | +0.0074 |
+| credit_card_clients_default | 0.7785 | 0.7843 | +0.0058 |
+| credit-g | 0.7639 | 0.7689 | +0.0050 |
+| Bank_Customer_Churn | 0.8524 | 0.8571 | +0.0047 |
+| NATICUSdroid | 0.9768 | 0.9814 | +0.0045 |
+| bank-marketing | 0.7630 | 0.7670 | +0.0039 |
+| coil2000_insurance_policies | 0.7399 | 0.7428 | +0.0029 |
+| heloc | 0.7841 | 0.7866 | +0.0025 |
+| APSFailure | 0.9877 | 0.9902 | +0.0025 |
+| E-CommereShippingData | 0.7476 | 0.7498 | +0.0022 |
+| online_shoppers_intention | 0.9215 | 0.9230 | +0.0015 |
+| GiveMeSomeCredit | 0.8405 | 0.8415 | +0.0010 |
+| churn | 0.9147 | 0.9153 | +0.0005 |
+| HR_Analytics_Job_Change_of_Data_Scientists | 0.8106 | 0.8106 | +0.0000 |
+| Diabetes130US | 0.6509 | 0.6496 | −0.0013 |
+| taiwanese_bankruptcy_prediction | 0.9336 | 0.9321 | −0.0015 |
+| diabetes | 0.8230 | 0.8206 | −0.0024 |
+| seismic-bumps | 0.7975 | 0.7941 | −0.0034 |
+| jm1 | 0.7440 | 0.7405 | −0.0035 |
+| Amazon_employee_access | 0.8434 | 0.8358 | −0.0076 |
+| kddcup09_appetency | 0.7803 | 0.7358 | −0.0445 |
+
+HR_Analytics gains in the fifth decimal and counts as better in the comparison script. The
+credit tables the project is about move the right way: polish_companies_bankruptcy +0.0083,
+credit_card_clients_default +0.0058, credit-g +0.0050, GiveMeSomeCredit +0.0010;
+taiwanese_bankruptcy_prediction is the exception at −0.0015. The one large loss is
+kddcup09_appetency (212 columns, selected down to 136, a rare positive class). Its cause is not
+established; one fold cannot separate the raw columns, the cross-validated `C` and noise.
+Bioresponse, the other wide table selected down, gains +0.0207.
+
+**Three datasets failed on the first pass and none of the failures was the readout's quality.**
+- HR_Analytics stopped on a fork defect: the probe replays preprocessing with
+  `is_train=False`, which can encode categoricals differently from the fit, so the tree routed
+  no training row to one leaf that had its own context, and `StandardScaler` was fitted on zero
+  rows. Fork commit f7cf552 scores such a leaf with its own head (for regression, with the
+  global regressor and ridge readout). `bin-probe-scr2` refit HR_Analytics with it (1,047 s).
+- GiveMeSomeCredit and bank-marketing hit AutoGluon's `TimeLimitExceeded` at 584 s and 409 s,
+  when the first of 8 folds projected past 3,600 s. They ran at 09:40 to 10:10, when other
+  sessions held the load average near 135; the run's final call refit both under normal load
+  and they finished. The cross-validated readout itself costs about 0.2 s per fit (20,000 rows,
+  266 inputs, SMOKE-TEST on synthetic data), so the readout options are not what was slow.
+
+**Overall, this binary run + multiclass bag8 (§227) + partitioned regression (§231): 925.6 Elo
+(+85 / −103), 106th of 110** (`fintfm_linprobe_all51_1114b`, log `runs/merge_all51_1114b.log`;
+position from `scripts/lite_positions.py`). §231 was 909.2, 107th. The entry now sits above
+LR (tuned) at 919.5 and below LR (tuned + ensemble) at 935.6: the first change in this series
+to move the position, by one place.
+
+**What it says.**
+- The readout options are now a gain on all three problem types: multiclass (§222), regression
+  (§223) and binary here, and on V4FinBench (§230). They become part of the entry's
+  configuration.
+- One seed, one fold, as every Lite arm here. A matched raw-only control for §230 is queued
+  (`rawonly-v4-*`), which separates the representation's share from the raw columns' share.
+- Credit evidence came first (§230) as CLAUDE.md requires; this is the breadth number after it.
