@@ -1872,3 +1872,38 @@ def test_checkpoint_without_cell_mixing_key_loads_with_the_default(tmp_path):
 def test_latent_config_refuses_nonsense(bad, match):
     with pytest.raises(ValueError, match=match):
         ModelConfig(**{**_P5_BASE, **bad})
+
+
+def test_inference_runs_the_encoders_unfused_and_restores_the_switch(monkeypatch):
+    """Inference turns PyTorch's fused encoder fast path off, and only while it runs.
+
+    The fused path materialises the full attention matrix and ran a 512-column checkpoint
+    out of memory on a T4 (2026-11-14). With it off, predictions agree with the fused path
+    to float32 rounding, and the caller's setting comes back afterwards.
+    """
+    from fintfm.modeling import model as model_module
+
+    mha = torch.backends.mha
+    if not hasattr(mha, "set_fastpath_enabled"):
+        pytest.skip("this PyTorch has no fast-path switch")
+    model = _context_model(n_cell_blocks=1, cell_labels=True)
+    Xc, yc, Xq = _context_task()
+    seen = []
+    real = model_module.FinancialTFM._column_attention
+
+    def spy(self, flat, safe_pad):
+        seen.append(mha.get_fastpath_enabled())
+        return real(self, flat, safe_pad)
+
+    monkeypatch.setattr(model_module.FinancialTFM, "_column_attention", spy)
+    assert mha.get_fastpath_enabled()
+    got = model.predict_context(Xc, yc, Xq, n_classes=2, column_id_seed=5)
+    assert seen and not any(seen)
+    assert mha.get_fastpath_enabled()
+    monkeypatch.setattr(model_module.FinancialTFM, "_column_attention", real)
+    fused = model_module.FinancialTFM.__dict__["encode_rows"].__wrapped__
+    rows = model_module.FinancialTFM.__dict__["_row_attention"].__wrapped__
+    monkeypatch.setattr(model_module.FinancialTFM, "encode_rows", fused)
+    monkeypatch.setattr(model_module.FinancialTFM, "_row_attention", rows)
+    expected = model.predict_context(Xc, yc, Xq, n_classes=2, column_id_seed=5)
+    torch.testing.assert_close(got, expected, rtol=1e-5, atol=1e-5)

@@ -19,6 +19,20 @@ not paste one into the other. See `CLAUDE.md`.
 - `representation_transfer --probe-options` takes `no_rep`: with `raw`, the per-leaf options
   probe reads the squashed features alone on the same leaves and rows, the matched raw-only
   control for FINDINGS §230.
+- The `large_n` config section mirrors `missing_classes` as `partition_missing_classes`
+  (default `fallback`), so `fintfm-v4protocol --large-n partition` can set it.
+
+### Changed
+
+- **Inference runs PyTorch's encoder layers unfused** (`unfused_encoder_layers` in
+  `fintfm.modeling.model`, around `encode_rows` and the row stage). In eval mode with gradients
+  off, `nn.TransformerEncoder` took a fused fast path that materialises the whole attention
+  matrix: a 512-column checkpoint asked a 14.56 GiB T4 for 9.81 GiB on one V4FinBench fold. The
+  unfused path uses `scaled_dot_product_attention` and was 3 to 4 times faster on CPU
+  (SMOKE-TEST: 16.5 s to 4.5 s, a 100-column table with the published checkpoint). Outputs
+  move by float32 rounding only (largest difference 3.6e-7 in a probability, 5.1e-6 in a
+  representation), and the golden fixtures are rebaselined for it. Training is unchanged; the
+  caller's fast-path setting is restored on exit.
 
 ## [0.10.1] — 2026-11-13
 

@@ -32,8 +32,9 @@ smoke tests only and none were kept.
 
 from __future__ import annotations
 
+import contextlib
 import math
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from dataclasses import asdict, dataclass
 from typing import Any, Literal
 
@@ -583,6 +584,38 @@ def length_scale(n_keys: int, n_ref: int) -> float:
 HALF_PRECISION_HEAD_ALIGN = 8
 
 _HALF_DTYPES = (torch.float16, torch.bfloat16)
+
+
+@contextlib.contextmanager
+def unfused_encoder_layers() -> Iterator[None]:
+    """Run ``nn.TransformerEncoder`` layers without PyTorch's fused inference fast path.
+
+    In eval mode with gradients off, ``nn.TransformerEncoder`` and ``nn.TransformerEncoderLayer``
+    switch to ``torch._transformer_encoder_layer_fwd``, which materialises the full attention
+    matrix. At 512 columns that is ``rows x heads x 512 x 512`` scores: a 9.81 GiB allocation
+    stopped V4FinBench fold 0 on a 14.56 GiB T4, and a 7.27 GiB one the in-training held-out
+    evaluation (2026-11-14). The unfused path calls ``scaled_dot_product_attention``, whose
+    memory-efficient kernel does not form that matrix, and on CPU it was also 3 to 4 times
+    faster (a 100-column table with ``v4-cellattn-labels.pt``: 16.5 s against 4.5 s,
+    SMOKE-TEST). Predictions agree to float32 rounding (largest difference 1.1e-6 there).
+
+    Training never takes the fast path (it needs gradients off), so this changes inference
+    only. The previous setting is restored on exit, so the switch does not leak into other
+    models in the same process. A no-op on a PyTorch without ``set_fastpath_enabled``.
+
+    Yields:
+        Nothing; the body runs with the fast path off.
+    """
+    mha = torch.backends.mha
+    if not hasattr(mha, "set_fastpath_enabled"):
+        yield
+        return
+    previous = mha.get_fastpath_enabled()
+    mha.set_fastpath_enabled(False)
+    try:
+        yield
+    finally:
+        mha.set_fastpath_enabled(previous)
 
 
 def attention_in_half_precision(x: torch.Tensor) -> bool:
@@ -1397,6 +1430,7 @@ class FinancialTFM(nn.Module):
             ids = ids[:, :Fdim]
         return ids.to(device=device, dtype=dtype)
 
+    @unfused_encoder_layers()
     def encode_rows(
         self,
         X: torch.Tensor,
@@ -1621,6 +1655,7 @@ class FinancialTFM(nn.Module):
             )
         return torch.cat([ctx_emb, self.query_token.expand(B, N - n_ctx, -1)], dim=1)
 
+    @unfused_encoder_layers()
     def _row_attention(
         self, h: torch.Tensor, n_ctx: int, n_layers: int | None = None
     ) -> torch.Tensor:
