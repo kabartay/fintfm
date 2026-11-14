@@ -196,11 +196,59 @@ def test_partition_hands_the_member_count_to_every_leaf_context():
     assert all(e.n_members_ == 8 for e in inner)
 
 
-@pytest.mark.parametrize("kw", [{"max_depth": 4}, {"n_bags": 0}, {"bag_frac": 0.0}])
+@pytest.mark.parametrize(
+    "kw", [{"max_depth": 4}, {"n_bags": 0}, {"bag_frac": 0.0}, {"missing_classes": "drop"}]
+)
 def test_partition_refuses_out_of_range_settings(kw):
     X, y = _data(n=100)
     with pytest.raises(ValueError):
         PartitionedTFMClassifier(_base(), **kw).fit(X, y)
+
+
+def _mc_data(n=900, seed=0):
+    rng = np.random.default_rng(seed)
+    X = rng.normal(size=(n, 4)).astype(np.float32)
+    y = np.digitize(X[:, 0] + 0.3 * rng.normal(size=n), [-0.5, 0.5]).astype(np.int64)
+    return X, y
+
+
+def test_partition_missing_classes_global_keeps_leaves_that_lack_a_class():
+    """On three classes ordered along x0 the tree's leaves hold one or two classes each, so
+    ``"fallback"`` sends them to the global context and ``"global"`` keeps them; the result
+    is a valid distribution over all three classes with no zero column."""
+    X, y = _mc_data()
+    kw = {"max_depth": 2, "min_samples_leaf": 0.1, "min_leaf_rows": 20, "random_state": 1}
+    model = _model()
+    fb = PartitionedTFMClassifier(_base(model), **kw).fit(X, y)
+    gl = PartitionedTFMClassifier(_base(model), missing_classes="global", **kw).fit(X, y)
+    n_fb = sum(e is not None for e in fb.leaf_estimators_[0].values())
+    n_gl = sum(e is not None for e in gl.leaf_estimators_[0].values())
+    assert n_gl > n_fb
+    assert any(len(e.classes_) < 3 for e in gl.leaf_estimators_[0].values() if e is not None)
+    p = gl.predict_proba(X[:200])
+    _valid(p, 200, k=3)
+    assert (p > 0).all()
+
+
+def test_combine_with_global_gives_the_missing_classes_the_global_mass():
+    X, y = _mc_data(n=300)
+    clf = PartitionedTFMClassifier(_base(), min_leaf_rows=10_000).fit(X, y)
+    leaf = np.array([[0.25, 0.75], [1.0, 0.0]])
+    g = np.array([[0.2, 0.3, 0.5], [0.1, 0.1, 0.8]])
+    out = clf.combine_with_global(leaf, np.array([0, 2]), g)
+    np.testing.assert_allclose(out, [[0.175, 0.3, 0.525], [0.9, 0.1, 0.0]])
+    np.testing.assert_allclose(out.sum(axis=1), 1.0)
+    full = np.array([[0.2, 0.3, 0.5]])
+    assert clf.combine_with_global(full, np.array([0, 1, 2]), g[:1]).tobytes() == full.tobytes()
+
+
+def test_partition_missing_classes_global_leaves_binary_unchanged():
+    X, y = _data()
+    kw = {"max_depth": 2, "min_samples_leaf": 0.1, "min_leaf_rows": 20, "random_state": 3}
+    model = _model()
+    a = PartitionedTFMClassifier(_base(model), **kw).fit(X, y)
+    b = PartitionedTFMClassifier(_base(model), missing_classes="global", **kw).fit(X, y)
+    assert a.predict_proba(X[:50]).tobytes() == b.predict_proba(X[:50]).tobytes()
 
 
 # --- partitioned regression ---------------------------------------------------------------

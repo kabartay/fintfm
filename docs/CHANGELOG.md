@@ -12,6 +12,10 @@ not paste one into the other. See `CLAUDE.md`.
   `PartitionedTFMClassifier`. A shallow regression tree on the target routes rows to leaves,
   and each usable leaf fits its own `FinancialTFMRegressor`, so its quantile bins cover only
   that leaf's targets. Opt-in; nothing is scored with it yet (task 49.1).
+- `PartitionedTFMClassifier(missing_classes="global")`: a leaf that lacks some class keeps its
+  own context when at least two classes have `min_class_rows` rows; the global context supplies
+  the probability of the classes it lacks (`combine_with_global`). The default `"fallback"`
+  keeps the previous behaviour, and binary tasks are unchanged either way.
 - `representation_transfer --probe-options` takes `no_rep`: with `raw`, the per-leaf options
   probe reads the squashed features alone on the same leaves and rows, the matched raw-only
   control for FINDINGS §230.

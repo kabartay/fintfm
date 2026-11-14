@@ -108,6 +108,15 @@ class PartitionedTFMClassifier(BaseEstimator, ClassifierMixin):
         random_state: Seed for the bags and the trees. Each leaf's context and column-identity
             draw is seeded from ``estimator.random_state`` (plus a per-bag, per-leaf offset),
             not from this argument; :func:`wrap_large_n` sets the two equal.
+        missing_classes: What a leaf lacking some class does. ``"fallback"`` (the default)
+            sends the whole leaf to the global context, as ``min_class_rows`` says.
+            ``"global"`` keeps the leaf's own context when at least two classes have
+            ``min_class_rows`` rows: the leaf scores the classes it holds, and the global
+            context supplies the probability of the classes it lacks
+            (:meth:`combine_with_global`), so no class is ever given zero probability. On a
+            multiclass table a tree fitted on the labels makes most leaves miss some class,
+            and under ``"fallback"`` most of the partition is then the global context. A
+            binary leaf needs both classes either way, so binary tasks are unaffected.
 
     Attributes:
         classes_: Class labels, from :meth:`fit`.
@@ -128,6 +137,7 @@ class PartitionedTFMClassifier(BaseEstimator, ClassifierMixin):
         min_leaf_rows: int = 200,
         min_class_rows: int = 2,
         random_state: int = 0,
+        missing_classes: str = "fallback",
     ) -> None:
         """Store the settings. See the class docstring for every argument."""
         self.estimator = estimator
@@ -138,6 +148,7 @@ class PartitionedTFMClassifier(BaseEstimator, ClassifierMixin):
         self.min_leaf_rows = min_leaf_rows
         self.min_class_rows = min_class_rows
         self.random_state = random_state
+        self.missing_classes = missing_classes
 
     def _check_settings(self) -> None:
         """Reject settings that would silently change what the partition means.
@@ -152,6 +163,8 @@ class PartitionedTFMClassifier(BaseEstimator, ClassifierMixin):
             raise ValueError(f"n_bags must be at least 1, got {self.n_bags}")
         if not 0.0 < self.bag_frac <= 1.0:
             raise ValueError(f"bag_frac must lie in (0, 1], got {self.bag_frac}")
+        if getattr(self, "missing_classes", "fallback") not in ("fallback", "global"):
+            raise ValueError(f"missing_classes must be 'fallback' or 'global', got {self.missing_classes!r}")
 
     def _validate_combination(self, n_classes: int, n_features: int) -> None:
         """Refuse the inner estimator's lever combinations before anything is fitted (DR1.5).
@@ -180,12 +193,43 @@ class PartitionedTFMClassifier(BaseEstimator, ClassifierMixin):
 
         Returns:
             ``True`` when the leaf has at least ``min_leaf_rows`` rows and at least
-            ``min_class_rows`` rows of every class seen in :meth:`fit`.
+            ``min_class_rows`` rows of every class seen in :meth:`fit`; under
+            ``missing_classes="global"``, of at least two classes.
         """
         if y_leaf.size < self.min_leaf_rows:
             return False
         counts = np.array([(y_leaf == c).sum() for c in self.classes_])
+        if self.missing_classes == "global":
+            return bool((counts >= self.min_class_rows).sum() >= 2)
         return bool((counts >= self.min_class_rows).all())
+
+    def combine_with_global(
+        self, proba_leaf: np.ndarray, leaf_classes: np.ndarray, proba_global: np.ndarray
+    ) -> np.ndarray:
+        """Widen a leaf's probabilities over the classes it holds to every class.
+
+        The classes the leaf lacks take the global context's probabilities, and the leaf's
+        own probabilities share what is left, so each row still sums to one.
+
+        Args:
+            proba_leaf: ``(n, k)`` probabilities over ``leaf_classes``.
+            leaf_classes: The ``k`` labels the leaf was fitted on, a subset of ``classes_``.
+            proba_global: ``(n, n_classes)`` the global context's probabilities, in
+                ``classes_`` order.
+
+        Returns:
+            ``(n, n_classes)`` probabilities in ``classes_`` order. When the leaf holds every
+            class this is ``proba_leaf`` unchanged.
+        """
+        cols = np.searchsorted(self.classes_, leaf_classes)
+        if len(cols) == len(self.classes_):
+            return np.asarray(proba_leaf, dtype=np.float64)
+        missing = np.setdiff1d(np.arange(len(self.classes_)), cols)
+        g = np.asarray(proba_global, dtype=np.float64)
+        out = np.zeros((len(g), len(self.classes_)), dtype=np.float64)
+        out[:, missing] = g[:, missing]
+        out[:, cols] = np.asarray(proba_leaf, dtype=np.float64) * (1.0 - g[:, missing].sum(axis=1))[:, None]
+        return out
 
     def fit(
         self, X: np.ndarray, y: np.ndarray, groups: np.ndarray | None = None
@@ -287,7 +331,12 @@ class PartitionedTFMClassifier(BaseEstimator, ClassifierMixin):
                 est = leaves[int(leaf)]
                 if est is None:
                     est = self.global_estimator_
-                out[rows] += est.predict_proba(X[rows])
+                proba = est.predict_proba(X[rows])
+                if len(est.classes_) < len(self.classes_):
+                    proba = self.combine_with_global(
+                        proba, est.classes_, self.global_estimator_.predict_proba(X[rows])
+                    )
+                out[rows] += proba
         return (out / len(self.leaf_estimators_)).astype(np.float32)
 
     def predict(self, X: np.ndarray) -> np.ndarray:
