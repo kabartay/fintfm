@@ -14,6 +14,7 @@ from fintfm.inference.classifier import FinancialTFMClassifier
 from fintfm.inference.large_n import (
     BoostedTFMClassifier,
     PartitionedTFMClassifier,
+    PartitionedTFMRegressor,
     wrap_large_n,
 )
 from fintfm.modeling.model import FinancialTFM, ModelConfig
@@ -200,6 +201,71 @@ def test_partition_refuses_out_of_range_settings(kw):
     X, y = _data(n=100)
     with pytest.raises(ValueError):
         PartitionedTFMClassifier(_base(), **kw).fit(X, y)
+
+
+# --- partitioned regression ---------------------------------------------------------------
+
+
+def _reg_data(n=600, seed=0):
+    rng = np.random.default_rng(seed)
+    X = rng.normal(size=(n, 4)).astype(np.float32)
+    y = 3.0 * X[:, 0] + X[:, 1] ** 2 + 0.3 * rng.normal(size=n)
+    return X, y
+
+
+def _reg_base(model=None, seed=0):
+    from fintfm.inference.regressor import FinancialTFMRegressor
+
+    return FinancialTFMRegressor(
+        model or _model(), n_bins=3, classifier_params={"max_context": 80, "random_state": seed}
+    )
+
+
+def test_partitioned_regressor_fits_predicts_and_is_deterministic():
+    X, y = _reg_data()
+    model = _model()
+    kw = {"max_depth": 2, "min_samples_leaf": 0.1, "min_leaf_rows": 20, "random_state": 3}
+    a = PartitionedTFMRegressor(_reg_base(model), **kw).fit(X, y)
+    b = PartitionedTFMRegressor(_reg_base(model), **kw).fit(X, y)
+    pa = a.predict(X[:50])
+    assert pa.shape == (50,) and np.isfinite(pa).all()
+    assert pa.tobytes() == b.predict(X[:50]).tobytes()
+    assert any(e is not None for e in a.leaf_estimators_[0].values())
+
+
+def test_partitioned_regressor_leaves_bin_their_own_target_range():
+    """Each leaf's bins cover only its own targets, so leaves' grids differ and are narrower
+    than the global one: the finer prediction grid the partition is for."""
+    X, y = _reg_data()
+    reg = PartitionedTFMRegressor(
+        _reg_base(), max_depth=1, min_samples_leaf=0.2, min_leaf_rows=20
+    ).fit(X, y)
+    g = reg.global_estimator_.binner_.representatives_
+    leaves = [e for e in reg.leaf_estimators_[0].values() if e is not None]
+    assert len(leaves) == 2
+    spans = [np.ptp(e.binner_.representatives_) for e in leaves]
+    assert all(s < np.ptp(g) for s in spans)
+    lo, hi = sorted(leaves, key=lambda e: e.binner_.representatives_.mean())
+    assert lo.binner_.representatives_.max() < hi.binner_.representatives_.max()
+
+
+def test_partitioned_regressor_small_leaves_fall_back_and_bags_average():
+    X, y = _reg_data()
+    tiny = PartitionedTFMRegressor(_reg_base(), min_samples_leaf=0.1, min_leaf_rows=10_000).fit(X, y)
+    assert all(e is None for e in tiny.leaf_estimators_[0].values())
+    np.testing.assert_allclose(tiny.predict(X[:30]), tiny.global_estimator_.predict(X[:30]), rtol=1e-6)
+    bag = PartitionedTFMRegressor(
+        _reg_base(), n_bags=3, min_samples_leaf=0.1, min_leaf_rows=20
+    ).fit(X, y)
+    assert len(bag.trees_) == 3 and len({r.tobytes() for r in bag.bag_rows_}) == 3
+    assert np.isfinite(bag.predict(X[:30])).all()
+
+
+@pytest.mark.parametrize("kw", [{"max_depth": 4}, {"n_bags": 0}, {"bag_frac": 0.0}])
+def test_partitioned_regressor_refuses_out_of_range_settings(kw):
+    X, y = _reg_data(n=100)
+    with pytest.raises(ValueError):
+        PartitionedTFMRegressor(_reg_base(), **kw).fit(X, y)
 
 
 # --- boosting ----------------------------------------------------------------------------

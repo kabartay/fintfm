@@ -6,6 +6,16 @@ not paste one into the other. See `CLAUDE.md`.
 
 ## [Unreleased]
 
+### Added
+
+- `PartitionedTFMRegressor` (`fintfm.inference.large_n`): the regression counterpart of
+  `PartitionedTFMClassifier`. A shallow regression tree on the target routes rows to leaves,
+  and each usable leaf fits its own `FinancialTFMRegressor`, so its quantile bins cover only
+  that leaf's targets. Opt-in; nothing is scored with it yet (task 49.1).
+- `representation_transfer --probe-options` takes `no_rep`: with `raw`, the per-leaf options
+  probe reads the squashed features alone on the same leaves and rows, the matched raw-only
+  control for FINDINGS §230.
+
 ## [0.10.1] — 2026-11-13
 
 A patch release: no new weights, and the published checkpoint scores as before (pinned bit for

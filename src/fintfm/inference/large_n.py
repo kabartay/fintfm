@@ -12,9 +12,11 @@ they wrap. Nothing in this repository has measured either on a score yet.
 - :class:`PartitionedTFMClassifier` cuts the training rows with a shallow decision tree and
   gives every leaf its own context, so a query is conditioned on rows from its own region of
   feature space. With ``n_bags > 1`` it fits one tree per random row subset and averages
-  their probabilities, forest style. Written from the general description of tree-partitioned
-  and forest-of-PFN inference (the ``rf_pfn`` idea in the TabPFN extensions); no code from that
-  or any other tabular-foundation-model project is used, per ``CLAUDE.md``.
+  their probabilities, forest style. :class:`PartitionedTFMRegressor` does the same for
+  regression with a regression tree, so each leaf bins its own targets. Written from the
+  general description of tree-partitioned and forest-of-PFN inference (the ``rf_pfn`` idea in
+  the TabPFN extensions); no code from that or any other tabular-foundation-model project is
+  used, per ``CLAUDE.md``.
 - :class:`BoostedTFMClassifier` treats small-context models as weak learners. Each round
   draws its context with probability rising with the current ensemble's residual on each
   training row, so later rounds look at the rows the earlier ones got wrong, and the rounds
@@ -34,13 +36,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
-from sklearn.base import BaseEstimator, ClassifierMixin
+from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin
 from sklearn.utils.validation import check_is_fitted
 
 from fintfm.inference.classifier import FinancialTFMClassifier
 
 if TYPE_CHECKING:  # the config module is only needed for the annotation
     from fintfm.config import LargeNConfig
+    from fintfm.inference.regressor import FinancialTFMRegressor
 
 #: How :class:`BoostedTFMClassifier` turns a residual into a sampling weight.
 ResidualWeighting = Literal["abs", "exp"]
@@ -290,6 +293,159 @@ class PartitionedTFMClassifier(BaseEstimator, ClassifierMixin):
     def predict(self, X: np.ndarray) -> np.ndarray:
         """Hard class labels, as the arg-max of :meth:`predict_proba`."""
         return self.classes_[np.argmax(self.predict_proba(X), axis=1)]
+
+
+class PartitionedTFMRegressor(BaseEstimator, RegressorMixin):
+    """The regression counterpart of :class:`PartitionedTFMClassifier`.
+
+    A shallow regression tree is fitted on the training targets, and every usable leaf gets
+    its own :class:`~fintfm.inference.regressor.FinancialTFMRegressor`. Each leaf bins only
+    its own targets, so its quantile bins cover that leaf's range: with ten bins and four
+    leaves the prediction grid is up to four times finer than one global regressor's, and a
+    query is conditioned on rows from its own region. A leaf too small, or with fewer than
+    ``min_class_rows`` distinct targets, falls back to a global regressor fitted on every
+    training row. With ``n_bags > 1`` one tree is fitted per random row subset and the bags'
+    predictions are averaged.
+
+    Args:
+        estimator: An unfitted :class:`~fintfm.inference.regressor.FinancialTFMRegressor`
+            whose settings every leaf, and the global fallback, uses. The ``random_state`` in
+            its ``classifier_params`` is replaced per leaf.
+        max_depth: Tree depth, in ``[1, 3]``, as for the classifier.
+        min_samples_leaf: The tree's minimum leaf size, as a row count or a fraction.
+        n_bags: Trees in the forest; see :class:`PartitionedTFMClassifier`.
+        bag_frac: Fraction of training rows each bag draws, without replacement.
+        min_leaf_rows: A leaf with fewer training rows than this uses the global regressor.
+        min_class_rows: A leaf with fewer distinct training targets than this uses the
+            global regressor. Named as in the classifier so one ``FINTFM_PARTITION`` object
+            configures both.
+        random_state: Seed for the bags and the trees.
+
+    Attributes:
+        trees_: One fitted :class:`~sklearn.tree.DecisionTreeRegressor` per bag.
+        leaf_estimators_: Per bag, a dict from leaf id to its fitted regressor, or ``None``
+            where the leaf falls back to ``global_estimator_``.
+        global_estimator_: The fallback regressor, fitted on every training row.
+        bag_rows_: Per bag, the training-row indices that bag was fitted on.
+    """
+
+    def __init__(
+        self,
+        estimator: FinancialTFMRegressor,
+        max_depth: int = 2,
+        min_samples_leaf: float = 0.05,
+        n_bags: int = 1,
+        bag_frac: float = 0.6,
+        min_leaf_rows: int = 200,
+        min_class_rows: int = 2,
+        random_state: int = 0,
+    ) -> None:
+        """Store the settings. See the class docstring for every argument."""
+        self.estimator = estimator
+        self.max_depth = max_depth
+        self.min_samples_leaf = min_samples_leaf
+        self.n_bags = n_bags
+        self.bag_frac = bag_frac
+        self.min_leaf_rows = min_leaf_rows
+        self.min_class_rows = min_class_rows
+        self.random_state = random_state
+
+    _check_settings = PartitionedTFMClassifier._check_settings
+
+    def _inner(self, seed: int) -> FinancialTFMRegressor:
+        """An unfitted copy of ``estimator`` whose classifier draws with ``seed``.
+
+        Args:
+            seed: The inner classifier's ``random_state``.
+
+        Returns:
+            A new :class:`~fintfm.inference.regressor.FinancialTFMRegressor` sharing the
+            template's network instance.
+        """
+        from fintfm.inference.regressor import FinancialTFMRegressor
+
+        params = {**(self.estimator.classifier_params or {}), "random_state": seed}
+        return FinancialTFMRegressor(
+            self.estimator.model, n_bins=self.estimator.n_bins, classifier_params=params
+        )
+
+    def fit(self, X: np.ndarray, y: np.ndarray) -> PartitionedTFMRegressor:
+        """Fit the trees, then one regressor per usable leaf and a global fallback.
+
+        Args:
+            X: ``(n, F)`` training features. NaN is allowed; the tree routes it natively.
+            y: ``(n,)`` continuous targets.
+
+        Returns:
+            self.
+
+        Raises:
+            ValueError: For settings out of range, or any error the inner regressor raises.
+        """
+        from sklearn.tree import DecisionTreeRegressor
+
+        self._check_settings()
+        X = np.asarray(X, dtype=np.float32)
+        y = np.asarray(y, dtype=np.float64).ravel()
+        self.n_features_in_ = X.shape[1]
+        rng = np.random.default_rng(self.random_state)
+        base_seed = int((self.estimator.classifier_params or {}).get("random_state", 0))
+        self.global_estimator_ = self._inner(base_seed).fit(X, y)
+        self.trees_: list[Any] = []
+        self.leaf_estimators_: list[dict[int, FinancialTFMRegressor | None]] = []
+        self.bag_rows_: list[np.ndarray] = []
+        n = len(y)
+        for b in range(self.n_bags):
+            if self.n_bags == 1:
+                rows = np.arange(n)
+            else:
+                size = max(1, round(self.bag_frac * n))
+                rows = np.sort(rng.choice(n, size=size, replace=False))
+            tree = DecisionTreeRegressor(
+                max_depth=self.max_depth,
+                min_samples_leaf=self.min_samples_leaf,
+                random_state=int(rng.integers(1 << 31)),
+            ).fit(X[rows], y[rows])
+            leaf_of_row = tree.apply(X[rows])
+            leaves: dict[int, FinancialTFMRegressor | None] = {}
+            for leaf in np.unique(leaf_of_row):
+                members = rows[leaf_of_row == leaf]
+                if members.size < self.min_leaf_rows or np.unique(y[members]).size < self.min_class_rows:
+                    leaves[int(leaf)] = None
+                    continue
+                seed = base_seed + 1 + b * 1000 + int(leaf)
+                leaves[int(leaf)] = self._inner(seed).fit(X[members], y[members])
+            self.trees_.append(tree)
+            self.leaf_estimators_.append(leaves)
+            self.bag_rows_.append(rows)
+        return self
+
+    def route(self, X: np.ndarray) -> np.ndarray:
+        """The leaf each query lands in, per bag, as ``(n_bags, n)`` leaf ids."""
+        check_is_fitted(self, "trees_")
+        X = np.asarray(X, dtype=np.float32)
+        return np.stack([tree.apply(X) for tree in self.trees_])
+
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        """Point predictions, each query scored by its own leaf's regressor, averaged over bags.
+
+        Args:
+            X: ``(n, F)`` query rows.
+
+        Returns:
+            ``(n,)`` predictions.
+        """
+        X = np.asarray(X, dtype=np.float32)
+        if X.shape[1] != self.n_features_in_:
+            raise ValueError("feature width at predict time must match fit time")
+        routes = self.route(X)
+        out = np.zeros(X.shape[0], dtype=np.float64)
+        for b, leaves in enumerate(self.leaf_estimators_):
+            for leaf in np.unique(routes[b]):
+                rows = np.flatnonzero(routes[b] == leaf)
+                est = leaves[int(leaf)] or self.global_estimator_
+                out[rows] += est.predict(X[rows])
+        return out / len(self.leaf_estimators_)
 
 
 class BoostedTFMClassifier(BaseEstimator, ClassifierMixin):
