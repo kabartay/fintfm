@@ -14774,3 +14774,66 @@ scores 0.4005 on the same features (§163). The gap to it narrows from 0.164 to 
 
 Cost, MEASURED: 65, 56, 56, 64 and 115 min for folds 0 to 4 on the shared CPU. Peak RSS was 16.6
 to 23.6 GB. The three original comparisons took 153 min and the two options comparisons 50 min.
+
+## §231: partitioned contexts lift regression from 582 to 639 Elo, better on 10 of 13; a 4,000-row context is not viable; overall 909
+
+**MEASURED, TabArena-Lite (repeat 0, fold 0), CPU, 2026-11-14.** Two regression arms from task
+49.1, both §227's configuration (squash, `select`, ridge readout with the row's squashed
+features, `FINTFM_PROBE='{"raw": true}'`). Script `runs/local_queue/lite_reg_probe.sh`.
+
+**`reg-part`, run `fintfm_lp_reg_rawpart_pure_1114`: partitioned contexts for regression.**
+New in fintfm b2b5f8d (`PartitionedTFMRegressor`) and fork 278c2b9: with `FINTFM_PARTITION='{}'`
+a depth-2 regression tree on the target routes rows to up to four leaves, each usable leaf fits
+its own binned regressor, so its quantile bins cover only that leaf's targets, and each leaf
+gets its own ridge readout (row budget split by leaf share, at least 2,000 rows). Leaves under
+200 rows fall back to the global regressor and its readout. Checkpoint
+`runs/task48-3-kaggle/v4-binned48_3-control.pt`, as in §227. Paired against §227's
+`fintfm_lp_reg_raw_pure_1113` (same checkpoint and readout, no partition). Log
+`runs/local_queue/reg-part.log`, comparison `runs/fintfm_lp_reg_rawpart_pure_1114_vs_pure.md`.
+
+**10 better, 3 worse of 13 (sign test p = 0.09); Elo 582 to 639 (+104 / −222), 99th of 103 on
+the regression board.** RMSE, sorted by ratio; "leaves" is the mean number of leaf readouts per
+fit (of at most 4):
+
+| dataset | §227 | partitioned | ratio | leaves |
+| --- | --- | --- | --- | --- |
+| superconductivity | 15.5543 | 12.8381 | 0.825 | 3.6 |
+| airfoil_self_noise | 2.8304 | 2.4867 | 0.879 | 1.8 |
+| miami_housing | 125,455 | 112,092 | 0.893 | 3.3 |
+| healthcare_insurance_expenses | 4,450.50 | 4,247.45 | 0.954 | 1.8 |
+| physiochemical_protein | 4.8214 | 4.6299 | 0.960 | 3.6 |
+| diamonds | 1,033.48 | 994.78 | 0.963 | 3.6 |
+| houses | 0.2893 | 0.2786 | 0.963 | 3.6 |
+| QSAR-TID-11 | 0.9906 | 0.9550 | 0.964 | 2.7 |
+| Food_Delivery_Time | 8.0885 | 7.9122 | 0.978 | 3.6 |
+| wine_quality | 0.6844 | 0.6794 | 0.993 | 3.6 |
+| QSAR_fish_toxicity | 0.9666 | 0.9717 | 1.005 | 0.5 |
+| concrete_compressive_strength | 5.7319 | 5.7675 | 1.006 | 0.9 |
+| Another-Dataset-on-used-Fiat-500 | 727.72 | 740.98 | 1.018 | 1.5 |
+
+Geometric-mean RMSE ratio 0.953, median 0.963. The three losses are the three tables where the
+fewest leaves are usable (0.5 to 1.5 per fit), and none exceeds 1.8%; every table with at least
+2.7 usable leaves per fit gains. 160 min, peak RSS 13.4 GB, 13 of 13 exit 0.
+
+**`reg-ctx4k`, run `fintfm_lp_reg_rawctx4k_1113`: `FINTFM_MAX_CONTEXT=4000`, not viable.**
+Paired by 49.1 against §223's `fintfm_lp_reg_raw_1111`. Seven of 13 datasets stopped on
+AutoGluon's `TimeLimitExceeded` (3,600 s per model): wine_quality, miami_housing, houses,
+superconductivity, Food_Delivery_Time, physiochemical_protein and diamonds. The merged
+evaluation therefore did not run and the arm has no Elo. On the six that finished, all small
+enough that a 4,000-row context changes little, the RMSE matches §223 within 0.3% (airfoil 3.0370
+against 3.0269; the other five within 0.03%). 181 min, peak RSS 26.3 GB. As for multiclass
+(§224), a larger context is not a viable setting for an entry.
+
+**Overall, binary §220 + multiclass bag8 (§227) + this partitioned regression run: 909.2 Elo
+(+101 / −109), 107th of 110** (`fintfm_linprobe_all51_1114`, log `runs/merge_all51_1114.log`;
+position from `scripts/lite_positions.py`). §227 was 905.2, also 107th. Regression is 13 of 51
+datasets, so +57 regression Elo moves the overall by 4.
+
+**What it says.**
+- Partitioning is a regression lever as it was a binary one (§212 to §215): the leaves' finer
+  bins and their own contexts lower RMSE wherever the tree has room to cut. The lever is limited
+  by leaf size on small tables, which is where it loses.
+- One seed, one fold. Queued next: four bags (`reg-part-bag4`, as §224 did for multiclass), and
+  task 49.2's 480,000-task pure-regression checkpoint scored with the partition when it lands.
+- Not a credit result: V4FinBench is binary and does not test a regression change. The binary
+  path is unchanged (`PartitionedTFMClassifier` defaults, checked bit for bit by the tests).

@@ -2,7 +2,7 @@
 
 ## Regression and multiclass (design review DR7.6: overall bar 1,000 Elo, 903 at §224)
 
-- [ ] 49.1 **Progress (2026-11-13, FINDINGS §226): `reg-head` hit TabArena's time limit on 6 of 13 datasets and is null on the other 7 (4 better, 3 worse, at most 1.9%); not viable. `reg-ctx4k` was not run (project stopped).** **Score the two queued regression readout arms.** `reg-head` appends the head's
+- [x] 49.1 **Done (2026-11-14, FINDINGS §231): `reg-ctx4k` hit TabArena's time limit on 7 of 13 datasets and matches §223 within 0.3% on the other 6, so it has no Elo and is not viable; with `reg-head` (§226) neither arm wins and no re-merge follows from them. Partitioned contexts for regression, added under this task, lift regression from 582 to 639 Elo (10 better, 3 worse of 13) and the overall to 909.2, 107th of 110.** **Progress (2026-11-13, FINDINGS §226): `reg-head` hit TabArena's time limit on 6 of 13 datasets and is null on the other 7 (4 better, 3 worse, at most 1.9%); not viable. `reg-ctx4k` was not run (project stopped).** **Score the two queued regression readout arms.** `reg-head` appends the head's
       prediction to the ridge readout (`FINTFM_PROBE` `{"raw": true, "head": true}`) and
       `reg-ctx4k` raises `FINTFM_MAX_CONTEXT` to 4,000 (`runs/local_queue/lite_reg_probe.sh`).
       Both pair against `fintfm_lp_reg_raw_1111` (578 Elo, §223). Verify: a FINDINGS entry with
