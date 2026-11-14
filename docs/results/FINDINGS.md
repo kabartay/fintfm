@@ -14971,6 +14971,72 @@ most of the large-table gain, which is the same resolution the extra training se
   regression checkpoint (it is the one §231's partitioned run uses, and §232's merge).
 - Regression is limited by the readout's grid, not by training volume: the 10-bin head gives
   every row in a decile the same label, and both levers that helped (§223's raw features,
-  §231's per-leaf bins) add resolution. §234 tests a regressor whose grid is not capped by the
+  §231's per-leaf bins) add resolution. §235 tests a regressor whose grid is not capped by the
   head.
 - Not a credit result; V4FinBench is binary.
+
+## §234: the 512-column binary checkpoint (DR8.3) trains, costs 3.7 times a fold, ties the control on V4FinBench but loses one fold significantly, so the multiclass 512 arm stays blocked
+
+**MEASURED, Kaggle T4x2 training and T4 scoring, then TabArena-Lite on CPU, 2026-11-14.**
+
+**Training.** `ts_dr83_width512_s0` at 62a73c3 (`configs/arms/dr83-width512.yaml`: the published
+recipe with `max_features` 512, three feature-ratio bands and `pad_to_batch_width`; DDP, fp16,
+split attention, per-GPU batch 2, 12,000 steps, 48,000 tasks), outputs in
+`runs/kaggle-fintfm-ts-dr83-width512-s0/`. The first launch ran out of GPU memory at step 500 in
+the in-training held-out evaluation: in eval mode PyTorch's fused encoder fast path built a 7.27
+GiB 512 x 512 attention matrix. Relaunched with `--eval-every 1000000` (evaluation has its own
+random stream, AU1.18, so training batches are unchanged): 12,000 steps in 8,625 s at about 0.70
+s/step, final loss 0.17, no divergence. The fast path is now off for all inference (f55bc3b).
+
+**Step 0, cost (draft dr8.3 section 5).** Kernel `task_v4inf_dr83_f01234` (pinned 62a73c3, fast
+path off in the kernel, `query_chunk` 512, `feature_chunk` 8). Fold 0 took 1,581 s from the end
+of data loading, against `e1-v48-s0`'s 426 s from the same point: **3.7 times, inside the
+pre-registered 4**. The kernel's own guard read 1,877 s and stopped after fold 0, because it timed
+the data loading as well; corrected, folds 1 to 4 ran in a second session (6,636 s, about 1,590 s
+each). The scoring kernel's first launch had also run out of memory (9.81 GiB) before the fast
+path was switched off.
+
+**Step 2, V4FinBench sanity** (five folds, full panel, packaged default inference, against
+`e1-v48-s0`, `scripts/compare_v4_scores.py --cluster`, `runs/dr83-v4/cmp_vs_e1v48s0.txt`):
+
+| fold | control AP | 512-column AP | diff | 95% CI (companies) | Holm p (companies) |
+| --- | --- | --- | --- | --- | --- |
+| 0 | 0.2071 | 0.2135 | +0.0064 | [+0.0000, +0.0126] | 0.098 |
+| 1 | 0.2031 | 0.1971 | −0.0059 | [−0.0144, +0.0024] | 0.152 |
+| 2 | 0.1821 | 0.1901 | +0.0080 | [+0.0015, +0.0154] | 0.048 |
+| 3 | 0.1734 | 0.2023 | +0.0288 | [+0.0205, +0.0379] | 0.002 |
+| 4 | 0.2215 | 0.2083 | −0.0132 | [−0.0235, −0.0026] | 0.048 |
+
+Mean AP **0.2023** against the control's 0.1975, +0.0048 (3 of 5 folds positive), above the
+0.1810 floor. But fold 4 is a **Holm-significant loss** (p 0.032 by rows, 0.048 by companies), and
+the pre-registered gate (draft section 7, confirmed by the owner on 2026-11-07) requires that no
+fold be one. **Step 2 fails, so the multiclass 512 arm (`ts_dr75_width512_mc_s0`, pinned and
+ready) is not launched**, and DR7.5's four excluded multiclass datasets stay blocked. ROC-AUC is
+0.9888 to 0.9892 on every fold. Folds 2 and 3 are significant gains, so the width change moves AP
+both ways by fold rather than shifting it; a second seed would be needed to say more, and the
+batch confound stands (global batch 4 against the control's 8).
+
+**TabArena-Lite, the three wide binary tables** (`runs/local_queue/lite_wide512.sh`, run
+`fintfm_lp_w512_1114`, §220's configuration with only the checkpoint changed; 961, 1,836 and
+1,663 s, all inside the time limit). ROC-AUC and per-dataset rank on fold 0, computed from each
+stored leaderboard as one plus the methods with a strictly lower error (the subset leaderboard
+holds 107 methods, the full ones 108):
+
+| dataset | columns | §220 (136 columns) | rank | 512 columns | rank | §232 (readout options) | rank |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| APSFailure | 170 | 0.9877 | 102 | 0.9885 | 101 | 0.9902 | 101 |
+| Bioresponse | 1,776 | 0.8462 | 103 | 0.8467 | 102 | 0.8669 | 82 |
+| kddcup09_appetency | 212 | 0.7803 | 91 | 0.7888 | 89 | 0.7358 | 105 |
+
+The wider checkpoint is better on all three but by little, one or two places each; the readout
+options of §232 move Bioresponse 21 places and lose kddcup09 14. Both together are queued
+(`wide512-scr`).
+
+**What it says.**
+- Width alone does not lift the wide tables: reading 170 or 212 columns whole instead of
+  selecting 136 gains 0.0008 and 0.0085 ROC-AUC. The wide-table gap is not mainly the cap.
+- On credit the 512-column checkpoint is a tie with one significant losing fold, which the gate
+  counts as a fail. Task 49.4 stays open: the multiclass half is blocked and the binary half is
+  not a lift.
+- CPU inference is unaffected by the 512-column OOM; the fix (unfused encoders) also made CPU
+  inference 3 to 4 times faster (SMOKE-TEST, f55bc3b).

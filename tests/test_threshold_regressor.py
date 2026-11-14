@@ -1,4 +1,4 @@
-"""The threshold regressor: K binary classifiers on ``y > t_k`` (FINDINGS §234).
+"""The threshold regressor: K binary classifiers on ``y > t_k`` (FINDINGS §235).
 
 Contract tests on an untrained tiny model, as in ``test_regressor.py``: what is checked is the
 wiring that fails silently (thresholds from the training targets only, a valid step
