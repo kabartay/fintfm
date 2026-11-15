@@ -259,3 +259,13 @@ def test_tuned_arm_failure_is_named_in_the_coverage(monkeypatch):
     assert (
         "worker returned no predictions" in rec["skipped"]["fold0/lightgbm_tuned_fintfm_baseline"]
     )
+
+
+def test_irrelevant_features_counts_every_seed(tmp_path):
+    """Every seed is attempted, and each is scored or skipped with a reason (36.4)."""
+    from fintfm.experiments import irrelevant_features as irf
+
+    record = irf.run({}, out_dir=tmp_path, seeds=(0, 1), widths=(2, 5), n=200, max_context=100)
+    cov = record["coverage"]
+    assert cov["n_attempted"] == 2
+    assert cov["n_attempted"] == cov["n_scored"] + cov["n_skipped"]

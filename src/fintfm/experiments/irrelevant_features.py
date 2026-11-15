@@ -40,6 +40,8 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from fintfm.evaluation.coverage import Coverage
+
 if TYPE_CHECKING:
     from fintfm.modeling.model import FinancialTFM
 
@@ -234,11 +236,16 @@ def run(
 
     cells: dict[tuple[str, int], dict[str, list[float]]] = {}
     nc = n // 2
+    cov = Coverage()
     for seed in seeds:
         X_rel, y, noise = make_task(seed, n, max(widths) - N_RELEVANT, rate)
         ytr, yte = y[:nc], y[nc:]
+        unit = f"seed{seed}"
+        cov.attempt(unit)
         if len(np.unique(yte)) < 2 or len(np.unique(ytr)) < 2:
+            cov.skip(unit, "one class in the context or query half")
             continue
+        cov.scored(unit)
         for d in widths:
             X = build_table(X_rel, noise, d - N_RELEVANT)
             Xtr, Xte = X[:nc], X[nc:]
@@ -296,7 +303,9 @@ def run(
         },
         "results": [asdict(p) for p in points],
         "slopes": slopes,
+        "coverage": cov.to_dict(),
     }
+    print(cov.summary("seeds"), flush=True)
     if out_dir is not None:
         out_dir.mkdir(parents=True, exist_ok=True)
         (out_dir / "irrelevant_features.json").write_text(json.dumps(record, indent=2))
