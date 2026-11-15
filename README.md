@@ -530,7 +530,7 @@ conclusion is not reached twice.
 - [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md): **start here.** Every claim the project could
   make, tagged by status; the newest evidence wins.
 - [`docs/results/FINDINGS.md`](docs/results/FINDINGS.md): the measurement log, numbered in
-  order (248 entries on 2026-11-15), each stating how its numbers were produced.
+  order (250 entries on 2026-11-15), each stating how its numbers were produced.
 - [`docs/paper/NEGATIVE_RESULTS.md`](docs/paper/NEGATIVE_RESULTS.md): every null and harmful
   result in one place, so a lever already ruled out is not tried again by accident.
 - [`docs/paper/LIMITATIONS.md`](docs/paper/LIMITATIONS.md): what the model and the evidence

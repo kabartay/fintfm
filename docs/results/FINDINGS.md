@@ -15605,3 +15605,71 @@ which §18 named as the largest gap. Difficulty spans the real range, with a mea
 below it; CLAUDE.md asks a prior to span difficulty, not match it, so this is not a regression.
 Correlation and missingness remain above the real panels' ranges. The 15.4 option moves only
 difficulty, as designed; whether that helps a trained model is still unmeasured.
+
+## §249: both §74 checkpoints infer label direction from the context: identical features with mirrored labels give mirrored predictions (task 39.10)
+
+**MEASURED, synthetic, CPU, 2026-11-15.** Harness
+`python -m fintfm.experiments.sign_inference --models fin00=runs/dl/v4-cellattn-fin00.pt,fin10=runs/dl/v4-cellattn-fin10.pt --out runs/sign_inference --seeds 0,1,2`
+(4 minutes; coverage 15 of 15 paired tasks scored). Each pair shares one bit-identical X with
+y_neg = 1 − y_pos; each side is scored with its own context labels on the same query rows.
+Families: `sign` (1[x0 > 0] against 1[x0 < 0], 3 pairs) and `beta` (a random beta on 4 of 8
+columns, redrawn per task, 12 pairs). `flipped` is the AUC of the positive-context predictions
+against the negative labels; `flip_corr` the Spearman correlation between the two prediction
+vectors; `sign_ok` the share of relevant columns whose recovered sign (rank correlation of the
+predictions with that column) matches the true sign, per task, so the verdict does not rest on
+AUC alone.
+
+| arm | family | AUC, positive context | AUC, negative context | flipped | flip_corr | sign_ok |
+| --- | --- | --- | --- | --- | --- | --- |
+| fin00 | beta | 0.965 | 0.964 | 0.035 | −0.993 | 1.000 |
+| fin00 | sign | 1.000 | 1.000 | 0.000 | −0.892 | 1.000 |
+| fin10 | beta | 0.974 | 0.971 | 0.026 | −0.934 | 0.979 |
+| fin10 | sign | 0.995 | 0.994 | 0.005 | −0.937 | 1.000 |
+| logistic regression | beta | 1.000 | 1.000 | 0.000 | −1.000 | 1.000 |
+| untrained control | beta | 0.509 | 0.485 | 0.491 | +0.990 | 0.479 |
+
+**What it says.** Neither checkpoint carries a fixed feature-to-risk direction on these tasks:
+when the context labels are mirrored, the predictions mirror (flip_corr −0.89 to −0.99) and the
+per-column sign is recovered on 98% to 100% of relevant columns. The untrained control keeps one
+ranking whichever way the labels point (flip_corr +0.99, sign_ok at chance), which is the
+signature of a fixed rule; §47's financial-only checkpoint had that signature, and these two do
+not. With §247 this closes the direction question on synthetic probes; it does not test real
+panels, where §72 recorded an inversion on the symmetric probe (38.14 tests a candidate cause).
+
+## §250: §91's sub-chance AUC is a label-ignoring model, not an inverted reading: the unlabelled checkpoints give the same AUC whatever the context labels say (task 39.27)
+
+**MEASURED, CPU inference on existing checkpoints, synthetic probes, 2026-11-15.** Checkpoints
+`runs/dl/v4-cellattn-nolabels.pt` (§91, seed 0) and
+`runs/cellattn-s1-kaggle/v4-cellattn-nolabels-s1.pt` (§142, seed 1), two-way cell attention
+trained without cell labels. Two measurements: §247's label-condition harness
+(`python -m fintfm.experiments.label_conditions --models nolab_s0=...,nolab_s1=... --bayes-targets 0.9,0.999 --seeds 0 --n-ensemble 4`,
+one task draw per cell, n = 1,600), and `scripts/diag_39_27_label_independence.py` (5 task seeds
+per ceiling, n = 800, `n_ensemble` 4). Draft with all tables:
+`docs/results/drafts/39.27_2026-11-15.md`.
+
+| arm, probe (ROC-AUC) | true | shuffled | inverted | none | unrelated |
+| --- | --- | --- | --- | --- | --- |
+| unlabelled seed 0, Bayes 0.9 | 0.479 | 0.469 | 0.457 | 0.485 | 0.470 |
+| unlabelled seed 0, Bayes 0.999 | 0.470 | 0.454 | 0.436 | 0.477 | 0.455 |
+| unlabelled seed 1, Bayes 0.9 | 0.482 | 0.480 | 0.475 | 0.497 | 0.479 |
+| unlabelled seed 1, Bayes 0.999 | 0.473 | 0.469 | 0.461 | 0.492 | 0.467 |
+
+Rank correlation between predictions under true and under inverted context labels: 0.986 to 0.997
+for the unlabelled arms (mean over 5 seeds), −0.981 to −0.994 for the labelled arm. Reversing the
+probe's class shift on feature 0 (same rows, mirrored task) moves the unlabelled AUC from 0.477 to
+0.485 up to 0.553 to 0.596.
+
+**What it says.**
+- The candidate "the model reads the labels with a flipped sign" is rejected: under it, inverted
+  labels would lift the AUC above 0.5, and here inverted is the lowest column. Every column sits
+  within about 0.04 of the others, against §247's labelled checkpoints spanning 0.002 to 0.998.
+- The unlabelled checkpoints ignore their context labels. Their output is a weak, fixed function
+  of the query features (Spearman with feature 0 of −0.04 to −0.05), and "sub-chance" is that
+  function's sign against the probe's label direction, which flips with the mirrored task. An
+  untrained net of the same architecture scores 0.21 to 0.30 on the same probes, so a label-free
+  function can sit well below chance; §91's word "inverted" overstates what happened.
+- Not explained: why training without cell labels yields a label-ignoring model (§91's
+  context/query mixing before label injection is a candidate that needs a training ablation),
+  and §72's inversion on the identity-shuffle checkpoint, which does read its labels (38.14's
+  tail-weight harness tests its candidate). The unlabelled AUC here (0.477 to 0.485) is milder
+  than §91's 0.44 to 0.46 at smaller n and a 4-member ensemble; the sign agrees.
