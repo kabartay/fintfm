@@ -58,6 +58,7 @@ model:
   head_mlp: false
 
 train:
+  joint_classification_weight: 0.0  # 34.1 lever, off: survival loss alone, no classification term
   steps: 6000
   batch_size: 8
   lr: 3.0e-4                    # §127: the default wins at this recipe
@@ -123,6 +124,8 @@ prior:
   source_weights: null            # the sequential source draw; DR2.1's weighted draw came later
   financial_gate_prob: 0.0      # design review DR2.2; the published run had no gated labels
   financial_sign_flip_prob: 0.0 # DR2.2's ratio sign flip; the published run had none
+  financial_max_lr_auc: null  # 15.4 lever, off: no rejection of near-separable tasks
+  financial_sample_horizon: false  # 2.4 lever, off: no per-task horizon
   feature_ratio_bands: []       # DR2.3 knobs, all at their pre-knob behaviour
   p_binary: null
   imbalance_draws: false
