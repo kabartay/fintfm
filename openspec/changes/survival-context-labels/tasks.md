@@ -14,7 +14,7 @@
       through context selection intact. Verify: a test asserting the selected context's period
       distribution matches the selected rows, and that omitting them leaves the binary path
       byte-identical.
-- [ ] 31.3 Embed the period label in `FinancialTFM.term_structure` over a `K + 1` state grid.
+- [x] 31.3 **Done (2026-11-15: the embedding itself landed earlier as `hazard_period_context` under AU5.9, src/fintfm/modeling/model.py `_label_embedding` and `period_embed`, `K + 1` states with index 0 the censored token, off by default and absent in old checkpoints; the classifier and `predict_term_structure` already pass context periods. This closes the Verify with tests/test_hazard.py: test_period_label_indices_cover_the_k_plus_one_states_including_censored, test_period_context_term_structure_is_invariant_to_context_row_order, plus the existing zero-at-init and flag-off equality tests; tests/test_train.py: test_hazard_period_context_trains_three_cpu_steps).** Embed the period label in `FinancialTFM.term_structure` over a `K + 1` state grid.
       Verify: `uv run pytest tests/test_hazard.py -q`, plus a test that permuting context rows
       leaves predictions unchanged (the equivariance guarantee must survive the new embedding).
 - [ ] 31.4 Emit `period` into the pretraining context, not only the query targets. Verify: a
