@@ -113,6 +113,7 @@ def paired_strategy_comparisons(
     min_rows: int,
     n_boot: int = 1000,
     seed: int = 0,
+    coverage: Coverage | None = None,
 ) -> list[dict]:
     """Holm-corrected paired bootstrap over every strategy comparison (task 32.3).
 
@@ -132,6 +133,9 @@ def paired_strategy_comparisons(
         min_rows: Fewest observed rows a horizon needs to be scored.
         n_boot: Bootstrap resamples per comparison.
         seed: Bootstrap seed.
+        coverage: Optional :class:`~fintfm.evaluation.coverage.Coverage` to fill, one unit per
+            ``ctx<c>/seed<s>/<a>-vs-<b>/h<k>``: scored, or skipped with the reason the
+            horizon cannot be compared (openspec 36.4).
 
     Returns:
         One dict per (context size, seed, strategy pair, horizon) with ``delta`` (AUC of
@@ -144,8 +148,16 @@ def paired_strategy_comparisons(
         for a, b in itertools.combinations(strategies, 2):
             for k in range(truth.shape[1]):
                 m = seen[:, k]
-                if m.sum() < min_rows or len(np.unique(truth[m, k])) < 2:
+                unit = f"ctx{ctx}/seed{sd}/{a}-vs-{b}/h{k}"
+                if coverage is not None:
+                    coverage.attempt(unit)
+                why = horizon_skip_reason(m, truth[:, k], min_rows)
+                if why is not None:
+                    if coverage is not None:
+                        coverage.skip(unit, why)
                     continue
+                if coverage is not None:
+                    coverage.scored(unit)
                 d, (lo, hi), p = paired_auc_difference(
                     truth[m, k],
                     curves[(ctx, a, sd)][m, k],
@@ -301,6 +313,7 @@ def run(
                     flush=True,
                 )
 
+    cmp_cov = Coverage()  # one unit per (context size, seed, pair, horizon)
     comparisons = (
         paired_strategy_comparisons(
             curves,
@@ -309,6 +322,7 @@ def run(
             None if ds.groups is None else ds.groups[te],
             cfg.evaluation.min_rows_per_horizon,
             n_boot=n_boot,
+            coverage=cmp_cov,
         )
         if n_boot > 0
         else []
@@ -330,6 +344,7 @@ def run(
         "split": sp.record() | {"n_train": len(tr), "n_test": len(te)},
         "cells": [asdict(c) for c in cells],
         "coverage": cov.to_dict(),
+        "comparisons_coverage": cmp_cov.to_dict(),
         "comparisons": comparisons,
         "comparison_method": (
             "paired bootstrap per horizon, whole companies resampled, n_boot="
@@ -337,6 +352,7 @@ def run(
         ),
     }
     print(cov.summary("cell-horizons"), flush=True)
+    print(cmp_cov.summary("comparison-horizons"), flush=True)
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "context_sweep.json").write_text(json.dumps(record, indent=2))
     return record

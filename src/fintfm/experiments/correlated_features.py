@@ -63,6 +63,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from fintfm.evaluation.coverage import Coverage
 from fintfm.experiments.irrelevant_features import UNTRAINED_SEED, _score_in_context
 
 if TYPE_CHECKING:
@@ -242,6 +243,7 @@ def run(
     keys = ("obs", "primary", "secondary")
     acc: dict[tuple[str, str, float], dict[str, list[float]]] = {}
     corr_dev: dict[str, float] = {}
+    cov = Coverage()
     nc = n // 2
     for design in designs:
         for r in levels:
@@ -250,8 +252,12 @@ def run(
                 dev = abs(realised_correlation(design, X, z) - r)
                 corr_dev[design] = max(corr_dev.get(design, 0.0), dev)
                 ytr, yte = y[:nc], y[nc:]
+                unit = f"{design}/r{r}/seed{seed}"
+                cov.attempt(unit)
                 if len(np.unique(ytr)) < 2 or len(np.unique(yte)) < 2:
+                    cov.skip(unit, "one class in the train or test half")
                     continue
+                cov.scored(unit)
                 Xtr, Xte = X[:nc], X[nc:]
                 views = {
                     "obs": Xte,
@@ -314,7 +320,9 @@ def run(
         },
         "max_correlation_deviation": corr_dev,
         "results": [asdict(c) for c in cells],
+        "coverage": cov.to_dict(),
     }
+    print(cov.summary("design-level-seeds"), flush=True)
     if out_dir is not None:
         out_dir.mkdir(parents=True, exist_ok=True)
         (out_dir / "correlated_features.json").write_text(json.dumps(record, indent=2))
