@@ -222,7 +222,19 @@ none is scoped or scheduled yet. Verify: the label-functional-form experiment is
       ceiling 0.71, terrible at ceiling 0.995) visible in the headline number instead of
       requiring the full curve to notice. Verify: 39.3's probe reports both raw AUC and
       regret by construction once this lands.
-- [ ] 39.19 **Posterior task uncertainty, not just predictive uncertainty.** Construct
+- [ ] 39.19 **Posterior task uncertainty, not just predictive uncertainty.**
+      **Progress (2026-11-15): harness built, measured run not yet done.**
+      `src/fintfm/experiments/task_posterior.py` builds contexts consistent with K hypotheses
+      `y = 1[x_j > 0]` (ambiguous rows share one label under all of them; disambiguating rows
+      split them), at matched context size, columns and query set, with the closed-form Bayes
+      posterior and predictive as reference. It reports predictive entropy, the implied task
+      posterior entropy, distance to Bayes and single-hypothesis commitment against the number
+      of disambiguating rows, beside an untrained control and logistic regression. Tests:
+      `tests/test_task_posterior.py` (7 pass, tiny untrained model, SMOKE-TEST only).
+      Remaining: `uv run python -m fintfm.experiments.task_posterior --models
+      name=runs/<ckpt>.pt --k-hyp 2 --out runs/task_posterior` (also `--k-hyp 3`), then
+      record it in FINDINGS.md. Related: explicit-task-representation 41.5.
+      Construct
       deliberately ambiguous contexts consistent with two plausible DGPs; a model with a real
       task posterior should become less confident rather than arbitrarily committing to one —
       connects directly to this project's calibration thesis (§12, §73). Verify: predicted entropy/confidence is measured on ambiguous contexts against unambiguous ones of matched difficulty.

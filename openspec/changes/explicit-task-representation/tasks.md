@@ -22,7 +22,11 @@
 - [ ] 41.4 **Mixture-of-priors routing**, only if 41.3 shows the task token carries real
       information. Verify: `p(k|D)` is inspectable per prediction, and a held-out mixture of
       known families is scored with the routing weights reported alongside the prediction.
-- [ ] 41.5 **Posterior task uncertainty on ambiguous contexts.** Verify: constructed contexts
+- [ ] 41.5 **Posterior task uncertainty on ambiguous contexts.**
+      **Progress (2026-11-15): the ambiguous-context construction and Bayes reference for
+      the predictive-entropy side exist as cell-attention-and-task-inference 39.19
+      (`fintfm.experiments.task_posterior`); the `p(k|D)` entropy side still needs 41.4.**
+      Verify: constructed contexts
       consistent with two task families are scored, and `p(k|D)`'s entropy is compared against
       unambiguous contexts of matched difficulty — it should be higher on the ambiguous ones.
 - [ ] 41.6 **Retrieval over mechanisms**, reframing `retrieval-context`'s existing work. Verify:
