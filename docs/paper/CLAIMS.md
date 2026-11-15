@@ -1056,6 +1056,7 @@ binary datasets (§204). The progression of the overall figure was 880 (§221), 
   better than §221's on 8 of 8 datasets (p 0.01), and four partition bags move Elo by 40 more, but
   bagging is worse on three datasets and its own sign test is p 0.07 against the §221 control
   (§224). The head's probabilities and a 4,000-row context were null (§224).
+- **2026-11-15, §239:** the same raw-only control on TabArena-Lite binary scores 1009 Elo (97th of 108) against the options readout's 997 (101st), while the representation is better on 24 of 30 datasets (p < 0.01, mean +0.0043 ROC-AUC, largest on the credit tables). The binary entry's Elo is therefore not evidence for FinTFM's representation; the paired per-dataset result is.
 - **2026-11-15, §238 (narrows the entry below):** the matched raw-only control carries almost all of the options probe's gain. The squashed features alone, per leaf, reach 0.2975 mean AP (+0.0989 over the zero-shot head, 5 of 5); the representation adds +0.0040 on 2 of 5 folds, below the yardstick. The options probe is therefore not evidence that FinTFM's representation helps on credit; the plain leaf probe's +0.0580 is the representation's own number. The entry below is kept as written.
 - **2026-11-14, §230:** the five-fold rerun with the repaired sampler is recorded. The probe per
   partition leaf is a candidate, +0.0580 mean AP on 5 of 5 folds, and the scale, cv and raw

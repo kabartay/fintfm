@@ -15254,3 +15254,49 @@ them), but every fold's AP agrees within 0.0006 (0.2340 against 0.2336 on fold 0
   same options. The matched Lite control (`FINTFM_PROBE` `no_rep`, fork 15eb8ae, run
   `fintfm_lp_bin_rawonly_1115`) is running.
 - `docs/paper/CLAIMS.md`, the paper README and the README carry this caveat from today.
+
+## §239: on TabArena-Lite binary the representation wins 24 of 30 datasets against the raw-only readout, yet the raw-only readout scores more Elo (1009 against 997)
+
+**MEASURED, TabArena-Lite (repeat 0, fold 0), CPU, 2026-11-15.** The matched control for §232:
+run `fintfm_lp_bin_rawonly_1115`, §232's configuration (FinTFM-LinProbe, squash, `select`,
+partitioned contexts, a readout per leaf, `scale`, `cv`, `raw`) with the fork's new `no_rep`
+option (15eb8ae, 0029acd), so each leaf's readout is a logistic regression on the squashed raw
+features alone. The network supplies only the head of a leaf whose readout is missing, so this
+arm is in effect a decision tree with a logistic regression per leaf; 30 of 30 datasets fit in
+9 minutes. (A first attempt failed on all 30 within seconds because the fork's key check did
+not yet accept `no_rep`; fixed in 0029acd.) Comparisons `runs/fintfm_lp_bin_rawonly_1115_vs_scr.md`
+and `_vs_090.md`.
+
+**Paired against §232 (representation + raw): the representation is better on 24 of 30, worse on
+6 (sign test p < 0.01), mean +0.0043 ROC-AUC, median +0.0025.** Largest differences, ROC-AUC of
+representation + raw minus raw only:
+
+| representation helps | diff | raw only helps | diff |
+| --- | --- | --- | --- |
+| polish_companies_bankruptcy | +0.0522 | Is-this-a-good-customer | −0.0340 |
+| customer_satisfaction_in_airline | +0.0356 | blood-transfusion-service-center | −0.0329 |
+| Bank_Customer_Churn | +0.0203 | diabetes | −0.0133 |
+| churn | +0.0198 | coil2000_insurance_policies | −0.0034 |
+| kddcup09_appetency | +0.0184 | Diabetes130US | −0.0019 |
+| credit_card_clients_default | +0.0116 | jm1 | −0.0000 |
+| GiveMeSomeCredit | +0.0094 | | |
+
+**Elo, from each run's own leaderboard: raw only 1009.4 (+118 / −136), 97th of 108; §232's
+representation + raw 997.4, 101st; §220's representation-only probe 973.7, 104th.** Against
+§220, raw only is 13 better, 16 worse, 1 tied (p = 0.71).
+
+**Why the two readings disagree.** The representation's wins are many and small in rank terms;
+raw only's three wins are on small, noisy tables (Is-this-a-good-customer, blood-transfusion,
+diabetes) where 0.03 ROC-AUC moves a method many places. Elo weighs those places; the sign test
+counts tables. The Elo intervals overlap completely.
+
+**What it says.**
+- On TabArena binary the representation carries information the raw features do not, most on
+  the credit tables (polish_companies_bankruptcy, credit_card_clients_default, GiveMeSomeCredit,
+  credit-g +0.0050, Bank_Customer_Churn), which V4FinBench did not show (§238: +0.0040, 2 of 5).
+- **The binary entry's Elo is not evidence for FinTFM:** a tree with a logistic regression per
+  leaf, which uses no FinTFM representation, scores the same or more. Every Elo claim for the
+  binary entry carries this control beside it from today. The raw-only arm is a control, not a
+  FinTFM entry, and is not merged.
+- The 51-dataset entry (931.9, §235) keeps §232's binary run, the configuration with the
+  representation; its position should be read with this entry beside it.
