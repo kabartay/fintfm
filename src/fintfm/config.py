@@ -680,9 +680,10 @@ def _validate(cfg: Config) -> None:
         )
     if m.readout not in ("pool", "cls"):
         raise ConfigError(f"model.readout must be 'pool' or 'cls', got {m.readout!r}")
-    if m.cell_mixing not in ("attention", "latent"):
+    if m.cell_mixing not in ("attention", "latent", "factorized"):
         raise ConfigError(
-            f"model.cell_mixing must be 'attention' or 'latent', got {m.cell_mixing!r}"
+            "model.cell_mixing must be 'attention', 'latent' or 'factorized', "
+            f"got {m.cell_mixing!r}"
         )
 
 

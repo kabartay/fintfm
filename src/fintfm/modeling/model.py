@@ -56,7 +56,7 @@ CELL_ROW_ATTNS: tuple[str, ...] = ("full", "induced")
 #: Accepted values of :attr:`ModelConfig.readout` (design review DR6.3).
 READOUTS: tuple[str, ...] = ("pool", "cls")
 #: Accepted values of :attr:`ModelConfig.cell_mixing` (task 48.27).
-CELL_MIXINGS: tuple[str, ...] = ("attention", "latent")
+CELL_MIXINGS: tuple[str, ...] = ("attention", "latent", "factorized")
 
 #: What :meth:`FinancialTFM.predict_context` returns for the query rows.
 ContextOutput = Literal["logits", "term_structure", "representation"]
@@ -308,6 +308,25 @@ class ModelConfig:
             :class:`LatentCellBlock` run repeatedly), and the block has one mixing layer per
             latent kind regardless of ``n_col_layers``, its depth being its pooling plus its
             mixing.
+
+        **Task 44.3 lever** (``openspec/changes/factorized-attention``). ``cell_mixing=
+        "factorized"`` is the three-stage encoder of the proposal, reimplemented from its
+        description (no code or weights): (1) a **column stage** that builds one latent per
+        column, (2) the existing column-within-row attention and pooling that compress each row
+        to one embedding, (3) the existing in-context row encoder across row embeddings. It
+        replaces only the row-within-feature stage of every cell block, the one that attends
+        across all ``N`` rows for each of ``F`` features (``B * F * N**2`` scores), with a
+        learned query that pools each column's **context** cells (``B * F * N`` scores) into a
+        column latent, mixed across columns by one pre-norm layer (``B * F**2``) and added back
+        to every cell of its column by a pre-norm MLP; see :class:`FactorizedColumnBlock`.
+        With ``cell_labels`` the pooled cells carry their row's label, so a column latent knows
+        its column and the labels, the two things §91 needs; whether that is *enough* is task
+        44.2's open question and this field does not answer it. A query row is never a key of a
+        column latent, so it cannot affect another row and chunked prediction stays exact.
+        Requires ``n_cell_blocks >= 1``, ``cell_row_attn="full"`` (the induced stage is another
+        row-within-feature stage and is not built) and ``readout="pool"``. The ``n_cell_blocks``
+        passes share one set of weights. No measured effect yet: unmeasured, and not claimed
+        better than ``"attention"``.
     """
 
     max_features: int = 24
@@ -356,10 +375,24 @@ class ModelConfig:
                 unknown ``attn_impl``, ``cell_row_attn`` or ``readout``, an induced stage
                 without cell blocks, or readout tokens combined with another readout.
                 Also for an unknown ``cell_mixing``, or ``cell_mixing="latent"`` without cell
-                blocks or with ``cell_row_attn="induced"`` or ``readout="cls"``.
+                blocks or with ``cell_row_attn="induced"`` or ``readout="cls"``; the same three
+                for ``cell_mixing="factorized"``.
         """
         if self.cell_mixing not in CELL_MIXINGS:
             raise ValueError(f"cell_mixing must be one of {CELL_MIXINGS}, got {self.cell_mixing!r}")
+        if self.cell_mixing == "factorized":
+            if self.n_cell_blocks < 1:
+                raise ValueError("cell_mixing='factorized' requires n_cell_blocks >= 1")
+            if self.cell_row_attn != "full":
+                raise ValueError(
+                    "cell_mixing='factorized' replaces the row-within-feature stage, so it "
+                    "cannot be combined with cell_row_attn='induced'"
+                )
+            if self.readout == "cls":
+                raise ValueError(
+                    "cell_mixing='factorized' does not support readout='cls' (untested "
+                    "combination); use readout='pool'"
+                )
         if self.cell_mixing == "latent":
             if self.n_cell_blocks < 1:
                 raise ValueError("cell_mixing='latent' requires n_cell_blocks >= 1")
@@ -933,6 +966,78 @@ class LatentCellBlock(nn.Module):
         return cells + self.update(self.update_norm(joint))
 
 
+class FactorizedColumnBlock(nn.Module):
+    """Column stage of ``cell_mixing="factorized"``: one latent per column (task 44.3).
+
+    Replaces the row-within-feature attention of a cell block. For cells ``(B, N, F, d)`` with
+    context rows first:
+
+    1. **Pool.** A learned query attends over a column's **context** cells (through a
+       LayerNorm on the keys): ``B * F`` problems of one query against ``n_ctx`` keys, linear
+       in rows. With ``cell_labels`` the cells already carry their row's label.
+    2. **Mix.** Column latents run one pre-norm transformer layer across columns, padded
+       columns masked as keys, no positional encoding.
+    3. **Update.** ``cells + MLP(LayerNorm([cell, column latent]))``.
+
+    The existing column-within-row attention, row pooling and row encoder follow in
+    :meth:`FinancialTFM.encode_rows`, giving the proposal's three stages. The pooling query is
+    owned by the model (``factorized_col_query``), like the other free tokens.
+
+    Args:
+        d_cell: Cell width.
+        n_heads: Heads of the pooling and mixing attention.
+        dropout: Dropout of the attention and feed-forward sublayers.
+    """
+
+    def __init__(self, d_cell: int, n_heads: int, dropout: float) -> None:
+        """Build the pooling, mixing and update layers; arguments are on the class."""
+        super().__init__()
+        self.col_norm = nn.LayerNorm(d_cell)
+        self.col_pool = nn.MultiheadAttention(d_cell, n_heads, dropout=dropout, batch_first=True)
+        self.col_mix = nn.TransformerEncoderLayer(
+            d_model=d_cell,
+            nhead=n_heads,
+            dim_feedforward=2 * d_cell,
+            dropout=dropout,
+            activation="gelu",
+            batch_first=True,
+            norm_first=True,
+        )
+        self.update_norm = nn.LayerNorm(2 * d_cell)
+        self.update = nn.Sequential(
+            nn.Linear(2 * d_cell, 2 * d_cell), nn.GELU(), nn.Linear(2 * d_cell, d_cell)
+        )
+
+    def forward(
+        self, cells: torch.Tensor, col_query: torch.Tensor, n_ctx: int, pad: torch.Tensor
+    ) -> torch.Tensor:
+        """Update every cell from its column latent.
+
+        Args:
+            cells: ``(B, N, F, d_cell)``, rows ordered context first.
+            col_query: ``(1, 1, d_cell)`` learned column-pooling query.
+            n_ctx: Context/query split, ``>= 1``.
+            pad: ``(B, F)`` boolean, True = a padded column.
+
+        Returns:
+            ``(B, N, F, d_cell)``.
+
+        Raises:
+            ValueError: If ``n_ctx < 1``: with no context there is nothing to pool from.
+        """
+        if n_ctx < 1:
+            raise ValueError("cell_mixing='factorized' needs at least one context row")
+        B, N, Fdim, d = cells.shape
+        # a task of only padded columns would give a fully masked softmax; keep one key open
+        safe_cols = pad & ~pad.all(dim=1, keepdim=True)
+        ctx = self.col_norm(cells[:, :n_ctx]).permute(0, 2, 1, 3).reshape(B * Fdim, n_ctx, d)
+        q = col_query.expand(B * Fdim, -1, -1).to(cells.dtype)
+        col_lat, _ = self.col_pool(q, ctx, ctx, need_weights=False)
+        col_lat = self.col_mix(col_lat.reshape(B, Fdim, d), src_key_padding_mask=safe_cols)
+        joint = torch.cat([cells, col_lat[:, None, :, :].expand(-1, N, -1, -1)], dim=-1)
+        return cells + self.update(self.update_norm(joint))
+
+
 class FinancialTFM(nn.Module):
     """Tabular in-context classifier.
 
@@ -1040,6 +1145,11 @@ class FinancialTFM(nn.Module):
                 self.latent_block = LatentCellBlock(cfg.d_cell, cell_heads, cfg.dropout)
                 self.latent_row_query = nn.Parameter(torch.randn(1, 1, cfg.d_cell) * 0.02)
                 self.latent_col_query = nn.Parameter(torch.randn(1, 1, cfg.d_cell) * 0.02)
+            elif cfg.cell_mixing == "factorized":
+                # Task 44.3: the column stage replaces the row-within-feature encoder, which
+                # is therefore not built; column_encoder (the column-within-row stage) is.
+                self.factorized_block = FactorizedColumnBlock(cfg.d_cell, cell_heads, cfg.dropout)
+                self.factorized_col_query = nn.Parameter(torch.randn(1, 1, cfg.d_cell) * 0.02)
             elif cfg.cell_row_attn == "full":
                 self.row_within_feature_encoder = nn.TransformerEncoder(
                     row_within_feature_layer,
@@ -1523,10 +1633,14 @@ class FinancialTFM(nn.Module):
             # attn_impl="split" needs no mask (AU5.2), nor does the induced stage (DR6.2);
             # "masked" builds the one it always has
             latent = self.cfg.cell_mixing == "latent"
+            factorized = self.cfg.cell_mixing == "factorized"
             row_mask = (
                 None
-                if not latent
-                and (self.cfg.attn_impl == "split" or self.cfg.cell_row_attn == "induced")
+                if factorized  # no row-within-feature stage to mask
+                or (
+                    not latent
+                    and (self.cfg.attn_impl == "split" or self.cfg.cell_row_attn == "induced")
+                )
                 else self._row_mask(N, n_ctx, X.device)  # the latent stage always needs it
             )
             for _ in range(self.cfg.n_cell_blocks):
@@ -1537,6 +1651,14 @@ class FinancialTFM(nn.Module):
                         cells, self.latent_row_query, self.latent_col_query, n_ctx, pad, row_mask
                     )
                     flat = cells.reshape(B * N, Fdim, self.cfg.d_cell)
+                    continue
+                if factorized:
+                    # Task 44.3: a pooled latent per column replaces the row-within-feature
+                    # attention; the column-within-row stage then runs as for "attention".
+                    cells = self.factorized_block(cells, self.factorized_col_query, n_ctx, pad)
+                    flat = cells.reshape(B * N, Fdim, self.cfg.d_cell)
+                    flat = self._column_attention(flat, safe_pad)
+                    cells = flat.reshape(B, N, Fdim, self.cfg.d_cell)
                     continue
                 # Row attention within one feature: a cell attends to the same feature's
                 # cells in every other row -- a data-derived column identity, computed from
