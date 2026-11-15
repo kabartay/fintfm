@@ -33,7 +33,21 @@
       must be pre-empted rather than discovered by a reviewer. Verify: the probe reports a
       third arm (`gboost_calibrated`) and `docs/results/FINDINGS.md` §12 is updated with the ratio
       against it, re-derived from the run.
-- [ ] 13.8 Extend the probe to the Taiwan panel and to V4FinBench once ingested. Verify: the
+- [ ] 13.8 **Progress (2026-11-15): the probe takes `--panel {polish3,taiwan,v4finbench}` (default
+      `polish3`, as before; `load_probe_panel` in src/fintfm/experiments/prior_ablation.py).
+      V4FinBench is subsampled company-grouped to `--v4-pool-rows` company-year rows (default
+      200,000) and split company-grouped, so no company has rows on both sides; a panel wider than
+      the checkpoint's `max_features` keeps its first columns for every arm. The JSON records
+      `panel`, `split`, `panel_rows`, `pool_rows`, `pool_base_rate`, `test_rows`,
+      `test_base_rate` and, for V4FinBench, the requested pool, full-panel rows and base rate.
+      Tested with monkeypatched loaders and a stub model only; NOT yet run on a real checkpoint,
+      so no per-panel calibration ratio exists. Run, one per panel (separate `--out` so the
+      files do not overwrite each other):
+      `uv run fintfm-ablate --sample-efficiency <checkpoint.pt> --panel polish3 --out runs/se_polish3`;
+      `uv run fintfm-ablate --sample-efficiency <checkpoint.pt> --panel taiwan --out runs/se_taiwan`;
+      `uv run fintfm-ablate --sample-efficiency <checkpoint.pt> --panel v4finbench --v4-pool-rows 200000 --out runs/se_v4finbench`.
+      What remains: those runs, then the per-panel calibration ratio and a plain statement of
+      whether it replicates.** Extend the probe to the Taiwan panel and to V4FinBench once ingested. Verify: the
       calibration advantage reported per panel, and stated plainly if it does not replicate.
 - [x] 13.6 **Done (2026-11-11, src/fintfm/evaluation/bench.py `run_credit`/`--no-sample-efficiency`, src/fintfm/experiments/prior_ablation.py `ds=` param, tests/test_bench_credit.py::test_credit_output_includes_the_sample_efficiency_probe).** Add the probe to `bench.py`'s default credit output, so full-panel-only numbers
       cannot be reported again by accident. Verify: `fintfm-bench --credit` includes it.
