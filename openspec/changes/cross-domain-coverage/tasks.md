@@ -5,7 +5,7 @@
       density is worth +0.0047 (p 0.895). Verify: both findings record the paired-bootstrap
       intervals and the base-rate-curriculum framing this proposal originally carried is
       withdrawn in the proposal text.
-- [ ] 38.2 **Find which generator property predicts transfer.** Using the five existing
+- [ ] 38.2 **Progress (2026-11-15): analysis drafted in `docs/results/drafts/38.2_2026-11-15.md` from recorded results only (FINDINGS §58, §64-§67, §74-§77), no new runs. Across the five checkpoints with a recorded off-domain score (fin10, finbal, finsharp, crossed, fin00; Bayes-ceiling probe, §76), missingness and correlation structure are two-valued and collinear with generator family, so they cannot be told apart (Spearman rho -0.866 for both, n = 5, approx. p 0.058); per-column separability does not track (finsharp, raw AUC 0.8885, transfers 0.716 against fin00's 0.984 at Bayes 0.990); `crossed` (SCM features, financial label) transfers like the financial arms, which points at the label mechanism (§76, §77), not a listed property. Five points cannot establish a predictor. Not met: the Verify needs a FINDINGS entry, which this draft is not, and no recorded real-domain off-domain score exists for four of the five checkpoints (the proposal's asset-failure panel has no figure in FINDINGS). Left open.** **Find which generator property predicts transfer.** Using the five existing
       checkpoints, correlate their off-domain performance against the measurable differences
       between their priors — missingness, per-column separability, correlation structure.
       Verify: recorded as a finding that names which property tracks transfer and which does
