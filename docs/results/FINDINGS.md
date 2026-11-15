@@ -12788,6 +12788,12 @@ bootstrap: `runs/kaggle-ts-dr82-depth8-s0-p2/cmp_vs_e1v480s0.txt`.
 
 ## §194 — §183's `retrieval` candidate on V4FinBench: AP collapses to 0.0126
 
+> **Correction (added 2026-11-15, §253).** This entry's cause paragraph, that the same positives
+> recur across retrieval groups (a hub effect), came from `scripts/retrieval_plan_diag.py` planning
+> from unconditioned queries against a conditioned pool; the scoring path conditions queries first
+> and shows no recurrence (§253). The AP of 0.0126 is a scoring-path number and stands. The text
+> below is kept as written.
+
 **MEASURED, 2026-10-25**, the published `v4-cellattn-labels.pt` with `context_strategy:
 retrieval` (`configs/arms/proxy/retrieval.yaml`, everything else at the packaged defaults,
 `max_context` 2000, one member), `fintfm-v4protocol --no-boosting --device cpu`, commit d9bc7f0,
@@ -15730,3 +15736,37 @@ convention is 10 draws at `n_ensemble` 8, so these carry more draw noise). Draft
 - Not established: whether a factorized or non-attentional column summary suffices (no checkpoint;
   the factorized training pair is prepared as `ts_445_factorized_s0`/`ts_445_ctrl_s0`, task 44.5),
   and column-within-row attention alone. The one-ingredient pairs other than labels are single seed.
+
+## §253: retrieval's loss on V4FinBench is not a hub effect (§194's diagnostic was wrong); a zero-IQR scale floor lets five flag columns dominate the distance (task 38.13)
+
+**MEASURED, one fold, CPU, 2026-11-15.** Fold 0 of a company-grouped 60,000-row V4FinBench
+subsample: retrieval pool 31,854 rows with 120 positives, test 10,680 rows with 44 positives, the
+published checkpoint. Scripts `scripts/retrieval_hub_diag.py` and `scripts/retrieval_scale_fix_eval.py`,
+`scripts/retrieval_plan_diag.py` corrected; commands in `docs/results/drafts/38.13_2026-11-15.md`.
+One fold with 44 test positives: probes, not a result.
+
+- **No hub effect in the scoring path.** Planned from unconditioned queries (§194's diagnostic), the
+  retrieval contexts hold 4.04% defaults, the median positive appearing in 52 of 64 groups. Planned
+  from the conditioned queries `predict_proba` actually uses, they hold 0.64%, the median positive in
+  5 of 63 groups, and all 120 positives are used. §194's cause paragraph is withdrawn (dated note
+  added there).
+- **A real defect.** 10 of 130 features have an interquartile range of 0 and take the 1e-6 scale
+  floor, so five columns carry 89.8% of the squared distance: retrieval mostly matches categorical
+  flags.
+
+| arm | AP | ROC-AUC |
+| --- | --- | --- |
+| default (uniform, `n_ensemble` 1, `max_context` 2000) | 0.1856 | 0.9868 |
+| retrieval as shipped | 0.0943 | 0.9751 |
+| retrieval, standard-deviation fallback for the zero-IQR scale | 0.0528 | 0.9586 |
+| retrieval, `retrieval_per_class=8` (base-rate-matched positives) | 0.0127 | 0.8436 |
+| 0.5 default + 0.5 retrieval | 0.1469 | 0.9853 |
+| `n_ensemble` 8 + `max_context` 4000, no retrieval | 0.1989 | 0.9887 |
+
+**What it says.** Retrieval's AP loss reproduces (0.0943 in two runs against 0.1856), but not
+for §194's stated reason, and none of the three cheap fixes (scale fallback, matched positives,
+mixing with the default) beats the default; the scale fix makes it worse, so the flag columns were
+not what kept retrieval from collapsing further. Why retrieval loses ranking with a sound scale is
+not isolated. Plain ensembling with a larger context is +0.0133 AP, inside the noise at 44
+positives. Retrieval stays off by default (§194's decision stands); the open question for 38.13 is
+the ranking loss, and folds 1 to 4 are not run.
