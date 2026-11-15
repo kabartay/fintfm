@@ -1,6 +1,6 @@
 # Tasks
 
-- [ ] 41.1 **Wait on `cell-attention-and-task-inference` task 39.7's result.** Verify: this
+- [ ] 41.1 **Wait on `cell-attention-and-task-inference` task 39.7's result.** **Progress (2026-11-15): the 39.7 probe harness (`fintfm.experiments.task_probe`) is built; its measured result is still outstanding.** Verify: this
       proposal's first pretraining task (41.3) cites the probe-separation finding that
       justifies starting it, not merely a calendar date.
 - [ ] 41.2 **Design the explicit task token** as a config-gated addition
