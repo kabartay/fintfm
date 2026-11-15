@@ -43,7 +43,12 @@ import torch
 from sklearn.model_selection import train_test_split
 
 from fintfm.evaluation.coverage import Coverage
-from fintfm.evaluation.datasets import CreditDataset, load_polish_bankruptcy
+from fintfm.evaluation.datasets import (
+    CreditDataset,
+    load_polish_bankruptcy,
+    load_taiwan_bankruptcy,
+    load_v4finbench,
+)
 from fintfm.evaluation.metrics import (
     CreditMetrics,
     evaluate_binary,
@@ -425,6 +430,22 @@ def main() -> None:
         help="with --sample-efficiency: fraction of each training subsample held out to "
         "calibrate the gboost_*_holdout arms (never test rows)",
     )
+    p.add_argument(
+        "--panel",
+        choices=PROBE_PANELS,
+        default="polish3",
+        help="with --sample-efficiency: panel to probe (13.8); default polish3 is unchanged",
+    )
+    p.add_argument(
+        "--v4-pool-rows",
+        type=int,
+        default=DEFAULT_V4_POOL_ROWS,
+        help="with --panel v4finbench: company-year rows kept after a company-grouped "
+        "subsample, recorded in the output",
+    )
+    p.add_argument(
+        "--v4-root", type=str, default=None, help="with --panel v4finbench: parquet directory"
+    )
     args = p.parse_args()
     if args.coherence:
         print("=== PD term-structure coherence: is cumulative PD monotone in horizon? ===")
@@ -439,8 +460,22 @@ def main() -> None:
         return
     if args.sample_efficiency:
         print("=== sample-efficiency probe: where does the TFM beat gradient boosting? ===")
+        ds, groups, panel_info = None, None, None
+        if args.panel != "polish3":
+            from fintfm.modeling.model import FinancialTFM as _TFM
+
+            ds, groups, panel_info = load_probe_panel(
+                args.panel,
+                pool_rows=args.v4_pool_rows,
+                v4_root=args.v4_root,
+                max_features=_TFM.load(args.sample_efficiency).cfg.max_features,
+            )
         record = sample_efficiency_probe(
-            args.sample_efficiency, calibration_frac=args.calibration_frac
+            args.sample_efficiency,
+            calibration_frac=args.calibration_frac,
+            ds=ds,
+            groups=groups,
+            panel_info=panel_info,
         )
         out = Path(args.out) / "sample_efficiency.json"
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -468,6 +503,93 @@ def main() -> None:
         device=args.device,
     )
     print("\n" + summarise(record))
+
+
+#: Panels the sample-efficiency probe accepts (openspec ``sample-efficiency-regime`` 13.8).
+PROBE_PANELS = ("polish3", "taiwan", "v4finbench")
+
+#: Default company-grouped pool for V4FinBench: sample-efficiency only needs small train
+#: sizes, so the 1,000,087-row panel is cut to roughly this many company-year rows.
+DEFAULT_V4_POOL_ROWS = 200_000
+
+
+def load_probe_panel(
+    panel: str,
+    pool_rows: int = DEFAULT_V4_POOL_ROWS,
+    v4_root: str | None = None,
+    seed: int = 0,
+    max_features: int | None = None,
+) -> tuple[CreditDataset, np.ndarray | None, dict]:
+    """Load one panel for the sample-efficiency probe (13.8).
+
+    Args:
+        panel: One of :data:`PROBE_PANELS`. ``polish3`` is the 3-year Polish panel and
+            ``taiwan`` the Taiwanese panel; both are anonymised cross-sections with no
+            company identifier. ``v4finbench`` is subsampled **company-grouped**: whole
+            companies are drawn at random until at least ``pool_rows`` company-years are
+            held, so every row of a company stays together.
+        pool_rows: V4FinBench only. Target pool size in company-year rows, recorded.
+        v4_root: V4FinBench only. Parquet directory; ``None`` takes the default cache.
+        seed: Seed for the company draw.
+        max_features: Checkpoint feature capacity. A wider panel keeps its first
+            ``max_features`` columns for every arm alike, and the record says so.
+
+    Returns:
+        ``(dataset, groups, info)``. ``groups`` is the company id per row for V4FinBench
+        and ``None`` otherwise; ``info`` records the panel name, pool size, base rates and
+        feature counts.
+
+    Raises:
+        ValueError: If ``panel`` is not a known option.
+    """
+    if panel not in PROBE_PANELS:
+        raise ValueError(f"unknown panel {panel!r}; choose from {PROBE_PANELS}")
+    groups: np.ndarray | None = None
+    info: dict = {"panel": panel}
+    if panel == "polish3":
+        ds = load_polish_bankruptcy(3)
+    elif panel == "taiwan":
+        ds = load_taiwan_bankruptcy()
+    else:
+        sv = load_v4finbench(v4_root)
+        if sv.groups is None:
+            raise ValueError("V4FinBench loaded without company identifiers")
+        full_rows, full_rate = len(sv.y), float(sv.y.mean())
+        ids, inverse = np.unique(sv.groups, return_inverse=True)
+        counts = np.bincount(inverse)
+        order = np.random.default_rng(seed).permutation(len(ids))
+        keep_ids = order[: int(np.searchsorted(np.cumsum(counts[order]), pool_rows)) + 1]
+        keep = np.flatnonzero(np.isin(inverse, keep_ids))
+        ds = CreditDataset(
+            X=sv.X[keep],
+            y=sv.y[keep],
+            name=sv.name,
+            # the label is "default within the observed 0-5 year horizon grid"
+            horizon_years=sv.n_horizons - 1,
+            licence=sv.licence,
+            attribution=sv.attribution,
+            has_period_labels=sv.has_period_labels,
+        )
+        groups = sv.groups[keep]
+        info.update(
+            pool_rows_requested=pool_rows,
+            full_panel_rows=full_rows,
+            full_panel_base_rate=full_rate,
+            n_companies_in_pool=len(keep_ids),
+        )
+    info["n_features_panel"] = int(ds.X.shape[1])
+    if max_features is not None and ds.X.shape[1] > max_features:
+        ds = CreditDataset(
+            X=ds.X[:, :max_features],
+            y=ds.y,
+            name=ds.name,
+            horizon_years=ds.horizon_years,
+            licence=ds.licence,
+            attribution=ds.attribution,
+            has_period_labels=ds.has_period_labels,
+        )
+    info["n_features_used"] = int(ds.X.shape[1])
+    return ds, groups, info
 
 
 def calibrated_gboost_holdout_arms(
@@ -585,6 +707,8 @@ def sample_efficiency_probe(
     context_strategy: ContextStrategy = "balanced",
     ds: CreditDataset | None = None,
     calibration_frac: float = 0.3,
+    groups: np.ndarray | None = None,
+    panel_info: dict | None = None,
 ) -> dict:
     """Measure where the in-context model beats gradient boosting as training data shrinks.
 
@@ -610,6 +734,10 @@ def sample_efficiency_probe(
         calibration_frac: Fraction of each training subsample held out to calibrate the
             ``gboost_platt_holdout`` and ``gboost_isotonic_holdout`` arms (13.7); recorded
             in the output. The test rows never enter it.
+        groups: Company id per row of ``ds`` (13.8, V4FinBench). When given, the train/test
+            split is company-grouped, so no company has rows on both sides. ``None``
+            keeps the stratified row split.
+        panel_info: Panel record from :func:`load_probe_panel`, merged into the output.
 
     Returns:
         A record mapping each training size to metrics for the TFM and for gradient
@@ -623,13 +751,36 @@ def sample_efficiency_probe(
     from sklearn.pipeline import make_pipeline
 
     ds = ds if ds is not None else load_polish_bankruptcy(horizon)
-    X_pool, X_test, y_pool, y_test = train_test_split(
-        ds.X, ds.y, test_size=0.3, random_state=seed, stratify=ds.y
-    )
+    if groups is None:
+        X_pool, X_test, y_pool, y_test = train_test_split(
+            ds.X, ds.y, test_size=0.3, random_state=seed, stratify=ds.y
+        )
+        split_kind = "stratified_rows"
+    else:
+        from sklearn.model_selection import GroupShuffleSplit
+
+        pool_idx, test_idx = next(
+            GroupShuffleSplit(n_splits=1, test_size=0.3, random_state=seed).split(
+                ds.X, ds.y, groups
+            )
+        )
+        X_pool, X_test, y_pool, y_test = (
+            ds.X[pool_idx],
+            ds.X[test_idx],
+            ds.y[pool_idx],
+            ds.y[test_idx],
+        )
+        split_kind = "company_grouped"
     rng = np.random.default_rng(seed)
     out: dict = {
         "dataset": ds.name,
+        **(panel_info or {"panel": "polish3" if ds.name.startswith("polish") else ds.name}),
+        "split": split_kind,
+        "panel_rows": len(ds.y),
+        "pool_rows": len(y_pool),
+        "pool_base_rate": float(y_pool.mean()),
         "test_rows": len(y_test),
+        "test_base_rate": float(y_test.mean()),
         "calibration_frac": calibration_frac,
         "sizes": {},
     }
