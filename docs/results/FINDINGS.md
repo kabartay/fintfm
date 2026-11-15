@@ -15506,3 +15506,34 @@ probability against the observed 0.253: fin00 0.229 to 0.261, fin10 0.192 to 0.2
 - Scope: one synthetic task with two informative columns, two checkpoints, three seeds; it does
   not speak to real tables, where §190 and §220 measured losses on wide data. It rules out
   "noise columns dilute the informative ones" as the cause of those losses at up to 100 columns.
+
+## §246: on V4FinBench, lagged deltas and trends do not help gradient boosting: AP lower on 3 of 3 folds (task 2.2's falsification test)
+
+**MEASURED, LightGBM only (no FinTFM model), CPU, 2026-11-15.** Harness
+`src/fintfm/experiments/temporal_gbm_falsification.py` (run as a script: torch and LightGBM
+segfault together on macOS), command
+`uv run --frozen --extra bench python src/fintfm/experiments/temporal_gbm_falsification.py --root data/cache/v4finbench --max-rows 200000 --seed 0 --n-boot 500`.
+Pool: the full V4FinBench panel, 1,000,087 rows and 188,338 companies; sample: whole companies
+drawn at random (seed 0), 199,998 rows and 37,630 companies. Label: the loader's any-horizon
+label (h0 to h5), 1.413% positive in the sample. Features: 136 levels against 408 (levels plus
+one-year deltas plus a short trend, each computed only from the same company's strictly earlier
+years; deltas 36.9% and trends 47.2% missing). Three company-grouped stratified folds; LightGBM
+200 trees, learning rate 0.05, 15 leaves, identical for both arms; 500-resample paired bootstrap
+per fold. Draft: `docs/results/drafts/2.2_2026-11-15.md`.
+
+| fold | AP, levels | AP, levels + trajectory | difference (95% CI) | ROC-AUC, levels | ROC-AUC, + trajectory |
+| --- | --- | --- | --- | --- | --- |
+| 0 | 0.2532 | 0.2440 | −0.0092 (−0.0238, +0.0071) | 0.8980 | 0.8980 |
+| 1 | 0.2535 | 0.2379 | −0.0156 (−0.0281, −0.0028) | 0.9128 | 0.9095 |
+| 2 | 0.2305 | 0.2260 | −0.0046 (−0.0172, +0.0102) | 0.9100 | 0.9092 |
+
+**Verdict against the proposal's pre-registered rule (falsified if trajectory carries no
+signal on real data): falsified on this test.** AP is lower with trajectory features on all
+three folds (one interval excludes zero) and ROC-AUC is not higher on any fold.
+
+**Limits.** One seed, one 20% company sample, one untuned setting; the any-horizon label includes
+h0, where levels alone nearly solve the task (CLAUDE.md: one column solves horizon 0), so a
+per-horizon split (h3 to h5) could still show trajectory signal and was not run. It says nothing
+about a synthetic temporal prior (task 2.5) beyond removing the real-data motivation as measured
+here. The task's Verify asks for the comparison as a `fintfm.evaluation.bench` variant; it is a
+standalone script because `bench` imports torch.
