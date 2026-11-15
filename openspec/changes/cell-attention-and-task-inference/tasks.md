@@ -163,7 +163,7 @@
 Recorded so none of this is lost. Each is a `docs/results/FINDINGS.md`-worthy experiment on its own;
 none is scoped or scheduled yet. Verify: the label-functional-form experiment is scoped as its own task before being started, not assumed.
 
-- [ ] 39.7 **DGP/task-representation probe.** Twenty-plus canonical task families (linear,
+- [ ] 39.7 **DGP/task-representation probe.** **Progress (2026-11-15): harness built, not yet measured.** `fintfm.experiments.task_probe` (24 closed-form families; mean/std-pooled `pre_head` representation of a fixed probe set via `FinancialTFMClassifier.transform_representation`; cross-validated logistic probe on held-out task instances against chance, a label-permutation chance, an untrained control and a raw-statistics baseline); `tests/test_task_probe.py` is SMOKE-TEST only. Run: `uv run python -m fintfm.experiments.task_probe --models fin=<checkpoint.pt> --out runs/task_probe`. Remains: the measured run on a real checkpoint and its FINDINGS entry. Twenty-plus canonical task families (linear,
       threshold, XOR, interaction, sparse, dense, latent-factor, SCM); train a small classifier
       on the model's context/task representation to predict which family generated the context.
       If representations do not separate by family, the model is not forming a task posterior
