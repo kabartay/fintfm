@@ -38,7 +38,7 @@
 
 ## TabArena
 
-- [ ] 49.6 **Prepare the resubmission package, once the bar is met.** DR7.6's bar is 1,000
+- [ ] 49.6 **Progress (2026-11-15, owner asked to prepare a new PR; nothing posted, nothing published): fork `fintfm-audit-fixes` at b48cb22 (pushed to `fork` only): the entry's configuration is now FinTFM-LinProbe's own hyperparameters per problem type (9bb4239; env vars still override), checkpoints are referenced by Hugging Face id + SHA-256 (binary pinned to kabartay/fintfm-binary, public, Apache-2.0; multiclass and regression are named placeholders that raise until published), metadata `verified=False` and display name "FinTFM with a trained linear readout", a proposed search space (c5ed4a4), and cross-fitting of the readout's training rows plus out-of-fold categorical encoding (de27754, `probe_crossfit_folds=5`; the leakage review found the readout trained on rows that read their own labels). PR text drafted in docs/competition/PR_2026-11-draft.md; model cards and a dry-run publisher in docs/models/ and scripts/publish_weights.py. Still open: the owner's bar decision (931.9 Elo, 106th of 110, below 1,000), publishing the two checkpoints with a licence, the cross-fit Lite measurement (queued as `bin-xfit`), and the reproduction run with no env vars.** **Prepare the resubmission package, once the bar is met.** DR7.6's bar is 1,000
       overall Elo (owner, 2026-11-13). The measured runs set their configuration through the
       fork's environment variables (`FINTFM_PARTITION`, `FINTFM_PROBE`, `FINTFM_MAX_CONTEXT`,
       `FINTFM_PARAMS`), so a submission needs them as the entry's own hyperparameters; the
