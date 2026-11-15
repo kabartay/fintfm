@@ -168,8 +168,4 @@ this contribution, under the terms of your choice.
 
 ## Numbers this draft could not source
 
-- A tuned KNN Elo on the 110-method board: not in FINDINGS, `docs/results/TABARENA.md` or the task notes
-  read for this draft. #616's reviewer used tuned KNN as the comparison, so it should be read
-  from the stored leaderboard before posting.
-- The 3.7 Elo gap to tuned linear regression and its 935.6 Elo come from §235's text, not from
-  a fresh read of the leaderboard.
+- KNN on the same 110-method board (read 2026-11-15 from `../tabarena/eval/fintfm_linprobe_all51_1115/tabarena_leaderboard.csv`, position = 1 + methods with strictly higher Elo): KNN (tuned + ensemble) 965.3, 103rd of 110; KNN (tuned) 813.4, 108th; KNN (default) 584.6, 110th. The entry (931.9, 106th) is above tuned KNN and below tuned-and-ensembled KNN, so #616's "beat a tuned KNN" condition is met only for the non-ensembled variant.
