@@ -50,6 +50,7 @@ from pathlib import Path
 
 import numpy as np
 
+from fintfm.evaluation.coverage import Coverage
 from fintfm.prior.base import Task
 
 #: Priors this harness can score, by name. Diagnostic-only priors (`trivial`, `crossed`) are
@@ -165,7 +166,9 @@ def score_prior(
 
     Returns:
         ``{"performance", "diversity", "distinctiveness", "tree_auc", "linear_auc",
-        "n_scored"}``. Values are NaN when no task yielded a scorable split.
+        "n_scored", "n_attempted", "n_skipped", "coverage", "skipped"}``. The last four are
+        the :class:`~fintfm.evaluation.coverage.Coverage` fields, with a reason per skipped
+        seed. Values are NaN when no task yielded a scorable split.
     """
     from sklearn.ensemble import ExtraTreesClassifier
     from sklearn.linear_model import LogisticRegression
@@ -176,7 +179,10 @@ def score_prior(
     metric = average_precision_score if base_rate is not None else roc_auc_score
     tree_aucs: list[float] = []
     linear_aucs: list[float] = []
+    cov = Coverage()
     for seed in range(seed0, seed0 + n_tasks):
+        unit = f"seed{seed}"
+        cov.attempt(unit)
         rng = np.random.default_rng(seed)
         # Not every prior takes max_classes; the financial one is binary by construction.
         # Decided from the signature, not by catching TypeError: a TypeError raised inside a
@@ -189,6 +195,7 @@ def score_prior(
         if base_rate is not None:
             keep = _subsample_to_rate(rng, y, base_rate)
             if keep is None:
+                cov.skip(unit, f"cannot subsample to a {base_rate:g} positive rate")
                 continue
             X, y = X[keep], y[keep]
         k = len(y) // 2
@@ -196,6 +203,7 @@ def score_prior(
         # a low AUC would make an imbalanced prior look like a weak one, which is the
         # distinction §43's base-rate work exists to preserve.
         if len(np.unique(y[:k])) < 2 or len(np.unique(y[k:])) < 2:
+            cov.skip(unit, "one class on a side of the split")
             continue
         et = ExtraTreesClassifier(n_estimators=100, random_state=0).fit(X[:k], y[:k])
         # The linear arm is conditioned before fitting, and this is load-bearing rather than
@@ -216,12 +224,13 @@ def score_prior(
         ).fit(X[:k], y[:k])
         tree_aucs.append(float(metric(y[k:], et.predict_proba(X[k:])[:, 1])))
         linear_aucs.append(float(metric(y[k:], lr.predict_proba(X[k:])[:, 1])))
+        cov.scored(unit)
 
     if not tree_aucs:
         nan = float("nan")
         return {
             "performance": nan, "diversity": nan, "distinctiveness": nan,
-            "tree_auc": nan, "linear_auc": nan, "n_scored": 0,
+            "tree_auc": nan, "linear_auc": nan, **cov.to_dict(),
         }
     best = np.maximum(tree_aucs, linear_aucs)
     return {
@@ -230,7 +239,7 @@ def score_prior(
         "distinctiveness": float(np.mean(np.array(tree_aucs) - np.array(linear_aucs))),
         "tree_auc": float(np.mean(tree_aucs)),
         "linear_auc": float(np.mean(linear_aucs)),
-        "n_scored": len(tree_aucs),
+        **cov.to_dict(),
     }
 
 
@@ -261,6 +270,11 @@ def summarise(scores: dict[str, dict], base_rate: float | None = None) -> str:
             f"{s['linear_auc']:>9.4f}{s['n_scored']:>5}"
         )
     lines += [
+        "",
+        *(f"coverage {name}: {s['n_scored']}/{s['n_attempted']} tasks scored, "
+          f"{s['n_skipped']} skipped"
+          + "".join(f"; {u}: {r}" for u, r in s["skipped"].items())
+          for name, s in scores.items() if "n_attempted" in s),
         "",
         f"perf       best fitted baseline's mean {unit}"
         + ("  -- the floor is the base rate itself, not 0.5" if base_rate is not None

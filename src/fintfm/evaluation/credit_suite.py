@@ -260,6 +260,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import math
 import time
 from collections.abc import Callable, Sequence
@@ -270,10 +271,11 @@ from typing import TYPE_CHECKING, Protocol
 import numpy as np
 import pandas as pd
 
+from fintfm.evaluation.coverage import Coverage
 from fintfm.evaluation.credit_estonia import load_estonia
 from fintfm.evaluation.datasets import CACHE_DIR
-from fintfm.evaluation.overlap import guard_selection
 from fintfm.evaluation.metrics import spread_fields
+from fintfm.evaluation.overlap import guard_selection
 from fintfm.evaluation.proxy_suite import SourceLicence
 from fintfm.experiments.hybrid_catboost import INNER_SEED_OFFSET, assert_no_leak, to_logit
 
@@ -1046,6 +1048,20 @@ def save_oof_logits(
              y_test=panel.y[test_rows], n_inner=np.array(n_inner), split=np.array(split))
 
 
+def rows_coverage(rows: list[dict]) -> Coverage:
+    """Coverage of a run's rows: one unit per (dataset, split, model), skipped when it says so.
+
+    Args:
+        rows: The run's rows, each with a ``skipped`` reason or ``""``.
+
+    Returns:
+        The resolved :class:`~fintfm.evaluation.coverage.Coverage`.
+    """
+    units = [f"{r['dataset']}/split{r['split']}/{r['model']}" for r in rows]
+    skipped = {u: r["skipped"] for u, r in zip(units, rows, strict=True) if r["skipped"]}
+    return Coverage.from_rows(units, skipped)
+
+
 def _write(rows: list[dict], out: Path) -> None:
     """Write every row so far, so a run that dies keeps what it finished."""
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -1193,6 +1209,9 @@ def run(
                 _write(rows, out)
                 _report(row)
     _summarise(rows)
+    cov = rows_coverage(rows)
+    print(cov.summary("rows"), flush=True)
+    Path(out).with_suffix(".coverage.json").write_text(json.dumps(cov.to_dict(), indent=2))
     if "ulb_fraud" in datasets:
         # ODbL-1.0 section 4.3: a public Produced Work carries this notice
         Path(out).with_suffix(".NOTICE.txt").write_text(ODBL_NOTICE + "\n")
