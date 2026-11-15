@@ -1,0 +1,268 @@
+{
+ "pub_s0 (cells+labels, 48k, matched)": {
+  "antisymmetric": [
+   0.9946078947368421,
+   0.9923349821044816,
+   0.9938534857803486
+  ],
+  "symmetric_sum": [
+   0.9157258479557508,
+   0.9409653036540047,
+   0.9301688340951522
+  ],
+  "bayes": {
+   "0.9": {
+    "auc_mean": null,
+    "agg": {
+     "n_tasks": 3,
+     "n_skipped": 0,
+     "auc_bayes": 0.899941996875758,
+     "auc_model": 0.8984648458593357,
+     "regret": 0.0014771510164221697,
+     "regret_norm": 0.0037391853656564677,
+     "nominal_bayes_auc": 0.9
+    }
+   },
+   "0.999": {
+    "auc_mean": null,
+    "agg": {
+     "n_tasks": 3,
+     "n_skipped": 0,
+     "auc_bayes": 0.9983267052945791,
+     "auc_model": 0.9980870373451912,
+     "regret": 0.00023966794938797462,
+     "regret_norm": 0.00048137841268146926,
+     "nominal_bayes_auc": 0.999
+    }
+   }
+  }
+ },
+ "nocell_s0 (n_cell_blocks=0, matched)": {
+  "antisymmetric": [
+   0.5648078947368421,
+   0.6070575000753013,
+   0.6069461921271609
+  ],
+  "symmetric_sum": [
+   0.9923831606091305,
+   0.9933856924321964,
+   0.9925052039743342
+  ],
+  "bayes": {
+   "0.9": {
+    "auc_mean": null,
+    "agg": {
+     "n_tasks": 3,
+     "n_skipped": 0,
+     "auc_bayes": 0.899941996875758,
+     "auc_model": 0.6882197936180173,
+     "regret": 0.21172220325774072,
+     "regret_norm": 0.5292353458405178,
+     "nominal_bayes_auc": 0.9
+    }
+   },
+   "0.999": {
+    "auc_mean": null,
+    "agg": {
+     "n_tasks": 3,
+     "n_skipped": 0,
+     "auc_bayes": 0.9983267052945791,
+     "auc_model": 0.7692072841237705,
+     "regret": 0.22911942117080855,
+     "regret_norm": 0.4597785148495041,
+     "nominal_bayes_auc": 0.999
+    }
+   }
+  }
+ },
+ "lab_s0 (cells+labels, s91 pair)": {
+  "antisymmetric": [
+   0.994603947368421,
+   0.9926911900094159,
+   0.9952481260704338
+  ],
+  "symmetric_sum": [
+   0.9240103797043192,
+   0.9420747761979991,
+   0.9401838022275156
+  ],
+  "bayes": {
+   "0.9": {
+    "auc_mean": null,
+    "agg": {
+     "n_tasks": 3,
+     "n_skipped": 0,
+     "auc_bayes": 0.899941996875758,
+     "auc_model": 0.8995671632239254,
+     "regret": 0.00037483365183266226,
+     "regret_norm": 0.0009498170298825404,
+     "nominal_bayes_auc": 0.9
+    }
+   },
+   "0.999": {
+    "auc_mean": null,
+    "agg": {
+     "n_tasks": 3,
+     "n_skipped": 0,
+     "auc_bayes": 0.9983267052945791,
+     "auc_model": 0.9981328902698193,
+     "regret": 0.0001938150247597544,
+     "regret_norm": 0.0003892468188034057,
+     "nominal_bayes_auc": 0.999
+    }
+   }
+  }
+ },
+ "nolab_s0 (cells, no labels, s91 pair)": {
+  "antisymmetric": [
+   0.6354605263157895,
+   0.6505757603139868,
+   0.6380094381177279
+  ],
+  "symmetric_sum": [
+   0.4586139085870925,
+   0.4049524752995388,
+   0.41157334384858046
+  ],
+  "bayes": {
+   "0.9": {
+    "auc_mean": null,
+    "agg": {
+     "n_tasks": 3,
+     "n_skipped": 0,
+     "auc_bayes": 0.899941996875758,
+     "auc_model": 0.4549150130599294,
+     "regret": 0.44502698381582867,
+     "regret_norm": 1.1136173021373805,
+     "nominal_bayes_auc": 0.9
+    }
+   },
+   "0.999": {
+    "auc_mean": null,
+    "agg": {
+     "n_tasks": 3,
+     "n_skipped": 0,
+     "auc_bayes": 0.9983267052945791,
+     "auc_model": 0.44202881297533514,
+     "regret": 0.556297892319244,
+     "regret_norm": 1.116361589945252,
+     "nominal_bayes_auc": 0.999
+    }
+   }
+  }
+ },
+ "lab_s1 (s142 pair)": {
+  "antisymmetric": [
+   0.991425,
+   0.9880107229056089,
+   0.9875227023458986
+  ],
+  "symmetric_sum": [
+   0.9213788862945647,
+   0.9315291583643849,
+   0.9441739629605786
+  ],
+  "bayes": {
+   "0.9": {
+    "auc_mean": null,
+    "agg": {
+     "n_tasks": 3,
+     "n_skipped": 0,
+     "auc_bayes": 0.899941996875758,
+     "auc_model": 0.899356819935695,
+     "regret": 0.0005851769400630295,
+     "regret_norm": 0.001483892639317696,
+     "nominal_bayes_auc": 0.9
+    }
+   },
+   "0.999": {
+    "auc_mean": null,
+    "agg": {
+     "n_tasks": 3,
+     "n_skipped": 0,
+     "auc_bayes": 0.9983267052945791,
+     "auc_model": 0.9982412682044516,
+     "regret": 8.54370901275751e-05,
+     "regret_norm": 0.000171514612086733,
+     "nominal_bayes_auc": 0.999
+    }
+   }
+  }
+ },
+ "nolab_s1 (s142 pair)": {
+  "antisymmetric": [
+   0.6638822368421052,
+   0.6592177307723032,
+   0.6539954235604599
+  ],
+  "symmetric_sum": [
+   0.5109309229594076,
+   0.472245674995841,
+   0.45779415867293294
+  ],
+  "bayes": {
+   "0.9": {
+    "auc_mean": null,
+    "agg": {
+     "n_tasks": 3,
+     "n_skipped": 0,
+     "auc_bayes": 0.899941996875758,
+     "auc_model": 0.4596846420586436,
+     "regret": 0.4402573548171145,
+     "regret_norm": 1.101616533237985,
+     "nominal_bayes_auc": 0.9
+    }
+   },
+   "0.999": {
+    "auc_mean": null,
+    "agg": {
+     "n_tasks": 3,
+     "n_skipped": 0,
+     "auc_bayes": 0.9983267052945791,
+     "auc_model": 0.4469975821611773,
+     "regret": 0.5513291231334018,
+     "regret_norm": 1.106388004660583,
+     "nominal_bayes_auc": 0.999
+    }
+   }
+  }
+ },
+ "dr62_induced_s0 (cells+labels, induced row stage)": {
+  "antisymmetric": [
+   0.9919302631578948,
+   0.99056310969501,
+   0.9905580959184369
+  ],
+  "symmetric_sum": [
+   0.8980990405816103,
+   0.8868187907374677,
+   0.9183324749458143
+  ],
+  "bayes": {
+   "0.9": {
+    "auc_mean": null,
+    "agg": {
+     "n_tasks": 3,
+     "n_skipped": 0,
+     "auc_bayes": 0.899941996875758,
+     "auc_model": 0.8933824992643321,
+     "regret": 0.006559497611425898,
+     "regret_norm": 0.01643922817015883,
+     "nominal_bayes_auc": 0.9
+    }
+   },
+   "0.999": {
+    "auc_mean": null,
+    "agg": {
+     "n_tasks": 3,
+     "n_skipped": 0,
+     "auc_bayes": 0.9983267052945791,
+     "auc_model": 0.9971244504652547,
+     "regret": 0.001202254829324419,
+     "regret_norm": 0.00241218857723889,
+     "nominal_bayes_auc": 0.999
+    }
+   }
+  }
+ }
+}
