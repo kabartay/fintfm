@@ -47,6 +47,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from fintfm.config import Config, load_config
+from fintfm.evaluation.coverage import Coverage
 
 if TYPE_CHECKING:  # sklearn and torch are imported lazily below; annotations stay free
     from sklearn.base import ClassifierMixin
@@ -563,6 +564,9 @@ def run(
             "booster arms; drop the empty spec or pass --no-boosting"
         )
     results: list[FoldResult] = []
+    # Openspec 36.4: one unit per (fold, arm). A mean over the folds that happened to score
+    # flatters an arm, so arms that never ran or have no defined metric are skips with reasons.
+    cov = Coverage()
     for fold in folds:
         tr, va, te = split_indices_for_fold(assignments, fold)
         # preprocessing fitted on the training split alone, per their protocol
@@ -619,6 +623,11 @@ def run(
                 clf.predict_proba(Xte.astype(np.float32))[:, 1],
             )
         else:
+            cov.attempt(f"fold{fold}/fintfm")
+            cov.skip(
+                f"fold{fold}/fintfm",
+                f"checkpoint takes {model.cfg.max_features} features, data has {Xtr.shape[1]}",
+            )
             print(
                 f"  fintfm skipped: checkpoint takes {model.cfg.max_features} features, "
                 f"data has {Xtr.shape[1]}"
@@ -645,6 +654,8 @@ def run(
                         )
                 if best_pred is None:
                     print(f"  {name} failed on fold {fold}; excluded from this fold")
+                    cov.attempt(f"fold{fold}/{name}")
+                    cov.skip(f"fold{fold}/{name}", "booster returned no predictions")
                     continue
                 arms[name] = (best_pred[: len(va)], best_pred[len(va) :])
                 if tune:
@@ -660,6 +671,8 @@ def run(
                 p_both = fit_predict_boosting(name, Xtr, y[tr], both, params=params or None)
                 if p_both is None:
                     print(f"  {arm} failed on fold {fold}; excluded from this fold")
+                    cov.attempt(f"fold{fold}/{arm}")
+                    cov.skip(f"fold{fold}/{arm}", "booster returned no predictions")
                     continue
                 arms[arm] = (p_both[: len(va)], p_both[len(va) :])
 
@@ -685,6 +698,11 @@ def run(
         for arm, (p_val, p_test) in arms.items():
             thr, _ = best_f1_threshold(y[va], p_val)
             both = len(np.unique(y[te])) > 1
+            cov.attempt(f"fold{fold}/{arm}")
+            if both:
+                cov.scored(f"fold{fold}/{arm}")
+            else:
+                cov.skip(f"fold{fold}/{arm}", "single-class test fold: AUC and AP undefined")
             auc = roc_auc_score(y[te], p_test) if both else float("nan")
             f1 = f1_score(y[te], (p_test >= thr).astype(int), zero_division=0)
             ap = average_precision_score(y[te], p_test) if both else float("nan")
@@ -785,6 +803,7 @@ def run(
             "config_sources": list(cfg.sources),
         },
         "arms": [asdict(s) for s in summaries],
+        "coverage": cov.to_dict(),
         # commit, dirty flag, fintfm and torch versions, the checkpoint's hash, and the
         # fintfm arm's full get_params() per fold (its random_state is the fold index)
         "provenance": {
@@ -795,6 +814,7 @@ def run(
         },
     }
     (out_dir / "v4_protocol.json").write_text(json.dumps(record, indent=2))
+    print(cov.summary("fold-arm cells"))
     return record
 
 

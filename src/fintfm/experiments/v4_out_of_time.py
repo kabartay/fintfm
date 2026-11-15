@@ -32,6 +32,7 @@ from typing import Literal
 import numpy as np
 
 from fintfm.config import Config, load_config
+from fintfm.evaluation.coverage import Coverage
 from fintfm.evaluation.datasets import SurvivalDataset, load_v4finbench
 from fintfm.evaluation.metrics import evaluate_binary
 from fintfm.evaluation.splits import time_based_split
@@ -325,6 +326,36 @@ def score_curve(
     return arm
 
 
+def arms_coverage(arms: list[ArmScore], min_rows: int) -> Coverage:
+    """Coverage of a run: one unit per (arm, horizon), skipped when the horizon has no AUC.
+
+    Openspec 36.4. ``mean_auc`` ignores NaN horizons, so without this the mean's denominator
+    is invisible. The reason is recovered from the recorded counts, in the order
+    :func:`score_curve` tests them.
+
+    Args:
+        arms: Scored arms.
+        min_rows: The ``min_rows`` the arms were scored with.
+
+    Returns:
+        The resolved :class:`~fintfm.evaluation.coverage.Coverage`.
+    """
+    cov = Coverage()
+    for arm in arms:
+        for h in arm.horizons:
+            unit = f"{arm.name}/h{h.horizon}"
+            cov.attempt(unit)
+            if np.isfinite(h.auc):
+                cov.scored(unit)
+            elif h.n_eval < min_rows:
+                cov.skip(unit, f"{h.n_eval} observed rows, fewer than the minimum {min_rows}")
+            elif h.n_positive in (0, h.n_eval):
+                cov.skip(unit, "single-class observed rows")
+            else:
+                cov.skip(unit, "predictions contain NaN (no model could be fitted)")
+    return cov
+
+
 def run(
     model_path: str,
     out_dir: Path,
@@ -443,6 +474,7 @@ def run(
         )
     )
 
+    cov = arms_coverage(arms, cfg.evaluation.min_rows_per_horizon)
     record = {
         "dataset": ds.name,
         "attribution": ds.attribution,
@@ -469,9 +501,11 @@ def run(
             **sp.record(),
         },
         "arms": [asdict(a) | {"mean_auc": a.mean_auc} for a in arms],
+        "coverage": cov.to_dict(),
     }
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "v4_out_of_time.json").write_text(json.dumps(record, indent=2))
+    print(cov.summary("arm-horizon cells"))
     return record
 
 
