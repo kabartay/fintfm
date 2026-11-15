@@ -6,6 +6,7 @@ classifier are stubs, so the test only checks the wiring.
 
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 
 import numpy as np
@@ -147,3 +148,109 @@ def test_cli_credit_with_time_split_loads_dated_panel(monkeypatch):
     monkeypatch.setattr("sys.argv", ["fintfm-bench", "--credit", "--time-split"])
     bench.main()
     assert seen["time_panel"] is panel
+
+
+class _PathStub(_StubTFM):
+    """Checkpoint ``b.pt`` sees only the noise column, ``a.pt`` sees every feature."""
+
+    def __init__(self, model_path: str, **kwargs: object) -> None:
+        """Remember which checkpoint this stands for."""
+        super().__init__(model_path)
+        self.use_all = model_path == "a.pt"
+
+    def _cols(self, X: np.ndarray) -> np.ndarray:
+        """Features this checkpoint may use."""
+        return X if self.use_all else X[:, -1:]
+
+    def fit(self, X: np.ndarray, y: np.ndarray) -> _PathStub:
+        """Fit on this checkpoint's columns."""
+        self.lr.fit(np.nan_to_num(self._cols(X)), y)
+        return self
+
+    def predict_proba(self, X: np.ndarray) -> np.ndarray:
+        """Class probabilities from this checkpoint's columns."""
+        return self.lr.predict_proba(np.nan_to_num(self._cols(X)))
+
+
+@pytest.fixture
+def compare_stubbed(monkeypatch: pytest.MonkeyPatch) -> list[CreditDataset]:
+    """Stub the checkpoint loader and classifier; return three synthetic panels."""
+    cfg = SimpleNamespace(cfg=SimpleNamespace(max_features=64))
+    monkeypatch.setattr(bench.FinancialTFM, "load", lambda p: cfg)
+    monkeypatch.setattr(bench, "FinancialTFMClassifier", _PathStub)
+    return [_panel(1), _panel(3), _panel(5)]
+
+
+def test_assign_folds_is_stratified_and_disjoint():
+    y = np.r_[np.ones(25, dtype=int), np.zeros(475, dtype=int)]
+    fold = bench.assign_folds(y, 5, seed=1)
+    assert fold.shape == y.shape and set(fold) == set(range(5))
+    for f in range(5):  # each row in exactly one fold, classes spread evenly
+        assert (y[fold == f] == 1).sum() == 5 and (fold == f).sum() == 100
+    with pytest.raises(ValueError):
+        bench.assign_folds(y, 30)
+    with pytest.raises(ValueError):
+        bench.assign_folds(y, 1)
+
+
+def test_compare_reports_per_fold_ap_first_and_coverage(compare_stubbed, capsys):
+    rec = bench.run_credit_compare("a.pt", "b.pt", folds=5, n_boot=200, panels=compare_stubbed)
+    assert rec["coverage"]["n_scored"] == 3 and rec["coverage"]["n_skipped"] == 0
+    p = rec["panels"]["synthetic-h1"]
+    assert len(p["per_fold"]) == 5
+    assert {"ap", "roc_auc"} <= set(p["per_fold"][0]["a.pt"])
+    assert p["mean"]["a.pt"]["ap"] == pytest.approx(
+        np.mean([r["a.pt"]["ap"] for r in p["per_fold"]])
+    )
+    assert p["mean"]["a.pt"]["ap"] > p["mean"]["b.pt"]["ap"]
+    assert p["difference"]["ap"]["delta"] > 0
+    out = capsys.readouterr().out
+    assert out.index("mean AP") < out.index("mean AUC") and "coverage: 3/3 panels" in out
+
+
+def test_compare_bootstrap_uses_matched_rows(compare_stubbed, monkeypatch):
+    seen: list[tuple] = []
+    real = bench.paired_auc_difference
+
+    def spy(y, a, b, *args, **kw):
+        seen.append((len(y), len(a), len(b), bool(np.isnan(a).any() or np.isnan(b).any())))
+        return real(y, a, b, *args, **kw)
+
+    monkeypatch.setattr(bench, "paired_auc_difference", spy)
+    bench.run_credit_compare("a.pt", "b.pt", folds=3, n_boot=150, panels=compare_stubbed)
+    assert len(seen) == 6  # three panels, AP and ROC-AUC
+    assert all(n == na == nb and not nan for n, na, nb, nan in seen)  # every row scored by both
+
+
+def test_compare_applies_holm_across_panels(compare_stubbed):
+    rec = bench.run_credit_compare("a.pt", "b.pt", folds=3, n_boot=300, panels=compare_stubbed)
+    for key in ("ap", "roc_auc"):
+        raw = [rec["panels"][n]["difference"][key]["p"] for n in rec["panels"]]
+        holm = [rec["panels"][n]["difference"][key]["p_holm"] for n in rec["panels"]]
+        assert holm == pytest.approx(bench.holm_adjusted_p(raw))
+        assert all(h >= r for h, r in zip(holm, raw, strict=True))
+
+
+def test_compare_skips_oversized_panel_with_reason_and_writes_json(
+    compare_stubbed, monkeypatch, tmp_path
+):
+    monkeypatch.setattr(
+        bench.FinancialTFM, "load", lambda p: SimpleNamespace(cfg=SimpleNamespace(max_features=4))
+    )
+    out = tmp_path / "r.json"
+    rec = bench.run_credit_compare(
+        "a.pt", "b.pt", folds=3, n_boot=150, panels=compare_stubbed, out=str(out)
+    )
+    assert rec["coverage"]["n_skipped"] == 3 and rec["panels"] == {}
+    assert "features" in next(iter(rec["coverage"]["skipped"].values()))
+    assert json.loads(out.read_text())["coverage"]["n_attempted"] == 3
+
+
+def test_cli_compare_dispatches(monkeypatch):
+    seen: dict = {}
+    monkeypatch.setattr(bench, "run_credit_compare", lambda a, b, **k: seen.update(a=a, b=b, **k))
+    monkeypatch.setattr(
+        "sys.argv", ["fintfm-bench", "--credit", "--folds", "5", "--compare", "x.pt,y.pt"]
+    )
+    bench.main()
+    assert (seen["a"], seen["b"], seen["folds"]) == ("x.pt", "y.pt", 5)
