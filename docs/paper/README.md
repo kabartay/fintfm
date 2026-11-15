@@ -26,7 +26,8 @@ are `docs/results/FINDINGS.md` sections.
   datasets (§216). On V4FinBench no lever tested since §211 clears the bar, and 480,000-task
   volume is null (§188). The probe per partition leaf scored -0.0570 mean AP (§218); §219 found a
   harness sampler defect, and the fixed rerun reverses it: +0.0580 on 5 of 5 folds, 0.3015 mean
-  AP with the readout options (§230), a trained readout whose raw-feature share is not separated.
+  AP with the readout options (§230), a trained readout whose gain is almost all raw features: the
+  raw-only control reaches 0.2975 and the representation adds +0.0040 (§238).
 - **Consequence for the framing.** The diagnosis paper (candidate B in `OUTLINE.md`) is
   unchanged by these results; the "synthetic prior transfers to credit" paper stays not writable.
 - Release 0.10.0 was published 2026-11-13.

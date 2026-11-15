@@ -15209,3 +15209,48 @@ either is the same number.
 - On multiclass the global rule's lower log loss does not reach Elo at four or eight bags (§236,
   this entry). The multiclass entry stays at 874.
 - The entry stands at 931.9 Elo, 106th of 110 (§235).
+
+## §238: the matched raw-only control carries almost all of §230's gain: the squashed features alone, per leaf, reach 0.2975 mean AP; the representation adds +0.0040 (2 of 5 folds)
+
+**MEASURED, V4FinBench horizon 0, five full-panel folds, CPU, 2026-11-15.** The control §230 said
+was missing. `representation_transfer --stage pre_head --partition` with `--probe-options '{"scale":
+true, "cv": true, "raw": true, "no_rep": true}'` (a7cffb3): the same leaves, rows, scaling, 3-fold
+cross-validated `C` and squashed features as §230's options probe, with the representation
+dropped, so the readout is a logistic regression per partition leaf on the squashed raw
+features. Outputs `runs/pp-v4-rawonly/` (23 to 32 min per fold, peak RSS 8.7 GB; much faster than
+§230's folds because inference now runs the encoders unfused, f55bc3b), comparisons
+`runs/pp-v4-rawonly/cmp_repraw_vs_rawonly.txt` and `cmp_rawonly_vs_zeroshot.txt`.
+
+**Raw-only against the zero-shot head: mean AP 0.2975, +0.0989, positive and Holm-significant on 5
+of 5 folds** (by companies, p = 0.002 each; folds +0.0784, +0.0798, +0.1368, +0.1131, +0.0866).
+
+**Representation plus raw (§230's 0.3015) against raw-only:**
+
+| fold | raw only | representation + raw | diff | 95% CI (companies) | Holm p (companies) |
+| --- | --- | --- | --- | --- | --- |
+| 0 | 0.2897 | 0.2857 | −0.0040 | [−0.0131, +0.0053] | 1.000 |
+| 1 | 0.2848 | 0.2835 | −0.0014 | [−0.0098, +0.0074] | 1.000 |
+| 2 | 0.3154 | 0.3212 | +0.0058 | [−0.0033, +0.0157] | 0.872 |
+| 3 | 0.2941 | 0.3147 | +0.0205 | [+0.0079, +0.0341] | 0.005 |
+| 4 | 0.3037 | 0.3026 | −0.0011 | [−0.0097, +0.0081] | 1.000 |
+
+Mean +0.0040, 2 of 5 folds positive, below §173's 0.0117 yardstick. **About 96% of §230's +0.1029
+over the zero-shot head is the raw-feature readout; FinTFM's representation adds +0.0040, which the
+project's rule does not count as a gain.** The partition's leaves come from a decision tree on the
+features, not from the network, so the raw-only arm uses FinTFM for nothing but the head of a leaf
+whose probe is missing.
+
+**Reproduction.** The same run re-scored §230's representation-only leaf probe as a by-product. Its
+predictions are not bit-identical to `runs/pp-v4-fix` (largest difference 0.04 in a probability,
+after the unfused-encoder change moved representations by float rounding and the probe refitted on
+them), but every fold's AP agrees within 0.0006 (0.2340 against 0.2336 on fold 0, the largest).
+
+**What it says.**
+- §230's candidate verdict for the options probe stands as a measurement, but it is a measurement
+  of a partitioned, cross-validated logistic regression on the squashed features. It is not
+  evidence that FinTFM's representation helps on credit. The +0.0580 of the plain leaf probe
+  (representation only, §230) is the representation's own number.
+- The same question applies to §232's binary TabArena-Lite gain (974 to 997 Elo), which used the
+  same options. The matched Lite control (`FINTFM_PROBE` `no_rep`, fork 15eb8ae, run
+  `fintfm_lp_bin_rawonly_1115`) is running.
+- `docs/paper/CLAIMS.md`, the paper README and the README carry this caveat from today.
