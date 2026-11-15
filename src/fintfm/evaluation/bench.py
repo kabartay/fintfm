@@ -92,6 +92,7 @@ def run_one(
     model_path: str,
     seed: int = 0,
     split: tuple[np.ndarray, np.ndarray] | None = None,
+    details: dict[str, dict[str, float]] | None = None,
 ) -> dict[str, float]:
     """Fit every model on a train split and report test AUC.
 
@@ -103,6 +104,8 @@ def run_one(
         seed: Seed for the default random split.
         split: Optional ``(train_idx, test_idx)`` row indices into ``X``/``y``. ``None``
             (default) keeps the stratified random 70/30 split.
+        details: Optional dict filled in place with ``{model: {"average_precision", "roc_auc",
+            "n_test", "n_positive"}}`` for binary tasks, so a caller can report AP first.
 
     Returns:
         Test AUC per model name.
@@ -130,7 +133,15 @@ def run_one(
         auc = _auc(y_test, proba, classes)
         results[model_name] = auc
         if len(classes) == 2:
-            detail = evaluate_binary(y_test, proba[:, 1]).summary()
+            metrics = evaluate_binary(y_test, proba[:, 1])
+            detail = metrics.summary()
+            if details is not None:
+                details[model_name] = {
+                    "average_precision": float(metrics.average_precision),
+                    "roc_auc": float(metrics.roc_auc),
+                    "n_test": int(metrics.n),
+                    "n_positive": int(metrics.n_positive),
+                }
             print(f"  [{name}] {model_name}: {detail}  ({seconds:.1f}s)")
         else:
             print(f"  [{name}] {model_name}: AUC={auc:.4f}  ({seconds:.1f}s)")
@@ -368,7 +379,7 @@ def run_time_vs_random(
     test_from: int = 2017,
     seed: int = 0,
 ) -> dict[str, dict[str, float]]:
-    """Report random-split and time-based test AUC side by side on a dated panel.
+    """Report random-split and time-based test AP and AUC side by side on a dated panel.
 
     The time split trains on ``year <= train_until`` and tests on ``year >= test_from``, with
     any company present in both windows removed from training (the count is printed). The
@@ -385,7 +396,9 @@ def run_time_vs_random(
         seed: Seed for the random split.
 
     Returns:
-        ``{"random": {model: auc}, "time": {model: auc}}``.
+        ``{"random": {model: auc}, "time": {model: auc}, "details": {...}}``. ``details`` holds
+        per-window ``average_precision`` and ``roc_auc`` per model, plus the row counts, base
+        rates, companies in both windows and the cut-off years, for the ``--out`` JSON.
 
     Raises:
         ValueError: If the panel has no period labels or no identifiers, or the split would
@@ -417,14 +430,48 @@ def run_time_vs_random(
         random_state=seed,
         stratify=ds.y[pool],
     )
-    out = {
-        "random": run_one(f"{ds.name}-random", X, ds.y, model_path, split=(rtr, rte)),
-        "time": run_one(f"{ds.name}-time", X, ds.y, model_path, split=(ts.train, ts.test)),
+    det_random: dict[str, dict[str, float]] = {}
+    det_time: dict[str, dict[str, float]] = {}
+    out: dict = {
+        "random": run_one(
+            f"{ds.name}-random", X, ds.y, model_path, split=(rtr, rte), details=det_random
+        ),
+        "time": run_one(
+            f"{ds.name}-time", X, ds.y, model_path, split=(ts.train, ts.test), details=det_time
+        ),
     }
+    rate_time = float(np.mean(ds.y[ts.test]))
+    rate_random = float(np.mean(ds.y[rte]))
+    print(
+        f"    test base rate: time {rate_time:.3%} ({int(ds.y[ts.test].sum())}/{len(ts.test)}), "
+        f"random {rate_random:.3%} ({int(ds.y[rte].sum())}/{len(rte)}); train base rate "
+        f"time {float(np.mean(ds.y[ts.train])):.3%}"
+    )
+    print(f"\n    {'model':<14}{'random AP':>12}{'time AP':>12}{'gap':>9}   (read AP first)")
+    for model_name, r in det_random.items():
+        t = det_time.get(model_name, {}).get("average_precision", float("nan"))
+        ap_r = r["average_precision"]
+        print(f"    {model_name:<14}{ap_r:>12.4f}{t:>12.4f}{ap_r - t:>+9.4f}")
     print(f"\n    {'model':<14}{'random AUC':>12}{'time AUC':>12}{'gap':>9}")
     for model_name in out["random"]:
         r, t = out["random"][model_name], out["time"].get(model_name, float("nan"))
         print(f"    {model_name:<14}{r:>12.4f}{t:>12.4f}{r - t:>+9.4f}")
+    out["details"] = {
+        "panel": ds.name,
+        "checkpoint": model_path,
+        "train_until": train_until,
+        "test_from": test_from,
+        "seed": seed,
+        "n_rows_panel": len(ds.y),
+        "n_train": len(ts.train),
+        "n_test": len(ts.test),
+        "n_train_dropped": int(ts.n_train_dropped),
+        "n_companies_in_both_windows": int(ts.n_shared_ids),
+        "test_base_rate_time": rate_time,
+        "test_base_rate_random": rate_random,
+        "random": det_random,
+        "time": det_time,
+    }
     return out
 
 
@@ -735,7 +782,12 @@ def main() -> None:
         help="with --credit: two checkpoints 'A,B' scored at --folds stratified folds with a "
         "paired bootstrap of A - B per panel, Holm-adjusted across panels",
     )
-    p.add_argument("--out", type=str, default=None, help="with --compare: write the record here")
+    p.add_argument(
+        "--out",
+        type=str,
+        default=None,
+        help="with --compare or --time-split: write the record as JSON here",
+    )
     p.add_argument("--v4-root", type=str, default=None, help="V4FinBench parquet directory")
     p.add_argument(
         "--temporal-gbm",
@@ -760,10 +812,16 @@ def main() -> None:
                 kwargs["time_panel"] = load_v4finbench(args.v4_root, max_rows=args.max_rows)
             except FileNotFoundError as exc:
                 print(f"TIME-BASED SPLIT: NOT RUN, V4FinBench data not found ({exc})")
-        run_credit(args.model, **kwargs)
+        record = run_credit(args.model, **kwargs)
+        if args.out and "time_vs_random" in record:
+            Path(args.out).write_text(json.dumps(record["time_vs_random"], indent=2))
         return
     if args.time_split:
-        run_time_vs_random(load_v4finbench(args.v4_root, max_rows=args.max_rows), args.model)
+        record = run_time_vs_random(
+            load_v4finbench(args.v4_root, max_rows=args.max_rows), args.model
+        )
+        if args.out:
+            Path(args.out).write_text(json.dumps(record, indent=2))
         return
     run_synthetic(args.model, n_tasks=args.synthetic_tasks)
     if args.openml_id:

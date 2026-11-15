@@ -119,14 +119,32 @@ def test_credit_prints_random_and_time_side_by_side_with_a_dated_panel(
 
 
 def test_time_vs_random_prints_both_columns(stubbed, monkeypatch, capsys):
-    def fake_run_one(name, X, y, path, split=None):
+    def fake_run_one(name, X, y, path, split=None, details=None):
+        ap = 0.5 if "random" in name else 0.4
+        details["m"] = {"average_precision": ap, "roc_auc": 0.9, "n_test": 3, "n_positive": 1}
         return {"m": 0.9 if "random" in name else 0.8}
 
     monkeypatch.setattr(bench, "run_one", fake_run_one)
     out = bench.run_time_vs_random(_dated_panel(), "ckpt.pt", train_until=2014, test_from=2018)
     text = capsys.readouterr().out
-    assert out == {"random": {"m": 0.9}, "time": {"m": 0.8}}
-    assert "random AUC" in text and "time AUC" in text
+    assert out["random"] == {"m": 0.9} and out["time"] == {"m": 0.8}
+    assert "random AUC" in text and "time AUC" in text and "random AP" in text
+    assert text.index("random AP") < text.index("random AUC")
+    assert "test base rate" in text and "companies in" in text
+    d = out["details"]
+    assert d["time"]["m"]["average_precision"] == 0.4
+    assert d["n_test"] > 0 and "n_companies_in_both_windows" in d
+    assert 0.0 <= d["test_base_rate_time"] <= 1.0
+
+
+def test_cli_time_split_out_writes_json(monkeypatch, tmp_path):
+    panel = _dated_panel()
+    monkeypatch.setattr(bench, "load_v4finbench", lambda root, max_rows=None: panel)
+    monkeypatch.setattr(bench, "run_time_vs_random", lambda ds, path: {"random": {}, "time": {}})
+    dest = tmp_path / "ts.json"
+    monkeypatch.setattr("sys.argv", ["fintfm-bench", "--time-split", "--out", str(dest)])
+    bench.main()
+    assert json.loads(dest.read_text()) == {"random": {}, "time": {}}
 
 
 def test_time_split_refuses_a_panel_without_periods(stubbed):
