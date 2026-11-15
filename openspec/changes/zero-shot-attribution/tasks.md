@@ -32,3 +32,18 @@
       mean >= 0.40 (12.2's LightGBM TreeSHAP baseline: seed-to-seed 0.981 / 0.925, fold-to-fold
       0.875 / 0.700 on Polish 3-year / Taiwan). The harness takes any attribution function, so
       the 12.4 head can be passed to it later.**
+      **Progress (2026-11-15): stays open. Harness, permutation attribution through the public
+      classifier, 12.3 ground-truth agreement, JSON and table are built
+      (`python -m fintfm.experiments.attribution_stability --model runs/v4-cellattn-labels.pt`;
+      tests in `tests/test_attribution_stability.py`). The recorded thresholds were NOT met on
+      the pinned prior task (seed 0, 1,500 rows, 23 features, 400 context and 400 explain rows,
+      2 seeds x 3 resamples, 2 repeats): resample Spearman 0.409 against 0.60 (SMOKE-TEST; the
+      seed statistics were not printed because the first assertion failed). The threshold test
+      is therefore an opt-in strict xfail (`FINTFM_SLOW_ATTRIBUTION=1`, about 13 minutes on a
+      loaded CPU); thresholds are not edited after measuring. Polish 3-year smoke (SMOKE-TEST,
+      200 context and 200 explain rows, 2 seeds x 2 resamples, 1 repeat): resample Spearman
+      0.310, seed Spearman 0.102, top-10 Jaccard 0.213 / 0.176, 53 s per attribution; prior
+      ground-truth agreement on the one scored task Spearman -0.027, top-3 Jaccard 0.200.
+      Explain sets this small make permutation importance noisy, so a MEASURED run needs larger
+      explain sets and more repeats before the method itself is judged. Verify needs a passing
+      test, or a revised method (12.4 head) and fresh thresholds recorded before measuring.**
