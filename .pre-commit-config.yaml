@@ -12,14 +12,13 @@
 # having one.
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.2
+    rev: v0.16.6  # the ruff uv.lock pins, so the hook and CI format alike
     hooks:
       - id: ruff
         args: [--fix]
       - id: ruff-format
-        # Format-checking only: this repository is not ruff-formatted end to end, and
-        # reformatting it in a hook would bury real changes under whitespace diffs.
-        stages: [manual]
+        # On since 2026-11-15 (openspec 8.6): the tree was reformatted in one isolated commit,
+        # 061d4d1, so formatting a staged file now touches only that file's own changes.
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0

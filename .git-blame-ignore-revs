@@ -1,0 +1,6 @@
+# Formatting-only commits, skipped by `git blame` when configured:
+#     git config blame.ignoreRevsFile .git-blame-ignore-revs
+# GitHub's blame view reads this file automatically.
+
+# ruff format 0.16.6 over src/ tests/ scripts/ openspec/tools/ (openspec 8.6)
+061d4d1c8b38a1ff128bb2daf327e3a2e4c79d78

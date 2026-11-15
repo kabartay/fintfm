@@ -41,6 +41,11 @@ jobs:
       - name: Lint
         run: uv run ruff check src/ tests/ scripts/ openspec/tools/
 
+      # openspec 8.6: the tree was reformatted in one isolated commit (061d4d1, listed in
+      # .git-blame-ignore-revs), so a formatting diff can no longer hide inside real work.
+      - name: Format check
+        run: uv run ruff format --check src/ tests/ scripts/ openspec/tools/
+
       # Enforces this repository's own conventions: every spec requirement names what
       # enforces it, every proposal carries its required sections, every open task states a
       # verification, and every finding declares whether its numbers are MEASURED,
