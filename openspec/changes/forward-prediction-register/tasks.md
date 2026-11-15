@@ -7,7 +7,7 @@
 - [x] 6.2 **Done (2026-11-11, FINDINGS §3, scripts/register_power.py).** Power calculation before any cohort is fixed. Verify: state the cohort size, the
       expected default count per year, and the smallest AUC difference detectable, in
       `docs/results/FINDINGS.md` §3. If it cannot detect anything useful, say so and reconsider scope.
-- [ ] 6.3 Write the inclusion rule as executable code, not prose, so the cohort is mechanical
+- [x] 6.3 **Done (2026-11-15, `src/fintfm/register/cohort.py`, `tests/test_register_cohort.py`): the inclusion rule is a pure function (`select_cohort`) returning included numbers, a per-company reason and a SHA-256 `cohort_hash` over rule version, the whole rule and the sorted numbers; tests show each rule's reason, order-independence, change on membership, version or any threshold, and that no personal-data field is read. Rerunning on one snapshot gives an identical hash. The rule is closed but its thresholds are placeholders awaiting OWNER DECISION: allowed company categories, minimum age (36 months), sector exclusions (SIC divisions 64, 65, 66, 98, 99 and codes 99999, 98000), excluded accounts categories, maximum age of last accounts (24 months), and which insolvency case types count as the outcome. Real snapshot header and label spellings are not established (no file downloaded); the caller maps them. Changing any placeholder changes the hash, so decide before 6.4.** Write the inclusion rule as executable code, not prose, so the cohort is mechanical
       and reproducible. Verify: rerunning it on the same snapshot yields an identical cohort
       hash.
 - [ ] 6.4 Publish v1 of the register: cohort hash, predictions, model commit, timestamp.
