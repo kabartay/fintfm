@@ -693,6 +693,10 @@ def run(
             # companies: a fold holds ~5 rows each, and they are not independent (audit AU2.1)
             company_test=codes[te],
             company_val=codes[va],
+            # the company ids themselves for the test rows (33.4): `company_codes` is fixed by
+            # one horizon file's own company set, so codes from two horizons do not name the
+            # same company, and a cross-horizon curve needs a stable key
+            company_name_test=company[te].astype(str),
         )
 
         for arm, (p_val, p_test) in arms.items():
@@ -804,6 +808,15 @@ def run(
         },
         "arms": [asdict(s) for s in summaries],
         "coverage": cov.to_dict(),
+        # 33.4: one horizon file cannot hold a curve, so this record says so and points at the
+        # measurement instead of leaving the absence unexplained
+        "coherence": {
+            "measured": False,
+            "reason": (
+                "a single horizon has no curve; run `--coherence-dirs` over the horizon "
+                "runs to write v4_coherence.json"
+            ),
+        },
         # commit, dirty flag, fintfm and torch versions, the checkpoint's hash, and the
         # fintfm arm's full get_params() per fold (its random_state is the fold index)
         "provenance": {
@@ -816,6 +829,240 @@ def run(
     (out_dir / "v4_protocol.json").write_text(json.dumps(record, indent=2))
     print(cov.summary("fold-arm cells"))
     return record
+
+
+#: How a company's several rows in one horizon file collapse to one score, for 33.4.
+COHERENCE_REDUCTIONS: tuple[str, ...] = ("max", "mean")
+
+
+def curve_coherence(curves: np.ndarray) -> dict[str, float | int]:
+    """Coherence of cumulative-default curves, by the definition used everywhere else.
+
+    The definition is :func:`fintfm.modeling.hazard.coherence_violations` (a ``(row, step)``
+    pair where the curve falls) and the two rates
+    :func:`fintfm.experiments.term_structure.summarise_curves` reports: the violation rate over
+    ``(row, step)`` pairs and the fully-monotone fraction of rows. A tie counts as monotone.
+    Reused rather than redefined, so a number here is comparable with §229's.
+
+    Args:
+        curves: ``(n, K)`` predicted cumulative default, columns in increasing horizon.
+
+    Returns:
+        ``n`` curves, ``n_steps`` pairs, ``violations`` (count), ``violation_rate`` and
+        ``fully_monotone`` (fractions). NaN rates for an empty or single-horizon input.
+    """
+    import torch
+
+    from fintfm.modeling.hazard import coherence_violations
+
+    c = np.asarray(curves, dtype=np.float64)
+    n, k = c.shape
+    steps = n * max(k - 1, 0)
+    if n == 0 or k < 2:
+        return {
+            "n": n,
+            "n_steps": steps,
+            "violations": 0,
+            "violation_rate": float("nan"),
+            "fully_monotone": float("nan"),
+        }
+    violations = int(coherence_violations(torch.as_tensor(c)))
+    return {
+        "n": n,
+        "n_steps": steps,
+        "violations": violations,
+        "violation_rate": violations / steps,
+        "fully_monotone": float((np.diff(c, axis=1) >= 0).all(axis=1).mean()),
+    }
+
+
+def company_horizon_scores(
+    names: np.ndarray, score: np.ndarray, label: np.ndarray, reduce: str = "max"
+) -> dict[str, tuple[float, int]]:
+    """Collapse one horizon's test rows to one ``(score, label)`` per company.
+
+    Their horizon tasks sit on different rows, so a row has no counterpart at another
+    horizon; a company does. ``max`` is the company's highest score on any of its rows,
+    ``mean`` the average. The label is positive if any row is.
+
+    Args:
+        names: ``(n,)`` company ids of the test rows.
+        score: ``(n,)`` predicted default probability.
+        label: ``(n,)`` binary label.
+        reduce: One of :data:`COHERENCE_REDUCTIONS`.
+
+    Returns:
+        ``{company: (score, label)}``.
+
+    Raises:
+        ValueError: On an unknown ``reduce``.
+    """
+    if reduce not in COHERENCE_REDUCTIONS:
+        raise ValueError(f"reduce must be one of {COHERENCE_REDUCTIONS}, got {reduce!r}")
+    uniq, inv = np.unique(names, return_inverse=True)
+    inv = inv.ravel()
+    out: dict[str, tuple[float, int]] = {}
+    for i, name in enumerate(uniq.tolist()):
+        m = inv == i
+        sc = float(score[m].max() if reduce == "max" else score[m].mean())
+        out[name] = (sc, int(label[m].max()))
+    return out
+
+
+def align_company_curves(
+    per_horizon: dict[int, dict[str, tuple[float, int]]],
+) -> tuple[list[str], np.ndarray, np.ndarray]:
+    """Stack per-horizon company scores into curves for companies present at every horizon.
+
+    Args:
+        per_horizon: ``{horizon: company_horizon_scores(...)}``.
+
+    Returns:
+        ``(companies, curves, labels)``, both arrays ``(n, K)`` with columns in increasing
+        horizon. Companies missing from any horizon are dropped, not imputed.
+    """
+    horizons = sorted(per_horizon)
+    common = sorted(set.intersection(*(set(per_horizon[h]) for h in horizons)))
+    shape = (len(common), len(horizons))
+    curves = np.array([[per_horizon[h][c][0] for h in horizons] for c in common]).reshape(shape)
+    labels = np.array([[per_horizon[h][c][1] for h in horizons] for c in common]).reshape(shape)
+    return common, curves, labels
+
+
+def coherence_from_runs(
+    run_dirs: dict[int, Path],
+    folds: tuple[int, ...] = (0, 1, 2, 3, 4),
+    reduce: str = "max",
+) -> dict:
+    """Coherence of every arm across horizons, per fold, beside its AP and ROC-AUC (33.4).
+
+    Their table scores each horizon on its own rows, so no cumulative-PD curve exists. This
+    derives one: for fold ``f`` and each arm, a company's score at horizon ``h`` is its
+    :func:`company_horizon_scores` value in horizon ``h``'s test fold, and the curve is those
+    scores in horizon order. Only companies in that test fold at **every** horizon are used
+    (fold assignment is per file, so the sets can differ); the count is reported. Every arm is
+    measured the same way, so the per-horizon baselines, which are independent models, are
+    scored by exactly the rule that scores fintfm. Reads the ``predictions_fold*.npz`` and
+    ``v4_protocol.json`` each horizon run already wrote.
+
+    Level is printed with the score: ``mean_predicted`` and ``observed_rate`` per horizon, as a
+    monotone curve can be wrong by an order of magnitude (CLAUDE.md, "Print the level").
+
+    Args:
+        run_dirs: ``{horizon: output directory of that horizon's run}``; at least two.
+        folds: Rotations to measure.
+        reduce: Company reduction, see :func:`company_horizon_scores`.
+
+    Returns:
+        A dictionary with the derivation, and ``arms`` -> arm -> ``folds`` list of per-fold
+        records (coherence, ``n_companies``, level, per-horizon AP and ROC-AUC) plus means.
+
+    Raises:
+        ValueError: With fewer than two horizons.
+        FileNotFoundError: If a run lacks a predictions file or ``company_name_test`` (written
+            by runs from 33.4 onwards; earlier runs must be repeated).
+    """
+    if len(run_dirs) < 2:
+        raise ValueError("a curve needs at least two horizons")
+    horizons = sorted(run_dirs)
+    records = {
+        h: json.loads((Path(run_dirs[h]) / "v4_protocol.json").read_text()) for h in horizons
+    }
+    arms_out: dict[str, dict] = {}
+    for fold in folds:
+        loaded = {}
+        for h in horizons:
+            path = Path(run_dirs[h]) / f"predictions_fold{fold}.npz"
+            if not path.exists():
+                raise FileNotFoundError(f"{path} not found; run horizon {h} on fold {fold} first")
+            z = np.load(path)
+            if "company_name_test" not in z.files:
+                raise FileNotFoundError(
+                    f"{path} has no company_name_test; it predates 33.4, repeat that run"
+                )
+            loaded[h] = z
+        arm_names = sorted(
+            set.intersection(
+                *({k[5:] for k in z.files if k.startswith("pred_")} for z in loaded.values())
+            )
+        )
+        for arm in arm_names:
+            per_h = {
+                h: company_horizon_scores(
+                    loaded[h]["company_name_test"],
+                    loaded[h][f"pred_{arm}"],
+                    loaded[h]["y_true"],
+                    reduce,
+                )
+                for h in horizons
+            }
+            companies, curves, labels = align_company_curves(per_h)
+            has = len(companies) > 0
+            row: dict = {
+                "fold": fold,
+                "n_companies": len(companies),
+                **curve_coherence(curves),
+                "mean_predicted_by_horizon": [float(v) for v in curves.mean(axis=0)] if has else [],
+                "observed_rate_by_horizon": [float(v) for v in labels.mean(axis=0)] if has else [],
+            }
+            for metric, key in (
+                ("roc_auc", "roc_auc_by_horizon"),
+                ("avg_precision", "ap_by_horizon"),
+            ):
+                vals = []
+                for h in horizons:
+                    hit = [
+                        f[metric]
+                        for a in records[h]["arms"]
+                        if a["arm"] == arm
+                        for f in a["folds"]
+                        if f["fold"] == fold
+                    ]
+                    vals.append(float(hit[0]) if hit else float("nan"))
+                row[key] = vals
+            arms_out.setdefault(arm, {"folds": []})["folds"].append(row)
+    for entry in arms_out.values():
+        for key in ("violation_rate", "fully_monotone"):
+            entry[f"{key}_mean"] = float(np.nanmean([r[key] for r in entry["folds"]]))
+    return {
+        "horizons": horizons,
+        "reduce": reduce,
+        "derivation": (
+            "company-level curve: per horizon, each company's test-row scores reduced by "
+            f"{reduce!r}; companies in the test fold at every horizon only; "
+            "same coherence definition as fintfm.modeling.hazard.coherence_violations"
+        ),
+        "arms": arms_out,
+    }
+
+
+def summarise_coherence(result: dict) -> str:
+    """Render per-fold coherence beside mean AP and ROC-AUC for every arm."""
+    lines = [
+        (
+            f"Coherence across horizons {result['horizons']} (company reduction: "
+            f"{result['reduce']}). Fully-monotone = share of companies whose cumulative "
+            "default never falls with horizon; violation rate = share of (company, step) "
+            "pairs that fall."
+        ),
+        "",
+        (
+            f"{'arm':>22} {'fold':>4} {'companies':>9} {'monotone':>9} {'violation':>9} "
+            f"{'mean AP':>8} {'mean AUC':>9}  mean predicted/observed, per horizon"
+        ),
+    ]
+    for arm, entry in result["arms"].items():
+        for r in entry["folds"]:
+            ap, auc = np.nanmean(r["ap_by_horizon"]), np.nanmean(r["roc_auc_by_horizon"])
+            level = " ".join(
+                f"{p:.4f}/{o:.4f}"
+                for p, o in zip(r["mean_predicted_by_horizon"], r["observed_rate_by_horizon"])
+            )
+            lines.append(
+                f"{arm:>22} {r['fold']:>4} {r['n_companies']:>9,} {r['fully_monotone']:>9.1%} "
+                f"{r['violation_rate']:>9.1%} {ap:>8.4f} {auc:>9.4f}  {level}"
+            )
+    return "\n".join(lines)
 
 
 def summarise(record: dict) -> str:
@@ -990,7 +1237,35 @@ def main() -> None:
         "large_n.method; the wrapper's other settings come from the large_n section. "
         "Default: the config's value, 'none' in the packaged default",
     )
+    p.add_argument(
+        "--coherence-dirs",
+        type=str,
+        default=None,
+        metavar="H=DIR,...",
+        help="33.4: skip training and measure coherence across horizons from finished "
+        "single-horizon runs, e.g. 0=runs/h0,1=runs/h1,...,5=runs/h5. Writes "
+        "v4_coherence.json under --out",
+    )
+    p.add_argument(
+        "--coherence-reduce",
+        choices=COHERENCE_REDUCTIONS,
+        default="max",
+        help="with --coherence-dirs: how a company's rows collapse to one score per horizon",
+    )
     args = p.parse_args()
+    if args.coherence_dirs:
+        pairs = (kv.split("=", 1) for kv in args.coherence_dirs.split(","))
+        dirs = {int(k): Path(v) for k, v in pairs}
+        result = coherence_from_runs(
+            dirs,
+            folds=tuple(int(v) for v in args.folds.split(",")),
+            reduce=args.coherence_reduce,
+        )
+        out = Path(args.out)
+        out.mkdir(parents=True, exist_ok=True)
+        (out / "v4_coherence.json").write_text(json.dumps(result, indent=2))
+        print(summarise_coherence(result))
+        return
     try:
         booster_params = tuple(parse_booster_params(args.booster_params))
     except ValueError as e:

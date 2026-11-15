@@ -37,7 +37,25 @@
       runs a `fintfm` arm rather than printing "skipped".
 - [ ] 33.3 Three seeds on every number intended for publication, with the paired bootstrap and
       Holm correction. Verify: adjusted p-values beside every difference quoted.
-- [ ] 33.4 Add the coherence measurement under their protocol, since their table lacks it.
+- [ ] 33.4 **Progress (2026-11-15, code and synthetic tests only; no real run, so the Verify
+      is not met and the task stays open).** `fintfm-v4protocol --coherence-dirs` measures
+      coherence from finished single-horizon runs, for every arm (fintfm and each
+      per-horizon baseline) by one rule, per fold beside that arm's per-horizon AP and
+      ROC-AUC. Derivation (their rows differ by horizon): a company's score at horizon *h*
+      is the max (or mean, `--coherence-reduce`) of its test-row scores in horizon *h*'s test
+      fold; the curve is those scores in horizon order, over companies in the test fold at
+      every horizon (count reported as `n_companies`). The definition is
+      `hazard.coherence_violations` plus the fully-monotone fraction of
+      `term_structure.summarise_curves`, reused and pinned by test. Mean predicted and
+      observed rate per horizon are printed beside it. Runs now save `company_name_test` in
+      `predictions_fold*.npz`; runs made before this lack it and must be repeated. Command,
+      after running each horizon on the published checkpoint with the §141 settings
+      (`--horizon H` for H in 0..5, `--out runs/v4-protocol-hH`, all five folds, boosters on):
+      `uv run fintfm-v4protocol --coherence-dirs
+      0=runs/v4-protocol-h0,1=runs/v4-protocol-h1,2=runs/v4-protocol-h2,3=runs/v4-protocol-h3,4=runs/v4-protocol-h4,5=runs/v4-protocol-h5
+      --out runs/v4-coherence` (writes `v4_coherence.json`). Tests:
+      `tests/test_v4_coherence.py`.
+      Add the coherence measurement under their protocol, since their table lacks it.
       Note their horizon tasks are on different rows, so a cumulative-PD curve is not
       directly defined under their construction — state how it is derived, or say plainly
       that coherence cannot be measured on their protocol and must be reported on ours.
