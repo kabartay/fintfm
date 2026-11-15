@@ -23,7 +23,7 @@
       results.
 - [ ] 9.2 **Progress (2026-11-15): priced, not closed.** The proposed grid is priced per cell in `docs/results/drafts/scaling_grid_2026-11-15.md`: 280.2 Kaggle T4x2 quota hours (560.4 GPU-h, 9.3 weeks at 30 h) for all 12 runs, ESTIMATED from the MEASURED 0.54 s/step in COMPUTE.md (§197, §198). The 885K step time is COMPUTE.md's; the 5.0M step time is a ratio (0.98 / 0.64, pre-cell-attention T4) applied to it, which is estimated afresh, so the Verify is not met literally. Missing: a measured 5.0M published-recipe step time. Price the grid in GPU hours from measured step times. Verify: numbers from
       `docs/infra/COMPUTE.md`, not estimated afresh.
-- [ ] 9.3 Extend the ablation harness to sweep scale as well as prior mixture, writing one
+- [x] 9.3 **Done (2026-11-15): `fintfm-ablate --grid configs/scaling/grid-2026-11-15.yaml` expands a (task count, model size, seed) grid from one YAML spec (`src/fintfm/experiments/scaling_grid.py`), training each cell to its own `results.json` with commit, recipe path and hash, steps x batch = tasks seen and parameter count; `--plan` prints every cell's training command (with `--checkpoint-every`) and its ESTIMATED cost from the draft's step times without training. The new tests are in `tests/test_scaling_grid.py`; the Verify command still passes. The grid itself (9.1) remains the owner's decision.** Extend the ablation harness to sweep scale as well as prior mixture, writing one
       `results.json` per cell. Verify: `uv run pytest tests/test_experiments.py -q`.
 - [ ] 9.4 Run the grid on rented GPU. Verify: every cell has a `results.json` with its commit.
 - [ ] 9.5 Plot real-data performance against pretraining volume and record the verdict in

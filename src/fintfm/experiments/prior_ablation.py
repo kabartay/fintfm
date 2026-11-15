@@ -446,7 +446,31 @@ def main() -> None:
     p.add_argument(
         "--v4-root", type=str, default=None, help="with --panel v4finbench: parquet directory"
     )
+    p.add_argument(
+        "--grid",
+        type=str,
+        default=None,
+        metavar="YAML",
+        help="sweep scale instead of prior mixture: a grid spec under configs/scaling/ "
+        "(tasks x model size x seed), one results.json per cell (openspec scaling-curve 9.3)",
+    )
+    p.add_argument(
+        "--plan",
+        action="store_true",
+        help="with --grid: print each cell's training command and ESTIMATED cost; trains nothing",
+    )
     args = p.parse_args()
+    if args.plan and not args.grid:
+        p.error("--plan needs --grid")
+    if args.grid:
+        from fintfm.experiments.scaling_grid import load_grid, plan_grid, run_grid
+
+        spec = load_grid(args.grid)
+        if args.plan:
+            print(plan_grid(spec, Path(args.out)))
+        else:
+            run_grid(spec, Path(args.out))
+        return
     if args.coherence:
         print("=== PD term-structure coherence: is cumulative PD monotone in horizon? ===")
         record = term_structure_coherence(

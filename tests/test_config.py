@@ -229,6 +229,12 @@ def test_shipped_example_configs_all_load():
     assert root / "published" / "v4-cellattn-labels.yaml" in files
     assert files, f"no example configs found under {root}"
     for f in files:
+        if f.parent.name == "scaling":
+            # grid specs (tasks x size x seed), not Config layers; they have their own loader
+            from fintfm.experiments.scaling_grid import expand_grid, load_grid
+
+            assert expand_grid(load_grid(f))
+            continue
         cfg = load_config(f)
         assert str(f) in cfg.provenance()
 
