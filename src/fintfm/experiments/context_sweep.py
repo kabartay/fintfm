@@ -34,6 +34,7 @@ from pathlib import Path
 import numpy as np
 
 from fintfm.config import Config, load_config
+from fintfm.evaluation.coverage import Coverage
 from fintfm.evaluation.datasets import load_v4finbench
 from fintfm.evaluation.metrics import evaluate_binary, holm_adjusted_p, paired_auc_difference
 from fintfm.experiments.v4_out_of_time import SplitMode, _curve_truth, split_dataset
@@ -83,6 +84,25 @@ def _nanmean(values: list[float]) -> float:
     """
     vals = [v for v in values if np.isfinite(v)]
     return float(np.mean(vals)) if vals else float("nan")
+
+
+def horizon_skip_reason(observed: np.ndarray, truth_k: np.ndarray, min_rows: int) -> str | None:
+    """Why one horizon of a sweep cell cannot be scored, or ``None`` when it can.
+
+    Args:
+        observed: ``(n_test,)`` boolean, True where the horizon is observed.
+        truth_k: ``(n_test,)`` cumulative-default labels at the horizon.
+        min_rows: Fewest observed rows a horizon needs.
+
+    Returns:
+        A reason, or ``None`` for a scorable horizon.
+    """
+    n_obs = int(observed.sum())
+    if n_obs < min_rows:
+        return f"{n_obs} observed rows, fewer than the {min_rows} required"
+    if len(np.unique(truth_k[observed])) < 2:
+        return "one class among the observed rows, so AUC is undefined"
+    return None
 
 
 def paired_strategy_comparisons(
@@ -207,6 +227,7 @@ def run(
 
     cells: list[SweepCell] = []
     curves: dict[tuple[int, str, int], np.ndarray] = {}
+    cov = Coverage()  # one unit per (context size, strategy, seed, horizon), openspec 36.4
     for max_context in cfg.context_sweep.context_sizes:
         for strategy in cfg.context_sweep.strategies:
             for seed in seeds:
@@ -227,11 +248,13 @@ def run(
                 aucs, eces, sds, ratios, preds, obs = [], [], [], [], [], []
                 for k in range(curve.shape[1]):
                     m = seen[:, k]
-                    if (
-                        m.sum() < cfg.evaluation.min_rows_per_horizon
-                        or len(np.unique(truth[m, k])) < 2
-                    ):
+                    unit = f"ctx{max_context}/{strategy}/seed{seed}/h{k}"
+                    cov.attempt(unit)
+                    why = horizon_skip_reason(m, truth[:, k], cfg.evaluation.min_rows_per_horizon)
+                    if why is not None:
+                        cov.skip(unit, why)
                         continue
+                    cov.scored(unit)
                     met = evaluate_binary(truth[m, k], curve[m, k])
                     aucs.append(met.roc_auc)
                     eces.append(met.ece)
@@ -306,12 +329,14 @@ def run(
         },
         "split": sp.record() | {"n_train": len(tr), "n_test": len(te)},
         "cells": [asdict(c) for c in cells],
+        "coverage": cov.to_dict(),
         "comparisons": comparisons,
         "comparison_method": (
             "paired bootstrap per horizon, whole companies resampled, n_boot="
             f"{n_boot}; Holm-adjusted across all comparisons in this record"
         ),
     }
+    print(cov.summary("cell-horizons"), flush=True)
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "context_sweep.json").write_text(json.dumps(record, indent=2))
     return record

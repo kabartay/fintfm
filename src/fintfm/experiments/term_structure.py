@@ -38,6 +38,7 @@ import numpy as np
 import torch
 from sklearn.metrics import roc_auc_score
 
+from fintfm.evaluation.coverage import Coverage
 from fintfm.evaluation.metrics import holm_adjusted_p, paired_auc_difference
 from fintfm.modeling.model import FinancialTFM, ModelConfig
 from fintfm.prior import PriorConfig
@@ -193,11 +194,38 @@ def collect_curves(
 
 
 def summarise_curves(
-    arm: str, C: np.ndarray, T: np.ndarray, n_models: int, total_steps: int
+    arm: str,
+    C: np.ndarray,
+    T: np.ndarray,
+    n_models: int,
+    total_steps: int,
+    coverage: Coverage | None = None,
 ) -> ArmResult:
-    """Score one arm's curves: AUC per horizon and the two coherence rates."""
+    """Score one arm's curves: AUC per horizon and the two coherence rates.
+
+    Args:
+        arm: Arm label.
+        C: ``(n, K)`` predicted cumulative-PD curves.
+        T: ``(n, K)`` cumulative-default labels.
+        n_models: Models in the arm.
+        total_steps: Gradient steps across the arm.
+        coverage: Optional :class:`~fintfm.evaluation.coverage.Coverage` to fill, one unit per
+            (arm, horizon) named ``"<arm>/h<k>"``. A horizon whose held-out labels are all one
+            class has no AUC and is skipped with that reason (openspec 36.4).
+
+    Returns:
+        The arm's :class:`ArmResult`.
+    """
     n_horizons = C.shape[1]
     aucs = [_auc_safe(T[:, k], C[:, k]) for k in range(n_horizons)]
+    if coverage is not None:
+        for k, auc in enumerate(aucs):
+            unit = f"{arm}/h{k}"
+            coverage.attempt(unit)
+            if np.isfinite(auc):
+                coverage.scored(unit)
+            else:
+                coverage.skip(unit, "one class in the held-out labels, so AUC is undefined")
     d = np.diff(C, axis=1)
     return ArmResult(
         name=arm,
@@ -302,13 +330,14 @@ def run(
     results: list[ArmResult] = []
     curves: dict[str, np.ndarray] = {}
     truth = tasks = None
+    cov = Coverage()
 
     def score(name: str, models, total: int) -> None:
         nonlocal truth, tasks
         C, truth, tasks = collect_curves(models, batches, device, n_horizons)
         curves[name] = C
         n_models = len(models) if isinstance(models, list) else 1
-        results.append(summarise_curves(name, C, truth, n_models, total))
+        results.append(summarise_curves(name, C, truth, n_models, total, cov))
 
     print(f"joint: 1 model x {steps} steps")
     joint = train_joint(prior, steps, batch_size, device, seed)
@@ -333,10 +362,12 @@ def run(
             "seed": seed,
         },
         "arms": [asdict(r) for r in results],
+        "coverage": cov.to_dict(),
         "comparisons": (
             paired_arm_comparisons(curves, truth, tasks, n_boot=n_boot) if n_boot > 0 else []
         ),
     }
+    print(cov.summary("arm-horizons"), flush=True)
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "term_structure.json").write_text(json.dumps(record, indent=2))
     return record
