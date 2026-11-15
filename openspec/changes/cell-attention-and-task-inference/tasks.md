@@ -230,6 +230,16 @@ none is scoped or scheduled yet. Verify: the label-functional-form experiment is
 ## Added 2026-09-14: deltas from a second external review round, not already covered above
 
 - [ ] 39.20 **Full label-condition matrix**, extending the existing shuffle test (§47/§48).
+      **Progress (2026-11-15): harness built, measured matrix not yet run.**
+      `src/fintfm/experiments/label_conditions.py` scores true, shuffled, inverted, none
+      (constant class-0 label; the model has no label-absent mode) and unrelated-task labels,
+      plus optional `flip_<rate>` noise levels, on identical context features, for the
+      `orientation` and `linear` probes and Bayes-ceiling tasks, with chance, an untrained
+      control and the task ceiling beside every row. Tests: `tests/test_label_conditions.py`
+      (5 pass, tiny untrained model, SMOKE-TEST only). Remaining: the measured matrix on a
+      real checkpoint, `uv run python -m fintfm.experiments.label_conditions --models
+      name=runs/<ckpt>.pt --bayes-targets 0.7,0.9,0.999 --flip-rates 0.1,0.25,0.5 --out
+      runs/label_conditions`, then record it in FINDINGS.md.
       Compare achieved AUC under: correct labels, shuffled labels (have this), inverted
       labels, no labels at all (context features only), and labels drawn from an unrelated
       task. Verify: all five conditions reported side by side on the same context features,
