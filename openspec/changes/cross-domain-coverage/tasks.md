@@ -16,7 +16,7 @@
 - [ ] 38.4 **Strip missingness from the financial generator** and pretrain at §58's
       configuration. Verify: antisymmetric probe and protocol AP both recorded against
       `colid-finbal`; missingness is the cheapest of §62's three remaining candidates.
-- [ ] 38.5 **Test the separability candidate.** Sharpen the financial prior's per-column signal
+- [ ] 38.5 **Progress (2026-11-15): the pretraining half exists. The sharpened financial prior (`configs/sharp-financial.yaml`, raw AUC 0.8885 against the SCM prior's 0.8306 as measured in §65, not the 0.911 named below) was pretrained and its antisymmetric probe recorded at 0.5861, against 0.5352 for the default envelope and 0.5669 for the balanced arm (§65); §76 adds its Bayes-ceiling row (0.667 at target 0.900, 0.733 at 0.999, no cap relief). The identities were left unchanged. Not met: no protocol AP on V4FinBench against `colid-finbal` (0.1900, §62) was located for the sharpened arm. Left open.** **Test the separability candidate.** Sharpen the financial prior's per-column signal
       toward the SCM prior's 0.911 without changing its identities. Verify: as 38.4.
 - [ ] 38.6 **Test the correlation candidate.** Verify: as 38.4, with the caveat recorded that
       weakening the accounting identities makes it progressively less a financial prior — if
@@ -39,7 +39,7 @@
       and leaves -0.14 to -0.17 AP against all three tuned boosters, still significant. So the
       §69 gap was *partly* configurational (now fixed, +0.031 AP recovered) and remains mostly
       real: the boosters are not caught by inference-side fixes alone.
-- [ ] 38.13 **Chase why retrieval hurts here.** §70 found retrieval alone drops AP by 0.133,
+- [ ] 38.13 **Progress (2026-11-15): partly isolated in §194 (fold 0, `scripts/retrieval_plan_diag.py`, commit 981d13c), on the full panel and the published checkpoint rather than the 63,588-row subsample: `retrieval_min_positive=8` is not the mechanism (no group sits at the floor); contexts hold 9.74% defaults against the pool's 0.3546%, the same 540 of 2,128 positives recur across 136 groups, and within-group ROC-AUC is 0.8688 against 0.9886 for the default. Why the same positives sit near every centroid is stated there as not measured. Not met: no fix was attempted, and the Verify's re-measure against `n_ensemble` + `max_context` alone, or an explicit regime-dependent record, is not in a finding. Left open.** **Chase why retrieval hurts here.** §70 found retrieval alone drops AP by 0.133,
       opposite the +0.066 to +0.095 AUC gain §32 measured on this same protocol. Not yet
       isolated: candidate mechanism is retrieval's per-group logit correction or
       `retrieval_min_positive=8` behaving differently at 79 positives across 63,588 rows than
@@ -76,7 +76,7 @@
       constructed probe. **Gates any further identity-shuffle work** — building a production
       variant on a mechanism this poorly understood would repeat the §47/§54 pattern of
       shipping a fix whose side effects were not characterised.
-- [ ] 38.15 **Explain §74's capacity cap.** Training predominantly on the financial prior caps
+- [ ] 38.15 **Progress (2026-11-15): §76 bisected four content axes on the exact §74 Bayes-ceiling probe with existing checkpoints (base rate, raw SNR, features against label mechanism, accounting identities), and none closes the cap (0.728 to 0.755 at target 0.999, against fin00's 0.997). Not met: the label functional form (named in §76 as the untested candidate), the cross-entropy and MNAR-missingness candidates are untested, no new checkpoint was trained with one candidate varied, and §76's own status line says the task is not closed. Left open.** **Explain §74's capacity cap.** Training predominantly on the financial prior caps
       basic signal extraction at ~0.73 AUC regardless of true task difficulty, on a probe with
       no column-identity structure at all; the identical architecture under the generic SCM
       prior tracks the true Bayes curve almost exactly. Candidates, none yet tested: effective
