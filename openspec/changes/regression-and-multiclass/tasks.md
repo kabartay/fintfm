@@ -8,7 +8,7 @@
       **Done (§99):** clears the control at every K — +0.261/+0.267/+0.157 macro OvR AUC at
       K=3/5/10 — while the control sits at chance. The deficit to multinomial logistic
       regression is large and widens with K, which is §96's shape, not a new problem.
-- [ ] 46.2 **Measure what multiclass training costs binary credit accuracy.** At 885K
+- [ ] 46.2 **Progress (2026-11-15): partial evidence only. `FINDINGS` §105 (TabArena binary slice) finds no measurable cost and says it does not close this task; §158/§160 give a V4FinBench five-fold comparison of a no-change `max_classes 10` control against the `max_classes 2` control (-0.0082 mean AP, 5 of 5 folds negative, financial-only prior, so head size rather than a multiclass mixture). Missing: a paired bootstrap and a `--max-classes 2` checkpoint matched on the multiclass prior mixture. Left open.** **Measure what multiclass training costs binary credit accuracy.** At 885K
       parameters, capacity spent on 10-class structure is capacity not spent on the binary
       task, and §73/§75 suggest broader training may help rather than hurt. Verify: V4FinBench
       five folds with paired bootstrap against a `--max-classes 2` checkpoint matched on prior
