@@ -25,10 +25,8 @@ from pathlib import Path
 # v4: pin to the DR5.5 fix (fp16 cell-stage heads padded to a fused-kernel width) once it is
 # pushed; v1-v3 ran b2b836e. The placeholder refuses to run rather than install a wrong ref.
 COMMIT = "49f415c"  # DR5.5 fix
-RECIPE_URL = (
-    f"https://raw.githubusercontent.com/kabartay/fintfm/{COMMIT}/"
-    "configs/published/v4-cellattn-labels.yaml"
-)
+RECIPE_URL = (f"https://raw.githubusercontent.com/kabartay/fintfm/{COMMIT}/"
+              "configs/published/v4-cellattn-labels.yaml")
 OUT = Path("/kaggle/working/e0")
 
 ARMS = [
@@ -83,12 +81,9 @@ def agreement(recipe: Path) -> dict:
         model = FinancialTFM(cfg).cuda().eval()
         model.feature_chunk = 4
         for amp in ("fp32", "fp16"):
-            with (
-                torch.no_grad(),
-                torch.autocast("cuda", dtype=torch.float16, enabled=amp == "fp16"),
-            ):
+            with torch.no_grad(), torch.autocast("cuda", dtype=torch.float16, enabled=amp == "fp16"):
                 logits = model(X, y, batch.n_ctx, nc, column_id_seed=0).float()
-            q = logits[:, batch.n_ctx :]
+            q = logits[:, batch.n_ctx:]
             q = torch.where(torch.isfinite(q), q, torch.zeros_like(q))
             if ref is None:
                 ref = q
@@ -100,29 +95,16 @@ def main() -> None:
     """Time each throughput arm on the session's GPUs, then check the arms agree numerically."""
     OUT.mkdir(parents=True, exist_ok=True)
     # ask nvidia-smi, not torch: initialising CUDA here would hold GPU 0 memory for the run
-    smi = subprocess.run(
-        ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    smi = subprocess.run(["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+                         capture_output=True, text=True, check=False)
     names = [n.strip() for n in smi.stdout.splitlines() if n.strip()]
     if smi.returncode != 0 or not names:
         sys.exit("no GPU in this session (quota exhausted?) -- refusing a CPU run")
     print(f"GPUs: {names}; CPUs: {os.cpu_count()}", flush=True)
     if COMMIT.startswith("<"):
         sys.exit("COMMIT is still a placeholder: pin it to the pushed DR5.5 fix first")
-    subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "pip",
-            "install",
-            "--quiet",
-            f"fintfm @ git+https://github.com/kabartay/fintfm.git@{COMMIT}",
-        ],
-        check=True,
-    )
+    subprocess.run([sys.executable, "-m", "pip", "install", "--quiet",
+                    f"fintfm @ git+https://github.com/kabartay/fintfm.git@{COMMIT}"], check=True)
     recipe = OUT / "v4-cellattn-labels.yaml"
     urllib.request.urlretrieve(RECIPE_URL, recipe)
 
@@ -132,19 +114,8 @@ def main() -> None:
     # until the arms are done, and the check runs last in its own process.
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
-    base = [
-        sys.executable,
-        "-m",
-        "fintfm.modeling.train",
-        "--config",
-        str(recipe),
-        "--device",
-        "cuda",
-        "--benchmark-steps",
-        "50",
-        "--out",
-        str(OUT / "unused.pt"),
-    ]
+    base = [sys.executable, "-m", "fintfm.modeling.train", "--config", str(recipe),
+            "--device", "cuda", "--benchmark-steps", "50", "--out", str(OUT / "unused.pt")]
     results = {}
     for name, extra in ARMS:
         log = OUT / f"{name}.log"
@@ -157,51 +128,22 @@ def main() -> None:
             chunk = 4
             rc = sh(base + extra + ["--feature-chunk", "4"], log)
         lines = [ln for ln in log.read_text().splitlines() if ln.startswith("{")]
-        results[name] = {
-            "exit": rc,
-            "feature_chunk": chunk,
-            "result": json.loads(lines[-1]) if lines else None,
-        }
+        results[name] = {"exit": rc, "feature_chunk": chunk,
+                         "result": json.loads(lines[-1]) if lines else None}
     summary["arms"] = results
 
     if len(names) >= 2:
-        ddp = [
-            sys.executable,
-            "-m",
-            "torch.distributed.run",
-            "--standalone",
-            "--nproc-per-node",
-            "2",
-            "-m",
-            "fintfm.modeling.train",
-            "--config",
-            str(recipe),
-            "--device",
-            "cuda",
-            "--attn-impl",
-            "split",
-            "--loader",
-            "stream",
-            "--loader-workers",
-            "1",
-            "--ddp",
-            "--steps",
-            "20",
-            "--log-every",
-            "5",
-            "--eval-every",
-            "1000",
-            "--checkpoint-every",
-            "10",
-            "--out",
-            str(OUT / "ddp_smoke.pt"),
-        ]
+        ddp = [sys.executable, "-m", "torch.distributed.run", "--standalone", "--nproc-per-node",
+               "2", "-m", "fintfm.modeling.train", "--config", str(recipe), "--device", "cuda",
+               "--attn-impl", "split", "--loader", "stream",
+               "--loader-workers", "1", "--ddp",
+               "--steps", "20", "--log-every", "5",
+               "--eval-every", "1000", "--checkpoint-every", "10",
+               "--out", str(OUT / "ddp_smoke.pt")]
         summary["ddp_smoke_exit"] = sh(ddp, OUT / "ddp_smoke.log")
 
     check = OUT / "agreement.json"
-    rc = sh(
-        [sys.executable, __file__, "--agreement", str(recipe), str(check)], OUT / "agreement.log"
-    )
+    rc = sh([sys.executable, __file__, "--agreement", str(recipe), str(check)], OUT / "agreement.log")
     summary["agreement_exit"] = rc
     if check.exists():
         summary["agreement_max_abs_logit_diff"] = json.loads(check.read_text())

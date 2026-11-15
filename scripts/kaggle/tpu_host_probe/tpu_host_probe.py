@@ -31,11 +31,8 @@ def host_facts() -> None:
     meminfo = Path("/proc/meminfo").read_text().splitlines()
     print(next(line for line in meminfo if line.startswith("MemTotal")), flush=True)
     print(next(line for line in meminfo if line.startswith("MemAvailable")), flush=True)
-    model = [
-        line
-        for line in Path("/proc/cpuinfo").read_text().splitlines()
-        if line.startswith("model name")
-    ]
+    model = [line for line in Path("/proc/cpuinfo").read_text().splitlines()
+             if line.startswith("model name")]
     print(f"cpu model: {model[0] if model else platform.processor()}", flush=True)
 
 
@@ -44,21 +41,11 @@ def time_slice(root: Path, ckpt: Path, threads: int) -> None:
     import torch
 
     from fintfm.experiments.v4_protocol import run, summarise
-
     torch.set_num_threads(threads)
     out = Path(f"/kaggle/working/slice_t{threads}")
     t0 = time.perf_counter()
-    record = run(
-        str(ckpt),
-        out,
-        horizon=0,
-        folds=(0,),
-        max_rows=MAX_ROWS,
-        root=root,
-        with_boosting=False,
-        classical=("logistic_regression",),
-        device="cpu",
-    )
+    record = run(str(ckpt), out, horizon=0, folds=(0,), max_rows=MAX_ROWS, root=root,
+                 with_boosting=False, classical=("logistic_regression",), device="cpu")
     wall = time.perf_counter() - t0
     print(summarise(record), flush=True)
     print(f"threads {threads}: wall {wall:.1f} s for the {MAX_ROWS:,}-row slice", flush=True)
@@ -71,19 +58,9 @@ def main() -> None:
     if len(hits) != 1:
         sys.exit(f"expected one company_years_h1.parquet under /kaggle/input, found {hits}")
     root = hits[0].parent
-    subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "pip",
-            "install",
-            "--quiet",
-            f"fintfm @ git+https://github.com/kabartay/fintfm.git@{COMMIT}",
-        ],
-        check=True,
-    )
+    subprocess.run([sys.executable, "-m", "pip", "install", "--quiet",
+                    f"fintfm @ git+https://github.com/kabartay/fintfm.git@{COMMIT}"], check=True)
     import torch
-
     print(f"torch {torch.__version__}; default threads {torch.get_num_threads()}", flush=True)
     ckpt = Path("/kaggle/working/v4-cellattn-labels.pt")
     urllib.request.urlretrieve(CKPT_URL, ckpt)

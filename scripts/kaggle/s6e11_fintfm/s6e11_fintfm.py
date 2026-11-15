@@ -41,31 +41,17 @@ def load():
     y = train.pop(TARGET).to_numpy().astype(int)
     both = pd.concat([train, test], keys=["train", "test"])
     ids = both.pop("id")
-    cats = [
-        c for c in both.columns if both[c].dtype == object or str(both[c].dtype).startswith("str")
-    ]
+    cats = [c for c in both.columns if both[c].dtype == object or str(both[c].dtype).startswith("str")]
     both = pd.get_dummies(both, columns=cats, dtype=np.float32).astype(np.float32)
     X, Xt = both.loc["train"].to_numpy(), both.loc["test"].to_numpy()
-    print(
-        f"train {X.shape}, test {Xt.shape}, positive rate {y.mean():.4f}, one-hot from {cats}",
-        flush=True,
-    )
+    print(f"train {X.shape}, test {Xt.shape}, positive rate {y.mean():.4f}, one-hot from {cats}", flush=True)
     return X, y, Xt, ids.loc["test"].to_numpy()
 
 
 def main() -> None:
     """Score LightGBM and both FinTFM arms on a holdout, then write each arm's submission."""
-    subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "pip",
-            "install",
-            "--quiet",
-            "fintfm @ git+https://github.com/kabartay/fintfm.git@4ad16a8",
-        ],
-        check=True,
-    )
+    subprocess.run([sys.executable, "-m", "pip", "install", "--quiet",
+                    "fintfm @ git+https://github.com/kabartay/fintfm.git@4ad16a8"], check=True)
     import pandas as pd
     from sklearn.metrics import average_precision_score, roc_auc_score
     from sklearn.model_selection import train_test_split
@@ -101,24 +87,17 @@ def main() -> None:
     for name, make in arms.items():
         t0 = time.time()
         p = make().fit(Xa, ya).predict_proba(Xh)[:, 1]
-        results[name] = {
-            "holdout_roc_auc": float(roc_auc_score(yh, p)),
-            "holdout_ap": float(average_precision_score(yh, p)),
-            "holdout_mean_pred": float(p.mean()),
-            "holdout_rate": float(yh.mean()),
-            "holdout_seconds": round(time.time() - t0),
-        }
+        results[name] = {"holdout_roc_auc": float(roc_auc_score(yh, p)),
+                         "holdout_ap": float(average_precision_score(yh, p)),
+                         "holdout_mean_pred": float(p.mean()), "holdout_rate": float(yh.mean()),
+                         "holdout_seconds": round(time.time() - t0)}
         print(name, results[name], flush=True)
         t0 = time.time()
         pt = make().fit(X, y).predict_proba(Xt)[:, 1]
         results[name]["test_seconds"] = round(time.time() - t0)
-        pd.DataFrame({"id": test_ids, TARGET: pt}).to_csv(
-            OUT / f"submission_{name}.csv", index=False
-        )
+        pd.DataFrame({"id": test_ids, TARGET: pt}).to_csv(OUT / f"submission_{name}.csv", index=False)
         (OUT / "results.json").write_text(json.dumps(results, indent=1))
-        print(
-            f"{name}: wrote submission_{name}.csv ({results[name]['test_seconds']} s)", flush=True
-        )
+        print(f"{name}: wrote submission_{name}.csv ({results[name]['test_seconds']} s)", flush=True)
     ckpt.unlink()
     print("done", flush=True)
 

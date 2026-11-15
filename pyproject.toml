@@ -123,5 +123,11 @@ build-backend = "uv_build"
 line-length = 100
 target-version = "py313"
 
+[tool.ruff.format]
+# Kaggle kernel directories hold files written by scripts/kaggle/make_*_kernels.py (and
+# kernels pinned to a commit); tests compare them byte for byte with the generator output,
+# so the formatter must leave them as generated.
+exclude = ["scripts/kaggle/*/*.py"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -34,16 +34,10 @@ def run(cmd: list[str]) -> None:
 def main() -> None:
     """Install the pinned fintfm, run the pretraining recipe once and save its checkpoint."""
     # Pinned to the commit that fixed warmup_steps never being wired to AdamWScheduleFree.
-    run(
-        [
-            sys.executable,
-            "-m",
-            "pip",
-            "install",
-            "--quiet",
-            "fintfm[schedulefree] @ git+https://github.com/kabartay/fintfm.git@c8c3027",
-        ]
-    )
+    run([
+        sys.executable, "-m", "pip", "install", "--quiet",
+        "fintfm[schedulefree] @ git+https://github.com/kabartay/fintfm.git@c8c3027",
+    ])
 
     import torch
 
@@ -56,56 +50,32 @@ def main() -> None:
         sys.exit("no GPU in this session (quota exhausted?) -- refusing a CPU run")
     device = "cuda"
 
-    run(
-        [
-            sys.executable,
-            "-u",
-            "-m",
-            "fintfm.modeling.train",
-            "--steps",
-            "6000",
-            "--batch-size",
-            "8",
-            "--n-rows-choices",
-            "256,512,1024",
-            "--d-cell",
-            "48",
-            "--d-model",
-            "128",
-            "--n-layers",
-            "4",
-            "--n-col-layers",
-            "2",
-            "--n-cell-blocks",
-            "1",
-            "--cell-labels",
-            "--column-id-dim",
-            "16",
-            "--feature-chunk",
-            "8",
-            "--max-features",
-            "136",
-            # The control (v4-cellattn-labels.pt) has max_classes=2; the CLI default is 10, and
-            # every earlier Kaggle ablation inherited that default unnoticed (Section 158), which
-            # changes the head and the init RNG stream. Pinned explicitly so this run is matched.
-            "--max-classes",
-            "2",
-            "--p-financial",
-            "1.0",
-            "--seed",
-            "0",
-            "--device",
-            device,
-            "--checkpoint-every",
-            "500",
-            "--optimizer",
-            "schedulefree",
-            "--lr",
-            "0.0025",
-            "--out",
-            "/kaggle/working/v4-cellattn-schedulefree-retuned48_9.pt",
-        ]
-    )
+    run([
+        sys.executable, "-u", "-m", "fintfm.modeling.train",
+        "--steps", "6000",
+        "--batch-size", "8",
+        "--n-rows-choices", "256,512,1024",
+        "--d-cell", "48",
+        "--d-model", "128",
+        "--n-layers", "4",
+        "--n-col-layers", "2",
+        "--n-cell-blocks", "1",
+        "--cell-labels",
+        "--column-id-dim", "16",
+        "--feature-chunk", "8",
+        "--max-features", "136",
+        # The control (v4-cellattn-labels.pt) has max_classes=2; the CLI default is 10, and
+        # every earlier Kaggle ablation inherited that default unnoticed (Section 158), which
+        # changes the head and the init RNG stream. Pinned explicitly so this run is matched.
+        "--max-classes", "2",
+        "--p-financial", "1.0",
+        "--seed", "0",
+        "--device", device,
+        "--checkpoint-every", "500",
+        "--optimizer", "schedulefree",
+        "--lr", "0.0025",
+        "--out", "/kaggle/working/v4-cellattn-schedulefree-retuned48_9.pt",
+    ])
 
     print("done")
 

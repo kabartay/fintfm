@@ -32,19 +32,9 @@ def main() -> None:
         sys.exit(f"expected one company_years_h1.parquet under /kaggle/input, found {hits}")
     root = hits[0].parent
     print(f"data: {root}", flush=True)
-    subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "pip",
-            "install",
-            "--quiet",
-            "fintfm @ git+https://github.com/kabartay/fintfm.git@352e70d",
-        ],
-        check=True,
-    )
+    subprocess.run([sys.executable, "-m", "pip", "install", "--quiet",
+                    "fintfm @ git+https://github.com/kabartay/fintfm.git@352e70d"], check=True)
     import torch
-
     print(f"torch {torch.__version__}, CUDA available: {torch.cuda.is_available()}", flush=True)
     if not torch.cuda.is_available():
         sys.exit("no GPU in this session (quota exhausted?) -- refusing a CPU run")
@@ -57,19 +47,9 @@ def main() -> None:
     cfg_path.write_text(CONFIG)
     from fintfm.config import load_config
     from fintfm.experiments.v4_protocol import run, summarise
-
-    record = run(
-        str(ckpt),
-        Path("/kaggle/working/NOOP"),
-        horizon=0,
-        folds=(0, 1, 2, 3, 4),
-        root=root,
-        with_boosting=False,
-        classical=("logistic_regression",),
-        cfg=load_config(cfg_path),
-        device="cuda",
-        drop_columns=("operational_status",),
-    )
+    record = run(str(ckpt), Path("/kaggle/working/NOOP"), horizon=0, folds=(0, 1, 2, 3, 4),
+                 root=root, with_boosting=False, classical=("logistic_regression",),
+                 cfg=load_config(cfg_path), device="cuda", drop_columns=("operational_status",))
     print(summarise(record), flush=True)
     ckpt.unlink()  # the public file; no need to ship it back
     print("done")

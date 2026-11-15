@@ -29,16 +29,10 @@ def main() -> None:
     # Pinned to the commit that added the --discretize-frac/--n-noise-features/
     # --n-correlated-block-features/--label-noise-rate flags, which postdate the 0.5.6
     # PyPI release used by every other kernel in this directory.
-    run(
-        [
-            sys.executable,
-            "-m",
-            "pip",
-            "install",
-            "--quiet",
-            "git+https://github.com/kabartay/fintfm.git@5c7b359",
-        ]
-    )
+    run([
+        sys.executable, "-m", "pip", "install", "--quiet",
+        "git+https://github.com/kabartay/fintfm.git@5c7b359",
+    ])
 
     import torch
 
@@ -47,55 +41,30 @@ def main() -> None:
         print(f"device: {torch.cuda.get_device_name(0)}")
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    run(
-        [
-            sys.executable,
-            "-u",
-            "-m",
-            "fintfm.modeling.train",
-            "--steps",
-            "6000",
-            "--batch-size",
-            "8",
-            "--n-rows-choices",
-            "256,512,1024",
-            "--d-cell",
-            "48",
-            "--d-model",
-            "128",
-            "--n-layers",
-            "4",
-            "--n-col-layers",
-            "2",
-            "--n-cell-blocks",
-            "1",
-            "--cell-labels",
-            "--column-id-dim",
-            "16",
-            "--feature-chunk",
-            "8",
-            "--max-features",
-            "136",
-            "--p-financial",
-            "1.0",
-            "--seed",
-            "0",
-            "--device",
-            device,
-            "--checkpoint-every",
-            "500",
-            "--discretize-frac",
-            "0.2",
-            "--n-noise-features",
-            "5",
-            "--n-correlated-block-features",
-            "3",
-            "--label-noise-rate",
-            "0.02",
-            "--out",
-            "/kaggle/working/v4-cellattn-realism48_6.pt",
-        ]
-    )
+    run([
+        sys.executable, "-u", "-m", "fintfm.modeling.train",
+        "--steps", "6000",
+        "--batch-size", "8",
+        "--n-rows-choices", "256,512,1024",
+        "--d-cell", "48",
+        "--d-model", "128",
+        "--n-layers", "4",
+        "--n-col-layers", "2",
+        "--n-cell-blocks", "1",
+        "--cell-labels",
+        "--column-id-dim", "16",
+        "--feature-chunk", "8",
+        "--max-features", "136",
+        "--p-financial", "1.0",
+        "--seed", "0",
+        "--device", device,
+        "--checkpoint-every", "500",
+        "--discretize-frac", "0.2",
+        "--n-noise-features", "5",
+        "--n-correlated-block-features", "3",
+        "--label-noise-rate", "0.02",
+        "--out", "/kaggle/working/v4-cellattn-realism48_6.pt",
+    ])
 
     print("done")
 

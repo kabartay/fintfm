@@ -18,29 +18,11 @@ from pathlib import Path
 
 COMMIT = "6916a89"
 ARM = "dr62-induced-s0"
-ARM_FLAGS: list[str] = [
-    "--amp",
-    "fp16",
-    "--attn-impl",
-    "split",
-    "--loader",
-    "stream",
-    "--ddp",
-    "--batch-size",
-    "4",
-    "--seed",
-    "0",
-    "--steps",
-    "6000",
-    "--cell-row-attn",
-    "induced",
-]
+ARM_FLAGS: list[str] = ["--amp", "fp16", "--attn-impl", "split", "--loader", "stream", "--ddp", "--batch-size", "4", "--seed", "0", "--steps", "6000", "--cell-row-attn", "induced"]
 DDP = True
 SCORE_PARTITION = False
-RECIPE_URL = (
-    f"https://raw.githubusercontent.com/kabartay/fintfm/{COMMIT}/"
-    "configs/published/v4-cellattn-labels.yaml"
-)
+RECIPE_URL = (f"https://raw.githubusercontent.com/kabartay/fintfm/{COMMIT}/"
+              "configs/published/v4-cellattn-labels.yaml")
 
 
 def main() -> None:
@@ -49,26 +31,13 @@ def main() -> None:
     if len(hits) != 1:
         sys.exit(f"expected one company_years_h1.parquet under /kaggle/input, found {hits}")
     root = hits[0].parent
-    smi = subprocess.run(
-        ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    smi = subprocess.run(["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+                         capture_output=True, text=True, check=False)
     if smi.returncode != 0 or not smi.stdout.strip():
         sys.exit("no GPU in this session (quota exhausted?) -- refusing a CPU run")
     print(f"GPUs: {smi.stdout.strip()}; data: {root}", flush=True)
-    subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "pip",
-            "install",
-            "--quiet",
-            f"fintfm @ git+https://github.com/kabartay/fintfm.git@{COMMIT}",
-        ],
-        check=True,
-    )
+    subprocess.run([sys.executable, "-m", "pip", "install", "--quiet",
+                    f"fintfm @ git+https://github.com/kabartay/fintfm.git@{COMMIT}"], check=True)
     out = Path("/kaggle/working") / ARM
     out.mkdir(parents=True, exist_ok=True)
     recipe = out / "recipe.yaml"
@@ -76,29 +45,10 @@ def main() -> None:
     ckpt = out / f"{ARM}.pt"
     launcher = [sys.executable, "-u", "-m", "fintfm.modeling.train"]
     if DDP:
-        launcher = [
-            sys.executable,
-            "-u",
-            "-m",
-            "torch.distributed.run",
-            "--standalone",
-            "--nproc-per-node",
-            "2",
-            "-m",
-            "fintfm.modeling.train",
-        ]
-    train = [
-        *launcher,
-        "--config",
-        str(recipe),
-        "--device",
-        "cuda",
-        "--checkpoint-every",
-        "1000",
-        "--out",
-        str(ckpt),
-        *ARM_FLAGS,
-    ]
+        launcher = [sys.executable, "-u", "-m", "torch.distributed.run", "--standalone",
+                    "--nproc-per-node", "2", "-m", "fintfm.modeling.train"]
+    train = [*launcher, "--config", str(recipe), "--device", "cuda",
+             "--checkpoint-every", "1000", "--out", str(ckpt), *ARM_FLAGS]
     print("$ " + " ".join(train), flush=True)
     with (out / "train.log").open("w") as log:
         rc = subprocess.run(train, stdout=log, stderr=subprocess.STDOUT, check=False).returncode
@@ -113,32 +63,15 @@ def main() -> None:
     score_cfg = out / "score.yaml"
     score_cfg.write_text("inference:\n  query_chunk: 512\n  feature_chunk: 8\n")
     cfg = load_config(score_cfg)
-    record = run(
-        str(ckpt),
-        out / "score",
-        horizon=0,
-        folds=(0, 1, 2, 3, 4),
-        root=root,
-        with_boosting=False,
-        classical=("logistic_regression",),
-        cfg=cfg,
-        device="cuda",
-    )
+    record = run(str(ckpt), out / "score", horizon=0, folds=(0, 1, 2, 3, 4), root=root,
+                 with_boosting=False, classical=("logistic_regression",), cfg=cfg, device="cuda")
     print(summarise(record), flush=True)
     if SCORE_PARTITION:
         part_cfg = out / "score_partition.yaml"
         part_cfg.write_text(score_cfg.read_text() + "large_n:\n  method: partition\n")
-        record = run(
-            str(ckpt),
-            out / "score_partition",
-            horizon=0,
-            folds=(0, 1, 2, 3, 4),
-            root=root,
-            with_boosting=False,
-            classical=("logistic_regression",),
-            cfg=load_config(part_cfg),
-            device="cuda",
-        )
+        record = run(str(ckpt), out / "score_partition", horizon=0, folds=(0, 1, 2, 3, 4),
+                     root=root, with_boosting=False, classical=("logistic_regression",),
+                     cfg=load_config(part_cfg), device="cuda")
         print(summarise(record), flush=True)
     for p in out.glob(f"{ARM}.pt.step*"):
         p.unlink()  # keep the final checkpoint only

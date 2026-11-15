@@ -38,32 +38,14 @@ def main() -> None:
         sys.exit(f"expected one company_years_h1.parquet under /kaggle/input, found {hits}")
     root = hits[0].parent
     print(f"data: {root}", flush=True)
-    subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "pip",
-            "install",
-            "--quiet",
-            f"fintfm[bench] @ git+https://github.com/kabartay/fintfm.git@{COMMIT}",
-        ],
-        check=True,
-    )
+    subprocess.run([sys.executable, "-m", "pip", "install", "--quiet",
+                    f"fintfm[bench] @ git+https://github.com/kabartay/fintfm.git@{COMMIT}"],
+                   check=True)
     from fintfm.config import load_config
     from fintfm.experiments.v4_protocol import run, summarise
-
-    record = run(
-        None,
-        Path("/kaggle/working/AU41"),
-        horizon=0,
-        folds=(0, 1, 2, 3, 4),
-        root=root,
-        with_boosting=False,
-        classical=(),
-        booster_params=BOOSTER_PARAMS,
-        cfg=load_config(),
-        device="cpu",
-    )
+    record = run(None, Path("/kaggle/working/AU41"), horizon=0, folds=(0, 1, 2, 3, 4),
+                 root=root, with_boosting=False, classical=(),
+                 booster_params=BOOSTER_PARAMS, cfg=load_config(), device="cpu")
     print(summarise(record), flush=True)
     print("done")
 

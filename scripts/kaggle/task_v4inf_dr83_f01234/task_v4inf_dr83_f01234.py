@@ -78,17 +78,8 @@ def score(root: Path, ckpt: Path, out_dir: Path, folds: tuple[int, ...]) -> floa
     cfg_path = out_dir.with_suffix(".yaml")
     cfg_path.write_text(CONFIG)
     start = time.time()
-    record = run(
-        str(ckpt),
-        out_dir,
-        horizon=0,
-        folds=folds,
-        root=root,
-        with_boosting=False,
-        classical=("logistic_regression",),
-        cfg=load_config(cfg_path),
-        device="cuda",
-    )
+    record = run(str(ckpt), out_dir, horizon=0, folds=folds, root=root, with_boosting=False,
+                 classical=("logistic_regression",), cfg=load_config(cfg_path), device="cuda")
     seconds = time.time() - start
     print(summarise(record), flush=True)
     print(f"folds {folds}: {seconds:.0f} s", flush=True)
@@ -106,17 +97,8 @@ def main() -> None:
     if digest != CKPT_SHA256:
         sys.exit(f"checkpoint hash {digest} != {CKPT_SHA256}")
     print(f"data: {root}; checkpoint: {ckpt}", flush=True)
-    subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "pip",
-            "install",
-            "--quiet",
-            f"fintfm @ git+https://github.com/kabartay/fintfm.git@{COMMIT}",
-        ],
-        check=True,
-    )
+    subprocess.run([sys.executable, "-m", "pip", "install", "--quiet",
+                    f"fintfm @ git+https://github.com/kabartay/fintfm.git@{COMMIT}"], check=True)
     import torch
 
     if not torch.cuda.is_available():
@@ -136,17 +118,9 @@ def main() -> None:
     f0 = score(root, ckpt, out / "f0", (0,))
     limit = STEP0_FACTOR * CONTROL_FOLD_S
     passed = f0 <= limit
-    (out / "timing.json").write_text(
-        json.dumps(
-            {
-                "fold0_seconds": f0,
-                "control_fold_seconds": CONTROL_FOLD_S,
-                "limit_seconds": limit,
-                "step0_passed": passed,
-            },
-            indent=1,
-        )
-    )
+    (out / "timing.json").write_text(json.dumps(
+        {"fold0_seconds": f0, "control_fold_seconds": CONTROL_FOLD_S, "limit_seconds": limit,
+         "step0_passed": passed}, indent=1))
     if not passed:
         print(f"Step 0 FAILED: fold 0 took {f0:.0f} s > {limit:.0f} s; folds 1-4 not scored")
         return

@@ -21,13 +21,10 @@ def find_panel() -> Path:
     """The one ``panel.parquet`` of this arm's dataset; exactly one, so no wrong source."""
     # Kaggle has mounted datasets at more than one depth under /kaggle/input; search rather than
     # trust one layout, and require exactly one match so the wrong source cannot be picked up.
-    hits = sorted(
-        p for p in Path("/kaggle/input").rglob("sba/panel.parquet") if "fintfm-r-panels" in str(p)
-    )
+    hits = sorted(p for p in Path("/kaggle/input").rglob("sba/panel.parquet")
+                  if "fintfm-r-panels" in str(p))
     if len(hits) != 1:
-        sys.exit(
-            f"expected one fintfm-r-panels/sba/panel.parquet under /kaggle/input, found {hits}"
-        )
+        sys.exit(f"expected one fintfm-r-panels/sba/panel.parquet under /kaggle/input, found {hits}")
     print(f"panel: {hits[0]}", flush=True)
     return hits[0]
 
@@ -35,69 +32,24 @@ def find_panel() -> Path:
 def main() -> None:
     """Install the pinned package, then train the arm from scratch with its real-panel share."""
     panel = find_panel()
-    run(
-        [
-            sys.executable,
-            "-m",
-            "pip",
-            "install",
-            "--quiet",
-            "fintfm[real] @ git+https://github.com/kabartay/fintfm.git@d03af3d",
-        ]
-    )
+    run([sys.executable, "-m", "pip", "install", "--quiet",
+         "fintfm[real] @ git+https://github.com/kabartay/fintfm.git@d03af3d"])
     import torch
-
     print(f"torch {torch.__version__}, CUDA available: {torch.cuda.is_available()}", flush=True)
     if not torch.cuda.is_available():
         # An exhausted GPU quota runs the kernel on CPU, where 6,000 steps cannot finish in a
         # session; stopping here costs nothing.
         sys.exit("no GPU in this session (quota exhausted?) -- refusing a CPU run")
     device = "cuda"
-    run(
-        [
-            sys.executable,
-            "-u",
-            "-m",
-            "fintfm.modeling.train",
-            "--steps",
-            "6000",
-            "--batch-size",
-            "8",
-            "--n-rows-choices",
-            "256,512,1024",
-            "--d-cell",
-            "48",
-            "--d-model",
-            "128",
-            "--n-layers",
-            "4",
-            "--n-col-layers",
-            "2",
-            "--n-cell-blocks",
-            "1",
-            "--cell-labels",
-            "--column-id-dim",
-            "16",
-            "--feature-chunk",
-            "8",
-            "--max-features",
-            "136",
-            "--max-classes",
-            "10",
-            "--p-financial",
-            "1.0",
-            "--seed",
-            "0",
-            "--device",
-            device,
-            "--checkpoint-every",
-            "500",
-            "--real-panels",
-            f"{panel}=0.3",
-            "--out",
-            "/kaggle/working/fintfm-r-sba-s0.pt",
-        ]
-    )
+    run([sys.executable, "-u", "-m", "fintfm.modeling.train",
+         "--steps", "6000", "--batch-size", "8", "--n-rows-choices", "256,512,1024",
+         "--d-cell", "48", "--d-model", "128", "--n-layers", "4", "--n-col-layers", "2",
+         "--n-cell-blocks", "1", "--cell-labels", "--column-id-dim", "16",
+         "--feature-chunk", "8", "--max-features", "136", "--max-classes", "10",
+         "--p-financial", "1.0", "--seed", "0", "--device", device,
+         "--checkpoint-every", "500",
+         "--real-panels", f"{panel}=0.3",
+         "--out", "/kaggle/working/fintfm-r-sba-s0.pt"])
     print("done")
 
 

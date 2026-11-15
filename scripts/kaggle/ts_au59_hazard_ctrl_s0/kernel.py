@@ -14,79 +14,30 @@ from pathlib import Path
 
 COMMIT = "e89def2"
 ARM = "au59-hazard-ctrl-s0"
-ARM_FLAGS = [
-    "--amp",
-    "fp16",
-    "--attn-impl",
-    "split",
-    "--loader",
-    "stream",
-    "--ddp",
-    "--batch-size",
-    "4",
-    "--seed",
-    "0",
-    "--steps",
-    "6000",
-    "--n-horizons",
-    "6",
-]
-RECIPE_URL = (
-    "https://raw.githubusercontent.com/kabartay/fintfm/"
-    + COMMIT
-    + "/configs/arms/au59-hazard-ctrl.yaml"
-)
+ARM_FLAGS = ['--amp', 'fp16', '--attn-impl', 'split', '--loader', 'stream', '--ddp', '--batch-size', '4', '--seed', '0', '--steps', '6000', '--n-horizons', '6']
+RECIPE_URL = ("https://raw.githubusercontent.com/kabartay/fintfm/" + COMMIT
+              + "/configs/arms/au59-hazard-ctrl.yaml")
 
 
 def main() -> None:
     """Refuse an unpinned or CPU run, install the pinned package, pretrain, then probe."""
     if COMMIT == "UNPINNED":
         sys.exit("kernel is not pinned: regenerate with make_au59_kernels.py --commit <pushed sha>")
-    smi = subprocess.run(
-        ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    smi = subprocess.run(["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+                         capture_output=True, text=True, check=False)
     if smi.returncode != 0 or not smi.stdout.strip():
         sys.exit("no GPU in this session (quota exhausted?) -- refusing a CPU run")
     print("GPUs:", smi.stdout.strip(), flush=True)
-    subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "pip",
-            "install",
-            "--quiet",
-            f"fintfm @ git+https://github.com/kabartay/fintfm.git@{COMMIT}",
-        ],
-        check=True,
-    )
+    subprocess.run([sys.executable, "-m", "pip", "install", "--quiet",
+                    f"fintfm @ git+https://github.com/kabartay/fintfm.git@{COMMIT}"], check=True)
     out = Path("/kaggle/working") / ARM
     out.mkdir(parents=True, exist_ok=True)
     recipe = out / "recipe.yaml"
     urllib.request.urlretrieve(RECIPE_URL, recipe)
     ckpt = out / f"{ARM}.pt"
-    train = [
-        sys.executable,
-        "-u",
-        "-m",
-        "torch.distributed.run",
-        "--standalone",
-        "--nproc-per-node",
-        "2",
-        "-m",
-        "fintfm.modeling.train",
-        "--config",
-        str(recipe),
-        "--device",
-        "cuda",
-        "--checkpoint-every",
-        "1000",
-        "--out",
-        str(ckpt),
-        *ARM_FLAGS,
-    ]
+    train = [sys.executable, "-u", "-m", "torch.distributed.run", "--standalone",
+             "--nproc-per-node", "2", "-m", "fintfm.modeling.train", "--config", str(recipe),
+             "--device", "cuda", "--checkpoint-every", "1000", "--out", str(ckpt), *ARM_FLAGS]
     print("$ " + " ".join(train), flush=True)
     with (out / "train.log").open("w") as log:
         rc = subprocess.run(train, stdout=log, stderr=subprocess.STDOUT, check=False).returncode
@@ -94,27 +45,12 @@ def main() -> None:
     if rc != 0:
         sys.exit(f"training failed with exit {rc}")
     from fintfm.provenance import read_checkpoint_provenance
-
     rec = read_checkpoint_provenance(ckpt) or {}
-    print(
-        f"checkpoint: {rec.get('steps_completed')} steps, {rec.get('tasks_seen')} tasks", flush=True
-    )
-    probe = [
-        sys.executable,
-        "-u",
-        "-m",
-        "fintfm.experiments.hazard_period_probe",
-        "--model",
-        str(ckpt),
-        "--n-horizons",
-        "6",
-        "--n-tasks",
-        "200",
-        "--device",
-        "cuda",
-        "--out",
-        str(out / "probe"),
-    ]
+    print(f"checkpoint: {rec.get('steps_completed')} steps, {rec.get('tasks_seen')} tasks",
+          flush=True)
+    probe = [sys.executable, "-u", "-m", "fintfm.experiments.hazard_period_probe",
+             "--model", str(ckpt), "--n-horizons", "6", "--n-tasks", "200",
+             "--device", "cuda", "--out", str(out / "probe")]
     print("$ " + " ".join(probe), flush=True)
     rc = subprocess.run(probe, check=False).returncode
     for p in out.glob(f"{ARM}.pt.step*"):
