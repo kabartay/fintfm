@@ -33,6 +33,7 @@ import argparse
 import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import torch
@@ -315,8 +316,25 @@ def run(
     device: str = "cpu",
     seed: int = 0,
     n_boot: int = 1000,
+    keep: dict | None = None,
 ) -> dict:
-    """Run both arms under both compute conventions and write the comparison."""
+    """Run both arms under both compute conventions and write the comparison.
+
+    Args:
+        out_dir: Directory for ``term_structure.json``.
+        steps: Gradient steps for the joint arm and for each matched-per-model baseline.
+        batch_size: Tasks per batch.
+        n_rows: Rows per synthetic task.
+        max_features: Feature cap.
+        n_horizons: Horizon grid length.
+        device: Torch device.
+        seed: Training seed (the held-out set is fixed and shared by every seed).
+        n_boot: Bootstrap resamples per comparison; 0 skips the Holm table.
+        keep: If given, filled with ``curves``, ``truth`` and ``tasks`` for pooling.
+
+    Returns:
+        The record written to disk.
+    """
     prior = PriorConfig(
         max_features=max_features,
         max_classes=2,
@@ -368,9 +386,79 @@ def run(
         ),
     }
     print(cov.summary("arm-horizons"), flush=True)
+    if keep is not None:
+        keep.update(curves=curves, truth=truth, tasks=tasks)
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "term_structure.json").write_text(json.dumps(record, indent=2))
     return record
+
+
+def run_seeds(out_dir: Path, seeds: list[int], n_boot: int = 1000, **kwargs: Any) -> dict:
+    """Run :func:`run` for every seed and add a Holm table pooled across seeds (11.8).
+
+    Each seed trains its own models and writes ``seed<S>/term_structure.json``. The pooled
+    table stacks every seed's curves on the shared held-out rows and resamples whole tasks
+    (the same task ids in every seed, so a drawn task carries all its seeds' rows), then
+    applies Holm across every other arm at every horizon. The pooled AUC is over rows of
+    all seeds' models together, so read the pooled delta as a seed-averaged contrast.
+
+    Args:
+        out_dir: Output directory; per-seed records go in ``seed<S>/`` below it.
+        seeds: Training seeds, at least one, all distinct.
+        n_boot: Bootstrap resamples per comparison (per seed and pooled); 0 skips both.
+        **kwargs: Forwarded to :func:`run` (``steps``, ``batch_size``, ``device`` ...).
+
+    Returns:
+        ``{"seeds", "per_seed", "pooled_comparisons"}``, also written to
+        ``term_structure_seeds.json``.
+
+    Raises:
+        ValueError: If ``seeds`` is empty or repeats a seed.
+    """
+    if not seeds or len(set(seeds)) != len(seeds):
+        raise ValueError(f"seeds must be non-empty and distinct, got {seeds}")
+    per_seed: list[dict] = []
+    kept: list[dict] = []
+    for sd in seeds:
+        print(f"=== seed {sd} ===", flush=True)
+        keep: dict = {}
+        per_seed.append(run(out_dir / f"seed{sd}", seed=sd, n_boot=n_boot, keep=keep, **kwargs))
+        kept.append(keep)
+    pooled: list[dict] = []
+    if n_boot > 0:
+        arms = list(kept[0]["curves"])
+        curves = {a: np.concatenate([k["curves"][a] for k in kept]) for a in arms}
+        truth = np.concatenate([k["truth"] for k in kept])
+        tasks = np.concatenate([k["tasks"] for k in kept])
+        pooled = paired_arm_comparisons(curves, truth, tasks, n_boot=n_boot)
+    record = {"seeds": list(seeds), "per_seed": per_seed, "pooled_comparisons": pooled}
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "term_structure_seeds.json").write_text(json.dumps(record, indent=2))
+    return record
+
+
+def summarise_seeds(record: dict) -> str:
+    """Render mean +/- std per arm across seeds, then the pooled Holm table."""
+    names = [a["name"] for a in record["per_seed"][0]["arms"]]
+    lines = [f"{'arm':>30} {'mean AUC':>17} {'violations':>17} {'monotone':>17}  (mean +/- std)"]
+    for i, n in enumerate(names):
+        cols = []
+        for key in ("mean_auc", "violation_rate", "fully_monotone"):
+            v = np.array([r["arms"][i][key] for r in record["per_seed"]])
+            sd = v.std(ddof=1) if len(v) > 1 else float("nan")
+            cols.append(f"{v.mean():>8.4f}+/-{sd:<7.4f}")
+        lines.append(f"{n:>30} " + " ".join(cols))
+    lines.append(f"\nseeds: {record['seeds']}")
+    cmps = record["pooled_comparisons"]
+    if cmps:
+        lines.append("pooled across seeds, tasks resampled, Holm across all cells:")
+        lines.append(f"{'vs':>30} {'h':>3} {'dAUC':>9} {'95% CI':>20} {'p raw':>8} {'p Holm':>8}")
+        for c in cmps:
+            lines.append(
+                f"{c['other']:>30} {c['horizon']:>3} {c['delta']:>+9.4f} "
+                f"[{c['ci_lo']:>+8.4f},{c['ci_hi']:>+8.4f}] {c['p_raw']:>8.4f} {c['p_holm']:>8.4f}"
+            )
+    return "\n".join(lines)
 
 
 def summarise(record: dict) -> str:
@@ -424,12 +512,34 @@ def main() -> None:
     p.add_argument("--device", type=str, default="cpu")
     p.add_argument("--seed", type=int, default=0)
     p.add_argument(
+        "--seeds",
+        type=int,
+        nargs="+",
+        default=None,
+        help="train at each of these seeds and add a Holm table pooled across them "
+        "(overrides --seed; openspec 11.8)",
+    )
+    p.add_argument(
         "--n-boot",
         type=int,
         default=1000,
         help="bootstrap resamples per comparison; 0 skips the Holm table",
     )
     args = p.parse_args()
+    if args.seeds:
+        rec = run_seeds(
+            Path(args.out),
+            args.seeds,
+            n_boot=args.n_boot,
+            steps=args.steps,
+            batch_size=args.batch_size,
+            n_rows=args.n_rows,
+            max_features=args.max_features,
+            n_horizons=args.n_horizons,
+            device=args.device,
+        )
+        print("\n" + summarise_seeds(rec))
+        return
     record = run(
         Path(args.out),
         steps=args.steps,

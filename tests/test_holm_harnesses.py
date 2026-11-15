@@ -86,6 +86,33 @@ def test_context_sweep_comparisons_adjust_across_the_whole_family():
     assert "Holm" in text and "balanced - hybrid" in text
 
 
+def test_term_structure_run_seeds_pools_and_writes_per_seed(tmp_path, monkeypatch):
+    """``--seeds`` (11.8): one record per seed, plus a Holm table pooled across seeds."""
+    truth, tasks, curves = _panel(n_tasks=20, rows=10, seed=3)
+    arm_models = iter(["joint", "mt", "mp"] * 3)
+    monkeypatch.setattr(term_structure, "train_joint", lambda *a, **kw: next(arm_models))
+    monkeypatch.setattr(term_structure, "train_per_horizon", lambda *a, **kw: [next(arm_models)])
+    monkeypatch.setattr(term_structure, "_eval_batches", lambda *a, **kw: [])
+    by_model = {"joint": curves["joint"], "mt": curves["copy"], "mp": curves["noise"]}
+    monkeypatch.setattr(
+        term_structure,
+        "collect_curves",
+        lambda models, batches, device, n_horizons: (
+            by_model[models[0] if isinstance(models, list) else models],
+            truth,
+            tasks,
+        ),
+    )
+    rec = term_structure.run_seeds(tmp_path, [0, 1, 2], n_boot=100, steps=5, n_horizons=N_H)
+    assert rec["seeds"] == [0, 1, 2] and len(rec["per_seed"]) == 3
+    assert all((tmp_path / f"seed{s}" / "term_structure.json").exists() for s in range(3))
+    assert len(rec["pooled_comparisons"]) == 2 * N_H
+    assert all(r["p_holm"] >= r["p_raw"] for r in rec["pooled_comparisons"])
+    assert "pooled across seeds" in term_structure.summarise_seeds(rec)
+    with pytest.raises(ValueError):
+        term_structure.run_seeds(tmp_path, [1, 1])
+
+
 def test_context_sweep_comparisons_skip_unscorable_horizons():
     truth, _tasks, curves = _panel(seed=2)
     seen = np.ones(truth.shape, dtype=bool)
