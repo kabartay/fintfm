@@ -273,6 +273,7 @@ import pandas as pd
 from fintfm.evaluation.credit_estonia import load_estonia
 from fintfm.evaluation.datasets import CACHE_DIR
 from fintfm.evaluation.overlap import guard_selection
+from fintfm.evaluation.metrics import spread_fields
 from fintfm.evaluation.proxy_suite import SourceLicence
 from fintfm.experiments.hybrid_catboost import INNER_SEED_OFFSET, assert_no_leak, to_logit
 
@@ -338,6 +339,7 @@ COLUMNS = (
     "dataset", "split_kind", "split", "model", "n_train", "n_test", "n_test_positive",
     "base_rate", "mean_predicted", "average_precision", "roc_auc", "ap_top_decile", "seconds",
     "checkpoint_sha256", "skipped",
+    "pred_sd", "pred_p50", "pred_p99", "pred_p99_over_p50", "is_near_constant",
 )
 
 
@@ -875,7 +877,8 @@ def score_row(y_true: np.ndarray, p: np.ndarray) -> dict[str, float]:
 
     Returns:
         A dict with ``average_precision``, ``roc_auc``, ``ap_top_decile``, ``base_rate`` and
-        ``mean_predicted``.
+        ``mean_predicted``, plus the
+        :func:`fintfm.evaluation.metrics.spread_fields` beside the level.
     """
     from sklearn.metrics import average_precision_score, roc_auc_score
 
@@ -885,6 +888,7 @@ def score_row(y_true: np.ndarray, p: np.ndarray) -> dict[str, float]:
         "ap_top_decile": ap_top_decile(y_true, p),
         "base_rate": float(np.mean(y_true)),
         "mean_predicted": float(np.mean(p)),
+        **spread_fields(p),
     }
 
 
@@ -1336,7 +1340,8 @@ def _report(row: dict) -> None:
         return
     print(f"{head} AP {row['average_precision']:.4f}  ROC-AUC {row['roc_auc']:.4f}  "
           f"AP@decile {row['ap_top_decile']:.4f}  pred mean {row['mean_predicted']:.3%} vs "
-          f"{row['base_rate']:.3%}  ({row['n_test_positive']:,}/{row['n_test']:,} positive, "
+          f"{row['base_rate']:.3%}  spread sd {row['pred_sd']:.4f} "
+          f"p99/p50 {row['pred_p99_over_p50']:.2f}  ({row['n_test_positive']:,}/{row['n_test']:,} positive, "
           f"{row['n_train']:,} train, {row['seconds']}s)", flush=True)
 
 

@@ -55,6 +55,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from fintfm.config import Config, load_config
+from fintfm.evaluation.metrics import spread_fields
 from fintfm.experiments.v4_protocol import (
     FOLD_SEED,
     HORIZON_FILES,
@@ -303,7 +304,7 @@ def cap_train_rows(
 
 
 def _metrics(y: np.ndarray, p: np.ndarray) -> dict[str, float]:
-    """AP, ROC-AUC, and the mean prediction beside the observed rate (``CLAUDE.md``)."""
+    """AP, ROC-AUC, the mean prediction beside the observed rate, and the prediction spread."""
     from sklearn.metrics import average_precision_score, roc_auc_score
 
     both = len(np.unique(y)) > 1
@@ -312,6 +313,7 @@ def _metrics(y: np.ndarray, p: np.ndarray) -> dict[str, float]:
         "roc_auc": float(roc_auc_score(y, p)) if both else float("nan"),
         "mean_predicted": float(np.mean(p)),
         "observed_rate": float(np.mean(y)),
+        **spread_fields(p),
     }
 
 
@@ -457,7 +459,8 @@ def run_arrays(
                 t = scores[a]["test"]
                 print(f"  fold {fold} {a:>26}: AP {t['avg_precision']:.4f}  ROC-AUC "
                       f"{t['roc_auc']:.4f}  mean predicted {t['mean_predicted']:.4%} vs "
-                      f"observed {t['observed_rate']:.4%}", flush=True)
+                      f"observed {t['observed_rate']:.4%}  spread sd {t['pred_sd']:.4f} "
+                      f"p99/p50 {t['pred_p99_over_p50']:.2f}", flush=True)
             else:
                 print(f"  fold {fold} {a:>26}: FAILED, excluded from this fold")
         fold_records.append({

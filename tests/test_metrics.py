@@ -268,3 +268,48 @@ def test_unknown_boosting_baseline_is_rejected():
 
     with pytest.raises(ValueError, match="unknown baseline"):
         fit_predict_boosting("not_a_model", np.zeros((4, 2)), np.zeros(4), np.zeros((2, 2)))
+
+
+def test_spread_fields_constant_prediction_is_flagged_despite_near_zero_ece() -> None:
+    """A base-rate-for-everyone predictor has ~zero ECE, and the spread fields expose it."""
+    from fintfm.evaluation.metrics import spread_fields
+
+    rng = np.random.default_rng(0)
+    y = (rng.random(20000) < 0.05).astype(float)
+    p = np.full(len(y), float(y.mean()))
+    m = evaluate_binary(y, p)
+    assert m.ece < 1e-6
+    assert m.pred_sd < 1e-12
+    assert m.is_near_constant
+    assert "NEAR-CONSTANT" in m.summary()
+    f = spread_fields(p)
+    assert f["pred_sd"] < 1e-12 and f["pred_p99_over_p50"] == pytest.approx(1.0)
+    assert f["is_near_constant"] is True
+
+
+def test_spread_fields_zero_median_guard_and_varied_predictions() -> None:
+    """p50 == 0 gives a NaN ratio rather than a division error; varied predictions pass."""
+    from fintfm.evaluation.metrics import spread_fields
+
+    p = np.concatenate([np.zeros(90), np.full(10, 0.4)])
+    f = spread_fields(p)
+    assert f["pred_p50"] == 0.0 and np.isnan(f["pred_p99_over_p50"])
+    assert f["pred_sd"] > 0 and f["is_near_constant"] is False
+    g = spread_fields(np.linspace(0.001, 0.5, 1000))
+    assert g["pred_p99_over_p50"] > 1.5 and g["is_near_constant"] is False
+    assert np.isnan(spread_fields(np.array([]))["pred_sd"])
+
+
+def test_every_reporting_path_carries_spread_fields() -> None:
+    """score_row (credit suite) and the hybrid _metrics dict both carry the spread fields."""
+    from fintfm.evaluation import credit_suite as cs
+    from fintfm.experiments import hybrid_catboost as hc
+
+    rng = np.random.default_rng(1)
+    y = np.array([0, 1] * 100)
+    p = rng.random(200)
+    keys = {"pred_sd", "pred_p50", "pred_p99", "pred_p99_over_p50", "is_near_constant"}
+    assert keys <= set(cs.score_row(y, p))
+    assert keys <= set(cs.COLUMNS)
+    assert keys <= set(hc._metrics(y, p))
+    assert keys <= set(evaluate_binary(y.astype(float), p).__dict__)
