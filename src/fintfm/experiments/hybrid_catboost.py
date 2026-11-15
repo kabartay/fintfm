@@ -55,6 +55,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from fintfm.config import Config, load_config
+from fintfm.evaluation.coverage import Coverage
 from fintfm.evaluation.metrics import spread_fields
 from fintfm.experiments.v4_protocol import (
     FOLD_SEED,
@@ -326,6 +327,30 @@ def _metrics(y: np.ndarray, p: np.ndarray) -> dict[str, float]:
     }
 
 
+def record_arm_coverage(
+    cov: Coverage, fold: int, expected: tuple[str, ...], scores: dict[str, dict]
+) -> None:
+    """Resolve one fold's arms in ``cov``: scored, or skipped with the reason it has no score.
+
+    Args:
+        cov: Coverage to fill, one unit per ``"fold<k>/<arm>"``.
+        fold: The outer fold.
+        expected: Every arm the run was meant to produce.
+        scores: Arm to ``{"test": metrics, "val": metrics}`` for the arms that produced
+            predictions. An arm absent here failed to fit; one whose test AP is NaN had a
+            single-class test split.
+    """
+    for a in expected:
+        unit = f"fold{fold}/{a}"
+        cov.attempt(unit)
+        if a not in scores:
+            cov.skip(unit, "booster fit failed, no predictions")
+        elif not np.isfinite(scores[a]["test"]["avg_precision"]):
+            cov.skip(unit, "one class in the test rows, so AP and AUC are undefined")
+        else:
+            cov.scored(unit)
+
+
 def run_arrays(
     X: np.ndarray,
     y: np.ndarray,
@@ -382,6 +407,7 @@ def run_arrays(
     assignments = build_fold_assignments(country, company)
     codes = company_codes(company)
     fold_records = []
+    cov = Coverage()  # one unit per (fold, arm), openspec 36.4
     for fold in folds:
         tr, va, te = split_indices_for_fold(assignments, fold)
         n_full = len(tr)
@@ -480,7 +506,9 @@ def run_arrays(
             a: {"test": _metrics(y[te], p[nv:]), "val": _metrics(y[va], p[:nv])}
             for a, p in arms.items()
         }
-        for a in TUNED_ARMS if booster == "lightgbm_tuned" else ARMS:
+        expected_arms = TUNED_ARMS if booster == "lightgbm_tuned" else ARMS
+        record_arm_coverage(cov, fold, expected_arms, scores)
+        for a in expected_arms:
             if a in scores:
                 t = scores[a]["test"]
                 print(
@@ -532,7 +560,9 @@ def run_arrays(
         ),
         "config": config,
         "folds": fold_records,
+        "coverage": cov.to_dict(),
     }
+    print(cov.summary("fold-arms"), flush=True)
     (out_dir / "hybrid_catboost.json").write_text(json.dumps(record, indent=2))
     # what compare_v4_scores.py checks before pairing two directories
     (out_dir / "v4_protocol.json").write_text(json.dumps(record, indent=2))

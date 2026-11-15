@@ -84,6 +84,7 @@ from sklearn.metrics import average_precision_score, roc_auc_score
 from sklearn.neural_network import MLPClassifier
 from sklearn.preprocessing import StandardScaler
 
+from fintfm.evaluation.coverage import Coverage
 from fintfm.evaluation.datasets import CACHE_DIR
 from fintfm.experiments.v4_protocol import (
     HORIZON_FILES,
@@ -467,6 +468,25 @@ def _scores(y: np.ndarray, p: np.ndarray) -> tuple[float, float]:
     return float(roc_auc_score(y, p)), float(average_precision_score(y, p))
 
 
+def record_fold_coverage(cov: Coverage, fold: int, row: dict, arms: list[str]) -> None:
+    """Resolve one fold's arms in ``cov``: scored, or skipped because no classifier was fitted.
+
+    Args:
+        cov: Coverage to fill, one unit per ``"fold<k>/<arm>"``.
+        fold: The fold.
+        row: The fold's record, holding ``<arm>_auc`` for every arm.
+        arms: Every arm the fold produced a prediction vector for. An arm whose AUC is NaN had
+            a probe set of one class (see :func:`_gap`), so nothing could be fitted.
+    """
+    for name in arms:
+        unit = f"fold{fold}/{name}"
+        cov.attempt(unit)
+        if np.isfinite(row[f"{name}_auc"]):
+            cov.scored(unit)
+        else:
+            cov.skip(unit, "no score: the probe rows held one class, so no classifier was fitted")
+
+
 def run(
     model_path: FinancialTFM | str,
     out_path: Path,
@@ -543,6 +563,7 @@ def run(
     assignments = build_fold_assignments(country, company)
 
     results: list[dict] = []
+    cov = Coverage()  # one unit per (fold, arm), openspec 36.4
     for fold in folds:
         rng = np.random.default_rng(fold)
         tr, _va, te = split_indices_for_fold(assignments, fold)
@@ -622,6 +643,7 @@ def run(
             arms.update(stratified)
         for name, p in arms.items():
             row[f"{name}_auc"], row[f"{name}_ap"] = _scores(yte, p)
+        record_fold_coverage(cov, fold, row, list(arms))
         results.append(row)
         probe_note = (
             f"probe on {row['n_probe_rows']:,} context rows, {row['n_probe_positive']} positive; "
@@ -676,7 +698,9 @@ def run(
         "n_rows": len(y),
         "train_sample_size": train_sample_size,
         "folds": results,
+        "coverage": cov.to_dict(),
     }
+    print(cov.summary("fold-arms"), flush=True)
     if probe_rows != "stratified":
         # recorded only off the default, so a default run writes the JSON §130's code wrote
         record["probe_rows"] = probe_rows
