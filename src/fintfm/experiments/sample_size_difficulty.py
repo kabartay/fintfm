@@ -310,6 +310,40 @@ def summarise(record: dict) -> str:
     return "\n".join(lines)
 
 
+def plot_curves(record: dict, out_dir: Path) -> list[Path]:
+    """Write one AUC-vs-context-size plot per tier (log x) next to the JSON.
+
+    Args:
+        record: Output of :func:`run`.
+        out_dir: Directory that receives ``sample_size_difficulty_<tier>.svg``.
+
+    Returns:
+        The paths of the written SVG files, in tier order.
+    """
+    from fintfm.evaluation.svgplot import line_plot
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    paths = []
+    for tier in record["config"]["tiers"]:
+        rows = [r for r in record["results"] if r["tier"] == tier]
+        series: dict[str, list[tuple[float, float]]] = {}
+        for r in rows:
+            series.setdefault(r["arm"], []).append((float(r["n"]), r["auc_mean"]))
+        bayes = float(np.mean([r["auc_bayes_mean"] for r in rows]))
+        svg = line_plot(
+            series,
+            title=f"ROC-AUC vs context size, {tier} tier",
+            x_label="context rows n (log scale)",
+            y_label="ROC-AUC (mean over seeds)",
+            log_x=True,
+            reference_lines={f"Bayes AUC {bayes:.3f}": bayes},
+        )
+        path = out_dir / f"sample_size_difficulty_{tier}.svg"
+        path.write_text(svg)
+        paths.append(path)
+    return paths
+
+
 def main() -> None:
     """Command-line entry point: ``python -m fintfm.experiments.sample_size_difficulty``."""
     p = argparse.ArgumentParser(description=__doc__)
@@ -319,6 +353,7 @@ def main() -> None:
     p.add_argument("--sizes", type=str, default=",".join(str(s) for s in SIZES))
     p.add_argument("--tiers", type=str, default=",".join(TIERS))
     p.add_argument("--n-query", type=int, default=N_QUERY)
+    p.add_argument("--plot", action="store_true", help="also write one SVG per tier")
     args = p.parse_args()
     paths = dict(pair.split("=", 1) for pair in args.models.split(",") if pair)
     record = run(
@@ -330,6 +365,9 @@ def main() -> None:
         n_query=args.n_query,
     )
     print("\n" + summarise(record))
+    if args.plot:
+        for path in plot_curves(record, Path(args.out)):
+            print(f"wrote {path}")
 
 
 if __name__ == "__main__":

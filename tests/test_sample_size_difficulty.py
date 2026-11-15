@@ -81,3 +81,25 @@ def test_unknown_tier_and_narrow_model_refused():
         ssd.run({}, None, tiers=("trivial",), models={"tiny": _tiny()})
     with pytest.raises(ValueError, match="max_features"):
         ssd.run({}, None, sizes=(16,), tiers=("easy",), models={"narrow": _tiny(4)})
+
+
+def test_plot_writes_one_svg_per_tier(tmp_path):
+    import xml.etree.ElementTree as ET
+
+    rec = ssd.run(
+        {},
+        tmp_path,
+        sizes=(16, 64),
+        tiers=("easy", "hard"),
+        seeds=(0,),
+        n_query=100,
+        models={"tiny": _tiny()},
+    )
+    paths = ssd.plot_curves(rec, tmp_path)
+    assert [p.name for p in paths] == [
+        "sample_size_difficulty_easy.svg",
+        "sample_size_difficulty_hard.svg",
+    ]
+    for p in paths:
+        root = ET.fromstring(p.read_text())
+        assert len(root.findall("{http://www.w3.org/2000/svg}polyline")) == 4
