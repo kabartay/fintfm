@@ -1,0 +1,38 @@
+# PROPOSED scaling grid (openspec scaling-curve 9.1; the owner has not decided).
+#
+# Source: docs/results/drafts/scaling_grid_2026-11-15.md. Nothing here launches anything;
+# `fintfm-ablate --grid configs/scaling/grid-2026-11-15.yaml --plan` prints each cell's
+# training command and ESTIMATED cost. Drop `--plan` to train the cells (one results.json
+# each, under --out), which needs the owner's go-ahead and a checked machine (CLAUDE.md).
+
+name: scaling-grid-2026-11-15
+recipe: configs/published/v4-cellattn-labels.yaml   # 6,000 steps x batch 8 = 48,000 tasks
+batch_size: 8
+device: cuda
+checkpoint_every: 1000          # every HF Jobs launch carries --checkpoint-every (CLAUDE.md)
+horizons: [1, 3, 5]             # real-data scoring after training; [] trains only
+
+# Tasks seen = steps x batch_size, so steps = tasks / batch_size.
+tasks: [48000, 480000, 4800000]
+
+# Seeds per task count: 3 / 2 / 1 (the draft's reasoning: cheap cells get the seeds).
+seeds:
+  48000: [0, 1, 2]
+  480000: [0, 1]
+  4800000: [0]
+
+# Model sizes: flag overrides on the recipe. d_ff follows 4 x d_model unless given.
+models:
+  S:                            # 885K parameters (the recipe as published)
+    step_seconds: 0.54          # MEASURED, Kaggle T4x2 DDP, published recipe (COMPUTE.md, §197, §198)
+    step_seconds_basis: measured
+  M:                            # 5.0M parameters (§108/§114 shape)
+    d_cell: 64
+    d_model: 256
+    n_layers: 6
+    step_seconds: 0.827         # ESTIMATED: 0.54 x (0.98 / 0.64), pre-cell-attention T4 ratio
+    step_seconds_basis: estimated
+
+cost:
+  gpus_per_session: 2           # T4x2: GPU-hours are 2 x wall hours
+  quota_hours_per_week: 30      # Kaggle weekly quota
