@@ -32,6 +32,8 @@ from typing import Any
 
 import numpy as np
 
+from fintfm.evaluation.coverage import Coverage
+
 #: Binary-classification OpenML tasks spanning prevalence, all within the 136-feature cap the
 #: current checkpoints carry. Chosen for prevalence spread rather than for difficulty, so the
 #: suite deliberately includes tasks a booster solves trivially.
@@ -206,6 +208,7 @@ def run(
     seed: int = 0,
     suite: Sequence[tuple[str, int]] | None = None,
     allow_tabarena_for_reporting: bool = False,
+    coverage: Coverage | None = None,
 ) -> list[DatasetResult]:
     """Score the suite and print a prevalence-ordered table.
 
@@ -217,6 +220,9 @@ def run(
         allow_tabarena_for_reporting: Permit a dataset in
             :data:`fintfm.evaluation.overlap.SELECTION_FORBIDDEN`, for reporting only; the
             suite chooses arms, so without this such a dataset is refused (DR4.1).
+        coverage: Optional :class:`~fintfm.evaluation.coverage.Coverage` to fill, one unit per
+            dataset (skipped when it cannot be loaded or is not binary), so the caller can put
+            ``coverage.to_dict()`` in its JSON. The summary line is printed either way.
 
     Returns:
         One :class:`DatasetResult` per dataset that loaded, ordered by prevalence.
@@ -233,21 +239,26 @@ def run(
     if reporting:
         print(f"REPORTING ONLY ({', '.join(reporting)}): not for choosing an arm (DR4.1)")
     results: list[DatasetResult] = []
+    cov = coverage if coverage is not None else Coverage()
     for name, version in suite:
+        cov.attempt(name)
         task = load_task(name, version, max_rows)
         if task is None:
             print(f"  {name:<34} SKIPPED (unavailable or not binary)", flush=True)
+            cov.skip(name, "unavailable or not binary")
             continue
         X, y = task
         scores = score_task(X, y, model_path, seed=seed)
         r = DatasetResult(name, X.shape[0], X.shape[1], float(y.mean()), scores)
         results.append(r)
+        cov.scored(name)
         cells = "  ".join(f"{k}={v:.4f}" for k, v in sorted(scores.items()))
         print(
             f"  {name:<34} n={X.shape[0]:>6} f={X.shape[1]:>3} prev={y.mean():6.2%}  "
             f"{cells}  deficit={r.deficit:+.4f}",
             flush=True,
         )
+    print(cov.summary("datasets"), flush=True)
     return sorted(results, key=lambda r: r.prevalence)
 
 

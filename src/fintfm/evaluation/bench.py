@@ -25,6 +25,7 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
 from fintfm.evaluation.boosting import BOOSTING_MODELS, fit_predict_boosting
+from fintfm.evaluation.coverage import Coverage
 from fintfm.evaluation.datasets import (
     CreditDataset,
     SurvivalDataset,
@@ -160,37 +161,50 @@ def run_one(
     return results
 
 
-def run_synthetic(model_path: str, n_tasks: int = 20, n_rows: int = 1000, seed: int = 123) -> None:
+def run_synthetic(
+    model_path: str, n_tasks: int = 20, n_rows: int = 1000, seed: int = 123
+) -> dict:
     """Held-out synthetic financial tasks with a fixed seed disjoint from pretraining.
 
     The task's feature/class width is capped at the loaded model's capacity,
     otherwise a model pretrained with a small ``--max-features``/``--max-classes``
     would reject most held-out tasks generated from the library defaults.
+
+    Returns:
+        ``{"mean_auc": {model: mean}, "wins": {...}, **coverage}`` where the coverage fields
+        are ``n_attempted``, ``n_scored``, ``n_skipped``, ``coverage`` and ``skipped``
+        (see :class:`fintfm.evaluation.coverage.Coverage`).
     """
     rng = np.random.default_rng(seed)
     model_cfg = FinancialTFM.load(model_path).cfg
     cfg = PriorConfig(max_features=model_cfg.max_features, max_classes=model_cfg.max_classes)
     wins = {"fintfm": 0}
     totals: dict[str, list[float]] = {}
-    n_scored = 0
+    cov = Coverage()
     for i in range(n_tasks):
+        cov.attempt(f"synthetic-{i}")
         task = sample_task(rng, cfg, n_rows=n_rows)
         res = run_one(f"synthetic-{i}", task.X, task.y, model_path)
         # a degenerate test split (single class in y_test) makes AUC undefined; skip it
         # entirely rather than let one NaN silently poison every aggregate.
         if any(np.isnan(v) for v in res.values()):
             print(f"  [synthetic-{i}] skipped: degenerate test split (single class)")
+            cov.skip(f"synthetic-{i}", "degenerate test split (single class)")
             continue
-        n_scored += 1
+        cov.scored(f"synthetic-{i}")
         best_other = max((v for k, v in res.items() if k != "fintfm"), default=0.0)
         if res.get("fintfm", -1) > best_other:
             wins["fintfm"] += 1
         for k, v in res.items():
             totals.setdefault(k, []).append(v)
+    n_scored = cov.n_scored
     print(f"\n=== mean AUC over {n_scored}/{n_tasks} scorable synthetic held-out tasks ===")
     for k, vs in totals.items():
         print(f"  {k}: {np.mean(vs):.4f}")
     print(f"fintfm beats every baseline on {wins['fintfm']}/{n_scored} scorable tasks")
+    print(cov.summary("synthetic tasks"))
+    return {"mean_auc": {k: float(np.mean(vs)) for k, vs in totals.items()},
+            "wins": dict(wins), **cov.to_dict()}
 
 
 def run_openml(model_path: str, dataset_ids: list[int]) -> None:

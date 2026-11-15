@@ -115,6 +115,7 @@ from urllib.error import URLError
 import numpy as np
 import pandas as pd
 
+from fintfm.evaluation.coverage import Coverage
 from fintfm.evaluation.datasets import CACHE_DIR
 from fintfm.evaluation.overlap import (
     CONTROL_DATASET_ID,
@@ -1187,6 +1188,22 @@ def _fit_and_score(task: ProxyTask, split: int, method: str, est: Any, X_train: 
                 status=status, **scores)
 
 
+def frame_coverage(frame: pd.DataFrame) -> Coverage:
+    """Coverage of a run's rows: one unit per (task, split, method), skipped unless ``ok``.
+
+    Args:
+        frame: A :data:`RESULT_COLUMNS` table.
+
+    Returns:
+        The resolved :class:`~fintfm.evaluation.coverage.Coverage`; a row's ``status`` is its
+        skip reason.
+    """
+    units = [f"{t}/split{s}/{m}" for t, s, m in
+             zip(frame["task_id"], frame["split"], frame["method"], strict=True)]
+    skipped = {u: str(st) for u, st in zip(units, frame["status"], strict=True) if st != "ok"}
+    return Coverage.from_rows(units, skipped)
+
+
 def _library_tag() -> str:
     """scikit-learn and LightGBM versions, which key the baseline cache."""
     import sklearn
@@ -1701,6 +1718,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         n_ok = int((frame["status"] == "ok").sum())
         print(f"\n{n_ok} of {len(frame)} rows scored; wrote {args.out}")
+        cov = frame_coverage(frame)
+        print(cov.summary("rows"))
+        args.out.with_suffix(".coverage.json").write_text(json.dumps(cov.to_dict(), indent=2))
         if (frame["method"] == ANCHOR).any() and n_ok:
             _print_elo(elo_table(frame, n_boot=args.n_boot, seed=args.seed), ANCHOR, args.n_boot)
         return 0
