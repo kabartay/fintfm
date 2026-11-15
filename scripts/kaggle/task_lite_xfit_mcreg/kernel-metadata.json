@@ -1,0 +1,18 @@
+{
+  "id": "muhakabartay/fintfm-task-lite-xfit-mcreg",
+  "title": "fintfm-task-lite-xfit-mcreg",
+  "code_file": "task_lite_xfit_mcreg.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": "true",
+  "enable_gpu": "true",
+  "enable_tpu": "false",
+  "enable_internet": "true",
+  "dataset_sources": [],
+  "competition_sources": [],
+  "kernel_sources": [
+    "muhakabartay/fintfm-ts-dr74-mc-s0",
+    "muhakabartay/fintfm-task-48-3-binned-control"
+  ],
+  "model_sources": []
+}
