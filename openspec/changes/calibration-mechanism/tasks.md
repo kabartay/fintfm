@@ -7,7 +7,7 @@
 - [ ] 14.2 Compare financial versus generic prior on ECE at matched compute, using the Phase 1
       checkpoints. Verify: numbers into `docs/results/FINDINGS.md` §13's discriminating-test section,
       stating plainly whether calibration is domain-specific or generic to PFNs.
-- [ ] 14.3 Report prediction spread (sd, p99/p50) beside every calibration number, so
+- [x] 14.3 **Done (2026-11-15): the 2026-11-08 note below claimed a test that was never committed; it now exists. `spread_fields()` in `src/fintfm/evaluation/metrics.py` is the shared helper (wraps `prediction_spread()`); it now also feeds `hybrid_catboost._metrics` and `credit_suite.score_row` (new `COLUMNS` appended, printed lines too). Tests in `tests/test_metrics.py`: `test_spread_fields_constant_prediction_is_flagged_despite_near_zero_ece`, `test_spread_fields_zero_median_guard_and_varied_predictions`, `test_every_reporting_path_carries_spread_fields`. The frozen Kaggle script `scripts/kaggle/s6e11_fintfm/s6e11_fintfm.py` is left unchanged on purpose.** Report prediction spread (sd, p99/p50) beside every calibration number, so
       conservatism cannot be mistaken for skill. Verify: `CreditMetrics` carries a spread
       field and a test asserts a near-constant predictor is flagged despite a near-zero ECE.
       **Partly done 2026-09-08 via 14.4's skill score and degenerate flag; the explicit

@@ -158,6 +158,33 @@ def prediction_spread(p: np.ndarray) -> tuple[float, float, float, float, bool]:
     return sd, p50, p99, float(ratio), near_constant
 
 
+def spread_fields(p: np.ndarray) -> dict[str, float | bool]:
+    """Prediction-spread fields to put beside any calibration number, as a flat dict.
+
+    A model can reach a good ECE, or a mean prediction that matches the observed rate, by
+    predicting the base rate for everyone. Its probabilities then barely vary, and the
+    calibration number says nothing about skill. The standard deviation and the ``p99/p50``
+    ratio of the predictions expose that, so every emitter that reports ECE, Brier or
+    mean-predicted-versus-observed attaches these fields through this one helper
+    (``openspec/changes/calibration-mechanism`` task 14.3).
+
+    Args:
+        p: Predicted probability of the positive class.
+
+    Returns:
+        ``pred_sd``, ``pred_p50``, ``pred_p99``, ``pred_p99_over_p50`` (NaN when the median is
+        zero) and ``is_near_constant``, as in :func:`prediction_spread`.
+    """
+    sd, p50, p99, ratio, near_constant = prediction_spread(p)
+    return {
+        "pred_sd": sd,
+        "pred_p50": p50,
+        "pred_p99": p99,
+        "pred_p99_over_p50": ratio,
+        "is_near_constant": near_constant,
+    }
+
+
 def recall_at_top_k(y_true: np.ndarray, p: np.ndarray, k: int) -> float:
     """Fraction of positives captured in the ``k`` highest-risk cases.
 
