@@ -15,8 +15,15 @@ Both are slices of one portfolio. Neither can fit the relationship across portfo
 what the task's mechanism needs; the output states the slice count and the span of rates so the
 caller can see that.
 
+* ``--binary-sweep``: the output of ``fintfm-binctx``
+  (``runs/binary-context-sweep/binary_context_sweep.json``), one row per (panel, context size)
+  with the seed-mean strategy gap in AP and AUC against the slice default rate. This spans
+  several panels, so it is the input the task's cross-portfolio relationship needs; the
+  Spearman correlation is printed with the number of (panel, size) rows behind it.
+
 Usage:
     uv run python scripts/gap_vs_default_rate.py --runs /path/to/runs
+    uv run python scripts/gap_vs_default_rate.py --binary-sweep path/to/binary_context_sweep.json
 """
 
 from __future__ import annotations
@@ -101,11 +108,83 @@ def horizon_table(path: Path) -> list[dict[str, float]]:
     return out
 
 
+def binary_table(path: Path, a: str = "uniform", b: str = "balanced") -> list[dict[str, float]]:
+    """Strategy gap against slice default rate from a ``fintfm-binctx`` record.
+
+    Args:
+        path: A ``binary_context_sweep.json``.
+        a: Strategy whose score is the minuend.
+        b: Strategy subtracted.
+
+    Returns:
+        One row per (panel, context size) holding both strategies in at least one seed:
+        ``panel``, ``size``, ``rate`` (seed-mean slice default rate), ``gap_ap`` and
+        ``gap_auc`` (seed-mean ``a - b``, paired by seed) and ``seeds``.
+    """
+    cells = json.loads(path.read_text())["cells"]
+    by = {(c["panel"], c["max_context"], c["seed"], c["strategy"]): c for c in cells}
+    out: list[dict[str, float]] = []
+    for panel, size in sorted({(c["panel"], c["max_context"]) for c in cells}):
+        pairs = [
+            (by[(panel, size, sd, a)], by[(panel, size, sd, b)])
+            for sd in sorted({c["seed"] for c in cells})
+            if (panel, size, sd, a) in by and (panel, size, sd, b) in by
+        ]
+        if pairs:
+            out.append(
+                {
+                    "panel": panel,
+                    "size": size,
+                    "rate": float(np.mean([x["slice_default_rate"] for x, _ in pairs])),
+                    "gap_ap": float(np.mean([x["ap"] - y["ap"] for x, y in pairs])),
+                    "gap_auc": float(np.mean([x["auc"] - y["auc"] for x, y in pairs])),
+                    "seeds": len(pairs),
+                }
+            )
+    return out
+
+
+def print_binary(path: Path, a: str, b: str) -> None:
+    """Print the binary-sweep table and Spearman correlations of gap with rate."""
+    rows = binary_table(path, a, b)
+    print(f"BINARY SWEEP ({path.name}): {a} - {b}")
+    print("panel max_context rate% seeds gapAP gapAUC")
+    for r in rows:
+        print(
+            f"{r['panel']} {r['size']} {100 * r['rate']:.3f} {r['seeds']} "
+            f"{r['gap_ap']:+.4f} {r['gap_auc']:+.4f}"
+        )
+    if not rows:
+        print("no (panel, size) holds both strategies")
+        return
+    rates = [r["rate"] for r in rows]
+    print(f"rate span {100 * min(rates):.3f}% to {100 * max(rates):.3f}%")
+    for size in [None, *sorted({r["size"] for r in rows})]:
+        sub = [r for r in rows if size is None or r["size"] == size]
+        label = "all sizes" if size is None else f"max_context {size}"
+        if len(sub) < 3:
+            print(f"{label}: n={len(sub)}, too few rows for a rank correlation")
+            continue
+        for m in ("ap", "auc"):
+            rho = spearmanr([r["rate"] for r in sub], [r[f"gap_{m}"] for r in sub])
+            print(f"{label}: Spearman {m} gap vs rate {rho.statistic:.2f} (n={len(sub)})")
+
+
 def main() -> None:
     """Print both tables and the rank correlation of gap with rate."""
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--runs", type=Path, required=True)
+    ap.add_argument("--runs", type=Path, default=None)
+    ap.add_argument("--binary-sweep", type=Path, default=None)
+    ap.add_argument("--gap-a", default="uniform")
+    ap.add_argument("--gap-b", default="balanced")
     args = ap.parse_args()
+    if args.binary_sweep is not None:
+        print_binary(args.binary_sweep, args.gap_a, args.gap_b)
+        if args.runs is None:
+            return
+        print()
+    if args.runs is None:
+        ap.error("give --runs, --binary-sweep, or both")
 
     rows = fold_table(args.runs)
     print("FOLDS (V4FinBench published protocol)")
