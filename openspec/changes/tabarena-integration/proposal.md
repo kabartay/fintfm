@@ -1,5 +1,14 @@
 # Benchmark fintfm inside TabArena, for a number comparable to published work
 
+**Status note (2026-11-15):** the original text below is kept as written. Overtaken since:
+
+- The entry now declares binary, multiclass and regression, with a checkpoint per problem type and `max_features_strategy: select`, and runs 51 of 51 datasets (§221, §235). The "binary-only" and "<=136-feature" statements below describe the first submission.
+- PR #616 was submitted on 2026-09-25 and a TabArena collaborator declined it on competitiveness (§122). It is now on hold (`docs/results/TABARENA.md`).
+- The AP deficit quoted from §96 is superseded by the Lite standing: 931.9 Elo, 106th of 110 (§235).
+- Lite has been run many times since the fin00 blocker below was written, so that blocker no longer applies.
+- Current numbers are TabArena-Lite, one fold (repeat 0, fold 0), from the fork. They are not public-board numbers.
+- The FinTFM-LinProbe model folder in the fork (`fintfm_linprobe/`) carries the current entries.
+
 ## Why
 
 Every real-data number this project has is on data this project chose: V4FinBench, Polish and
