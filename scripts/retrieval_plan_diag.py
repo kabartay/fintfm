@@ -31,7 +31,10 @@ Xtr, Xte = (sc.transform(imp.transform(X[i])).astype(np.float32) for i in (tr, t
 model = FinancialTFM.load("runs/v4-cellattn-labels.pt")
 clf = vp.fintfm_classifier(model, cfg, device="cpu", random_state=fold)
 clf.fit(Xtr, y[tr], groups=company[tr])
-plan = clf._retrieval_plan(Xte)
+# the pool is stored conditioned: queries must be conditioned as predict_proba does (2026-11-15,
+# task 38.13; the first version passed raw queries and reported 9.74% context positives where
+# the scoring path draws 0.64%)
+plan = clf._retrieval_plan(clf._condition(clf._select_query(Xte)))
 rate = clf._pooled_context_rate(plan)
 
 d = np.load("runs/v4-lever-retrieval/predictions_fold0.npz")
