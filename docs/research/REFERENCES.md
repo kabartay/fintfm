@@ -801,3 +801,21 @@ rights the Information Provider is not authorised to license".
 **API limit.** [Rate limiting guide](https://developer-specs.company-information.service.gov.uk/guides/rateLimiting):
 "You can make up to 600 requests within a five-minute period." The README licensing section has
 not yet been given a line for this source (README is outside this task's edit scope).
+
+## TabBench v2 read 2026-11-15
+
+Full notes, licence census and page references in `docs/research/tabbench_v2.md`. Report read from
+the PDF text layer (`pdftotext -layout`, 23 pages); Table 2 copied from clean text. Nothing run,
+no data or checkpoint downloaded.
+
+**Atienza et al. (2026).** Technical report of a commercial tabular foundation model, 12 June 2026
+(PDF stamp; the vendor's web page gives 25 August 2026, unresolved). Title and publisher withheld
+under the no-commercial-peer-names rule; no arXiv identifier resolved.
+TabBench v2 (189 OpenML classification datasets, 5 stratified folds, 20% held out, ROC-AUC): TabPFN v3
+0.906, the vendor model 0.904, TabICL v2 0.902 mean AUC, within noise (Table 2, p. 11); native
+coverage 100%, 100%, 97.9% (imputed 0.0, 0.0, 2.1%). The "18 of 22 / 15 of 22" figures are from a
+**private 22-problem industrial pool**, not TabBench (pp. 14-16), vendor-reported. **Licences,
+checked separately:** benchmark code is Apache-2.0 plus an added attribution paragraph, not plain
+Apache-2.0 despite the README badge; datasets: 63 of 251 OpenML configs carry a permissive licence
+string, 1 is non-commercial, 178 state none and are excluded; the dataset Space returned HTTP 401.
+Published numbers only.
