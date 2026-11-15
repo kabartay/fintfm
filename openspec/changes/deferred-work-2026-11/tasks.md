@@ -107,3 +107,42 @@
       `ts_dr75_width512_mc`) carry no pinned commit; `configs/best.yaml` still calls itself the
       best configuration to date (§38). Verify: each is fixed, or noted here with the reason it
       stays.
+
+## Representation controls and the 20-class regression checkpoint (2026-11-15)
+
+- [ ] 49.13 **Progress (2026-11-15): running.** Kernel `scripts/kaggle/ts_reg_pure_c20_s0`
+      (68718fc; 6,000 steps x 8 tasks per step, DDP on 2 GPUs = 48,000 tasks, `--max-classes 20`,
+      `--p-regression 1.0`) trained on Kaggle in about 1.2 h; checkpoint fetched to
+      `runs/kaggle-fintfm-ts-reg-pure-c20-s0/reg-pure-c20-s0/reg-pure-c20-s0.pt`, stored
+      `max_classes` 20. Lite run `fintfm_lp_reg_c20part4_1115` queued (`reg-c20part4`, four
+      partition bags, ridge readout with `raw`, `FINTFM_REG_BINS=20` from fork dcd46c2; a first
+      attempt failed on all 13 tables because `FINTFM_PARAMS` does not take `n_bins`).
+      **Score the 20-class regression checkpoint on TabArena-Lite regression.** Regression
+      tasks are binned into the head's class count, so 20 classes give a finer target grid than
+      the 10 of the current checkpoint. Verify: a FINDINGS entry with per-dataset RMSE over the
+      13 regression datasets, a sign test and Elo, paired against `fintfm_lp_reg_rawpart4_pure_1114`
+      (689, §235) and against the raw-only control `fintfm_lp_reg_rawonly4_1115` (537, §240); if
+      it beats 689, the re-merged 51-dataset Elo and its position from
+      `scripts/lite_positions.py` with the field size.
+- [ ] 49.14 **Separate the checkpoint from the bin count, only if 49.13 moves Elo.** 49.13
+      changes the checkpoint and `n_bins` together, so a gain cannot be assigned to either.
+      Score the 20-class checkpoint at `FINTFM_REG_BINS=10` with 49.13's configuration
+      otherwise unchanged. Verify: per-dataset RMSE and Elo against 49.13's run and against
+      §235's run; the FINDINGS entry says which of the two changes carries the difference. Not
+      run if 49.13 is null or negative (then there is nothing to assign).
+- [ ] 49.15 **The raw-only control for multiclass.** Binary (§239) and regression (§240) each
+      have a matched control with `no_rep` (a tree with a linear readout per leaf on the
+      squashed raw features, no FinTFM representation); multiclass, the entry's 874 Elo
+      (`fintfm_lp_mc_scr_bag8_1113`), has none, so it is unknown whether multiclass's Elo is
+      the representation's. Run §237's multiclass configuration with `no_rep` added to
+      `FINTFM_PROBE`. Verify: a FINDINGS entry with per-dataset log loss, a sign test and Elo
+      against the entry's multiclass run, and README, CLAIMS and FINDINGS say for multiclass
+      what §239/§240 say for binary and regression.
+- [ ] 49.16 **48.24's size control, if context size is ever revisited.** 48.24 was falsified
+      (§241) without its pre-registered 4,000-row uniform context control
+      (`configs/arms/48.24-uniform-ctx4000.yaml`; `runs/4824/uni4000` is empty), so the
+      majority-downsampled arm's +0.0041 mean AP is confounded with doubling the context. The
+      verdict does not depend on it and §83/§84 measured context as nearly flat, so this is
+      low priority. Verify: five-fold V4FinBench AP of the uniform 4,000-row arm against
+      `runs/lrsweep/eval-published` and against `runs/4824/maj4000`, clustered comparison, in
+      a FINDINGS entry that states how much of §241's difference is context size.
