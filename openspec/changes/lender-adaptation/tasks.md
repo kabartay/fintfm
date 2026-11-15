@@ -10,7 +10,7 @@
       bootstrap from `metrics.py`.
 - [ ] 16.4 Measure adaptation cost in wall-clock and dollars on a single GPU, since the whole
       argument is economic. Verify: figures in `docs/infra/COMPUTE.md`, measured not estimated.
-- [ ] 16.5 Record the provenance rule in `openspec/specs/pretraining-provenance`: adapters are
+- [x] 16.5 **Done (2026-11-15): recorded as P5 in `openspec/specs/pretraining-provenance/spec.md`, with a scenario: adapters and fine-tuned weights trained on a lender's or any real data are a separate artefact that inherits the FinTFM-R side of the provenance table, never the synthetic-only claim; the base checkpoint's claim is unchanged; adapters are per-lender and never merged into a shipped base model. Gap, not implemented here: no code records real-data fine-tuning in a checkpoint. `_training_provenance` (`modeling/train.py`) records `source_shares` (so `p_real_edgar` shows real EDGAR pretraining) and `init_from` (path, SHA-256, tasks seen) for continued pretraining, and `FinancialTFMClassifier(finetune_steps=N)` fine-tunes a copy in memory with no saved provenance. P5 is therefore enforced by review and the 16.2 frozen-base test, not by a checkpoint field.** Record the provenance rule in `openspec/specs/pretraining-provenance`: adapters are
       per-lender, never merged into a shipped base model. Verify:
       `uv run python openspec/tools/validate.py` passes.
 - [ ] 16.6 **Score §164's pre-registered fine-tuning arms and write the verdicts into §164.**
