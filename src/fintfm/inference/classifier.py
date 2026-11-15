@@ -2043,7 +2043,11 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
                 ``"encoder_mid"`` (§131's stage plus ``y_emb`` and the first half of
                 ``self.encoder``'s layers, rounded up -- partway through the row-to-row
                 transformer rather than before or after all of it, no final ``self.norm``), or
-                ``"pre_head"`` (every step ``forward`` runs short of ``self.head`` itself).
+                ``"pre_head"`` (every step ``forward`` runs short of ``self.head`` itself), or
+                ``"task_token"`` (task 41.2's ``z_task``, the same vector for every row; needs
+                a ``task_token=True`` model). The annotation lists only the three golden-
+                fingerprinted stages (``tests/test_golden_outputs.py`` pins it to them); the
+                fourth is accepted at run time and is not fingerprinted.
 
         Returns:
             ``(n, d_model)`` row representations, one per query row.

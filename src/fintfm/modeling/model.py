@@ -61,7 +61,7 @@ CELL_MIXINGS: tuple[str, ...] = ("attention", "latent", "factorized")
 #: What :meth:`FinancialTFM.predict_context` returns for the query rows.
 ContextOutput = Literal["logits", "term_structure", "representation"]
 #: Depth :meth:`FinancialTFM.predict_context` reads a representation at.
-RepresentationStage = Literal["encode_rows", "encoder_mid", "pre_head"]
+RepresentationStage = Literal["encode_rows", "encoder_mid", "pre_head", "task_token"]
 
 
 @dataclass
@@ -327,6 +327,18 @@ class ModelConfig:
         row-within-feature stage and is not built) and ``readout="pool"``. The ``n_cell_blocks``
         passes share one set of weights. No measured effect yet: unmeasured, and not claimed
         better than ``"attention"``.
+        task_token: Add an explicit task token ``z_task`` (task 41.2, ``openspec/changes/
+            explicit-task-representation``). ``False`` (default) builds none of it and every
+            output is unchanged. ``True`` adds a learned query that cross-attends over the
+            *context* rows' final row-stack states and is added to every row's state, through
+            a zero-initialised linear layer, before the final norm and the head: query
+            predictions condition on a pooled description of the context as well as on their
+            own features. ``z_task`` reads context rows only, so it is invariant to context
+            order and a query's output does not depend on other queries.
+            ``predict_context(..., stage="task_token")`` returns it, one vector repeated per
+            query row. A dataset-level slot in the spirit of TabSwift's register tokens, but
+            read out into the query path rather than discarded. Unmeasured: no claim that it
+            helps; task 41.3 measures that.
     """
 
     max_features: int = 24
@@ -362,6 +374,7 @@ class ModelConfig:
     n_readout: int = 4
     head_mlp: bool = False
     cell_mixing: str = "attention"
+    task_token: bool = False
 
     def __post_init__(self) -> None:
         """Validate ``head_type``, the Phase 5 and DR6 levers, and their interactions.
@@ -1236,6 +1249,18 @@ class FinancialTFM(nn.Module):
             row_layer, num_layers=cfg.n_layers, enable_nested_tensor=False
         )
         self.norm = nn.LayerNorm(cfg.d_model)
+        if cfg.task_token:
+            # Task 41.2: a learned query pools the context rows into z_task, which every row
+            # adds through a zero-initialised projection, so a fresh model computes what it
+            # would without the flag and the token enters only as training moves it.
+            self.task_token = nn.Parameter(torch.randn(1, 1, cfg.d_model) * 0.02)
+            self.task_key_norm = nn.LayerNorm(cfg.d_model)
+            self.task_attn = nn.MultiheadAttention(
+                cfg.d_model, cfg.n_heads, dropout=cfg.dropout, batch_first=True
+            )
+            self.task_out = nn.Linear(cfg.d_model, cfg.d_model)
+            nn.init.zeros_(self.task_out.weight)
+            nn.init.zeros_(self.task_out.bias)
         head_out = cfg.n_quantiles if cfg.head_type == "quantile" else cfg.max_classes
         if cfg.head_mlp:
             # DR6.3: a two-layer head at the row stage's feed-forward width
@@ -1768,9 +1793,56 @@ class FinancialTFM(nn.Module):
         return torch.cat([ctx_emb, self.query_token.expand(B, N - n_ctx, -1)], dim=1)
 
     @unfused_encoder_layers()
+    def _task_summary(self, h: torch.Tensor, n_ctx: int) -> torch.Tensor:
+        """Pool the context rows into the task token ``z_task`` (task 41.2).
+
+        One learned query attends over the context rows' final row-stack states (layer-normed),
+        so ``z_task`` is a function of the context alone: permuting the context rows leaves it
+        unchanged (no positional encoding anywhere in the row stack) and no query row enters
+        it, so a query's prediction never depends on the other queries.
+
+        Args:
+            h: ``(B, N, d_model)`` output of the row stack; only the first ``n_ctx`` rows read.
+            n_ctx: Context/query split.
+
+        Returns:
+            ``(B, 1, d_model)``.
+        """
+        keys = self.task_key_norm(h[:, :n_ctx])
+        z, _ = self.task_attn(
+            self.task_token.expand(h.shape[0], -1, -1).to(h.dtype),
+            keys,
+            keys,
+            need_weights=False,
+        )
+        return z
+
+    @unfused_encoder_layers()
     def _row_attention(
         self, h: torch.Tensor, n_ctx: int, n_layers: int | None = None
     ) -> torch.Tensor:
+        """Run the row encoder, then add the task conditioning when ``cfg.task_token``.
+
+        The one entry the model's heads read through, so the term-structure and survival
+        paths get the token too. A partial stack (``n_layers`` given, the ``encoder_mid``
+        representation) is returned as :meth:`_row_stack` leaves it. With ``task_token=False``
+        this is :meth:`_row_stack` unchanged.
+
+        Args:
+            h: ``(B, N, d_model)`` row representations with label embeddings added.
+            n_ctx: Context/query split.
+            n_layers: As in :meth:`_row_stack`.
+
+        Returns:
+            ``(B, N, d_model)``.
+        """
+        h = self._row_stack(h, n_ctx, n_layers)
+        if self.cfg.task_token and n_layers is None:
+            h = h + self.task_out(self._task_summary(h, n_ctx))
+        return h
+
+    @unfused_encoder_layers()
+    def _row_stack(self, h: torch.Tensor, n_ctx: int, n_layers: int | None = None) -> torch.Tensor:
         """Run the row (in-context) encoder, length-scaled when ``cfg.attn_length_scale``.
 
         The one place the row stage runs, for every path through the model and for the
@@ -1962,7 +2034,8 @@ class FinancialTFM(nn.Module):
                 ``"encode_rows"`` (:meth:`encode_rows` alone), ``"encoder_mid"`` (plus the
                 label embedding and the first half of the row encoder's layers, rounded up,
                 with no final norm) or ``"pre_head"`` (everything :meth:`forward` runs short
-                of ``self.head``).
+                of ``self.head``) or ``"task_token"`` (``z_task``, one vector repeated per query row;
+                needs ``cfg.task_token``).
             period: ``(n_ctx,)`` context default periods for ``output="term_structure"``;
                 required by a ``hazard_period_context`` checkpoint, ignored otherwise.
             pad_features: NaN-pad the feature axis to ``cfg.max_features`` (True, what every
@@ -2016,6 +2089,13 @@ class FinancialTFM(nn.Module):
             h = self._row_attention(h + self._label_embedding(y, n_ctx, h.dtype), n_ctx, n_half)
         elif stage == "pre_head":
             h = self.norm(self._row_attention(h + self._label_embedding(y, n_ctx, h.dtype), n_ctx))
+        elif stage == "task_token":
+            if not self.cfg.task_token:
+                raise ValueError("stage='task_token' needs a model built with task_token=True")
+            h = self._row_stack(h + self._label_embedding(y, n_ctx, h.dtype), n_ctx)
+            # one vector per task, repeated per query row so the output keeps the
+            # (n_q, d_model) shape every stage has
+            return self._task_summary(h, n_ctx)[0].expand(h.shape[1] - n_ctx, -1)
         elif stage != "encode_rows":
             raise ValueError(f"unknown stage {stage!r}")
         return h[0, n_ctx:]

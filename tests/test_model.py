@@ -1152,7 +1152,15 @@ _P5_KEYS = (
 )
 #: The design review DR6 levers (DR6.2, DR6.3), deleted alongside: a checkpoint saved before
 #: them lacks their keys too.
-_DR6_KEYS = ("cell_row_attn", "n_inducing", "readout", "n_readout", "head_mlp", "cell_mixing")
+_DR6_KEYS = (
+    "cell_row_attn",
+    "n_inducing",
+    "readout",
+    "n_readout",
+    "head_mlp",
+    "cell_mixing",
+    "task_token",
+)
 
 
 def _p5_inputs(max_classes):
@@ -2366,3 +2374,193 @@ def test_factorized_trains_three_steps_on_each_available_device(device, tmp_path
 def test_factorized_config_refuses_nonsense(bad, match):
     with pytest.raises(ValueError, match=match):
         ModelConfig(**{**_P5_BASE, **bad})
+
+
+# --- Task 41.2: task_token, an explicit z_task pooled over the context rows ---
+
+
+def _task_model(seed=0, *, live=True, **extra):
+    """A seeded tiny task-token model; ``live`` replaces the zero-initialised output layer
+    with random weights so that the token visibly reaches the logits."""
+    model = _dr6_model(task_token=True, **extra)
+    if live:
+        g = torch.Generator().manual_seed(seed + 100)
+        with torch.no_grad():
+            model.task_out.weight.copy_(torch.randn(model.task_out.weight.shape, generator=g))
+            model.task_out.bias.copy_(torch.randn(model.task_out.bias.shape, generator=g))
+    return model
+
+
+def _task_ctx(X, y, X_queries=None):
+    """Numpy context and query rows of the first task of ``_p5_inputs`` (9 context rows)."""
+    xq = (X if X_queries is None else X_queries)[0, 9:]
+    return X[0, :9].numpy(), y[0, :9].numpy(), xq.numpy()
+
+
+def test_task_token_is_off_by_default_and_builds_nothing():
+    model = _dr6_model()
+    assert model.cfg.task_token is False
+    assert not any(k.startswith("task_") for k in model.state_dict())
+
+
+def test_default_state_dict_loads_strictly_with_task_token_off():
+    """41.2: a state_dict of the default model loads strictly into a default model, and the
+    outputs are identical (the flag adds no module, no draw from the seed)."""
+    default = _dr6_model()
+    clone = _dr6_model(task_token=False)
+    clone.load_state_dict(default.state_dict(), strict=True)
+    X, y = _p5_inputs(3)
+    torch.testing.assert_close(_p5_run(clone, X, y), _p5_run(default, X, y), rtol=0, atol=0)
+
+
+def test_task_token_starts_as_the_baseline_function():
+    """The output projection is zero-initialised, so a fresh token model computes exactly
+    what the same weights compute without the flag; the token enters as training moves it."""
+    base = _dr6_model()
+    tok = _task_model(live=False)
+    own = {k: v for k, v in tok.state_dict().items() if not k.startswith("task_")}
+    base.load_state_dict(own, strict=True)
+    X, y = _p5_inputs(3)
+    torch.testing.assert_close(_p5_run(tok, X, y), _p5_run(base, X, y), rtol=0, atol=0)
+
+
+def test_task_token_changes_the_output_once_live():
+    live, dead = _task_model(), _task_model(live=False)
+    state = {k: v for k, v in live.state_dict().items() if not k.startswith("task_out")}
+    dead.load_state_dict({**dead.state_dict(), **state})
+    X, y = _p5_inputs(3)
+    out = _p5_run(live, X, y)
+    assert out.shape == (2, 14, 3)
+    assert torch.isfinite(out[:, 9:]).all()
+    assert not torch.allclose(out[:, 9:], _p5_run(dead, X, y)[:, 9:])
+
+
+def test_task_token_old_checkpoint_without_the_key_loads_identically(tmp_path):
+    """A checkpoint saved before the key existed has no ``task_token`` in its config."""
+    model = _dr6_model()
+    path = tmp_path / "old.pt"
+    model.save(str(path))
+    ckpt = torch.load(str(path), weights_only=True)
+    del ckpt["config"]["task_token"]
+    torch.save(ckpt, str(path))
+    loaded = FinancialTFM.load(str(path))
+    assert loaded.cfg.task_token is False
+    X, y = _p5_inputs(3)
+    torch.testing.assert_close(_p5_run(loaded, X, y), _p5_run(model, X, y), rtol=0, atol=0)
+
+
+def test_task_token_checkpoint_roundtrips(tmp_path):
+    model = _task_model()
+    path = tmp_path / "tok.pt"
+    model.save(str(path))
+    loaded = FinancialTFM.load(str(path))
+    assert loaded.cfg.task_token is True
+    X, y = _p5_inputs(3)
+    torch.testing.assert_close(_p5_run(loaded, X, y), _p5_run(model, X, y), rtol=0, atol=0)
+
+
+@pytest.mark.parametrize("extra", [{}, {"attn_impl": "split"}, {"n_cell_blocks": 1}])
+def test_task_token_invariant_to_context_row_order(extra):
+    model = _task_model(**extra)
+    X, y = _p5_inputs(3)
+    perm = torch.randperm(9, generator=torch.Generator().manual_seed(5))
+    full = torch.cat([perm, torch.arange(9, 14)])
+    a = _p5_run(model, X, y)[:, 9:]
+    b = _p5_run(model, X[:, full], y[:, full])[:, 9:]
+    torch.testing.assert_close(a, b, rtol=1e-4, atol=1e-5)
+
+
+def test_task_token_leaks_nothing_between_queries():
+    """A query's prediction does not change when the other queries do, and the token itself
+    is a function of the context alone."""
+    model = _task_model()
+    X, y = _p5_inputs(3)
+    X2 = X.clone()
+    X2[:, 10:] = torch.randn(2, 4, 6, generator=torch.Generator().manual_seed(9))
+    a = _p5_run(model, X, y)[:, 9]
+    b = _p5_run(model, X2, y)[:, 9]
+    torch.testing.assert_close(a, b, rtol=1e-5, atol=1e-6)
+    xc, yc, xq = _task_ctx(X, y)
+    _, _, xq2 = _task_ctx(X, y, X2)
+    za = model.predict_context(xc, yc, xq, output="representation", stage="task_token")
+    zb = model.predict_context(xc, yc, xq2, output="representation", stage="task_token")
+    torch.testing.assert_close(za, zb, rtol=0, atol=0)
+
+
+def test_task_token_is_exposed_as_a_representation_stage():
+    model = _task_model()
+    X, y = _p5_inputs(3)
+    xc, yc, xq = _task_ctx(X, y)
+    z = model.predict_context(xc, yc, xq, output="representation", stage="task_token")
+    assert z.shape == (5, model.cfg.d_model)
+    assert torch.equal(z, z[:1].expand_as(z))  # one vector per task
+    other = model.predict_context(xc, 2 - yc, xq, output="representation", stage="task_token")
+    assert not torch.allclose(z, other)  # it depends on the context labels
+    with pytest.raises(ValueError, match="task_token=True"):
+        _dr6_model().predict_context(xc, yc, xq, output="representation", stage="task_token")
+
+
+def test_task_token_reaches_task_probe_through_the_classifier():
+    """task_probe reads ``transform_representation``; the token stage passes through it."""
+    from fintfm.experiments.task_probe import task_representation
+
+    model = _task_model()
+    model.trained_objectives = ("classification",)
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(20, 4)).astype(np.float32)
+    y = (X[:, 0] > 0).astype(int)
+    probe = rng.normal(size=(6, 4)).astype(np.float32)
+    v = task_representation(model, X, y, probe, "task_token")
+    assert v.shape == (2 * model.cfg.d_model,)
+    assert np.isfinite(v).all()
+    assert np.allclose(v[model.cfg.d_model :], 0.0, atol=1e-6)  # std over identical rows
+
+
+def test_task_token_parameter_count_is_reported():
+    base, tok = _dr6_model(), _task_model()
+    d = tok.cfg.d_model
+    extra = tok.num_parameters() - base.num_parameters()
+    # token d + key norm 2d + MHA (4d^2 + 4d) + output projection (d^2 + d)
+    assert extra == d + 2 * d + (4 * d * d + 4 * d) + (d * d + d)
+    print(f"task_token adds {extra} parameters to {base.num_parameters()}")
+
+
+@pytest.mark.parametrize(
+    "device",
+    [
+        "cpu",
+        pytest.param(
+            "mps",
+            marks=pytest.mark.skipif(
+                not torch.backends.mps.is_available(), reason="no Metal GPU here"
+            ),
+        ),
+        pytest.param(
+            "cuda",
+            marks=pytest.mark.skipif(not torch.cuda.is_available(), reason="no CUDA device here"),
+        ),
+    ],
+)
+def test_task_token_trains_three_steps_on_each_available_device(device, tmp_path):
+    """41.2: three real training steps (eval path entered) with the task token."""
+    from fintfm.modeling.train import TrainConfig, train
+
+    cfg = ModelConfig(
+        max_features=6,
+        max_classes=2,
+        d_cell=8,
+        d_model=16,
+        n_heads=2,
+        n_col_layers=1,
+        n_layers=1,
+        d_ff=16,
+        task_token=True,
+    )
+    prior_cfg = PriorConfig(max_features=6, max_classes=2, n_rows=16)
+    train_cfg = TrainConfig(
+        steps=3, batch_size=2, device=device, log_every=1, eval_every=2, warmup_steps=1
+    )
+    model = train(cfg, prior_cfg, train_cfg, str(tmp_path / "ckpt.pt"))
+    assert str(next(model.parameters()).device).startswith(device)
+    assert all(torch.isfinite(p).all() for p in model.parameters())
+    assert model.task_out.weight.abs().sum() > 0  # the zero-init layer was trained

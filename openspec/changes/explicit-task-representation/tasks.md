@@ -3,7 +3,7 @@
 - [ ] 41.1 **Wait on `cell-attention-and-task-inference` task 39.7's result.** **Progress (2026-11-15): the 39.7 probe harness (`fintfm.experiments.task_probe`) is built; its measured result is still outstanding.** Verify: this
       proposal's first pretraining task (41.3) cites the probe-separation finding that
       justifies starting it, not merely a calendar date.
-- [ ] 41.2 **Design the explicit task token** as a config-gated addition
+- [x] 41.2 **Done (2026-11-15): `ModelConfig.task_token` (default False) adds a learned query that cross-attends over the context rows' final row-stack states and is added to every row through a zero-initialised projection before the final norm and head; `predict_context(stage="task_token")` exposes `z_task` for `task_probe` (via `transform_representation`, accepted at run time, not in the golden-pinned annotation). Default outputs are byte-identical (golden tests unchanged and green; an old state_dict and a checkpoint without the key load strictly with identical outputs); tests cover the 3-step CPU train with the eval path, context-row-order invariance, no query-to-query leakage and the parameter count. Unmeasured: 41.3 measures whether it helps.** **Design the explicit task token** as a config-gated addition
       **Prior art, found 2026-09-21: TabSwift's register tokens** (`github.com/LAMDA-Tabular/
       TabSwift`) are a published implementation — learnable tokens prepended to the ICL
       sequence, carrying dataset-level information "without interfering with the data tokens",
