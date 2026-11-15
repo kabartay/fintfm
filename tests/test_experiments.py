@@ -497,3 +497,116 @@ def test_capability_record_carries_regret_beside_raw_auc(tmp_path):
     saved = json.loads((tmp_path / "capability.json").read_text())
     assert "bayes_ceiling" in saved
     assert "R_norm" in summarise(rec)
+
+
+# --- calibrated gradient-boosting arms (sample-efficiency-regime 13.7) -------------------
+
+
+def _gbm_factory():
+    """Cheap boosting pipeline for the 13.7 tests."""
+    from sklearn.ensemble import GradientBoostingClassifier
+    from sklearn.impute import SimpleImputer
+    from sklearn.pipeline import make_pipeline
+
+    return make_pipeline(
+        SimpleImputer(strategy="median"),
+        GradientBoostingClassifier(n_estimators=10, random_state=0),
+    )
+
+
+def _toy_panel(n: int = 400, seed: int = 0):
+    import numpy as np
+
+    rng = np.random.default_rng(seed)
+    X = rng.normal(size=(n, 4)).astype("float32")
+    y = (X[:, 0] + rng.normal(scale=1.0, size=n) > 1.0).astype(int)
+    return X, y
+
+
+def test_holdout_calibration_never_sees_test_rows():
+    """13.7: calibration and fit slices partition the training rows only."""
+    import numpy as np
+
+    from fintfm.experiments.prior_ablation import calibrated_gboost_holdout_arms
+
+    X, y = _toy_panel()
+    X_tr, y_tr, X_te, y_te = X[:250], y[:250], X[250:], y[250:]
+    arms, info = calibrated_gboost_holdout_arms(
+        _gbm_factory, X_tr, y_tr, X_te, y_te, calibration_frac=0.3, seed=0
+    )
+    fit, cal = np.array(info["fit_idx"]), np.array(info["cal_idx"])
+    assert np.intersect1d(fit, cal).size == 0
+    assert sorted(np.concatenate([fit, cal]).tolist()) == list(range(len(y_tr)))
+    assert fit.max() < len(y_tr) and cal.max() < len(y_tr)  # indices into train, not test
+    assert info["calibration_frac"] == 0.3
+    assert info["n_cal"] == len(cal) and info["skipped"] is None
+    for key in ("gboost_platt_holdout", "gboost_isotonic_holdout"):
+        m = arms[key]
+        assert m is not None and 0.0 <= m.ece <= 1.0
+        assert m.average_precision > 0 and m.pred_sd >= 0  # AP and spread fields present
+
+
+def test_holdout_calibration_skips_with_a_reason_on_degenerate_slices():
+    """13.7: one-class or unstratifiable training rows are skipped and say why."""
+    import numpy as np
+
+    from fintfm.experiments.prior_ablation import calibrated_gboost_holdout_arms
+
+    X, y = _toy_panel(60)
+    X_te, y_te = X[:30], y[:30]
+    one_pos = np.zeros(30, dtype=int)
+    one_pos[0] = 1
+    arms, info = calibrated_gboost_holdout_arms(_gbm_factory, X[30:], one_pos, X_te, y_te)
+    assert all(v is None for v in arms.values())
+    assert "stratify" in info["skipped"]
+    # two positives and a tiny slice: whichever way it falls, never a crash, reason recorded
+    two_pos = np.zeros(30, dtype=int)
+    two_pos[:2] = 1
+    arms, info = calibrated_gboost_holdout_arms(
+        _gbm_factory, X[30:], two_pos, X_te, y_te, calibration_frac=0.1
+    )
+    assert info["skipped"] is not None or all(v is not None for v in arms.values())
+    if info["skipped"]:
+        assert all(v is None for v in arms.values())
+
+
+def test_holdout_calibration_rejects_bad_fraction():
+    import pytest
+
+    from fintfm.experiments.prior_ablation import calibrated_gboost_holdout_arms
+
+    X, y = _toy_panel(100)
+    with pytest.raises(ValueError):
+        calibrated_gboost_holdout_arms(_gbm_factory, X, y, X, y, calibration_frac=1.0)
+
+
+def test_probe_output_carries_the_holdout_arms(monkeypatch):
+    """13.7: the probe record has the new arms beside the old ones (stub TFM, no checkpoint)."""
+    import numpy as np
+
+    from fintfm.evaluation.datasets import CreditDataset
+    from fintfm.experiments import prior_ablation as pa
+
+    class _StubTFM:
+        def __init__(self, *a, **k):
+            pass
+
+        def fit(self, X, y):
+            self.rate = float(np.mean(y))
+            return self
+
+        def predict_proba(self, X):
+            p = np.clip(0.5 * self.rate + 0.1 * (X[:, 0] > 0), 1e-3, 0.9)
+            return np.column_stack([1 - p, p])
+
+    monkeypatch.setattr(pa, "FinancialTFMClassifier", _StubTFM)
+    X, y = _toy_panel(1200)
+    ds = CreditDataset(X=X, y=y, name="toy", horizon_years=3, licence="x", attribution="x")
+    rec = pa.sample_efficiency_probe("stub.pt", train_sizes=(100, 300), ds=ds, calibration_frac=0.4)
+    assert rec["calibration_frac"] == 0.4
+    for cell in rec["sizes"].values():
+        for key in ("fintfm", "gboost", "gboost_sigmoid", "gboost_isotonic"):
+            assert key in cell
+        assert "gboost_platt_holdout" in cell and "gboost_isotonic_holdout" in cell
+        assert cell["calibration_holdout"]["calibration_frac"] == 0.4
+        assert "fit_idx" not in cell["calibration_holdout"]
