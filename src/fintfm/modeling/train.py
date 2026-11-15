@@ -180,6 +180,14 @@ class TrainConfig:
     #: a feature. A replacement, so tasks seen are unchanged. ``0.0`` (default) never touches a
     #: batch and reproduces every checkpoint's task sequence exactly. Binned head only.
     masked_column_prob: float = 0.0
+    #: Weight of the classification loss added to the survival loss on every batch that
+    #: carries ``period`` (openspec 34.1, ``docs/results/FINDINGS.md`` §34): ``loss =
+    #: survival + weight * classification``. ``0.0`` (default) is the survival loss alone,
+    #: byte for byte as before (no extra forward pass, same random stream), whose checkpoint
+    #: never optimises the classification head. Above zero both objectives are recorded in
+    #: ``trained_objectives`` so a hazard checkpoint also serves ``predict_proba``. Needs a
+    #: hazard head (``n_horizons``) and the binned head; refused otherwise.
+    joint_classification_weight: float = 0.0
     #: Base learning rate of Muon's matrix groups under ``optimizer="muon"``; the AdamW side
     #: keeps :attr:`lr`. ``None`` (default) follows :attr:`muon_scale`: :attr:`lr` under
     #: ``"rms_match"``, whose scaling exists to share AdamW's rate, and the write-up's 0.02
@@ -326,6 +334,11 @@ def _check_train_config(train_cfg: TrainConfig) -> None:
     if not 0.0 <= train_cfg.masked_column_prob <= 1.0:
         raise ValueError(
             f"masked_column_prob must be in [0, 1], got {train_cfg.masked_column_prob}"
+        )
+    if train_cfg.joint_classification_weight < 0:
+        raise ValueError(
+            "joint_classification_weight must be at least 0, got "
+            f"{train_cfg.joint_classification_weight}"
         )
     if train_cfg.schedule == "wsd":
         if train_cfg.optimizer == "schedulefree":
@@ -630,6 +643,7 @@ def _training_step(
     objectives: set[str],
     scaler: torch.amp.GradScaler | None = None,
     ddp_module: torch.nn.Module | None = None,
+    joint_weight: float = 0.0,
 ) -> torch.Tensor:
     """One optimiser step on one batch: the loop body :func:`train` and :func:`benchmark` share.
 
@@ -649,6 +663,9 @@ def _training_step(
         ddp_module: ``model`` wrapped as :class:`_LossModule` in ``DistributedDataParallel``
             under ``--ddp``; the loss is computed through it so the backward pass averages
             gradients across ranks. ``None`` computes it on ``model`` directly.
+        joint_weight: :attr:`TrainConfig.joint_classification_weight`. Above zero, a batch
+            with ``period`` adds ``joint_weight`` times the classification loss to the survival
+            loss and records both objectives; ``0.0`` is the survival loss alone.
 
     Returns:
         The step's (unscaled) loss tensor; the caller reads ``.item()``.
@@ -659,8 +676,16 @@ def _training_step(
             if ddp_module is None:
                 loss = model.survival_loss(batch.X, batch.y, batch.period, batch.n_ctx)
             else:
-                loss = ddp_module(batch.X, batch.y, batch.n_ctx, batch.n_classes, batch.period)
+                loss = ddp_module(
+                    batch.X, batch.y, batch.n_ctx, batch.n_classes, batch.period, joint_weight
+                )
             objectives.add("survival")
+            if joint_weight > 0:
+                if ddp_module is None:
+                    loss = loss + joint_weight * model.loss(
+                        batch.X, batch.y, batch.n_ctx, batch.n_classes
+                    )
+                objectives.add("classification")
         else:
             if ddp_module is None:
                 loss = model.loss(batch.X, batch.y, batch.n_ctx, batch.n_classes)
@@ -706,6 +731,7 @@ class _LossModule(torch.nn.Module):
         n_ctx: int,
         n_classes: torch.Tensor,
         period: torch.Tensor | None,
+        joint_weight: float = 0.0,
     ) -> torch.Tensor:
         """The survival loss when ``period`` is given, the model's own loss otherwise.
 
@@ -715,12 +741,17 @@ class _LossModule(torch.nn.Module):
             n_ctx: Context rows.
             n_classes: Classes per task.
             period: Default periods for the survival objective, or ``None``.
+            joint_weight: With ``period``, the weight of the classification loss added to the
+                survival loss (inside this forward so DDP averages both); ``0.0`` adds none.
 
         Returns:
             The scalar loss.
         """
         if period is not None:
-            return self.model.survival_loss(X, y, period, n_ctx)
+            loss = self.model.survival_loss(X, y, period, n_ctx)
+            if joint_weight > 0:
+                loss = loss + joint_weight * self.model.loss(X, y, n_ctx, n_classes)
+            return loss
         return self.model.loss(X, y, n_ctx, n_classes)
 
 
@@ -1504,6 +1535,23 @@ def train(
             "--masked-column-prob relabels tasks with binary targets; it needs head_type "
             f"'binned', got {model_cfg.head_type!r}"
         )
+    if train_cfg.joint_classification_weight > 0:
+        if model_cfg.n_horizons is None:
+            raise ValueError(
+                "--joint-classification-weight adds the classification loss to the survival "
+                "loss; the model has no hazard head (set n_horizons), so there is nothing to "
+                "sum and the weight would be silently inert"
+            )
+        if model_cfg.head_type != "binned":
+            raise ValueError(
+                "--joint-classification-weight needs head_type 'binned', got "
+                f"{model_cfg.head_type!r}"
+            )
+        if train_cfg.train_only is not None:
+            raise ValueError(
+                "--joint-classification-weight cannot be combined with --train-only: the "
+                "survival loss never reaches the head that --train-only trains"
+            )
     rank, world, local_rank, device, owns_group = _ddp_setup(train_cfg)
     say = print if rank == 0 else _silent
     rng = np.random.default_rng(train_cfg.seed)
@@ -1748,7 +1796,8 @@ def train(
             )
             swapped_total += n_swapped
         loss = _training_step(
-            model, batch, opt, sched, train_cfg.amp, objectives, scaler, ddp_module
+            model, batch, opt, sched, train_cfg.amp, objectives, scaler, ddp_module,
+            train_cfg.joint_classification_weight,
         )
         running += loss.item()
         if (step + 1) % train_cfg.log_every == 0:
@@ -2059,6 +2108,16 @@ def build_parser() -> argparse.ArgumentParser:
         "context quantile and the original label becomes a feature. A replacement, so the "
         "task count is unchanged. Defaults to the config's train.masked_column_prob, 0.0, "
         "which reproduces every checkpoint's task sequence; binned head only",
+    )
+    p.add_argument(
+        "--joint-classification-weight",
+        type=float,
+        default=None,
+        help="weight of the classification loss added to the survival loss on batches that "
+        "carry periods (openspec 34.1): loss = survival + weight * classification, and both "
+        "objectives are recorded so the checkpoint serves predict_proba too. Defaults to the "
+        "config's train.joint_classification_weight, 0.0, the survival loss alone; needs a "
+        "hazard head (--n-horizons) and the binned head",
     )
     p.add_argument(
         "--amp",
