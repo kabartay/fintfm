@@ -28,7 +28,7 @@
       **Reported as a separate command rather than an arm of `fintfm-v4oot`**, because the two
       protocols score different rows and merging them into one table would invite exactly the
       comparison §36 says cannot be made.
-- [ ] 33.2a **Blocker: no checkpoint can run this protocol.** The wide checkpoint
+- [x] 33.2a **Done (2026-11-15, evidence): the blocker no longer holds. Classification checkpoints at `--max-features 136` exist (`runs/v4-cellattn-labels.pt`, the published recipe, 885K parameters) and `fintfm-v4protocol --no-boosting --horizon 0 --folds 0,1,2,3,4` runs a fintfm arm on the full 1,000,087-row panel with them: FINDINGS §124 (depth arms, `max_features=136`), §141 (control AP 0.2113 / 0.2050 / 0.1786 / 0.1810 / 0.2172 per fold) and §163-§164 (zero-shot mean AP 0.1986). The route taken was a new 136-feature classification checkpoint, not the 34.x joint objective. Not closed by this: 33.3-33.6.** **Blocker: no checkpoint can run this protocol.** The wide checkpoint
       (`v4-hazard-ldp.pt`, 136 features) is survival-only, so §34's guard correctly refuses
       its untrained classification head; the classification checkpoints are 120 features
       against this protocol's 130. Pretrain a classification checkpoint at
