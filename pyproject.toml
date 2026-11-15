@@ -108,6 +108,7 @@ fintfm-v4protocol = "fintfm.experiments.v4_protocol:main"
 fintfm-capability = "fintfm.experiments.capability:main"
 fintfm-priorscore = "fintfm.experiments.prior_score:main"
 fintfm-fetch = "fintfm.evaluation.fetch:main"
+fintfm-fitcal = "fintfm.experiments.fitted_calibration:main"
 
 [dependency-groups]
 # `pre-commit` is here rather than installed ad hoc: `uv pip install` puts a tool in one
