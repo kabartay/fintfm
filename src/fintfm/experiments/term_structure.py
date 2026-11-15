@@ -38,6 +38,8 @@ import numpy as np
 import torch
 from sklearn.metrics import roc_auc_score
 
+from fintfm.evaluation.metrics import holm_adjusted_p, paired_auc_difference
+
 from fintfm.modeling.model import FinancialTFM, ModelConfig
 from fintfm.prior import PriorConfig
 from fintfm.prior.mixture import sample_batch
@@ -148,12 +150,18 @@ def train_per_horizon(
 
 
 @torch.no_grad()
-def evaluate(
-    arm: str, models: FinancialTFM | list[FinancialTFM], batches: list, device: str,
-    n_horizons: int, total_steps: int,
-) -> ArmResult:
-    """Score an arm's cumulative-PD curves on the shared held-out batches."""
-    curves, truths = [], []
+def collect_curves(
+    models: FinancialTFM | list[FinancialTFM], batches: list, device: str, n_horizons: int
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Cumulative-PD curves, truths and task labels on the shared held-out batches.
+
+    Returns:
+        ``(C, T, tasks)``: ``(n, K)`` predicted curves, ``(n, K)`` cumulative-default labels,
+        and ``(n,)`` integer task ids. Rows of one synthetic task share a context and a
+        generating process, so the paired bootstrap resamples tasks, not rows.
+    """
+    curves, truths, tasks = [], [], []
+    offset = 0
     for b in batches:
         bb = b.to(device)
         if isinstance(models, list):
@@ -166,17 +174,25 @@ def evaluate(
         else:
             pd_curve = models.term_structure(bb.X, bb.y, bb.n_ctx, period=bb.period)
         curves.append(pd_curve.reshape(-1, n_horizons).cpu().numpy())
-        p = bb.period[:, bb.n_ctx:].reshape(-1).cpu().numpy()
+        per = bb.period[:, bb.n_ctx:]
+        p = per.reshape(-1).cpu().numpy()
         truths.append(np.stack([((p >= 0) & (p <= k)).astype(int) for k in range(n_horizons)], 1))
+        tasks.append(np.repeat(np.arange(per.shape[0]) + offset, per.shape[1]))
+        offset += per.shape[0]
+    return np.concatenate(curves), np.concatenate(truths), np.concatenate(tasks)
 
-    C = np.concatenate(curves)
-    T = np.concatenate(truths)
+
+def summarise_curves(
+    arm: str, C: np.ndarray, T: np.ndarray, n_models: int, total_steps: int
+) -> ArmResult:
+    """Score one arm's curves: AUC per horizon and the two coherence rates."""
+    n_horizons = C.shape[1]
     aucs = [_auc_safe(T[:, k], C[:, k]) for k in range(n_horizons)]
     d = np.diff(C, axis=1)
     return ArmResult(
         name=arm,
         total_steps=total_steps,
-        n_models=len(models) if isinstance(models, list) else 1,
+        n_models=n_models,
         auc_by_horizon=[float(a) for a in aucs],
         mean_auc=float(np.nanmean(aucs)),
         violation_rate=float((d < 0).mean()),
@@ -184,9 +200,60 @@ def evaluate(
     )
 
 
+def evaluate(
+    arm: str, models: FinancialTFM | list[FinancialTFM], batches: list, device: str,
+    n_horizons: int, total_steps: int,
+) -> ArmResult:
+    """Score an arm's cumulative-PD curves on the shared held-out batches."""
+    C, T, _ = collect_curves(models, batches, device, n_horizons)
+    return summarise_curves(arm, C, T, len(models) if isinstance(models, list) else 1, total_steps)
+
+
+def paired_arm_comparisons(
+    curves: dict[str, np.ndarray],
+    truth: np.ndarray,
+    tasks: np.ndarray | None,
+    reference: str = "joint",
+    n_boot: int = 1000,
+    seed: int = 0,
+) -> list[dict]:
+    """Holm-corrected paired bootstrap of the reference arm against every other arm (11.8).
+
+    Uses the shared :func:`fintfm.evaluation.metrics.paired_auc_difference` per horizon (whole
+    tasks resampled when ``tasks`` is given) and adjusts the whole family, every other arm at
+    every horizon, together with :func:`fintfm.evaluation.metrics.holm_adjusted_p`.
+
+    Args:
+        curves: Arm name -> ``(n, K)`` predicted curve on the same rows.
+        truth: ``(n, K)`` cumulative-default labels.
+        tasks: Task id per row, or ``None`` for a row bootstrap.
+        reference: Arm compared against all the others.
+        n_boot: Bootstrap resamples per comparison.
+        seed: Bootstrap seed.
+
+    Returns:
+        One dict per (other arm, horizon): ``delta`` (reference minus other), ``ci_lo``,
+        ``ci_hi``, ``p_raw``, ``p_holm`` and ``significant`` (``p_holm < 0.05``).
+    """
+    rows: list[dict] = []
+    for other in sorted(a for a in curves if a != reference):
+        for k in range(truth.shape[1]):
+            d, (lo, hi), p = paired_auc_difference(
+                truth[:, k], curves[reference][:, k], curves[other][:, k],
+                n_boot=n_boot, seed=seed, groups=tasks,
+            )
+            rows.append({"reference": reference, "other": other, "horizon": k, "delta": d,
+                         "ci_lo": lo, "ci_hi": hi, "p_raw": p})
+    for r, adj in zip(rows, holm_adjusted_p([r["p_raw"] for r in rows]), strict=True):
+        r["p_holm"] = adj
+        r["significant"] = bool(adj < 0.05)
+    return rows
+
+
 def run(
     out_dir: Path, steps: int = 1500, batch_size: int = 16, n_rows: int = 128,
     max_features: int = 32, n_horizons: int = 5, device: str = "cpu", seed: int = 0,
+    n_boot: int = 1000,
 ) -> dict:
     """Run both arms under both compute conventions and write the comparison."""
     prior = PriorConfig(
@@ -197,22 +264,28 @@ def run(
     batches = _eval_batches(np.random.default_rng(9_999), prior, n_batches=6, batch_size=batch_size)
 
     results: list[ArmResult] = []
+    curves: dict[str, np.ndarray] = {}
+    truth = tasks = None
+
+    def score(name: str, models, total: int) -> None:
+        nonlocal truth, tasks
+        C, truth, tasks = collect_curves(models, batches, device, n_horizons)
+        curves[name] = C
+        n_models = len(models) if isinstance(models, list) else 1
+        results.append(summarise_curves(name, C, truth, n_models, total))
+
     print(f"joint: 1 model x {steps} steps")
     joint = train_joint(prior, steps, batch_size, device, seed)
-    results.append(evaluate("joint", joint, batches, device, n_horizons, steps))
+    score("joint", joint, steps)
 
     each = max(1, steps // n_horizons)
     print(f"per-horizon (matched total): {n_horizons} models x {each} steps")
     ph_total = train_per_horizon(prior, each, batch_size, device, seed)
-    results.append(
-        evaluate("per_horizon_matched_total", ph_total, batches, device, n_horizons, each * n_horizons)
-    )
+    score("per_horizon_matched_total", ph_total, each * n_horizons)
 
     print(f"per-horizon (matched per-model): {n_horizons} models x {steps} steps")
     ph_each = train_per_horizon(prior, steps, batch_size, device, seed)
-    results.append(
-        evaluate("per_horizon_matched_per_model", ph_each, batches, device, n_horizons, steps * n_horizons)
-    )
+    score("per_horizon_matched_per_model", ph_each, steps * n_horizons)
 
     record = {
         "config": {
@@ -220,6 +293,9 @@ def run(
             "max_features": max_features, "n_horizons": n_horizons, "seed": seed,
         },
         "arms": [asdict(r) for r in results],
+        "comparisons": (
+            paired_arm_comparisons(curves, truth, tasks, n_boot=n_boot) if n_boot > 0 else []
+        ),
     }
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "term_structure.json").write_text(json.dumps(record, indent=2))
@@ -249,6 +325,15 @@ def summarise(record: dict) -> str:
         if other in by:
             d = j["mean_auc"] - by[other]["mean_auc"]
             lines.append(f"\njoint - {other}: {d:+.4f} mean AUC")
+    cmps = record.get("comparisons") or []
+    if cmps:
+        lines.append("\npaired bootstrap, tasks resampled, Holm-adjusted across all cells:")
+        lines.append(f"{'vs':>30} {'h':>3} {'dAUC':>9} {'95% CI':>20} {'p raw':>8} {'p Holm':>8}")
+        for c in cmps:
+            lines.append(
+                f"{c['other']:>30} {c['horizon']:>3} {c['delta']:>+9.4f} "
+                f"[{c['ci_lo']:>+8.4f},{c['ci_hi']:>+8.4f}] {c['p_raw']:>8.4f} {c['p_holm']:>8.4f}"
+            )
     return "\n".join(lines)
 
 
@@ -267,11 +352,13 @@ def main() -> None:
     p.add_argument("--n-horizons", type=int, default=5)
     p.add_argument("--device", type=str, default="cpu")
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--n-boot", type=int, default=1000,
+                   help="bootstrap resamples per comparison; 0 skips the Holm table")
     args = p.parse_args()
     record = run(
         Path(args.out), steps=args.steps, batch_size=args.batch_size, n_rows=args.n_rows,
         max_features=args.max_features, n_horizons=args.n_horizons, device=args.device,
-        seed=args.seed,
+        seed=args.seed, n_boot=args.n_boot,
     )
     print("\n" + summarise(record))
 

@@ -5,7 +5,7 @@
       downgraded and this proposal closes.
 - [x] 32.2 Add the strategy sweep to the binary benchmark across all four panels, correction on.
       Verify: `uv run fintfm-bench` reporting a strategy column per dataset.
-- [ ] 32.3 Paired bootstrap with Holm-Bonferroni over the strategy comparisons. Verify: adjusted
+- [ ] 32.3 **Progress (2026-11-15): the harness is ready, the record is not. `fintfm-ctxsweep` now keeps each cell's curve and records, for every strategy pair at every context size, seed and scored horizon, the company-clustered paired bootstrap difference, interval, raw p and Holm-adjusted p (one family across the record), via the shared `paired_auc_difference` and `holm_adjusted_p`; the summary prints them and `--n-boot` sets the resamples. Tested on synthetic arrays only (`tests/test_holm_harnesses.py`). Still owed: a sweep run with this code and the adjusted p-values written beside every AUC difference quoted in `FINDINGS`.** Paired bootstrap with Holm-Bonferroni over the strategy comparisons. Verify: adjusted
       p-values recorded beside every AUC difference quoted.
 - [ ] 32.4 Test the majority-class mechanism: gap against portfolio default rate. Verify: the
       relationship plotted and stated numerically, with the prediction marked hit or miss.

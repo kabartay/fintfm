@@ -25,6 +25,7 @@ budget. It does not: uniform at 1,000 rows with 12 in-context defaults beats bal
 from __future__ import annotations
 
 import argparse
+import itertools
 import json
 import time
 from dataclasses import asdict, dataclass, field
@@ -34,7 +35,7 @@ import numpy as np
 
 from fintfm.config import Config, load_config
 from fintfm.evaluation.datasets import load_v4finbench
-from fintfm.evaluation.metrics import evaluate_binary
+from fintfm.evaluation.metrics import evaluate_binary, holm_adjusted_p, paired_auc_difference
 from fintfm.experiments.v4_out_of_time import SplitMode, _curve_truth, split_dataset
 from fintfm.inference.classifier import FinancialTFMClassifier
 
@@ -84,6 +85,60 @@ def _nanmean(values: list[float]) -> float:
     return float(np.mean(vals)) if vals else float("nan")
 
 
+def paired_strategy_comparisons(
+    curves: dict[tuple[int, str, int], np.ndarray],
+    truth: np.ndarray,
+    seen: np.ndarray,
+    groups: np.ndarray | None,
+    min_rows: int,
+    n_boot: int = 1000,
+    seed: int = 0,
+) -> list[dict]:
+    """Holm-corrected paired bootstrap over every strategy comparison (task 32.3).
+
+    For each context size and seed, every pair of strategies is compared on every scored
+    horizon with :func:`fintfm.evaluation.metrics.paired_auc_difference` (the shared paired
+    bootstrap, resampling whole companies when ``groups`` is given). All the resulting
+    p-values form one family, adjusted together with
+    :func:`fintfm.evaluation.metrics.holm_adjusted_p`, so an AUC difference quoted from this
+    record always has its family-wise-adjusted p-value beside it.
+
+    Args:
+        curves: ``(max_context, strategy, seed) -> (n_test, n_horizons)`` predicted curve on
+            the shared test rows.
+        truth: ``(n_test, n_horizons)`` cumulative-default labels.
+        seen: ``(n_test, n_horizons)`` boolean, True where the horizon is observed.
+        groups: Company label per test row, or ``None`` for a row bootstrap.
+        min_rows: Fewest observed rows a horizon needs to be scored.
+        n_boot: Bootstrap resamples per comparison.
+        seed: Bootstrap seed.
+
+    Returns:
+        One dict per (context size, seed, strategy pair, horizon) with ``delta`` (AUC of
+        ``a`` minus AUC of ``b``), ``ci_lo``, ``ci_hi``, ``p_raw`` and ``p_holm``. Empty
+        when fewer than two strategies share a (context size, seed).
+    """
+    rows: list[dict] = []
+    for ctx, sd in sorted({(c, s) for c, _, s in curves}):
+        strategies = sorted(st for c, st, s in curves if (c, s) == (ctx, sd))
+        for a, b in itertools.combinations(strategies, 2):
+            for k in range(truth.shape[1]):
+                m = seen[:, k]
+                if m.sum() < min_rows or len(np.unique(truth[m, k])) < 2:
+                    continue
+                d, (lo, hi), p = paired_auc_difference(
+                    truth[m, k], curves[(ctx, a, sd)][m, k], curves[(ctx, b, sd)][m, k],
+                    n_boot=n_boot, seed=seed, groups=None if groups is None else groups[m],
+                )
+                rows.append({
+                    "max_context": ctx, "seed": sd, "a": a, "b": b, "horizon": k,
+                    "delta": d, "ci_lo": lo, "ci_hi": hi, "p_raw": p,
+                })
+    for r, adj in zip(rows, holm_adjusted_p([r["p_raw"] for r in rows]), strict=True):
+        r["p_holm"] = adj
+    return rows
+
+
 def run(
     model_path: str,
     out_dir: Path,
@@ -94,6 +149,7 @@ def run(
     retrieval_groups: int | None = None,
     cfg: Config | None = None,
     split: SplitMode = "embargoed",
+    n_boot: int = 1000,
 ) -> dict:
     """Sweep context strategy against context size on the out-of-time survival split.
 
@@ -113,6 +169,7 @@ def run(
         split: ``"embargoed"`` (default: no company on both sides, label-window embargo) or
             ``"legacy"`` (the leaking split FINDINGS §29-§35 used); see
             :func:`fintfm.experiments.v4_out_of_time.split_dataset`.
+        n_boot: Bootstrap resamples per strategy comparison (32.3); ``0`` skips it.
 
     Returns:
         The recorded result dictionary.
@@ -136,6 +193,7 @@ def run(
     print(f"  population default rate {ds.y[tr].mean():.3%}")
 
     cells: list[SweepCell] = []
+    curves: dict[tuple[int, str, int], np.ndarray] = {}
     for max_context in cfg.context_sweep.context_sizes:
         for strategy in cfg.context_sweep.strategies:
             for seed in seeds:
@@ -152,6 +210,7 @@ def run(
                 ).fit(ds.X[tr], ds.y[tr], periods=ds.period[tr])
                 curve = clf.predict_term_structure(ds.X[te])
                 elapsed = time.perf_counter() - started
+                curves[(max_context, strategy, seed)] = np.asarray(curve)
                 aucs, eces, sds, ratios, preds, obs = [], [], [], [], [], []
                 for k in range(curve.shape[1]):
                     m = seen[:, k]
@@ -206,6 +265,14 @@ def run(
                     flush=True,
                 )
 
+    comparisons = (
+        paired_strategy_comparisons(
+            curves, truth, seen, None if ds.groups is None else ds.groups[te],
+            cfg.evaluation.min_rows_per_horizon, n_boot=n_boot,
+        )
+        if n_boot > 0
+        else []
+    )
     record = {
         "dataset": ds.name,
         "attribution": ds.attribution,
@@ -222,6 +289,11 @@ def run(
         },
         "split": sp.record() | {"n_train": len(tr), "n_test": len(te)},
         "cells": [asdict(c) for c in cells],
+        "comparisons": comparisons,
+        "comparison_method": (
+            "paired bootstrap per horizon, whole companies resampled, n_boot="
+            f"{n_boot}; Holm-adjusted across all comparisons in this record"
+        ),
     }
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "context_sweep.json").write_text(json.dumps(record, indent=2))
@@ -261,6 +333,22 @@ def summarise(record: dict) -> str:
     else:
         verdict = f"no cell had a scorable horizon ({n_nan} cells)"
     lines += ["", verdict]
+    cmps = record.get("comparisons") or []
+    if cmps:
+        lines += ["", f"paired strategy comparisons ({len(cmps)} in the Holm family):"]
+        lines.append(
+            f"{'ctx':>6} {'seed':>5} {'a - b':>22} {'horizons':>9} {'mean dAUC':>10} "
+            f"{'min Holm p':>11} {'Holm<.05':>9}"
+        )
+        keys = sorted({(c["max_context"], c["seed"], c["a"], c["b"]) for c in cmps})
+        for ctx, sd, a, b in keys:
+            g = [c for c in cmps if (c["max_context"], c["seed"], c["a"], c["b"]) == (ctx, sd, a, b)]
+            ps = [c["p_holm"] for c in g if np.isfinite(c["p_holm"])]
+            lines.append(
+                f"{ctx:>6} {sd:>5} {a + ' - ' + b:>22} {len(g):>9} "
+                f"{_nanmean([c['delta'] for c in g]):>+10.4f} "
+                f"{(min(ps) if ps else float('nan')):>11.4f} {sum(p < 0.05 for p in ps):>9}"
+            )
     return "\n".join(lines)
 
 
@@ -280,6 +368,8 @@ def main() -> None:
     p.add_argument("--test-from", type=int, default=None)
     p.add_argument("--seeds", type=str, default=None, help="comma-separated")
     p.add_argument("--retrieval-groups", type=int, default=None)
+    p.add_argument("--n-boot", type=int, default=1000,
+                   help="bootstrap resamples per strategy comparison; 0 skips the Holm table")
     p.add_argument(
         "--split", choices=("embargoed", "legacy"), default="embargoed",
         help="'legacy' reproduces the leaking split of FINDINGS 29-35",
@@ -298,6 +388,7 @@ def main() -> None:
         retrieval_groups=args.retrieval_groups,
         cfg=cfg,
         split=args.split,
+        n_boot=args.n_boot,
     )
     print("\n" + summarise(record))
     print(f"\nconfig: {cfg.provenance()}")
