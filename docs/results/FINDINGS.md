@@ -15107,3 +15107,56 @@ for five), against tens of seconds for the binned regressor.
   the readout must reassemble a curve from them. It stays in fintfm as an opt-in estimator; it
   is not pursued further here.
 - Not a credit result; V4FinBench is binary.
+
+## §236: keeping multiclass leaves that miss a class beats eight bags on 6 of 8 datasets but ties on Elo (862 against 874); the 512-column checkpoint with the readout options moves APSFailure 6 places
+
+**MEASURED, TabArena-Lite (repeat 0, fold 0), CPU, 2026-11-15.**
+
+**Multiclass, run `fintfm_lp_mc_scr_glob4_1114`** (`mc-global4`): §224's four-bag multiclass
+configuration with `PartitionedTFMClassifier(missing_classes="global")` (6f0ead3): a leaf keeps
+its own context when at least two classes have `min_class_rows` rows, and the global context
+supplies the probabilities of the classes it lacks. Readout options scale, cv and raw as §222.
+Log `runs/local_queue/mc-global4.log` (39 min, peak RSS 2.7 GB, 8 of 8 exit 0); comparison
+`runs/fintfm_lp_mc_scr_glob4_1114_vs_bag4.md`. The leaves now get contexts: the most common
+fits report 4 leaf contexts of 4 and 16 of 16, where §224's fallback rule kept about 8 of 32.
+
+Log loss, against four bags (§224) and eight bags (§227, the run in the merge):
+
+| dataset | four bags | eight bags | global, four bags | ratio to eight bags |
+| --- | --- | --- | --- | --- |
+| SDSS17 | 0.1214 | 0.1214 | 0.1023 | 0.843 |
+| anneal | 0.2218 | 0.2218 | 0.1996 | 0.900 |
+| splice | 0.1225 | 0.1224 | 0.1198 | 0.979 |
+| website_phishing | 0.3157 | 0.3221 | 0.3156 | 0.980 |
+| hiva_agnostic | 0.1828 | 0.1841 | 0.1828 | 0.993 |
+| maternal_health_risk | 0.6428 | 0.6435 | 0.6428 | 0.999 |
+| students_dropout_and_academic_success | 0.6081 | 0.6025 | 0.6081 | 1.009 |
+| MIC | 0.4940 | 0.4923 | 0.5009 | 1.018 |
+
+Against four bags: 5 better, 1 worse, 2 tied (p = 0.22); against eight bags: 6 better, 2
+worse. **Multiclass Elo 862 (+112 / −285) against eight bags' 874**, both 101st of 108; merged
+overall with this run 929.9 against 931.9 (`fintfm_linprobe_all51_1115b`), so eight bags stay in
+the entry. The two large gains (SDSS17 −16%, anneal −10% log loss) move those tables less on the
+field than MIC's +1.8% loss does, which is why more wins give no more Elo. The combination,
+eight bags with the global rule (`mc-global8`), is queued.
+
+**Wide binary tables, run `fintfm_lp_w512_scr_1114`** (`wide512-scr`): §234's 512-column
+checkpoint with §232's readout options, against §232's run (56 min, 3 of 3 exit 0). ROC-AUC and
+rank (subset leaderboard, 107 methods):
+
+| dataset | §232, 136 columns + options | rank | 512 columns + options | rank |
+| --- | --- | --- | --- | --- |
+| APSFailure | 0.9902 | 101 | 0.9913 | 95 |
+| Bioresponse | 0.8669 | 82 | 0.8670 | 81 |
+| kddcup09_appetency | 0.7358 | 105 | 0.7298 | 104 |
+
+The wider checkpoint helps APSFailure (6 places) and ties Bioresponse; kddcup09 stays near the
+bottom with the readout options on either checkpoint (0.7888 without them on the 512-column
+checkpoint, 89th), so the options, not the width, are what costs kddcup09. The 512-column
+checkpoint failed its V4FinBench gate (§234), so it is not used in the entry.
+
+**What it says.**
+- The global rule does what it was built for (contexts in leaves that lack a class) and improves
+  log loss on most multiclass tables, but not the multiclass Elo at four bags.
+- kddcup09_appetency is the readout options' one bad table; a per-table switch would be tuning on
+  the test fold, so it is reported, not fixed.
