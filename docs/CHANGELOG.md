@@ -58,8 +58,7 @@ not paste one into the other. See `CLAUDE.md`.
   32.3).
 - `Coverage` (`fintfm.evaluation.coverage`): `n_attempted`, `n_scored` and `n_skipped` with the
   skip reasons, reported by the synthetic bench, `credit_suite`, `proxy_suite`,
-  `openml_breadth` and `prior_score`. Other harnesses are not covered yet (task 36.4, still
-  open).
+  `openml_breadth` and `prior_score`; extended to the other harnesses under Changed below.
 - `fintfm-capability --bayes-targets`: adds `bayesian_regret` and normalised regret beside AUC
   on the Bayes probe (the Bayes-optimal AUC minus the model's, per task and aggregated), as a
   `bayes_ceiling` section of `capability.json` and the printout. Single-class tasks are
@@ -67,7 +66,95 @@ not paste one into the other. See `CLAUDE.md`.
 - `python -m fintfm.experiments.irrelevant_features`: a fixed `y = f(x0, x1)` task with `k`
   independent noise columns up to `d = 100`, scored on each checkpoint, a seeded untrained
   control, logistic regression and gradient boosting, with slopes. Tests are SMOKE-TEST only;
-  the harness has not been run, so there is no curve (tasks 42.1, 39.13, still open).
+  it has since been run (FINDINGS §245, listed below; tasks 42.1, 39.13).
+- Experiment harnesses for the cell-attention and task-inference work. Each is
+  `python -m fintfm.experiments.<name>`, scores the checkpoints against a seeded untrained
+  control, and changes nothing in the library. Those marked "run" have a measured result;
+  the others are built and tested on SMOKE-TEST inputs only, so they have no result yet.
+  - `label_conditions`: the full label-condition matrix (true, shuffled, inverted, none,
+    unrelated, and 10%, 25% and 50% flips) on the same context features. Run: FINDINGS §247,
+    and §250 for the unlabelled checkpoints (tasks 39.20, 39.27).
+  - `sign_inference`: pairs of tasks with a bit-identical `X` and mirrored labels, scored on
+    the same query rows. Run: FINDINGS §249 (task 39.10).
+  - `irrelevant_features` is now run: FINDINGS §245 (tasks 42.1, 39.13).
+  - `correlated_features`: redundant, proxy and confounder designs, with reliance measured by
+    an intervention that breaks the confound alone. Not run (task 39.14).
+  - `sample_size_difficulty`: context size crossed with Bayes-AUC tier, a learning curve per
+    tier. Not run (task 39.16).
+  - `context_information`: context sufficiency against label information rather than row
+    count, on noise-free tasks of rising information need. Not run (task 39.8).
+  - `task_posterior`: ambiguous and disambiguated contexts with the closed-form posterior
+    over hypotheses as reference. Not run (task 39.19).
+  - `schema_variation`: width, column order, units, types and missing cells varied at a fixed
+    task, with a permutation-importance ranking against the true relevant set. Not run
+    (task 39.12).
+  - `task_probe`: whether the context representation separates by task family, over 24
+    closed-form families, with untrained and raw-statistics floors. Not run (task 39.7).
+  - `causal_interventional`: observational against interventional answers on a linear-Gaussian
+    structural model with closed-form truths. Not run (task 39.15).
+  - `tail_inversion`: the symmetric probes with the feature tail weight varied from Gaussian
+    to heavy-tailed, to test FINDINGS §72's candidate mechanism. Built, not run (task 38.14).
+- Baseline and protocol harnesses:
+  - `attribution_baseline`: LightGBM with exact TreeSHAP on the UCI panels, with fold-to-fold
+    and seed-to-seed rank agreement. Run: FINDINGS §244. It is a baseline for a zero-shot
+    attribution that does not exist yet (task 12.2).
+  - `temporal_gbm_falsification` and `fintfm-bench --temporal-gbm`: LightGBM on levels against
+    levels plus lagged deltas and trends, from the same company's earlier years only. Run:
+    FINDINGS §246. AP was lower with trajectory features on 3 of 3 folds, which falsifies
+    the pre-registered test on that sample (task 2.2).
+  - `boosting_seeds`: §27's CatBoost, LightGBM and XGBoost comparison repeated over seeds,
+    with a paired bootstrap per training size. Not run (task 18.6).
+  - `fitted_calibration` (`fintfm-fitcal`): uncorrected, analytic, fitted and
+    analytic-plus-fitted calibration on every horizon and seed. Not run (task 4.3).
+  - `binary_context_sweep` (`fintfm-binctx`): context strategies on the binary path, with AP
+    beside AUC, the slice default rate and Holm-adjusted paired comparisons. Not run
+    (tasks 32.3, 32.4, 32.6).
+  - `tabbench_protocol`: the public academic set under its stated protocol, five folds, the
+    checkpoint against an untrained control. Internal only, under that benchmark's
+    attribution clause. Not run (task 35.4).
+  - `suite_scoring`: every arm across the ten licence-cleared datasets, with the untrained
+    control as floor. Not run (tasks 37.3, 37.4).
+  - `scaling_grid` and `fintfm-ablate --grid --plan`: a YAML spec of task counts, model sizes
+    and seeds becomes cells, and `--plan` prints each cell's training command and an
+    ESTIMATED cost without training. Volume is counted in tasks, and a count that is not a
+    multiple of the batch size is refused (task 9.3).
+- `fintfm.evaluation.svgplot`: dependency-free SVG line plots, and `--plot` on
+  `irrelevant_features` and `sample_size_difficulty`. No behaviour change without the flag.
+- `fintfm.evaluation.tabular_benchmark`: a loader for the ten licence-cleared classification
+  datasets of the tabular benchmark. It refuses the 13 excluded files and carries each
+  dataset's licence, source URL and attribution (task 37.2).
+- `fintfm-bench --credit --compare A,B --folds k`: stratified disjoint folds, per-fold and mean
+  AP then ROC-AUC for two checkpoints, a paired bootstrap on pooled out-of-fold rows per
+  panel with Holm adjustment across panels, and a `Coverage` record. Not run (task 38.16).
+- `fintfm-ablate --sample-efficiency --panel polish3|taiwan|v4finbench`: V4FinBench is
+  subsampled and split by company to a stated pool size, and the JSON records panel, pool,
+  test sizes and base rates. Tested with stub models only; no real run (task 13.8).
+- `fintfm-v4protocol --coherence-dirs`: builds a company-level cumulative curve from
+  single-horizon runs and reports the fully monotone share and violation rate per fold and
+  arm, beside per-horizon AP, ROC-AUC and the mean predicted level against the observed
+  rate. Runs now save `company_name_test`. Synthetic tests only (task 33.4, still open).
+- `fintfm.register.cohort` (`select_cohort`, `cohort_hash`): the forward register's inclusion
+  rule as code over documented Companies House snapshot fields, with a hash of the included
+  set and the rule. The thresholds are placeholders pending the owner's decision (task 6.3).
+- Opt-in model options, defaults unchanged and checked by the golden tests:
+  - `cell_mixing="factorized"` (`--cell-mixing factorized`): a learned query pools each
+    column's context cells into a column latent, linear in rows, and one layer mixes the
+    latents across columns. It replaces only the row-within-feature stage. No trained
+    result (task 44.3; 44.2, 44.4 and 44.5 remain open).
+  - `ModelConfig.task_token` (`--task-token`): a learned query pools the context rows into a
+    task vector, added to every row through a zero-initialised projection. Exposed as the
+    `task_token` stage of `predict_context`. No trained result (task 41.2).
+- `prior.financial_temporal_years` (`--financial-temporal-years`): persistent firm effects and
+  AR(1) margin and leverage histories in the financial prior. Opt-in; `null` keeps every
+  batch. No trained result (task 2.3). A prior-side test now checks that cumulative hazard
+  and PD are non-decreasing by construction (task 11.3).
+- `FinancialTFMClassifier.fit_adapter`: a low-rank update of the frozen base, trained only on
+  the caller's rows and saved as a separate artefact whose provenance records
+  `fitted_on_real_data: true`. Never merged into the base. No measured result (task 16.2).
+- `scripts/publish_weights.py` and model cards in `docs/models/` for the binary, multiclass
+  and regression checkpoints. The script is a dry run by default: it checks each checkpoint
+  against its recorded SHA-256 and prints what an upload would send. Nothing is published,
+  and the cards say `LICENCE: OWNER DECISION` until the owner decides (task 49.6).
 
 ### Changed
 
@@ -84,6 +171,26 @@ not paste one into the other. See `CLAUDE.md`.
   staged files with ruff 0.16.6, the version `uv.lock` pins. The tree was reformatted once, in
   an isolated formatting-only commit (061d4d1, listed in `.git-blame-ignore-revs`). No
   behaviour changes (task 8.6).
+- **Every harness reports coverage.** `irrelevant_features`, `sign_inference`,
+  `correlated_features`, `prior_ablation`, `capability`, `context_sweep`, `term_structure`,
+  `representation_transfer`, `hybrid_catboost`, `retrieval_grouping`, `v4_protocol` and
+  `v4_out_of_time` now state how many items were attempted, scored and skipped, and why.
+  This closes the gap the `Coverage` entry above lists; the output gains fields and removes
+  none (task 36.4).
+- `fintfm-bench --credit --time-split` reports average precision first, then ROC-AUC, and
+  takes `--out` for a JSON record. The run itself is still owed (task 3.3).
+- `scripts/prior_properties.py` re-measures the prior's four properties and the effect of
+  `financial_max_lr_auc: 0.95`. FINDINGS §248: width now spans the real panels, while
+  correlation and missingness stay above them; the limit lowers mean held-out LR AUC by
+  about 0.02 and moves nothing else. Whether it helps a trained model is unmeasured
+  (tasks 15.3, 15.4).
+
+### Fixed
+
+- **Generated Kaggle kernels** under `scripts/kaggle/*/` were restored to the generators'
+  output. The formatting-only commit had reformatted 96 of them, and the tests that compare
+  them byte for byte failed in CI. Those directories are now excluded from `ruff format`.
+
 
 ## [0.10.1] — 2026-11-13
 
