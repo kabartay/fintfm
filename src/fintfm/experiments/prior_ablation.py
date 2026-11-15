@@ -29,6 +29,7 @@ import json
 import platform
 import subprocess
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
@@ -43,7 +44,12 @@ from sklearn.model_selection import train_test_split
 
 from fintfm.evaluation.coverage import Coverage
 from fintfm.evaluation.datasets import CreditDataset, load_polish_bankruptcy
-from fintfm.evaluation.metrics import evaluate_binary, holm_bonferroni, paired_auc_difference
+from fintfm.evaluation.metrics import (
+    CreditMetrics,
+    evaluate_binary,
+    holm_bonferroni,
+    paired_auc_difference,
+)
 from fintfm.inference.classifier import ContextStrategy, FinancialTFMClassifier
 from fintfm.modeling.model import FinancialTFM, ModelConfig
 from fintfm.modeling.train import TrainConfig, train
@@ -412,6 +418,13 @@ def main() -> None:
         help="with --coherence: reproduce FINDINGS s11 (whole panel as context, query rows "
         "included, leaky); default excludes the query rows",
     )
+    p.add_argument(
+        "--calibration-frac",
+        type=float,
+        default=0.3,
+        help="with --sample-efficiency: fraction of each training subsample held out to "
+        "calibrate the gboost_*_holdout arms (never test rows)",
+    )
     args = p.parse_args()
     if args.coherence:
         print("=== PD term-structure coherence: is cumulative PD monotone in horizon? ===")
@@ -426,7 +439,9 @@ def main() -> None:
         return
     if args.sample_efficiency:
         print("=== sample-efficiency probe: where does the TFM beat gradient boosting? ===")
-        record = sample_efficiency_probe(args.sample_efficiency)
+        record = sample_efficiency_probe(
+            args.sample_efficiency, calibration_frac=args.calibration_frac
+        )
         out = Path(args.out) / "sample_efficiency.json"
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(json.dumps(record, indent=2))
@@ -455,6 +470,113 @@ def main() -> None:
     print("\n" + summarise(record))
 
 
+def calibrated_gboost_holdout_arms(
+    make_gbm: Callable[[], Pipeline],
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+    X_test: np.ndarray,
+    y_test: np.ndarray,
+    calibration_frac: float = 0.3,
+    seed: int = 0,
+) -> tuple[dict[str, CreditMetrics | None], dict]:
+    """Platt- and isotonic-calibrated gradient boosting, calibrated on a held-out train slice.
+
+    Openspec ``sample-efficiency-regime`` 13.7. The training rows are split (stratified) into
+    a *fit* part, on which the boosting model is trained, and a *calibration* part, on which
+    the Platt (logistic on the log-odds) or isotonic map from raw score to probability is
+    learned. **The test rows are never touched**: only ``X_train``/``y_train`` are split, and
+    the returned info records both index sets so a caller or test can check disjointness.
+    This complements the cross-fitted ``gboost_sigmoid``/``gboost_isotonic`` arms, which use
+    ``CalibratedClassifierCV(cv=3)``; here the calibration data is a single explicit slice
+    whose size is configurable and recorded.
+
+    Args:
+        make_gbm: Factory for an unfitted boosting pipeline (``predict_proba`` capable).
+        X_train: Training features (the only rows used for fitting and calibration).
+        y_train: Training labels.
+        X_test: Held-out features, used only for scoring.
+        y_test: Held-out labels.
+        calibration_frac: Fraction of the training rows reserved for calibration, in (0, 1).
+        seed: Seed for the split.
+
+    Returns:
+        ``(arms, info)``. ``arms`` maps ``gboost_platt_holdout`` and
+        ``gboost_isotonic_holdout`` to :class:`CreditMetrics` (which carry the spread
+        fields) or ``None`` when skipped. ``info`` records ``calibration_frac``, the row
+        counts, positives in each slice, the index arrays (``fit_idx``, ``cal_idx``, into
+        ``X_train``) and ``skipped`` (a reason string, or ``None``).
+    """
+    from sklearn.isotonic import IsotonicRegression
+    from sklearn.linear_model import LogisticRegression
+
+    keys = ("gboost_platt_holdout", "gboost_isotonic_holdout")
+    arms: dict[str, CreditMetrics | None] = dict.fromkeys(keys)
+    info: dict = {
+        "calibration_frac": calibration_frac,
+        "n_fit": 0,
+        "n_cal": 0,
+        "n_positive_fit": 0,
+        "n_positive_cal": 0,
+        "fit_idx": [],
+        "cal_idx": [],
+        "skipped": None,
+    }
+    if not 0.0 < calibration_frac < 1.0:
+        raise ValueError(f"calibration_frac must be in (0, 1), got {calibration_frac}")
+    y_train = np.asarray(y_train).astype(int)
+    counts = np.bincount(y_train, minlength=2)
+    if counts.min() < 2:
+        info["skipped"] = "fewer than 2 rows of one class: cannot stratify a calibration slice"
+        return arms, info
+    fit_idx, cal_idx = train_test_split(
+        np.arange(len(y_train)),
+        test_size=calibration_frac,
+        random_state=seed,
+        stratify=y_train,
+    )
+    info.update(
+        n_fit=len(fit_idx),
+        n_cal=len(cal_idx),
+        n_positive_fit=int(y_train[fit_idx].sum()),
+        n_positive_cal=int(y_train[cal_idx].sum()),
+        fit_idx=fit_idx.tolist(),
+        cal_idx=cal_idx.tolist(),
+    )
+    if len(np.unique(y_train[cal_idx])) < 2:
+        info["skipped"] = "calibration slice holds a single class"
+        return arms, info
+    if len(np.unique(y_train[fit_idx])) < 2:
+        info["skipped"] = "fit slice holds a single class"
+        return arms, info
+
+    gbm = make_gbm().fit(X_train[fit_idx], y_train[fit_idx])
+    eps = 1e-6
+
+    def _logit(p: np.ndarray) -> np.ndarray:
+        """Log-odds of probabilities clipped away from 0 and 1.
+
+        Args:
+            p: Probabilities.
+
+        Returns:
+            Log-odds as a column, the single feature Platt scaling is fitted on.
+        """
+        p = np.clip(p, eps, 1.0 - eps)
+        return np.log(p / (1.0 - p)).reshape(-1, 1)
+
+    raw_cal = gbm.predict_proba(X_train[cal_idx])[:, 1]
+    raw_test = gbm.predict_proba(X_test)[:, 1]
+    platt = LogisticRegression().fit(_logit(raw_cal), y_train[cal_idx])
+    arms["gboost_platt_holdout"] = evaluate_binary(
+        y_test, platt.predict_proba(_logit(raw_test))[:, 1]
+    )
+    iso = IsotonicRegression(y_min=0.0, y_max=1.0, out_of_bounds="clip").fit(
+        raw_cal, y_train[cal_idx]
+    )
+    arms["gboost_isotonic_holdout"] = evaluate_binary(y_test, iso.predict(raw_test))
+    return arms, info
+
+
 def sample_efficiency_probe(
     model_path: str,
     train_sizes: tuple[int, ...] = (100, 250, 500, 1000, 2000, 4000),
@@ -462,6 +584,7 @@ def sample_efficiency_probe(
     seed: int = 0,
     context_strategy: ContextStrategy = "balanced",
     ds: CreditDataset | None = None,
+    calibration_frac: float = 0.3,
 ) -> dict:
     """Measure where the in-context model beats gradient boosting as training data shrinks.
 
@@ -484,10 +607,15 @@ def sample_efficiency_probe(
         context_strategy: Context construction for the in-context model.
         ds: Panel to probe. ``None`` (default) loads the Polish panel at ``horizon``;
             ``bench.run_credit`` passes one in so the probe reuses its loaded panel.
+        calibration_frac: Fraction of each training subsample held out to calibrate the
+            ``gboost_platt_holdout`` and ``gboost_isotonic_holdout`` arms (13.7); recorded
+            in the output. The test rows never enter it.
 
     Returns:
         A record mapping each training size to metrics for the TFM and for gradient
-        boosting, plus the crossover size if one is observed.
+        boosting, plus the crossover size if one is observed. Each size also carries a
+        ``calibration_holdout`` entry (fraction, slice sizes, any skip reason) and the
+        record top level carries ``calibration_frac``.
     """
     from sklearn.calibration import CalibratedClassifierCV
     from sklearn.ensemble import GradientBoostingClassifier
@@ -499,7 +627,12 @@ def sample_efficiency_probe(
         ds.X, ds.y, test_size=0.3, random_state=seed, stratify=ds.y
     )
     rng = np.random.default_rng(seed)
-    out: dict = {"dataset": ds.name, "test_rows": len(y_test), "sizes": {}}
+    out: dict = {
+        "dataset": ds.name,
+        "test_rows": len(y_test),
+        "calibration_frac": calibration_frac,
+        "sizes": {},
+    }
 
     for size in train_sizes:
         if size > len(y_pool):
@@ -548,9 +681,19 @@ def sample_efficiency_probe(
                 arms[key] = None
                 print(f"      {key}: could not be fitted ({type(exc).__name__})")
 
+        # held-out-slice calibrated arms (13.7): calibrated on training rows only
+        hold_arms, hold_info = calibrated_gboost_holdout_arms(
+            _gbm, Xs, ys, X_test, y_test, calibration_frac=calibration_frac, seed=seed
+        )
+        arms.update(hold_arms)
+        if hold_info["skipped"]:
+            print(f"      gboost_*_holdout skipped: {hold_info['skipped']}")
+        hold_info = {k: v for k, v in hold_info.items() if k not in ("fit_idx", "cal_idx")}
+
         cell: dict = {"n_train": len(ys), "n_positive_train": int(ys.sum())}
         for name, m in arms.items():
             cell[name] = asdict(m) if m is not None else None
+        cell["calibration_holdout"] = hold_info
         cell["auc_delta"] = arms["fintfm"].roc_auc - arms["gboost"].roc_auc
         out["sizes"][str(size)] = cell
 
@@ -559,7 +702,7 @@ def sample_efficiency_probe(
             if m is None:
                 continue
             print(
-                f"      {name:<18} AUC={m.roc_auc:.4f} ECE={m.ece:.4f} "
+                f"      {name:<24} AUC={m.roc_auc:.4f} AP={m.average_precision:.4f} ECE={m.ece:.4f} "
                 f"Brier={m.brier:.4f} predmean={m.mean_predicted:.3%} "
                 f"sd={m.pred_sd:.4f} p99/p50={m.pred_p99_over_p50:.2f}"
             )

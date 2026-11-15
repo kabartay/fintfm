@@ -17,7 +17,17 @@
 - [x] 13.5 Extend the probe to multiple seeds. Verify: crossover reported with a range
       across seeds. **Done 2026-09-08: 5 seeds. AUC win survives only at n=100
       (+0.069 +/- 0.040); calibration advantage stable everywhere.** Taiwan still open below.
-- [ ] 13.7 **Highest priority follow-up:** compare against a *calibrated* gradient boosting
+- [ ] 13.7 **Progress (2026-11-15): the probe now carries held-out-slice calibrated boosting arms
+      `gboost_platt_holdout` and `gboost_isotonic_holdout` (`calibrated_gboost_holdout_arms` in
+      src/fintfm/experiments/prior_ablation.py), calibrated on a stratified slice of the training
+      rows only (`--calibration-frac`, default 0.3, recorded per size as `calibration_holdout`),
+      beside the existing cross-fitted `gboost_sigmoid`/`gboost_isotonic`; AUC, AP, ECE, Brier and
+      the spread fields are reported for each, and a single-class or unstratifiable slice is skipped
+      with a recorded reason. Tested with a stub model (no checkpoint). NOT yet run on a real
+      checkpoint, so no ratio exists and FINDINGS §12 is not updated. Run:
+      `uv run fintfm-ablate --sample-efficiency <checkpoint.pt> --calibration-frac 0.3`; what
+      remains: that run, then re-derive the calibration ratio against these arms into §12.**
+      **Highest priority follow-up:** compare against a *calibrated* gradient boosting
       baseline (Platt or isotonic on a validation split). The 11.7x calibration advantage is
       currently measured against an uncalibrated incumbent, which is the obvious counter and
       must be pre-empted rather than discovered by a reviewer. Verify: the probe reports a
