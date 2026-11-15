@@ -104,6 +104,10 @@ not paste one into the other. See `CLAUDE.md`.
     the pre-registered test on that sample (task 2.2).
   - `boosting_seeds`: §27's CatBoost, LightGBM and XGBoost comparison repeated over seeds,
     with a paired bootstrap per training size. Not run (task 18.6).
+  - Held-out-slice Platt and isotonic gradient-boosting arms in the sample-efficiency probe
+    (`gboost_platt_holdout`, `gboost_isotonic_holdout`, `fintfm-ablate --calibration-frac`),
+    calibrated on a slice of the training rows only, beside the existing cross-fitted arms.
+    Existing arms and fields unchanged. Not yet measured on a real checkpoint (task 13.7).
   - `fitted_calibration` (`fintfm-fitcal`): uncorrected, analytic, fitted and
     analytic-plus-fitted calibration on every horizon and seed. Not run (task 4.3).
   - `binary_context_sweep` (`fintfm-binctx`): context strategies on the binary path, with AP
