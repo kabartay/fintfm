@@ -68,6 +68,8 @@ Rows are V4FinBench unless the benchmark column says otherwise. "Folds + / -" gi
 | §222 | `dr74-mc-v480-s0` (480,000-task multiclass checkpoint) in place of `dr74-mc-s0`, same readout as §221 | TabArena-Lite, 8 multiclass datasets | 762 Elo against 751 (+11); 5 better, 3 worse, sign test p 0.73 | not applicable | MEASURED | Matches §198's null on the proxy. Volume is not the multiclass lever at this recipe. |
 | §224 | `head` probe option (log of the head's class probabilities appended to the readout) | TabArena-Lite, 8 multiclass datasets | multiclass Elo 825 against 825; 7 better, 1 worse against §222's winner, log loss better by at most 1.3% | not applicable | MEASURED | Too little to change any rank, and 112 min against 14 min. Not kept. |
 | §224 | `FINTFM_MAX_CONTEXT` 4,000 in place of 1,000 | TabArena-Lite, 8 multiclass datasets | multiclass Elo 820 against 825; 2 better, 3 worse, 3 tied against §222's winner | not applicable | MEASURED | SDSS17 is the only dataset that gains by more than 0.5%; three datasets are identical to four decimals, so the 1,000-row cap did not bind there. |
+| §242 | `reg-pure-c20-s0` (20-class regression checkpoint, 48,000 tasks) with the target binned into 20 classes, in place of §235's 10-class run | TabArena-Lite, 13 regression datasets | 699 Elo against 689; median RMSE +0.17% | 5 better, 8 worse, sign test p = 0.58 | MEASURED | Checkpoint and bin count changed together. The merged entry scores 932.8 Elo against 931.9, both 106th of 110, and stays on §235's run. |
+| §246 | Lagged one-year deltas and a short trend (408 features) in place of 136 levels, LightGBM only (200 trees, 15 leaves) | V4FinBench, 199,998 rows of 37,630 companies, 3 company-grouped folds, one seed | AP differences −0.0092, −0.0156, −0.0046 (levels 0.2532, 0.2535, 0.2305) | 0 of 3 positive, one interval excludes zero | MEASURED | Falsifies task 2.2's pre-registered rule as measured. A per-horizon split (h3 to h5) was not run. Nothing here is measured about a synthetic temporal prior. |
 
 ## (c) Wins on one benchmark that failed or were not tested on the other
 
@@ -103,6 +105,7 @@ Rows are V4FinBench unless the benchmark column says otherwise. "Folds + / -" gi
 | §47 | An early checkpoint's accuracy as in-context learning | 48k financial-only checkpoint: AUC 0.6841 with true labels, 0.6895 with shuffled labels, rank correlation 0.977. The fixed feature-to-label mapping in the prior was the cause; §48 confirmed the fix | MEASURED |
 | §50, §52 | 17x parameters and attention pooling leave the feature-width curve unchanged (drop -0.2755, -0.2732, -0.2701) | Measurements stand; the reading is retracted because of the encoder bug of §54 | MEASURED |
 | §216 (DR4.2) | The proxy suite ranks checkpoints as TabArena-Lite does (pre-registered bar: Spearman rho at least 0.8) | rho +0.717 on 9 checkpoints (bootstrap 95% [0.105, 0.982]); the proxy decides no arm | MEASURED |
+| §91 | The unlabelled checkpoints score below chance (0.4407 to 0.4575) because they read the context labels inverted | Same AUC whatever the context labels say: 0.436 to 0.497 under true, shuffled, inverted, constant and unrelated labels (Bayes 0.9 and 0.999 probes); prediction rank correlation between true and inverted labels 0.986 to 0.997 | MEASURED, synthetic probes (§250) |
 
 ## (e) Closed as infeasible or deferred
 

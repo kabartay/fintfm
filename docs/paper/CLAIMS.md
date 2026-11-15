@@ -9,7 +9,8 @@ Status vocabulary:
 - **RETRACTED** — we asserted it and it is false.
 - **OPEN** — proposed, not measured.
 
-Statuses last reviewed 2026-11-13 against `docs/results/FINDINGS.md` §1-§224 (Claim 2 note added
+Statuses last reviewed 2026-11-13 against `docs/results/FINDINGS.md` §1-§224 (dated notes
+for §242-§250 added 2026-11-15, Claims 2, 15 and 19; the statuses themselves were not re-reviewed) (Claim 2 note added
 2026-11-05). Numbers and section references were also re-checked on 2026-10-15; corrections made
 then carry that date. Claims 16-18 (§157-§164) were added 2026-10-16 and Claim 19 (§204-§224)
 on 2026-11-13. Notes dated 2026-11-13 carry the section that supports them; the original text
@@ -79,6 +80,20 @@ measurement of a live defect, never as a new method.
 ## Claim 2 — A synthetic-only prior transfers to real corporate default data
 
 **Status: SINGLE DRAW, narrower than originally hoped, and NARROWED AGAIN 2026-09-21.**
+
+**Update 2026-11-15 (§247, §249, §250; synthetic probes only, family FinTFM): the in-context
+inference claim is supported for the labelled checkpoints and narrowed for the unlabelled ones.**
+With true context labels the published checkpoint and fin00 reach the closed-form ceiling (Bayes
+0.9: 0.899 and 0.900 ROC-AUC); with inverted labels they fall to its mirror (0.100 and 0.101),
+and with shuffled, unrelated or constant labels to about 0.5 (§247). With bit-identical features
+and mirrored labels the predictions mirror (Spearman −0.89 to −0.99; the per-column sign is
+recovered on 98% to 100% of relevant columns; fin00 and fin10, 15 paired tasks, 3 seeds, §249).
+§47's failure (higher AUC with random labels) is absent on these probes. **This does not test
+real panels**, and it does not make the provenance claim stronger. **Narrowed:** §91's
+sub-chance AUC for the checkpoints trained without cell labels is a label-ignoring model, not an
+inverted reading: the AUC is 0.436 to 0.497 whatever the context labels say, and the prediction
+rank correlation between true and inverted labels is 0.986 to 0.997 (§250). Not explained: why
+training without cell labels gives that, and §72's inversion on the identity-shuffle checkpoint.
 
 **Scope, after D17:** this claim is about **FinTFM** only. It is not a claim about FinTFM-R,
 which trains on real data and for which the provenance argument does not exist. Quoting this
@@ -489,6 +504,13 @@ trained, so the architecture-only effect is unmeasured; the same applies to §84
 did not dissociate on real data — the specific failure §47
 and §74 both exhibited and which this claim was explicitly held open against.
 
+**Reading of §91 revised 2026-11-15 (§250):** the "below chance, producing inverted rankings"
+wording below overstates it. The unlabelled checkpoints ignore their context labels (AUC 0.436 to
+0.497 under every label condition, synthetic Bayes 0.9 and 0.999 probes), so their sub-chance
+score is a fixed function of the features against the probe's label direction, not a model that
+reads the labels with the wrong sign. The attribution (cells and labels both needed) stands;
+the mechanism is still unexplained. Original text kept.
+
 **Attribution resolved, 2026-09-17 (§91): the two changes are jointly necessary.** A matched
 pair at the full protocol, differing only in `--cell-labels`, gives cells+labels **+0.514 mean
 AUC** over cells-alone on the Bayes-ceiling probe — because the unlabelled variant scores
@@ -806,6 +828,18 @@ becomes the measurement**, and +0.0754 for a prior full of accounting thresholds
 enough to pass review. Any paper reporting prior-selection statistics must state the baseline's
 preprocessing explicitly.
 
+**Update 2026-11-15 (§246, §248; family FinTFM).** Two narrowings for prior design. (1) The
+real-data motivation for a temporal prior is falsified as measured: on V4FinBench, one-year
+deltas and a short trend (408 features against 136 levels) lower LightGBM's average precision on
+3 of 3 folds (−0.0092, −0.0156, −0.0046; 199,998 rows, 37,630 companies, one seed, untuned),
+one interval excluding zero (§246). A per-horizon split (h3 to h5) was not run, so trajectory
+signal at long horizons is not excluded; nothing is measured about a synthetic temporal prior
+(task 2.5). (2) Today's prior (prior sampling only, no model) spans the real panels' width (mean
+72.3 features, interquartile 39 to 106, against 64 to 95) but its mean absolute correlation
+(0.133) and missingness (7.6%) still sit above the real panels' 0.081 to 0.110 and 0% to 1.5%,
+and its mean held-out logistic-regression AUC is 0.7134 against the real panels' 0.7687 (§248;
+§18's synthetic column was 12 tasks, so the comparison is indicative).
+
 ---
 
 ## Claim 16 — Opt-in dataset-specific fine-tuning raises V4FinBench AP, by a small margin
@@ -1056,6 +1090,12 @@ binary datasets (§204). The progression of the overall figure was 880 (§221), 
   better than §221's on 8 of 8 datasets (p 0.01), and four partition bags move Elo by 40 more, but
   bagging is worse on three datasets and its own sign test is p 0.07 against the §221 control
   (§224). The head's probabilities and a 4,000-row context were null (§224).
+- **2026-11-15, §242:** a 20-class regression checkpoint (6,000 steps x 8 tasks, 48,000 tasks;
+  target binned into 20 classes) is null on TabArena-Lite regression: 699 Elo against §235's 689,
+  better on 5 of 13 tables (sign test p = 0.58), median RMSE +0.17%. The entry stays on §235's
+  run (merged entry 932.8 Elo, 106th of 110, against 931.9, also 106th of 110). Bin count and
+  checkpoint changed together, so neither effect is separated. With §233 and §240, the regression
+  levers tried on this checkpoint family are spent.
 - **2026-11-15, §243:** on TabArena-Lite multiclass the raw-only control (eight bagged trees, a logistic regression per leaf on the squashed features) scores 829 Elo against the entry run's 874, worse on 7 of 8 datasets (p = 0.07, median log loss +15.5%). With §239 and §240, every problem type now has a matched control: the representation carries the multiclass and regression Elo, not the binary Elo.
 - **2026-11-15, §240:** on TabArena-Lite regression the raw-only control (four bagged trees, a ridge per leaf on the squashed features) scores 537 Elo against the entry run's 689, worse on 12 of 13 tables (p = 0.003, median RMSE +11.4%). Regression's Elo is evidence for the representation, unlike binary's.
 - **2026-11-15, §239:** the same raw-only control on TabArena-Lite binary scores 1009 Elo (97th of 108) against the options readout's 997 (101st), while the representation is better on 24 of 30 datasets (p < 0.01, mean +0.0043 ROC-AUC, largest on the credit tables). The binary entry's Elo is therefore not evidence for FinTFM's representation; the paired per-dataset result is.
