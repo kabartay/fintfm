@@ -202,6 +202,7 @@ class PriorConfigDefaults:
     source_weights: dict[str, float] | None = None
     financial_gate_prob: float = 0.0
     financial_sign_flip_prob: float = 0.0
+    financial_max_lr_auc: float | None = None
     feature_ratio_bands: tuple[tuple[float, float, float], ...] = ()
     p_binary: float | None = None
     imbalance_draws: bool = False
@@ -610,6 +611,10 @@ def _validate(cfg: Config) -> None:
         "label_flip_max": p.label_flip_max,
         "heavy_tail_column_prob": p.heavy_tail_column_prob,
     }
+    if p.financial_max_lr_auc is not None and not 0.5 <= p.financial_max_lr_auc <= 1.0:
+        raise ConfigError(
+            f"prior.financial_max_lr_auc must be null or in [0.5, 1], got {p.financial_max_lr_auc}"
+        )
     if p.tree_split_by not in ("std", "uniform"):
         raise ConfigError(f"prior.tree_split_by must be 'std' or 'uniform', got {p.tree_split_by!r}")
     off = [k for k, v in unit.items() if not 0.0 <= v <= 1.0]

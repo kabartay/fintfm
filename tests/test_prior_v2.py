@@ -48,7 +48,7 @@ _MIX = PriorConfig(
 
 #: Every DR2.2/DR2.3 field spelled out at its default.
 _OFF = {
-    "financial_gate_prob": 0.0, "financial_sign_flip_prob": 0.0, "feature_ratio_bands": (),
+    "financial_gate_prob": 0.0, "financial_sign_flip_prob": 0.0, "financial_max_lr_auc": None, "feature_ratio_bands": (),
     "p_binary": None,
     "imbalance_draws": False, "categorical_mode": "ordered", "missing_mode": "mcar",
     "tie_column_prob": 0.0, "irrelevant_frac_max": 0.0, "duplicate_frac_max": 0.0,
