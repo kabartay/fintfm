@@ -347,6 +347,11 @@ class PriorConfig:
     §1.1, §1.5). Refused with :attr:`n_horizons`. ``0.0`` (default) consumes no draw and
     reproduces every checkpoint's batches byte for byte. The generic gated prior is a source
     of its own, ``"gated"``, reached through :attr:`source_weights` only."""
+    financial_sample_horizon: bool = False
+    """Sample one prediction horizon per financial task (``temporal-financial-prior`` 2.4;
+    ``sample_horizon`` of :func:`fintfm.prior.financial.sample_financial_task`) and label
+    ``y`` as default within it, exposing it as ``task.meta["horizon"]``. Requires
+    :attr:`n_horizons`. ``False`` (default) consumes no draw and keeps every batch."""
     financial_sign_flip_prob: float = 0.0
     """Probability each exposed ratio column of a financial task is multiplied by -1, drawn
     per task and per column (design review DR2.2;
@@ -480,6 +485,8 @@ def _check_levers(cfg: PriorConfig) -> None:
         raise ValueError(
             f"financial_sign_flip_prob must lie in [0, 1], got {cfg.financial_sign_flip_prob}"
         )
+    if cfg.financial_sample_horizon and cfg.n_horizons is None:
+        raise ValueError("financial_sample_horizon requires n_horizons (a horizon grid)")
     if cfg.financial_gate_prob > 0 and cfg.n_horizons is not None:
         raise ValueError(
             "financial_gate_prob cannot be combined with n_horizons: the gated label has no "
@@ -906,6 +913,7 @@ def _dispatch_source(
             n_features=width,
             gate_prob=cfg.financial_gate_prob,
             sign_flip_prob=cfg.financial_sign_flip_prob,
+            sample_horizon=cfg.financial_sample_horizon,
         )
     if source == "scm":
         return sample_scm_task(

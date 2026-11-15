@@ -574,6 +574,7 @@ def sample_financial_task(
     gate_share_range: tuple[float, float] = _GATE_SHARE_RANGE,
     gate_leak_range: tuple[float, float] = _GATE_LEAK_RANGE,
     sign_flip_prob: float = 0.0,
+    sample_horizon: bool = False,
 ) -> Task:
     """Sample one synthetic corporate-default classification task.
 
@@ -663,6 +664,12 @@ def sample_financial_task(
             the column permutation, so the task is exactly the ``0.0`` task with some
             columns negated. ``0.0`` (default) consumes no draw and reproduces every
             checkpoint's tasks; any other value attaches ``meta`` with a ``flipped`` mask.
+        sample_horizon: Task 2.4 of ``temporal-financial-prior``. Needs ``n_horizons``. Draws
+            one prediction horizon ``h`` in ``1..n_horizons`` per task and labels ``y`` as
+            "defaults within the first ``h`` periods", so a shorter horizon gives a lower
+            base rate. ``period`` keeps the full-grid default period (the hazard head still
+            trains on all of it) and ``h`` is exposed as ``meta["horizon"]``. ``False``
+            (default) consumes no draw and reproduces every checkpoint's tasks.
 
     Returns:
         A binary :class:`Task` whose columns are a random subset of financial quantities with
@@ -855,6 +862,16 @@ def sample_financial_task(
                 np.where(y == 1, rng.integers(0, n_horizons, size=n_rows), -1),
                 period,
             )
+    horizon: int | None = None
+    if sample_horizon:
+        if n_horizons is None or period is None:
+            raise ValueError("sample_horizon requires n_horizons: a binary task has no time axis")
+        horizon = int(rng.integers(1, n_horizons + 1))
+        y = ((period >= 0) & (period < horizon)).astype(np.int64)
+        if y.min() == y.max():  # guarantee both classes at this horizon
+            flip = rng.choice(n_rows, size=max(1, n_rows // 50), replace=False)
+            y[flip] = 1 - y[flip]
+            period[flip] = np.where(y[flip] == 1, rng.integers(0, horizon, size=len(flip)), -1)
     # --- observation model ---------------------------------------------------
     # identity_shuffle (§67-§71, task 38.11): the exposed candidates and ratio family are
     # built from `acc_x`, an independently-per-account-permuted copy of the true `acc`, when
@@ -1017,6 +1034,8 @@ def sample_financial_task(
         {"gate": gate_info, "columns": names_out}
         if gate_prob > 0.0 or sign_flip_prob > 0.0 else None
     )
+    if horizon is not None:
+        meta = {**(meta or {}), "horizon": horizon}
     if sign_flip_prob > 0.0:
         # DR2.2: a per-task sign on each ratio, drawn after everything else so the label,
         # gate and NaN pattern are the unflipped task's; see ``sign_flip_prob`` above

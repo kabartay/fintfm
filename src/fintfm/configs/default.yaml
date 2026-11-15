@@ -181,6 +181,10 @@ prior:
   # per column, so no ratio points the same way across tasks (FINDINGS §47). The label, gate
   # and NaN pattern are the unflipped task's. 0.0 consumes no draw and keeps every batch.
   financial_sign_flip_prob: 0.0
+  # temporal-financial-prior 2.4: draw one prediction horizon per financial task and label
+  # default within it (needs n_horizons); the horizon is task.meta["horizon"]. false keeps
+  # every batch.
+  financial_sample_horizon: false
   # DR2.3: knob distributions for the general priors (prior/knobs.py), each off by default so
   # every existing checkpoint's batches are reproduced byte for byte. Each mirrors the
   # PriorConfig field of the same name (tests/test_config.py).
