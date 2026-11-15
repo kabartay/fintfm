@@ -15300,3 +15300,42 @@ counts tables. The Elo intervals overlap completely.
   FinTFM entry, and is not merged.
 - The 51-dataset entry (931.9, §235) keeps §232's binary run, the configuration with the
   representation; its position should be read with this entry beside it.
+
+## §240: on TabArena-Lite regression the representation is worth 152 Elo: the raw-only control scores 537 against the entry's 689, worse on 12 of 13 tables
+
+**MEASURED, TabArena-Lite (repeat 0, fold 0), CPU, 2026-11-15.** The matched control for §235's
+regression run (`fintfm_lp_reg_rawpart4_pure_1114`: FinTFM-LinProbe, squash, `select`, four
+partition bags, a ridge readout per leaf with `raw`, the 48,000-task pure-regression checkpoint):
+run `fintfm_lp_reg_rawonly4_1115`, the same configuration with `no_rep`, so each leaf's ridge
+sees only the squashed raw features. In effect four bagged trees with a ridge per leaf; 13 of 13
+datasets fit in 4 minutes. Comparison `runs/fintfm_lp_reg_rawonly4_1115_vs_part4.md`.
+
+**Elo, from each run's own leaderboard: raw only 537 (+129 / −413); the entry's run 689
+(+91 / −206). The representation is better on 12 of 13 datasets (sign test p = 0.003), median
+RMSE 11.4% lower.** RMSE, raw only against representation + raw:
+
+| dataset | raw only | representation + raw | raw only worse by |
+| --- | --- | --- | --- |
+| airfoil_self_noise | 4.579 | 2.428 | 88.6% |
+| concrete_compressive_strength | 8.329 | 5.600 | 48.7% |
+| diamonds | 1255.7 | 918.2 | 36.8% |
+| miami_housing | 133,965 | 106,094 | 26.3% |
+| healthcare_insurance_expenses | 5440.1 | 4378.7 | 24.2% |
+| houses | 0.3077 | 0.2733 | 12.6% |
+| superconductivity | 14.27 | 12.81 | 11.4% |
+| physiochemical_protein | 4.962 | 4.501 | 10.2% |
+| wine_quality | 0.7039 | 0.6700 | 5.1% |
+| Food_Delivery_Time | 7.967 | 7.894 | 0.9% |
+| QSAR_fish_toxicity | 0.9754 | 0.9666 | 0.9% |
+| QSAR-TID-11 | 0.9190 | 0.9134 | 0.6% |
+| Another-Dataset-on-used-Fiat-500 | 726.23 | 726.51 | −0.04% |
+
+**What it says.**
+- Unlike binary (§238, §239), regression's Elo is FinTFM's: removing the representation costs
+  152 Elo and most of the error on the smooth physical tables (airfoil, concrete), where a
+  linear model per leaf cannot follow the target and the representation can.
+- The regression gap to the field (689 against a ~1000 median) is therefore a gap in what the
+  representation gives, not in the readout around it; a better regression checkpoint is the lever
+  worth testing (the 20-class checkpoint, queued), and any gain from it is read against this
+  control too.
+- The raw-only arm is a control, not a FinTFM entry, and is not merged.
