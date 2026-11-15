@@ -96,6 +96,11 @@ ARMS = {
     # 48.25 (docs/results/drafts/48.25_2026-11.md): a read-out head re-drawn and trained on the
     # published checkpoint's frozen trunk, one GPU, masked attention (the checkpoint's own
     # attn_impl: --init-from refuses a different architecture), 48,000 tasks
+    # 44.5 (openspec/changes/factorized-attention): the published recipe at E1's settings and 48,000
+    # tasks, seed 0, with and without the factorized cell encoder; the control passes no
+    # --cell-mixing, so the one flag is the whole difference. Both pinned at d58141e
+    "445-factorized-s0": (E1 + S0_48K + ["--cell-mixing", "factorized"], True),
+    "445-ctrl-s0": (E1 + S0_48K, True),
     "4825-headonly-s0": (["--amp", "fp16", "--loader", "stream", "--seed", "0", "--steps", "6000",
                           "--train-only", "head", "--reinit-trained"], False),
 }
@@ -121,7 +126,9 @@ DR82_COMMIT = "e493123"
 #: 62a73c3 contains 7dfd663 (the AU5.11 flags), checked with merge-base --is-ancestor
 AU511_COMMIT = "62a73c3"
 #: The 48.25 arm's code is not pushed yet: UNPINNED kernels refuse to run
-COMMITS = {"4825-headonly-s0": "UNPINNED", "dr62-induced-s0": "6916a89",
+COMMITS = {"4825-headonly-s0": "UNPINNED",
+           # 44.5: d58141e carries cell_mixing="factorized" (44.3) and is pushed
+           "445-factorized-s0": "d58141e", "445-ctrl-s0": "d58141e", "dr62-induced-s0": "6916a89",
            "au511-diverse-s0": AU511_COMMIT, "au511-mixture-s0": AU511_COMMIT, "dr63-cls-s0": "6916a89",
            **{arm: DR24_COMMIT for arm in ARMS if arm.startswith("dr24-")},
            # DR7.4 needs no code change: a901cdc (origin/main, 2026-10-24) carries every flag
