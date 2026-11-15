@@ -32,6 +32,7 @@ from fintfm.modeling.train import build_parser, build_prior_config
 from fintfm.prior.financial import _holdout_lr_auc
 from fintfm.prior.mixture import PriorConfig, sample_task
 
+REAL_RANGE = (0.697, 0.899)  # real-panel held-out LR AUC range, FINDINGS §18
 QUANTILES = (0.0, 0.05, 0.25, 0.5, 0.75, 0.95, 1.0)
 
 
@@ -75,7 +76,8 @@ def measure(cfg: PriorConfig, n_tasks: int, seed: int) -> dict[str, dict[str, fl
 
     Returns:
         ``{property: {"n", "mean", "min", "q05", "q25", "q50", "q75", "q95", "max"}}`` plus
-        ``frac_lr_auc_gt_0.95`` and ``n_skipped_lr_auc`` under ``lr_auc``.
+        ``frac_gt_0.95``, ``n_unscorable`` and the ``frac_in/below/above_*`` shares of
+        the real-panel range [0.697, 0.899] and of [0.5, 0.95] under ``lr_auc``.
     """
     sizes = cfg.n_rows_choices or (cfg.n_rows,)
     rows: list[dict[str, float]] = []
@@ -101,7 +103,13 @@ def measure(cfg: PriorConfig, n_tasks: int, seed: int) -> dict[str, dict[str, fl
             "max": float(q[6]),
         }
     a = np.array([r["lr_auc"] for r in rows])
-    out["lr_auc"]["frac_gt_0.95"] = float(np.mean(a[np.isfinite(a)] > 0.95))
+    ok_a = a[np.isfinite(a)]
+    out["lr_auc"]["frac_gt_0.95"] = float(np.mean(ok_a > 0.95))
+    # coverage of the real-panel range (FINDINGS §18) and of [0.5, 0.95], over scorable tasks
+    for name, (lo, hi) in {"real_range": REAL_RANGE, "chance_to_0.95": (0.5, 0.95)}.items():
+        out["lr_auc"][f"frac_in_{name}"] = float(np.mean((ok_a >= lo) & (ok_a <= hi)))
+        out["lr_auc"][f"frac_below_{name}"] = float(np.mean(ok_a < lo))
+        out["lr_auc"][f"frac_above_{name}"] = float(np.mean(ok_a > hi))
     out["lr_auc"]["n_unscorable"] = float(np.sum(~np.isfinite(a)))
     return out
 
