@@ -15160,3 +15160,52 @@ checkpoint failed its V4FinBench gate (§234), so it is not used in the entry.
   log loss on most multiclass tables, but not the multiclass Elo at four bags.
 - kddcup09_appetency is the readout options' one bad table; a per-table switch would be tuning on
   the test fold, so it is reported, not fixed.
+
+## §237: neither a depth-3 tree nor eight bags improves on four regression bags as an entry; the global rule with eight bags ties eight bags exactly on Elo
+
+**MEASURED, TabArena-Lite (repeat 0, fold 0), CPU, 2026-11-15.** All against §235's four-bag
+regression run (`fintfm_lp_reg_rawpart4_pure_1114`, 689) or §227's eight-bag multiclass run
+(`fintfm_lp_mc_scr_bag8_1113`, 874); logs in `runs/local_queue/`.
+
+**Depth 3 with four bags, run `fintfm_lp_reg_rawpartd3b4_pure_1115`** (208 min, 13 of 13 exit
+0): 4 better, 8 worse, 1 tied (p = 0.39), **regression Elo 602 (+77 / −185) against 689**. RMSE
+ratio to four bags at depth 2:
+
+| dataset | ratio | dataset | ratio |
+| --- | --- | --- | --- |
+| diamonds | 0.885 | wine_quality | 1.007 |
+| physiochemical_protein | 0.967 | superconductivity | 1.010 |
+| houses | 0.968 | QSAR-TID-11 | 1.010 |
+| miami_housing | 0.995 | healthcare_insurance_expenses | 1.016 |
+| QSAR_fish_toxicity | 1.000 | concrete_compressive_strength | 1.024 |
+| Another-Dataset-on-used-Fiat-500 | 1.002 | airfoil_self_noise | 1.064 |
+| | | Food_Delivery_Time | 1.102 |
+
+Geometric mean 1.003. Depth 3 helps three of the four largest tables (diamonds −11.5%) and
+loses the small ones, where eight leaves fall below `min_leaf_rows` and the fit falls back to
+the global regressor: QSAR_fish, healthcare and concrete reproduce §227's unpartitioned RMSE
+exactly (0.9666, 4,450.49, 5.7319). Food_Delivery_Time, also large, loses 10%, so no size rule
+separates winners from losers cleanly.
+
+**Eight bags, run `fintfm_lp_reg_rawpart8_pure_1115`** (176 min, exit 3): the three largest
+tables (Food_Delivery_Time, physiochemical_protein, diamonds) stopped on AutoGluon's
+`TimeLimitExceeded` after about 410 s, when the first of 8 folds projected past 3,600 s, under a
+load average near 100 from other sessions. No Elo. On the ten that finished, against four bags
+(read from the cached results): 7 better, 3 tied to the fourth decimal, gains of at most 1.7%
+(airfoil 0.983, miami_housing 0.987, superconductivity 0.990). Not viable as an entry at this
+cost; the gain it shows is small.
+
+**Multiclass, global rule with eight bags, run `fintfm_lp_mc_scr_glob8_1115`** (72 min, 8 of 8
+exit 0): against eight bags, 6 better, 2 worse (p = 0.29); log loss SDSS17 0.1214 to 0.1026,
+anneal 0.2218 to 0.2058, splice 0.1224 to 0.1199, MIC 0.4923 to 0.4997. **Multiclass Elo 874 (+103
+/ −248), equal to eight bags**, and the merged overall with it is 931.9
+(`fintfm_linprobe_all51_1115c`), equal to §235's to the decimal. The entry keeps §227's run;
+either is the same number.
+
+**What it says.**
+- Four bags at depth 2 is where the partition lever stops paying on regression at this cost:
+  depth 3 trades large-table gains for small-table losses, and eight bags exceed the time limit
+  on the large tables for gains of a percent or two.
+- On multiclass the global rule's lower log loss does not reach Elo at four or eight bags (§236,
+  this entry). The multiclass entry stays at 874.
+- The entry stands at 931.9 Elo, 106th of 110 (§235).
