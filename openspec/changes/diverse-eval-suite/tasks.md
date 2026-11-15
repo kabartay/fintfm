@@ -1,6 +1,6 @@
 # Tasks
 
-- [ ] 37.1 Resolve the licence of every classification dataset in
+- [x] 37.1 **Done (2026-11-15): all 23 classification files resolved from primary sources; 10 commercial use allowed, 0 non-commercial only, 13 unknown and excluded. Full table with source URLs and method in `docs/research/tabular_benchmark_licences.md`, summary in `README.md`'s licensing section.** Resolve the licence of every classification dataset in
       `inria-soda/tabular-benchmark` and record each one in `README.md`'s licensing section.
       The collection card declares none. Verify: a table of dataset to licence to
       commercial-use verdict, with any dataset whose terms cannot be established **excluded**

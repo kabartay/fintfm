@@ -424,6 +424,23 @@ fetch TabArena-v0.1 and BeyondArena for the overlap report, for evaluation hashi
   tier: **never correlate the data to individuals**, since this is consumer loan-level data,
   unlike EDGAR's corporate filings.
 
+**The classification datasets in `inria-soda/tabular-benchmark`, checked and dated 2026-11-15.**
+The collection card declares no licence and its code repository has no `LICENSE` file, so each
+of the 23 classification files was traced to its originating source. **10 allow commercial use,
+none is non-commercial only, and 13 are excluded because their terms could not be established.**
+OpenML's `Public` label is not a licence and was not accepted as one.
+- *Commercial use allowed* (CC BY 4.0 on the UCI dataset pages, attribution owed): covertype
+  (both folders), MagicTelescope, bank-marketing, MiniBooNE, Higgs, Diabetes130US, and
+  default-of-credit-card-clients (both folders). OpenML says CC0 for MiniBooNE and the credit-card
+  data, the stricter UCI statement is the one recorded. road-safety is under the UK Open
+  Government Licence v3.0 (Department for Transport), also with attribution.
+- *Unknown: excluded*: pol, house_16H, Bioresponse, credit (Give Me Some Credit), heloc,
+  california, jannis, albert, electricity (both folders), eye_movements (both folders) and
+  compas-two-years. None of these may be used until a primary source states a licence.
+
+The table, with a source URL per row and the method, is in
+[`docs/research/tabular_benchmark_licences.md`](docs/research/tabular_benchmark_licences.md).
+
 **One exception, which CI found.** On **Linux**, `torch` pulls in about fifteen NVIDIA CUDA
 runtime packages under **NVIDIA's proprietary licence**. They are a transitive runtime
 dependency, not a choice made here, and this project does **not redistribute them**: `uv build`
