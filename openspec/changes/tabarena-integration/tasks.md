@@ -1,28 +1,28 @@
 # Tasks
 
-- [ ] 45.1 **Install TabArena in its own environment**, in the existing clone at
+- [ ] 45.1 **Progress (2026-11-15): the isolation half of the Verify is met and the count half is not recorded.** TabArena lives in its own environment at `../tabarena/.venv` (autogluon 1.6.4 and tabarena 0.1.0 installed there; fintfm editable via `fintfm.pth`, §132), while this repository's `.venv` holds no autogluon or tabarena and `uv.lock` names neither, so the dependency tree did not leak. Missing: no document records this repository's `uv run pytest` test count and single expected skip before and after the install, which is what the Verify asks for; that comparison cannot be reconstructed after the fact and was not re-run here (heavy job running). **Install TabArena in its own environment**, in the existing clone at
       `../tabarena`, never inside this project's venv. Verify: `uv run pytest` in *this*
       repository still reports the same test count and the same single expected skip
       afterwards, so the benchmark's dependency tree provably did not leak into fintfm's.
-- [ ] 45.2 **Write the model folder and make the registry's own fit-test pass.** TabArena
+- [ ] 45.2 **Progress (2026-11-15): the model folder exists and was externally reviewed, but no run of the registry test is recorded.** The folder is `packages/tabarena/src/tabarena/models/fintfm/` (`model.py`, `hpo.py`, `info.py`) plus `fintfm_linprobe/` in the fork, branch `fintfm-audit-fixes`; the integration was submitted as autogluon/tabarena#616 and a TabArena collaborator confirmed it correct (§122, `docs/results/TABARENA.md`). Missing: a recorded pass of `test_model_smoke` for the fintfm registry key in `tests/tabarena/models/test_all_models.py`, and the fork's `smoke_configs.py` has no fintfm entry. **Write the model folder and make the registry's own fit-test pass.** TabArena
       fit-tests every registered model through `tests/tabarena/models/test_all_models.py`; no
       per-model test is written. Verify: that test passes for the fintfm entry, which is
       TabArena's own definition of a correctly-integrated model rather than ours.
-- [ ] 45.3 **Declare capability honestly and measure coverage.** `_supported_problem_types`
+- [x] 45.3 **Done (2026-11-15, evidence): `_supported_problem_types` is `["binary"]` by default in the fork's `fintfm/model.py` (multiclass and regression only by opt-in or by the later 51-dataset entry); a table over the checkpoint's `max_features` raises, so the harness records a skip, and `eligible_datasets()` in the fork's `run_fintfm_lite.py` derives the coverage from the model's own declaration. Coverage sits beside every score: §98 26 of 27 eligible, 51% of the 51-dataset suite, 0 failures; `docs/results/TABARENA.md` 27 of 51 (53%) for the submitted entry; §221 and §235 all 51 of 51, none excluded.** **Declare capability honestly and measure coverage.** `_supported_problem_types`
       must be `["binary"]`, and the feature cap must cause a skip rather than a failure.
       Verify: the run reports how many of the suite's tasks were actually scored, and that
       number appears beside every score quoted from it — a benchmark that silently measures
       fewer datasets than it claims is the failure `CLAUDE.md` records under "distrust a jump
       in the skip count".
-- [ ] 45.4 **Run TabArena-Lite and place the result against published numbers.** Verify: the
+- [ ] 45.4 **Progress (2026-11-15): FinTFM's score, a foundation-model score and the coverage fraction are reported; a tuned tree ensemble's score is not.** FinTFM: 932 Elo, 106th of 110, all 51 datasets (§235; README); zero-shot model 750 Elo, 107th of 108, 27 binary datasets (§225). Foundation models on the same cached board: LimiX-2 1872 and TabPFN-3.5 1812 Elo (§110, 95-method board), LimiX-2 1878 (§98). Coverage is stated per entry (§98, §221). Tree comparator quoted: `RandomForest (default)` 1,000 Elo (§221, §224), which is a default model, not a tuned ensemble. Missing: an Elo for a tuned tree ensemble (for example CatBoost or LightGBM tuned) on the same suite in FINDINGS, `TABARENA.md` or README; none of those files quotes one. Add it by reading it from the stored leaderboard in `../tabarena/eval/`, not by computing it. **Run TabArena-Lite and place the result against published numbers.** Verify: the
       report states fintfm's score, the published score of at least one foundation model and
       one tuned tree ensemble on the same suite, and the coverage fraction — so the comparison
       is to the field rather than to baselines we ran ourselves.
-- [ ] 45.5 **Check BeyondArena's temporal and grouped tasks separately.** These match
+- [ ] 45.5 **Progress (2026-11-15): not started as a measurement.** No FinTFM run on BeyondArena's temporal or grouped tasks exists in FINDINGS, `docs/results/TABARENA.md` or `docs/paper/`. What exists is adjacent only: `lending_club_1m` found in BeyondArena and forfeited as a FinTFM-R BeyondArena task (D17 addendum, FINDINGS around line 10790), and a peer's temporal and grouped rank drop quoted in `docs/paper/RELATED_WORK.md` (around line 1356). The fork has BeyondArena metadata and website-artifact scripts but no FinTFM BeyondArena experiment or eval directory. Missing: the run, and a temporal/grouped row reported on its own. **Check BeyondArena's temporal and grouped tasks separately.** These match
       V4FinBench's structure and are the only non-credit temporal data available to this
       project; an aggregate over IID tasks would hide whatever is specific to that regime.
       Verify: temporal/grouped results are reported as their own row, never pooled with IID.
-- [ ] 45.6 **Decide on lifting the caps, with evidence.** Multiclass and wider feature support
+- [ ] 45.6 **Progress (2026-11-15): the coverage half of the evidence exists and the cap decisions were taken, but 45.5's per-regime results are missing, so the Verify is not met.** Decisions on record: multiclass and regression were excluded (§121), a maintainer called that cherry-picking and declined the entry (§122), coverage became a precondition, and the caps were lifted for a 51-of-51 entry with each problem type's own checkpoint and `max_features_strategy: select` (§220, §221), with the coverage fraction cited each time. Missing: the temporal and grouped per-regime results from 45.5, which the Verify requires cited beside the coverage fraction. Closes once 45.5 is measured and the decision text cites it. **Decide on lifting the caps, with evidence.** Multiclass and wider feature support
       are product decisions, not benchmarking conveniences. Verify: the coverage fraction from
       45.3 and the per-regime results from 45.5 are cited in whichever direction the decision
       goes, rather than the caps being lifted because a leaderboard rewards it.
