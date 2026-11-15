@@ -40,7 +40,7 @@ import numpy as np
 from fintfm.config import Config, load_config
 from fintfm.evaluation.coverage import Coverage
 from fintfm.evaluation.datasets import load_v4finbench
-from fintfm.evaluation.metrics import evaluate_binary
+from fintfm.evaluation.metrics import evaluate_binary, holm_adjusted_p, paired_auc_difference
 from fintfm.experiments.context_sweep import horizon_skip_reason
 from fintfm.experiments.v4_out_of_time import SplitMode, _curve_truth, split_dataset
 from fintfm.inference.classifier import FinancialTFMClassifier
@@ -106,6 +106,66 @@ def _score(
     return (float(np.mean(aucs)) if aucs else float("nan")), aucs
 
 
+def paired_grouping_comparisons(
+    curves: dict[int, np.ndarray],
+    reference: np.ndarray,
+    truth: np.ndarray,
+    seen: np.ndarray,
+    groups: np.ndarray | None,
+    min_rows: int,
+    n_boot: int = 1000,
+    seed: int = 0,
+) -> list[dict]:
+    """Paired bootstrap of the AUC cost of grouping, against exact retrieval (task 17.7).
+
+    For every group size and every scorable horizon, grouped and exact predictions on the same
+    rows are compared with :func:`fintfm.evaluation.metrics.paired_auc_difference`
+    (whole companies resampled when ``groups`` is given). The p-values are Holm-adjusted as
+    one family, so a quoted AUC delta always has its adjusted p-value beside it.
+
+    Args:
+        curves: ``group_size -> (n, horizons)`` grouped predicted curve.
+        reference: ``(n, horizons)`` exact per-query curve.
+        truth: ``(n, horizons)`` cumulative-default labels.
+        seen: ``(n, horizons)`` True where the horizon is observed.
+        groups: Company label per row, or ``None`` for a row bootstrap.
+        min_rows: Fewest observed rows a horizon needs.
+        n_boot: Bootstrap resamples per comparison.
+        seed: Bootstrap seed.
+
+    Returns:
+        One dict per (group size, horizon) with ``delta`` (grouped AUC minus exact AUC),
+        ``ci_lo``, ``ci_hi``, ``p_raw`` and ``p_holm``.
+    """
+    rows: list[dict] = []
+    for size in sorted(curves):
+        for k in range(truth.shape[1]):
+            m = seen[:, k]
+            if horizon_skip_reason(m, truth[:, k], min_rows) is not None:
+                continue
+            d, (lo, hi), p = paired_auc_difference(
+                truth[m, k],
+                curves[size][m, k],
+                reference[m, k],
+                n_boot=n_boot,
+                seed=seed,
+                groups=None if groups is None else groups[m],
+            )
+            rows.append(
+                {
+                    "group_size": size,
+                    "horizon": k,
+                    "delta": d,
+                    "ci_lo": lo,
+                    "ci_hi": hi,
+                    "p_raw": p,
+                }
+            )
+    for r, adj in zip(rows, holm_adjusted_p([r["p_raw"] for r in rows]), strict=True):
+        r["p_holm"] = adj
+    return rows
+
+
 def run(
     model_path: str,
     out_dir: Path,
@@ -115,6 +175,8 @@ def run(
     seed: int = 0,
     cfg: Config | None = None,
     split: SplitMode = "embargoed",
+    n_boot: int = 1000,
+    write: bool = True,
 ) -> dict:
     """Measure grouped retrieval against exact per-query retrieval.
 
@@ -134,6 +196,8 @@ def run(
         cfg: Configuration; loaded from the packaged default when omitted.
         split: ``"embargoed"`` (default) or ``"legacy"`` (the leaking split of §35); see
             :func:`fintfm.experiments.v4_out_of_time.split_dataset`.
+        n_boot: Bootstrap resamples per grouped-versus-exact AUC comparison; ``0`` skips it.
+        write: Write ``retrieval_grouping.json`` under ``out_dir``.
 
     Returns:
         The recorded result dictionary.
@@ -194,11 +258,13 @@ def run(
     )
 
     rows: list[GroupingScore] = []
+    curves: dict[int, np.ndarray] = {}
     for size in group_sizes:
         n_groups = max(1, int(np.ceil(len(keep) / size)))
         started = time.perf_counter()
         curve = fitted(n_groups).predict_term_structure(ds.X[keep])
         elapsed = time.perf_counter() - started
+        curves[size] = np.asarray(curve)
         dev = np.abs(curve - reference)
         auc, by_h = _score(
             curve, truth, seen, cfg.evaluation.min_rows_per_horizon, cov, f"size{size}"
@@ -244,15 +310,114 @@ def run(
             "auc_by_horizon": [float(a) for a in ref_by_h],
         },
         "grouped": [asdict(r) for r in rows],
+        "paired": (
+            paired_grouping_comparisons(
+                curves,
+                np.asarray(reference),
+                truth,
+                seen,
+                None if ds.groups is None else ds.groups[keep],
+                cfg.evaluation.min_rows_per_horizon,
+                n_boot=n_boot,
+                seed=seed,
+            )
+            if n_boot > 0
+            else []
+        ),
         "note": (
             "AUC here is on a stratified subsample (all positives, sampled negatives) so it "
             "is comparable between these arms and NOT with the full-panel numbers in "
             "docs/results/FINDINGS.md §35."
         ),
     }
-    out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "retrieval_grouping.json").write_text(json.dumps(record, indent=2))
+    if write:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / "retrieval_grouping.json").write_text(json.dumps(record, indent=2))
     return record
+
+
+def aggregate_seeds(records: list[dict], n_boot: int = 1000) -> dict:
+    """Combine one-seed records into the multi-seed result of task 17.7.
+
+    The headline per group size is the mean and standard deviation, across seeds, of the
+    subsample AUC minus the exact reference's AUC (a single seed is not a result). The paired
+    bootstrap rows of every seed are pooled and Holm-adjusted as one family.
+
+    Args:
+        records: Outputs of :func:`run`, one per seed, all with the same group sizes.
+        n_boot: Bootstrap resamples used, recorded for the reader.
+
+    Returns:
+        Dict with ``seeds``, ``per_size`` (mean/std AUC delta, deviation and Spearman across
+        seeds), ``paired`` (pooled, Holm-adjusted), ``records`` (the per-seed records) and a
+        ``note``.
+    """
+    sizes = [g["group_size"] for g in records[0]["grouped"]]
+    per_size = []
+    for i, size in enumerate(sizes):
+        delta = [r["grouped"][i]["mean_auc"] - r["reference"]["mean_auc"] for r in records]
+        dev = [r["grouped"][i]["mean_abs_deviation"] for r in records]
+        rho = [r["grouped"][i]["spearman"] for r in records]
+        per_size.append(
+            {
+                "group_size": size,
+                "auc_delta_by_seed": delta,
+                "auc_delta_mean": float(np.nanmean(delta)),
+                "auc_delta_std": float(np.nanstd(delta, ddof=1)) if len(delta) > 1 else None,
+                "mean_abs_deviation_mean": float(np.nanmean(dev)),
+                "spearman_mean": float(np.nanmean(rho)),
+            }
+        )
+    pooled = []
+    for r in records:
+        for row in r["paired"]:
+            pooled.append({"seed": r["config"]["seed"], **row})
+    for row, adj in zip(pooled, holm_adjusted_p([x["p_raw"] for x in pooled]), strict=True):
+        row["p_holm"] = adj
+    return {
+        "seeds": [r["config"]["seed"] for r in records],
+        "per_size": per_size,
+        "paired": pooled,
+        "paired_method": (
+            f"paired bootstrap per horizon, whole companies resampled, n_boot={n_boot}; "
+            "Holm-adjusted across every seed, group size and horizon in this record"
+        ),
+        "records": records,
+        "note": records[0]["note"],
+    }
+
+
+def summarise_seeds(agg: dict) -> str:
+    """Render the multi-seed AUC cost of grouping with its Holm-adjusted evidence.
+
+    Args:
+        agg: Output of :func:`aggregate_seeds`.
+
+    Returns:
+        A text table.
+    """
+    lines = [
+        f"seeds {agg['seeds']}",
+        (
+            f"{'queries/ctx':>12} {'dAUC mean':>10} {'dAUC std':>9} {'mean|dev|':>10} "
+            f"{'rho':>8} {'horizons Holm<.05':>18}"
+        ),
+    ]
+    for g in agg["per_size"]:
+        ps = [
+            p["p_holm"]
+            for p in agg["paired"]
+            if p["group_size"] == g["group_size"] and np.isfinite(p["p_holm"])
+        ]
+        std = g["auc_delta_std"]
+        lines.append(
+            f"{g['group_size']:>12} {g['auc_delta_mean']:>+10.4f} "
+            f"{(float('nan') if std is None else std):>9.4f} "
+            f"{g['mean_abs_deviation_mean']:>10.5f} {g['spearman_mean']:>8.5f} "
+            f"{sum(p < 0.05 for p in ps):>10} of {len(ps)}"
+        )
+    lines += ["", agg["note"]]
+    return "\n".join(lines)
 
 
 def summarise(record: dict) -> str:
@@ -291,7 +456,20 @@ def main() -> None:
     p.add_argument("--n-negatives", type=int, default=2000)
     p.add_argument("--n-positives", type=int, default=0, help="0 keeps every defaulting firm")
     p.add_argument("--group-sizes", type=str, default="2,8,32,128,512", help="comma-separated")
-    p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--seed", type=int, default=0, help="single seed; ignored with --seeds")
+    p.add_argument(
+        "--seeds",
+        type=str,
+        default=None,
+        help="comma-separated; runs each seed in full (exact reference included) and writes "
+        "the pooled, Holm-adjusted record (task 17.7)",
+    )
+    p.add_argument(
+        "--n-boot",
+        type=int,
+        default=1000,
+        help="bootstrap resamples per grouped-vs-exact AUC comparison; 0 skips it",
+    )
     p.add_argument(
         "--split",
         choices=("embargoed", "legacy"),
@@ -300,16 +478,28 @@ def main() -> None:
     )
     args = p.parse_args()
     cfg = load_config(args.config)
-    record = run(
-        args.model,
-        Path(args.out),
-        n_negatives=args.n_negatives,
-        n_positives=args.n_positives,
-        group_sizes=tuple(int(v) for v in args.group_sizes.split(",")),
-        seed=args.seed,
-        cfg=cfg,
-        split=args.split,
-    )
+    common: dict = {
+        "n_negatives": args.n_negatives,
+        "n_positives": args.n_positives,
+        "group_sizes": tuple(int(v) for v in args.group_sizes.split(",")),
+        "cfg": cfg,
+        "split": args.split,
+        "n_boot": args.n_boot,
+    }
+    if args.seeds:
+        out = Path(args.out)
+        records = []
+        for sd in (int(v) for v in args.seeds.split(",")):
+            print(f"\n=== seed {sd} ===", flush=True)
+            records.append(run(args.model, out / f"seed{sd}", seed=sd, **common))
+        agg = aggregate_seeds(records, n_boot=args.n_boot)
+        out.mkdir(parents=True, exist_ok=True)
+        (out / "retrieval_grouping.json").write_text(json.dumps(agg, indent=2))
+        print("\n" + summarise_seeds(agg))
+        print(f"\nconfig: {cfg.provenance()}")
+        print(f"\n{records[0]['attribution']}")
+        return
+    record = run(args.model, Path(args.out), seed=args.seed, **common)
     print("\n" + summarise(record))
     print(f"\nconfig: {cfg.provenance()}")
     print(f"\n{record['attribution']}")
