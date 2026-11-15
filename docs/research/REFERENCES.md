@@ -823,3 +823,19 @@ checked separately:** benchmark code is Apache-2.0 plus an added attribution par
 Apache-2.0 despite the README badge; datasets: 63 of 251 OpenML configs carry a permissive licence
 string, 1 is non-commercial, 178 state none and are excluded; the dataset Space returned HTTP 401.
 Published numbers only.
+
+## Baseline licences read 2026-11-15 (task 18.6 of strong-baselines)
+
+Full evidence, commits and URLs in `docs/research/baseline_licences_2026-11-15.md`. Licence files,
+READMEs, Hub cards and PyPI records read raw; nothing installed, run or downloaded.
+
+**Code and weights, checked separately.** TabICLv2: code BSD-3-Clause (`forecast/` Apache-2.0),
+weights BSD-3-Clause by the `jingang/TabICL` card field only, no licence file. TabDPT: Apache-2.0
+for code and weights (Hub LICENSE file), training-data provenance not checked. TabPFN: code
+Apache-2.0 (PyPI 10.0.0, 2026-11-13); weights 3.5 (default), 3, 2.6 and 2.5 **non-commercial,
+outputs included**, TabPFN-2 under the Prior Labs License v1.1 (Apache-2.0 plus a "Built with
+PriorLabs-TabPFN" paragraph). FT-Transformer (`rtdl-revisiting-models`, `rtdl`), TabM and RealMLP
+(`pytabkit`): Apache-2.0 code, no weights distributed. `rtdl-num-embeddings` is MIT on GitHub and
+Apache on PyPI; the `LICENSE` file is taken. **Verdicts:** evaluation outside this repository is
+clear for all but TabPFN 3.5, 3, 2.6 and 2.5, which are excluded (published numbers only). No
+commercial clearance is claimed for TabICLv2 weights (thin grant) or TabDPT (training data).
