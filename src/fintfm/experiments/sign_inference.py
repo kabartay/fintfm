@@ -52,6 +52,8 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from fintfm.evaluation.coverage import Coverage
+
 if TYPE_CHECKING:
     from fintfm.modeling.model import FinancialTFM
 
@@ -245,6 +247,7 @@ def run(
 
     nc = n // 2
     acc: dict[tuple[str, str], dict[str, list[float]]] = {}
+    cov = Coverage()
     for family in FAMILIES:
         n_tasks = 1 if family == "sign" else tasks_per_seed
         for seed in seeds:
@@ -254,10 +257,14 @@ def run(
                 X, y_pos, y_neg = make_pair(beta, n, d, task_seed)
                 Xtr, Xte = X[:nc], X[nc:]
                 ys = {"pos": y_pos, "neg": y_neg}
+                unit = f"{family}/seed{seed}/task{t}"
+                cov.attempt(unit)
                 if any(
                     len(np.unique(y[:nc])) < 2 or len(np.unique(y[nc:])) < 2 for y in ys.values()
                 ):
+                    cov.skip(unit, "one class in a train or test half of a paired label")
                     continue
+                cov.scored(unit)
                 preds: dict[str, dict[str, np.ndarray]] = {}
                 for side, y in ys.items():
                     for name, m in loaded.items():
@@ -309,7 +316,9 @@ def run(
             "max_context": max_context,
         },
         "results": [asdict(r) for r in results],
+        "coverage": cov.to_dict(),
     }
+    print(cov.summary("paired tasks"), flush=True)
     if out_dir is not None:
         out_dir.mkdir(parents=True, exist_ok=True)
         (out_dir / "sign_inference.json").write_text(json.dumps(record, indent=2))

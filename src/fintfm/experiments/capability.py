@@ -930,6 +930,7 @@ def multiclass_sweep(
         n: {"accuracy": [], "macro_auc": []} for n in arm_names
     }
     skipped: list[str] = []
+    cov = Coverage()
     majority: list[float] = []
     n_scored: list[int] = []
     for n_classes in class_counts:
@@ -941,7 +942,12 @@ def multiclass_sweep(
             Xtr, ytr, Xte, yte = make_multiclass_probe(
                 n_features=n_features, n_classes=n_classes, seed=seed
             )
+            units = [f"K{n_classes}/seed{seed}/{name}" for name in arm_names]
+            for u in units:
+                cov.attempt(u)
             if len(np.unique(ytr)) < n_classes or len(np.unique(yte)) < n_classes:
+                for u in units:
+                    cov.skip(u, f"fewer than {n_classes} classes in the train or test half")
                 continue
             per_seed_majority.append(float(np.bincount(yte).max() / len(yte)))
             for name, m in models.items():
@@ -950,6 +956,10 @@ def multiclass_sweep(
                     # it anyway would invite a comparison the architecture forbids, so the
                     # cell is left empty and the reason is carried into the record.
                     skipped.append(f"{name}@K={n_classes}: max_classes={m.cfg.max_classes}")
+                    cov.skip(
+                        f"K{n_classes}/seed{seed}/{name}",
+                        f"checkpoint max_classes={m.cfg.max_classes} is below {n_classes}",
+                    )
                     continue
                 clf = FinancialTFMClassifier(
                     m,
@@ -965,24 +975,28 @@ def multiclass_sweep(
                 cell[name]["macro_auc"].append(
                     roc_auc_score(yte, proba, multi_class="ovr", average="macro")
                 )
+                cov.scored(f"K{n_classes}/seed{seed}/{name}")
             lr = LogisticRegression(max_iter=1000).fit(Xtr, ytr)
             lp = lr.predict_proba(Xte)
             cell["logistic_regression"]["accuracy"].append(accuracy_score(yte, lr.predict(Xte)))
             cell["logistic_regression"]["macro_auc"].append(
                 roc_auc_score(yte, lp, multi_class="ovr", average="macro")
             )
+            cov.scored(f"K{n_classes}/seed{seed}/logistic_regression")
         for name, metrics in cell.items():
             for metric, vals in metrics.items():
                 arms[name][metric].append(float(np.mean(vals)) if vals else float("nan"))
         majority.append(float(np.mean(per_seed_majority)) if per_seed_majority else float("nan"))
         n_scored.append(len(per_seed_majority))
         print(f"  K={n_classes} done", flush=True)
+    print(cov.summary("class-seed-arms"), flush=True)
     return {
         "class_counts": list(class_counts),
         "majority_rate": majority,
         "arms": arms,
         "n_seeds_scored": n_scored,
         "skipped": skipped,
+        "coverage": cov.to_dict(),
         "config": {
             "models": model_paths,
             "seeds": list(seeds),
@@ -1177,6 +1191,7 @@ def regression_sweep(
     arm_names = [*models, "ridge_gaussian", "binning_oracle"]
     arms: dict[str, dict[str, list[float]]] = {n: {m: [] for m in metrics} for n in arm_names}
     skipped: list[str] = []
+    cov = Coverage()
     truth_outer: list[float] = []
     for shape in shapes:
         cell: dict[str, dict[str, list[float]]] = {n: {m: [] for m in metrics} for n in arm_names}
@@ -1185,6 +1200,8 @@ def regression_sweep(
             Xtr, ytr, Xte, yte = make_regression_probe(
                 shape=shape, n_features=n_features, seed=seed
             )
+            for arm in arm_names:
+                cov.attempt(f"{shape}/seed{seed}/{arm}")
             lo, hi = float(min(ytr.min(), yte.min())), float(max(ytr.max(), yte.max()))
             sd = float(np.std(yte))
             per_seed_truth.append(_outer_mass(yte, lo, hi))
@@ -1221,10 +1238,15 @@ def regression_sweep(
                         # "more than all of it".
                         outer_fracs.append(float(np.clip(tau_a + (1.0 - tau_b), 0.0, 1.0)))
                     cell[name]["outer_mass"].append(float(np.mean(outer_fracs)))
+                    cov.scored(f"{shape}/seed{seed}/{name}")
                     continue
                 bins = min(n_bins, m.cfg.max_classes)
                 if bins < 2:
                     skipped.append(f"{name}: max_classes={m.cfg.max_classes} < 2 bins")
+                    cov.skip(
+                        f"{shape}/seed{seed}/{name}",
+                        f"checkpoint max_classes={m.cfg.max_classes} allows fewer than 2 bins",
+                    )
                     continue
                 if bins < n_bins:
                     skipped.append(f"{name}@{shape}: n_bins {n_bins} -> {bins} (max_classes)")
@@ -1252,6 +1274,7 @@ def regression_sweep(
                 span = hi - lo
                 outer = (reps <= lo + span / 3.0) | (reps >= hi - span / 3.0)
                 cell[name]["outer_mass"].append(float(proba[:, outer].sum(axis=1).mean()))
+                cov.scored(f"{shape}/seed{seed}/{name}")
             oracle_binner = QuantileBinner(n_bins).fit(ytr)
             op = oracle_binner.representatives_[oracle_binner.transform(yte)]
             cell["binning_oracle"]["nrmse"].append(float(np.sqrt(np.mean((op - yte) ** 2)) / sd))
@@ -1259,6 +1282,7 @@ def regression_sweep(
             # No interval: the oracle is a point on the grid, not a distribution.
             cell["binning_oracle"]["coverage"].append(float("nan"))
             cell["binning_oracle"]["outer_mass"].append(_outer_mass(op, lo, hi))
+            cov.scored(f"{shape}/seed{seed}/binning_oracle")
             ridge = Ridge().fit(Xtr, ytr)
             rp = ridge.predict(Xte)
             resid_sd = float(np.std(ytr - ridge.predict(Xtr)))
@@ -1274,16 +1298,19 @@ def regression_sweep(
                 below = norm.cdf((a - rp) / max(resid_sd, 1e-12))
                 above = 1.0 - norm.cdf((b - rp) / max(resid_sd, 1e-12))
             cell["ridge_gaussian"]["outer_mass"].append(float(np.mean(below + above)))
+            cov.scored(f"{shape}/seed{seed}/ridge_gaussian")
         for name, mm in cell.items():
             for metric, vals in mm.items():
                 arms[name][metric].append(float(np.mean(vals)) if vals else float("nan"))
         truth_outer.append(float(np.mean(per_seed_truth)))
         print(f"  {shape} done", flush=True)
+    print(cov.summary("shape-seed-arms"), flush=True)
     return {
         "shapes": list(shapes),
         "truth_outer_mass": truth_outer,
         "arms": arms,
         "skipped": sorted(set(skipped)),
+        "coverage": cov.to_dict(),
         "config": {
             "models": model_paths,
             "seeds": list(seeds),

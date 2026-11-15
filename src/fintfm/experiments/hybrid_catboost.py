@@ -328,7 +328,11 @@ def _metrics(y: np.ndarray, p: np.ndarray) -> dict[str, float]:
 
 
 def record_arm_coverage(
-    cov: Coverage, fold: int, expected: tuple[str, ...], scores: dict[str, dict]
+    cov: Coverage,
+    fold: int,
+    expected: tuple[str, ...],
+    scores: dict[str, dict],
+    failures: dict[str, str] | None = None,
 ) -> None:
     """Resolve one fold's arms in ``cov``: scored, or skipped with the reason it has no score.
 
@@ -339,12 +343,14 @@ def record_arm_coverage(
         scores: Arm to ``{"test": metrics, "val": metrics}`` for the arms that produced
             predictions. An arm absent here failed to fit; one whose test AP is NaN had a
             single-class test split.
+        failures: Optional arm to the reason it produced no predictions, used in place of the
+            generic failed-fit reason (the tuned arms name their worker).
     """
     for a in expected:
         unit = f"fold{fold}/{a}"
         cov.attempt(unit)
         if a not in scores:
-            cov.skip(unit, "booster fit failed, no predictions")
+            cov.skip(unit, (failures or {}).get(a, "booster fit failed, no predictions"))
         elif not np.isfinite(scores[a]["test"]["avg_precision"]):
             cov.skip(unit, "one class in the test rows, so AP and AUC are undefined")
         else:
@@ -457,9 +463,20 @@ def run_arrays(
         b_held = to_logit(p_held)
 
         arms: dict[str, np.ndarray] = {"fintfm": p_held}
+        arm_failures: dict[str, str] = {}
         if booster == "lightgbm_tuned":
             arms |= _tuned_arms(
-                Z, y, company, tr, held, oof, b_held, tuned_configs, tuned_budget_s, fold
+                Z,
+                y,
+                company,
+                tr,
+                held,
+                oof,
+                b_held,
+                tuned_configs,
+                tuned_budget_s,
+                fold,
+                failures=arm_failures,
             )
         else:
             base = fit_predict_catboost(Z[tr], y[tr], Z[held], catboost_params)
@@ -507,7 +524,7 @@ def run_arrays(
             for a, p in arms.items()
         }
         expected_arms = TUNED_ARMS if booster == "lightgbm_tuned" else ARMS
-        record_arm_coverage(cov, fold, expected_arms, scores)
+        record_arm_coverage(cov, fold, expected_arms, scores, arm_failures)
         for a in expected_arms:
             if a in scores:
                 t = scores[a]["test"]
@@ -584,6 +601,7 @@ def _tuned_arms(
     n_configs: int,
     budget_s: float | None,
     fold: int,
+    failures: dict[str, str] | None = None,
 ) -> dict[str, np.ndarray]:
     """The three tuned-LightGBM arms of one outer fold (:data:`TUNED_ARMS`, minus ``fintfm``).
 
@@ -604,6 +622,8 @@ def _tuned_arms(
         n_configs: Configs per search.
         budget_s: Search seconds per arm.
         fold: The outer fold, the searches' seed.
+        failures: Optional dict filled with ``arm -> reason`` for each arm whose worker
+            failed, so the caller's coverage record can name it (openspec 36.4).
 
     Returns:
         Probabilities for ``held`` by arm name; an arm whose worker failed is absent (printed).
@@ -623,6 +643,8 @@ def _tuned_arms(
     for name, arrays in variants.items():
         res = run_tuned({**base, **arrays}, n_configs, budget_s, seed=fold, predictions=True)
         if res is None:
+            if failures is not None:
+                failures[name] = "tuned-search worker returned no predictions (failed)"
             continue
         print(
             f"  fold {fold} {name}: {res['n_trials']} configs in {res['tune_seconds']}s, "

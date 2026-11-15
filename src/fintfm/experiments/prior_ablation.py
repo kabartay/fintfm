@@ -633,9 +633,12 @@ def sample_efficiency_probe(
         "calibration_frac": calibration_frac,
         "sizes": {},
     }
+    cov = Coverage()
 
     for size in train_sizes:
+        cov.attempt(f"n{size}")
         if size > len(y_pool):
+            cov.skip(f"n{size}", f"train size {size} exceeds the pool of {len(y_pool)} rows")
             continue
         # stratified subsample so tiny training sets still contain defaults at all
         pos, neg = np.flatnonzero(y_pool == 1), np.flatnonzero(y_pool == 0)
@@ -646,6 +649,7 @@ def sample_efficiency_probe(
         )
         Xs, ys = X_pool[idx], y_pool[idx]
         if len(np.unique(ys)) < 2:
+            cov.skip(f"n{size}", "single-class training subsample")
             continue
 
         tfm = FinancialTFMClassifier(model_path, context_strategy=context_strategy).fit(Xs, ys)
@@ -696,6 +700,7 @@ def sample_efficiency_probe(
         cell["calibration_holdout"] = hold_info
         cell["auc_delta"] = arms["fintfm"].roc_auc - arms["gboost"].roc_auc
         out["sizes"][str(size)] = cell
+        cov.scored(f"n{size}")
 
         print(f"  n={len(ys):>5} ({int(ys.sum())} defaults):")
         for name, m in arms.items():
@@ -711,6 +716,8 @@ def sample_efficiency_probe(
     leads = [int(k) for k, v in out["sizes"].items() if v["auc_delta"] > 0]
     out["crossover_size"] = max(leads) if leads else None
     out["leads_at"] = sorted(leads)
+    out["coverage"] = cov.to_dict()
+    print(cov.summary("training sizes"))
     return out
 
 
@@ -772,9 +779,15 @@ def term_structure_coherence(
     query_keys = {row.tobytes() for row in np.ascontiguousarray(X_query)}
 
     curves, used = [], []
+    cov = Coverage()
     for h in horizons:
+        cov.attempt(f"h{h}")
         ctx = load_polish_bankruptcy(h)
         if ctx.X.shape[1] != X_query.shape[1]:
+            cov.skip(
+                f"h{h}",
+                f"feature width {ctx.X.shape[1]} differs from the query panel's {X_query.shape[1]}",
+            )
             continue
         if legacy_full_panel_context:
             ctx_X, ctx_y = ctx.X, ctx.y
@@ -792,13 +805,19 @@ def term_structure_coherence(
         pd_h = clf.predict_proba(X_query)[:, 1]
         curves.append(pd_h)
         used.append(h)
+        cov.scored(f"h{h}")
         print(
             f"  context horizon {h}y (base rate {ctx.default_rate:.3%}): "
             f"mean predicted PD {pd_h.mean():.4%}"
         )
 
+    print(cov.summary("horizons"))
     if len(curves) < 2:
-        return {"error": "fewer than two horizons evaluable", "horizons": used}
+        return {
+            "error": "fewer than two horizons evaluable",
+            "horizons": used,
+            "coverage": cov.to_dict(),
+        }
 
     matrix = np.stack(curves, axis=1)  # (n_query, n_horizons)
     diffs = np.diff(matrix, axis=1)
@@ -819,6 +838,7 @@ def term_structure_coherence(
                 for i in range(matrix.shape[1] - 1)
             )
         ),
+        "coverage": cov.to_dict(),
     }
     return record
 
