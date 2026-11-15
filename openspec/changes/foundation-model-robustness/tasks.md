@@ -4,7 +4,7 @@
       `y=f(x0,x1)`, noise dimensions added up to d=100, on existing checkpoints first (no new
       training). Verify: AUC-vs-d curve plotted for at least the fin00/fin10 pair from §74, to
       see whether the same architectural split shows up here too.
-- [ ] 42.2 **Schema-variation sweep**, blocked on `mechanism-diverse-prior` task 40.2's
+- [ ] 42.2 **Progress (2026-11-15): duplicate of `cell-attention-and-task-inference` task 39.12, whose harness `src/fintfm/experiments/schema_variation.py` is built and not yet run; see that task's Progress note for the run command.** **Schema-variation sweep**, blocked on `mechanism-diverse-prior` task 40.2's
       task-family generators. Verify: recovered feature-importance ranking compared against
       the true relevant set as width grows from 5 to 200.
 - [ ] 42.3 **Semantic column information, mode A vs B vs C.** No hard dependency, though most
