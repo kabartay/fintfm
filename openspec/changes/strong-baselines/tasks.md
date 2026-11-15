@@ -24,7 +24,7 @@
       environment fact any future contributor will hit. Verify: the section names the
       bisection that identified it. **Done 2026-09-09, including that
       `KMP_DUPLICATE_LIB_OK=TRUE` is not sufficient.**
-- [ ] 18.6 **Added 2026-09-14, licensing-gated.** Extend the baseline family beyond
+- [ ] 18.6 **Progress (2026-11-15): licence note recorded in `docs/research/baseline_licences_2026-11-15.md` for TabICLv2, TabDPT, TabPFN, FT-Transformer, TabM and RealMLP, code and weights separately. TabPFN 3.5, 3, 2.6 and 2.5 weights are excluded on licensing grounds (non-commercial, outputs included). Not closed: no baseline has been added or run, and the finding that states the exclusions in `docs/results/FINDINGS.md` is not yet written.** **Added 2026-09-14, licensing-gated.** Extend the baseline family beyond
       CatBoost/LightGBM/XGBoost to TabICLv2, TabDPT, TabPFN (where licensing permits),
       FT-Transformer, TabM, RealMLP — proposed in an externally-relayed review. **No code or
       weights from TabPFN/TabICL/TabDPT may enter this repository** (standing project rule);
