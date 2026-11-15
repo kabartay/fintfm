@@ -1,6 +1,6 @@
 # Weights licence options for the three entry checkpoints
 
-LICENCE: OWNER DECISION. This note restates what `CLAUDE.md` records; it recommends nothing.
+**Decided 2026-11-16 (owner): Apache-2.0 for all three checkpoints.** LICENCE: Apache-2.0. This note restates what `CLAUDE.md` records; it recommends nothing.
 
 ## Facts
 

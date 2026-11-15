@@ -26,7 +26,7 @@
 - [x] 14.1 Add calibrated gradient boosting arms. **Done 2026-09-08, `FINDINGS` §16.**
 - [x] 14.2 Compare financial versus generic on calibration. **Done via `FINDINGS` §14/§15:
       calibration tracks prior breadth, not the financial prior, so it is a method property.**
-- [ ] 14.5 **Progress (2026-11-15): 14.1 and 14.2 are closed (`FINDINGS` §16, §14/§15), so the evidence for D20's main claim exists and D20 stands drafted. Still missing for closure: the owner's adoption of D20, and the multi-horizon, >= 3-seed fitted-calibration comparison (`fitted-calibration` 4.3, still SMOKE-TEST only), which D20's reversal condition (b) depends on. Not decided here.** Record the outcome in `docs/design/DECISIONS.md` as a new decision on what the defensible
+- [x] 14.5 **Done (2026-11-16): D20 in docs/design/DECISIONS.md adopted (owner delegated, recommended option taken): the calibration claim is stated narrowly, as shrinkage, always beside Brier skill, AUC and prediction spread; reversal condition (b) waits on 4.3's measured comparison.** **Progress (2026-11-15): 14.1 and 14.2 are closed (`FINDINGS` §16, §14/§15), so the evidence for D20's main claim exists and D20 stands drafted. Still missing for closure: the owner's adoption of D20, and the multi-horizon, >= 3-seed fitted-calibration comparison (`fitted-calibration` 4.3, still SMOKE-TEST only), which D20's reversal condition (b) depends on. Not decided here.** Record the outcome in `docs/design/DECISIONS.md` as a new decision on what the defensible
       claim is, with its reversal condition. Verify:
       `uv run python openspec/tools/validate.py` passes.
       **Progress (2026-11-08): drafted as a PROPOSED decision, `docs/design/DECISIONS.md` D20, from FINDINGS

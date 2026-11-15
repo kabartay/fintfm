@@ -104,6 +104,14 @@ def test_publish_refused_while_card_says_owner_decision(pw, monkeypatch) -> None
         raise AssertionError("upload must not be reached")
 
     monkeypatch.setattr(mod, "_upload", boom)
+    # The real cards now carry the owner's licence (2026-11-16); the guard still has to hold
+    # for any card that says the placeholder, so point the script at a copy that does.
+    fake_root = runs.parent / "fake_repo"
+    for c in mod.CHECKPOINTS:
+        card = fake_root / c.card
+        card.parent.mkdir(parents=True, exist_ok=True)
+        card.write_text(f"LICENCE: {mod.PLACEHOLDER}\n")
+    monkeypatch.setattr(mod, "REPO_ROOT", fake_root)
     code = mod.main(
         ["--runs-dir", str(runs), "--yes-publish", "--licence", "Apache-2.0"],
         env={"HF_TOKEN": "t"},

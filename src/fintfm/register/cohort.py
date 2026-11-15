@@ -20,7 +20,7 @@ data out of the repository and out of the hash inputs, and a test enforces it.
 
 Rules apply in the order of :class:`Reason`; a company gets the first reason that fails.
 Every threshold lives in :class:`CohortRule` with its reason. Choices the proposal leaves open
-carry the marker ``OWNER DECISION`` and a default that is a placeholder, not an agreed value.
+carried the marker ``OWNER DECISION (accepted 2026-11-16)``; the owner accepted all six defaults as the v1 rule on 2026-11-16 (forward-prediction-register 6.3), so they are now agreed values and any change needs a new ``RULE_VERSION``.
 Changing any field of the rule changes :func:`cohort_hash`, so a different rule can never
 publish the same hash as another.
 """
@@ -84,35 +84,35 @@ class CohortRule:
             ages are measured to this date, never to "today", so a rerun is identical.
         allowed_categories: ``CompanyCategory`` values accepted, compared case-insensitively.
             Default private and public limited companies, whose accounts are filed in the
-            structured form the model needs. OWNER DECISION: the exact label strings in a real
+            structured form the model needs. OWNER DECISION (accepted 2026-11-16): the exact label strings in a real
             snapshot are not established (no file downloaded), and whether to admit
             limited-liability partnerships or other categories is open.
         min_age_months: Minimum months between ``IncorporationDate`` and ``snapshot_date``.
-            OWNER DECISION, placeholder 36: the proposal states no minimum accounts history.
+            OWNER DECISION (accepted 2026-11-16), placeholder 36: the proposal states no minimum accounts history.
             Three years means at least two sets of annual accounts are normally due, which
             lets a model use a lagged year; the snapshot itself holds only the latest
             accounts date, so history cannot be counted from it directly.
         excluded_sic_divisions: Two-digit SIC 2007 divisions excluded. Default 64, 65, 66
             (financial services and insurance), whose balance sheets are not comparable with
             a non-financial credit model, and 98, 99 (undifferentiated household activities,
-            extraterritorial bodies). OWNER DECISION: sector scope of the register.
+            extraterritorial bodies). OWNER DECISION (accepted 2026-11-16): sector scope of the register.
         excluded_sic_codes: Five-digit SIC codes excluded in addition. Default ``99999``
-            (dormant company) and ``98000``. OWNER DECISION.
+            (dormant company) and ``98000``. OWNER DECISION (accepted 2026-11-16).
         require_sic: Exclude companies with no usable SIC code (the snapshot uses the text
             "None Supplied"). Default True: sector exclusions cannot be applied to a company
             without a code, so admitting it would make the rule unverifiable.
         excluded_accounts_categories: ``AccountsCategory`` values excluded, compared
             case-insensitively. Default ``NO ACCOUNTS FILED`` and ``DORMANT``: no financial
-            statements to predict from. OWNER DECISION: whether micro-entity or other
+            statements to predict from. OWNER DECISION (accepted 2026-11-16): whether micro-entity or other
             categories that file no profit and loss account should be excluded; the label
             strings in a real snapshot are not established.
         max_accounts_age_months: Maximum months between ``LastMadeUpDate`` and
-            ``snapshot_date``. OWNER DECISION, placeholder 24: older accounts are stale
+            ``snapshot_date``. OWNER DECISION (accepted 2026-11-16), placeholder 24: older accounts are stale
             features and suggest a company about to be struck off for non-filing.
         outcome_events: Insolvency case types counted as the outcome ("default"), from the
             Companies House insolvency resource (``cases[].type``). Not used to include or
             exclude, but recorded in the rule so the hash binds the outcome definition.
-            OWNER DECISION: the note says only that members' voluntary liquidation is solvent
+            OWNER DECISION (accepted 2026-11-16): the note says only that members' voluntary liquidation is solvent
             and not a default and that strike-off can be dormancy. Placeholder: compulsory
             liquidation, creditors' voluntary liquidation, administration, receivership.
         outcome_horizon_months: Months after the snapshot in which an outcome counts. The

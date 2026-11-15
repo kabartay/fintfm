@@ -1,6 +1,6 @@
 # FinTFM (synthetic-only) multiclass checkpoint: `dr74-mc-s0.pt`
 
-LICENCE: OWNER DECISION
+LICENCE: Apache-2.0 (owner decision 2026-11-16, matching the code and the public binary checkpoint)
 
 Status: **not public** (`kabartay/fintfm-multiclass` returns no model to the public API,
 2026-11-15). Nothing here uploads anything.
@@ -46,4 +46,4 @@ field is empty). Recipe copy: `runs/kaggle-ts-dr74-mc-s0/dr74-mc-s0/recipe.yaml`
 - More than 10 classes or 136 features is out of range.
 - Weights licence is not decided in this card.
 
-LICENCE: OWNER DECISION
+LICENCE: Apache-2.0 (owner decision 2026-11-16, matching the code and the public binary checkpoint)

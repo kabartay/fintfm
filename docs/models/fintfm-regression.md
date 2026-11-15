@@ -1,6 +1,6 @@
 # FinTFM (synthetic-only) pure-regression checkpoint: `v4-binned48_3-control.pt`
 
-LICENCE: OWNER DECISION
+LICENCE: Apache-2.0 (owner decision 2026-11-16, matching the code and the public binary checkpoint)
 
 Status: **not public** (`kabartay/fintfm-regression` returns no model to the public API,
 2026-11-15). Nothing here uploads anything.
@@ -48,4 +48,4 @@ real data.
   is what the entry uses. One seed per arm, one fold.
 - Weights licence is not decided in this card.
 
-LICENCE: OWNER DECISION
+LICENCE: Apache-2.0 (owner decision 2026-11-16, matching the code and the public binary checkpoint)

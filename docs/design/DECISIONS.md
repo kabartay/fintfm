@@ -830,7 +830,7 @@ source is found through the registry and the overlap report (DR4.1), not by reop
 
 ## D20 — The defensible calibration claim: a method property that is partly shrinkage, never "best ECE"
 
-**Date:** 2026-11-08. **Status:** PROPOSED, not yet adopted. Closes the decision half of
+**Date:** 2026-11-08. **Status:** ADOPTED 2026-11-16 (owner delegated the call; the recommended option was taken). Reversal condition (b) still depends on `fitted-calibration` 4.3, whose comparison is runnable (`fintfm-fitcal`) but not yet measured. Earlier status: PROPOSED, not yet adopted. Closes the decision half of
 `openspec/changes/calibration-mechanism` task 14.5; adopt it once the owner has read it and the
 fitted-calibration results (the separate `FinancialTFMClassifier` work) are in, because those may
 change the second reversal condition. **Status 2026-11-13:** still PROPOSED. The fitted
@@ -875,7 +875,7 @@ them except §13's 3-year panel table; re-run before quoting spread for any othe
 
 ## D21 — No learned categorical path for now: the inference-time encoder left no cardinality axis (task 47.4)
 
-**Date:** 2026-11-15. **Status:** active. Closes `openspec/changes/native-categoricals` task 47.4,
+**Date:** 2026-11-15. **Status:** active; reversal thresholds confirmed 2026-11-16 (owner delegated the call; the proposed thresholds were kept). Closes `openspec/changes/native-categoricals` task 47.4,
 which required the learned-path decision to follow 47.3's measured result rather than precede it.
 
 **The measurement that decides it** (`FINDINGS` §101, MEASURED: 27 TabArena-Lite eligible datasets,

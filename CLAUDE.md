@@ -323,10 +323,12 @@ rewritten — someone may already have fetched it.
 The prior generator in `src/fintfm/prior/` is now published. `docs/competition/LANDSCAPE.md`
 recorded the tension this resolves: a provenance claim nobody can check is a slogan, and the
 three peer projects that publish their generators (TabICL, LimiX, Nori) are the ones whose
-synthetic-only claims can be verified. **Trained weights are still not published and remain
-gitignored** — publishing one is a separate decision with a separate licence, which is the
-distinction this file already requires for everyone else's checkpoints and now applies to
-ours.
+synthetic-only claims can be verified. **Trained weights remain gitignored, and publishing one is a separate decision with a
+separate licence** — the distinction this file already requires for everyone else's checkpoints,
+applied to ours. As of 2026-11-16: the binary checkpoint is public on Hugging Face
+(`kabartay/fintfm-binary`, Apache-2.0, since 2026-09-25), and the owner decided to publish the
+multiclass and regression entry checkpoints under Apache-2.0 too (`scripts/publish_weights.py`,
+model cards in `docs/models/`). Weights still never enter git.
 
 **Trained weights never enter git**, and neither does the mature prior if it diverges from
 the reference version here — those are the private asset. `.gitignore` excludes `*.pt`; keep

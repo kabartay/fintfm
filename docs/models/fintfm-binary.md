@@ -1,6 +1,6 @@
 # FinTFM (synthetic-only) binary checkpoint: `v4-cellattn-labels.pt`
 
-LICENCE: OWNER DECISION
+LICENCE: Apache-2.0 (owner decision 2026-11-16, matching the code and the public binary checkpoint)
 
 Status: **already public** at `kabartay/fintfm-binary` (checked read-only on 2026-11-15; the
 repository's metadata declares `apache-2.0`). `CLAUDE.md` still says trained weights are not
@@ -51,4 +51,4 @@ the record. No real data at any stage of pretraining.
   repository's claims ledger (`docs/paper/CLAIMS.md`) records what holds.
 - Weights licence is not decided in this card.
 
-LICENCE: OWNER DECISION
+LICENCE: Apache-2.0 (owner decision 2026-11-16, matching the code and the public binary checkpoint)
