@@ -117,6 +117,7 @@ prior:
   financial_sign_flip_prob: 0.0 # DR2.2's ratio sign flip; the published run had none
   financial_max_lr_auc: null  # 15.4 lever, off: no rejection of near-separable tasks
   financial_sample_horizon: false  # 2.4 lever, off: no per-task horizon
+  financial_temporal_years: null  # 2.3 lever, off: no firm histories
   feature_ratio_bands:          # AU5.11: DR2.4's bands (make_train_score.BANDS)
     - [0.5, 0.0, 0.05]
     - [0.35, 0.05, 0.2]

@@ -188,6 +188,10 @@ prior:
   # default within it (needs n_horizons); the horizon is task.meta["horizon"]. false keeps
   # every batch.
   financial_sample_horizon: false
+  # temporal-financial-prior 2.3: give each financial firm's margin and leverage a history of
+  # this many years (>= 2) with a persistent firm effect and AR(1) deviations; the snapshot is
+  # the last year and the history is task.meta["temporal"]. null keeps every batch.
+  financial_temporal_years: null
   # DR2.3: knob distributions for the general priors (prior/knobs.py), each off by default so
   # every existing checkpoint's batches are reproduced byte for byte. Each mirrors the
   # PriorConfig field of the same name (tests/test_config.py).

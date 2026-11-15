@@ -279,6 +279,7 @@ _PRIOR_CONFIG_KNOBS = (
     "financial_sign_flip_prob",
     "financial_max_lr_auc",
     "financial_sample_horizon",
+    "financial_temporal_years",
     "feature_ratio_bands",
     "p_binary",
     "imbalance_draws",
@@ -2414,6 +2415,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="draw one prediction horizon per financial task and label default within it "
         "(temporal-financial-prior 2.4; needs --n-horizons); the horizon is task.meta. "
         "Defaults to the config's prior.financial_sample_horizon, false",
+    )
+    p.add_argument(
+        "--financial-temporal-years",
+        type=int,
+        default=None,
+        help="give each financial firm's margin and leverage a history of this many years "
+        "(>= 2) with a persistent firm effect and AR(1) deviations; the snapshot is the last "
+        "year and the history is task.meta (temporal-financial-prior 2.3). Defaults to the "
+        "config's prior.financial_temporal_years, null (off)",
     )
     p.add_argument(
         "--feature-ratio-bands",

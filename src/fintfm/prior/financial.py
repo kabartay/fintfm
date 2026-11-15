@@ -173,6 +173,76 @@ def _solve_intercept(z: np.ndarray, target_rate: float) -> float:
     return 0.5 * (lo + hi)
 
 
+#: Temporal option (``temporal-financial-prior`` 2.3), all declared here because they are
+#: shape constants of the dynamics, overridable by argument. Year-on-year AR(1) coefficient of
+#: the idiosyncratic part of margin and leverage; the share of that deviation's variance that is
+#: a firm effect constant over the whole history; the AR(1) coefficient of the macro cycle; and
+#: the standard deviation (in leverage units) the leverage deviation adds to the cross-section.
+#: None of these is fitted to a panel (that would break the parametric-prior invariant); 0.7 and
+#: 0.5 are round values, not measured against V4FinBench or any other panel.
+_TEMPORAL_AR = 0.7
+_TEMPORAL_FIRM_SHARE = 0.5
+_TEMPORAL_MACRO_AR = 0.6
+_TEMPORAL_LEVERAGE_SD = 0.05
+_TEMPORAL_MARGIN_SD = 0.08
+
+
+def _firm_effect_ar1_paths(
+    rng: np.random.Generator, n: int, years: int, ar: float, firm_share: float
+) -> np.ndarray:
+    """Unit-variance stationary paths: a persistent firm effect plus an AR(1) deviation.
+
+    ``x[i, t] = sqrt(firm_share) * f_i + sqrt(1 - firm_share) * a[i, t]`` with ``f_i`` standard
+    normal and constant over ``t`` and ``a`` a stationary AR(1) with coefficient ``ar``. Every
+    column has variance one, so the final column has the cross-sectional spread of a single
+    snapshot, and the lag-``k`` correlation is ``firm_share + (1 - firm_share) * ar**k``.
+
+    Args:
+        rng: Random generator.
+        n: Number of firms.
+        years: Length ``T`` of each path.
+        ar: AR(1) coefficient of the idiosyncratic part, in ``[0, 1)``.
+        firm_share: Share of the variance that is the constant firm effect, in ``[0, 1]``.
+
+    Returns:
+        ``(n, years)`` array, the last column being the most recent year.
+    """
+    firm = rng.normal(0.0, 1.0, size=(n, 1))
+    dev = np.empty((n, years))
+    dev[:, 0] = rng.normal(0.0, 1.0, size=n)
+    innovation_sd = float(np.sqrt(1.0 - ar**2))
+    for t in range(1, years):
+        dev[:, t] = ar * dev[:, t - 1] + innovation_sd * rng.normal(0.0, 1.0, size=n)
+    return np.sqrt(firm_share) * firm + np.sqrt(1.0 - firm_share) * dev
+
+
+def _macro_cycle_path(
+    rng: np.random.Generator, final_cycle: float, years: int, ar: float
+) -> np.ndarray:
+    """A macro-cycle history ending at the already-sampled cycle.
+
+    The cycle is a stationary standard-normal AR(1), which is reversible, so earlier years are
+    generated backwards from ``final_cycle`` with the same coefficient. The regime is thereby
+    still *sampled* (the final year is the draw the cross-sectional prior makes) and the
+    history evolves rather than staying constant.
+
+    Args:
+        rng: Random generator.
+        final_cycle: The sampled cycle of the most recent year.
+        years: Length ``T`` of the history.
+        ar: AR(1) coefficient, in ``[0, 1)``.
+
+    Returns:
+        ``(years,)`` cycle values, oldest first, ``final_cycle`` last.
+    """
+    cycle = np.empty(years)
+    cycle[-1] = final_cycle
+    innovation_sd = float(np.sqrt(1.0 - ar**2))
+    for t in range(years - 2, -1, -1):
+        cycle[t] = ar * cycle[t + 1] + innovation_sd * rng.normal()
+    return cycle
+
+
 def _accounts(
     rng: np.random.Generator,
     n: int,
@@ -180,6 +250,7 @@ def _accounts(
     sector_of: np.ndarray,
     sector_par: dict,
     insolvent_share: float | None = None,
+    panel: dict[str, np.ndarray] | None = None,
 ) -> dict[str, np.ndarray]:
     """Generate a balance sheet and P&L per firm, respecting accounting identities.
 
@@ -205,6 +276,11 @@ def _accounts(
             assets, so their equity is negative. Leverage is otherwise capped at 0.98 and no
             firm is insolvent. Applied before any account is derived from leverage, so every
             identity still holds. ``None`` (default) consumes no draw.
+        panel: Temporal option (2.3). When set, its final-year ``margin_dev`` and
+            ``leverage_dev`` entries (length ``n``) replace the margin's own N(0, 0.08) draw
+            and are added to the leverage before it is clipped, so the snapshot is the last
+            year of a history with persistent firm effects. ``None`` (default) draws and
+            computes exactly as before.
 
     Returns:
         Mapping of account name to a length-``n`` array. All strictly level quantities;
@@ -214,8 +290,14 @@ def _accounts(
     total_assets = np.exp(log_assets)
     age = np.exp(rng.normal(2.3, 0.8, size=n))
 
+    leverage_shift = 0.0 if panel is None else panel["leverage_dev"]
     leverage = np.clip(
-        rng.beta(2, 3, size=n) * 0.6 + sector_par["leverage"][sector_of] * 0.6 - 0.15, 0.0, 0.98
+        rng.beta(2, 3, size=n) * 0.6
+        + sector_par["leverage"][sector_of] * 0.6
+        - 0.15
+        + leverage_shift,
+        0.0,
+        0.98,
     )
     if insolvent_share is not None:
         k = max(1, round(insolvent_share * n))
@@ -234,9 +316,10 @@ def _accounts(
     retained_earnings = equity * rng.uniform(-0.5, 0.9, size=n)
 
     revenue = np.exp(rng.normal(0.0, 0.6, size=n)) * total_assets
+    margin_noise = rng.normal(0, 0.08, size=n) if panel is None else panel["margin_dev"]
     margin = (
         sector_par["margin"][sector_of]
-        + rng.normal(0, 0.08, size=n)
+        + margin_noise
         + 0.03 * macro["cycle"] * sector_par["cyclicality"][sector_of]
         - 0.04 * np.log1p(1.0 / np.maximum(age, 0.5))
     )
@@ -759,6 +842,9 @@ def sample_financial_task(
     max_lr_auc_tries: int = 20,
     return_attributions: bool = False,
     sample_horizon: bool = False,
+    temporal_years: int | None = None,
+    temporal_ar: float = _TEMPORAL_AR,
+    temporal_firm_share: float = _TEMPORAL_FIRM_SHARE,
 ) -> Task:
     """Sample one synthetic corporate-default classification task.
 
@@ -900,11 +986,36 @@ def sample_financial_task(
             base rate. ``period`` keeps the full-grid default period (the hazard head still
             trains on all of it) and ``h`` is exposed as ``meta["horizon"]``. ``False``
             (default) consumes no draw and reproduces every checkpoint's tasks.
+        temporal_years: Task 2.3 of ``temporal-financial-prior``. When set (``>= 2``), each
+            firm's **margin and leverage** get a ``temporal_years``-year history with a
+            persistent firm effect plus an AR(1) deviation (:func:`_firm_effect_ar1_paths`)
+            and the macro cycle gets an AR(1) history ending at the sampled cycle
+            (:func:`_macro_cycle_path`). The snapshot rows are the last year, so the margin
+            keeps its N(0, 0.08) cross-section (the leverage gains a
+            :data:`_TEMPORAL_LEVERAGE_SD` deviation on top of its own draw) and the label
+            logic is untouched; the histories are exposed as ``meta["temporal"]`` (``margin_dev``
+            and ``leverage_dev`` of shape ``(n_rows, temporal_years)``, ``cycle`` of shape
+            ``(temporal_years,)``, plus the coefficients), **not as columns**. Not covered:
+            the other accounts have no history, the interest rate stays constant, there are no
+            refinancing events, and no delta/trend/volatility feature is emitted (the
+            proposal's later items). ``None`` (default) consumes no draw and reproduces every
+            checkpoint's tasks byte for byte.
+        temporal_ar / temporal_firm_share: AR(1) coefficient of the idiosyncratic deviation
+            in ``[0, 1)`` and the share of its variance that is the constant firm effect in
+            ``[0, 1]``; successive-year correlation is ``share + (1 - share) * ar``. Ignored
+            when ``temporal_years`` is ``None``.
 
     Returns:
         A binary :class:`Task` whose columns are a random subset of financial quantities with
         random transforms and missingness, carrying ``period`` when ``n_horizons`` is set.
     """
+    if temporal_years is not None and (
+        temporal_years < 2 or not 0.0 <= temporal_ar < 1.0 or not 0.0 <= temporal_firm_share <= 1.0
+    ):
+        raise ValueError(
+            "temporal_years must be >= 2, temporal_ar in [0, 1) and temporal_firm_share in "
+            f"[0, 1], got {temporal_years}, {temporal_ar} and {temporal_firm_share}"
+        )
     if max_lr_auc is not None:
         if not (0.5 <= max_lr_auc <= 1.0) or max_lr_auc_tries < 1:
             raise ValueError(
@@ -954,7 +1065,22 @@ def sample_financial_task(
     sector_cyclicality = sector_par["cyclicality"]
     # --- accounts, obeying accounting identities -----------------------------
     insolvent = gate_share if gate_kind == "negative_equity" and gate_economic else None
-    acc = _accounts(rng, n_rows, macro, sector, sector_par, insolvent_share=insolvent)
+    panel: dict[str, np.ndarray] | None = None
+    if temporal_years is not None:
+        margin_path = _TEMPORAL_MARGIN_SD * _firm_effect_ar1_paths(
+            rng, n_rows, temporal_years, temporal_ar, temporal_firm_share
+        )
+        leverage_path = _TEMPORAL_LEVERAGE_SD * _firm_effect_ar1_paths(
+            rng, n_rows, temporal_years, temporal_ar, temporal_firm_share
+        )
+        panel = {
+            "margin_dev": margin_path[:, -1],
+            "leverage_dev": leverage_path[:, -1],
+            "margin_path": margin_path,
+            "leverage_path": leverage_path,
+            "cycle_path": _macro_cycle_path(rng, cycle, temporal_years, _TEMPORAL_MACRO_AR),
+        }
+    acc = _accounts(rng, n_rows, macro, sector, sector_par, insolvent_share=insolvent, panel=panel)
     assets = acc["total_assets"]
     log_assets = np.log(assets)
     age = acc["age"]
@@ -1290,7 +1416,10 @@ def sample_financial_task(
     names_out = [col_names[i] for i in perm]
     meta: dict | None = (
         {"gate": gate_info, "columns": names_out}
-        if gate_prob > 0.0 or sign_flip_prob > 0.0 or return_attributions
+        if gate_prob > 0.0
+        or sign_flip_prob > 0.0
+        or return_attributions
+        or temporal_years is not None
         else None
     )
     if return_attributions:
@@ -1312,6 +1441,16 @@ def sample_financial_task(
         meta["attribution_scope"] = "distress_score" if gate_info is not None else "label"
     if horizon is not None:
         meta = {**(meta or {}), "horizon": horizon}
+    if panel is not None:
+        assert meta is not None
+        meta["temporal"] = {
+            "years": temporal_years,
+            "ar": temporal_ar,
+            "firm_share": temporal_firm_share,
+            "margin_dev": panel["margin_path"],
+            "leverage_dev": panel["leverage_path"],
+            "cycle": panel["cycle_path"],
+        }
     if sign_flip_prob > 0.0:
         # DR2.2: a per-task sign on each ratio, drawn after everything else so the label,
         # gate and NaN pattern are the unflipped task's; see ``sign_flip_prob`` above
