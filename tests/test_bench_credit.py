@@ -13,7 +13,7 @@ import pytest
 from sklearn.linear_model import LogisticRegression
 
 from fintfm.evaluation import bench
-from fintfm.evaluation.datasets import CreditDataset
+from fintfm.evaluation.datasets import CreditDataset, SurvivalDataset
 from fintfm.experiments import prior_ablation
 
 
@@ -78,3 +78,64 @@ def test_cli_flag_skips_probe(monkeypatch):
     monkeypatch.setattr("sys.argv", ["fintfm-bench", "--credit", "--no-sample-efficiency"])
     bench.main()
     assert seen == {"sample_efficiency": False}
+
+
+def _dated_panel(n: int = 400) -> SurvivalDataset:
+    """Build a small synthetic dated panel with one company per row."""
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(n, 4)).astype(np.float32)
+    year = np.where(np.arange(n) < n // 2, 2014, 2018)
+    return SurvivalDataset(
+        X, (X[:, 0] > 1).astype(int), np.full(n, -1), np.ones(n, dtype=int), 1, year,
+        "synthetic-dated", "test", "synthetic", groups=np.arange(n),
+    )
+
+
+def test_credit_output_says_time_split_is_not_available(stubbed, capsys):
+    out = bench.run_credit("ckpt.pt", sample_efficiency=False)
+    text = capsys.readouterr().out
+    assert out == {}
+    assert text.count("time-based split: NOT AVAILABLE") == 4
+    assert "TIME-BASED SPLIT: NOT RUN" in text
+
+
+def test_credit_prints_random_and_time_side_by_side_with_a_dated_panel(
+    stubbed, monkeypatch, capsys
+):
+    fake = {"random": {"m": 0.9}, "time": {"m": 0.8}}
+    monkeypatch.setattr(bench, "run_time_vs_random", lambda ds, path: fake)
+    out = bench.run_credit("ckpt.pt", sample_efficiency=False, time_panel=_dated_panel())
+    assert out == {"time_vs_random": fake}
+    assert "TIME-BASED SPLIT: NOT RUN" not in capsys.readouterr().out
+
+
+def test_time_vs_random_prints_both_columns(stubbed, monkeypatch, capsys):
+    def fake_run_one(name, X, y, path, split=None):
+        return {"m": 0.9 if "random" in name else 0.8}
+
+    monkeypatch.setattr(bench, "run_one", fake_run_one)
+    out = bench.run_time_vs_random(_dated_panel(), "ckpt.pt", train_until=2014, test_from=2018)
+    text = capsys.readouterr().out
+    assert out == {"random": {"m": 0.9}, "time": {"m": 0.8}}
+    assert "random AUC" in text and "time AUC" in text
+
+
+def test_time_split_refuses_a_panel_without_periods(stubbed):
+    ds = _dated_panel()
+    undated = SurvivalDataset(
+        ds.X, ds.y, ds.period, ds.n_observed, 1, None, "undated", "test", "synthetic"
+    )
+    assert not undated.has_period_labels
+    with pytest.raises(ValueError, match="no period"):
+        bench.run_time_vs_random(undated, "ckpt.pt")
+    assert "NOT AVAILABLE" in bench.time_split_note(undated)
+
+
+def test_cli_credit_with_time_split_loads_dated_panel(monkeypatch):
+    seen: dict = {}
+    panel = _dated_panel()
+    monkeypatch.setattr(bench, "load_v4finbench", lambda root, max_rows=None: panel)
+    monkeypatch.setattr(bench, "run_credit", lambda m, **k: seen.update(k))
+    monkeypatch.setattr("sys.argv", ["fintfm-bench", "--credit", "--time-split"])
+    bench.main()
+    assert seen["time_panel"] is panel
