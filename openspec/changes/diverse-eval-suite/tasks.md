@@ -5,7 +5,7 @@
       The collection card declares none. Verify: a table of dataset to licence to
       commercial-use verdict, with any dataset whose terms cannot be established **excluded**
       rather than assumed permissive.
-- [ ] 37.2 Add a loader for the licence-cleared classification subset, following
+- [x] 37.2 **Done (2026-11-15): `fintfm.evaluation.tabular_benchmark.load_tabular_benchmark` loads exactly the 10 licence-cleared files (refuses the other 13), each with licence, source URL and attribution; cached under `data/cache/tabular_benchmark/`. `tests/test_tabular_benchmark.py` asserts row and column counts against the collection card's Source Data tables, skipped when uncached; all 10 matched exactly on a real run.** Add a loader for the licence-cleared classification subset, following
       `evaluation/datasets.py`'s conventions and caching under `data/cache/`. Verify: a test
       asserting row and column counts against the published dataset descriptions.
 - [ ] 37.3 Score every arm across the suite: our checkpoints, the untrained control, logistic
