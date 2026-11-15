@@ -2186,6 +2186,11 @@ class FinancialTFM(nn.Module):
         """
         from fintfm.provenance import environment_record, json_safe
 
+        if getattr(self, "adapter_config", None) is not None:
+            raise RuntimeError(
+                "refusing to save a model that carries a low-rank adapter as a base "
+                "checkpoint (provenance P5): save the adapter with save_adapter instead"
+            )
         record = {
             **environment_record(),
             "model_config": json_safe(asdict(self.cfg)),
