@@ -59,8 +59,20 @@ from fintfm.inference.retrieval import (
     retrieve,
     retrieve_per_class,
 )
+from fintfm.modeling.adapter import (
+    AdapterConfig,
+    AdapterError,
+    adapter_parameters,
+    attach_adapter,
+    base_weights_sha256,
+    load_adapter_state,
+    merge_adapter_into_base,
+    read_adapter,
+    save_adapter,
+)
 from fintfm.modeling.hazard import CENSORED, base_rate_shift, shift_cumulative_pd
 from fintfm.modeling.model import FinancialTFM
+from fintfm.provenance import environment_record, sha256_file
 
 if TYPE_CHECKING:  # the config module is only needed for the annotation
     from fintfm.config import InferenceConfig
@@ -919,6 +931,10 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         if self.finetune_steps > 0:
             # on the full conditioned pool, before the stored context is cut from it
             self._finetune(X, y_coded, groups, n_classes)
+        self.adapter_provenance_: dict[str, Any] | None = None
+        if getattr(self, "_pending_adapter", None) is not None:
+            # set only by fit_adapter; every other fit leaves the base weights untouched
+            self._train_adapter(X, y_coded, groups, n_classes, self._pending_adapter)
         full_prior = np.bincount(y_coded, minlength=n_classes) / len(y_coded)
         # the same indices as the stored rows, so a context row keeps its own period
         self._store_context(
@@ -1454,6 +1470,213 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             elif str(self.device).startswith("mps"):
                 torch.mps.empty_cache()
             model.eval()
+
+    def fit_adapter(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        groups: np.ndarray | None = None,
+        *,
+        adapter: AdapterConfig,
+        periods: np.ndarray | None = None,
+        n_observed: np.ndarray | None = None,
+        base_checkpoint: str | None = None,
+    ) -> FinancialTFMClassifier:
+        """Fit as :meth:`fit` does, then train a low-rank adapter on the caller's rows.
+
+        The base model stays frozen and shared: ``model`` is never touched, and only the
+        adapter's ``A``/``B`` matrices receive gradients (see
+        :mod:`fintfm.modeling.adapter`). Predictions then run through the adapted copy
+        ``model_``. The adapter is a per-lender artefact fitted on real data: persist it with
+        :meth:`save_adapter`, never into the base (P5).
+
+        Args:
+            X: ``(n, n_features)`` the caller's rows.
+            y: ``(n,)`` labels.
+            groups: Optional group labels (e.g. company); a task's query groups are kept out
+                of its context. Each row is its own group when omitted.
+            adapter: Rank, targets and the step settings.
+            periods: As in :meth:`fit`.
+            n_observed: As in :meth:`fit`.
+            base_checkpoint: Path of the base checkpoint file, whose SHA-256 is recorded in
+                the adapter's provenance. The base weights' own hash is always recorded.
+
+        Returns:
+            ``self``, with ``adapter_provenance_`` set.
+
+        Raises:
+            ValueError: If ``finetune_steps > 0`` (two ways to tune at once), the table is
+                wider than the checkpoint, or the checkpoint has no trained classification
+                head to take the loss through.
+        """
+        if self.finetune_steps > 0:
+            raise ValueError("fit_adapter and finetune_steps > 0 both tune; use one")
+        self._pending_adapter = adapter
+        self._adapter_base_checkpoint = base_checkpoint
+        try:
+            return self.fit(X, y, groups, periods, n_observed)
+        finally:
+            self._pending_adapter = None
+
+    def _train_adapter(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        groups: np.ndarray | None,
+        n_classes: int,
+        cfg: AdapterConfig,
+    ) -> None:
+        """Attach an adapter to a copy of the base and take ``cfg.steps`` steps on it.
+
+        Tasks are drawn as in :meth:`_finetune` (a labelled context and query rows from
+        disjoint groups, the model's own :meth:`FinancialTFM.loss`), but the optimiser sees
+        only the adapter parameters and the base weights have ``requires_grad=False``.
+
+        Args:
+            X: ``(n, n_features)`` conditioned rows (the whole pool).
+            y: ``(n,)`` coded labels.
+            groups: Optional group labels.
+            n_classes: Classes in this task.
+            cfg: The adapter settings.
+
+        Raises:
+            ValueError: For a wide table, a checkpoint with no trained classification head,
+                or fewer than two groups.
+        """
+        base = self.model
+        if X.shape[1] > base.cfg.max_features:
+            raise ValueError("an adapter needs every feature in one forward pass")
+        objectives = getattr(base, "trained_objectives", ())
+        if base.cfg.head_type != "binned" or (objectives and "classification" not in objectives):
+            raise ValueError("an adapter takes cross-entropy through a trained classification head")
+        raw = np.asarray(groups) if groups is not None else np.arange(len(y))
+        uniq, g = np.unique(raw, return_inverse=True)
+        if len(uniq) < 2:
+            raise ValueError(
+                f"an adapter needs at least two groups (one for queries, one for context), "
+                f"got {len(uniq)}"
+            )
+        n_q_groups = min(max(1, round(len(uniq) * cfg.query_group_frac)), len(uniq) - 1)
+        held_out_max = int(np.sort(np.bincount(g))[::-1][:n_q_groups].sum())
+        n_ctx = self.max_context if cfg.context is None else cfg.context
+        n_ctx = min(n_ctx, len(y) - held_out_max)
+        n_q, B, F = cfg.query, cfg.batch, base.cfg.max_features
+        base_hash = base_weights_sha256(base)
+
+        # a copy, so the shared base is never mutated and a second fit starts from it again
+        model = copy.deepcopy(base)
+        model.feature_chunk = self.feature_chunk
+        attach_adapter(model, cfg)
+        model = model.to(self.device).train()
+        params = list(adapter_parameters(model).values())
+        opt = torch.optim.AdamW(params, lr=cfg.lr)
+        rng = np.random.default_rng([self.random_state, cfg.seed])
+        nc = torch.full((B,), n_classes, dtype=torch.long, device=self.device)
+        self.adapter_losses_: list[float] = []
+        try:
+            with _forked_rng():
+                torch.manual_seed(1_000_003 * int(self.random_state) + cfg.seed)
+                for _ in range(cfg.steps):
+                    Xb = np.full((B, n_ctx + n_q, F), np.nan, dtype=np.float32)
+                    yb = np.zeros((B, n_ctx + n_q), dtype=np.int64)
+                    for b in range(B):
+                        ci, qi, _ = _finetune_rows(rng, g, uniq, n_q_groups, n_ctx, n_q)
+                        rows = np.concatenate([ci, qi])
+                        Xb[b, :, : X.shape[1]] = X[rows]
+                        yb[b] = y[rows]
+                    loss = model.loss(
+                        torch.from_numpy(Xb).to(self.device),
+                        torch.from_numpy(yb).to(self.device),
+                        n_ctx,
+                        nc,
+                    )
+                    opt.zero_grad()
+                    loss.backward()
+                    if cfg.clip is not None:
+                        torch.nn.utils.clip_grad_norm_(params, cfg.clip)
+                    opt.step()
+                    self.adapter_losses_.append(float(loss.detach()))
+        finally:
+            opt.zero_grad(set_to_none=True)
+            del opt
+            model.eval()
+        ckpt = getattr(self, "_adapter_base_checkpoint", None)
+        self.model_ = model
+        self.adapter_provenance_ = {
+            **environment_record(),
+            "kind": "fintfm-adapter",
+            "family": "FinTFM-R",
+            "fitted_on_real_data": True,
+            "base_weights_sha256": base_hash,
+            "base_checkpoint_sha256": None if ckpt is None else sha256_file(ckpt),
+            "rank": cfg.rank,
+            "alpha": cfg.rank if cfg.alpha is None else cfg.alpha,
+            "targets": list(cfg.targets),
+            "adapted_weights": list(model.adapter_targets),
+            "n_adapter_parameters": int(sum(p.numel() for p in params)),
+            "rows_supplied": len(y),
+            "groups_supplied": len(uniq),
+            "steps": cfg.steps,
+            "tasks_seen": cfg.steps * B,
+            "task_rows_seen": cfg.steps * B * (n_ctx + n_q),
+            "context_rows_per_task": int(n_ctx),
+            "query_rows_per_task": int(n_q),
+            "lr": cfg.lr,
+            "seed": cfg.seed,
+            "final_loss": self.adapter_losses_[-1],
+            "merged_into_base": False,
+        }
+
+    def save_adapter(self, path: str) -> None:
+        """Write the fitted adapter to its own file, with its provenance record.
+
+        Args:
+            path: Destination; an adapter file, never a base checkpoint.
+
+        Raises:
+            AdapterError: If no adapter has been fitted or loaded.
+        """
+        check_is_fitted(self, "_ctx_X")
+        if getattr(self, "adapter_provenance_", None) is None:
+            raise AdapterError("no adapter has been fitted or loaded on this estimator")
+        save_adapter(path, self.model_, self.adapter_provenance_)
+
+    def load_adapter(self, path: str) -> FinancialTFMClassifier:
+        """Attach a saved adapter to this estimator's base model, for inference.
+
+        Call after :meth:`fit` (which stores the context); ``model`` is not modified, and
+        ``model_`` becomes a copy of it carrying the adapter.
+
+        Args:
+            path: File written by :meth:`save_adapter`.
+
+        Returns:
+            ``self``, with ``adapter_provenance_`` read from the file.
+
+        Raises:
+            AdapterError: If the file's base-weights hash is not this estimator's base, or
+                its parameters do not fit the adapter it describes.
+        """
+        check_is_fitted(self, "_ctx_X")
+        art = read_adapter(path)
+        if art["provenance"].get("base_weights_sha256") != base_weights_sha256(self.model):
+            raise AdapterError("this adapter was fitted on a different base model")
+        cfg = AdapterConfig(**{**art["config"], "targets": tuple(art["config"]["targets"])})
+        model = copy.deepcopy(self.model)
+        model.feature_chunk = self.feature_chunk
+        attach_adapter(model, cfg)
+        load_adapter_state(model, art["state"])
+        self.model_ = model.to(self.device).eval()
+        self.adapter_provenance_ = art["provenance"]
+        return self
+
+    def merge_adapter(self) -> None:
+        """Always refuse: an adapter is never merged into a base model (P5).
+
+        Raises:
+            AdapterError: Always; see :func:`fintfm.modeling.adapter.merge_adapter_into_base`.
+        """
+        merge_adapter_into_base()
 
     def _pooled_prior_shift(self, pooled_rate: float) -> np.ndarray:
         """Class-prior correction from a pooled context rate, for the retrieval path.
