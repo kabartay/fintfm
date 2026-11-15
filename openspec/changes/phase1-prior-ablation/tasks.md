@@ -14,14 +14,14 @@
       "cannot be evaluated". **Done 2026-09-08. Note: launched before the untrained control
       and paired test existed, so the control is absent and the paired test was run
       post-hoc by re-evaluating the saved checkpoints into results-paired.json.**
-- [ ] 1.5 Record the outcome in `docs/results/FINDINGS.md` as MEASURED, with the delta between
+- [x] 1.5 **Done (2026-11-15, evidence): the finding exists as `docs/results/FINDINGS.md` §14 (MEASURED, 2026-09-08, cites the paired test, exit condition A met), `uv run python openspec/tools/validate.py --findings` passes ("findings declare provenance"), and the superseding note below closes the same task as `1.5 Done, superseded`; this entry was the unchecked duplicate.** Record the outcome in `docs/results/FINDINGS.md` as MEASURED, with the delta between
       financial and generic and the honest read of whether the exit condition was met.
       Numbers re-derived from `runs/phase1-5k/results.json`, never retyped. Verify:
       `uv run python openspec/tools/validate.py --findings` passes and the finding cites the
       paired test output rather than a win count. **Done 2026-09-08, `FINDINGS` §14: exit
       condition A met (3/6 cells significant, 0/6 against), and the more useful result is
       that mixed p=0.7 dominates on Brier.**
-- [ ] 1.8 Re-run with the untrained control included, since this run predates it. Verify:
+- [x] 1.8 **Done (2026-11-15, evidence): `docs/results/FINDINGS.md` §15 ("Resolves `phase1-prior-ablation` task 1.8") evaluates an untrained control, steps 0, 2,175,234 parameters, on the same six cells and states that trained variants do not all beat random initialisation (untrained AUC 0.7262 above generic 0.7081, below mixed 0.7509 and financial 0.7568; Brier 0.347 against about 0.048). Deviation from the letter of Verify: the control was added by re-evaluating the saved checkpoints into `runs/phase1-5k/results-paired.json`, not by a re-run into `results.json`; `runs/` is not in this worktree, so the JSON itself was not re-opened here.** Re-run with the untrained control included, since this run predates it. Verify:
       `results.json` contains a variant with `steps == 0` and the finding states whether any
       trained variant beats random initialisation.
 - [ ] 1.6 If the exit condition is met, rerun at ~12M parameters (`--d-model 384
