@@ -46,6 +46,30 @@ dataset.
 - *Enforced by:* `CreditDataset.licence` and `.attribution` are required fields;
   `tests/test_metrics.py::test_dataset_loaders_declare_period_labels_honestly`.
 
+**P5 — Adapters and fine-tuned weights are a separate artefact, never the base model.**
+An adapter, or fine-tuned weights, trained on a lender's book or on any other real data
+inherits the FinTFM-**R** side of the provenance table in `CLAUDE.md`'s "Two families"
+section. It never carries the synthetic-only claim, and it is labelled as fitted to that
+data wherever it is named. The base checkpoint's claim is unchanged: the base stays frozen
+and shared, and no real data enters its pretraining. Adapters are per-lender, never merged
+into a shipped base model, because merging one lender's adapter would carry their book into
+everyone else's predictions and void P1.
+
+- *Enforced by:* review, and the frozen-base test required by `lender-adaptation` task 16.2
+  (base weights unchanged after fitting). Not yet mechanised: a checkpoint's provenance
+  record does not state whether real data was used in fine-tuning (see the note in
+  `openspec/changes/lender-adaptation/tasks.md` 16.5).
+
+#### Scenario: a lender adapter is fitted
+
+- **Given** a frozen FinTFM base checkpoint with a synthetic-only claim
+- **When** an adapter is fitted on one lender's real book
+- **Then** the adapter is stored and named as that lender's artefact, with the FinTFM-R
+  label, and the base checkpoint's file, hash and synthetic-only claim are unchanged
+- **And** no release, model card or leaderboard row describes the adapter, or any model
+  that includes it, as synthetic-only
+- **And** the adapter is not merged into any base model that is shipped to others.
+
 ## What would legitimately change this spec
 
 Only a decision to abandon the auditability claim, which is D2 in `docs/design/DECISIONS.md` and
