@@ -96,6 +96,11 @@ ARMS = {
     # 48.25 (docs/results/drafts/48.25_2026-11.md): a read-out head re-drawn and trained on the
     # published checkpoint's frozen trunk, one GPU, masked attention (the checkpoint's own
     # attn_impl: --init-from refuses a different architecture), 48,000 tasks
+    # 44.5 (openspec/changes/factorized-attention): the published recipe at E1's settings and 48,000
+    # tasks, seed 0, with and without the factorized cell encoder; the control passes no
+    # --cell-mixing, so the one flag is the whole difference. Both pinned at d58141e
+    "445-factorized-s0": (E1 + S0_48K + ["--cell-mixing", "factorized"], True),
+    "445-ctrl-s0": (E1 + S0_48K, True),
     "4825-headonly-s0": (["--amp", "fp16", "--loader", "stream", "--seed", "0", "--steps", "6000",
                           "--train-only", "head", "--reinit-trained"], False),
     # 41.3 (openspec/changes/explicit-task-representation): the explicit task token against a
@@ -125,8 +130,10 @@ DR82_COMMIT = "e493123"
 #: 62a73c3 contains 7dfd663 (the AU5.11 flags), checked with merge-base --is-ancestor
 AU511_COMMIT = "62a73c3"
 #: The 48.25 arm's code is not pushed yet: UNPINNED kernels refuse to run
-#: 41.3's pair is pinned at d58141e (local main, pushed), the commit that carries --task-token
-COMMITS = {"4825-headonly-s0": "UNPINNED", "4130-token-s0": "d58141e", "4130-ctrl-s0": "d58141e", "dr62-induced-s0": "6916a89",
+#: 41.3's pair and 44.5's pair are pinned at d58141e (local main, pushed), which carries
+#: --task-token (41.2) and cell_mixing="factorized" (44.3)
+COMMITS = {"4825-headonly-s0": "UNPINNED", "4130-token-s0": "d58141e", "4130-ctrl-s0": "d58141e",
+           "445-factorized-s0": "d58141e", "445-ctrl-s0": "d58141e", "dr62-induced-s0": "6916a89",
            "au511-diverse-s0": AU511_COMMIT, "au511-mixture-s0": AU511_COMMIT, "dr63-cls-s0": "6916a89",
            **{arm: DR24_COMMIT for arm in ARMS if arm.startswith("dr24-")},
            # DR7.4 needs no code change: a901cdc (origin/main, 2026-10-24) carries every flag
