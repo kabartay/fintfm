@@ -767,8 +767,9 @@ CC BY-NC-ND 4.0).
 ## UK Companies House and The Gazette as a data source (task 6.1, 2026-11-15)
 
 Read 2026-11-15 on the pages named; full findings, gaps and the list of what is not established
-are in `docs/research/companies_house_source.md`. Quotes are the page text as extracted by
-WebFetch and should be re-read on the page before external use.
+are in `docs/research/companies_house_source.md`. Every quote below was re-checked verbatim
+against the raw page text on 2026-11-15 (HTML fetched with `curl`, tags stripped, exact
+substring search; results per URL in that file's "Verification" section).
 
 **Companies House, register information.**
 [Public task, copyright and Crown copyright](https://www.gov.uk/government/publications/companies-house-accreditation-to-information-fair-traders-scheme/public-task-copyright-and-crown-copyright),
@@ -776,9 +777,9 @@ section 2.2: "Companies House imposes no rules or requirements on how the inform
 public register is used." Section 3: "We place no restriction on how the information is used
 after purchase, other than the following: all customers, including bulk customers, must take
 their own legal advice regarding possible breach of third party copyright; customers cannot
-reproduce the Crown insignia". **No licence is stated on the bulk product pages** (free company
-data, accounts data, PSC), whose only terms sentence is that the product is free and "not
-supported"; the OGL is stated for Companies House's own publications, not for the register data.
+reproduce the Crown insignia", and "if information is used from guidance notes, the website, publications or statistical tables the customer must credit Companies House as the source of the information". **No licence is stated on the bulk product pages** (free company
+data, accounts data, PSC), whose only terms sentence is that the product is "provided free of
+charge" and "will not be supported" (accounts data: "is not supported"); the OGL is stated for Companies House's own publications, not for the register data.
 [Developer forum reply, 4 Nov 2021](https://forum.companieshouse.gov.uk/t/is-data-provided-under-the-ocs/4513):
 "Companies House is not responsible for your use of the company data. You are responsible for
 complying with any applicable data protection, copyright and other legislation and regulations."
@@ -792,7 +793,7 @@ note that this licence does not cover the re-use of personal data."
 [Text](https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/): "The Licensor
 grants you a worldwide, royalty-free, perpetual, non-exclusive licence to use the Information
 subject to the conditions below." Free to "exploit the Information commercially and
-non-commercially for example, by combining it with other Information or by including it in your
+non-commercially for example, by combining it with other Information, or by including it in your
 own product or application." Condition: "acknowledge the source of the Information in your
 product or application" with "Contains public sector information licensed under the Open
 Government Licence v3.0." Not covered: "personal data in the Information" and "third party
@@ -801,6 +802,9 @@ rights the Information Provider is not authorised to license".
 **API limit.** [Rate limiting guide](https://developer-specs.company-information.service.gov.uk/guides/rateLimiting):
 "You can make up to 600 requests within a five-minute period." The README licensing section has
 not yet been given a line for this source (README is outside this task's edit scope).
+No Companies House API terms of use page exists on the developer site; the Gazette
+[fair use policy](https://www.thegazette.co.uk/fair-use-policy) asks automated tools to crawl
+"between 9pm and 7am UK" and to "Limit requests to 5 request every 10 seconds."
 
 ## TabBench v2 read 2026-11-15
 
