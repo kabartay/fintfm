@@ -13,14 +13,16 @@ LightGBM when installed. Metric: ROC-AUC (binary) or macro-OVR AUC (multiclass).
 from __future__ import annotations
 
 import argparse
+import json
 import time
+from pathlib import Path
 
 import numpy as np
 from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import roc_auc_score
-from sklearn.model_selection import train_test_split
+from sklearn.metrics import average_precision_score, roc_auc_score
+from sklearn.model_selection import StratifiedKFold, train_test_split
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
@@ -33,7 +35,7 @@ from fintfm.evaluation.datasets import (
     load_taiwan_bankruptcy,
     load_v4finbench,
 )
-from fintfm.evaluation.metrics import evaluate_binary
+from fintfm.evaluation.metrics import evaluate_binary, holm_adjusted_p, paired_auc_difference
 from fintfm.evaluation.splits import time_based_split
 from fintfm.inference.classifier import ContextStrategy, FinancialTFMClassifier
 from fintfm.modeling.model import FinancialTFM
@@ -440,6 +442,180 @@ def _compare_context_strategies(
         print(f"        {summary.n_positive} defaults in a {summary.n_context}-row context")
 
 
+def assign_folds(y: np.ndarray, k: int, seed: int = 0) -> np.ndarray:
+    """Give every row one stratified fold id, so the k test folds are disjoint and cover all rows.
+
+    Args:
+        y: Binary labels ``(n,)``.
+        k: Number of folds, at least 2.
+        seed: Shuffle seed.
+
+    Returns:
+        ``(n,)`` integer fold ids in ``0..k-1``; each class is spread evenly across folds.
+
+    Raises:
+        ValueError: If ``k < 2`` or a class has fewer than ``k`` members.
+    """
+    if k < 2:
+        raise ValueError(f"need at least 2 folds, got {k}")
+    y = np.asarray(y)
+    _, counts = np.unique(y, return_counts=True)
+    if counts.min() < k:
+        raise ValueError(f"smallest class has {counts.min()} rows, fewer than {k} folds")
+    fold = np.empty(len(y), dtype=int)
+    skf = StratifiedKFold(n_splits=k, shuffle=True, random_state=seed)
+    for i, (_, test_idx) in enumerate(skf.split(np.zeros(len(y)), y)):
+        fold[test_idx] = i
+    return fold
+
+
+def run_credit_compare(
+    model_a: str,
+    model_b: str,
+    folds: int = 5,
+    horizons: tuple[int, ...] = (1, 3, 5),
+    n_boot: int = 2000,
+    seed: int = 0,
+    panels: list[CreditDataset] | None = None,
+    out: str | None = None,
+) -> dict:
+    """Compare two checkpoints on the credit panels at ``folds`` stratified folds.
+
+    This is the multi-split upgrade of the single 70/30 split behind FINDINGS §73/§75
+    (openspec ``cross-domain-coverage`` task 38.16). Each panel is split once into ``folds``
+    disjoint stratified test folds; both checkpoints are fitted on each training part and score
+    the same held-out rows. Average precision is reported first, per fold and as the mean,
+    then ROC-AUC. The difference ``A - B`` is bootstrapped paired on the pooled out-of-fold
+    predictions (every row scored once by each checkpoint, so rows are matched), per panel,
+    and the p-values are Holm-adjusted across panels, separately for AP and ROC-AUC.
+
+    The pooled bootstrap mixes folds fitted on different training parts, so it is a paired
+    interval on out-of-fold predictions, not on one model's fit. The panels are observed
+    bankruptcies, so this is a comparison on real data, not coverage against a solver.
+
+    Args:
+        model_a: First checkpoint path.
+        model_b: Second checkpoint path; the difference is ``A - B``.
+        folds: Number of stratified folds, at least 2.
+        horizons: Polish bankruptcy horizons (years); Taiwan is always added.
+        n_boot: Bootstrap resamples per panel and metric.
+        seed: Seed for fold assignment and the bootstrap.
+        panels: Datasets to use instead of the default Polish and Taiwan panels (tests).
+        out: Optional path to write the record to as JSON.
+
+    Returns:
+        ``{"models", "folds", "panels": {name: {...}}, "coverage"}``. Each scored panel holds
+        ``n_rows``, ``base_rate``, ``per_fold`` and ``mean`` (AP then ROC-AUC per checkpoint)
+        and ``difference`` (delta, interval, raw and Holm-adjusted p, for ``ap`` and
+        ``roc_auc``). ``coverage`` is a :class:`~fintfm.evaluation.coverage.Coverage` record
+        over panels, with the reason for each skip.
+    """
+    cfgs = {m: FinancialTFM.load(m).cfg for m in (model_a, model_b)}
+    max_features = min(c.max_features for c in cfgs.values())
+    if panels is None:
+        panels = [load_polish_bankruptcy(h) for h in horizons]
+        panels.append(load_taiwan_bankruptcy())
+    cov = Coverage()
+    rec: dict = {}
+    pooled: dict[str, dict] = {}
+    for ds in panels:
+        cov.attempt(ds.name)
+        n_pos = int(np.sum(ds.y))
+        print(
+            f"\n=== {ds.name}: {len(ds.y)} companies, {ds.X.shape[1]} features, "
+            f"default rate {ds.default_rate:.3%} ==="
+        )
+        if ds.X.shape[1] > max_features:
+            reason = f"data has {ds.X.shape[1]} features, a checkpoint takes {max_features}"
+            cov.skip(ds.name, reason)
+            print(f"    SKIPPED: {reason}")
+            continue
+        if n_pos < folds or len(ds.y) - n_pos < folds:
+            reason = f"fewer than {folds} rows in a class"
+            cov.skip(ds.name, reason)
+            print(f"    SKIPPED: {reason}")
+            continue
+        fold_of = assign_folds(ds.y, folds, seed)
+        oof = {m: np.full(len(ds.y), np.nan) for m in (model_a, model_b)}
+        per_fold: list[dict] = []
+        failed = ""
+        for f in range(folds):
+            tr, te = np.flatnonzero(fold_of != f), np.flatnonzero(fold_of == f)
+            row: dict = {"fold": f, "n_test": len(te), "n_positive": int(ds.y[te].sum())}
+            for m in (model_a, model_b):
+                try:
+                    clf = FinancialTFMClassifier(m, n_ensemble=8)
+                    clf.fit(ds.X[tr], ds.y[tr])
+                    oof[m][te] = clf.predict_proba(ds.X[te])[:, 1]
+                except Exception as exc:  # noqa: BLE001 - a failed panel is a skip, not an abort
+                    failed = f"fold {f}, {m}: {exc}"
+                    break
+                row[m] = {
+                    "ap": float(average_precision_score(ds.y[te], oof[m][te])),
+                    "roc_auc": float(roc_auc_score(ds.y[te], oof[m][te])),
+                }
+            if failed:
+                break
+            per_fold.append(row)
+            print(
+                f"    fold {f}: AP {row[model_a]['ap']:.4f} vs {row[model_b]['ap']:.4f}, "
+                f"AUC {row[model_a]['roc_auc']:.4f} vs {row[model_b]['roc_auc']:.4f}"
+            )
+        if failed:
+            cov.skip(ds.name, f"failed at {failed}")
+            print(f"    SKIPPED: {failed}")
+            continue
+        cov.scored(ds.name)
+        rec[ds.name] = {
+            "n_rows": len(ds.y),
+            "base_rate": float(np.mean(ds.y)),
+            "per_fold": per_fold,
+            "mean": {
+                m: {k: float(np.mean([r[m][k] for r in per_fold])) for k in ("ap", "roc_auc")}
+                for m in (model_a, model_b)
+            },
+            "difference": {},
+        }
+        pooled[ds.name] = {"y": ds.y, "a": oof[model_a], "b": oof[model_b]}
+
+    for key, metric in (("ap", average_precision_score), ("roc_auc", None)):
+        names = list(pooled)
+        stats = [
+            paired_auc_difference(
+                pooled[n]["y"], pooled[n]["a"], pooled[n]["b"], n_boot, seed, metric=metric
+            )
+            for n in names
+        ]
+        adj = holm_adjusted_p([s[2] for s in stats])
+        for n, (delta, (lo, hi), p), p_holm in zip(names, stats, adj, strict=True):
+            rec[n]["difference"][key] = {
+                "delta": delta,
+                "ci95": [lo, hi],
+                "p": p,
+                "p_holm": p_holm,
+                "n_panels_in_family": len(names),
+            }
+    for n, r in rec.items():
+        d_ap, d_auc = r["difference"]["ap"], r["difference"]["roc_auc"]
+        print(
+            f"[{n}] mean AP {r['mean'][model_a]['ap']:.4f} vs {r['mean'][model_b]['ap']:.4f}; "
+            f"AP diff {d_ap['delta']:+.4f} [{d_ap['ci95'][0]:+.4f}, {d_ap['ci95'][1]:+.4f}] "
+            f"Holm p={d_ap['p_holm']:.4f}; mean AUC {r['mean'][model_a]['roc_auc']:.4f} vs "
+            f"{r['mean'][model_b]['roc_auc']:.4f}; AUC diff {d_auc['delta']:+.4f} "
+            f"Holm p={d_auc['p_holm']:.4f}"
+        )
+    print(cov.summary("panels"))
+    record = {
+        "models": {"a": model_a, "b": model_b},
+        "folds": folds,
+        "panels": rec,
+        "coverage": cov.to_dict(),
+    }
+    if out:
+        Path(out).write_text(json.dumps(record, indent=2))
+    return record
+
+
 def main() -> None:
     """Run the credit-panel and OpenML benchmarks from the command line.
 
@@ -468,8 +644,25 @@ def main() -> None:
         default=None,
         help="with --time-split: subsample this many company-years",
     )
+    p.add_argument(
+        "--folds", type=int, default=None, help="with --credit --compare: stratified folds (5)"
+    )
+    p.add_argument(
+        "--compare",
+        type=str,
+        default=None,
+        help="with --credit: two checkpoints 'A,B' scored at --folds stratified folds with a "
+        "paired bootstrap of A - B per panel, Holm-adjusted across panels",
+    )
+    p.add_argument("--out", type=str, default=None, help="with --compare: write the record here")
     p.add_argument("--v4-root", type=str, default=None, help="V4FinBench parquet directory")
     args = p.parse_args()
+    if args.credit and args.compare:
+        pair = [m.strip() for m in args.compare.split(",") if m.strip()]
+        if len(pair) != 2:
+            p.error("--compare takes exactly two checkpoints, 'A,B'")
+        run_credit_compare(pair[0], pair[1], folds=args.folds or 5, out=args.out)
+        return
     if args.credit:
         kwargs: dict = {"sample_efficiency": not args.no_sample_efficiency}
         if args.time_split:
