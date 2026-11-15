@@ -2792,6 +2792,13 @@ def build_parser() -> argparse.ArgumentParser:
         "(design review DR6.3); config default false",
     )
     p.add_argument(
+        "--task-token",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="explicit task token z_task pooled over the context rows and added to every "
+        "row before the head (task 41.2); config default false",
+    )
+    p.add_argument(
         "--hazard-period-context",
         action=argparse.BooleanOptionalAction,
         default=None,

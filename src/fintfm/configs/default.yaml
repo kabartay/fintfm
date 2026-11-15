@@ -294,6 +294,7 @@ model:
   n_readout: 4                  # readout tokens per row; unused for pool
   head_mlp: false               # two-layer MLP output head instead of a linear one (DR6.3)
   cell_mixing: attention        # or latent (48.27) or factorized (44.3): see ModelConfig
+  task_token: false             # explicit task token z_task read into the query path (41.2)
 
 # Large-table wrappers for the fintfm arm of fintfm-v4protocol (audit AU5.8). The partition_*
 # and boost_* keys MIRROR the literal defaults of PartitionedTFMClassifier and

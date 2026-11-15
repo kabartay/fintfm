@@ -314,6 +314,7 @@ class ModelConfigDefaults:
     n_readout: int = 4
     head_mlp: bool = False
     cell_mixing: str = "attention"
+    task_token: bool = False
 
 
 @dataclass(frozen=True)

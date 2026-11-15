@@ -52,6 +52,7 @@ model:
   readout: pool
   n_readout: 4
   head_mlp: false
+  task_token: false
 
 train:
   steps: 6000

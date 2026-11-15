@@ -47,6 +47,7 @@ model:
   readout: pool
   n_readout: 4
   head_mlp: false
+  task_token: false
 
 train:
   joint_classification_weight: 0.0  # 34.1 lever, off: survival loss alone, no classification term
