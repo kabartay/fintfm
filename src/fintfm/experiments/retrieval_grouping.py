@@ -38,8 +38,10 @@ from pathlib import Path
 import numpy as np
 
 from fintfm.config import Config, load_config
+from fintfm.evaluation.coverage import Coverage
 from fintfm.evaluation.datasets import load_v4finbench
 from fintfm.evaluation.metrics import evaluate_binary
+from fintfm.experiments.context_sweep import horizon_skip_reason
 from fintfm.experiments.v4_out_of_time import SplitMode, _curve_truth, split_dataset
 from fintfm.inference.classifier import FinancialTFMClassifier
 
@@ -67,13 +69,38 @@ def _spearman(a: np.ndarray, b: np.ndarray) -> float:
 
 
 def _score(
-    curve: np.ndarray, truth: np.ndarray, seen: np.ndarray, min_rows: int
+    curve: np.ndarray,
+    truth: np.ndarray,
+    seen: np.ndarray,
+    min_rows: int,
+    coverage: Coverage | None = None,
+    arm: str = "",
 ) -> tuple[float, list[float]]:
-    """Mean AUC across scoreable horizons, and the per-horizon values."""
+    """Mean AUC across scoreable horizons, and the per-horizon values.
+
+    Args:
+        curve: ``(n, horizons)`` predicted cumulative PD.
+        truth: ``(n, horizons)`` cumulative-default labels.
+        seen: ``(n, horizons)`` True where the horizon is observed.
+        min_rows: Fewest observed rows a horizon needs.
+        coverage: When given, every horizon is recorded as ``<arm>/h<k>``, scored or skipped
+            with the reason (openspec 36.4).
+        arm: Name of the retrieval arm, for the unit labels.
+
+    Returns:
+        The mean AUC (NaN when no horizon scores) and the per-horizon AUCs.
+    """
     aucs: list[float] = []
     for k in range(curve.shape[1]):
         m = seen[:, k]
-        if m.sum() < min_rows or len(np.unique(truth[m, k])) < 2:
+        why = horizon_skip_reason(m, truth[:, k], min_rows)
+        if coverage is not None:
+            coverage.attempt(f"{arm}/h{k}")
+            if why is not None:
+                coverage.skip(f"{arm}/h{k}", why)
+            else:
+                coverage.scored(f"{arm}/h{k}")
+        if why is not None:
             continue
         aucs.append(evaluate_binary(truth[m, k], curve[m, k]).roc_auc)
     return (float(np.mean(aucs)) if aucs else float("nan")), aucs
@@ -157,7 +184,10 @@ def run(
     started = time.perf_counter()
     reference = fitted(0).predict_term_structure(ds.X[keep])  # groups=0 -> one query each
     ref_seconds = time.perf_counter() - started
-    ref_auc, ref_by_h = _score(reference, truth, seen, cfg.evaluation.min_rows_per_horizon)
+    cov = Coverage()
+    ref_auc, ref_by_h = _score(
+        reference, truth, seen, cfg.evaluation.min_rows_per_horizon, cov, "exact"
+    )
     print(
         f"  exact per-query reference: {ref_seconds:.0f}s for {len(keep):,} queries "
         f"({ref_seconds / max(len(keep), 1):.3f} s/query), mean AUC {ref_auc:.4f}"
@@ -170,7 +200,9 @@ def run(
         curve = fitted(n_groups).predict_term_structure(ds.X[keep])
         elapsed = time.perf_counter() - started
         dev = np.abs(curve - reference)
-        auc, by_h = _score(curve, truth, seen, cfg.evaluation.min_rows_per_horizon)
+        auc, by_h = _score(
+            curve, truth, seen, cfg.evaluation.min_rows_per_horizon, cov, f"size{size}"
+        )
         row = GroupingScore(
             group_size=size,
             n_groups=n_groups,
@@ -189,8 +221,10 @@ def run(
             flush=True,
         )
 
+    print(cov.summary("arm-horizons"))
     record = {
         "dataset": ds.name,
+        "coverage": cov.to_dict(),
         "attribution": ds.attribution,
         "config": {
             "model": model_path,
