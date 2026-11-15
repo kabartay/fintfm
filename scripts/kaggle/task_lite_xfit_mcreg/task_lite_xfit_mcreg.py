@@ -128,7 +128,7 @@ ARMS = {
         "checkpoint_file": "v4-binned48_3-control.pt",
         "checkpoint_sha256": "31d5b3ef49e89bbe405fc85ab1d746a9fd6c3a1c5282e1770111902cc4af526c",
         "checkpoint_env": "FINTFM_CHECKPOINT_REGRESSION",
-        "source_kernel": "muhakabartay/fintfm-task-48-3-binned-control",
+        "source_kernel": "muhakabartay/fintfm-task-48-3-matched-binned-head-control",
         "env": {
             "FINTFM_MODEL": "FinTFM-LinProbe",
             "FINTFM_PROBLEM_TYPES": "regression",

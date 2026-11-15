@@ -12,7 +12,7 @@
   "competition_sources": [],
   "kernel_sources": [
     "muhakabartay/fintfm-ts-dr74-mc-s0",
-    "muhakabartay/fintfm-task-48-3-binned-control"
+    "muhakabartay/fintfm-task-48-3-matched-binned-head-control"
   ],
   "model_sources": []
 }
