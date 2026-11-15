@@ -551,6 +551,28 @@ def _sample_survival(
     return period, any_default.astype(np.int64)
 
 
+def _holdout_lr_auc(X: np.ndarray, y: np.ndarray) -> float | None:
+    """Held-out ROC-AUC of a logistic regression: fit on the first half, score the second.
+
+    Returns ``None`` when either half holds a single class, because the AUC is undefined
+    there and a task that cannot be scored cannot be called separable; the caller accepts it.
+    Columns are median-imputed and standardised on the fitting half.
+    """
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.metrics import roc_auc_score
+
+    h = len(y) // 2
+    if h < 2 or len(np.unique(y[:h])) < 2 or len(np.unique(y[h:])) < 2:
+        return None
+    Xf = X.astype(np.float64)
+    med = np.nan_to_num(np.nanmedian(np.where(np.isfinite(Xf[:h]), Xf[:h], np.nan), axis=0))
+    Xf = np.where(np.isfinite(Xf), Xf, med[None, :])
+    mu, sd = Xf[:h].mean(axis=0), Xf[:h].std(axis=0) + 1e-9
+    Xf = np.clip((Xf - mu) / sd, -10.0, 10.0)
+    clf = LogisticRegression(max_iter=200).fit(Xf[:h], y[:h])
+    return float(roc_auc_score(y[h:], clf.decision_function(Xf[h:])))
+
+
 def sample_financial_task(
     rng: np.random.Generator,
     n_rows: int,
@@ -574,6 +596,8 @@ def sample_financial_task(
     gate_share_range: tuple[float, float] = _GATE_SHARE_RANGE,
     gate_leak_range: tuple[float, float] = _GATE_LEAK_RANGE,
     sign_flip_prob: float = 0.0,
+    max_lr_auc: float | None = None,
+    max_lr_auc_tries: int = 20,
 ) -> Task:
     """Sample one synthetic corporate-default classification task.
 
@@ -663,11 +687,38 @@ def sample_financial_task(
             the column permutation, so the task is exactly the ``0.0`` task with some
             columns negated. ``0.0`` (default) consumes no draw and reproduces every
             checkpoint's tasks; any other value attaches ``meta`` with a ``flipped`` mask.
+        max_lr_auc: When set (openspec 15.4), redraw the task while a logistic regression
+            fitted on its first half scores above this ROC-AUC on its second half, up to
+            ``max_lr_auc_tries`` draws in all; the last draw is kept if none passes, so the
+            call always returns a task. Held-out rather than in-sample, because at
+            ``max_features`` 136 on a few hundred rows an in-sample fit separates anything.
+            ``None`` (default) draws nothing extra and reproduces every checkpoint's tasks
+            byte for byte. Rejection shifts the difficulty distribution towards harder
+            tasks; the size of that shift is **not yet measured**.
+        max_lr_auc_tries: Draw budget for ``max_lr_auc``; ignored when it is ``None``.
 
     Returns:
         A binary :class:`Task` whose columns are a random subset of financial quantities with
         random transforms and missingness, carrying ``period`` when ``n_horizons`` is set.
     """
+    if max_lr_auc is not None:
+        if not (0.5 <= max_lr_auc <= 1.0) or max_lr_auc_tries < 1:
+            raise ValueError(
+                "max_lr_auc must lie in [0.5, 1] and max_lr_auc_tries must be >= 1, got "
+                f"{max_lr_auc} and {max_lr_auc_tries}"
+            )
+        kwargs = {
+            k: v for k, v in locals().items()
+            if k not in ("rng", "n_rows", "max_lr_auc", "max_lr_auc_tries")
+        }
+        task = None
+        for _ in range(max_lr_auc_tries):
+            task = sample_financial_task(rng, n_rows, **kwargs)
+            auc = _holdout_lr_auc(task.X, task.y)
+            if auc is None or auc <= max_lr_auc:
+                break
+        assert task is not None
+        return task
     # --- gated label (DR2.2): decided first, since negative equity shapes the accounts -------
     gate_kind: str | None = None
     gate_share, gate_economic = 0.0, True

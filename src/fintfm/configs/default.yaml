@@ -181,6 +181,9 @@ prior:
   # per column, so no ratio points the same way across tasks (FINDINGS §47). The label, gate
   # and NaN pattern are the unflipped task's. 0.0 consumes no draw and keeps every batch.
   financial_sign_flip_prob: 0.0
+  # 15.4: redraw a financial task whose held-out logistic-regression AUC exceeds this (up to 20
+  # draws). null draws nothing extra and keeps every batch. Difficulty shift not yet measured.
+  financial_max_lr_auc: null
   # DR2.3: knob distributions for the general priors (prior/knobs.py), each off by default so
   # every existing checkpoint's batches are reproduced byte for byte. Each mirrors the
   # PriorConfig field of the same name (tests/test_config.py).

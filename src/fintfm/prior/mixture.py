@@ -356,6 +356,12 @@ class PriorConfig:
     model memorises; a per-task sign removes it. The label, gate and NaN pattern are those
     of the unflipped task. ``0.0`` (default) consumes no draw and reproduces every
     checkpoint's batches byte for byte."""
+    financial_max_lr_auc: float | None = None
+    """Reject near-separable financial tasks (openspec 15.4;
+    :func:`fintfm.prior.financial.sample_financial_task`'s ``max_lr_auc``): a task whose
+    held-out logistic-regression AUC exceeds this is redrawn, up to 20 draws. ``None``
+    (default) draws nothing extra and reproduces every checkpoint's batches byte for byte.
+    The resulting difficulty shift is not yet measured."""
     feature_ratio_bands: tuple[tuple[float, float, float], ...] = ()
     """``(weight, lo, hi)`` bands of features per row (design review DR2.3,
     :mod:`fintfm.prior.knobs`). Each SCM, regression, tree, task-family, gated and financial
@@ -480,6 +486,10 @@ def _check_levers(cfg: PriorConfig) -> None:
         raise ValueError(
             f"financial_sign_flip_prob must lie in [0, 1], got {cfg.financial_sign_flip_prob}"
         )
+    if cfg.financial_max_lr_auc is not None and not (
+        math.isfinite(cfg.financial_max_lr_auc) and 0.5 <= cfg.financial_max_lr_auc <= 1.0
+    ):
+        raise ValueError(f"financial_max_lr_auc must lie in [0.5, 1], got {cfg.financial_max_lr_auc}")
     if cfg.financial_gate_prob > 0 and cfg.n_horizons is not None:
         raise ValueError(
             "financial_gate_prob cannot be combined with n_horizons: the gated label has no "
@@ -906,6 +916,7 @@ def _dispatch_source(
             n_features=width,
             gate_prob=cfg.financial_gate_prob,
             sign_flip_prob=cfg.financial_sign_flip_prob,
+            max_lr_auc=cfg.financial_max_lr_auc,
         )
     if source == "scm":
         return sample_scm_task(
