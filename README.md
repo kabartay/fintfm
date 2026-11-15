@@ -74,7 +74,7 @@ says plainly where it does not yet.
 | **Licence** | Apache-2.0 for **code and weights**, each chosen separately (see [Licensing](#licensing--provenance)) |
 | **Checkpoint** | [kabartay/fintfm-binary](https://huggingface.co/kabartay/fintfm-binary): 885K parameters, binary, up to 136 features |
 | **Tests** | about 1,350 (2026-11-13), plus `ruff`, the openspec validator, a dependency-licence check and a documentation-link check, all in CI |
-| **Measurement log** | 239 numbered entries, each stating how its numbers were produced; pre-registrations are written before their arms run |
+| **Measurement log** | 250 numbered entries, each stating how its numbers were produced; pre-registrations are written before their arms run |
 | **Problem types** | Binary is declared and is the only published checkpoint. Multiclass and regression run on TabArena-Lite with unpublished checkpoints (§221-§224) and are **not** declared (§121) |
 
 **Read [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md) before anything else.** It tags every
@@ -144,6 +144,35 @@ worse on 12 of 13 tables (p = 0.003, §240), so regression's Elo is the represen
 Multiclass is the same: its control scores 829 against the entry's 874, worse on 7 of 8
 datasets (§243). A 20-class regression checkpoint did not move regression (699 against 689,
 5 of 13 better, §242).
+
+### Does the model read its context? (synthetic probes, §247 to §250)
+
+On synthetic probes the published checkpoint and the pure-SCM checkpoint (fin00) do read their
+context labels. With a closed-form ceiling of 0.9 ROC-AUC, true context labels give 0.899 and
+0.900, unrelated or shuffled labels about 0.5, and inverted labels 0.100 and 0.101, the ceiling's
+mirror (§247). With the features bit-identical and the labels mirrored, predictions mirror
+(Spearman −0.89 to −0.99) and the per-column sign is recovered on 98% to 100% of relevant
+columns (§249, fin00 and fin10, 15 paired tasks over 3 seeds). The untrained control keeps one
+ranking whichever way the labels point. **These are synthetic probes, not real panels**; on
+real panels the evidence is the V4FinBench results above. Two limits: §91's sub-chance AUC for
+the checkpoints trained without cell labels is **not** an inverted reading. Those checkpoints
+give the same AUC (0.436 to 0.497, Bayes 0.9 and 0.999 probes) whatever the context labels say
+and ignore them (§250); why training without cell labels produces that is not explained.
+Adding irrelevant columns to a two-column synthetic task leaves fin00 at 0.994 to 0.996 ROC-AUC
+from 2 to 100 columns, 3 seeds (§245); on that one task, noise columns do not dilute the
+informative ones, which rules that out as the cause of §190's and §220's wide-table losses up to
+100 columns but does not speak to real tables.
+
+### Temporal features and the prior's properties (§246, §248)
+
+Lagged deltas and a short trend do not help LightGBM on V4FinBench: average precision is lower
+on 3 of 3 folds (136 levels against 408 features, 199,998 rows from 37,630 companies, one seed,
+untuned), so task 2.2's real-data motivation for a temporal prior is falsified as measured
+there (§246); a per-horizon split was not run. The prior as sampled today spans the real
+panels' width (mean 72.3 features against 64 to 95), while its mean absolute correlation (0.133)
+and missingness (7.6%) still sit above the real panels' ranges of 0.081 to 0.110 and 0% to 1.5%
+(§248; prior sampling only, no model). SHAP over gradient boosting on the Polish and Taiwan
+panels gives the attribution baseline: fold-to-fold Spearman 0.875 and 0.700 (§244).
 
 ### The first series: the zero-shot model on 27 binary datasets
 
