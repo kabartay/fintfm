@@ -295,6 +295,144 @@ def bayes_ceiling_probe(
     return out
 
 
+#: Bayes AUC within this of chance leaves the normalised regret undefined (0 / 0).
+_REGRET_NORM_EPS = 1e-6
+
+
+def bayesian_regret(
+    y_true: np.ndarray, p_bayes: np.ndarray, p_model: np.ndarray
+) -> dict[str, float | bool | None]:
+    """Bayesian regret of one task: the Bayes-optimal AUC minus the model's AUC (task 39.18).
+
+    The one helper every regret number in this module goes through. ``p_bayes`` is the *true*
+    P(y=1 | x) per row, so ``auc_bayes`` is the ceiling no model can beat on these exact rows
+    (the empirical AUC of the true probabilities, not a nominal target). Regret makes
+    "AUC 0.70" legible: excellent at a 0.71 ceiling, terrible at a 0.995 one (§74).
+
+    ``R = auc_bayes - auc_model`` and ``R_norm = R / (auc_bayes - 0.5)``, the share of the
+    achievable lift over chance that the model gave away. ``R`` can be slightly negative on a
+    finite sample (the model out-ranks the true probabilities by luck); that is reported, not
+    clipped. ``R_norm`` is ``None`` when the ceiling is at chance, where it is 0 / 0.
+
+    Args:
+        y_true: ``(n,)`` binary labels of the scored rows.
+        p_bayes: ``(n,)`` true probability of class 1 for each row.
+        p_model: ``(n,)`` the model's probability (or any monotone score) for each row.
+
+    Returns:
+        ``{"skipped": False, "auc_bayes", "auc_model", "regret", "regret_norm"}``, or
+        ``{"skipped": True}`` plus ``None`` for every number when ``y_true`` has one class
+        (AUC is undefined there; a single-class task is skipped, never scored as 0 or NaN).
+    """
+    from sklearn.metrics import roc_auc_score
+
+    y = np.asarray(y_true)
+    if len(np.unique(y)) < 2:
+        return {"skipped": True, "auc_bayes": None, "auc_model": None,
+                "regret": None, "regret_norm": None}
+    auc_b = float(roc_auc_score(y, p_bayes))
+    auc_m = float(roc_auc_score(y, p_model))
+    regret = auc_b - auc_m
+    norm = regret / (auc_b - 0.5) if auc_b - 0.5 > _REGRET_NORM_EPS else None
+    return {"skipped": False, "auc_bayes": auc_b, "auc_model": auc_m,
+            "regret": regret, "regret_norm": norm}
+
+
+def aggregate_regret(per_task: list[dict]) -> dict[str, float | int | None]:
+    """Aggregate :func:`bayesian_regret` results over tasks, beside the raw AUC means.
+
+    Args:
+        per_task: One :func:`bayesian_regret` dictionary per task.
+
+    Returns:
+        ``{"n_tasks", "n_skipped", "auc_bayes", "auc_model", "regret", "regret_norm"}``: means
+        over the scored tasks. ``regret_norm`` averages only tasks where it is defined (``None``
+        when none is). Every mean is ``None`` when no task was scored.
+    """
+    scored = [t for t in per_task if not t["skipped"]]
+    norms = [t["regret_norm"] for t in scored if t["regret_norm"] is not None]
+
+    def mean(key: str) -> float | None:
+        return float(np.mean([t[key] for t in scored])) if scored else None
+
+    return {
+        "n_tasks": len(scored),
+        "n_skipped": len(per_task) - len(scored),
+        "auc_bayes": mean("auc_bayes"),
+        "auc_model": mean("auc_model"),
+        "regret": mean("regret"),
+        "regret_norm": float(np.mean(norms)) if norms else None,
+    }
+
+
+def bayes_ceiling_report(
+    model: FinancialTFM,
+    targets: tuple[float, ...] = BAYES_AUC_TARGETS,
+    seeds: int = 10,
+    n: int = 1600,
+    n_ensemble: int = 8,
+) -> dict[float, dict]:
+    """:func:`bayes_ceiling_probe` with raw AUC and regret per task and aggregated (task 39.18).
+
+    Same tasks, same scoring path as :func:`bayes_ceiling_probe`. The true probability of each
+    query row is known in closed form for :func:`_make_bayes_task` (equal priors, unit-variance
+    Gaussians): ``P(y=1 | x) = sigmoid(mu * x_0 - mu^2 / 2)``, so the Bayes AUC is measured on
+    the same rows as the model's AUC. The prior's own sampled tasks do not expose true
+    probabilities (their labels are thresholded or drawn latents), so this probe is where
+    regret against the true probabilities is exact.
+
+    Args:
+        model: A loaded classification :class:`~fintfm.modeling.model.FinancialTFM`.
+        targets: Nominal Bayes-optimal AUCs to test.
+        seeds: Independent task draws per target.
+        n: Rows per task; half context, half query.
+        n_ensemble: Column-identity draws averaged per prediction (D12).
+
+    Returns:
+        ``{target: {**aggregate_regret(...), "nominal_bayes_auc": target, "per_task": [...]}}``.
+    """
+    nc = n // 2
+    out: dict[float, dict] = {}
+    for target in targets:
+        mu = _bayes_optimal_mu(target)
+        per_task = []
+        for s in range(seeds):
+            rng = np.random.default_rng(s)
+            X, y = _make_bayes_task(rng, n, mu)
+            p = _probe_positive_proba(model, X, y, nc, n_ensemble)
+            p_true = 1.0 / (1.0 + np.exp(-(mu * X[nc:, 0].astype(np.float64) - mu * mu / 2.0)))
+            per_task.append({"seed": s, **bayesian_regret(y[nc:], p_true, p)})
+        out[target] = {**aggregate_regret(per_task), "nominal_bayes_auc": target,
+                       "per_task": per_task}
+    return out
+
+
+def summarise_bayes_report(report: dict[str, dict[float, dict]]) -> str:
+    """Render raw AUC and regret per nominal Bayes AUC, one block per arm.
+
+    Args:
+        report: ``{arm: bayes_ceiling_report output}``.
+
+    Returns:
+        A text table with Bayes AUC, model AUC, regret R and normalised regret per target.
+    """
+    def f(v: float | None) -> str:
+        return "n/a" if v is None else f"{v:.4f}"
+
+    lines = []
+    for arm, rep in report.items():
+        header = (f"{'target':>8} {'AUC_Bayes':>10} {'AUC_model':>10} {'R':>8} {'R_norm':>8} "
+                  f"{'tasks':>6} {'skipped':>8}")
+        lines += [f"{arm}: Bayesian regret R = AUC_Bayes - AUC_model (task 39.18)", header]
+        for target, r in rep.items():
+            lines.append(
+                f"{target:>8.3f} {f(r['auc_bayes']):>10} {f(r['auc_model']):>10} "
+                f"{f(r['regret']):>8} {f(r['regret_norm']):>8} {r['n_tasks']:>6} "
+                f"{r['n_skipped']:>8}")
+        lines.append("")
+    return "\n".join(lines)
+
+
 #: Interaction orders task 40.3 sweeps: k=1 is a plain threshold, k=5 the deepest order tested.
 INTERACTION_ORDERS: tuple[int, ...] = (1, 2, 3, 4, 5)
 
@@ -1161,6 +1299,8 @@ def run(
     seeds: tuple[int, ...] = (0, 1, 2),
     max_context: int = 1000,
     n_features: int = 20,
+    bayes_targets: tuple[float, ...] = (),
+    bayes_seeds: int = 10,
 ) -> dict:
     """Score every checkpoint, an untrained control and fitted baselines on every probe.
 
@@ -1170,6 +1310,10 @@ def run(
         seeds: Seeds per cell.
         max_context: Context rows handed to the in-context arms.
         n_features: Probe feature width.
+        bayes_targets: Nominal Bayes AUCs for the regret section (task 39.18). Empty (default)
+            leaves it out; otherwise every model arm is scored by :func:`bayes_ceiling_report`
+            and the record gains a ``"bayes_ceiling"`` key, ``{arm: {target: {...}}}``.
+        bayes_seeds: Task draws per target in that section.
 
     Returns:
         The recorded result dictionary.
@@ -1234,6 +1378,11 @@ def run(
         },
         "results": [asdict(r) for r in results],
     }
+    if bayes_targets:
+        record["bayes_ceiling"] = {
+            name: {str(t): r for t, r in bayes_ceiling_report(m, targets=bayes_targets, seeds=bayes_seeds).items()}
+            for name, m in models.items()
+        }
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "capability.json").write_text(json.dumps(record, indent=2))
     return record
@@ -1259,6 +1408,10 @@ def summarise(record: dict) -> str:
         "The untrained control is the floor. A trained arm that does not clear it by a wide",
         "margin has not learned to do in-context prediction (docs/results/FINDINGS.md §42).",
     ]
+    if record.get("bayes_ceiling"):
+        lines += ["", summarise_bayes_report(
+            {a: {float(t): r for t, r in rep.items()} for a, rep in record["bayes_ceiling"].items()}
+        )]
     return "\n".join(lines)
 
 
@@ -1277,6 +1430,11 @@ def main() -> None:
     p.add_argument("--seeds", type=str, default="0,1,2")
     p.add_argument("--max-context", type=int, default=1000)
     p.add_argument("--n-features", type=int, default=20)
+    p.add_argument(
+        "--bayes-targets", type=str, default="",
+        help="comma-separated nominal Bayes AUCs, e.g. 0.7,0.9,0.999: adds raw AUC and Bayesian "
+             "regret per target (task 39.18) to the probe suite's record and printout",
+    )
     p.add_argument(
         "--feature-sweep", action="store_true",
         help="sweep feature count instead of running the probe suite (§49): the test that "
@@ -1353,6 +1511,7 @@ def main() -> None:
     record = run(
         paths, Path(args.out), seeds=tuple(int(s) for s in args.seeds.split(",")),
         max_context=args.max_context, n_features=args.n_features,
+        bayes_targets=tuple(float(t) for t in args.bayes_targets.split(",") if t),
     )
     print("\n" + summarise(record))
 

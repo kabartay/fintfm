@@ -368,3 +368,72 @@ def test_prior_ablation_main_guard_is_the_last_statement():
 
     last = ast.parse(Path(mod.__file__).read_text()).body[-1]
     assert isinstance(last, ast.If) and "__main__" in ast.unparse(last.test)
+
+
+def test_bayesian_regret_is_zero_for_true_probabilities_and_positive_for_noise():
+    """Task 39.18: R = AUC_Bayes - AUC_model, ~0 at the truth, positive for a noisy model."""
+    import numpy as np
+
+    from fintfm.experiments.capability import bayesian_regret
+
+    rng = np.random.default_rng(0)
+    p_true = rng.uniform(0.05, 0.95, size=20_000)
+    y = (rng.random(20_000) < p_true).astype(int)
+
+    exact = bayesian_regret(y, p_true, p_true)
+    assert not exact["skipped"]
+    assert exact["regret"] == 0.0 and exact["regret_norm"] == 0.0
+
+    noisy = bayesian_regret(y, p_true, p_true + rng.normal(0, 0.5, size=p_true.shape))
+    assert noisy["regret"] > 0.05
+    assert abs(noisy["regret"] - (noisy["auc_bayes"] - noisy["auc_model"])) < 1e-12
+    expected_norm = noisy["regret"] / (noisy["auc_bayes"] - 0.5)
+    assert abs(noisy["regret_norm"] - expected_norm) < 1e-12
+
+
+def test_bayesian_regret_skips_single_class_tasks_and_aggregates_the_rest():
+    """A single-class task is skipped (AUC undefined), counted, and never averaged in."""
+    import numpy as np
+
+    from fintfm.experiments.capability import aggregate_regret, bayesian_regret
+
+    p = np.array([0.2, 0.8, 0.5, 0.9])
+    one_class = bayesian_regret(np.ones(4, dtype=int), p, p)
+    assert one_class["skipped"] and one_class["regret"] is None
+
+    ok = bayesian_regret(np.array([0, 1, 0, 1]), p, p[::-1].copy())
+    agg = aggregate_regret([one_class, ok])
+    assert agg["n_tasks"] == 1 and agg["n_skipped"] == 1
+    assert agg["regret"] == ok["regret"]
+    empty = aggregate_regret([one_class])
+    assert empty["regret"] is None and empty["n_tasks"] == 0
+
+    # Ceiling at chance: R_norm is 0 / 0, reported as None rather than NaN or inf.
+    chance = bayesian_regret(
+        np.array([0, 1, 0, 1]), np.full(4, 0.5), np.array([0.1, 0.9, 0.2, 0.8]))
+    assert chance["regret_norm"] is None
+
+
+def test_capability_record_carries_regret_beside_raw_auc(tmp_path):
+    """The capability output gains regret fields; raw auc_mean results are unchanged."""
+    import json
+
+    from fintfm.experiments.capability import run, summarise
+    from fintfm.modeling.model import FinancialTFM, ModelConfig
+
+    ckpt = tmp_path / "m.pt"
+    FinancialTFM(ModelConfig(max_features=20, d_model=16, d_cell=8, n_layers=1,
+                             n_col_layers=1, max_classes=2)).save(
+        str(ckpt), trained_objectives=("classification",))
+    rec = run({"probe": str(ckpt)}, tmp_path, seeds=(0,), max_context=200, n_features=20,
+              bayes_targets=(0.9,), bayes_seeds=2)
+    assert all("auc_mean" in r for r in rec["results"])
+    cell = rec["bayes_ceiling"]["probe"]["0.9"]
+    for key in ("auc_bayes", "auc_model", "regret", "regret_norm", "n_tasks", "n_skipped"):
+        assert key in cell
+    assert cell["n_tasks"] == 2 and len(cell["per_task"]) == 2
+    assert abs(cell["regret"] - (cell["auc_bayes"] - cell["auc_model"])) < 1e-9
+    assert cell["auc_bayes"] > 0.85  # empirical Bayes AUC on 800 query rows, nominal 0.9
+    saved = json.loads((tmp_path / "capability.json").read_text())
+    assert "bayes_ceiling" in saved
+    assert "R_norm" in summarise(rec)

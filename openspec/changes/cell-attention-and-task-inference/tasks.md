@@ -209,7 +209,14 @@ none is scoped or scheduled yet. Verify: the label-functional-form experiment is
       genuine posterior updating from a memorised "x0 is usually predictive" shortcut. Verify:
       the override is measured directly as achieved AUC on the contradicting context, not
       inferred from aggregate behaviour.
-- [ ] 39.18 **Bayesian regret as the standard reported metric.** `R = AUC_Bayes - AUC_model`,
+- [x] 39.18 **Done (2026-11-15): `bayesian_regret`, `aggregate_regret` and `bayes_ceiling_report`
+      in `experiments/capability.py` report AUC_Bayes (AUC of the true probabilities, closed form
+      for the 39.3 probe), model AUC, R and R_norm per task and aggregated, with single-class
+      tasks skipped and counted. `fintfm-capability --bayes-targets` adds them to
+      capability.json (new `bayes_ceiling` key) and the printout; `bayes_ceiling_probe` is
+      unchanged. The prior's own sampled tasks do not expose true probabilities, so no regret
+      is reported for them. No checkpoint was measured: unit tests on a tiny untrained model
+      only.** **Bayesian regret as the standard reported metric.** `R = AUC_Bayes - AUC_model`,
       and normalised `R_norm = (AUC_Bayes - AUC_model) / (AUC_Bayes - 0.5)`, alongside every
       Bayes-ceiling measurement from 39.3 onward — makes the §74 pattern (AUC 0.70 excellent at
       ceiling 0.71, terrible at ceiling 0.995) visible in the headline number instead of
