@@ -91,7 +91,22 @@
       that its premise is weakened rather than leaving both proposals claiming the same cause.
       Done — §78 closed it, and 40.1 carries the update.
 
-- [ ] 39.27 **Explain the sub-chance inversion (§91).** Two-way cell attention trained without
+- [x] 39.27 **Done (2026-11-15): the unlabelled arm ignores its context labels; its sub-chance
+      AUC is the sign of a fixed feature function, not a misread context.** On both unlabelled
+      checkpoints (seeds 0 and 1) the label-condition matrix is flat: true, shuffled, inverted,
+      none and unrelated labels give Bayes 0.9 AUC 0.457 to 0.485 (labelled arms span 0.100 to
+      0.899, §247), and predictions under true and inverted labels correlate at 0.986 to 0.997
+      (labelled arm: -0.98 to -0.99). That rules out a label-orientation artefact, which predicts
+      a lift above 0.5 under inverted labels (it is the lowest column). Reversing the class shift
+      moves the AUC to 0.55 to 0.60, and an untrained net of the same architecture scores 0.21 to
+      0.30 on the same probes, so sub-chance is the sign of a label-free function. MEASURED,
+      synthetic probes, CPU; magnitude here (0.477 to 0.485) is milder than §91's 0.44 to 0.46.
+      Not settled: why training without cell labels yields a label-ignoring model, and whether
+      the context/query mixing observation is the cause (needs a training ablation). The §72
+      inversion is not covered: that checkpoint reads its labels (inverted 0.27 against 0.50).
+      Draft `docs/results/drafts/39.27_2026-11-15.md`; the FINDINGS entry is for the owner.
+      Original text follows.
+      **Explain the sub-chance inversion (§91).** Two-way cell attention trained without
       `--cell-labels` scores 0.4407-0.4575 on the Bayes-ceiling probe — below chance, and
       roughly the mirror of a weak positive score, so it inverts rather than fails to learn.
       One structural observation constrains the search: the row-within-feature stage lets every
