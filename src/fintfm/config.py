@@ -204,6 +204,7 @@ class PriorConfigDefaults:
     financial_sign_flip_prob: float = 0.0
     financial_max_lr_auc: float | None = None
     financial_sample_horizon: bool = False
+    financial_temporal_years: int | None = None
     feature_ratio_bands: tuple[tuple[float, float, float], ...] = ()
     p_binary: float | None = None
     imbalance_draws: bool = False
@@ -619,6 +620,10 @@ def _validate(cfg: Config) -> None:
     if p.financial_max_lr_auc is not None and not 0.5 <= p.financial_max_lr_auc <= 1.0:
         raise ConfigError(
             f"prior.financial_max_lr_auc must be null or in [0.5, 1], got {p.financial_max_lr_auc}"
+        )
+    if p.financial_temporal_years is not None and p.financial_temporal_years < 2:
+        raise ConfigError(
+            f"prior.financial_temporal_years must be null or >= 2, got {p.financial_temporal_years}"
         )
     if p.tree_split_by not in ("std", "uniform"):
         raise ConfigError(
