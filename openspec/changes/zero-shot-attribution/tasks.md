@@ -25,3 +25,10 @@
       reported as a rank correlation per dataset, not as an average.
 - [ ] 12.5 Measure attribution stability across context resamples and seeds. Verify: a test
       asserting a stability threshold, chosen and recorded before it is measured.
+      **Progress (2026-11-15): thresholds recorded here before any measurement, as constants
+      in `src/fintfm/experiments/attribution_stability.py`: on the pinned prior task of the
+      test, permutation attribution through the public classifier must reach context-resample
+      Spearman mean >= 0.60, seed-to-seed Spearman mean >= 0.70 and seed-to-seed top-5 Jaccard
+      mean >= 0.40 (12.2's LightGBM TreeSHAP baseline: seed-to-seed 0.981 / 0.925, fold-to-fold
+      0.875 / 0.700 on Polish 3-year / Taiwan). The harness takes any attribution function, so
+      the 12.4 head can be passed to it later.**
