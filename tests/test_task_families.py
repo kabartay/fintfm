@@ -65,9 +65,7 @@ def _measure_closed_form_auc(family: str, target_auc: float, seed: int) -> float
 @pytest.mark.parametrize("family", _CLOSED_FORM)
 @pytest.mark.parametrize("target_auc", _TARGETS)
 def test_closed_form_families_hit_target(family: str, target_auc: float) -> None:
-    measured = _measure_closed_form_auc(
-        family, target_auc, seed=hash((family, target_auc)) % 2**31
-    )
+    measured = _measure_closed_form_auc(family, target_auc, seed=hash((family, target_auc)) % 2**31)
     assert abs(measured - target_auc) < _TOL, (
         f"{family} at target {target_auc}: measured {measured:.3f}, outside tolerance {_TOL}"
     )
@@ -166,11 +164,17 @@ def test_composition_components_hit_target_and_share_features() -> None:
     from fintfm.prior.task_families import sample_composition_task
 
     rng_a = np.random.default_rng(0)
-    t_a = sample_composition_task(rng_a, 20_000, n_features=8, target_component_auc=0.9, mode="component_a")
+    t_a = sample_composition_task(
+        rng_a, 20_000, n_features=8, target_component_auc=0.9, mode="component_a"
+    )
     rng_b = np.random.default_rng(0)
-    t_b = sample_composition_task(rng_b, 20_000, n_features=8, target_component_auc=0.9, mode="component_b")
+    t_b = sample_composition_task(
+        rng_b, 20_000, n_features=8, target_component_auc=0.9, mode="component_b"
+    )
     rng_c = np.random.default_rng(0)
-    t_c = sample_composition_task(rng_c, 20_000, n_features=8, target_component_auc=0.9, mode="composed")
+    t_c = sample_composition_task(
+        rng_c, 20_000, n_features=8, target_component_auc=0.9, mode="composed"
+    )
 
     # Same rng seed -> same X draw regardless of mode (only the exposed label differs).
     assert np.allclose(t_a.X, t_b.X)
@@ -178,8 +182,12 @@ def test_composition_components_hit_target_and_share_features() -> None:
 
     lr = LogisticRegression(max_iter=1000)
     cut = 10_000
-    auc_a = roc_auc_score(t_a.y[cut:], lr.fit(t_a.X[:cut], t_a.y[:cut]).predict_proba(t_a.X[cut:])[:, 1])
-    auc_b = roc_auc_score(t_b.y[cut:], lr.fit(t_b.X[:cut], t_b.y[:cut]).predict_proba(t_b.X[cut:])[:, 1])
+    auc_a = roc_auc_score(
+        t_a.y[cut:], lr.fit(t_a.X[:cut], t_a.y[:cut]).predict_proba(t_a.X[cut:])[:, 1]
+    )
+    auc_b = roc_auc_score(
+        t_b.y[cut:], lr.fit(t_b.X[:cut], t_b.y[:cut]).predict_proba(t_b.X[cut:])[:, 1]
+    )
     assert abs(auc_a - 0.9) < 0.03
     assert abs(auc_b - 0.9) < 0.03
 
@@ -201,7 +209,9 @@ def test_confound_collider_pair_shares_context_and_labels() -> None:
     from fintfm.prior.task_families import sample_confound_collider_pair
 
     rng = np.random.default_rng(0)
-    X_obs, X_int, _y, active = sample_confound_collider_pair(rng, n_ctx=500, n_query=500, n_features=8)
+    X_obs, X_int, _y, active = sample_confound_collider_pair(
+        rng, n_ctx=500, n_query=500, n_features=8
+    )
     assert X_obs.shape == X_int.shape == (1000, 8)
     assert np.array_equal(X_obs[:500], X_int[:500])  # context untouched
     assert not np.array_equal(X_obs[500:], X_int[500:])  # query proxy differs
@@ -249,7 +259,9 @@ def test_confound_collider_rejects_bad_input() -> None:
     with pytest.raises(ValueError, match="n_features must be"):
         sample_confound_collider_pair(np.random.default_rng(0), 100, 100, n_features=1)
     with pytest.raises(ValueError, match="cause_weight must be"):
-        sample_confound_collider_pair(np.random.default_rng(0), 100, 100, n_features=8, cause_weight=1.5)
+        sample_confound_collider_pair(
+            np.random.default_rng(0), 100, 100, n_features=8, cause_weight=1.5
+        )
 
 
 def test_nuisance_axes_preserve_family_and_labels() -> None:
@@ -265,7 +277,10 @@ def test_nuisance_axes_preserve_family_and_labels() -> None:
         (0.2, -1.0, 0.5),
     ]:
         out = apply_nuisance_axes(
-            base, np.random.default_rng(1), missing_frac=missing_frac, shift=shift,
+            base,
+            np.random.default_rng(1),
+            missing_frac=missing_frac,
+            shift=shift,
             extrapolate=extrapolate,
         )
         assert out.source == base.source  # family identity untouched
@@ -332,7 +347,9 @@ def test_mixture_never_draws_task_family_by_default() -> None:
     cfg = PriorConfig(max_features=16)
     assert cfg.p_task_family == 0.0
     rng = np.random.default_rng(0)
-    assert all(not sample_task(rng, cfg, n_rows=100).source.startswith("family:") for _ in range(20))
+    assert all(
+        not sample_task(rng, cfg, n_rows=100).source.startswith("family:") for _ in range(20)
+    )
 
 
 def test_task_family_refused_with_survival_horizons() -> None:

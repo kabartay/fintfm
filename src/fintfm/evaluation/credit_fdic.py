@@ -127,13 +127,60 @@ EMBARGO_DAYS = float(LAG_DAYS + HORIZON_DAYS)
 
 #: Call Report fields kept as numeric features: ratios and levels known at the report date.
 NUMERIC_FIELDS = (
-    "ASSET", "DEP", "EQ", "EQV", "LNLSNET", "LNLSDEPR", "LNATRESR", "LNRESNCR", "NCLNLSR",
-    "NTLNLSR", "ELNATRY", "ROA", "ROAPTX", "ROE", "NIMY", "INTINCY", "INTEXPY", "NONIIAY",
-    "NONIXAY", "EEFFR", "IDT1CER", "RBC1AAJ", "RBCRWAJ", "P3ASSET", "P9ASSET", "P3LTOT",
-    "P9LTOT", "NCRER", "NCREMULR", "NCRENRER", "NCRERESR", "NCCOMRER", "SC", "ORE", "INTAN",
-    "COREDEP", "DEPUNINS", "DEPFOR", "DEPDOM", "NETINC", "NUMEMP", "OFFDOM", "OFFFOR", "TFRA",
-    "NPERFV", "SZLNCON", "SZLNRES", "SZLNCI", "IDLNCORR", "NTRECOSR", "FREPO",
-    "BKPREM", "NAASSET", "NALTOT",
+    "ASSET",
+    "DEP",
+    "EQ",
+    "EQV",
+    "LNLSNET",
+    "LNLSDEPR",
+    "LNATRESR",
+    "LNRESNCR",
+    "NCLNLSR",
+    "NTLNLSR",
+    "ELNATRY",
+    "ROA",
+    "ROAPTX",
+    "ROE",
+    "NIMY",
+    "INTINCY",
+    "INTEXPY",
+    "NONIIAY",
+    "NONIXAY",
+    "EEFFR",
+    "IDT1CER",
+    "RBC1AAJ",
+    "RBCRWAJ",
+    "P3ASSET",
+    "P9ASSET",
+    "P3LTOT",
+    "P9LTOT",
+    "NCRER",
+    "NCREMULR",
+    "NCRENRER",
+    "NCRERESR",
+    "NCCOMRER",
+    "SC",
+    "ORE",
+    "INTAN",
+    "COREDEP",
+    "DEPUNINS",
+    "DEPFOR",
+    "DEPDOM",
+    "NETINC",
+    "NUMEMP",
+    "OFFDOM",
+    "OFFFOR",
+    "TFRA",
+    "NPERFV",
+    "SZLNCON",
+    "SZLNRES",
+    "SZLNCI",
+    "IDLNCORR",
+    "NTRECOSR",
+    "FREPO",
+    "BKPREM",
+    "NAASSET",
+    "NALTOT",
 )
 CATEGORICAL_FIELDS = ("BKCLASS", "STALP")
 
@@ -144,8 +191,10 @@ KEY_FIELDS = ("CERT", "REPDTE", "INSDATE", "ESTYMD")
 NEVER_FEATURES = ("ACTIVE", "ENDEFYMD", "EFFDATE", "RISDATE", "INSAGNT1", "NAME", "NAMEFULL")
 
 LICENCE = SourceLicence(
-    "https://api.fdic.gov/banks/docs/", "",
-    "public domain (US government work, 17 U.S.C. section 105; none stated at the source)", True,
+    "https://api.fdic.gov/banks/docs/",
+    "",
+    "public domain (US government work, 17 U.S.C. section 105; none stated at the source)",
+    True,
     "admitted by the owner (2026-11-05) as an exception to DR4.2's stated-at-source rule: the "
     "FDIC's API page and website policies state no licence for the data; the FDIC, a US federal "
     "agency, is the producer, so public domain rests on statute. FinTFM only: at least 6.72% of "
@@ -198,16 +247,30 @@ def download(out: Path, pause: float = 0.5) -> dict:
         The ``meta.json`` content.
     """
     out.mkdir(parents=True, exist_ok=True)
-    fails = _get("failures", {"limit": 10000, "fields": "CERT,NAME,FAILDATE,FAILYR,RESTYPE,"
-                              "RESTYPE1,CHCLASS1,QBFASSET,QBFDEP,COST,PSTALP"})
+    fails = _get(
+        "failures",
+        {
+            "limit": 10000,
+            "fields": "CERT,NAME,FAILDATE,FAILYR,RESTYPE,"
+            "RESTYPE1,CHCLASS1,QBFASSET,QBFDEP,COST,PSTALP",
+        },
+    )
     pd.DataFrame([r["data"] for r in fails["data"]]).to_csv(out / "failures.csv", index=False)
     fields = ",".join(dict.fromkeys((*KEY_FIELDS, *CATEGORICAL_FIELDS, *NUMERIC_FIELDS)))
     frames, fin_index = [], ""
     for rep in quarter_ends():
         rows: list[dict] = []
         while True:  # the API caps a page at 10,000 rows and early quarters have more
-            got = _get("financials", {"limit": 10000, "offset": len(rows), "fields": fields,
-                                      "filters": f"REPDTE:{rep}", "sort_by": "CERT"})
+            got = _get(
+                "financials",
+                {
+                    "limit": 10000,
+                    "offset": len(rows),
+                    "fields": fields,
+                    "filters": f"REPDTE:{rep}",
+                    "sort_by": "CERT",
+                },
+            )
             rows += [r["data"] for r in got["data"]]
             time.sleep(pause)
             if len(rows) >= got["meta"]["total"] or not got["data"]:
@@ -217,19 +280,26 @@ def download(out: Path, pause: float = 0.5) -> dict:
         fin_index = got["meta"]["index"]["createTimestamp"]
         frames.append(pd.DataFrame(rows))
     pd.concat(frames, ignore_index=True).drop(columns=["ID"], errors="ignore").to_csv(
-        out / "financials.csv", index=False)
-    meta = {"retrieved": pd.Timestamp.today().strftime("%Y-%m-%d"),
-            "as_of": pd.Timestamp.today().strftime("%Y-%m-%d"),
-            "failures_total": fails["meta"]["total"],
-            "failures_index": fails["meta"]["index"]["createTimestamp"],
-            "financials_index": fin_index, "api": API}
+        out / "financials.csv", index=False
+    )
+    meta = {
+        "retrieved": pd.Timestamp.today().strftime("%Y-%m-%d"),
+        "as_of": pd.Timestamp.today().strftime("%Y-%m-%d"),
+        "failures_total": fails["meta"]["total"],
+        "failures_index": fails["meta"]["index"]["createTimestamp"],
+        "financials_index": fin_index,
+        "api": API,
+    }
     (out / "meta.json").write_text(json.dumps(meta, indent=2))
     return meta
 
 
 def fdic_frame(
-    financials: pd.DataFrame, failures: pd.DataFrame, as_of: str,
-    horizon_days: int = HORIZON_DAYS, lag_days: int = LAG_DAYS,
+    financials: pd.DataFrame,
+    failures: pd.DataFrame,
+    as_of: str,
+    horizon_days: int = HORIZON_DAYS,
+    lag_days: int = LAG_DAYS,
 ) -> pd.DataFrame:
     """Bank-quarters with a label and numeric features (module docstring, "Label").
 
@@ -264,8 +334,7 @@ def fdic_frame(
     fin = financials.copy()
     fin["_repdte"] = pd.to_datetime(fin["REPDTE"].astype(str), format="%Y%m%d")
     fin["_cert"] = fin["CERT"].astype(np.int64)
-    fin = fin.merge(f[["CERT", "_fail"]].rename(columns={"CERT": "_cert"}), on="_cert",
-                    how="left")
+    fin = fin.merge(f[["CERT", "_fail"]].rename(columns={"CERT": "_cert"}), on="_cert", how="left")
     opens = fin["_repdte"] + pd.Timedelta(days=lag_days)
     closes = opens + pd.Timedelta(days=horizon_days)
     in_lag = (fin["_fail"] > fin["_repdte"]) & (fin["_fail"] <= opens)
@@ -274,15 +343,18 @@ def fdic_frame(
     # a failure before the report date cannot have a report; keep the guard explicit
     if (fin["_fail"] <= fin["_repdte"]).any():
         fin = fin[~(fin["_fail"] <= fin["_repdte"])]
-        opens, closes, in_lag, censored, pos = (s.loc[fin.index] for s in
-                                                (opens, closes, in_lag, censored, pos))
+        opens, closes, in_lag, censored, pos = (
+            s.loc[fin.index] for s in (opens, closes, in_lag, censored, pos)
+        )
     keep = ~in_lag & ~censored
     seen = set(fin["_cert"])
     unmatched = int((~f.loc[f["_fail"] >= pd.Timestamp(FIRST_REPDTE), "CERT"].isin(seen)).sum())
     fin = fin[keep].copy()
     fin["label"] = pos[keep].astype(np.int64).to_numpy()
-    age = (fin["_repdte"] - pd.to_datetime(fin["INSDATE"].astype(str), format="%Y%m%d",
-                                           errors="coerce")).dt.days / 365.25
+    age = (
+        fin["_repdte"]
+        - pd.to_datetime(fin["INSDATE"].astype(str), format="%Y%m%d", errors="coerce")
+    ).dt.days / 365.25
     num = fin[list(NUMERIC_FIELDS)].apply(pd.to_numeric, errors="coerce").astype(np.float64)
     num["log_asset"] = np.log1p(num["ASSET"].clip(lower=0))
     num["insured_years"] = age.astype(np.float64)
@@ -290,14 +362,19 @@ def fdic_frame(
     for col, top in (("BKCLASS", 12), ("STALP", 15)):
         s = fin[col].astype("string")
         vals = s.value_counts().index[:top]
-        parts.append(pd.DataFrame({f"{col}_{v}": (s == v).astype(np.float64) for v in vals},
-                                  index=fin.index))
+        parts.append(
+            pd.DataFrame({f"{col}_{v}": (s == v).astype(np.float64) for v in vals}, index=fin.index)
+        )
     out = pd.concat(parts, axis=1)
     out["label"] = fin["label"]
     out["_cert"] = fin["_cert"]
     out["_repdte"] = fin["_repdte"]
-    out.attrs = {"dropped_lag": int(in_lag.sum()), "dropped_censored": int(censored.sum()),
-                 "failures_unmatched": unmatched, "positives": int(out["label"].sum())}
+    out.attrs = {
+        "dropped_lag": int(in_lag.sum()),
+        "dropped_censored": int(censored.sum()),
+        "failures_unmatched": unmatched,
+        "positives": int(out["label"].sum()),
+    }
     return out.reset_index(drop=True)
 
 
@@ -320,9 +397,13 @@ def panel_from_frame(frame: pd.DataFrame, grouped: bool = False) -> CreditPanel:
 
     feats = frame.drop(columns=["label", "_cert", "_repdte"])
     return CreditPanel(
-        name="fdic", X=feats.to_numpy(np.float64), feature_names=tuple(feats.columns),
-        y=frame["label"].to_numpy(np.int64), time=_days(frame["_repdte"]),
-        groups=frame["_cert"].to_numpy() if grouped else None, embargo=EMBARGO_DAYS,
+        name="fdic",
+        X=feats.to_numpy(np.float64),
+        feature_names=tuple(feats.columns),
+        y=frame["label"].to_numpy(np.int64),
+        time=_days(frame["_repdte"]),
+        groups=frame["_cert"].to_numpy() if grouped else None,
+        embargo=EMBARGO_DAYS,
     )
 
 
@@ -344,8 +425,11 @@ def load_fdic(root: Path) -> CreditPanel:
 
 
 def crisis_split(
-    panel: CreditPanel, train_end: str = "2006-12-31", test_start: str = "2008-01-01",
-    test_end: str = "2011-12-31", grouped: bool = False,
+    panel: CreditPanel,
+    train_end: str = "2006-12-31",
+    test_start: str = "2008-01-01",
+    test_end: str = "2011-12-31",
+    grouped: bool = False,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Train before the crisis, test on it (module docstring, "Splits").
 

@@ -33,12 +33,27 @@ from fintfm.prior.mixture import PriorConfig, sample_task
 from fintfm.prior.tree import _oblivious_forest
 
 _BANDS = ((0.5, 0.0, 0.05), (0.35, 0.05, 0.2), (0.15, 0.2, 0.5))
-_BASE = {"max_features": 12, "max_classes": 5, "n_rows_choices": (40, 64), "p_tree": 0.3,
-         "p_regression": 0.1, "p_task_family": 0.2, "p_financial": 0.2}
+_BASE = {
+    "max_features": 12,
+    "max_classes": 5,
+    "n_rows_choices": (40, 64),
+    "p_tree": 0.3,
+    "p_regression": 0.1,
+    "p_task_family": 0.2,
+    "p_financial": 0.2,
+}
 #: The DR2.3 knobs at the values `scripts/prior_stats.py` checks.
-_V2 = {"feature_ratio_bands": _BANDS, "p_binary": 0.7, "imbalance_draws": True,
-       "categorical_mode": "unordered", "missing_mode": "mixed", "tie_column_prob": 0.15,
-       "irrelevant_frac_max": 0.2, "duplicate_frac_max": 0.1, "label_flip_max": 0.05}
+_V2 = {
+    "feature_ratio_bands": _BANDS,
+    "p_binary": 0.7,
+    "imbalance_draws": True,
+    "categorical_mode": "unordered",
+    "missing_mode": "mixed",
+    "tie_column_prob": 0.15,
+    "irrelevant_frac_max": 0.2,
+    "duplicate_frac_max": 0.1,
+    "label_flip_max": 0.05,
+}
 #: The three AU5.11 fields spelled out at their defaults.
 _OFF = {"heavy_tail_column_prob": 0.0, "tree_split_by": "std", "missing_label": False}
 
@@ -85,9 +100,7 @@ def test_recorded_hash_of_both_configurations():
             h.update(t.source.encode())
         h.update(str(rng.random()).encode())
     if sys.platform == "darwin" and platform.machine() == "arm64":
-        assert h.hexdigest() == (
-            "45068bcb4374504bb2018148105409a2167df461582c42f24d02550e1cee1caa"
-        )
+        assert h.hexdigest() == ("45068bcb4374504bb2018148105409a2167df461582c42f24d02550e1cee1caa")
 
 
 def test_off_fields_keep_the_knobs_none():
@@ -120,8 +133,16 @@ def test_heavy_tail_map_leaves_nan_ties_and_constant_columns_alone():
 
 
 def test_heavy_tail_knob_raises_kurtosis_through_apply_task_knobs():
-    cfg = PriorConfig(**{**_BASE, "p_financial": 0.0, "p_tree": 0.0, "p_regression": 0.0,
-                           "p_task_family": 0.0, "n_rows_choices": (256,)})
+    cfg = PriorConfig(
+        **{
+            **_BASE,
+            "p_financial": 0.0,
+            "p_tree": 0.0,
+            "p_regression": 0.0,
+            "p_task_family": 0.0,
+            "n_rows_choices": (256,),
+        }
+    )
 
     def median_kurtosis(heavy: float) -> float:
         vals: list[float] = []
@@ -132,6 +153,7 @@ def test_heavy_tail_knob_raises_kurtosis_through_apply_task_knobs():
             X = t.X[:, num].astype(np.float64)
             vals += [stats.kurtosis(c[np.isfinite(c)]) for c in X.T if np.isfinite(c).sum() > 3]
         return float(np.median(vals))
+
     assert median_kurtosis(1.0) > median_kurtosis(0.0) + 1.0
 
 
@@ -206,9 +228,18 @@ def test_missing_label_reaches_apply_task_knobs_and_needs_mixed_missingness():
     check_knobs(TaskKnobs(missing_mode="mixed", missing_label=True))
     with pytest.raises(ValueError, match="missing_label"):
         check_knobs(TaskKnobs(missing_label=True))
-    cfg = PriorConfig(**{**_BASE, "p_financial": 0.0, "p_tree": 0.0, "p_regression": 0.0,
-                           "p_task_family": 0.0, "n_rows_choices": (128,)},
-                      missing_mode="mixed", missing_label=True)
+    cfg = PriorConfig(
+        **{
+            **_BASE,
+            "p_financial": 0.0,
+            "p_tree": 0.0,
+            "p_regression": 0.0,
+            "p_task_family": 0.0,
+            "n_rows_choices": (128,),
+        },
+        missing_mode="mixed",
+        missing_label=True,
+    )
     seen = set()
     for seed in range(80):
         t = sample_task(np.random.default_rng(seed), cfg)
@@ -225,15 +256,26 @@ def test_config_and_flags_reach_the_prior(tmp_path):
     cfg = load_config()
     prior = build_prior_config(build_parser().parse_args([]), cfg)
     assert (prior.heavy_tail_column_prob, prior.tree_split_by, prior.missing_label) == (
-        0.0, "std", False
+        0.0,
+        "std",
+        False,
     )
-    args = build_parser().parse_args([
-        "--heavy-tail-column-prob", "0.2", "--tree-split-by", "uniform", "--missing-label",
-        "--missing-mode", "mixed",
-    ])
+    args = build_parser().parse_args(
+        [
+            "--heavy-tail-column-prob",
+            "0.2",
+            "--tree-split-by",
+            "uniform",
+            "--missing-label",
+            "--missing-mode",
+            "mixed",
+        ]
+    )
     prior = build_prior_config(args, cfg)
     assert (prior.heavy_tail_column_prob, prior.tree_split_by, prior.missing_label) == (
-        0.2, "uniform", True
+        0.2,
+        "uniform",
+        True,
     )
     f = tmp_path / "c.yaml"
     f.write_text("prior:\n  tree_split_by: uniform\n")

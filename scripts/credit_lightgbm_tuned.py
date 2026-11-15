@@ -33,17 +33,28 @@ def main() -> int:
     p.add_argument("--configs", type=int, default=30)
     p.add_argument("--per-split-budget", type=float, default=720.0, help="search seconds")
     p.add_argument("--total-budget", type=float, default=7200.0, help="wall seconds")
-    p.add_argument("--oof-dir", type=Path, default=None,
-                   help="out-of-fold FinTFM logits from credit_suite --save-oof; tunes the "
-                        "hybrids instead of the plain control")
-    p.add_argument("--hybrid-modes", nargs="+", default=["feature", "init"],
-                   choices=["feature", "init"])
-    p.add_argument("--root", type=Path, default=None, help="raw data root (default: data/real)")
-    p.add_argument("--max-rows", type=int, default=None,
-                   help="the same development cap as credit_suite --max-rows (must match "
-                        "the run that saved the logits)")
     p.add_argument(
-        "--inner-embargo", type=float, default=None,
+        "--oof-dir",
+        type=Path,
+        default=None,
+        help="out-of-fold FinTFM logits from credit_suite --save-oof; tunes the "
+        "hybrids instead of the plain control",
+    )
+    p.add_argument(
+        "--hybrid-modes", nargs="+", default=["feature", "init"], choices=["feature", "init"]
+    )
+    p.add_argument("--root", type=Path, default=None, help="raw data root (default: data/real)")
+    p.add_argument(
+        "--max-rows",
+        type=int,
+        default=None,
+        help="the same development cap as credit_suite --max-rows (must match "
+        "the run that saved the logits)",
+    )
+    p.add_argument(
+        "--inner-embargo",
+        type=float,
+        default=None,
         help="embargo (time units) for the inner tuning split only; default: the panel's. "
         "SBA's 1,827-day embargo exceeds its training windows (split 0 spans 203 days), so "
         "its inner split needs 0; the test split keeps the panel's embargo either way",
@@ -63,8 +74,11 @@ def main() -> int:
             panel = cap_panel(panel, a.max_rows)
         for k, (tr, te) in enumerate(suite_splits(panel)):
             modes = a.hybrid_modes if a.oof_dir is not None else [""]
-            todo = [m for m in modes
-                    if not (a.out / f"{key}_split{k}{'_' + m if m else ''}.json").exists()]
+            todo = [
+                m
+                for m in modes
+                if not (a.out / f"{key}_split{k}{'_' + m if m else ''}.json").exists()
+            ]
             if not todo:
                 continue
             if time.perf_counter() - t_all > a.total_budget:
@@ -73,8 +87,10 @@ def main() -> int:
             imp = SimpleImputer(strategy="median").fit(panel.X[tr])
             sc = StandardScaler().fit(imp.transform(panel.X[tr]))
             base = {
-                "Xtr": sc.transform(imp.transform(panel.X[tr])), "ytr": panel.y[tr],
-                "Xte": sc.transform(imp.transform(panel.X[te])), "yte": panel.y[te],
+                "Xtr": sc.transform(imp.transform(panel.X[tr])),
+                "ytr": panel.y[tr],
+                "Xte": sc.transform(imp.transform(panel.X[te])),
+                "yte": panel.y[te],
                 "embargo": np.array(panel.embargo if a.inner_embargo is None else a.inner_embargo),
             }
             if panel.time is not None:
@@ -84,10 +100,15 @@ def main() -> int:
             saved = None
             if a.oof_dir is not None:
                 saved = np.load(a.oof_dir / f"{key}_split{k}.npz")
-                if not (np.array_equal(saved["train_rows"], tr)
-                        and np.array_equal(saved["test_rows"], te)):
-                    print(f"{key} split {k}: saved logits are for other rows (a different "
-                          "--max-rows or suite?); skipped", flush=True)
+                if not (
+                    np.array_equal(saved["train_rows"], tr)
+                    and np.array_equal(saved["test_rows"], te)
+                ):
+                    print(
+                        f"{key} split {k}: saved logits are for other rows (a different "
+                        "--max-rows or suite?); skipped",
+                        flush=True,
+                    )
                     continue
             for mode in todo:
                 arrays = dict(base)
@@ -102,15 +123,20 @@ def main() -> int:
                     print(f"{tag} failed", flush=True)
                     continue
                 res["inner_embargo"] = float(
-                    panel.embargo if a.inner_embargo is None else a.inner_embargo)
+                    panel.embargo if a.inner_embargo is None else a.inner_embargo
+                )
                 res["panel_embargo"] = float(panel.embargo)
                 if mode:
                     res["hybrid_mode"] = mode
                 (a.out / f"{key}_split{k}{'_' + mode if mode else ''}.json").write_text(
-                    json.dumps(res, indent=2))
-                print(f"{tag}: tuned AP {res['tuned_ap']:.4f} AUC {res['tuned_auc']:.4f} | "
-                      f"untuned AP {res['untuned_ap']:.4f} | {res['n_trials']} configs, "
-                      f"{res['tune_seconds']} s", flush=True)
+                    json.dumps(res, indent=2)
+                )
+                print(
+                    f"{tag}: tuned AP {res['tuned_ap']:.4f} AUC {res['tuned_auc']:.4f} | "
+                    f"untuned AP {res['untuned_ap']:.4f} | {res['n_trials']} configs, "
+                    f"{res['tune_seconds']} s",
+                    flush=True,
+                )
     return 0
 
 

@@ -384,9 +384,7 @@ def _read_yaml(path: Path) -> dict[str, Any]:
         raise FileNotFoundError(f"config file not found: {path}")
     loaded = yaml.safe_load(path.read_text()) or {}
     if not isinstance(loaded, dict):
-        raise ConfigError(
-            f"{path}: top level must be a mapping, got {type(loaded).__name__}"
-        )
+        raise ConfigError(f"{path}: top level must be a mapping, got {type(loaded).__name__}")
     return loaded
 
 
@@ -431,9 +429,7 @@ def _build(cls: type, data: Any, path: str) -> Any:
     if not is_dataclass(cls):
         return data
     if not isinstance(data, dict):
-        raise ConfigError(
-            f"{path or 'config'}: expected a mapping, got {type(data).__name__}"
-        )
+        raise ConfigError(f"{path or 'config'}: expected a mapping, got {type(data).__name__}")
     valid = {f.name: f for f in fields(cls)}
     unknown = sorted(set(data) - set(valid))
     if unknown:
@@ -504,10 +500,16 @@ def _validate(cfg: Config) -> None:
         raise ConfigError("inference.calibration_val_frac must lie in [0, 1)")
     if not 0.0 <= cfg.inference.finetune_val_frac < 1.0:
         raise ConfigError("inference.finetune_val_frac must lie in [0, 1)")
-    if cfg.inference.finetune_val_frac > 0 and min(
-        cfg.inference.finetune_eval_every, cfg.inference.finetune_patience,
-        cfg.inference.finetune_val_tasks, cfg.inference.finetune_val_query,
-    ) < 1:
+    if (
+        cfg.inference.finetune_val_frac > 0
+        and min(
+            cfg.inference.finetune_eval_every,
+            cfg.inference.finetune_patience,
+            cfg.inference.finetune_val_tasks,
+            cfg.inference.finetune_val_query,
+        )
+        < 1
+    ):
         raise ConfigError(
             "inference.finetune_eval_every, finetune_patience, finetune_val_tasks and "
             "finetune_val_query must be at least 1 when finetune_val_frac > 0"
@@ -584,7 +586,8 @@ def _validate(cfg: Config) -> None:
                 f"got {p.source_weights!r}"
             )
         unknown = [
-            k for k in p.source_weights
+            k
+            for k in p.source_weights
             if k not in SOURCE_NAMES and not k.startswith(REAL_PANEL_PREFIX)
         ]
         if unknown:
@@ -618,7 +621,9 @@ def _validate(cfg: Config) -> None:
             f"prior.financial_max_lr_auc must be null or in [0.5, 1], got {p.financial_max_lr_auc}"
         )
     if p.tree_split_by not in ("std", "uniform"):
-        raise ConfigError(f"prior.tree_split_by must be 'std' or 'uniform', got {p.tree_split_by!r}")
+        raise ConfigError(
+            f"prior.tree_split_by must be 'std' or 'uniform', got {p.tree_split_by!r}"
+        )
     off = [k for k, v in unit.items() if not 0.0 <= v <= 1.0]
     if off:
         raise ConfigError(f"prior.{off[0]} must lie in [0, 1], got {unit[off[0]]}")
@@ -641,9 +646,7 @@ def _validate(cfg: Config) -> None:
     if t.muon_lr is not None and t.muon_lr <= 0:
         raise ConfigError(f"train.muon_lr must be positive or null, got {t.muon_lr}")
     if t.muon_scale not in ("rms_match", "keller"):
-        raise ConfigError(
-            f"train.muon_scale must be 'rms_match' or 'keller', got {t.muon_scale!r}"
-        )
+        raise ConfigError(f"train.muon_scale must be 'rms_match' or 'keller', got {t.muon_scale!r}")
     if t.loader not in ("sync", "stream"):
         raise ConfigError(f"train.loader must be 'sync' or 'stream', got {t.loader!r}")
     if t.loader_workers < 0:

@@ -36,10 +36,16 @@ def _ds(scale: int = 1, seed: int = 0) -> SurvivalDataset:
     n = len(firm)
     y = (rng.random(n) < 0.1).astype(int)
     return SurvivalDataset(
-        X=rng.normal(size=(n, 3)).astype(np.float32), y=y,
+        X=rng.normal(size=(n, 3)).astype(np.float32),
+        y=y,
         period=np.where(y == 1, rng.integers(0, N_H, n), -1),
-        n_observed=np.minimum(N_H, 2020 - year), n_horizons=N_H, year=year,
-        name="synthetic", licence="MIT", attribution="test", groups=firm,
+        n_observed=np.minimum(N_H, 2020 - year),
+        n_horizons=N_H,
+        year=year,
+        name="synthetic",
+        licence="MIT",
+        attribution="test",
+        groups=firm,
     )
 
 
@@ -146,8 +152,14 @@ class _FakeClf:
     def __init__(self, level: float) -> None:
         self.level = level
         self.context_summary_ = type(
-            "S", (), {"context_rate": 0.1, "population_rate": 0.1, "n_positive": 5,
-                      "pooled_context_rate": 0.1},
+            "S",
+            (),
+            {
+                "context_rate": 0.1,
+                "population_rate": 0.1,
+                "n_positive": 5,
+                "pooled_context_rate": 0.1,
+            },
         )()
 
     def fit(self, X, y, periods=None):
@@ -167,7 +179,8 @@ def test_context_sweep_records_mean_predicted_beside_observed(monkeypatch, tmp_p
     ds = _ds(scale=10)
     monkeypatch.setattr(context_sweep, "load_v4finbench", lambda max_rows=None: ds)
     monkeypatch.setattr(
-        context_sweep.FinancialTFMClassifier, "from_config",
+        context_sweep.FinancialTFMClassifier,
+        "from_config",
         classmethod(lambda cls, *a, **k: _FakeClf(0.25)),
     )
     base = load_config()
@@ -190,8 +203,16 @@ def test_context_sweep_records_mean_predicted_beside_observed(monkeypatch, tmp_p
 
 def test_context_sweep_best_skips_nan_cells():
     def cell(auc: float, strategy: str) -> dict:
-        return {"max_context": 1000, "strategy": strategy, "seed": 0, "context_rate": 0.1,
-                "n_context_positive": 1, "mean_auc": auc, "mean_ece": 0.01, "seconds": 1.0}
+        return {
+            "max_context": 1000,
+            "strategy": strategy,
+            "seed": 0,
+            "context_rate": 0.1,
+            "n_context_positive": 1,
+            "mean_auc": auc,
+            "mean_ece": 0.01,
+            "seconds": 1.0,
+        }
 
     # a NaN first would win max() in Python (nothing compares greater than it afterwards)
     rec = {"cells": [cell(float("nan"), "nanny"), cell(0.7, "ok"), cell(0.9, "best")]}

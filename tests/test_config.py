@@ -105,8 +105,18 @@ def _tiny_model():
     """An untrained network; construction never runs it."""
     from fintfm.modeling.model import FinancialTFM, ModelConfig
 
-    return FinancialTFM(ModelConfig(max_features=8, max_classes=2, d_cell=8, d_model=16,
-                                    n_heads=2, n_layers=1, n_col_layers=1, d_ff=32))
+    return FinancialTFM(
+        ModelConfig(
+            max_features=8,
+            max_classes=2,
+            d_cell=8,
+            d_model=16,
+            n_heads=2,
+            n_layers=1,
+            n_col_layers=1,
+            d_ff=32,
+        )
+    )
 
 
 def test_every_inference_key_reaches_the_classifier(tmp_path):
@@ -124,13 +134,22 @@ def test_every_inference_key_reaches_the_classifier(tmp_path):
     for name, value in _NON_DEFAULT_INFERENCE.items():
         assert value != getattr(defaults, name), f"{name}: {value!r} is the default"
     f = tmp_path / "every-key.yaml"
-    f.write_text(yaml.safe_dump({"inference": {
-        k: list(v) if isinstance(v, tuple) else v for k, v in _NON_DEFAULT_INFERENCE.items()
-    }}))
+    f.write_text(
+        yaml.safe_dump(
+            {
+                "inference": {
+                    k: list(v) if isinstance(v, tuple) else v
+                    for k, v in _NON_DEFAULT_INFERENCE.items()
+                }
+            }
+        )
+    )
     cfg = load_config(f)
     model = _tiny_model()
-    for clf in (FinancialTFMClassifier.from_config(model, cfg.inference),
-                fintfm_classifier(model, cfg, random_state=3)):
+    for clf in (
+        FinancialTFMClassifier.from_config(model, cfg.inference),
+        fintfm_classifier(model, cfg, random_state=3),
+    ):
         got = clf.get_params(deep=False)
         for name, value in _NON_DEFAULT_INFERENCE.items():
             assert got[name] == value, f"{name}: classifier has {got[name]!r}, config {value!r}"
@@ -197,7 +216,9 @@ def test_source_weights_load_as_a_mapping(tmp_path):
     f = tmp_path / "o.yaml"
     f.write_text('prior:\n  source_weights: {tree: 0.25, "real_panel:p.parquet": 1, scm: 0.4}\n')
     assert load_config(f).prior.source_weights == {
-        "tree": 0.25, "real_panel:p.parquet": 1, "scm": 0.4,
+        "tree": 0.25,
+        "real_panel:p.parquet": 1,
+        "scm": 0.4,
     }
 
 
@@ -358,11 +379,12 @@ def test_large_n_section_matches_the_wrapper_defaults():
     cfg = load_config().large_n
     assert cfg.method == "none"
     names = {f.name for f in fields(LargeNConfig)} - {"method"}
-    for prefix, cls in (("partition_", PartitionedTFMClassifier),
-                        ("boost_", BoostedTFMClassifier)):
+    for prefix, cls in (("partition_", PartitionedTFMClassifier), ("boost_", BoostedTFMClassifier)):
         params = inspect.signature(cls.__init__).parameters
         wanted = {f"{prefix}{p}" for p in params} - {
-            f"{prefix}self", f"{prefix}estimator", f"{prefix}random_state"
+            f"{prefix}self",
+            f"{prefix}estimator",
+            f"{prefix}random_state",
         }
         assert wanted == {n for n in names if n.startswith(prefix)}
         for name in wanted:
@@ -408,8 +430,14 @@ def test_prior_section_mirrors_every_prior_flag_default():
     for name in _PRIOR_CONFIG_KNOBS:
         assert name in section, f"prior.{name}: no config key"
         assert getattr(cfg, name) == section[name] == getattr(library, name), name
-    envelope = {"sharpness_min", "sharpness_max", "min_expected_positives",
-                "absolute_rate_floor", "rate_ceiling", "n_sectors"}
+    envelope = {
+        "sharpness_min",
+        "sharpness_max",
+        "min_expected_positives",
+        "absolute_rate_floor",
+        "rate_ceiling",
+        "n_sectors",
+    }
     levers = {"permute_classes", "feature_transforms", "max_query_rows", "pad_to_batch_width"}
     assert set(section) == set(_PRIOR_CONFIG_KNOBS) | envelope | levers
 

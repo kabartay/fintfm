@@ -38,7 +38,5 @@ def test_regression_prior_tasks_pass_at_a_nonzero_rate():
     # The SCM regression prior spans difficulty from near-noise to near-deterministic, so the
     # judge should pass most of its tasks and reject some. Before the fix it passed none.
     rng = np.random.default_rng(1)
-    passed = [
-        is_learnable(sample_scm_regression_task(rng, 256, max_features=8)) for _ in range(30)
-    ]
+    passed = [is_learnable(sample_scm_regression_task(rng, 256, max_features=8)) for _ in range(30)]
     assert 0.3 < np.mean(passed) <= 1.0

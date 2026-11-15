@@ -26,8 +26,23 @@ ARMS = {
     "ctx": ("au59-hazard-ctx-s0", "au59-hazard-period-context", ["--hazard-period-context"]),
     "ctrl": ("au59-hazard-ctrl-s0", "au59-hazard-ctrl", []),
 }
-EXEC_FLAGS = ["--amp", "fp16", "--attn-impl", "split", "--loader", "stream", "--ddp",
-              "--batch-size", "4", "--seed", "0", "--steps", "6000", "--n-horizons", "6"]
+EXEC_FLAGS = [
+    "--amp",
+    "fp16",
+    "--attn-impl",
+    "split",
+    "--loader",
+    "stream",
+    "--ddp",
+    "--batch-size",
+    "4",
+    "--seed",
+    "0",
+    "--steps",
+    "6000",
+    "--n-horizons",
+    "6",
+]
 HERE = Path(__file__).resolve().parent
 PLACEHOLDER = "UNPINNED"
 
@@ -111,15 +126,28 @@ def render(key: str, commit: str) -> tuple[str, dict]:
     arm, config, extra = ARMS[key]
     slug = f"ts_{arm.replace('-', '_')}"
     flags = [*EXEC_FLAGS, *extra]
-    src = TEMPLATE.format(arm=arm, config=config, commit=commit, flags=flags,
-                          flag_note=", hazard_period_context on" if extra else
-                          ", hazard_period_context off", placeholder=PLACEHOLDER)
+    src = TEMPLATE.format(
+        arm=arm,
+        config=config,
+        commit=commit,
+        flags=flags,
+        flag_note=", hazard_period_context on" if extra else ", hazard_period_context off",
+        placeholder=PLACEHOLDER,
+    )
     kid = slug.replace("_", "-")
     meta = {
-        "id": f"muhakabartay/fintfm-{kid}", "title": f"fintfm-{kid}", "code_file": "kernel.py",
-        "language": "python", "kernel_type": "script", "is_private": "true",
-        "enable_gpu": "true", "enable_tpu": "false", "enable_internet": "true",
-        "dataset_sources": [], "competition_sources": [], "kernel_sources": [],
+        "id": f"muhakabartay/fintfm-{kid}",
+        "title": f"fintfm-{kid}",
+        "code_file": "kernel.py",
+        "language": "python",
+        "kernel_type": "script",
+        "is_private": "true",
+        "enable_gpu": "true",
+        "enable_tpu": "false",
+        "enable_internet": "true",
+        "dataset_sources": [],
+        "competition_sources": [],
+        "kernel_sources": [],
         "model_sources": [],
     }
     return src, meta

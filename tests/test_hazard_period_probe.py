@@ -69,7 +69,10 @@ def test_verdict_rules():
         "paired_with_minus_blind": {"shape_rmse": {"ci95": [-0.2, -0.1]}},
     }
     assert hp.verdict(base) == {
-        "pass": True, "strong": True, "below_floor": True, "ci_below_zero": True,
+        "pass": True,
+        "strong": True,
+        "below_floor": True,
+        "ci_below_zero": True,
     }
     assert not hp.verdict({**base, "reads_periods": False})["pass"]
     assert not hp.verdict({**base, "with_periods": {"shape_rmse": 0.3}})["pass"]
@@ -80,8 +83,18 @@ def test_verdict_rules():
 def _tiny_ckpt(path, on: bool) -> str:
     torch.manual_seed(0)
     m = FinancialTFM(
-        ModelConfig(max_features=6, max_classes=2, d_cell=8, d_model=16, n_heads=2,
-                    n_col_layers=1, n_layers=1, d_ff=32, n_horizons=4, hazard_period_context=on)
+        ModelConfig(
+            max_features=6,
+            max_classes=2,
+            d_cell=8,
+            d_model=16,
+            n_heads=2,
+            n_col_layers=1,
+            n_layers=1,
+            d_ff=32,
+            n_horizons=4,
+            hazard_period_context=on,
+        )
     )
     torch.save({"config": m.cfg.__dict__, "state_dict": m.state_dict()}, path)
     return str(path)

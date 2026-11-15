@@ -424,8 +424,17 @@ class PriorConfig:
 #: ``scm``. A real panel is named ``"real_panel:<path>"`` and sits before ``financial``, in
 #: path order, so two equal mappings written in different orders draw the same stream.
 SOURCE_NAMES: tuple[str, ...] = (
-    "tree", "regression", "trivial", "crossed", "task_family", "real_edgar", "real_mortgage",
-    "real_lendingclub", "gated", "financial", "scm",
+    "tree",
+    "regression",
+    "trivial",
+    "crossed",
+    "task_family",
+    "real_edgar",
+    "real_mortgage",
+    "real_lendingclub",
+    "gated",
+    "financial",
+    "scm",
 )
 
 #: Sources only :attr:`PriorConfig.source_weights` can reach: they have no ``p_*`` field, so
@@ -437,7 +446,12 @@ _WEIGHTED_ONLY_SOURCES: tuple[str, ...] = ("gated",)
 #: width only; its observation model and label noise are its own.
 _KNOB_SOURCES: frozenset[str] = frozenset({"scm", "regression", "tree", "task_family", "gated"})
 _MIN_WIDTH: dict[str, int] = {
-    "scm": 2, "regression": 2, "tree": 2, "task_family": 2, "gated": 2, "financial": 4,
+    "scm": 2,
+    "regression": 2,
+    "tree": 2,
+    "task_family": 2,
+    "gated": 2,
+    "financial": 4,
 }
 
 #: Prefix of a real panel's key in :attr:`PriorConfig.source_weights`.
@@ -494,7 +508,9 @@ def _check_levers(cfg: PriorConfig) -> None:
     if cfg.financial_max_lr_auc is not None and not (
         math.isfinite(cfg.financial_max_lr_auc) and 0.5 <= cfg.financial_max_lr_auc <= 1.0
     ):
-        raise ValueError(f"financial_max_lr_auc must lie in [0.5, 1], got {cfg.financial_max_lr_auc}")
+        raise ValueError(
+            f"financial_max_lr_auc must lie in [0.5, 1], got {cfg.financial_max_lr_auc}"
+        )
     if cfg.financial_sample_horizon and cfg.n_horizons is None:
         raise ValueError("financial_sample_horizon requires n_horizons (a horizon grid)")
     if cfg.financial_gate_prob > 0 and cfg.n_horizons is not None:
@@ -605,9 +621,10 @@ def _weighted_shares(cfg: PriorConfig) -> tuple[dict[str, float], dict[str, floa
     if not weights:
         raise ValueError("source_weights is empty; give it at least one source, or None")
     unknown = [
-        k for k in weights
+        k
+        for k in weights
         if k not in SOURCE_NAMES
-        and not (k.startswith(REAL_PANEL_PREFIX) and k[len(REAL_PANEL_PREFIX):].strip())
+        and not (k.startswith(REAL_PANEL_PREFIX) and k[len(REAL_PANEL_PREFIX) :].strip())
     ]
     if unknown:
         raise ValueError(
@@ -622,8 +639,18 @@ def _weighted_shares(cfg: PriorConfig) -> tuple[dict[str, float], dict[str, floa
         raise ValueError("source_weights sum to zero, so no source could ever be drawn")
     defaults = PriorConfig()
     inert = [
-        f for f in ("p_tree", "p_regression", "p_trivial", "p_crossed", "p_task_family",
-                    "p_real_edgar", "p_real_mortgage", "p_real_lendingclub", "p_financial")
+        f
+        for f in (
+            "p_tree",
+            "p_regression",
+            "p_trivial",
+            "p_crossed",
+            "p_task_family",
+            "p_real_edgar",
+            "p_real_mortgage",
+            "p_real_lendingclub",
+            "p_financial",
+        )
         if getattr(cfg, f) != getattr(defaults, f)
     ]
     if cfg.real_panels:
@@ -642,8 +669,11 @@ def _weighted_shares(cfg: PriorConfig) -> tuple[dict[str, float], dict[str, floa
                 f"{timeless} have no time axis (allowed: {sorted(_HORIZON_SOURCES)})"
             )
     panels = sorted(k for k in weights if k.startswith(REAL_PANEL_PREFIX))
-    order = [*(k for k in SOURCE_NAMES[:-2] if k in weights), *panels,
-             *(k for k in SOURCE_NAMES[-2:] if k in weights)]
+    order = [
+        *(k for k in SOURCE_NAMES[:-2] if k in weights),
+        *panels,
+        *(k for k in SOURCE_NAMES[-2:] if k in weights),
+    ]
     configured = {k: float(weights[k]) for k in order}
     return configured, {k: w / total for k, w in configured.items()}
 
@@ -741,7 +771,7 @@ def _draw_source(rng: np.random.Generator, cfg: PriorConfig) -> tuple[str, str |
         cdf = np.cumsum([realised[k] for k in names])
         i = min(int(np.searchsorted(cdf, rng.random(), side="right")), len(names) - 1)
         if names[i].startswith(REAL_PANEL_PREFIX):
-            return "real_panel", names[i][len(REAL_PANEL_PREFIX):]
+            return "real_panel", names[i][len(REAL_PANEL_PREFIX) :]
         return names[i], None
     if cfg.n_horizons is not None and cfg.p_financial < 1.0:
         raise ValueError(
@@ -850,12 +880,20 @@ def _dispatch_source(
     """
     if source == "tree":
         return sample_tree_task(
-            rng, n, max_features=cfg.max_features, max_classes=cfg.max_classes, knobs=knobs,
+            rng,
+            n,
+            max_features=cfg.max_features,
+            max_classes=cfg.max_classes,
+            knobs=knobs,
             n_features=width,
         )
     if source == "regression":
         return sample_scm_regression_task(
-            rng, n, max_features=cfg.max_features, n_bins=cfg.max_classes, knobs=knobs,
+            rng,
+            n,
+            max_features=cfg.max_features,
+            n_bins=cfg.max_classes,
+            knobs=knobs,
             n_features=width,
         )
     if source == "gated":
@@ -884,23 +922,35 @@ def _dispatch_source(
     min_positives = math.ceil(cfg.min_expected_positives)
     if source == "real_edgar":
         return sample_real_edgar_task(
-            rng, n, max_features=cfg.max_features, panel_path=cfg.real_edgar_panel_path,
+            rng,
+            n,
+            max_features=cfg.max_features,
+            panel_path=cfg.real_edgar_panel_path,
             min_positives=min_positives,
         )
     if source == "real_mortgage":
         return sample_real_mortgage_task(
-            rng, n, max_features=cfg.max_features, panel_path=cfg.real_mortgage_panel_path,
+            rng,
+            n,
+            max_features=cfg.max_features,
+            panel_path=cfg.real_mortgage_panel_path,
             min_positives=min_positives,
         )
     if source == "real_lendingclub":
         return sample_real_lendingclub_task(
-            rng, n, max_features=cfg.max_features, panel_path=cfg.real_lendingclub_panel_path,
+            rng,
+            n,
+            max_features=cfg.max_features,
+            panel_path=cfg.real_lendingclub_panel_path,
             min_positives=min_positives,
         )
     if source == "real_panel":
         assert panel_path is not None
         return sample_real_panel_task(
-            rng, n, panel_path=panel_path, max_features=cfg.max_features,
+            rng,
+            n,
+            panel_path=panel_path,
+            max_features=cfg.max_features,
             min_positives=min_positives,
         )
     if source == "financial":
@@ -928,8 +978,13 @@ def _dispatch_source(
         )
     if source == "scm":
         return sample_scm_task(
-            rng, n, max_features=cfg.max_features, max_classes=cfg.max_classes,
-            legacy=cfg.scm_legacy, knobs=knobs, n_features=width,
+            rng,
+            n,
+            max_features=cfg.max_features,
+            max_classes=cfg.max_classes,
+            legacy=cfg.scm_legacy,
+            knobs=knobs,
+            n_features=width,
         )
     raise ValueError(f"unknown prior source {source!r}")
 
@@ -1006,8 +1061,13 @@ def _sample_tasks_reusing_graphs(
             group = [
                 apply_task_knobs(rng, t, knobs, cfg.max_features, extra)
                 for t in sample_scm_task_group(
-                    rng, n_rows, n_targets=want, max_features=cfg.max_features,
-                    max_classes=cfg.max_classes, legacy=cfg.scm_legacy, knobs=knobs,
+                    rng,
+                    n_rows,
+                    n_targets=want,
+                    max_features=cfg.max_features,
+                    max_classes=cfg.max_classes,
+                    legacy=cfg.scm_legacy,
+                    knobs=knobs,
                     n_features=width,
                 )[:want]
             ]

@@ -80,9 +80,7 @@ def _load(spec: str) -> Callable[..., Task]:
     return getattr(importlib.import_module(module), fn)
 
 
-def _subsample_to_rate(
-    rng: np.random.Generator, y: np.ndarray, rate: float
-) -> np.ndarray | None:
+def _subsample_to_rate(rng: np.random.Generator, y: np.ndarray, rate: float) -> np.ndarray | None:
     """Row indices giving a binary target the requested positive rate.
 
     Drops majority rows rather than duplicating minority ones: duplication would let a tree
@@ -229,8 +227,12 @@ def score_prior(
     if not tree_aucs:
         nan = float("nan")
         return {
-            "performance": nan, "diversity": nan, "distinctiveness": nan,
-            "tree_auc": nan, "linear_auc": nan, **cov.to_dict(),
+            "performance": nan,
+            "diversity": nan,
+            "distinctiveness": nan,
+            "tree_auc": nan,
+            "linear_auc": nan,
+            **cov.to_dict(),
         }
     best = np.maximum(tree_aucs, linear_aucs)
     return {
@@ -259,8 +261,7 @@ def summarise(scores: dict[str, dict], base_rate: float | None = None) -> str:
         else "scored at each prior's natural balance, metric = ROC-AUC"
     )
     header = (
-        f"{'prior':>12}{'perf':>9}{'diversity':>11}{'distinct':>10}"
-        f"{'tree':>9}{'linear':>9}{'n':>5}"
+        f"{'prior':>12}{'perf':>9}{'diversity':>11}{'distinct':>10}{'tree':>9}{'linear':>9}{'n':>5}"
     )
     lines = [head, header]
     for name, s in scores.items():
@@ -271,14 +272,19 @@ def summarise(scores: dict[str, dict], base_rate: float | None = None) -> str:
         )
     lines += [
         "",
-        *(f"coverage {name}: {s['n_scored']}/{s['n_attempted']} tasks scored, "
-          f"{s['n_skipped']} skipped"
-          + "".join(f"; {u}: {r}" for u, r in s["skipped"].items())
-          for name, s in scores.items() if "n_attempted" in s),
+        *(
+            f"coverage {name}: {s['n_scored']}/{s['n_attempted']} tasks scored, "
+            f"{s['n_skipped']} skipped" + "".join(f"; {u}: {r}" for u, r in s["skipped"].items())
+            for name, s in scores.items()
+            if "n_attempted" in s
+        ),
         "",
         f"perf       best fitted baseline's mean {unit}"
-        + ("  -- the floor is the base rate itself, not 0.5" if base_rate is not None
-           else " -- 0.5 is noise, 1.0 teaches nothing"),
+        + (
+            "  -- the floor is the base rate itself, not 0.5"
+            if base_rate is not None
+            else " -- 0.5 is noise, 1.0 teaches nothing"
+        ),
         f"diversity  standard deviation of that {unit} -- a prior of one difficulty is a prior",
         "           that cannot teach a model when to abstain (§42)",
         f"distinct   mean (tree - linear) {unit}. Positive = axis-aligned structure a linear",
@@ -301,16 +307,20 @@ def main() -> None:
     """
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument(
-        "--priors", type=str, default="financial,scm,tree",
+        "--priors",
+        type=str,
+        default="financial,scm,tree",
         help=f"comma-separated prior names; available: {','.join(PRIORS)}",
     )
     p.add_argument("--n-tasks", type=int, default=30)
     p.add_argument("--n-rows", type=int, default=800)
     p.add_argument("--seed0", type=int, default=0)
     p.add_argument(
-        "--base-rate", type=float, default=None,
+        "--base-rate",
+        type=float,
+        default=None,
         help="subsample every task to this positive rate and score by average precision "
-             "instead of ROC-AUC (§116). Use 0.004 for V4FinBench's regime",
+        "instead of ROC-AUC (§116). Use 0.004 for V4FinBench's regime",
     )
     p.add_argument("--out", type=str, default="runs/prior-score")
     args = p.parse_args()
@@ -323,8 +333,11 @@ def main() -> None:
     scores = {}
     for name in names:
         scores[name] = score_prior(
-            _load(PRIORS[name]), n_tasks=args.n_tasks, n_rows=args.n_rows,
-            seed0=args.seed0, base_rate=args.base_rate,
+            _load(PRIORS[name]),
+            n_tasks=args.n_tasks,
+            n_rows=args.n_rows,
+            seed0=args.seed0,
+            base_rate=args.base_rate,
         )
         print(f"  {name} done", flush=True)
     out = Path(args.out)

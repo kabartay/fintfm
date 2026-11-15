@@ -181,9 +181,7 @@ class CategoricalTargetEncoder:
         self._frequency = not _supports_target_statistics(y)
         target = y.astype(np.float64) if not self._frequency else np.zeros(len(y))
         self.prior_ = float(target.mean()) if len(target) else 0.0
-        self.maps_ = {
-            col: self._stats(X[:, col], target) for col in self.categorical_features
-        }
+        self.maps_ = {col: self._stats(X[:, col], target) for col in self.categorical_features}
 
         out = X.copy()
         if not self.categorical_features or len(X) == 0:

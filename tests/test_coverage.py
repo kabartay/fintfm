@@ -60,11 +60,13 @@ def test_bench_synthetic_counts_a_single_class_split_as_skipped(monkeypatch, cap
         cfg = type("C", (), {"max_features": 8, "max_classes": 2})()
 
     monkeypatch.setattr(bench.FinancialTFM, "load", staticmethod(lambda path: _Model()))
-    calls = iter([
-        {"fintfm": 0.9, "logreg": 0.8},
-        {"fintfm": float("nan"), "logreg": float("nan")},  # single-class test split
-        {"fintfm": 0.7, "logreg": 0.8},
-    ])
+    calls = iter(
+        [
+            {"fintfm": 0.9, "logreg": 0.8},
+            {"fintfm": float("nan"), "logreg": float("nan")},  # single-class test split
+            {"fintfm": 0.7, "logreg": 0.8},
+        ]
+    )
     monkeypatch.setattr(bench, "run_one", lambda *a, **k: next(calls))
     rec = bench.run_synthetic("unused.pt", n_tasks=3, n_rows=60)
     _balanced(rec)
@@ -95,9 +97,13 @@ def test_prior_score_counts_degenerate_tasks_as_skipped_with_a_reason():
 
 def test_prior_score_with_every_task_degenerate_still_reports_its_counts():
     def always_one_class(rng, n_rows):
-        return Task(X=rng.normal(size=(n_rows, 3)).astype(np.float32),
-                    y=np.zeros(n_rows, dtype=np.int64), n_classes=2,
-                    is_categorical=np.zeros(3, dtype=bool), source="t")
+        return Task(
+            X=rng.normal(size=(n_rows, 3)).astype(np.float32),
+            y=np.zeros(n_rows, dtype=np.int64),
+            n_classes=2,
+            is_categorical=np.zeros(3, dtype=bool),
+            source="t",
+        )
 
     rec = prior_score.score_prior(always_one_class, n_tasks=3, n_rows=100)
     _balanced(rec)
@@ -113,11 +119,13 @@ def test_openml_breadth_counts_an_unloadable_dataset_as_skipped(monkeypatch, cap
         return rng.normal(size=(50, 3)), (rng.random(50) < 0.3).astype(np.int64)
 
     monkeypatch.setattr(openml_breadth, "load_task", load)
-    monkeypatch.setattr(openml_breadth, "score_task",
-                        lambda X, y, model_path, seed=0: {"fintfm": 0.5, "logreg": 0.4})
+    monkeypatch.setattr(
+        openml_breadth,
+        "score_task",
+        lambda X, y, model_path, seed=0: {"fintfm": 0.5, "logreg": 0.4},
+    )
     cov = Coverage()
-    results = openml_breadth.run("unused.pt", suite=[("a", 1), ("gone", 1), ("b", 1)],
-                                 coverage=cov)
+    results = openml_breadth.run("unused.pt", suite=[("a", 1), ("gone", 1), ("b", 1)], coverage=cov)
     rec = cov.to_dict()
     _balanced(rec)
     assert len(results) == rec["n_scored"] == 2
@@ -130,8 +138,12 @@ def test_credit_suite_rows_coverage_matches_the_rows():
     rows = [
         {"dataset": "d", "split": 0, "model": "fintfm", "skipped": ""},
         {"dataset": "d", "split": 0, "model": "logreg", "skipped": ""},
-        {"dataset": "d", "split": 1, "model": "fintfm",
-         "skipped": "checkpoint takes 4 features, data has 5"},
+        {
+            "dataset": "d",
+            "split": 1,
+            "model": "fintfm",
+            "skipped": "checkpoint takes 4 features, data has 5",
+        },
     ]
     rec = cs.rows_coverage(rows).to_dict()
     _balanced(rec)
@@ -149,14 +161,29 @@ def test_credit_suite_run_writes_a_coverage_sidecar(tmp_path, monkeypatch):
     y = (rng.random(600) < 1 / (1 + np.exp(-(2 * X[:, 0] - 1.5)))).astype(np.int64)
     panel = cs.CreditPanel(name="undated", X=X, feature_names=tuple("abcde"), y=y)
     admitted = dataclasses.replace(cs.DATASETS["ulb_fraud"].licence, include=True)
-    monkeypatch.setattr(cs, "DATASETS", {"undated": cs.SuiteDataset(
-        "undated", "https://example.invalid", lambda root: panel, admitted)})
+    monkeypatch.setattr(
+        cs,
+        "DATASETS",
+        {
+            "undated": cs.SuiteDataset(
+                "undated", "https://example.invalid", lambda root: panel, admitted
+            )
+        },
+    )
     torch.manual_seed(0)
     ckpt = tmp_path / "m.pt"
-    FinancialTFM(ModelConfig(max_features=4, max_classes=2, d_cell=8, d_model=16, n_layers=1,
-                             n_col_layers=1, n_heads=2)).save(str(ckpt))
-    cs.run(tmp_path / "r.csv", str(ckpt), datasets=("undated",), root=tmp_path,
-           with_lightgbm=False)
+    FinancialTFM(
+        ModelConfig(
+            max_features=4,
+            max_classes=2,
+            d_cell=8,
+            d_model=16,
+            n_layers=1,
+            n_col_layers=1,
+            n_heads=2,
+        )
+    ).save(str(ckpt))
+    cs.run(tmp_path / "r.csv", str(ckpt), datasets=("undated",), root=tmp_path, with_lightgbm=False)
     rec = json.loads((tmp_path / "r.coverage.json").read_text())
     _balanced(rec)
     # 3 splits x (fintfm, logistic_regression); fintfm is wider-than-checkpoint, so skipped
@@ -164,10 +191,14 @@ def test_credit_suite_run_writes_a_coverage_sidecar(tmp_path, monkeypatch):
 
 
 def test_proxy_suite_frame_coverage_counts_a_single_class_split_as_skipped():
-    frame = pd.DataFrame({
-        "task_id": [1, 1, 1], "split": [0, 1, 1], "method": ["lr", "lr", "fintfm"],
-        "status": ["ok", "skipped: one class in the test split", "skipped: too wide"],
-    })
+    frame = pd.DataFrame(
+        {
+            "task_id": [1, 1, 1],
+            "split": [0, 1, 1],
+            "method": ["lr", "lr", "fintfm"],
+            "status": ["ok", "skipped: one class in the test split", "skipped: too wide"],
+        }
+    )
     rec = ps.frame_coverage(frame).to_dict()
     _balanced(rec)
     assert (rec["n_attempted"], rec["n_scored"], rec["n_skipped"]) == (3, 1, 2)

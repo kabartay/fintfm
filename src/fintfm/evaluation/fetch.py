@@ -44,9 +44,7 @@ def fetch_v4finbench(dest: Path | None = None) -> Path:
     try:
         import kagglehub
     except ImportError:
-        raise SystemExit(
-            "kagglehub is not installed. Run:  uv sync --extra kaggle"
-        ) from None
+        raise SystemExit("kagglehub is not installed. Run:  uv sync --extra kaggle") from None
 
     # Ask kagglehub how it resolves credentials rather than reimplementing the search.
     # Kaggle now offers two mechanisms and a hand-rolled check for the legacy file alone

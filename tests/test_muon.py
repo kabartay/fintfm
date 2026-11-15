@@ -18,9 +18,17 @@ from fintfm.modeling.model import FinancialTFM, ModelConfig
 from fintfm.prior import PriorConfig
 
 _TINY = {
-    "max_features": 8, "max_classes": 2, "d_cell": 8, "d_model": 16, "n_layers": 1,
-    "n_col_layers": 1, "n_heads": 2, "n_cell_blocks": 1, "cell_labels": True,
-    "pooling": "attention", "mask_embedding": True,
+    "max_features": 8,
+    "max_classes": 2,
+    "d_cell": 8,
+    "d_model": 16,
+    "n_layers": 1,
+    "n_col_layers": 1,
+    "n_heads": 2,
+    "n_cell_blocks": 1,
+    "cell_labels": True,
+    "pooling": "attention",
+    "mask_embedding": True,
 }
 
 
@@ -41,8 +49,9 @@ def _step_one_updates(optimizer: str, **train_kwargs) -> tuple[dict[str, torch.T
 
     torch.manual_seed(0)
     model = FinancialTFM(ModelConfig(**_TINY))
-    batch = sample_batch(np.random.default_rng(0), PriorConfig(max_features=8, max_classes=2,
-                                                               n_rows=32), 2)
+    batch = sample_batch(
+        np.random.default_rng(0), PriorConfig(max_features=8, max_classes=2, n_rows=32), 2
+    )
     model.loss(batch.X, batch.y, batch.n_ctx, batch.n_classes).backward()
     muon_ids = _muon_parameters(model)
     opt, _ = _build_optimizer(model, TrainConfig(optimizer=optimizer, **train_kwargs))
@@ -107,7 +116,8 @@ def test_keller_scale_is_the_design_reviews_larger_update():
     keller, _ = _step_one_updates("muon", muon_scale="keller")
     rms, _ = _step_one_updates("muon")
     ratio = _rms(torch.cat([u.flatten() for u in keller.values()])) / _rms(
-        torch.cat([u.flatten() for u in rms.values()]))
+        torch.cat([u.flatten() for u in rms.values()])
+    )
     assert ratio > 20, ratio
 
 
@@ -126,16 +136,24 @@ def test_each_in_proj_block_is_orthogonalised_separately():
         opt = Muon([{"params": [w], "use_muon": True, "lr": 1.0, "row_blocks": row_blocks}])
         w.grad = g.clone()
         opt.step()
-        return [torch.linalg.svdvals(-b / update_scale(d, d, "rms_match"))
-                for b in w.detach().chunk(3)]
+        return [
+            torch.linalg.svdvals(-b / update_scale(d, d, "rms_match")) for b in w.detach().chunk(3)
+        ]
 
     for s in block_singular_values(3):
         assert s.min() > 0.6 and s.max() < 1.25, s
     joint = block_singular_values(1)
     assert joint[2].max() < 0.1, joint[2]  # the V block starves when orthogonalised jointly
     with pytest.raises(ValueError, match="row_blocks"):
-        Muon([{"params": [torch.nn.Parameter(torch.zeros(10, 4))], "use_muon": True,
-               "row_blocks": 3}])
+        Muon(
+            [
+                {
+                    "params": [torch.nn.Parameter(torch.zeros(10, 4))],
+                    "use_muon": True,
+                    "row_blocks": 3,
+                }
+            ]
+        )
 
 
 def test_build_optimizer_splits_every_fused_in_proj_and_nothing_else():
@@ -197,8 +215,10 @@ def test_muon_lr_follows_the_scale_rule_unless_given():
     def rates(**kw) -> tuple[set[float], set[float]]:
         model = FinancialTFM(ModelConfig(**_TINY))
         opt, _ = _build_optimizer(model, TrainConfig(optimizer="muon", **kw))
-        return ({g["initial_lr"] for g in opt.param_groups if g["use_muon"]},
-                {g["initial_lr"] for g in opt.param_groups if not g["use_muon"]})
+        return (
+            {g["initial_lr"] for g in opt.param_groups if g["use_muon"]},
+            {g["initial_lr"] for g in opt.param_groups if not g["use_muon"]},
+        )
 
     assert rates() == ({3e-4}, {3e-4})
     assert rates(lr=1e-3) == ({1e-3}, {1e-3})
@@ -244,7 +264,8 @@ def test_muon_state_carries_its_group_settings_through_a_resume():
     # given when no cast is needed, and the two optimisers would share moment buffers
     opt2.load_state_dict(copy.deepcopy(opt.state_dict()))
     assert [(g["row_blocks"], g["scale"]) for g in opt2.param_groups] == [
-        (g["row_blocks"], g["scale"]) for g in opt.param_groups]
+        (g["row_blocks"], g["scale"]) for g in opt.param_groups
+    ]
     opt.step()
     opt2.step()
     for a, b in zip(model.parameters(), twin.parameters()):

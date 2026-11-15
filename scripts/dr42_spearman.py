@@ -39,7 +39,13 @@ FIXED_ARMS = {
 }
 #: Arms read from ``agents1104/DR4.2/proxy_<arm>.csv`` (the Lite row has the same name).
 DR42_ARMS = (
-    "priorctl", "priorctl-s1", "treeclean", "treeclean-s1", "treeprior", "widerprior", "priorwide",
+    "priorctl",
+    "priorctl-s1",
+    "treeclean",
+    "treeclean-s1",
+    "treeprior",
+    "widerprior",
+    "priorwide",
 )
 SCORES = ("proxy_elo", "proxy_ap", "proxy_auc")
 LITE_COLUMNS = ("lite_elo_common", "lite_elo_stored")
@@ -113,11 +119,19 @@ def correlate(table: pd.DataFrame) -> pd.DataFrame:
             xv, yv = table[x].to_numpy(float), table[y].to_numpy(float)
             two, one, exact = exact_permutation_p(xv, yv)
             lo, hi = bootstrap_interval(xv, yv)
-            rows.append({
-                "score": x, "lite": y, "n": len(table),
-                "rho": float(spearmanr(xv, yv).statistic), "p_two_sided": two,
-                "p_one_sided": one, "p_exact": exact, "boot_lo": lo, "boot_hi": hi,
-            })
+            rows.append(
+                {
+                    "score": x,
+                    "lite": y,
+                    "n": len(table),
+                    "rho": float(spearmanr(xv, yv).statistic),
+                    "p_two_sided": two,
+                    "p_one_sided": one,
+                    "p_exact": exact,
+                    "boot_lo": lo,
+                    "boot_hi": hi,
+                }
+            )
     return pd.DataFrame(rows)
 
 
@@ -166,14 +180,20 @@ def build_inputs(runs: Path, arms: list[str] | None = None) -> pd.DataFrame:
     for arm, lr in use.items():
         f = allf[(allf.method == arm) & (allf.status == "ok")]
         per_task = f.groupby("task_id")[["ap", "roc_auc"]].mean()
-        rows.append({
-            "arm": arm, "n_splits": len(f), "proxy_elo": tab.loc[arm, "elo"],
-            "proxy_lo": tab.loc[arm, "lo"], "proxy_hi": tab.loc[arm, "hi"],
-            "proxy_ap": per_task.ap.mean(), "proxy_auc": per_task.roc_auc.mean(),
-            "lite_elo_stored": lite.loc[lr, "elo_stored_pool"],
-            "lite_elo_common": lite.loc[lr, "elo_common_pool"],
-            "lite_mean_err": lite.loc[lr, "mean_error"],
-        })
+        rows.append(
+            {
+                "arm": arm,
+                "n_splits": len(f),
+                "proxy_elo": tab.loc[arm, "elo"],
+                "proxy_lo": tab.loc[arm, "lo"],
+                "proxy_hi": tab.loc[arm, "hi"],
+                "proxy_ap": per_task.ap.mean(),
+                "proxy_auc": per_task.roc_auc.mean(),
+                "lite_elo_stored": lite.loc[lr, "elo_stored_pool"],
+                "lite_elo_common": lite.loc[lr, "elo_common_pool"],
+                "lite_mean_err": lite.loc[lr, "mean_error"],
+            }
+        )
     return pd.DataFrame(rows).set_index("arm")
 
 
@@ -191,9 +211,11 @@ def main(argv: list[str] | None = None) -> int:
     print(table.round(4).to_string())
     for r in correlate(table).itertuples():
         kind = "exact" if r.p_exact else "Monte Carlo"
-        print(f"{r.score} vs {r.lite}: rho={r.rho:.3f} n={r.n} two-sided p={r.p_two_sided:.4f} "
-              f"({kind}), one-sided p={r.p_one_sided:.4f}, bootstrap 95% "
-              f"[{r.boot_lo:.3f}, {r.boot_hi:.3f}]")
+        print(
+            f"{r.score} vs {r.lite}: rho={r.rho:.3f} n={r.n} two-sided p={r.p_two_sided:.4f} "
+            f"({kind}), one-sided p={r.p_one_sided:.4f}, bootstrap 95% "
+            f"[{r.boot_lo:.3f}, {r.boot_hi:.3f}]"
+        )
     return 0
 
 

@@ -218,12 +218,17 @@ def _write_horizon(root, n_companies=60, rows_each=4, seed=0):
         pos = k % 4 == 0  # a quarter of companies end distressed
         for t in range(rows_each):
             last = t == rows_each - 1
-            rows.append({
-                "country": k % 2, "company": f"f{k}", "year": 2010 + t,
-                "operational_status": float(not pos), "Equity/total_assets": rng.randn(),
-                "Cash/total_assets": rng.randn() + (2.0 if pos and last else 0.0),
-                "main_label": int(pos and last),
-            })
+            rows.append(
+                {
+                    "country": k % 2,
+                    "company": f"f{k}",
+                    "year": 2010 + t,
+                    "operational_status": float(not pos),
+                    "Equity/total_assets": rng.randn(),
+                    "Cash/total_assets": rng.randn() + (2.0 if pos and last else 0.0),
+                    "main_label": int(pos and last),
+                }
+            )
     pd.DataFrame(rows).to_parquet(root / HORIZON_FILES[0])
 
 
@@ -237,8 +242,14 @@ def test_drop_columns_removes_a_feature_and_is_recorded(tmp_path):
     *_, names = _load_horizon(tmp_path, 0, None, ("operational_status",))
     assert "operational_status" not in names and "Cash/total_assets" in names
 
-    rec = run(None, tmp_path / "out", root=tmp_path, with_boosting=False,
-              drop_columns=("operational_status",), folds=(0,))
+    rec = run(
+        None,
+        tmp_path / "out",
+        root=tmp_path,
+        with_boosting=False,
+        drop_columns=("operational_status",),
+        folds=(0,),
+    )
     assert rec["config"]["drop_columns"] == ["operational_status"]
     assert rec["config"]["n_features"] == len(names)
     default = run(None, tmp_path / "out0", root=tmp_path, with_boosting=False, folds=(0,))
@@ -270,7 +281,9 @@ def test_booster_params_parse_into_named_arms():
     ]
     assert isinstance(specs[0][1]["n_estimators"], int)
     assert [booster_arm_name(*s) for s in specs] == [
-        "lightgbm[n_estimators=1000,learning_rate=0.05]", "catboost[iterations=100]", "catboost",
+        "lightgbm[n_estimators=1000,learning_rate=0.05]",
+        "catboost[iterations=100]",
+        "catboost",
     ]
     for bad in ("lightgbm", "svm:n=1", "lightgbm:n_estimators"):
         with pytest.raises(ValueError):
@@ -291,14 +304,21 @@ def test_booster_params_fit_fixed_arms_and_record_them(tmp_path, monkeypatch):
     monkeypatch.setattr(boosting, "fit_predict_boosting", fake_fit)
     monkeypatch.setattr(boosting, "available_boosting", list)
     _write_horizon(tmp_path)
-    fixed = (("lightgbm", {"n_estimators": 1000, "learning_rate": 0.05}),
-             ("catboost", {"iterations": 100}), ("catboost", {}))
-    rec = run(None, tmp_path / "out", root=tmp_path, classical=(), folds=(0, 1),
-              booster_params=fixed)
+    fixed = (
+        ("lightgbm", {"n_estimators": 1000, "learning_rate": 0.05}),
+        ("catboost", {"iterations": 100}),
+        ("catboost", {}),
+    )
+    rec = run(
+        None, tmp_path / "out", root=tmp_path, classical=(), folds=(0, 1), booster_params=fixed
+    )
     assert calls == [(n, p or None) for n, p in fixed] * 2
     arms = {a["arm"] for a in rec["arms"]}
-    assert arms == {"lightgbm[n_estimators=1000,learning_rate=0.05]",
-                    "catboost[iterations=100]", "catboost"}
+    assert arms == {
+        "lightgbm[n_estimators=1000,learning_rate=0.05]",
+        "catboost[iterations=100]",
+        "catboost",
+    }
     assert [b["params"] for b in rec["config"]["booster_params"]] == [p for _, p in fixed]
     saved = np.load(tmp_path / "out" / "predictions_fold0.npz")
     assert "pred_catboost[iterations=100]" in saved.files
@@ -324,11 +344,15 @@ def test_predictions_carry_the_company_of_every_row(tmp_path):
 
     rng = np.random.RandomState(0)
     country, company = _panel(n_companies=40, rows_each=5)
-    df = pd.DataFrame({
-        "company": company.astype(str), "country": [int(c[-1]) for c in country],
-        "main_label": (rng.rand(len(company)) < 0.25).astype(int),
-        "x1": rng.randn(len(company)), "x2": rng.randn(len(company)),
-    })
+    df = pd.DataFrame(
+        {
+            "company": company.astype(str),
+            "country": [int(c[-1]) for c in country],
+            "main_label": (rng.rand(len(company)) < 0.25).astype(int),
+            "x1": rng.randn(len(company)),
+            "x2": rng.randn(len(company)),
+        }
+    )
     df.to_parquet(tmp_path / HORIZON_FILES[0])
     run(None, tmp_path / "out", root=tmp_path, folds=(0, 3), with_boosting=False)
 
@@ -360,10 +384,18 @@ def test_run_json_records_the_checkpoint_hash_commit_and_classifier_params(tmp_p
     _write_horizon(tmp_path)
     torch.manual_seed(0)
     ckpt = tmp_path / "m.pt"
-    FinancialTFM(ModelConfig(max_features=8, max_classes=2, d_cell=8, d_model=16, n_layers=1,
-                             n_col_layers=1, n_heads=2)).save(str(ckpt))
-    run(str(ckpt), tmp_path / "out", root=tmp_path, with_boosting=False, classical=(),
-        folds=(0, 1))
+    FinancialTFM(
+        ModelConfig(
+            max_features=8,
+            max_classes=2,
+            d_cell=8,
+            d_model=16,
+            n_layers=1,
+            n_col_layers=1,
+            n_heads=2,
+        )
+    ).save(str(ckpt))
+    run(str(ckpt), tmp_path / "out", root=tmp_path, with_boosting=False, classical=(), folds=(0, 1))
     prov = json.loads((tmp_path / "out" / "v4_protocol.json").read_text())["provenance"]
     assert prov["checkpoint_sha256"] == sha256_file(ckpt)
     assert "commit" in prov and "dirty" in prov and prov["versions"]["fintfm"]
@@ -424,8 +456,18 @@ def test_from_config_scores_exactly_as_the_old_explicit_construction(tmp_path, c
     f.write_text(config_body)
     cfg = load_config(f)
     torch.manual_seed(0)
-    model = FinancialTFM(ModelConfig(max_features=8, max_classes=2, d_cell=8, d_model=16,
-                                     n_layers=1, n_col_layers=1, n_heads=2, d_ff=32))
+    model = FinancialTFM(
+        ModelConfig(
+            max_features=8,
+            max_classes=2,
+            d_cell=8,
+            d_model=16,
+            n_layers=1,
+            n_col_layers=1,
+            n_heads=2,
+            d_ff=32,
+        )
+    )
     rng = np.random.default_rng(0)
     X = rng.normal(size=(120, 6)).astype(np.float32)
     y = (X[:, 0] + rng.normal(scale=0.5, size=120) > 0.8).astype(np.int64)
@@ -435,7 +477,6 @@ def test_from_config_scores_exactly_as_the_old_explicit_construction(tmp_path, c
     p_new = new.fit(X[:80], y[:80]).predict_proba(X[80:])
     p_old = old.fit(X[:80], y[:80]).predict_proba(X[80:])
     assert np.array_equal(p_new, p_old)
-
 
 
 def test_mlp_baseline_is_seeded():
@@ -448,12 +489,25 @@ def test_summarise_flags_an_arm_scored_on_fewer_folds():
     from fintfm.experiments.v4_protocol import summarise
 
     def arm(name, n_folds):
-        return {"arm": name, "roc_auc_mean": 0.9, "roc_auc_std": 0.0, "f1_mean": 0.1,
-                "f1_std": 0.0, "folds": [{}] * n_folds}
+        return {
+            "arm": name,
+            "roc_auc_mean": 0.9,
+            "roc_auc_std": 0.0,
+            "f1_mean": 0.1,
+            "f1_std": 0.0,
+            "folds": [{}] * n_folds,
+        }
 
-    record = {"config": {"horizon": 0, "folds": [0, 1, 2], "n_features": 3,
-                         "finetune_steps": 0, "tuned": True},
-              "arms": [arm("logistic_regression", 3), arm("xgboost", 2)]}
+    record = {
+        "config": {
+            "horizon": 0,
+            "folds": [0, 1, 2],
+            "n_features": 3,
+            "finetune_steps": 0,
+            "tuned": True,
+        },
+        "arms": [arm("logistic_regression", 3), arm("xgboost", 2)],
+    }
     assert "INCOMPLETE ARMS" in summarise(record)
     record["arms"][1]["folds"] = [{}] * 3
     assert "INCOMPLETE ARMS" not in summarise(record)

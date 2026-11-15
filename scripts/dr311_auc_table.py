@@ -50,10 +50,14 @@ def main() -> None:
         au_c, au_a = roc_auc_score(y, c), roc_auc_score(y, a)
         dap.append(ap_a - ap_c)
         dauc.append(au_a - au_c)
-        print(f"| {k} | {ap_c:.4f} | {ap_a:.4f} | {ap_a - ap_c:+.4f} | {au_c:.4f} | {au_a:.4f} "
-              f"| {au_a - au_c:+.4f} |")
-    print(f"mean dAP {np.mean(dap):+.4f}, {sum(d > 0 for d in dap)}/{len(dap)} positive; "
-          f"mean dAUC {np.mean(dauc):+.4f}, {sum(d > 0 for d in dauc)}/{len(dauc)} positive")
+        print(
+            f"| {k} | {ap_c:.4f} | {ap_a:.4f} | {ap_a - ap_c:+.4f} | {au_c:.4f} | {au_a:.4f} "
+            f"| {au_a - au_c:+.4f} |"
+        )
+    print(
+        f"mean dAP {np.mean(dap):+.4f}, {sum(d > 0 for d in dap)}/{len(dap)} positive; "
+        f"mean dAUC {np.mean(dauc):+.4f}, {sum(d > 0 for d in dauc)}/{len(dauc)} positive"
+    )
 
 
 if __name__ == "__main__":

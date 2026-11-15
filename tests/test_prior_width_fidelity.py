@@ -56,8 +56,13 @@ def test_rejection_lowers_held_out_auc_and_always_returns() -> None:
     kept = []
     for s in range(6):
         k = sample_financial_task(
-            np.random.default_rng(s), 400, max_features=20, sharpness_min=3.0,
-            sharpness_max=6.0, max_lr_auc=ceiling, max_lr_auc_tries=20,
+            np.random.default_rng(s),
+            400,
+            max_features=20,
+            sharpness_min=3.0,
+            sharpness_max=6.0,
+            max_lr_auc=ceiling,
+            max_lr_auc_tries=20,
         )
         a = _holdout_lr_auc(k.X, k.y)
         kept.append(a)

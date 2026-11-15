@@ -13,8 +13,15 @@ from fintfm.modeling.model import FinancialTFM, ModelConfig
 
 def _tiny_model(**kw) -> FinancialTFM:
     cfg = ModelConfig(
-        max_features=6, max_classes=3, d_cell=16, d_model=32, n_heads=2, n_col_layers=1,
-        n_layers=1, d_ff=32, **kw,
+        max_features=6,
+        max_classes=3,
+        d_cell=16,
+        d_model=32,
+        n_heads=2,
+        n_col_layers=1,
+        n_layers=1,
+        d_ff=32,
+        **kw,
     )
     return FinancialTFM(cfg)
 
@@ -27,8 +34,14 @@ def _save_state(path, model):
 
     opt = torch.optim.AdamW(model.parameters(), lr=1e-3)
     _save_training_state(
-        str(path), model, opt, _NullSchedule(1e-3), np.random.default_rng(0),
-        step=1, objectives={"classification"}, total_steps=2,
+        str(path),
+        model,
+        opt,
+        _NullSchedule(1e-3),
+        np.random.default_rng(0),
+        step=1,
+        objectives={"classification"},
+        total_steps=2,
     )
 
 
@@ -85,14 +98,15 @@ def test_sweeps_record_how_many_seeds_each_cell_scored(tmp_path, monkeypatch):
 
     monkeypatch.setattr(capability, "make_probe", probe)
     ckpt = tmp_path / "m.pt"
-    FinancialTFM(ModelConfig(max_features=8, d_model=16, d_cell=8, n_layers=1,
-                             n_col_layers=1, max_classes=2)).save(
-        str(ckpt), trained_objectives=("classification",))
+    FinancialTFM(
+        ModelConfig(max_features=8, d_model=16, d_cell=8, n_layers=1, n_col_layers=1, max_classes=2)
+    ).save(str(ckpt), trained_objectives=("classification",))
 
     fs = capability.feature_sweep({"p": str(ckpt)}, widths=(5,), seeds=(0, 1), max_context=100)
     assert fs["n_seeds_scored"] == [1]
-    br = capability.base_rate_sweep({"p": str(ckpt)}, rates=(0.3,), n_features=5,
-                                    seeds=(0, 1), max_context=100)
+    br = capability.base_rate_sweep(
+        {"p": str(ckpt)}, rates=(0.3,), n_features=5, seeds=(0, 1), max_context=100
+    )
     assert br["n_seeds_scored"] == [1]
 
 
@@ -179,7 +193,5 @@ def test_schedulefree_receives_the_configured_warmup():
     pytest.importorskip("schedulefree")
     from fintfm.modeling.train import TrainConfig, _build_optimizer
 
-    opt, _ = _build_optimizer(
-        _tiny_model(), TrainConfig(optimizer="schedulefree", warmup_steps=7)
-    )
+    opt, _ = _build_optimizer(_tiny_model(), TrainConfig(optimizer="schedulefree", warmup_steps=7))
     assert opt.param_groups[0]["warmup_steps"] == 7

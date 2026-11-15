@@ -29,8 +29,15 @@ from fintfm.prior.mixture import (
 #: of the source draw. Real sources are left out: their samplers are FinTFM-R only and are
 #: allowed to change.
 _ALL_SYNTHETIC = PriorConfig(
-    max_features=12, max_classes=5, n_rows=48, p_tree=0.15, p_regression=0.1,
-    p_trivial=0.1, p_crossed=0.1, p_task_family=0.15, p_financial=0.5,
+    max_features=12,
+    max_classes=5,
+    n_rows=48,
+    p_tree=0.15,
+    p_regression=0.1,
+    p_trivial=0.1,
+    p_crossed=0.1,
+    p_task_family=0.15,
+    p_financial=0.5,
 )
 
 
@@ -41,21 +48,51 @@ def test_reuse_one_draws_the_same_stream_as_before_the_source_split():
     # trailing rng.random() pins the number of draws consumed, which is what byte-identity of
     # every later batch rests on.
     rng = np.random.default_rng(123)
-    got = [(t.source, t.X.shape[1], t.n_classes) for t in (
-        sample_task(rng, _ALL_SYNTHETIC) for _ in range(40)
-    )]
+    got = [
+        (t.source, t.X.shape[1], t.n_classes)
+        for t in (sample_task(rng, _ALL_SYNTHETIC) for _ in range(40))
+    ]
     assert got == [
-        ("scm-regression", 11, 5), ("scm-regression", 5, 5), ("tree", 3, 2), ("tree", 10, 4),
-        ("tree", 4, 2), ("scm", 5, 4), ("trivial", 6, 2), ("financial", 9, 2),
-        ("trivial", 6, 2), ("family:sparse", 12, 2), ("financial", 9, 2), ("tree", 9, 2),
-        ("scm", 7, 3), ("tree", 3, 2), ("scm", 5, 5), ("financial", 7, 2),
-        ("family:linear", 12, 2), ("scm", 11, 2), ("financial", 11, 2),
-        ("family:composition_composed", 12, 2), ("trivial", 4, 2), ("family:xor", 12, 2),
-        ("financial", 12, 2), ("scm", 10, 5), ("financial", 6, 2), ("scm", 8, 4),
-        ("financial", 12, 2), ("scm", 3, 3), ("scm_x_fin_y", 12, 2), ("scm", 6, 3),
-        ("tree", 4, 3), ("family:xor", 12, 2), ("financial", 11, 2), ("tree", 5, 2),
-        ("scm", 3, 4), ("scm_x_fin_y", 2, 2), ("scm", 11, 5), ("family:interaction", 12, 2),
-        ("scm", 3, 2), ("scm", 12, 2),
+        ("scm-regression", 11, 5),
+        ("scm-regression", 5, 5),
+        ("tree", 3, 2),
+        ("tree", 10, 4),
+        ("tree", 4, 2),
+        ("scm", 5, 4),
+        ("trivial", 6, 2),
+        ("financial", 9, 2),
+        ("trivial", 6, 2),
+        ("family:sparse", 12, 2),
+        ("financial", 9, 2),
+        ("tree", 9, 2),
+        ("scm", 7, 3),
+        ("tree", 3, 2),
+        ("scm", 5, 5),
+        ("financial", 7, 2),
+        ("family:linear", 12, 2),
+        ("scm", 11, 2),
+        ("financial", 11, 2),
+        ("family:composition_composed", 12, 2),
+        ("trivial", 4, 2),
+        ("family:xor", 12, 2),
+        ("financial", 12, 2),
+        ("scm", 10, 5),
+        ("financial", 6, 2),
+        ("scm", 8, 4),
+        ("financial", 12, 2),
+        ("scm", 3, 3),
+        ("scm_x_fin_y", 12, 2),
+        ("scm", 6, 3),
+        ("tree", 4, 3),
+        ("family:xor", 12, 2),
+        ("financial", 11, 2),
+        ("tree", 5, 2),
+        ("scm", 3, 4),
+        ("scm_x_fin_y", 2, 2),
+        ("scm", 11, 5),
+        ("family:interaction", 12, 2),
+        ("scm", 3, 2),
+        ("scm", 12, 2),
     ]
     assert rng.random() == 0.10348447068500588
 
@@ -64,7 +101,9 @@ def test_reuse_one_draws_the_same_stream_as_before_the_source_split():
         rng = np.random.default_rng(7)
         batches = [sample_batch(rng, cfg, batch_size=4) for _ in range(3)]
         assert [(b.n_ctx, b.n_classes.tolist()) for b in batches] == [
-            (19, [4, 3, 3, 2]), (43, [2, 5, 2, 5]), (29, [2, 5, 4, 3]),
+            (19, [4, 3, 3, 2]),
+            (43, [2, 5, 2, 5]),
+            (29, [2, 5, 4, 3]),
         ]
         assert rng.random() == 0.0627829080239598
 
@@ -78,8 +117,14 @@ def test_source_shares_agree_at_reuse_one_and_four():
     # AU1.13: at p_financial 0.7, p_tree 0.2, p_task_family 0.2 the SCM share was measured at
     # 0.198 at reuse 1 against 0.558 at reuse 4. Each SCM task's share must be the mixture's
     # (0.8 x 0.8 x 0.3 = 0.192) at both values, within binomial error.
-    base = {"max_features": 8, "max_classes": 4, "n_rows": 32,
-            "p_financial": 0.7, "p_tree": 0.2, "p_task_family": 0.2}
+    base = {
+        "max_features": 8,
+        "max_classes": 4,
+        "n_rows": 32,
+        "p_financial": 0.7,
+        "p_tree": 0.2,
+        "p_task_family": 0.2,
+    }
     n_batches, batch_size = 60, 8
     n = n_batches * batch_size
     shares = {}
@@ -96,8 +141,12 @@ def test_source_shares_agree_at_reuse_one_and_four():
             sources += [_kind(t.source) for t in tasks]
         shares[reuse] = {k: sources.count(k) / n for k in ("scm", "tree", "family", "financial")}
 
-    expected = {"scm": 0.8 * 0.8 * 0.3, "tree": 0.2, "family": 0.8 * 0.2,
-                "financial": 0.8 * 0.8 * 0.7}
+    expected = {
+        "scm": 0.8 * 0.8 * 0.3,
+        "tree": 0.2,
+        "family": 0.8 * 0.2,
+        "financial": 0.8 * 0.8 * 0.7,
+    }
     for kind, p in expected.items():
         sd = np.sqrt(p * (1 - p) / n)
         for reuse in (1, 4):
@@ -120,8 +169,7 @@ def test_every_query_class_is_in_the_context_with_a_class_floor():
     # Audit AU1.16: random cut-points leave rare classes that can land only in the query. Over
     # 1,000 256-row SCM and tree tasks the floor must leave none; without it some exist, so
     # the check is not vacuous.
-    base = {"max_features": 8, "max_classes": 10, "n_rows": 256, "p_financial": 0.0,
-            "p_tree": 0.5}
+    base = {"max_features": 8, "max_classes": 10, "n_rows": 256, "p_financial": 0.0, "p_tree": 0.5}
     counts = {}
     for floor in (0, 1):
         cfg = PriorConfig(**base, min_ctx_per_class=floor)
@@ -157,8 +205,15 @@ def test_class_floor_zero_changes_nothing():
 # --- DR2.1: normalised source weights ------------------------------------------------------
 
 #: Unnormalised (they sum to 2) and written out of draw order, so the test covers both.
-_WEIGHTS = {"scm": 0.8, "tree": 0.5, "financial": 0.2, "task_family": 0.2, "crossed": 0.1,
-            "trivial": 0.1, "regression": 0.1}
+_WEIGHTS = {
+    "scm": 0.8,
+    "tree": 0.5,
+    "financial": 0.2,
+    "task_family": 0.2,
+    "crossed": 0.1,
+    "trivial": 0.1,
+    "regression": 0.1,
+}
 
 
 def test_weighted_draw_realises_the_normalised_weights_at_10000_draws():
@@ -170,8 +225,15 @@ def test_weighted_draw_realises_the_normalised_weights_at_10000_draws():
     drawn = [_draw_source(rng, cfg)[0] for _ in range(n)]
     shares = source_shares(cfg)
     assert shares["mode"] == "weighted"
-    assert list(shares["realised"]) == ["tree", "regression", "trivial", "crossed",
-                                        "task_family", "financial", "scm"]
+    assert list(shares["realised"]) == [
+        "tree",
+        "regression",
+        "trivial",
+        "crossed",
+        "task_family",
+        "financial",
+        "scm",
+    ]
     for name, w in _WEIGHTS.items():
         p = w / 2.0
         assert shares["realised"][name] == pytest.approx(p)
@@ -224,8 +286,12 @@ def test_weighted_shares_agree_at_reuse_one_and_four():
 def test_weighted_names_follow_the_sequential_chain():
     """One list of names: the weighted draw's order is the chain's, then the weighted-only
     sources (DR2.2's ``gated``, which has no ``p_*`` field), then financial and scm."""
-    assert SOURCE_NAMES == (*(n for n, _ in _sequential_sources(PriorConfig())),
-                            *_WEIGHTED_ONLY_SOURCES, "financial", "scm")
+    assert SOURCE_NAMES == (
+        *(n for n, _ in _sequential_sources(PriorConfig())),
+        *_WEIGHTED_ONLY_SOURCES,
+        "financial",
+        "scm",
+    )
     assert _WEIGHTED_ONLY_SOURCES == ("gated",)
 
 
@@ -247,15 +313,19 @@ def test_weighted_names_follow_the_sequential_chain():
 def test_bad_source_weights_are_refused_before_any_draw(overrides, match):
     cfg = PriorConfig(max_features=8, n_rows=32, **overrides)
     rng = np.random.default_rng(0)
-    for call in (lambda: sample_batch(rng, cfg, 2), lambda: source_shares(cfg),
-                 lambda: sample_task(rng, cfg)):
+    for call in (
+        lambda: sample_batch(rng, cfg, 2),
+        lambda: source_shares(cfg),
+        lambda: sample_task(rng, cfg),
+    ):
         with pytest.raises(ValueError, match=match):
             call()
 
 
 def test_horizon_run_may_weight_the_sources_that_carry_a_period():
-    cfg = PriorConfig(max_features=8, n_rows=64, n_horizons=3,
-                      source_weights={"financial": 1.0, "scm": 0.0})
+    cfg = PriorConfig(
+        max_features=8, n_rows=64, n_horizons=3, source_weights={"financial": 1.0, "scm": 0.0}
+    )
     batch = sample_batch(np.random.default_rng(0), cfg, 2)
     assert batch.period is not None
 
@@ -263,9 +333,15 @@ def test_horizon_run_may_weight_the_sources_that_carry_a_period():
 def test_parse_source_weights():
     assert parse_source_weights("") is None and parse_source_weights(" , ") is None
     assert parse_source_weights("tree=0.25, scm=0.4,real_panel:a=b.parquet=1") == {
-        "tree": 0.25, "scm": 0.4, "real_panel:a=b.parquet": 1.0,
+        "tree": 0.25,
+        "scm": 0.4,
+        "real_panel:a=b.parquet": 1.0,
     }
-    for spec, match in (("tree", "source=weight"), ("=1", "source=weight"),
-                        ("tree=x", "not a number"), ("tree=1,tree=2", "twice")):
+    for spec, match in (
+        ("tree", "source=weight"),
+        ("=1", "source=weight"),
+        ("tree=x", "not a number"),
+        ("tree=1,tree=2", "twice"),
+    ):
         with pytest.raises(ValueError, match=match):
             parse_source_weights(spec)

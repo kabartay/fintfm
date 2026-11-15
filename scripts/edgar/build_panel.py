@@ -130,9 +130,7 @@ def _download_quarter(quarter: str, cache_dir: Path, contact: str) -> Path:
     if (qdir / "num.txt").exists():
         return qdir
     cache_dir.mkdir(parents=True, exist_ok=True)
-    resp = requests.get(
-        _FSDS_URL.format(q=quarter), headers={"User-Agent": contact}, timeout=120
-    )
+    resp = requests.get(_FSDS_URL.format(q=quarter), headers={"User-Agent": contact}, timeout=120)
     resp.raise_for_status()
     with zipfile.ZipFile(io.BytesIO(resp.content)) as zf:
         zf.extractall(qdir)
@@ -149,12 +147,16 @@ def _load_quarter_fundamentals(qdir: Path) -> pd.DataFrame:
         A wide DataFrame; `cik` and `period_end` identify the row, one column per core tag.
     """
     sub = pd.read_csv(
-        qdir / "sub.txt", sep="\t", usecols=["adsh", "cik", "form", "period"],
+        qdir / "sub.txt",
+        sep="\t",
+        usecols=["adsh", "cik", "form", "period"],
         dtype={"cik": "int64", "period": "str"},
     )
     sub = sub[sub["form"].isin(["10-K", "10-Q"])]
     num = pd.read_csv(
-        qdir / "num.txt", sep="\t", usecols=["adsh", "tag", "qtrs", "value"],
+        qdir / "num.txt",
+        sep="\t",
+        usecols=["adsh", "tag", "qtrs", "value"],
         dtype={"qtrs": "int64"},
     )
     # qtrs=0 is an instant concept (Assets, StockholdersEquity -- a balance at one date, no
@@ -186,9 +188,7 @@ def _load_quarter_fundamentals(qdir: Path) -> pd.DataFrame:
 _FULLTEXT_MAX_FROM = 100
 
 
-def _get_json_with_retries(
-    url: str, params: dict, contact: str, max_attempts: int = 4
-) -> dict:
+def _get_json_with_retries(url: str, params: dict, contact: str, max_attempts: int = 4) -> dict:
     """GET `url`, retrying on a transient server error with exponential backoff.
 
     §151's build found `efts.sec.gov` occasionally 500s on an otherwise-valid request --
@@ -243,8 +243,11 @@ def _search_window(startdt: date, enddt: date, contact: str, sleep_s: float) -> 
         data = _get_json_with_retries(
             _FULLTEXT_URL,
             params={
-                "q": '"Item 1.03 Bankruptcy"', "forms": "8-K",
-                "startdt": startdt.isoformat(), "enddt": enddt.isoformat(), "from": frm,
+                "q": '"Item 1.03 Bankruptcy"',
+                "forms": "8-K",
+                "startdt": startdt.isoformat(),
+                "enddt": enddt.isoformat(),
+                "from": frm,
             },
             contact=contact,
         )
@@ -326,7 +329,11 @@ def _bankruptcy_events(start: str, end: str, contact: str, sleep_s: float = 3.0)
 
 
 def build_panel(
-    start: str, end: str, contact: str, cache_dir: Path, label_horizon_quarters: int = 4,
+    start: str,
+    end: str,
+    contact: str,
+    cache_dir: Path,
+    label_horizon_quarters: int = 4,
 ) -> pd.DataFrame:
     """Assemble the full panel: fundamentals, joined to a forward-looking bankruptcy label.
 
@@ -356,7 +363,10 @@ def build_panel(
     # exactly where the panel is newest. Caught before this panel was trusted, not after.
     events_end = _add_quarters(end, label_horizon_quarters)
     events = _bankruptcy_events(start, events_end, contact)
-    print(f"  {len(events)} bankruptcy disclosures in range (extended for the label horizon)", flush=True)
+    print(
+        f"  {len(events)} bankruptcy disclosures in range (extended for the label horizon)",
+        flush=True,
+    )
     horizon = pd.Timedelta(days=92 * label_horizon_quarters)
     panel["label"] = 0
     if len(events):
@@ -378,7 +388,8 @@ def main() -> None:
     p.add_argument("--start", default="2022q1", help="first quarter, e.g. 2022q1")
     p.add_argument("--end", default="2023q4", help="last quarter, e.g. 2023q4")
     p.add_argument(
-        "--contact", required=True,
+        "--contact",
+        required=True,
         help="descriptive User-Agent contact, e.g. 'fintfm-research you@example.com' -- "
         "required by SEC's own API guidance, not a credential",
     )

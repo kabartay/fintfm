@@ -43,9 +43,7 @@ def test_the_sampler_refuses_even_a_valid_panel():
 
 
 def test_p_real_lendingclub_zero_never_touches_the_panel_path():
-    cfg = PriorConfig(
-        p_real_lendingclub=0.0, real_lendingclub_panel_path="/does/not/exist.parquet"
-    )
+    cfg = PriorConfig(p_real_lendingclub=0.0, real_lendingclub_panel_path="/does/not/exist.parquet")
     rng = np.random.default_rng(6)
     for _ in range(20):
         sample_task(rng, cfg, n_rows=32)  # must not raise
@@ -60,10 +58,16 @@ def test_a_positive_p_real_lendingclub_is_refused_before_any_draw(tmp_path):
     with pytest.raises(RetiredSourceError, match="lending_club_1m"):
         sample_batch(np.random.default_rng(7), cfg, batch_size=4)
     with pytest.raises(RetiredSourceError):
-        sample_task(np.random.default_rng(7), PriorConfig(
-            p_real_lendingclub=1.0, max_features=20, real_lendingclub_panel_path=str(path),
+        sample_task(
+            np.random.default_rng(7),
+            PriorConfig(
+                p_real_lendingclub=1.0,
+                max_features=20,
+                real_lendingclub_panel_path=str(path),
+                n_rows=40,
+            ),
             n_rows=40,
-        ), n_rows=40)
+        )
 
 
 def test_a_real_lendingclub_source_weight_is_refused():

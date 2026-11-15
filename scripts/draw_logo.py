@@ -5,6 +5,7 @@ Pillow is deliberately not a fintfm dependency or extra: this is a one-off scrip
 
 FinTFM mark: a table whose labelled rows are the context, read in one forward pass,
 and a new row whose last cell is the predicted default probability."""
+
 import sys
 
 from PIL import Image, ImageDraw
@@ -12,18 +13,25 @@ from PIL import Image, ImageDraw
 S = 1024
 img = Image.new("RGBA", (S, S), (0, 0, 0, 0))
 d = ImageDraw.Draw(img)
-bg, gold, white, dim, dim2 = (15, 26, 43, 255), (242, 177, 52, 255), (240, 244, 248, 255), (70, 90, 115, 255), (48, 64, 86, 255)
+bg, gold, white, dim, dim2 = (
+    (15, 26, 43, 255),
+    (242, 177, 52, 255),
+    (240, 244, 248, 255),
+    (70, 90, 115, 255),
+    (48, 64, 86, 255),
+)
 d.rounded_rectangle([0, 0, S - 1, S - 1], radius=200, fill=bg)
 cols, rows = 3, 4
 x0, y0, cw, ch, gx, gy = 168, 269, 150, 96, 30, 34
 for r in range(rows):
     for c in range(cols):
-        x = x0 + c * (cw + gx); y = y0 + r * (ch + gy)
+        x = x0 + c * (cw + gx)
+        y = y0 + r * (ch + gy)
         box = [x, y, x + cw, y + ch]
         last = c == cols - 1
-        if r < rows - 1:                       # context rows: features dim, label column bright
+        if r < rows - 1:  # context rows: features dim, label column bright
             d.rounded_rectangle(box, radius=22, fill=white if last else dim)
-        else:                                  # the new row: features outlined, label predicted
+        else:  # the new row: features outlined, label predicted
             if last:
                 d.rounded_rectangle(box, radius=22, fill=gold)
             else:

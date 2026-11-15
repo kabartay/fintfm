@@ -38,7 +38,8 @@ def _write(tmp_path, name: str, panel: pd.DataFrame) -> str:
 def test_parse_accepts_well_formed_specs():
     assert parse_real_panels("") == ()
     assert parse_real_panels("a/panel.parquet=0.25, b/panel.parquet=1") == (
-        ("a/panel.parquet", 0.25), ("b/panel.parquet", 1.0),
+        ("a/panel.parquet", 0.25),
+        ("b/panel.parquet", 1.0),
     )
 
 
@@ -156,8 +157,11 @@ def test_evaluation_only_sources_are_refused_at_parse_and_at_sampling(tmp_path, 
     with pytest.raises(ValueError, match="evaluation-only"):
         sample_real_panel_task(np.random.default_rng(0), 50, panel_path=path, max_features=20)
     with pytest.raises(ValueError, match="evaluation-only"):
-        sample_task(np.random.default_rng(0), PriorConfig(real_panels=f"{path}=1.0",
-                                                          max_features=20, n_rows=50), n_rows=50)
+        sample_task(
+            np.random.default_rng(0),
+            PriorConfig(real_panels=f"{path}=1.0", max_features=20, n_rows=50),
+            n_rows=50,
+        )
 
 
 def test_a_benchmark_source_is_refused_on_the_generic_panel_route(tmp_path):
@@ -175,11 +179,18 @@ def test_evaluation_only_sources_match_the_registry():
 
     registry = pd.read_csv(
         Path(__file__).resolve().parents[1] / "docs" / "research" / "data_candidates.csv",
-        dtype=str, keep_default_na=False,
+        dtype=str,
+        keep_default_na=False,
     )
     eval_only = registry[registry["verdict"] == "EVAL_ONLY"]
-    keys = {"ppdai": "ppdai", "bondora": "bondora", "ulb_fraud": "ulb", "sba": "sba",
-            "fdic": "fdic", "estonia": "estonian"}
+    keys = {
+        "ppdai": "ppdai",
+        "bondora": "bondora",
+        "ulb_fraud": "ulb",
+        "sba": "sba",
+        "fdic": "fdic",
+        "estonia": "estonian",
+    }
     assert set(keys) == EVAL_ONLY_SOURCES
     assert len(eval_only) == len(EVAL_ONLY_SOURCES)
     for key, token in keys.items():
@@ -220,11 +231,19 @@ def test_training_on_a_learnable_panel_decreases_loss(tmp_path, monkeypatch):
     path = _write(tmp_path, "learnable", pd.DataFrame(data))
 
     model_cfg = ModelConfig(
-        max_features=10, max_classes=2, d_cell=16, d_model=32, n_heads=2,
-        n_col_layers=1, n_layers=1, d_ff=32,
+        max_features=10,
+        max_classes=2,
+        d_cell=16,
+        d_model=32,
+        n_heads=2,
+        n_col_layers=1,
+        n_layers=1,
+        d_ff=32,
     )
     prior_cfg = PriorConfig(max_features=10, max_classes=2, n_rows=64, real_panels=f"{path}=1.0")
-    train_cfg = TrainConfig(steps=60, batch_size=4, eval_every=1000, log_every=1000, device="cpu", seed=0)
+    train_cfg = TrainConfig(
+        steps=60, batch_size=4, eval_every=1000, log_every=1000, device="cpu", seed=0
+    )
 
     losses: list[float] = []
     orig = FinancialTFM.loss

@@ -24,8 +24,13 @@ WORKER = Path(__file__).resolve().parent / "lightgbm_tuned.py"
 
 
 def run_tuned(
-    arrays: dict[str, np.ndarray], n_configs: int = 30, budget_s: float | None = 720.0,
-    seed: int = 0, threads: int = 2, timeout: float | None = None, predictions: bool = False,
+    arrays: dict[str, np.ndarray],
+    n_configs: int = 30,
+    budget_s: float | None = 720.0,
+    seed: int = 0,
+    threads: int = 2,
+    timeout: float | None = None,
+    predictions: bool = False,
 ) -> dict[str, Any] | None:
     """Tune and score one split in the torch-free worker.
 
@@ -49,18 +54,34 @@ def run_tuned(
         npz, out = Path(tmp) / "d.npz", Path(tmp) / "r.json"
         pred = Path(tmp) / "p.npy"
         np.savez(npz, **arrays)
-        argv = ["nice", "-n", "19", sys.executable, str(WORKER), str(npz), str(out),
-                str(n_configs), "inf" if budget_s is None else str(budget_s), str(seed)]
+        argv = [
+            "nice",
+            "-n",
+            "19",
+            sys.executable,
+            str(WORKER),
+            str(npz),
+            str(out),
+            str(n_configs),
+            "inf" if budget_s is None else str(budget_s),
+            str(seed),
+        ]
         if predictions:
             argv.append(str(pred))
         proc = subprocess.run(
-            argv, capture_output=True, text=True, check=False, timeout=timeout,
+            argv,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=timeout,
             env={**os.environ, "OMP_NUM_THREADS": str(threads), "MKL_NUM_THREADS": str(threads)},
         )
         if proc.returncode != 0 or not out.exists():
             tail = (proc.stderr or "").strip().splitlines()
-            print(f"  tuned lightgbm failed: {tail[-1][:160] if tail else proc.returncode}",
-                  flush=True)
+            print(
+                f"  tuned lightgbm failed: {tail[-1][:160] if tail else proc.returncode}",
+                flush=True,
+            )
             return None
         res = json.loads(out.read_text())
         if predictions:

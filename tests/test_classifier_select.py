@@ -34,8 +34,16 @@ def _capped_model(max_classes: int = 3) -> FinancialTFM:
     """
     torch.manual_seed(0)
     return FinancialTFM(
-        ModelConfig(max_features=CAP, max_classes=max_classes, d_model=16, d_cell=8,
-                    n_heads=2, n_layers=1, n_col_layers=1, d_ff=32)
+        ModelConfig(
+            max_features=CAP,
+            max_classes=max_classes,
+            d_model=16,
+            d_cell=8,
+            n_heads=2,
+            n_layers=1,
+            n_col_layers=1,
+            d_ff=32,
+        )
     )
 
 
@@ -116,7 +124,9 @@ def test_select_keeps_the_signal_columns_and_beats_subsample(monkeypatch):
 def test_select_works_for_binary_and_multiclass(n_classes, method):
     Xtr, ytr, Xq, _, signal = _signal_task(n=400, n_feat=60, n_classes=n_classes)
     clf = FinancialTFMClassifier(
-        _capped_model(3), max_context=200, max_features_strategy="select",
+        _capped_model(3),
+        max_context=200,
+        max_features_strategy="select",
         select_method=method,
     ).fit(Xtr, ytr)
     assert clf.n_features_in_ == 60
@@ -158,8 +168,12 @@ def test_select_is_deterministic_under_random_state():
     def run(seed: int) -> tuple[np.ndarray, np.ndarray]:
         """Columns and predictions of a ``select`` fit at ``seed``."""
         clf = FinancialTFMClassifier(
-            model, max_context=100, max_features_strategy="select", random_state=seed,
-            n_ensemble=2, select_subsample=150,
+            model,
+            max_context=100,
+            max_features_strategy="select",
+            random_state=seed,
+            n_ensemble=2,
+            select_subsample=150,
         ).fit(Xtr, ytr)
         return clf.selected_columns_, clf.predict_proba(Xq)
 
@@ -195,7 +209,8 @@ def test_select_combines_with_an_ensemble_and_the_whole_row_methods():
     cols = clf.selected_columns_
     by_hand = [
         FinancialTFMClassifier(clf.model_, max_context=100, random_state=i)
-        .fit(Xtr[:, cols], ytr).predict_proba(Xq[:, cols])
+        .fit(Xtr[:, cols], ytr)
+        .predict_proba(Xq[:, cols])
         for i in range(3)
     ]
     np.testing.assert_array_equal(clf.predict_proba(Xq), np.mean(by_hand, axis=0))
@@ -219,8 +234,7 @@ def test_select_drops_constant_columns_before_ranking():
     sel = ColumnSelector(CAP).fit(X, y)
     assert sel.columns_.size == CAP and 4 in sel.columns_
     assert not np.isin([0, 5, 7, 9], sel.columns_).any()
-    clf = FinancialTFMClassifier(_capped_model(2), max_context=100,
-                                 max_features_strategy="select")
+    clf = FinancialTFMClassifier(_capped_model(2), max_context=100, max_features_strategy="select")
     with pytest.raises(ValueError, match="every column constant"):
         clf.fit(np.ones((50, 20), dtype=np.float32), y[:50])
 

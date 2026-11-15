@@ -53,27 +53,75 @@ import pandas as pd
 #: Column names for the origination file, in file order (31 columns, verified against the
 #: current user guide and a real sample row's field count -- see module docstring).
 _ORIG_COLUMNS = (
-    "credit_score", "first_payment_date", "first_time_homebuyer", "maturity_date", "msa",
-    "mi_pct", "num_units", "occupancy_status", "original_cltv", "original_dti", "original_upb",
-    "original_ltv", "original_interest_rate", "channel", "ppm_flag", "amortization_type",
-    "property_state", "property_type", "postal_code", "loan_id", "loan_purpose",
-    "original_loan_term", "num_borrowers", "seller_name", "super_conforming_flag",
-    "pre_harp_loan_id", "special_eligibility_program", "harp_indicator",
-    "property_valuation_method", "interest_only", "vantage_score",
+    "credit_score",
+    "first_payment_date",
+    "first_time_homebuyer",
+    "maturity_date",
+    "msa",
+    "mi_pct",
+    "num_units",
+    "occupancy_status",
+    "original_cltv",
+    "original_dti",
+    "original_upb",
+    "original_ltv",
+    "original_interest_rate",
+    "channel",
+    "ppm_flag",
+    "amortization_type",
+    "property_state",
+    "property_type",
+    "postal_code",
+    "loan_id",
+    "loan_purpose",
+    "original_loan_term",
+    "num_borrowers",
+    "seller_name",
+    "super_conforming_flag",
+    "pre_harp_loan_id",
+    "special_eligibility_program",
+    "harp_indicator",
+    "property_valuation_method",
+    "interest_only",
+    "vantage_score",
 )
 
 #: Column names for the monthly performance file, in file order (35 columns).
 _PERF_COLUMNS = (
-    "loan_id", "period", "current_actual_upb", "current_delinquency_status", "loan_age",
-    "remaining_months_to_maturity", "defect_settlement_date", "modification_flag",
-    "zero_balance_code", "zero_balance_effective_date", "current_interest_rate",
-    "current_non_interest_bearing_upb", "ddlpi", "mi_recoveries", "net_sales_proceeds",
-    "non_mi_recoveries", "total_expenses", "legal_costs", "maintenance_costs",
-    "taxes_and_insurance", "misc_expenses", "actual_loss", "cumulative_modification_costs",
-    "interest_rate_step_indicator", "payment_deferral_flag", "eltv",
-    "zero_balance_removal_upb", "delinquent_accrued_interest", "delinquency_due_to_disaster",
-    "borrower_assistance_plan", "current_period_modification_costs",
-    "current_interest_bearing_upb", "mi_cancellation_indicator", "servicer_name",
+    "loan_id",
+    "period",
+    "current_actual_upb",
+    "current_delinquency_status",
+    "loan_age",
+    "remaining_months_to_maturity",
+    "defect_settlement_date",
+    "modification_flag",
+    "zero_balance_code",
+    "zero_balance_effective_date",
+    "current_interest_rate",
+    "current_non_interest_bearing_upb",
+    "ddlpi",
+    "mi_recoveries",
+    "net_sales_proceeds",
+    "non_mi_recoveries",
+    "total_expenses",
+    "legal_costs",
+    "maintenance_costs",
+    "taxes_and_insurance",
+    "misc_expenses",
+    "actual_loss",
+    "cumulative_modification_costs",
+    "interest_rate_step_indicator",
+    "payment_deferral_flag",
+    "eltv",
+    "zero_balance_removal_upb",
+    "delinquent_accrued_interest",
+    "delinquency_due_to_disaster",
+    "borrower_assistance_plan",
+    "current_period_modification_costs",
+    "current_interest_bearing_upb",
+    "mi_cancellation_indicator",
+    "servicer_name",
     "bankruptcy_cramdown_costs",
 )
 
@@ -87,16 +135,43 @@ _DISTRESS_ZERO_BALANCE_CODES = ("03", "09")
 #: vintage range expose the same columns in the same positions (mirrors
 #: `fintfm.prior.real_edgar.feature_columns`'s stability requirement).
 ORIGINATION_FEATURE_COLUMNS: tuple[str, ...] = (
-    "credit_score", "first_time_homebuyer", "msa", "mi_pct", "num_units",
-    "occ_primary", "occ_investment", "occ_second_home",
-    "original_cltv", "original_dti", "original_upb", "original_ltv", "original_interest_rate",
-    "chan_retail", "chan_broker", "chan_correspondent", "chan_third_party",
-    "ppm_flag", "is_arm", "original_loan_term", "num_borrowers", "super_conforming_flag",
-    "special_elig_home_possible", "special_elig_hfa_advantage", "special_elig_refi_possible",
-    "harp_indicator", "property_valuation_method", "interest_only", "vantage_score",
-    "loan_purpose_purchase", "loan_purpose_cashout_refi", "loan_purpose_nocashout_refi",
+    "credit_score",
+    "first_time_homebuyer",
+    "msa",
+    "mi_pct",
+    "num_units",
+    "occ_primary",
+    "occ_investment",
+    "occ_second_home",
+    "original_cltv",
+    "original_dti",
+    "original_upb",
+    "original_ltv",
+    "original_interest_rate",
+    "chan_retail",
+    "chan_broker",
+    "chan_correspondent",
+    "chan_third_party",
+    "ppm_flag",
+    "is_arm",
+    "original_loan_term",
+    "num_borrowers",
+    "super_conforming_flag",
+    "special_elig_home_possible",
+    "special_elig_hfa_advantage",
+    "special_elig_refi_possible",
+    "harp_indicator",
+    "property_valuation_method",
+    "interest_only",
+    "vantage_score",
+    "loan_purpose_purchase",
+    "loan_purpose_cashout_refi",
+    "loan_purpose_nocashout_refi",
     "loan_purpose_refi_unspecified",
-    "property_type_sf", "property_type_co", "property_type_pu", "property_type_cp",
+    "property_type_sf",
+    "property_type_co",
+    "property_type_pu",
+    "property_type_cp",
     "property_type_mh",
 )
 
@@ -117,7 +192,9 @@ def _na(series: pd.Series, sentinel: str) -> pd.Series:
     return out.mask(series == sentinel)
 
 
-def _one_hot(series: pd.Series, mapping: dict[str, str], unavailable: tuple[str, ...]) -> pd.DataFrame:
+def _one_hot(
+    series: pd.Series, mapping: dict[str, str], unavailable: tuple[str, ...]
+) -> pd.DataFrame:
     """Turn one lettered/coded column into several 0/1 indicator columns.
 
     Args:
@@ -154,21 +231,30 @@ def _parse_origination(path: Path) -> pd.DataFrame:
     out["msa"] = pd.to_numeric(raw["msa"].replace("", np.nan), errors="coerce")
     out["mi_pct"] = _na(raw["mi_pct"], "999")
     out["num_units"] = _na(raw["num_units"], "99")
-    out = out.join(_one_hot(
-        raw["occupancy_status"],
-        {"P": "occ_primary", "I": "occ_investment", "S": "occ_second_home"},
-        unavailable=("9",),
-    ))
+    out = out.join(
+        _one_hot(
+            raw["occupancy_status"],
+            {"P": "occ_primary", "I": "occ_investment", "S": "occ_second_home"},
+            unavailable=("9",),
+        )
+    )
     out["original_cltv"] = _na(raw["original_cltv"], "999")
     out["original_dti"] = _na(raw["original_dti"], "999")
     out["original_upb"] = pd.to_numeric(raw["original_upb"], errors="coerce")
     out["original_ltv"] = _na(raw["original_ltv"], "999")
     out["original_interest_rate"] = pd.to_numeric(raw["original_interest_rate"], errors="coerce")
-    out = out.join(_one_hot(
-        raw["channel"],
-        {"R": "chan_retail", "B": "chan_broker", "C": "chan_correspondent", "T": "chan_third_party"},
-        unavailable=("9",),
-    ))
+    out = out.join(
+        _one_hot(
+            raw["channel"],
+            {
+                "R": "chan_retail",
+                "B": "chan_broker",
+                "C": "chan_correspondent",
+                "T": "chan_third_party",
+            },
+            unavailable=("9",),
+        )
+    )
     out["ppm_flag"] = raw["ppm_flag"].map({"Y": 1.0, "N": 0.0})
     out["is_arm"] = raw["amortization_type"].map({"FRM": 0.0, "ARM": 1.0})
     out["original_loan_term"] = pd.to_numeric(raw["original_loan_term"], errors="coerce")
@@ -185,22 +271,31 @@ def _parse_origination(path: Path) -> pd.DataFrame:
     out["property_valuation_method"] = _na(raw["property_valuation_method"], "7")
     out["interest_only"] = raw["interest_only"].map({"Y": 1.0, "N": 0.0})
     out["vantage_score"] = _na(raw["vantage_score"], "9999")
-    out = out.join(_one_hot(
-        raw["loan_purpose"],
-        {
-            "P": "loan_purpose_purchase", "C": "loan_purpose_cashout_refi",
-            "N": "loan_purpose_nocashout_refi", "R": "loan_purpose_refi_unspecified",
-        },
-        unavailable=("9",),
-    ))
-    out = out.join(_one_hot(
-        raw["property_type"],
-        {
-            "SF": "property_type_sf", "CO": "property_type_co", "PU": "property_type_pu",
-            "CP": "property_type_cp", "MH": "property_type_mh",
-        },
-        unavailable=("99",),
-    ))
+    out = out.join(
+        _one_hot(
+            raw["loan_purpose"],
+            {
+                "P": "loan_purpose_purchase",
+                "C": "loan_purpose_cashout_refi",
+                "N": "loan_purpose_nocashout_refi",
+                "R": "loan_purpose_refi_unspecified",
+            },
+            unavailable=("9",),
+        )
+    )
+    out = out.join(
+        _one_hot(
+            raw["property_type"],
+            {
+                "SF": "property_type_sf",
+                "CO": "property_type_co",
+                "PU": "property_type_pu",
+                "CP": "property_type_cp",
+                "MH": "property_type_mh",
+            },
+            unavailable=("99",),
+        )
+    )
     return out[["loan_id", *ORIGINATION_FEATURE_COLUMNS]]
 
 
@@ -223,8 +318,13 @@ def _parse_distress_labels(path: Path) -> pd.DataFrame:
     loan_id_idx = _PERF_COLUMNS.index("loan_id")
     zbc_idx = _PERF_COLUMNS.index("zero_balance_code")
     raw = pd.read_csv(
-        path, sep="|", header=None, usecols=[loan_id_idx, zbc_idx],
-        names=["loan_id", "zero_balance_code"], dtype=str, na_filter=False,
+        path,
+        sep="|",
+        header=None,
+        usecols=[loan_id_idx, zbc_idx],
+        names=["loan_id", "zero_balance_code"],
+        dtype=str,
+        na_filter=False,
     )
     is_distress = raw["zero_balance_code"].isin(_DISTRESS_ZERO_BALANCE_CODES)
     labels = is_distress.groupby(raw["loan_id"]).any().astype(np.int64)

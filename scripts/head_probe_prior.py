@@ -104,22 +104,33 @@ def main() -> None:
         task = sample_financial_task(rng, args.n_rows)
         order = rng.permutation(len(task.y))
         X, y = task.X[order], (task.y[order] > 0).astype(int)
-        cuts = [(0, args.n_ctx), (args.n_ctx, args.n_ctx + args.n_probe),
-                (args.n_ctx + args.n_probe, len(y))]
+        cuts = [
+            (0, args.n_ctx),
+            (args.n_ctx, args.n_ctx + args.n_probe),
+            (args.n_ctx + args.n_probe, len(y)),
+        ]
         if min(y[a:b].sum() for a, b in cuts) < args.min_pos:
             continue
         rows.append(score_task(clf_full, clf_ctx, X, y, args.n_ctx, args.n_probe))
         if len(rows) % 20 == 0:
             print(f"{len(rows)} tasks scored ({drawn} drawn)", flush=True)
 
-    summary: dict[str, object] = {"n_tasks": len(rows), "n_drawn": drawn, "args": vars(args) | {"out": str(args.out)}}
-    print(f"\n{len(rows)} tasks ({drawn} drawn), mean Q base rate {np.mean([r['rate'] for r in rows]):.3f}")
+    summary: dict[str, object] = {
+        "n_tasks": len(rows),
+        "n_drawn": drawn,
+        "args": vars(args) | {"out": str(args.out)},
+    }
+    print(
+        f"\n{len(rows)} tasks ({drawn} drawn), mean Q base rate {np.mean([r['rate'] for r in rows]):.3f}"
+    )
     for metric in ("ap", "auc"):
         m = {a: np.array([r[f"{a}_{metric}"] for r in rows]) for a in ("head", "probe", "raw_lr")}
         print(f"{metric.upper():>4}: " + "  ".join(f"{a} {v.mean():.4f}" for a, v in m.items()))
         for a, b in (("probe", "head"), ("head", "raw_lr"), ("probe", "raw_lr")):
             d = m[a] - m[b]
-            print(f"      {a} - {b}: {d.mean():+.4f}, wins {int((d > 0).sum())}, losses {int((d < 0).sum())}")
+            print(
+                f"      {a} - {b}: {d.mean():+.4f}, wins {int((d > 0).sum())}, losses {int((d < 0).sum())}"
+            )
             summary[f"{metric}_{a}_minus_{b}"] = float(d.mean())
         summary |= {f"{metric}_{a}": float(v.mean()) for a, v in m.items()}
     args.out.parent.mkdir(parents=True, exist_ok=True)

@@ -33,8 +33,15 @@ from fintfm.prior.mixture import PriorConfig, sample_batch
 #: Every synthetic classification source plus regression, so the default-path fingerprint
 #: passes through every branch the levers sit behind.
 _MIX = PriorConfig(
-    max_features=12, max_classes=5, n_rows_choices=(40, 64), p_tree=0.15, p_regression=0.1,
-    p_trivial=0.1, p_crossed=0.1, p_task_family=0.15, p_financial=0.5,
+    max_features=12,
+    max_classes=5,
+    n_rows_choices=(40, 64),
+    p_tree=0.15,
+    p_regression=0.1,
+    p_trivial=0.1,
+    p_crossed=0.1,
+    p_task_family=0.15,
+    p_financial=0.5,
 )
 
 
@@ -62,14 +69,21 @@ def test_default_stream_is_pinned_and_explicitly_off_levers_change_nothing():
     rng = np.random.default_rng(2026)
     got = [sample_batch(rng, _MIX, 4) for _ in range(4)]
     assert [(b.n_ctx, b.X.shape[1], b.n_classes.tolist()) for b in got] == [
-        (52, 64, [2, 2, 3, 5]), (26, 40, [2, 2, 2, 2]), (33, 40, [3, 2, 2, 3]),
+        (52, 64, [2, 2, 3, 5]),
+        (26, 40, [2, 2, 2, 2]),
+        (33, 40, [3, 2, 2, 3]),
         (31, 64, [2, 5, 5, 2]),
     ]
     assert rng.random() == 0.21560154636155637
 
     for off in (
-        replace(_MIX, permute_classes=False, feature_transforms=(), max_query_rows=None,
-                pad_to_batch_width=False),
+        replace(
+            _MIX,
+            permute_classes=False,
+            feature_transforms=(),
+            max_query_rows=None,
+            pad_to_batch_width=False,
+        ),
         replace(_MIX, feature_transforms=("none",)),
     ):
         rng = np.random.default_rng(2026)
@@ -83,8 +97,7 @@ def test_default_stream_is_pinned_and_explicitly_off_levers_change_nothing():
 
 def test_permutation_is_one_bijection_per_task_shared_by_context_and_query():
     y = np.array([0, 1, 2, 2, 1, 0, 2, 1, 0, 2], dtype=np.int64)
-    task = Task(X=np.zeros((10, 2), np.float32), y=y, n_classes=4,
-                is_categorical=np.zeros(2, bool))
+    task = Task(X=np.zeros((10, 2), np.float32), y=y, n_classes=4, is_categorical=np.zeros(2, bool))
     out = permute_task_classes(np.random.default_rng(1), task)
     assert out.n_classes == 4 and out.y.dtype == y.dtype
     assert set(out.y.tolist()) <= set(range(4))  # n_classes masking still valid
@@ -97,14 +110,25 @@ def test_permutation_is_one_bijection_per_task_shared_by_context_and_query():
 
 
 def test_permutation_leaves_regression_alone_and_refuses_survival():
-    reg = Task(X=np.zeros((6, 1), np.float32), y=np.zeros(6, np.int64), n_classes=3,
-               is_categorical=np.zeros(1, bool), y_continuous=np.arange(6.0))
+    reg = Task(
+        X=np.zeros((6, 1), np.float32),
+        y=np.zeros(6, np.int64),
+        n_classes=3,
+        is_categorical=np.zeros(1, bool),
+        y_continuous=np.arange(6.0),
+    )
     rng = np.random.default_rng(0)
     assert permute_task_classes(rng, reg) is reg
     assert rng.random() == np.random.default_rng(0).random()  # and consumed no draw
     period = np.array([0, CENSORED, 1, CENSORED])
-    surv = Task(X=np.zeros((4, 1), np.float32), y=(period != CENSORED).astype(np.int64),
-                n_classes=2, is_categorical=np.zeros(1, bool), period=period, n_horizons=2)
+    surv = Task(
+        X=np.zeros((4, 1), np.float32),
+        y=(period != CENSORED).astype(np.int64),
+        n_classes=2,
+        is_categorical=np.zeros(1, bool),
+        period=period,
+        n_horizons=2,
+    )
     with pytest.raises(ValueError, match="survival"):
         permute_task_classes(rng, surv)
 
@@ -191,8 +215,12 @@ def test_a_column_empty_in_the_context_is_conditioned_as_inference_conditions_it
 
 
 def test_feature_transform_none_is_the_identity():
-    task = Task(X=np.ones((5, 2), np.float32), y=np.zeros(5, np.int64), n_classes=2,
-                is_categorical=np.zeros(2, bool))
+    task = Task(
+        X=np.ones((5, 2), np.float32),
+        y=np.zeros(5, np.int64),
+        n_classes=2,
+        is_categorical=np.zeros(2, bool),
+    )
     assert condition_task_features(task, 3, "none") is task
 
 
@@ -205,8 +233,12 @@ def test_sample_batch_draws_every_listed_transform_on_the_batch_context(monkeypa
         return real(task, n_ctx, kind)
 
     monkeypatch.setattr(mixture, "condition_task_features", spy)
-    cfg = PriorConfig(max_features=6, max_classes=3, n_rows=32,
-                      feature_transforms=("none", "rank", "power", "winsor"))
+    cfg = PriorConfig(
+        max_features=6,
+        max_classes=3,
+        n_rows=32,
+        feature_transforms=("none", "rank", "power", "winsor"),
+    )
     rng = np.random.default_rng(1)
     for _ in range(8):
         b = sample_batch(rng, cfg, 4)
@@ -236,9 +268,14 @@ def test_max_query_rows_truncates_only_the_query_and_draws_nothing():
 
 def test_truncate_query_keeps_periods_and_continuous_targets_aligned():
     period = np.arange(10) % 3 - 1
-    task = Task(X=np.arange(20, dtype=np.float32).reshape(10, 2), y=np.zeros(10, np.int64),
-                n_classes=2, is_categorical=np.zeros(2, bool), period=period,
-                y_continuous=np.arange(10.0))
+    task = Task(
+        X=np.arange(20, dtype=np.float32).reshape(10, 2),
+        y=np.zeros(10, np.int64),
+        n_classes=2,
+        is_categorical=np.zeros(2, bool),
+        period=period,
+        y_continuous=np.arange(10.0),
+    )
     out = truncate_query(task, n_ctx=4, max_query_rows=3)
     assert out.n_rows == 7
     np.testing.assert_array_equal(out.period, period[:7])
@@ -250,8 +287,14 @@ def test_truncate_query_keeps_periods_and_continuous_targets_aligned():
 
 
 _DUMP_CFG = PriorConfig(
-    max_features=10, max_classes=4, n_rows_choices=(24, 40), p_financial=0.4, p_tree=0.2,
-    p_regression=0.1, permute_classes=True, feature_transforms=("none", "rank"),
+    max_features=10,
+    max_classes=4,
+    n_rows_choices=(24, 40),
+    p_financial=0.4,
+    p_tree=0.2,
+    p_regression=0.1,
+    permute_classes=True,
+    feature_transforms=("none", "rank"),
 )
 
 
@@ -268,8 +311,15 @@ def test_sequential_dump_replays_sample_batch_exactly(tmp_path):
 
 
 def test_per_shard_dump_draws_each_shard_from_its_own_generator(tmp_path):
-    write_task_dump(tmp_path / "d", _DUMP_CFG, seed=2, batch_size=2, n_batches=3, shard_size=2,
-                    stream="per_shard")
+    write_task_dump(
+        tmp_path / "d",
+        _DUMP_CFG,
+        seed=2,
+        batch_size=2,
+        n_batches=3,
+        shard_size=2,
+        stream="per_shard",
+    )
     dump = TaskDump.open(tmp_path / "d")
     for shard, indices in ((0, (0, 1)), (1, (2,))):
         rng = np.random.default_rng([2, shard])
@@ -299,8 +349,14 @@ def _assert_dumps_equal(a_dir, b_dir) -> None:
 def test_per_shard_dump_is_the_same_whatever_the_worker_count(tmp_path, compress):
     """AU5.15: each shard draws from ``default_rng([seed, shard])`` whichever process writes
     it, so two workers write exactly what one does (and compression is lossless)."""
-    kw = {"seed": 4, "batch_size": 2, "n_batches": 5, "shard_size": 2, "stream": "per_shard",
-          "compress": compress}
+    kw = {
+        "seed": 4,
+        "batch_size": 2,
+        "n_batches": 5,
+        "shard_size": 2,
+        "stream": "per_shard",
+        "compress": compress,
+    }
     write_task_dump(tmp_path / "k1", _DUMP_CFG, workers=1, **kw)
     write_task_dump(tmp_path / "k2", _DUMP_CFG, workers=2, **kw)
     _assert_dumps_equal(tmp_path / "k1", tmp_path / "k2")
@@ -321,17 +377,43 @@ def test_dump_script_workers_flag_writes_the_single_process_dump(tmp_path, capsy
     spec = importlib.util.spec_from_file_location("dump_prior_tasks", path)
     script = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(script)
-    common = ["--n-batches", "5", "--shard-size", "2", "--seed", "7", "--batch-size", "2",
-              "--n-rows", "24", "--max-features", "8", "--max-classes", "3",
-              "--stream", "per_shard", "--compress"]
+    common = [
+        "--n-batches",
+        "5",
+        "--shard-size",
+        "2",
+        "--seed",
+        "7",
+        "--batch-size",
+        "2",
+        "--n-rows",
+        "24",
+        "--max-features",
+        "8",
+        "--max-classes",
+        "3",
+        "--stream",
+        "per_shard",
+        "--compress",
+    ]
     script.main(["--out", str(tmp_path / "k1"), "--workers", "1", *common])
     script.main(["--out", str(tmp_path / "k2"), "--workers", "2", *common])
     out = capsys.readouterr().out
     assert "workers 2, compress True" in out and "load average" in out
     _assert_dumps_equal(tmp_path / "k1", tmp_path / "k2")
     with pytest.raises(SystemExit):  # the sequential stream is one generator
-        script.main(["--out", str(tmp_path / "s"), "--workers", "2", "--n-batches", "2",
-                     "--stream", "sequential"])
+        script.main(
+            [
+                "--out",
+                str(tmp_path / "s"),
+                "--workers",
+                "2",
+                "--n-batches",
+                "2",
+                "--stream",
+                "sequential",
+            ]
+        )
 
 
 def test_survival_dump_carries_periods(tmp_path):
@@ -365,15 +447,26 @@ def test_training_from_a_sequential_dump_matches_live_sampling(tmp_path):
     from fintfm.modeling.model import ModelConfig
     from fintfm.modeling.train import TrainConfig, train
 
-    model_cfg = ModelConfig(max_features=8, max_classes=2, d_cell=8, d_model=16, n_layers=1,
-                            n_col_layers=1, n_heads=2)
+    model_cfg = ModelConfig(
+        max_features=8, max_classes=2, d_cell=8, d_model=16, n_layers=1, n_col_layers=1, n_heads=2
+    )
     prior_cfg = PriorConfig(max_features=8, max_classes=2, n_rows=32)
-    common = {"steps": 4, "batch_size": 2, "eval_every": 1000, "log_every": 1000,
-              "device": "cpu", "seed": 3}
+    common = {
+        "steps": 4,
+        "batch_size": 2,
+        "eval_every": 1000,
+        "log_every": 1000,
+        "device": "cpu",
+        "seed": 3,
+    }
     write_task_dump(tmp_path / "d", prior_cfg, seed=3, batch_size=2, n_batches=4)
     live = train(model_cfg, prior_cfg, TrainConfig(**common), str(tmp_path / "live.pt"))
-    dumped = train(model_cfg, prior_cfg, TrainConfig(**common, task_dump=str(tmp_path / "d")),
-                   str(tmp_path / "dumped.pt"))
+    dumped = train(
+        model_cfg,
+        prior_cfg,
+        TrainConfig(**common, task_dump=str(tmp_path / "d")),
+        str(tmp_path / "dumped.pt"),
+    )
     for (name, a), (_, b) in zip(live.state_dict().items(), dumped.state_dict().items()):
         assert torch.equal(a, b), f"{name} differs between live and dumped batches"
 
@@ -415,8 +508,11 @@ def test_code_fingerprint_covers_the_prior_and_preprocessing_files(tmp_path):
     from fintfm.prior import dump as dump_mod
 
     root = tmp_path / "fintfm"
-    shutil.copytree(dump_mod._PACKAGE_ROOT / "prior", root / "prior",
-                    ignore=shutil.ignore_patterns("__pycache__"))
+    shutil.copytree(
+        dump_mod._PACKAGE_ROOT / "prior",
+        root / "prior",
+        ignore=shutil.ignore_patterns("__pycache__"),
+    )
     (root / "inference").mkdir()
     shutil.copy(dump_mod._PACKAGE_ROOT / "inference" / "preprocess.py", root / "inference")
     (root / "inference" / "classifier.py").write_text("x = 1\n")
@@ -433,9 +529,7 @@ def test_code_fingerprint_covers_the_prior_and_preprocessing_files(tmp_path):
     assert dump_mod.code_fingerprint(root) == base
 
 
-def test_training_from_a_dump_records_its_manifest_and_honours_the_override(
-    tmp_path, monkeypatch
-):
+def test_training_from_a_dump_records_its_manifest_and_honours_the_override(tmp_path, monkeypatch):
     """A run from a dump records the dump's manifest hash; after a prior edit the run is
     refused unless ``task_dump_allow_code_mismatch`` is set."""
     import hashlib
@@ -445,17 +539,28 @@ def test_training_from_a_dump_records_its_manifest_and_honours_the_override(
     from fintfm.prior import dump as dump_mod
     from fintfm.provenance import read_checkpoint_provenance
 
-    model_cfg = ModelConfig(max_features=8, max_classes=2, d_cell=8, d_model=16, n_layers=1,
-                            n_col_layers=1, n_heads=2)
+    model_cfg = ModelConfig(
+        max_features=8, max_classes=2, d_cell=8, d_model=16, n_layers=1, n_col_layers=1, n_heads=2
+    )
     prior_cfg = PriorConfig(max_features=8, max_classes=2, n_rows=32)
-    common = {"steps": 2, "batch_size": 2, "eval_every": 1000, "log_every": 1000, "seed": 3,
-              "task_dump": str(tmp_path / "d")}
+    common = {
+        "steps": 2,
+        "batch_size": 2,
+        "eval_every": 1000,
+        "log_every": 1000,
+        "seed": 3,
+        "task_dump": str(tmp_path / "d"),
+    }
     write_task_dump(tmp_path / "d", prior_cfg, seed=3, batch_size=2, n_batches=2)
     monkeypatch.setattr(dump_mod, "code_fingerprint", lambda package_root=None: "f" * 64)
     with pytest.raises(ValueError, match="different prior code"):
         train(model_cfg, prior_cfg, TrainConfig(**common), str(tmp_path / "x.pt"))
-    train(model_cfg, prior_cfg, TrainConfig(**common, task_dump_allow_code_mismatch=True),
-          str(tmp_path / "m.pt"))
+    train(
+        model_cfg,
+        prior_cfg,
+        TrainConfig(**common, task_dump_allow_code_mismatch=True),
+        str(tmp_path / "m.pt"),
+    )
     rec = read_checkpoint_provenance(tmp_path / "m.pt")
     want = hashlib.sha256((tmp_path / "d" / "manifest.json").read_bytes()).hexdigest()
     assert rec["task_dump"]["manifest_sha256"] == want
@@ -469,16 +574,32 @@ def test_lever_flags_resolve_over_the_config_section():
 
     p = argparse.ArgumentParser()
     add_prior_lever_arguments(p)
-    section = PriorConfigDefaults(permute_classes=True, feature_transforms=("rank",),
-                                  max_query_rows=7, pad_to_batch_width=True)
+    section = PriorConfigDefaults(
+        permute_classes=True,
+        feature_transforms=("rank",),
+        max_query_rows=7,
+        pad_to_batch_width=True,
+    )
     assert prior_lever_values(p.parse_args([]), section) == {
-        "permute_classes": True, "feature_transforms": ("rank",), "max_query_rows": 7,
+        "permute_classes": True,
+        "feature_transforms": ("rank",),
+        "max_query_rows": 7,
         "pad_to_batch_width": True,
     }
-    args = p.parse_args(["--no-permute-classes", "--feature-transforms", "none, power",
-                         "--max-query-rows", "3", "--no-pad-to-batch-width"])
+    args = p.parse_args(
+        [
+            "--no-permute-classes",
+            "--feature-transforms",
+            "none, power",
+            "--max-query-rows",
+            "3",
+            "--no-pad-to-batch-width",
+        ]
+    )
     assert prior_lever_values(args, section) == {
-        "permute_classes": False, "feature_transforms": ("none", "power"), "max_query_rows": 3,
+        "permute_classes": False,
+        "feature_transforms": ("none", "power"),
+        "max_query_rows": 3,
         "pad_to_batch_width": False,
     }
 
@@ -491,8 +612,12 @@ def _task(n_rows: int, n_features: int, seed: int) -> Task:
     rng = np.random.default_rng(seed)
     X = rng.normal(size=(n_rows, n_features)).astype(np.float32)
     X[rng.random(X.shape) < 0.1] = np.nan
-    return Task(X=X, y=rng.integers(0, 2, n_rows), n_classes=2,
-                is_categorical=np.zeros(n_features, dtype=bool))
+    return Task(
+        X=X,
+        y=rng.integers(0, 2, n_rows),
+        n_classes=2,
+        is_categorical=np.zeros(n_features, dtype=bool),
+    )
 
 
 def test_collate_pads_to_the_widest_task_only_when_asked():
@@ -547,8 +672,18 @@ _WIDTH_ARCHS = {
 def _width_model(**arch: object) -> FinancialTFM:
     """A seeded tiny model at ``max_features=12`` in eval mode."""
     torch.manual_seed(0)
-    cfg = ModelConfig(max_features=12, max_classes=5, d_cell=16, d_model=32, n_heads=2,
-                      n_layers=1, n_col_layers=1, d_ff=64, column_id_dim=4, **arch)
+    cfg = ModelConfig(
+        max_features=12,
+        max_classes=5,
+        d_cell=16,
+        d_model=32,
+        n_heads=2,
+        n_layers=1,
+        n_col_layers=1,
+        d_ff=64,
+        column_id_dim=4,
+        **arch,
+    )
     return FinancialTFM(cfg).eval()
 
 
@@ -622,14 +757,31 @@ def test_a_training_step_at_batch_width_matches_full_width(full_width_ids):
 def test_fintfm_train_sets_the_full_width_draw_from_the_prior(tmp_path):
     from fintfm.modeling.train import TrainConfig, benchmark, train
 
-    model_cfg = ModelConfig(max_features=12, max_classes=5, d_cell=8, d_model=16, n_layers=1,
-                            n_col_layers=1, n_heads=2, d_ff=32, n_cell_blocks=1,
-                            cell_labels=True)
-    common = {"steps": 2, "batch_size": 3, "eval_every": 1, "log_every": 1000,
-              "device": "cpu", "seed": 4}
+    model_cfg = ModelConfig(
+        max_features=12,
+        max_classes=5,
+        d_cell=8,
+        d_model=16,
+        n_layers=1,
+        n_col_layers=1,
+        n_heads=2,
+        d_ff=32,
+        n_cell_blocks=1,
+        cell_labels=True,
+    )
+    common = {
+        "steps": 2,
+        "batch_size": 3,
+        "eval_every": 1,
+        "log_every": 1000,
+        "device": "cpu",
+        "seed": 4,
+    }
     narrow_cfg = replace(_MIX, pad_to_batch_width=True)
-    assert not train(model_cfg, _MIX, TrainConfig(**common),
-                     str(tmp_path / "f.pt")).column_ids_full_width
-    assert train(model_cfg, narrow_cfg, TrainConfig(**common),
-                 str(tmp_path / "n.pt")).column_ids_full_width
+    assert not train(
+        model_cfg, _MIX, TrainConfig(**common), str(tmp_path / "f.pt")
+    ).column_ids_full_width
+    assert train(
+        model_cfg, narrow_cfg, TrainConfig(**common), str(tmp_path / "n.pt")
+    ).column_ids_full_width
     assert benchmark(model_cfg, narrow_cfg, TrainConfig(**common), n_steps=1, warmup=0)["steps"]

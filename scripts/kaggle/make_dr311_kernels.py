@@ -130,15 +130,28 @@ def render(arm: str, group: str, commit: str) -> tuple[str, dict]:
         ``(kernel source, kernel-metadata dict)``.
     """
     slug = f"task_dr311_{arm}_{group}"
-    src = TEMPLATE.format(arm=f"dr311-{arm}-{group}", folds=ARM_GROUPS[arm][group],
-                          commit=commit, config=config_text(arm), placeholder=PLACEHOLDER)
+    src = TEMPLATE.format(
+        arm=f"dr311-{arm}-{group}",
+        folds=ARM_GROUPS[arm][group],
+        commit=commit,
+        config=config_text(arm),
+        placeholder=PLACEHOLDER,
+    )
     kid = slug.replace("_", "-")
     meta = {
-        "id": f"muhakabartay/fintfm-{kid}", "title": f"fintfm-{kid}", "code_file": f"{slug}.py",
-        "language": "python", "kernel_type": "script", "is_private": "true",
-        "enable_gpu": "true", "enable_tpu": "false", "enable_internet": "true",
+        "id": f"muhakabartay/fintfm-{kid}",
+        "title": f"fintfm-{kid}",
+        "code_file": f"{slug}.py",
+        "language": "python",
+        "kernel_type": "script",
+        "is_private": "true",
+        "enable_gpu": "true",
+        "enable_tpu": "false",
+        "enable_internet": "true",
         "dataset_sources": ["sebastiantomczak10/v4-group-corporate-bankruptcy"],
-        "competition_sources": [], "kernel_sources": [], "model_sources": [],
+        "competition_sources": [],
+        "kernel_sources": [],
+        "model_sources": [],
     }
     return src, meta
 

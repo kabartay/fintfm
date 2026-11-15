@@ -109,7 +109,12 @@ def make_task(name: str, n_ctx: int, n_q: int, n_features: int, seed: int) -> Si
         if 0 < y[:n_ctx].sum() < n_ctx and 0 < y[n_ctx:].sum() < n_q:
             break
     return SimpleTask(
-        name, X[:n_ctx], y[:n_ctx], X[n_ctx:], y[n_ctx:], rule_score(name, X[n_ctx:]),
+        name,
+        X[:n_ctx],
+        y[:n_ctx],
+        X[n_ctx:],
+        y[n_ctx:],
+        rule_score(name, X[n_ctx:]),
         tuple(sorted(rule)),
     )
 
@@ -119,8 +124,12 @@ def _auc(model: FinancialTFM, task: SimpleTask, X_q: np.ndarray, seed: int, fitt
     clf = fitted
     if clf is None:
         clf = FinancialTFMClassifier(
-            model, max_context=len(task.y_ctx), context_strategy="uniform",
-            feature_transform="rank", n_ensemble=1, random_state=seed,
+            model,
+            max_context=len(task.y_ctx),
+            context_strategy="uniform",
+            feature_transform="rank",
+            n_ensemble=1,
+            random_state=seed,
         ).fit(task.X_ctx, task.y_ctx)
     return float(roc_auc_score(task.y_q, clf.predict_proba(X_q)[:, 1])), clf
 
@@ -177,7 +186,11 @@ def recovery(drop: np.ndarray, true_cols: tuple[int, ...]) -> dict[str, object]:
 
 
 def run(
-    model_path: str, ctx_sizes: list[int], seeds: list[int], n_features: int, n_q: int,
+    model_path: str,
+    ctx_sizes: list[int],
+    seeds: list[int],
+    n_features: int,
+    n_q: int,
     n_perm: int,
 ) -> list[dict[str, object]]:
     """Score every task at every context size and seed.
@@ -205,7 +218,9 @@ def run(
                 base, drop = ablation_importance(model, task, seed, n_perm)
                 lr = LogisticRegression(max_iter=1000).fit(task.X_ctx, task.y_ctx)
                 rec = {
-                    "task": name, "n_ctx": n_ctx, "seed": seed,
+                    "task": name,
+                    "n_ctx": n_ctx,
+                    "seed": seed,
                     "auc_checkpoint": base,
                     "auc_logreg": float(roc_auc_score(task.y_q, lr.predict_proba(task.X_q)[:, 1])),
                     "auc_oracle": float(roc_auc_score(task.y_q, task.score_q)),
@@ -215,8 +230,11 @@ def run(
                     **recovery(drop, task.true_cols),
                 }
                 rows.append(rec)
-                print(f"{name} n_ctx={n_ctx} seed={seed} auc={base:.3f} "
-                      f"top={rec['top_col']} ({time.time() - t0:.0f}s)", flush=True)
+                print(
+                    f"{name} n_ctx={n_ctx} seed={seed} auc={base:.3f} "
+                    f"top={rec['top_col']} ({time.time() - t0:.0f}s)",
+                    flush=True,
+                )
     return rows
 
 
@@ -236,7 +254,9 @@ def summarise(rows: list[dict[str, object]]) -> str:
         ),
         "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
-    keys = sorted({(r["task"], r["n_ctx"]) for r in rows}, key=lambda k: (list(TASK_RULES).index(k[0]), k[1]))
+    keys = sorted(
+        {(r["task"], r["n_ctx"]) for r in rows}, key=lambda k: (list(TASK_RULES).index(k[0]), k[1])
+    )
     for task, n in keys:
         g = [r for r in rows if r["task"] == task and r["n_ctx"] == n]
         share = float(np.nanmean([r["true_share"] for r in g]))
@@ -261,8 +281,12 @@ def main() -> None:
     ap.add_argument("--out", type=Path, default=None)
     a = ap.parse_args()
     rows = run(
-        a.model, [int(s) for s in a.ctx_sizes.split(",")], [int(s) for s in a.seeds.split(",")],
-        a.n_features, a.n_query, a.n_perm,
+        a.model,
+        [int(s) for s in a.ctx_sizes.split(",")],
+        [int(s) for s in a.seeds.split(",")],
+        a.n_features,
+        a.n_query,
+        a.n_perm,
     )
     print(summarise(rows))
     if a.out:

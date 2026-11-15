@@ -267,9 +267,7 @@ def _finish_scm_task(
         is_cat = rng.random(n_features) < rng.uniform(0.0, 0.4)
         for j in np.flatnonzero(is_cat):
             k = int(rng.integers(2, 8))
-            X[:, j] = np.searchsorted(
-                np.quantile(X[:, j], np.linspace(0, 1, k + 1)[1:-1]), X[:, j]
-            )
+            X[:, j] = np.searchsorted(np.quantile(X[:, j], np.linspace(0, 1, k + 1)[1:-1]), X[:, j])
     if not (knobs is not None and knobs.mixed_missing) and rng.random() < 0.5:
         X[rng.random(X.shape) < rng.uniform(0, 0.2)] = np.nan
     return Task(
@@ -349,8 +347,14 @@ def sample_scm_regression_task(
     """
     latent_out: list[np.ndarray] = []
     base = sample_scm_task(
-        rng, n_rows, max_features=max_features, min_features=min_features,
-        max_classes=2, _latent_out=latent_out, knobs=knobs, n_features=n_features,
+        rng,
+        n_rows,
+        max_features=max_features,
+        min_features=min_features,
+        max_classes=2,
+        _latent_out=latent_out,
+        knobs=knobs,
+        n_features=n_features,
     )
     latent = latent_out[0].astype(np.float64)
     # Log-uniform over [0.02, 3.0]: most tasks learnable, some dominated by noise. A linear

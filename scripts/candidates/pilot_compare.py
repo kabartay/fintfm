@@ -71,33 +71,48 @@ def main(argv: Sequence[str] | None = None) -> None:
     p.add_argument("--root", type=Path, default=ROOT / "runs" / "pilot")
     p.add_argument("--suffix", default=".score", help="arm directory suffix")
     p.add_argument("--control", default="control", help="arm every other is compared against")
-    p.add_argument("--split", choices=("val", "test"), default="val",
-                   help="fold 0's validation rows (default) or its test rows")
-    p.add_argument(REPORTING_FLAG, action="store_true",
-                   help="read a Polish or Taiwanese bankruptcy run, for reporting only")
+    p.add_argument(
+        "--split",
+        choices=("val", "test"),
+        default="val",
+        help="fold 0's validation rows (default) or its test rows",
+    )
+    p.add_argument(
+        REPORTING_FLAG,
+        action="store_true",
+        help="read a Polish or Taiwanese bankruptcy run, for reporting only",
+    )
     args = p.parse_args(argv)
     ctl = args.control
     y_key, pre = ("y_val", "val_") if args.split == "val" else ("y_true", "pred_")
 
-    arm_dirs = [d for d in sorted(args.root.glob(f"*{args.suffix}"))
-                if d.is_dir() and (d / "predictions_fold0.npz").exists()]
+    arm_dirs = [
+        d
+        for d in sorted(args.root.glob(f"*{args.suffix}"))
+        if d.is_dir() and (d / "predictions_fold0.npz").exists()
+    ]
     try:
-        reporting = guard_selection(recorded_datasets(arm_dirs),
-                                    args.allow_tabarena_for_reporting, "pilot_compare")
+        reporting = guard_selection(
+            recorded_datasets(arm_dirs), args.allow_tabarena_for_reporting, "pilot_compare"
+        )
     except SelectionForbiddenError as exc:
         raise SystemExit(str(exc)) from exc
     if reporting:
         print(f"REPORTING ONLY ({', '.join(reporting)}): not for choosing an arm (DR4.1)")
     preds = {
-        d.name.removesuffix(args.suffix) if args.suffix else d.name: np.load(d / "predictions_fold0.npz")
+        d.name.removesuffix(args.suffix) if args.suffix else d.name: np.load(
+            d / "predictions_fold0.npz"
+        )
         for d in arm_dirs
     }
     if ctl not in preds:
         raise SystemExit(f"control arm {ctl!r} has not been scored yet")
     missing = [arm for arm, d in preds.items() if y_key not in d.files]
     if missing:
-        raise SystemExit(f"{missing} saved no {args.split} predictions; rerun them, or pass "
-                         "--split test and say the arm was chosen on fold 0's test rows")
+        raise SystemExit(
+            f"{missing} saved no {args.split} predictions; rerun them, or pass "
+            "--split test and say the arm was chosen on fold 0's test rows"
+        )
     y = preds[ctl][y_key]
     for arm, d in preds.items():
         if not np.array_equal(d[y_key], y):
@@ -119,16 +134,25 @@ def main(argv: Sequence[str] | None = None) -> None:
     for r, adj in zip(tested, holm_adjusted_p([r["p"] for r in tested]), strict=True):
         r["p_holm"] = adj
 
-    print(f"V4FinBench horizon 0, fold 0, {len(y):,} {args.split} rows, {int(y.sum())} positives "
-          f"(untuned logistic regression on the same rows: AP {average_precision_score(y, lr):.4f})")
-    print(f"{'arm':12s} {'AP':>7s} {'ROC-AUC':>8s} {'dAP vs ctrl':>12s} {'95% CI':>20s} {'p_holm':>7s}")
+    print(
+        f"V4FinBench horizon 0, fold 0, {len(y):,} {args.split} rows, {int(y.sum())} positives "
+        f"(untuned logistic regression on the same rows: AP {average_precision_score(y, lr):.4f})"
+    )
+    print(
+        f"{'arm':12s} {'AP':>7s} {'ROC-AUC':>8s} {'dAP vs ctrl':>12s} {'95% CI':>20s} {'p_holm':>7s}"
+    )
     for r in sorted(rows, key=lambda r: -r["ap"]):
-        tail = (f"{r['d_ap']:+12.4f} [{r['lo']:+.4f}, {r['hi']:+.4f}] {r['p_holm']:7.3f}"
-                if "d_ap" in r else f"{'(control)':>12s}")
+        tail = (
+            f"{r['d_ap']:+12.4f} [{r['lo']:+.4f}, {r['hi']:+.4f}] {r['p_holm']:7.3f}"
+            if "d_ap" in r
+            else f"{'(control)':>12s}"
+        )
         print(f"{r['arm']:12s} {r['ap']:7.4f} {r['auc']:8.4f} {tail}")
     if reporting:
         rows = [{**r, "reporting_only": reporting} for r in rows]
-    (args.root / f"comparison_{args.split}.json").write_text(json.dumps(rows, indent=2, default=float))
+    (args.root / f"comparison_{args.split}.json").write_text(
+        json.dumps(rows, indent=2, default=float)
+    )
 
 
 if __name__ == "__main__":

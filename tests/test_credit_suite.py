@@ -17,17 +17,22 @@ from fintfm.evaluation import credit_suite as cs
 from fintfm.prior.real_panel import EVAL_ONLY_SOURCES
 
 
-def _panel(n: int = 600, dated: bool = False, grouped: bool = False, seed: int = 0,
-           embargo: float = 0.0) -> cs.CreditPanel:
+def _panel(
+    n: int = 600, dated: bool = False, grouped: bool = False, seed: int = 0, embargo: float = 0.0
+) -> cs.CreditPanel:
     rng = np.random.default_rng(seed)
     X = rng.normal(size=(n, 5))
     X[rng.random(X.shape) < 0.05] = np.nan
     logit = 2.0 * np.nan_to_num(X[:, 0]) - 1.5
     y = (rng.random(n) < 1 / (1 + np.exp(-logit))).astype(np.int64)
     return cs.CreditPanel(
-        name="synthetic", X=X, feature_names=tuple(f"f{i}" for i in range(5)), y=y,
+        name="synthetic",
+        X=X,
+        feature_names=tuple(f"f{i}" for i in range(5)),
+        y=y,
         groups=rng.integers(0, n // 3, size=n) if grouped else None,
-        time=np.sort(rng.uniform(0, 1000, size=n)) if dated else None, embargo=embargo,
+        time=np.sort(rng.uniform(0, 1000, size=n)) if dated else None,
+        embargo=embargo,
     )
 
 
@@ -105,10 +110,14 @@ def test_an_unadmitted_licence_is_refused_before_any_file_is_read(tmp_path):
 
 def _admit(monkeypatch, **loaders):
     admitted = dataclasses.replace(cs.DATASETS["ulb_fraud"].licence, include=True)
-    monkeypatch.setattr(cs, "DATASETS", {
-        key: cs.SuiteDataset(key, "https://example.invalid", loader, admitted)
-        for key, loader in loaders.items()
-    })
+    monkeypatch.setattr(
+        cs,
+        "DATASETS",
+        {
+            key: cs.SuiteDataset(key, "https://example.invalid", loader, admitted)
+            for key, loader in loaders.items()
+        },
+    )
 
 
 def test_a_tabarena_panel_is_refused_even_when_admitted(tmp_path, monkeypatch):
@@ -117,8 +126,7 @@ def test_a_tabarena_panel_is_refused_even_when_admitted(tmp_path, monkeypatch):
 
     _admit(monkeypatch, polish_companies_bankruptcy=lambda root: _panel())
     with pytest.raises(SelectionForbiddenError):
-        cs.run(tmp_path / "out.csv", None, datasets=("polish_companies_bankruptcy",),
-               root=tmp_path)
+        cs.run(tmp_path / "out.csv", None, datasets=("polish_companies_bankruptcy",), root=tmp_path)
 
 
 def test_end_to_end_run_writes_one_row_per_dataset_split_and_model(tmp_path, monkeypatch):
@@ -129,19 +137,42 @@ def test_end_to_end_run_writes_one_row_per_dataset_split_and_model(tmp_path, mon
 
     _admit(
         monkeypatch,
-        dated=lambda root: dataclasses.replace(_panel(n=900, dated=True, grouped=True,
-                                                      embargo=10.0), name="dated"),
+        dated=lambda root: dataclasses.replace(
+            _panel(n=900, dated=True, grouped=True, embargo=10.0), name="dated"
+        ),
         undated=lambda root: dataclasses.replace(_panel(n=600, seed=1), name="undated"),
     )
     # a tiny LightGBM keeps the subprocess fast; the packaged value is pinned below
     monkeypatch.setattr(cs, "LIGHTGBM_PARAMS", {"n_estimators": 5})
     torch.manual_seed(0)
     ckpt = tmp_path / "m.pt"
-    FinancialTFM(ModelConfig(max_features=8, max_classes=2, d_cell=8, d_model=16, n_layers=1,
-                             n_col_layers=1, n_heads=2)).save(str(ckpt))
+    FinancialTFM(
+        ModelConfig(
+            max_features=8,
+            max_classes=2,
+            d_cell=8,
+            d_model=16,
+            n_layers=1,
+            n_col_layers=1,
+            n_heads=2,
+        )
+    ).save(str(ckpt))
     out = tmp_path / "results.csv"
-    assert cs.main(["--model", str(ckpt), "--out", str(out), "--datasets", "dated,undated",
-                    "--root", str(tmp_path)]) == 0
+    assert (
+        cs.main(
+            [
+                "--model",
+                str(ckpt),
+                "--out",
+                str(out),
+                "--datasets",
+                "dated,undated",
+                "--root",
+                str(tmp_path),
+            ]
+        )
+        == 0
+    )
     with out.open() as fh:
         rows = list(csv.DictReader(fh))
     assert tuple(rows[0]) == cs.COLUMNS
@@ -174,10 +205,20 @@ def test_a_too_wide_dataset_skips_fintfm_and_still_scores_the_baselines(tmp_path
     _admit(monkeypatch, undated=lambda root: _panel(n=600))
     torch.manual_seed(0)
     ckpt = tmp_path / "m.pt"
-    FinancialTFM(ModelConfig(max_features=4, max_classes=2, d_cell=8, d_model=16, n_layers=1,
-                             n_col_layers=1, n_heads=2)).save(str(ckpt))
-    rows = cs.run(tmp_path / "r.csv", str(ckpt), datasets=("undated",), root=tmp_path,
-                  with_lightgbm=False)
+    FinancialTFM(
+        ModelConfig(
+            max_features=4,
+            max_classes=2,
+            d_cell=8,
+            d_model=16,
+            n_layers=1,
+            n_col_layers=1,
+            n_heads=2,
+        )
+    ).save(str(ckpt))
+    rows = cs.run(
+        tmp_path / "r.csv", str(ckpt), datasets=("undated",), root=tmp_path, with_lightgbm=False
+    )
     fintfm = [r for r in rows if r["model"] == "fintfm"]
     assert len(fintfm) == 3 and all("takes 4 features" in r["skipped"] for r in fintfm)
     assert all(r["skipped"] == "" for r in rows if r["model"] == "logistic_regression")
@@ -190,18 +231,32 @@ def test_lightgbm_runs_at_one_thousand_trees():
 
 def test_bondora_frame_label_window_and_bookkeeping():
     n = 6
-    raw = pd.DataFrame({
-        "ReportAsOfEOD": ["2021-07-20"] * n,
-        "LoanDate": ["2019-01-01", "2019-01-01", "2019-06-01", "2020-01-01", "2020-07-21",
-                     "2018-03-01"],
-        # defaults inside, outside, none, inside, (dropped: window not closed), at the edge
-        "DefaultDate": ["2019-06-01", "2020-03-01", None, "2020-12-31", "2021-01-01",
-                        "2019-03-01"],
-        "UserName": ["a", "a", "b", "c", "d", "e"],
-        "NewCreditCustomer": [True, False, True, False, True, False],
-        **{c: [1.0] * n for c in cs.BONDORA_NUMERIC},
-        **{f: ["x"] * n for f, _ in cs.BONDORA_CATEGORICAL},
-    })
+    raw = pd.DataFrame(
+        {
+            "ReportAsOfEOD": ["2021-07-20"] * n,
+            "LoanDate": [
+                "2019-01-01",
+                "2019-01-01",
+                "2019-06-01",
+                "2020-01-01",
+                "2020-07-21",
+                "2018-03-01",
+            ],
+            # defaults inside, outside, none, inside, (dropped: window not closed), at the edge
+            "DefaultDate": [
+                "2019-06-01",
+                "2020-03-01",
+                None,
+                "2020-12-31",
+                "2021-01-01",
+                "2019-03-01",
+            ],
+            "UserName": ["a", "a", "b", "c", "d", "e"],
+            "NewCreditCustomer": [True, False, True, False, True, False],
+            **{c: [1.0] * n for c in cs.BONDORA_NUMERIC},
+            **{f: ["x"] * n for f, _ in cs.BONDORA_CATEGORICAL},
+        }
+    )
     frame = cs.bondora_frame(raw)
     assert frame["label"].tolist() == [1, 0, 0, 1, 1]
     assert frame["_user"].tolist() == ["a", "a", "b", "c", "e"]
@@ -221,8 +276,9 @@ def test_ulb_and_sba_are_admitted_and_ulb_scores_carry_the_odbl_notice():
     assert "Open Database License" in cs.ODBL_NOTICE and "Bruxelles" in cs.ODBL_NOTICE
 
 
-def _sba_raw(approval: list[str], status: list[str], chargeoff: list[str | None],
-             seed: int = 0) -> pd.DataFrame:
+def _sba_raw(
+    approval: list[str], status: list[str], chargeoff: list[str | None], seed: int = 0
+) -> pd.DataFrame:
     """A frame shaped like the FOIA 7(a) CSV: every field, the file's own codes and spellings."""
     rng = np.random.default_rng(seed)
     n = len(approval)
@@ -233,35 +289,54 @@ def _sba_raw(approval: list[str], status: list[str], chargeoff: list[str | None]
         return rng.choice(np.array(values, dtype=object), size=n)
 
     gross = rng.integers(10, 500, size=n) * 1000.0
-    raw = pd.DataFrame({
-        "AsOfDate": "2026-06-30", "Program": " 7A",
-        "LocationID": rng.integers(1, 9999, size=n).astype(float),
-        "BorrName": [f"Borrower {i} LLC" for i in range(n)],
-        "BorrStreet": "1 Main St", "BorrCity": "Springfield", "BorrState": "IL",
-        "BorrZip": rng.integers(10000, 99999, size=n),
-        "BankName": pick("First Bank", "Second Bank"), "BankFDICNumber": 1234.0,
-        "BankNCUANumber": np.nan, "BankStreet": "2 High St", "BankCity": "Wilmington",
-        "BankState": "NC", "BankZip": "28403",
-        "GrossApproval": [f"${g:,.2f}" for g in gross], "SBAGuaranteedApproval": 0.75 * gross,
-        "ApprovalDate": approval,
-        "ApprovalFY": (dates.dt.year + (dates.dt.month >= 10)).to_numpy(),
-        "FirstDisbursementDate": approval,
-        "ProcessingMethod": pick("SBA Express Program", "Preferred Lenders Program", "7a General"),
-        "InitialInterestRate": rng.uniform(4, 10, size=n).round(2),
-        "FixedorVariableInterestInd": pick("V", "F"),
-        "TermInMonths": pick(84.0, 120.0, 300.0),
-        "NaicsCode": pick(722110.0, 541940.0, 238220.0),
-        "NaicsDescription": "Full-Service Restaurants",
-        "FranchiseCode": pick(None, "S2345"), "FranchiseName": None,
-        "ProjectCounty": "COOK", "ProjectState": "IL",
-        "SBADistrictOffice": "ILLINOIS DISTRICT OFFICE", "CongressionalDistrict": 7.0,
-        "BusinessType": pick("CORPORATION", "INDIVIDUAL", "PARTNERSHIP"),
-        "BusinessAge": pick("Existing, 5 or more years", "Unanswered"),
-        "LoanStatus": status, "PaidInFullDate": None, "ChargeOffDate": chargeoff,
-        "GrossChargeOffAmount": 0.0,
-        "RevolverStatus": pick("N", "Y"), "JobsSupported": rng.integers(0, 50, size=n) * 1.0,
-        "CollateralInd": pick("Y", "N"), "SoldSecMrktInd": pick(None, "Y"),
-    })
+    raw = pd.DataFrame(
+        {
+            "AsOfDate": "2026-06-30",
+            "Program": " 7A",
+            "LocationID": rng.integers(1, 9999, size=n).astype(float),
+            "BorrName": [f"Borrower {i} LLC" for i in range(n)],
+            "BorrStreet": "1 Main St",
+            "BorrCity": "Springfield",
+            "BorrState": "IL",
+            "BorrZip": rng.integers(10000, 99999, size=n),
+            "BankName": pick("First Bank", "Second Bank"),
+            "BankFDICNumber": 1234.0,
+            "BankNCUANumber": np.nan,
+            "BankStreet": "2 High St",
+            "BankCity": "Wilmington",
+            "BankState": "NC",
+            "BankZip": "28403",
+            "GrossApproval": [f"${g:,.2f}" for g in gross],
+            "SBAGuaranteedApproval": 0.75 * gross,
+            "ApprovalDate": approval,
+            "ApprovalFY": (dates.dt.year + (dates.dt.month >= 10)).to_numpy(),
+            "FirstDisbursementDate": approval,
+            "ProcessingMethod": pick(
+                "SBA Express Program", "Preferred Lenders Program", "7a General"
+            ),
+            "InitialInterestRate": rng.uniform(4, 10, size=n).round(2),
+            "FixedorVariableInterestInd": pick("V", "F"),
+            "TermInMonths": pick(84.0, 120.0, 300.0),
+            "NaicsCode": pick(722110.0, 541940.0, 238220.0),
+            "NaicsDescription": "Full-Service Restaurants",
+            "FranchiseCode": pick(None, "S2345"),
+            "FranchiseName": None,
+            "ProjectCounty": "COOK",
+            "ProjectState": "IL",
+            "SBADistrictOffice": "ILLINOIS DISTRICT OFFICE",
+            "CongressionalDistrict": 7.0,
+            "BusinessType": pick("CORPORATION", "INDIVIDUAL", "PARTNERSHIP"),
+            "BusinessAge": pick("Existing, 5 or more years", "Unanswered"),
+            "LoanStatus": status,
+            "PaidInFullDate": None,
+            "ChargeOffDate": chargeoff,
+            "GrossChargeOffAmount": 0.0,
+            "RevolverStatus": pick("N", "Y"),
+            "JobsSupported": rng.integers(0, 50, size=n) * 1.0,
+            "CollateralInd": pick("Y", "N"),
+            "SoldSecMrktInd": pick(None, "Y"),
+        }
+    )
     paid = raw["LoanStatus"] == "P I F"
     raw.loc[paid, "PaidInFullDate"] = "2016-01-01"
     raw.loc[raw["ChargeOffDate"].notna(), "GrossChargeOffAmount"] = 5000.0
@@ -324,14 +399,18 @@ def test_sba_out_of_time_split_is_embargoed_by_60_months(tmp_path):
     rng = np.random.default_rng(3)
     n = 1500
     # a busy first two years then a gap, so the latest half still has five-year-old history
-    early = pd.Timestamp("2009-10-01") + pd.to_timedelta(rng.integers(0, 730, size=n * 3 // 10),
-                                                         unit="D")
-    late = pd.Timestamp("2015-10-01") + pd.to_timedelta(rng.integers(0, 1460, size=n - len(early)),
-                                                        unit="D")
+    early = pd.Timestamp("2009-10-01") + pd.to_timedelta(
+        rng.integers(0, 730, size=n * 3 // 10), unit="D"
+    )
+    late = pd.Timestamp("2015-10-01") + pd.to_timedelta(
+        rng.integers(0, 1460, size=n - len(early)), unit="D"
+    )
     approval = pd.Series(np.concatenate([early, late])).sort_values().reset_index(drop=True)
     hit = rng.random(n) < 0.15
-    chargeoff = [(a + pd.DateOffset(months=int(rng.integers(1, 60)))).strftime("%Y-%m-%d")
-                 if h else None for a, h in zip(approval, hit)]
+    chargeoff = [
+        (a + pd.DateOffset(months=int(rng.integers(1, 60)))).strftime("%Y-%m-%d") if h else None
+        for a, h in zip(approval, hit)
+    ]
     status = ["CHGOFF" if h else "P I F" for h in hit]
     raw = _sba_raw(approval.dt.strftime("%Y-%m-%d").tolist(), status, chargeoff, seed=3)
     (tmp_path / "sba").mkdir()

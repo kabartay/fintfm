@@ -25,19 +25,31 @@ def test_registry_is_consistent_with_the_benchmark_snapshot():
 
 def test_checker_catches_an_unrecorded_overlap():
     benchmarks = pd.DataFrame({"benchmark": ["BeyondArena"], "dataset_name": ["lending_club_1m"]})
-    registry = pd.DataFrame([{
-        "name": "LendingClub mirror", "verdict": "SHORTLIST", "benchmark_match": None,
-        "reviewed_not_overlapping": "",
-    }])
+    registry = pd.DataFrame(
+        [
+            {
+                "name": "LendingClub mirror",
+                "verdict": "SHORTLIST",
+                "benchmark_match": None,
+                "reviewed_not_overlapping": "",
+            }
+        ]
+    )
     assert any("lending_club_1m" in p for p in check(registry, benchmarks))
 
 
 def test_checker_rejects_a_match_absent_from_the_snapshot():
     benchmarks = pd.DataFrame({"benchmark": ["TabArena-v0.1"], "dataset_name": ["heloc"]})
-    registry = pd.DataFrame([{
-        "name": "x", "verdict": "EXCLUDED_BENCHMARK", "benchmark_match": "helocc",
-        "reviewed_not_overlapping": "",
-    }])
+    registry = pd.DataFrame(
+        [
+            {
+                "name": "x",
+                "verdict": "EXCLUDED_BENCHMARK",
+                "benchmark_match": "helocc",
+                "reviewed_not_overlapping": "",
+            }
+        ]
+    )
     assert any("not in the snapshot" in p for p in check(registry, benchmarks))
 
 
@@ -45,13 +57,25 @@ def test_checker_refuses_a_trainable_source_that_is_in_a_benchmark():
     # AU0.1: LendingClub was IN_USE with benchmark_match lending_club_1m and reached a run.
     benchmarks = pd.DataFrame({"benchmark": ["BeyondArena"], "dataset_name": ["lending_club_1m"]})
     for verdict in ("IN_USE", "SHORTLIST"):
-        registry = pd.DataFrame([{
-            "name": "LendingClub", "verdict": verdict, "benchmark_match": "lending_club_1m",
-            "reviewed_not_overlapping": "",
-        }])
+        registry = pd.DataFrame(
+            [
+                {
+                    "name": "LendingClub",
+                    "verdict": verdict,
+                    "benchmark_match": "lending_club_1m",
+                    "reviewed_not_overlapping": "",
+                }
+            ]
+        )
         assert any("EXCLUDED_BENCHMARK" in p for p in check(registry, benchmarks))
-    registry = pd.DataFrame([{
-        "name": "LendingClub", "verdict": "EXCLUDED_BENCHMARK",
-        "benchmark_match": "lending_club_1m", "reviewed_not_overlapping": "",
-    }])
+    registry = pd.DataFrame(
+        [
+            {
+                "name": "LendingClub",
+                "verdict": "EXCLUDED_BENCHMARK",
+                "benchmark_match": "lending_club_1m",
+                "reviewed_not_overlapping": "",
+            }
+        ]
+    )
     assert check(registry, benchmarks) == []

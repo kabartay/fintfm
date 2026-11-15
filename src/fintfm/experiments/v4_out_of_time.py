@@ -184,9 +184,7 @@ def split_dataset(
     if split == "legacy":
         tr = np.flatnonzero(ds.year <= train_until)
         te = np.flatnonzero(ds.year >= test_from)
-        leaked = (
-            len(np.intersect1d(ds.groups[tr], ds.groups[te])) if ds.groups is not None else -1
-        )
+        leaked = len(np.intersect1d(ds.groups[tr], ds.groups[te])) if ds.groups is not None else -1
         return OutOfTimeSplit(tr, te, "legacy", train_until, train_until, 0, -1, 0, leaked)
     if ds.groups is None:
         raise ValueError(
@@ -197,13 +195,18 @@ def split_dataset(
     if embargo < 0:
         raise ValueError(f"embargo_years must be >= 0, got {embargo}")
     effective = min(train_until, test_from - 1 - embargo)
-    ts = time_based_split(
-        ds.year, ds.groups, effective, test_from, on_overlap="drop_from_train"
-    )
+    ts = time_based_split(ds.year, ds.groups, effective, test_from, on_overlap="drop_from_train")
     leaked = len(np.intersect1d(ds.groups[ts.train], ds.groups[ts.test]))
     return OutOfTimeSplit(
-        ts.train, ts.test, "embargoed", train_until, effective, embargo,
-        ts.n_shared_ids, ts.n_train_dropped, leaked,
+        ts.train,
+        ts.test,
+        "embargoed",
+        train_until,
+        effective,
+        embargo,
+        ts.n_shared_ids,
+        ts.n_train_dropped,
+        leaked,
     )
 
 
@@ -237,9 +240,7 @@ def _curve_truth(ds: SurvivalDataset, idx: np.ndarray) -> tuple[np.ndarray, np.n
     """Cumulative default indicator and observation mask per horizon."""
     period, observed = ds.period[idx], ds.n_observed[idx]
     K = ds.n_horizons
-    truth = np.stack(
-        [((period >= 0) & (period <= k)).astype(int) for k in range(K)], axis=1
-    )
+    truth = np.stack([((period >= 0) & (period <= k)).astype(int) for k in range(K)], axis=1)
     # a horizon a row was never observed for is not evidence either way
     seen = np.stack([observed > k for k in range(K)], axis=1)
     return truth, seen
@@ -282,16 +283,30 @@ def score_curve(
             or not np.isfinite(pd_curve[m, k]).all()
         ):
             arm.horizons.append(
-                HorizonScore(k, int(m.sum()), int(truth[m, k].sum()), float("nan"),
-                             float("nan"), float("nan"), float("nan"), float("nan"))
+                HorizonScore(
+                    k,
+                    int(m.sum()),
+                    int(truth[m, k].sum()),
+                    float("nan"),
+                    float("nan"),
+                    float("nan"),
+                    float("nan"),
+                    float("nan"),
+                )
             )
             continue
         met = evaluate_binary(truth[m, k], pd_curve[m, k])
         arm.horizons.append(
             HorizonScore(
-                horizon=k, n_eval=met.n, n_positive=met.n_positive, auc=met.roc_auc,
-                ece=met.ece, brier_skill=met.brier_skill, observed_rate=met.base_rate,
-                mean_predicted=met.mean_predicted, pred_sd=met.pred_sd,
+                horizon=k,
+                n_eval=met.n,
+                n_positive=met.n_positive,
+                auc=met.roc_auc,
+                ece=met.ece,
+                brier_skill=met.brier_skill,
+                observed_rate=met.base_rate,
+                mean_predicted=met.mean_predicted,
+                pred_sd=met.pred_sd,
                 pred_p99_over_p50=met.pred_p99_over_p50,
             )
         )
@@ -354,10 +369,14 @@ def run(
     sp = split_dataset(ds, train_until, test_from, split)
     tr, te = sp.train, sp.test
     print(f"{ds.name}: {ds.X.shape[0]:,} rows, {ds.X.shape[1]} features")
-    print(f"  split={sp.mode}: embargo {sp.embargo_years}y, companies on both sides "
-          f"{sp.n_shared_ids_after}, train rows dropped for shared companies "
-          f"{sp.n_train_dropped}")
-    print(f"  train {len(tr):,} rows (<= {sp.effective_train_until})   test {len(te):,} rows (>= {test_from})")
+    print(
+        f"  split={sp.mode}: embargo {sp.embargo_years}y, companies on both sides "
+        f"{sp.n_shared_ids_after}, train rows dropped for shared companies "
+        f"{sp.n_train_dropped}"
+    )
+    print(
+        f"  train {len(tr):,} rows (<= {sp.effective_train_until})   test {len(te):,} rows (>= {test_from})"
+    )
     print(f"  train default rate {ds.y[tr].mean():.3%}   test {ds.y[te].mean():.3%}")
 
     truth, seen = _curve_truth(ds, te)
@@ -391,18 +410,13 @@ def run(
             curve = clf.predict_term_structure(ds.X[te])
             summary = clf.context_summary_
             rate = (
-                summary.pooled_context_rate
-                if arm.strategy == "retrieval"
-                else summary.context_rate
+                summary.pooled_context_rate if arm.strategy == "retrieval" else summary.context_rate
             )
             print(
-                f"  {arm.name}: context at {rate:.3%} vs population "
-                f"{summary.population_rate:.3%}"
+                f"  {arm.name}: context at {rate:.3%} vs population {summary.population_rate:.3%}"
             )
             arms.append(
-                score_curve(
-                    arm.name, curve, truth, seen, cfg.evaluation.min_rows_per_horizon
-                )
+                score_curve(arm.name, curve, truth, seen, cfg.evaluation.min_rows_per_horizon)
             )
 
     # --- per-horizon logistic regression, the field's construction ------------------
@@ -414,7 +428,8 @@ def run(
             cols.append(np.full(len(te), np.nan))
             continue
         pipe = make_pipeline(
-            SimpleImputer(strategy="median"), StandardScaler(),
+            SimpleImputer(strategy="median"),
+            StandardScaler(),
             LogisticRegression(max_iter=1000),
         ).fit(ds.X[tr][m_tr], y_k)
         cols.append(pipe.predict_proba(ds.X[te])[:, 1])
@@ -432,9 +447,14 @@ def run(
         "dataset": ds.name,
         "attribution": ds.attribution,
         "config": {
-            "model": model_path, "max_rows": max_rows, "train_until": train_until,
-            "test_from": test_from, "max_context": max_context, "seed": seed,
-            "n_features": int(ds.X.shape[1]), "n_horizons": ds.n_horizons,
+            "model": model_path,
+            "max_rows": max_rows,
+            "train_until": train_until,
+            "test_from": test_from,
+            "max_context": max_context,
+            "seed": seed,
+            "n_features": int(ds.X.shape[1]),
+            "n_horizons": ds.n_horizons,
             "split": split,
             "feature_transform": cfg.inference.feature_transform,
             "retrieval_groups": cfg.inference.retrieval_groups,
@@ -442,8 +462,10 @@ def run(
             "config_sources": list(cfg.sources),
         },
         "split": {
-            "n_train": len(tr), "n_test": len(te),
-            "train_rate": float(ds.y[tr].mean()), "test_rate": float(ds.y[te].mean()),
+            "n_train": len(tr),
+            "n_test": len(te),
+            "train_rate": float(ds.y[tr].mean()),
+            "test_rate": float(ds.y[te].mean()),
             **sp.record(),
         },
         "arms": [asdict(a) | {"mean_auc": a.mean_auc} for a in arms],
@@ -462,10 +484,7 @@ def summarise(record: dict) -> str:
             f"({record['split']['n_train']:,} / {record['split']['n_test']:,} rows)"
         ),
         "",
-        (
-            f"{'arm':>26} {'mean AUC':>9} {'violations':>11} {'monotone':>9} "
-            f"{'pairs':>9} {'NaN':>7}"
-        ),
+        (f"{'arm':>26} {'mean AUC':>9} {'violations':>11} {'monotone':>9} {'pairs':>9} {'NaN':>7}"),
     ]
     for a in record["arms"]:
         lines.append(
@@ -474,7 +493,7 @@ def summarise(record: dict) -> str:
             f"{a.get('n_nan_pairs', -1):>7}"
         )
     n_h = len(record["arms"][0]["horizons"])
-    lines += ["", f"{'arm':>26} " + " ".join(f"{'h'+str(k):>8}" for k in range(n_h))]
+    lines += ["", f"{'arm':>26} " + " ".join(f"{'h' + str(k):>8}" for k in range(n_h))]
     for a in record["arms"]:
         lines.append(f"{a['name']:>26} " + " ".join(f"{h['auc']:>8.4f}" for h in a["horizons"]))
     lines += ["", "calibration (ECE) by horizon:"]
@@ -518,15 +537,23 @@ def main() -> None:
     p.add_argument("--max-context", type=int, default=None)
     p.add_argument("--seed", type=int, default=0)
     p.add_argument(
-        "--split", choices=("embargoed", "legacy"), default="embargoed",
+        "--split",
+        choices=("embargoed", "legacy"),
+        default="embargoed",
         help="'legacy' reproduces the leaking split of FINDINGS 28-35 (no company check, "
         "no embargo)",
     )
     args = p.parse_args()
     cfg = load_config(args.config)
     record = run(
-        args.model, Path(args.out), max_rows=args.max_rows, train_until=args.train_until,
-        test_from=args.test_from, max_context=args.max_context, seed=args.seed, cfg=cfg,
+        args.model,
+        Path(args.out),
+        max_rows=args.max_rows,
+        train_until=args.train_until,
+        test_from=args.test_from,
+        max_context=args.max_context,
+        seed=args.seed,
+        cfg=cfg,
         split=args.split,
     )
     print(f"\nconfig: {cfg.provenance()}")

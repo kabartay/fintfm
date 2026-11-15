@@ -85,7 +85,9 @@ def build_bondora(horizon_months: int = 12) -> pd.DataFrame:
 def build_ulb_fraud() -> pd.DataFrame:
     """ULB card-fraud panel: `Time`, `V1`-`V28`, `Amount` and `Class` as the label."""
     raw = pd.read_csv(REAL / "ulb_fraud" / "creditcard.csv")
-    return raw.drop(columns=["Class"]).astype(np.float64).assign(label=raw["Class"].astype(np.int64))
+    return (
+        raw.drop(columns=["Class"]).astype(np.float64).assign(label=raw["Class"].astype(np.int64))
+    )
 
 
 def build_sba(horizon_months: int = 60) -> pd.DataFrame:
@@ -106,7 +108,10 @@ def build_sba(horizon_months: int = 60) -> pd.DataFrame:
 
 
 BUILDERS = {
-    "ppdai": build_ppdai, "bondora": build_bondora, "ulb_fraud": build_ulb_fraud, "sba": build_sba,
+    "ppdai": build_ppdai,
+    "bondora": build_bondora,
+    "ulb_fraud": build_ulb_fraud,
+    "sba": build_sba,
 }
 
 
@@ -120,8 +125,11 @@ def main() -> None:
         out = REAL / name / "panel.parquet"
         panel.to_parquet(out)
         feats = panel.shape[1] - 1
-        print(f"{name}: {len(panel)} rows, {feats} features, "
-              f"{panel['label'].mean():.4%} positive -> {out}", flush=True)
+        print(
+            f"{name}: {len(panel)} rows, {feats} features, "
+            f"{panel['label'].mean():.4%} positive -> {out}",
+            flush=True,
+        )
 
 
 if __name__ == "__main__":

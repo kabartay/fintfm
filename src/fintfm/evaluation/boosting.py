@@ -25,7 +25,7 @@ import numpy as np
 #: fine and is kept only as a weak reference row.
 BOOSTING_MODELS = ("lightgbm", "catboost", "xgboost")
 
-_WORKER = '''
+_WORKER = """
 import json, sys
 import numpy as np
 d = np.load(sys.argv[1])
@@ -56,16 +56,21 @@ else:
     m = make_pipeline(imp, est).fit(Xtr, ytr)
     np.save(sys.argv[3], m.predict_proba(Xte)[:, 1])
 print(json.dumps({"ok": True}))
-'''
+"""
 
 #: Baselines whose worker accepts a per-row starting score (``init_score``).
 INIT_SCORE_MODELS = ("lightgbm",)
 
 
 def fit_predict_boosting(
-    name: str, X_train: np.ndarray, y_train: np.ndarray, X_test: np.ndarray,
-    timeout: int = 1800, params: dict | None = None,
-    init_score_train: np.ndarray | None = None, init_score_test: np.ndarray | None = None,
+    name: str,
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+    X_test: np.ndarray,
+    timeout: int = 1800,
+    params: dict | None = None,
+    init_score_train: np.ndarray | None = None,
+    init_score_test: np.ndarray | None = None,
 ) -> np.ndarray | None:
     """Fit one boosting baseline out-of-process and return positive-class probabilities.
 
@@ -107,8 +112,10 @@ def fit_predict_boosting(
         btr = np.asarray(init_score_train, dtype=np.float64)
         bte = np.asarray(init_score_test, dtype=np.float64)
         if btr.shape != (len(X_train),) or bte.shape != (len(X_test),):
-            raise ValueError(f"starting scores of shape {btr.shape} and {bte.shape} do not "
-                             f"match {len(X_train)} training and {len(X_test)} test rows")
+            raise ValueError(
+                f"starting scores of shape {btr.shape} and {bte.shape} do not "
+                f"match {len(X_train)} training and {len(X_test)} test rows"
+            )
         arrays |= {"btr": btr, "bte": bte}
     with tempfile.TemporaryDirectory() as tmp:
         data, out = Path(tmp) / "d.npz", Path(tmp) / "p.npy"
@@ -118,7 +125,10 @@ def fit_predict_boosting(
             argv.append(json.dumps(params))
         proc = subprocess.run(
             argv,
-            capture_output=True, text=True, timeout=timeout, check=False,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
         )
         if proc.returncode != 0 or not out.exists():
             reason = (proc.stderr or "").strip().splitlines()
@@ -134,7 +144,9 @@ def available_boosting() -> list[str]:
     for name in BOOSTING_MODELS:
         proc = subprocess.run(
             [sys.executable, "-c", f"import {name}"],
-            capture_output=True, text=True, check=False,
+            capture_output=True,
+            text=True,
+            check=False,
         )
         if proc.returncode == 0:
             ok.append(name)

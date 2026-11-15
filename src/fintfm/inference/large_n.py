@@ -164,7 +164,9 @@ class PartitionedTFMClassifier(BaseEstimator, ClassifierMixin):
         if not 0.0 < self.bag_frac <= 1.0:
             raise ValueError(f"bag_frac must lie in (0, 1], got {self.bag_frac}")
         if getattr(self, "missing_classes", "fallback") not in ("fallback", "global"):
-            raise ValueError(f"missing_classes must be 'fallback' or 'global', got {self.missing_classes!r}")
+            raise ValueError(
+                f"missing_classes must be 'fallback' or 'global', got {self.missing_classes!r}"
+            )
 
     def _validate_combination(self, n_classes: int, n_features: int) -> None:
         """Refuse the inner estimator's lever combinations before anything is fitted (DR1.5).
@@ -228,7 +230,9 @@ class PartitionedTFMClassifier(BaseEstimator, ClassifierMixin):
         g = np.asarray(proba_global, dtype=np.float64)
         out = np.zeros((len(g), len(self.classes_)), dtype=np.float64)
         out[:, missing] = g[:, missing]
-        out[:, cols] = np.asarray(proba_leaf, dtype=np.float64) * (1.0 - g[:, missing].sum(axis=1))[:, None]
+        out[:, cols] = (
+            np.asarray(proba_leaf, dtype=np.float64) * (1.0 - g[:, missing].sum(axis=1))[:, None]
+        )
         return out
 
     def fit(
@@ -289,7 +293,8 @@ class PartitionedTFMClassifier(BaseEstimator, ClassifierMixin):
                 # or a column-identity draw by accident
                 seed = base_seed + 1 + b * 1000 + int(leaf)
                 leaves[int(leaf)] = _inner(self.estimator, random_state=seed).fit(
-                    X[members], y[members],
+                    X[members],
+                    y[members],
                     groups=None if groups is None else groups[members],
                 )
             self.trees_.append(tree)
@@ -459,7 +464,10 @@ class PartitionedTFMRegressor(BaseEstimator, RegressorMixin):
             leaves: dict[int, FinancialTFMRegressor | None] = {}
             for leaf in np.unique(leaf_of_row):
                 members = rows[leaf_of_row == leaf]
-                if members.size < self.min_leaf_rows or np.unique(y[members]).size < self.min_class_rows:
+                if (
+                    members.size < self.min_leaf_rows
+                    or np.unique(y[members]).size < self.min_class_rows
+                ):
                     leaves[int(leaf)] = None
                     continue
                 seed = base_seed + 1 + b * 1000 + int(leaf)
@@ -806,6 +814,6 @@ def wrap_large_n(
     if cfg.method not in ("partition", "boost"):
         raise ValueError(f"large_n.method must be none, partition or boost, got {cfg.method!r}")
     prefix = f"{cfg.method}_"
-    kwargs = {k[len(prefix):]: v for k, v in asdict(cfg).items() if k.startswith(prefix)}
+    kwargs = {k[len(prefix) :]: v for k, v in asdict(cfg).items() if k.startswith(prefix)}
     cls = PartitionedTFMClassifier if cfg.method == "partition" else BoostedTFMClassifier
     return cls(estimator, random_state=int(estimator.random_state), **kwargs)

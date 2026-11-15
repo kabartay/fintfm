@@ -9,7 +9,7 @@ from pathlib import Path
 
 MODULE = Path(__file__).resolve().parents[1] / "src/fintfm/evaluation/lightgbm_tuned.py"
 
-LOAD = textwrap.dedent('''
+LOAD = textwrap.dedent("""
     import importlib.util, json, sys
     import numpy as np
     spec = importlib.util.spec_from_file_location("lt", sys.argv[1])
@@ -17,9 +17,9 @@ LOAD = textwrap.dedent('''
     sys.modules["lt"] = lt
     spec.loader.exec_module(lt)
     assert "torch" not in sys.modules
-''')
+""")
 
-SNIPPET = LOAD + textwrap.dedent('''
+SNIPPET = LOAD + textwrap.dedent("""
     rng = np.random.RandomState(0)
     X = rng.randn(1200, 5)
     y = (X[:, 0] + 0.5 * rng.randn(1200) > 1.0).astype(int)
@@ -77,11 +77,16 @@ SNIPPET = LOAD + textwrap.dedent('''
         assert lt.main([npz, out, "2", "30", "0", pr]) == 0
         assert np.load(pr).shape == (300,) and json.load(open(out))["n_trials"] == 2
     print(json.dumps({"ok": True}))
-''')
+""")
 
 
 def test_tuning_in_a_torch_free_process():
-    r = subprocess.run([sys.executable, "-c", SNIPPET, str(MODULE)], capture_output=True,
-                       text=True, check=False, timeout=300)
+    r = subprocess.run(
+        [sys.executable, "-c", SNIPPET, str(MODULE)],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=300,
+    )
     assert r.returncode == 0, r.stderr[-2000:]
     assert json.loads(r.stdout.strip().splitlines()[-1])["ok"]

@@ -242,9 +242,7 @@ class FinancialTFMRegressor(BaseEstimator, RegressorMixin):
         assert self.binner_ is not None
         return self.binner_.quantile(self.predict_proba(X), q)
 
-    def predict_interval(
-        self, X: np.ndarray, level: float = 0.8
-    ) -> tuple[np.ndarray, np.ndarray]:
+    def predict_interval(self, X: np.ndarray, level: float = 0.8) -> tuple[np.ndarray, np.ndarray]:
         """Central prediction interval.
 
         Args:

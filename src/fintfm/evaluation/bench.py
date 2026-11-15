@@ -71,7 +71,8 @@ def _baselines() -> dict[str, object]:
             SimpleImputer(strategy="median"), StandardScaler(), LogisticRegression(max_iter=1000)
         ),
         "random_forest": make_pipeline(
-            SimpleImputer(strategy="median"), RandomForestClassifier(n_estimators=300, random_state=0)
+            SimpleImputer(strategy="median"),
+            RandomForestClassifier(n_estimators=300, random_state=0),
         ),
         "gboost": make_pipeline(
             SimpleImputer(strategy="median"), GradientBoostingClassifier(random_state=0)
@@ -161,9 +162,7 @@ def run_one(
     return results
 
 
-def run_synthetic(
-    model_path: str, n_tasks: int = 20, n_rows: int = 1000, seed: int = 123
-) -> dict:
+def run_synthetic(model_path: str, n_tasks: int = 20, n_rows: int = 1000, seed: int = 123) -> dict:
     """Held-out synthetic financial tasks with a fixed seed disjoint from pretraining.
 
     The task's feature/class width is capped at the loaded model's capacity,
@@ -203,8 +202,11 @@ def run_synthetic(
         print(f"  {k}: {np.mean(vs):.4f}")
     print(f"fintfm beats every baseline on {wins['fintfm']}/{n_scored} scorable tasks")
     print(cov.summary("synthetic tasks"))
-    return {"mean_auc": {k: float(np.mean(vs)) for k, vs in totals.items()},
-            "wins": dict(wins), **cov.to_dict()}
+    return {
+        "mean_auc": {k: float(np.mean(vs)) for k, vs in totals.items()},
+        "wins": dict(wins),
+        **cov.to_dict(),
+    }
 
 
 def run_openml(model_path: str, dataset_ids: list[int]) -> None:
@@ -219,7 +221,9 @@ def run_openml(model_path: str, dataset_ids: list[int]) -> None:
     for did in dataset_ids:
         data = fetch_openml(data_id=did, as_frame=True, parser="auto")
         X = data.data.apply(
-            lambda c: c.astype("category").cat.codes if c.dtype.name in ("object", "category") else c
+            lambda c: (
+                c.astype("category").cat.codes if c.dtype.name in ("object", "category") else c
+            )
         )
         X = X.to_numpy(dtype=np.float32)
         y = data.target
@@ -273,13 +277,17 @@ def run_credit(
     # A second economy and accounting regime, so a result is not an artefact of one panel.
     panels.append(load_taiwan_bankruptcy())
     for ds in panels:
-        print(f"\n=== {ds.name}: {ds.X.shape[0]} companies, {ds.X.shape[1]} features, "
-              f"default rate {ds.default_rate:.3%} ===")
+        print(
+            f"\n=== {ds.name}: {ds.X.shape[0]} companies, {ds.X.shape[1]} features, "
+            f"default rate {ds.default_rate:.3%} ==="
+        )
         print(f"    source: {ds.attribution}")
         print(f"    {time_split_note(ds)}")
         if ds.X.shape[1] > cfg.max_features:
-            print(f"    SKIPPED for fintfm: model takes {cfg.max_features} features, data has "
-                  f"{ds.X.shape[1]}. Pretrain with --max-features {ds.X.shape[1]} to evaluate it.")
+            print(
+                f"    SKIPPED for fintfm: model takes {cfg.max_features} features, data has "
+                f"{ds.X.shape[1]}. Pretrain with --max-features {ds.X.shape[1]} to evaluate it."
+            )
         run_one(ds.name, ds.X, ds.y, model_path)
         if ds.X.shape[1] <= cfg.max_features:
             strategies: tuple[ContextStrategy, ...] = ("uniform", "hybrid", "balanced")
@@ -288,9 +296,11 @@ def run_credit(
     if time_panel is not None:
         record["time_vs_random"] = run_time_vs_random(time_panel, model_path)
     else:
-        print("\nTIME-BASED SPLIT: NOT RUN. The panels above carry no period column, and no "
-              "dated panel was supplied (use --time-split with --credit and the V4FinBench "
-              "data). Every number above is a RANDOM-split number.")
+        print(
+            "\nTIME-BASED SPLIT: NOT RUN. The panels above carry no period column, and no "
+            "dated panel was supplied (use --time-split with --credit and the V4FinBench "
+            "data). Every number above is a RANDOM-split number."
+        )
     if sample_efficiency:
         record["sample_efficiency"] = _run_sample_efficiency(
             panels, cfg.max_features, model_path, probe_sizes
@@ -322,8 +332,9 @@ def _run_sample_efficiency(
         print("    SKIPPED: no panel fits the checkpoint's feature capacity")
         return {"skipped": "no panel fits the checkpoint"}
     record = sample_efficiency_probe(model_path, train_sizes=sizes, seed=0, ds=ds)
-    print(f"    crossover_size={record['crossover_size']} leads_at={record['leads_at']} "
-          f"(single seed)")
+    print(
+        f"    crossover_size={record['crossover_size']} leads_at={record['leads_at']} (single seed)"
+    )
     return record
 
 
@@ -339,8 +350,10 @@ def time_split_note(ds: CreditDataset | SurvivalDataset) -> str:
     """
     if ds.has_period_labels:
         return "time-based split: available (period column present)"
-    return ("time-based split: NOT AVAILABLE (no period column; scores on this panel are "
-            "random-split only)")
+    return (
+        "time-based split: NOT AVAILABLE (no period column; scores on this panel are "
+        "random-split only)"
+    )
 
 
 def run_time_vs_random(
@@ -382,14 +395,21 @@ def run_time_vs_random(
     cfg = FinancialTFM.load(model_path).cfg
     X = ds.X[:, : cfg.max_features]
     print(f"\n=== {ds.name}: random vs time-based (train<={train_until}, test>={test_from}) ===")
-    print(f"    {len(ts.train)} train / {len(ts.test)} test rows; {ts.n_shared_ids} companies in "
-          f"both windows, {ts.n_train_dropped} train rows dropped for it")
+    print(
+        f"    {len(ts.train)} train / {len(ts.test)} test rows; {ts.n_shared_ids} companies in "
+        f"both windows, {ts.n_train_dropped} train rows dropped for it"
+    )
     if ds.X.shape[1] > cfg.max_features:
-        print(f"    NOTE: model takes {cfg.max_features} features, data has {ds.X.shape[1]}; "
-              f"first {cfg.max_features} columns used")
+        print(
+            f"    NOTE: model takes {cfg.max_features} features, data has {ds.X.shape[1]}; "
+            f"first {cfg.max_features} columns used"
+        )
     pool = np.concatenate([ts.train, ts.test])
     rtr, rte = train_test_split(
-        pool, train_size=len(ts.train), test_size=len(ts.test), random_state=seed,
+        pool,
+        train_size=len(ts.train),
+        test_size=len(ts.test),
+        random_state=seed,
         stratify=ds.y[pool],
     )
     out = {
@@ -431,13 +451,23 @@ def main() -> None:
     p.add_argument("--synthetic-tasks", type=int, default=20)
     p.add_argument("--openml-id", type=int, action="append", default=[])
     p.add_argument("--credit", action="store_true", help="benchmark on real corporate-default data")
-    p.add_argument("--no-sample-efficiency", action="store_true",
-                   help="with --credit: skip the small-n sample-efficiency probe (on by default)")
-    p.add_argument("--time-split", action="store_true",
-                   help="V4FinBench random vs time-based AUC side by side (needs the cached data); "
-                        "with --credit it is printed after the credit panels")
-    p.add_argument("--max-rows", type=int, default=None,
-                   help="with --time-split: subsample this many company-years")
+    p.add_argument(
+        "--no-sample-efficiency",
+        action="store_true",
+        help="with --credit: skip the small-n sample-efficiency probe (on by default)",
+    )
+    p.add_argument(
+        "--time-split",
+        action="store_true",
+        help="V4FinBench random vs time-based AUC side by side (needs the cached data); "
+        "with --credit it is printed after the credit panels",
+    )
+    p.add_argument(
+        "--max-rows",
+        type=int,
+        default=None,
+        help="with --time-split: subsample this many company-years",
+    )
     p.add_argument("--v4-root", type=str, default=None, help="V4FinBench parquet directory")
     args = p.parse_args()
     if args.credit:

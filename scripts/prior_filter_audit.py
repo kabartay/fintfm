@@ -93,7 +93,8 @@ def main() -> None:
     prior = dict(raw["prior"])
     prior["n_sectors_max"] = prior.pop("n_sectors")  # the config file's name for the field
     cfg = PriorConfig(
-        max_features=raw["model"]["max_features"], max_classes=raw["model"]["max_classes"],
+        max_features=raw["model"]["max_features"],
+        max_classes=raw["model"]["max_classes"],
         **prior,
     )
     rng = _CountingRng(np.random.PCG64(a.seed))
@@ -112,21 +113,29 @@ def main() -> None:
     auc = np.array([r[2] for r in rows])
     ok = ~np.isnan(auc)
     print(f"MEASURED seed={a.seed} tasks={n_done} secs={time.time() - t0:.0f}")
-    print("positive rate pct 1/5/25/50/75/95/99:",
-          np.round(np.percentile(rate, [1, 5, 25, 50, 75, 95, 99]), 4).tolist())
-    for lo, hi in [(0, .005), (.005, .02), (.02, .1), (.1, 1.01)]:
+    print(
+        "positive rate pct 1/5/25/50/75/95/99:",
+        np.round(np.percentile(rate, [1, 5, 25, 50, 75, 95, 99]), 4).tolist(),
+    )
+    for lo, hi in [(0, 0.005), (0.005, 0.02), (0.02, 0.1), (0.1, 1.01)]:
         print(f"  rate in [{lo},{hi}): {np.mean((rate >= lo) & (rate < hi)):.3f}")
     print(f"unscorable (single-class on a split side): {np.mean(~ok):.3f}")
-    print("judge AUC pct 5/25/50/75/95 (scorable):",
-          np.round(np.percentile(auc[ok], [5, 25, 50, 75, 95]), 3).tolist())
+    print(
+        "judge AUC pct 5/25/50/75/95 (scorable):",
+        np.round(np.percentile(auc[ok], [5, 25, 50, 75, 95]), 3).tolist(),
+    )
     rej = ~ok | (auc <= cfg.learnability_auc_floor)
     print(f"would-reject at floor {cfg.learnability_auc_floor}: {rej.mean():.3f}")
     print(f"  AUC<=floor (scorable): {np.mean(ok & (auc <= cfg.learnability_auc_floor)):.3f}")
-    print(f"  among rate<0.02: reject share {rej[rate < 0.02].mean():.3f} "
-          f"(n={int((rate < 0.02).sum())}); rate>=0.02: {rej[rate >= 0.02].mean():.3f}")
+    print(
+        f"  among rate<0.02: reject share {rej[rate < 0.02].mean():.3f} "
+        f"(n={int((rate < 0.02).sum())}); rate>=0.02: {rej[rate >= 0.02].mean():.3f}"
+    )
     print(f"both-classes guard firings (choice w/o replace, size n//50): {rng.guard_calls}")
-    print(f"actual rejections/resamples with recipe (p_learnability_filter="
-          f"{cfg.p_learnability_filter}): 0 by construction")
+    print(
+        f"actual rejections/resamples with recipe (p_learnability_filter="
+        f"{cfg.p_learnability_filter}): 0 by construction"
+    )
 
 
 if __name__ == "__main__":

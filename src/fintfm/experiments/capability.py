@@ -50,8 +50,14 @@ if TYPE_CHECKING:  # torch and the model are imported lazily inside each sweep
 
 #: Probe names, in the order they are reported.
 PROBES: tuple[str, ...] = (
-    "orientation", "linear", "conjunction", "xor", "noise",
-    "symmetric_sum", "symmetric_count", "antisymmetric",
+    "orientation",
+    "linear",
+    "conjunction",
+    "xor",
+    "noise",
+    "symmetric_sum",
+    "symmetric_count",
+    "antisymmetric",
 )
 
 #: Probes whose rule is a **symmetric function of the row's feature values**, and so is
@@ -149,7 +155,17 @@ def make_probe(
 
 
 #: Bayes-optimal AUC targets for :func:`bayes_ceiling_probe`. Spans chance to near-certainty.
-BAYES_AUC_TARGETS: tuple[float, ...] = (0.500, 0.550, 0.600, 0.700, 0.800, 0.900, 0.950, 0.990, 0.999)
+BAYES_AUC_TARGETS: tuple[float, ...] = (
+    0.500,
+    0.550,
+    0.600,
+    0.700,
+    0.800,
+    0.900,
+    0.950,
+    0.990,
+    0.999,
+)
 
 #: Feature width for the ceiling task: one informative dimension, five inert companions,
 #: matching this project's other symmetry probes.
@@ -328,14 +344,24 @@ def bayesian_regret(
 
     y = np.asarray(y_true)
     if len(np.unique(y)) < 2:
-        return {"skipped": True, "auc_bayes": None, "auc_model": None,
-                "regret": None, "regret_norm": None}
+        return {
+            "skipped": True,
+            "auc_bayes": None,
+            "auc_model": None,
+            "regret": None,
+            "regret_norm": None,
+        }
     auc_b = float(roc_auc_score(y, p_bayes))
     auc_m = float(roc_auc_score(y, p_model))
     regret = auc_b - auc_m
     norm = regret / (auc_b - 0.5) if auc_b - 0.5 > _REGRET_NORM_EPS else None
-    return {"skipped": False, "auc_bayes": auc_b, "auc_model": auc_m,
-            "regret": regret, "regret_norm": norm}
+    return {
+        "skipped": False,
+        "auc_bayes": auc_b,
+        "auc_model": auc_m,
+        "regret": regret,
+        "regret_norm": norm,
+    }
 
 
 def aggregate_regret(per_task: list[dict]) -> dict[str, float | int | None]:
@@ -402,8 +428,11 @@ def bayes_ceiling_report(
             p = _probe_positive_proba(model, X, y, nc, n_ensemble)
             p_true = 1.0 / (1.0 + np.exp(-(mu * X[nc:, 0].astype(np.float64) - mu * mu / 2.0)))
             per_task.append({"seed": s, **bayesian_regret(y[nc:], p_true, p)})
-        out[target] = {**aggregate_regret(per_task), "nominal_bayes_auc": target,
-                       "per_task": per_task}
+        out[target] = {
+            **aggregate_regret(per_task),
+            "nominal_bayes_auc": target,
+            "per_task": per_task,
+        }
     return out
 
 
@@ -416,19 +445,23 @@ def summarise_bayes_report(report: dict[str, dict[float, dict]]) -> str:
     Returns:
         A text table with Bayes AUC, model AUC, regret R and normalised regret per target.
     """
+
     def f(v: float | None) -> str:
         return "n/a" if v is None else f"{v:.4f}"
 
     lines = []
     for arm, rep in report.items():
-        header = (f"{'target':>8} {'AUC_Bayes':>10} {'AUC_model':>10} {'R':>8} {'R_norm':>8} "
-                  f"{'tasks':>6} {'skipped':>8}")
+        header = (
+            f"{'target':>8} {'AUC_Bayes':>10} {'AUC_model':>10} {'R':>8} {'R_norm':>8} "
+            f"{'tasks':>6} {'skipped':>8}"
+        )
         lines += [f"{arm}: Bayesian regret R = AUC_Bayes - AUC_model (task 39.18)", header]
         for target, r in rep.items():
             lines.append(
                 f"{target:>8.3f} {f(r['auc_bayes']):>10} {f(r['auc_model']):>10} "
                 f"{f(r['regret']):>8} {f(r['regret_norm']):>8} {r['n_tasks']:>6} "
-                f"{r['n_skipped']:>8}")
+                f"{r['n_skipped']:>8}"
+            )
         lines.append("")
     return "\n".join(lines)
 
@@ -678,14 +711,15 @@ def feature_sweep(
             scored += 1
             for name, m in models.items():
                 clf = FinancialTFMClassifier(
-                    m, max_context=max_context, context_strategy="uniform",
-                    feature_transform="rank", random_state=seed,
+                    m,
+                    max_context=max_context,
+                    context_strategy="uniform",
+                    feature_transform="rank",
+                    random_state=seed,
                 ).fit(Xtr, ytr)
                 per_arm[name].append(roc_auc_score(yte, clf.predict_proba(Xte)[:, 1]))
             lr = LogisticRegression(max_iter=1000).fit(Xtr, ytr)
-            per_arm["logistic_regression"].append(
-                roc_auc_score(yte, lr.predict_proba(Xte)[:, 1])
-            )
+            per_arm["logistic_regression"].append(roc_auc_score(yte, lr.predict_proba(Xte)[:, 1]))
         for name, vals in per_arm.items():
             arms[name].append(float(np.mean(vals)) if vals else float("nan"))
         n_scored.append(scored)
@@ -767,14 +801,15 @@ def base_rate_sweep(
             scored += 1
             for name, m in models.items():
                 clf = FinancialTFMClassifier(
-                    m, max_context=max_context, context_strategy="uniform",
-                    feature_transform="rank", random_state=seed,
+                    m,
+                    max_context=max_context,
+                    context_strategy="uniform",
+                    feature_transform="rank",
+                    random_state=seed,
                 ).fit(Xtr, ytr)
                 per_arm[name].append(roc_auc_score(yte, clf.predict_proba(Xte)[:, 1]))
             lr = LogisticRegression(max_iter=1000).fit(Xtr, ytr)
-            per_arm["logistic_regression"].append(
-                roc_auc_score(yte, lr.predict_proba(Xte)[:, 1])
-            )
+            per_arm["logistic_regression"].append(roc_auc_score(yte, lr.predict_proba(Xte)[:, 1]))
         for name, vals in per_arm.items():
             arms[name].append(float(np.mean(vals)) if vals else float("nan"))
         n_scored.append(scored)
@@ -915,8 +950,11 @@ def multiclass_sweep(
                     skipped.append(f"{name}@K={n_classes}: max_classes={m.cfg.max_classes}")
                     continue
                 clf = FinancialTFMClassifier(
-                    m, max_context=max_context, context_strategy="uniform",
-                    feature_transform="rank", random_state=seed,
+                    m,
+                    max_context=max_context,
+                    context_strategy="uniform",
+                    feature_transform="rank",
+                    random_state=seed,
                 ).fit(Xtr, ytr)
                 proba = clf.predict_proba(Xte)
                 cell[name]["accuracy"].append(
@@ -934,9 +972,7 @@ def multiclass_sweep(
         for name, metrics in cell.items():
             for metric, vals in metrics.items():
                 arms[name][metric].append(float(np.mean(vals)) if vals else float("nan"))
-        majority.append(
-            float(np.mean(per_seed_majority)) if per_seed_majority else float("nan")
-        )
+        majority.append(float(np.mean(per_seed_majority)) if per_seed_majority else float("nan"))
         n_scored.append(len(per_seed_majority))
         print(f"  K={n_classes} done", flush=True)
     return {
@@ -946,8 +982,10 @@ def multiclass_sweep(
         "n_seeds_scored": n_scored,
         "skipped": skipped,
         "config": {
-            "models": model_paths, "seeds": list(seeds),
-            "max_context": max_context, "n_features": n_features,
+            "models": model_paths,
+            "seeds": list(seeds),
+            "max_context": max_context,
+            "n_features": n_features,
         },
     }
 
@@ -1135,15 +1173,11 @@ def regression_sweep(
     # it separates "wrong because binned" from "wrong because it does not know". Without it a
     # shortfall against ridge is unattributable -- ridge is not quantised and the binned head is.
     arm_names = [*models, "ridge_gaussian", "binning_oracle"]
-    arms: dict[str, dict[str, list[float]]] = {
-        n: {m: [] for m in metrics} for n in arm_names
-    }
+    arms: dict[str, dict[str, list[float]]] = {n: {m: [] for m in metrics} for n in arm_names}
     skipped: list[str] = []
     truth_outer: list[float] = []
     for shape in shapes:
-        cell: dict[str, dict[str, list[float]]] = {
-            n: {m: [] for m in metrics} for n in arm_names
-        }
+        cell: dict[str, dict[str, list[float]]] = {n: {m: [] for m in metrics} for n in arm_names}
         per_seed_truth: list[float] = []
         for seed in seeds:
             Xtr, ytr, Xte, yte = make_regression_probe(
@@ -1155,14 +1189,14 @@ def regression_sweep(
             for name, m in models.items():
                 if m.cfg.head_type == "quantile":
                     qreg = FinancialTFMQuantileRegressor(
-                        m, max_context=max_context, feature_transform="rank",
+                        m,
+                        max_context=max_context,
+                        feature_transform="rank",
                         random_state=seed,
                     ).fit(Xtr, ytr)
                     pred = qreg.predict(Xte)
                     ilo, ihi = qreg.predict_interval(Xte, level=interval_level)
-                    cell[name]["nrmse"].append(
-                        float(np.sqrt(np.mean((pred - yte) ** 2)) / sd)
-                    )
+                    cell[name]["nrmse"].append(float(np.sqrt(np.mean((pred - yte) ** 2)) / sd))
                     cell[name]["spearman"].append(float(spearmanr(pred, yte).statistic))
                     cell[name]["coverage"].append(interval_coverage(yte, ilo, ihi))
                     # Outer-third mass read off the predicted quantile grid directly: the
@@ -1191,20 +1225,20 @@ def regression_sweep(
                     skipped.append(f"{name}: max_classes={m.cfg.max_classes} < 2 bins")
                     continue
                 if bins < n_bins:
-                    skipped.append(
-                        f"{name}@{shape}: n_bins {n_bins} -> {bins} (max_classes)"
-                    )
+                    skipped.append(f"{name}@{shape}: n_bins {n_bins} -> {bins} (max_classes)")
                 reg = FinancialTFMRegressor(
-                    m, n_bins=bins, classifier_params={
-                        "max_context": max_context, "context_strategy": "uniform",
-                        "feature_transform": "rank", "random_state": seed,
+                    m,
+                    n_bins=bins,
+                    classifier_params={
+                        "max_context": max_context,
+                        "context_strategy": "uniform",
+                        "feature_transform": "rank",
+                        "random_state": seed,
                     },
                 ).fit(Xtr, ytr)
                 pred = reg.predict(Xte)
                 ilo, ihi = reg.predict_interval(Xte, level=interval_level)
-                cell[name]["nrmse"].append(
-                    float(np.sqrt(np.mean((pred - yte) ** 2)) / sd)
-                )
+                cell[name]["nrmse"].append(float(np.sqrt(np.mean((pred - yte) ** 2)) / sd))
                 cell[name]["spearman"].append(float(spearmanr(pred, yte).statistic))
                 cell[name]["coverage"].append(interval_coverage(yte, ilo, ihi))
                 # Mass the predicted distribution itself places in the outer thirds -- read
@@ -1218,9 +1252,7 @@ def regression_sweep(
                 cell[name]["outer_mass"].append(float(proba[:, outer].sum(axis=1).mean()))
             oracle_binner = QuantileBinner(n_bins).fit(ytr)
             op = oracle_binner.representatives_[oracle_binner.transform(yte)]
-            cell["binning_oracle"]["nrmse"].append(
-                float(np.sqrt(np.mean((op - yte) ** 2)) / sd)
-            )
+            cell["binning_oracle"]["nrmse"].append(float(np.sqrt(np.mean((op - yte) ** 2)) / sd))
             cell["binning_oracle"]["spearman"].append(float(spearmanr(op, yte).statistic))
             # No interval: the oracle is a point on the grid, not a distribution.
             cell["binning_oracle"]["coverage"].append(float("nan"))
@@ -1229,9 +1261,7 @@ def regression_sweep(
             rp = ridge.predict(Xte)
             resid_sd = float(np.std(ytr - ridge.predict(Xtr)))
             z = float(norm.ppf(0.5 + interval_level / 2.0))
-            cell["ridge_gaussian"]["nrmse"].append(
-                float(np.sqrt(np.mean((rp - yte) ** 2)) / sd)
-            )
+            cell["ridge_gaussian"]["nrmse"].append(float(np.sqrt(np.mean((rp - yte) ** 2)) / sd))
             cell["ridge_gaussian"]["spearman"].append(float(spearmanr(rp, yte).statistic))
             cell["ridge_gaussian"]["coverage"].append(
                 interval_coverage(yte, rp - z * resid_sd, rp + z * resid_sd)
@@ -1253,8 +1283,12 @@ def regression_sweep(
         "arms": arms,
         "skipped": sorted(set(skipped)),
         "config": {
-            "models": model_paths, "seeds": list(seeds), "max_context": max_context,
-            "n_features": n_features, "n_bins": n_bins, "interval_level": interval_level,
+            "models": model_paths,
+            "seeds": list(seeds),
+            "max_context": max_context,
+            "n_features": n_features,
+            "n_bins": n_bins,
+            "interval_level": interval_level,
         },
     }
 
@@ -1348,12 +1382,13 @@ def run(
                 continue
             for name, m in models.items():
                 clf = FinancialTFMClassifier(
-                    m, max_context=max_context, context_strategy="uniform",
-                    feature_transform="rank", random_state=seed,
+                    m,
+                    max_context=max_context,
+                    context_strategy="uniform",
+                    feature_transform="rank",
+                    random_state=seed,
                 ).fit(Xtr, ytr)
-                arms.setdefault(name, []).append(
-                    roc_auc_score(yte, clf.predict_proba(Xte)[:, 1])
-                )
+                arms.setdefault(name, []).append(roc_auc_score(yte, clf.predict_proba(Xte)[:, 1]))
             lr = LogisticRegression(max_iter=1000).fit(Xtr, ytr)
             arms.setdefault("logistic_regression", []).append(
                 roc_auc_score(yte, lr.predict_proba(Xte)[:, 1])
@@ -1365,22 +1400,34 @@ def run(
         for arm, vals in arms.items():
             v = np.array(vals)
             results.append(
-                ProbeResult(probe, arm, float(v.mean()),
-                            float(v.std(ddof=1)) if len(v) > 1 else float("nan"), len(v))
+                ProbeResult(
+                    probe,
+                    arm,
+                    float(v.mean()),
+                    float(v.std(ddof=1)) if len(v) > 1 else float("nan"),
+                    len(v),
+                )
             )
         print(f"  {probe} done", flush=True)
 
     record = {
         "probes": list(PROBES),
         "config": {
-            "models": model_paths, "seeds": list(seeds),
-            "max_context": max_context, "n_features": n_features,
+            "models": model_paths,
+            "seeds": list(seeds),
+            "max_context": max_context,
+            "n_features": n_features,
         },
         "results": [asdict(r) for r in results],
     }
     if bayes_targets:
         record["bayes_ceiling"] = {
-            name: {str(t): r for t, r in bayes_ceiling_report(m, targets=bayes_targets, seeds=bayes_seeds).items()}
+            name: {
+                str(t): r
+                for t, r in bayes_ceiling_report(
+                    m, targets=bayes_targets, seeds=bayes_seeds
+                ).items()
+            }
             for name, m in models.items()
         }
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -1409,9 +1456,15 @@ def summarise(record: dict) -> str:
         "margin has not learned to do in-context prediction (docs/results/FINDINGS.md §42).",
     ]
     if record.get("bayes_ceiling"):
-        lines += ["", summarise_bayes_report(
-            {a: {float(t): r for t, r in rep.items()} for a, rep in record["bayes_ceiling"].items()}
-        )]
+        lines += [
+            "",
+            summarise_bayes_report(
+                {
+                    a: {float(t): r for t, r in rep.items()}
+                    for a, rep in record["bayes_ceiling"].items()
+                }
+            ),
+        ]
     return "\n".join(lines)
 
 
@@ -1423,7 +1476,9 @@ def main() -> None:
     """
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument(
-        "--models", type=str, required=True,
+        "--models",
+        type=str,
+        required=True,
         help="comma-separated name=path pairs, e.g. small=runs/a.pt,fixed=runs/b.pt",
     )
     p.add_argument("--out", type=str, default="runs/capability")
@@ -1431,32 +1486,38 @@ def main() -> None:
     p.add_argument("--max-context", type=int, default=1000)
     p.add_argument("--n-features", type=int, default=20)
     p.add_argument(
-        "--bayes-targets", type=str, default="",
+        "--bayes-targets",
+        type=str,
+        default="",
         help="comma-separated nominal Bayes AUCs, e.g. 0.7,0.9,0.999: adds raw AUC and Bayesian "
-             "regret per target (task 39.18) to the probe suite's record and printout",
+        "regret per target (task 39.18) to the probe suite's record and printout",
     )
     p.add_argument(
-        "--feature-sweep", action="store_true",
+        "--feature-sweep",
+        action="store_true",
         help="sweep feature count instead of running the probe suite (§49): the test that "
-             "separates a capacity limit from a pooling-design limit",
+        "separates a capacity limit from a pooling-design limit",
     )
     p.add_argument("--widths", type=str, default="5,10,20,40,80,130")
     p.add_argument(
-        "--rate-sweep", action="store_true",
+        "--rate-sweep",
+        action="store_true",
         help="sweep the base rate instead (§51): does the model order the distribution, or "
-             "only detect extremes?",
+        "only detect extremes?",
     )
     p.add_argument("--rates", type=str, default="0.05,0.15,0.30,0.50")
     p.add_argument(
-        "--class-sweep", action="store_true",
+        "--class-sweep",
+        action="store_true",
         help="sweep the number of classes instead (task 46.1): the only instrument that "
-             "makes 'the model does multiclass' a measurement rather than a command line",
+        "makes 'the model does multiclass' a measurement rather than a command line",
     )
     p.add_argument("--class-counts", type=str, default="3,5,10")
     p.add_argument(
-        "--regression-sweep", action="store_true",
+        "--regression-sweep",
+        action="store_true",
         help="sweep continuous-target shapes instead (tasks 46.5/46.6): reports interval "
-             "coverage and where the predicted distribution puts its mass, not only error",
+        "coverage and where the predicted distribution puts its mass, not only error",
     )
     p.add_argument("--shapes", type=str, default="linear,nonlinear,bounded_bimodal")
     p.add_argument("--n-bins", type=int, default=10)
@@ -1465,10 +1526,13 @@ def main() -> None:
     paths = dict(pair.split("=", 1) for pair in args.models.split(",") if pair)
     if args.regression_sweep:
         sweep = regression_sweep(
-            paths, shapes=tuple(x for x in args.shapes.split(",") if x),
+            paths,
+            shapes=tuple(x for x in args.shapes.split(",") if x),
             seeds=tuple(int(s) for s in args.seeds.split(",")),
-            max_context=args.max_context, n_features=args.n_features,
-            n_bins=args.n_bins, interval_level=args.interval_level,
+            max_context=args.max_context,
+            n_features=args.n_features,
+            n_bins=args.n_bins,
+            interval_level=args.interval_level,
         )
         out = Path(args.out)
         out.mkdir(parents=True, exist_ok=True)
@@ -1477,9 +1541,11 @@ def main() -> None:
         return
     if args.class_sweep:
         sweep = multiclass_sweep(
-            paths, class_counts=tuple(int(k) for k in args.class_counts.split(",")),
+            paths,
+            class_counts=tuple(int(k) for k in args.class_counts.split(",")),
             seeds=tuple(int(s) for s in args.seeds.split(",")),
-            max_context=args.max_context, n_features=args.n_features,
+            max_context=args.max_context,
+            n_features=args.n_features,
         )
         out = Path(args.out)
         out.mkdir(parents=True, exist_ok=True)
@@ -1488,9 +1554,11 @@ def main() -> None:
         return
     if args.rate_sweep:
         sweep = base_rate_sweep(
-            paths, rates=tuple(float(r) for r in args.rates.split(",")),
+            paths,
+            rates=tuple(float(r) for r in args.rates.split(",")),
             seeds=tuple(int(s) for s in args.seeds.split(",")),
-            max_context=args.max_context, n_features=args.n_features or 5,
+            max_context=args.max_context,
+            n_features=args.n_features or 5,
         )
         out = Path(args.out)
         out.mkdir(parents=True, exist_ok=True)
@@ -1499,7 +1567,8 @@ def main() -> None:
         return
     if args.feature_sweep:
         sweep = feature_sweep(
-            paths, widths=tuple(int(w) for w in args.widths.split(",")),
+            paths,
+            widths=tuple(int(w) for w in args.widths.split(",")),
             seeds=tuple(int(s) for s in args.seeds.split(",")),
             max_context=args.max_context,
         )
@@ -1509,8 +1578,11 @@ def main() -> None:
         print("\n" + summarise_sweep(sweep))
         return
     record = run(
-        paths, Path(args.out), seeds=tuple(int(s) for s in args.seeds.split(",")),
-        max_context=args.max_context, n_features=args.n_features,
+        paths,
+        Path(args.out),
+        seeds=tuple(int(s) for s in args.seeds.split(",")),
+        max_context=args.max_context,
+        n_features=args.n_features,
         bayes_targets=tuple(float(t) for t in args.bayes_targets.split(",") if t),
     )
     print("\n" + summarise(record))

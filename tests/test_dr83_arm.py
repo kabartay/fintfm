@@ -33,7 +33,9 @@ def test_arm_differs_from_the_published_recipe_in_exactly_three_keys() -> None:
     arm, ref = yaml.safe_load(ARM.read_text()), yaml.safe_load(PUBLISHED.read_text())
     assert arm.keys() == ref.keys()
     differing = {
-        (sec, k) for sec in ref for k in set(ref[sec]) | set(arm[sec])
+        (sec, k)
+        for sec in ref
+        for k in set(ref[sec]) | set(arm[sec])
         if arm[sec].get(k) != ref[sec].get(k)
     }
     assert differing == CHANGED
@@ -80,7 +82,10 @@ def test_kernel_is_unpinned_or_pinned_trains_only_and_checkpoints() -> None:
     assert '"--checkpoint-every"' in src
     assert consts["SCORE_V4"] is False
     flags = consts["ARM_FLAGS"]
-    batch, steps = int(flags[flags.index("--batch-size") + 1]), int(flags[flags.index("--steps") + 1])
+    batch, steps = (
+        int(flags[flags.index("--batch-size") + 1]),
+        int(flags[flags.index("--steps") + 1]),
+    )
     assert batch * 2 * steps == 48_000  # two GPUs under DDP
     assert "configs/arms/dr83-width512.yaml" in src
 
@@ -102,7 +107,9 @@ def test_multiclass_arm_is_dr83_plus_dr74_multiclass_settings() -> None:
     mc, wide = yaml.safe_load(MC_ARM.read_text()), yaml.safe_load(ARM.read_text())
     assert mc.keys() == wide.keys()
     differing = {
-        (sec, k) for sec in wide for k in set(wide[sec]) | set(mc[sec])
+        (sec, k)
+        for sec in wide
+        for k in set(wide[sec]) | set(mc[sec])
         if mc[sec].get(k) != wide[sec].get(k)
     }
     assert differing == MC_CHANGED
@@ -142,6 +149,9 @@ def test_multiclass_kernel_is_unpinned_or_pinned_trains_only() -> None:
     assert '"--checkpoint-every"' in src
     assert consts["SCORE_V4"] is False
     flags = consts["ARM_FLAGS"]
-    batch, steps = int(flags[flags.index("--batch-size") + 1]), int(flags[flags.index("--steps") + 1])
+    batch, steps = (
+        int(flags[flags.index("--batch-size") + 1]),
+        int(flags[flags.index("--steps") + 1]),
+    )
     assert batch * 2 * steps == 48_000
     assert "configs/arms/dr75-width512-mc.yaml" in src

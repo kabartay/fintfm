@@ -27,8 +27,15 @@ CONFIG = """inference:
 """
 
 
-def run_arm(root: Path, ckpt: Path, out_dir: Path, folds: tuple[int, ...], device: str,
-            max_rows: int | None = None, config: str = CONFIG) -> dict:
+def run_arm(
+    root: Path,
+    ckpt: Path,
+    out_dir: Path,
+    folds: tuple[int, ...],
+    device: str,
+    max_rows: int | None = None,
+    config: str = CONFIG,
+) -> dict:
     """Score one arm's folds with the embedded configuration.
 
     Args:
@@ -48,9 +55,20 @@ def run_arm(root: Path, ckpt: Path, out_dir: Path, folds: tuple[int, ...], devic
     cfg_path.write_text(config)
     from fintfm.config import load_config
     from fintfm.experiments.v4_protocol import run, summarise
-    record = run(str(ckpt), out_dir, horizon=0, folds=folds, max_rows=max_rows, root=root,
-                 with_boosting=False, classical=("logistic_regression",),
-                 cfg=load_config(cfg_path), device=device, drop_columns=())
+
+    record = run(
+        str(ckpt),
+        out_dir,
+        horizon=0,
+        folds=folds,
+        max_rows=max_rows,
+        root=root,
+        with_boosting=False,
+        classical=("logistic_regression",),
+        cfg=load_config(cfg_path),
+        device=device,
+        drop_columns=(),
+    )
     print(summarise(record), flush=True)
     return record
 
@@ -62,9 +80,19 @@ def main() -> None:
         sys.exit(f"expected one company_years_h1.parquet under /kaggle/input, found {hits}")
     root = hits[0].parent
     print(f"data: {root}", flush=True)
-    subprocess.run([sys.executable, "-m", "pip", "install", "--quiet",
-                    f"fintfm @ git+https://github.com/kabartay/fintfm.git@{COMMIT}"], check=True)
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pip",
+            "install",
+            "--quiet",
+            f"fintfm @ git+https://github.com/kabartay/fintfm.git@{COMMIT}",
+        ],
+        check=True,
+    )
     import torch
+
     print(f"torch {torch.__version__}, CUDA available: {torch.cuda.is_available()}", flush=True)
     if not torch.cuda.is_available():
         sys.exit("no GPU in this session (quota exhausted?) -- refusing a CPU run")

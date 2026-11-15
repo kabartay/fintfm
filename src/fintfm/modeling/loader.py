@@ -100,8 +100,12 @@ def _pack(index: int, batch: TaskBatch) -> dict[str, Any]:
         ``{"index", "X", "y", "n_ctx", "n_classes", "period"}``.
     """
     return {
-        "index": index, "X": batch.X, "y": batch.y, "n_ctx": batch.n_ctx,
-        "n_classes": batch.n_classes, "period": batch.period,
+        "index": index,
+        "X": batch.X,
+        "y": batch.y,
+        "n_ctx": batch.n_ctx,
+        "n_classes": batch.n_classes,
+        "period": batch.period,
     }
 
 
@@ -205,10 +209,13 @@ def stream_batches(
         if index != want:
             raise RuntimeError(f"stream loader delivered batch {index} where {want} was due")
         period = item["period"]
-        yield index, TaskBatch(
-            item["X"].to(device, non_blocking=pin),
-            item["y"].to(device, non_blocking=pin),
-            int(item["n_ctx"]),
-            item["n_classes"].to(device, non_blocking=pin),
-            None if period is None else period.to(device, non_blocking=pin),
+        yield (
+            index,
+            TaskBatch(
+                item["X"].to(device, non_blocking=pin),
+                item["y"].to(device, non_blocking=pin),
+                int(item["n_ctx"]),
+                item["n_classes"].to(device, non_blocking=pin),
+                None if period is None else period.to(device, non_blocking=pin),
+            ),
         )

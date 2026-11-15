@@ -22,13 +22,22 @@ def test_resuming_a_chunked_run_matches_an_uninterrupted_one(tmp_path):
     from fintfm.modeling.train import TrainConfig, train
 
     model_cfg = ModelConfig(
-        max_features=8, max_classes=2, d_cell=8, d_model=16, n_layers=1, n_col_layers=1,
+        max_features=8,
+        max_classes=2,
+        d_cell=8,
+        d_model=16,
+        n_layers=1,
+        n_col_layers=1,
         n_heads=2,
     )
     prior_cfg = PriorConfig(max_features=8, max_classes=2, n_rows=32)
     common = {
-        "steps": 12, "batch_size": 2, "eval_every": 1000, "log_every": 1000,
-        "device": "cpu", "seed": 3,
+        "steps": 12,
+        "batch_size": 2,
+        "eval_every": 1000,
+        "log_every": 1000,
+        "device": "cpu",
+        "seed": 3,
     }
 
     whole = train(model_cfg, prior_cfg, TrainConfig(**common), str(tmp_path / "whole.pt"))
@@ -36,7 +45,8 @@ def test_resuming_a_chunked_run_matches_an_uninterrupted_one(tmp_path):
     part = tmp_path / "part.pt"
     train(model_cfg, prior_cfg, TrainConfig(**common, run_steps=6, checkpoint_every=0), str(part))
     resumed = train(
-        model_cfg, prior_cfg,
+        model_cfg,
+        prior_cfg,
         TrainConfig(**common, resume=f"{part}.state"),
         str(tmp_path / "resumed.pt"),
     )
@@ -52,22 +62,37 @@ def test_resume_refuses_a_different_schedule_length(tmp_path):
     from fintfm.modeling.train import TrainConfig, train
 
     model_cfg = ModelConfig(
-        max_features=8, max_classes=2, d_cell=8, d_model=16, n_layers=1, n_col_layers=1,
+        max_features=8,
+        max_classes=2,
+        d_cell=8,
+        d_model=16,
+        n_layers=1,
+        n_col_layers=1,
         n_heads=2,
     )
     prior_cfg = PriorConfig(max_features=8, max_classes=2, n_rows=32)
     out = tmp_path / "m.pt"
     train(
-        model_cfg, prior_cfg,
-        TrainConfig(steps=8, run_steps=4, batch_size=2, eval_every=100, log_every=100,
-                    device="cpu", seed=0),
+        model_cfg,
+        prior_cfg,
+        TrainConfig(
+            steps=8, run_steps=4, batch_size=2, eval_every=100, log_every=100, device="cpu", seed=0
+        ),
         str(out),
     )
     with pytest.raises(ValueError, match="schedule"):
         train(
-            model_cfg, prior_cfg,
-            TrainConfig(steps=99, resume=f"{out}.state", batch_size=2, eval_every=100,
-                        log_every=100, device="cpu", seed=0),
+            model_cfg,
+            prior_cfg,
+            TrainConfig(
+                steps=99,
+                resume=f"{out}.state",
+                batch_size=2,
+                eval_every=100,
+                log_every=100,
+                device="cpu",
+                seed=0,
+            ),
             str(tmp_path / "x.pt"),
         )
 
@@ -85,14 +110,27 @@ def test_schedulefree_run_completes_and_saves_a_usable_checkpoint(tmp_path):
     from fintfm.modeling.train import TrainConfig, train
 
     model_cfg = ModelConfig(
-        max_features=8, max_classes=2, d_cell=8, d_model=16, n_layers=1, n_col_layers=1,
+        max_features=8,
+        max_classes=2,
+        d_cell=8,
+        d_model=16,
+        n_layers=1,
+        n_col_layers=1,
         n_heads=2,
     )
     prior_cfg = PriorConfig(max_features=8, max_classes=2, n_rows=32)
     model = train(
-        model_cfg, prior_cfg,
-        TrainConfig(steps=4, batch_size=2, eval_every=100, log_every=100, device="cpu",
-                    seed=0, optimizer="schedulefree"),
+        model_cfg,
+        prior_cfg,
+        TrainConfig(
+            steps=4,
+            batch_size=2,
+            eval_every=100,
+            log_every=100,
+            device="cpu",
+            seed=0,
+            optimizer="schedulefree",
+        ),
         str(tmp_path / "sf.pt"),
     )
     X = torch.randn(1, 8, 8)
@@ -110,23 +148,45 @@ def test_schedulefree_run_extends_past_its_original_steps_without_restarting(tmp
     from fintfm.modeling.train import TrainConfig, train
 
     model_cfg = ModelConfig(
-        max_features=8, max_classes=2, d_cell=8, d_model=16, n_layers=1, n_col_layers=1,
+        max_features=8,
+        max_classes=2,
+        d_cell=8,
+        d_model=16,
+        n_layers=1,
+        n_col_layers=1,
         n_heads=2,
     )
     prior_cfg = PriorConfig(max_features=8, max_classes=2, n_rows=32)
     out = tmp_path / "sf.pt"
     train(
-        model_cfg, prior_cfg,
-        TrainConfig(steps=4, batch_size=2, eval_every=100, log_every=100, device="cpu",
-                    seed=0, optimizer="schedulefree"),
+        model_cfg,
+        prior_cfg,
+        TrainConfig(
+            steps=4,
+            batch_size=2,
+            eval_every=100,
+            log_every=100,
+            device="cpu",
+            seed=0,
+            optimizer="schedulefree",
+        ),
         str(out),
     )
     # steps=10 is *larger* than the original run's steps=4 -- exactly what AdamW's cosine
     # schedule refuses by name (test_resume_refuses_a_different_schedule_length above).
     extended = train(
-        model_cfg, prior_cfg,
-        TrainConfig(steps=10, resume=f"{out}.state", batch_size=2, eval_every=100,
-                    log_every=100, device="cpu", seed=0, optimizer="schedulefree"),
+        model_cfg,
+        prior_cfg,
+        TrainConfig(
+            steps=10,
+            resume=f"{out}.state",
+            batch_size=2,
+            eval_every=100,
+            log_every=100,
+            device="cpu",
+            seed=0,
+            optimizer="schedulefree",
+        ),
         str(tmp_path / "sf_extended.pt"),
     )
     X = torch.randn(1, 8, 8)
@@ -143,22 +203,44 @@ def test_resume_refuses_mismatched_optimizer(tmp_path):
     from fintfm.modeling.train import TrainConfig, train
 
     model_cfg = ModelConfig(
-        max_features=8, max_classes=2, d_cell=8, d_model=16, n_layers=1, n_col_layers=1,
+        max_features=8,
+        max_classes=2,
+        d_cell=8,
+        d_model=16,
+        n_layers=1,
+        n_col_layers=1,
         n_heads=2,
     )
     prior_cfg = PriorConfig(max_features=8, max_classes=2, n_rows=32)
     out = tmp_path / "sf.pt"
     train(
-        model_cfg, prior_cfg,
-        TrainConfig(steps=4, batch_size=2, eval_every=100, log_every=100, device="cpu",
-                    seed=0, optimizer="schedulefree"),
+        model_cfg,
+        prior_cfg,
+        TrainConfig(
+            steps=4,
+            batch_size=2,
+            eval_every=100,
+            log_every=100,
+            device="cpu",
+            seed=0,
+            optimizer="schedulefree",
+        ),
         str(out),
     )
     with pytest.raises(ValueError, match="optimizer"):
         train(
-            model_cfg, prior_cfg,
-            TrainConfig(steps=8, resume=f"{out}.state", batch_size=2, eval_every=100,
-                        log_every=100, device="cpu", seed=0, optimizer="adamw"),
+            model_cfg,
+            prior_cfg,
+            TrainConfig(
+                steps=8,
+                resume=f"{out}.state",
+                batch_size=2,
+                eval_every=100,
+                log_every=100,
+                device="cpu",
+                seed=0,
+                optimizer="adamw",
+            ),
             str(tmp_path / "x.pt"),
         )
 
@@ -176,7 +258,12 @@ def test_evaluation_does_not_change_the_training_batches(tmp_path, monkeypatch):
     train_mod = importlib.import_module("fintfm.modeling.train")
 
     model_cfg = ModelConfig(
-        max_features=8, max_classes=2, d_cell=8, d_model=16, n_layers=1, n_col_layers=1,
+        max_features=8,
+        max_classes=2,
+        d_cell=8,
+        d_model=16,
+        n_layers=1,
+        n_col_layers=1,
         n_heads=2,
     )
     prior_cfg = PriorConfig(max_features=8, max_classes=2, n_rows=32)
@@ -192,9 +279,11 @@ def test_evaluation_does_not_change_the_training_batches(tmp_path, monkeypatch):
 
         monkeypatch.setattr(train_mod, "sample_batch", recording)
         model = train(
-            model_cfg, prior_cfg,
-            TrainConfig(steps=6, batch_size=2, eval_every=eval_every, log_every=1000,
-                        device="cpu", seed=4),
+            model_cfg,
+            prior_cfg,
+            TrainConfig(
+                steps=6, batch_size=2, eval_every=eval_every, log_every=1000, device="cpu", seed=4
+            ),
             str(tmp_path / name),
         )
         training_rng = calls[0][0]  # the loop's first call precedes any evaluation
@@ -213,9 +302,17 @@ def test_evaluation_does_not_change_the_training_batches(tmp_path, monkeypatch):
 # must reproduce pretraining exactly as it ran before the flag existed.
 
 _TINY_RICH = {
-    "max_features": 8, "max_classes": 2, "d_cell": 8, "d_model": 16, "n_layers": 1,
-    "n_col_layers": 1, "n_heads": 2, "n_cell_blocks": 1, "cell_labels": True,
-    "pooling": "attention", "mask_embedding": True,
+    "max_features": 8,
+    "max_classes": 2,
+    "d_cell": 8,
+    "d_model": 16,
+    "n_layers": 1,
+    "n_col_layers": 1,
+    "n_heads": 2,
+    "n_cell_blocks": 1,
+    "cell_labels": True,
+    "pooling": "attention",
+    "mask_embedding": True,
 }
 
 
@@ -232,11 +329,18 @@ def test_default_training_matches_the_pre_lever_loop(tmp_path):
 
     cfg = TrainConfig()
     assert (cfg.optimizer, cfg.amp, cfg.decay_norm_bias, cfg.warmup_steps) == (
-        "adamw", "none", True, 500,
+        "adamw",
+        "none",
+        True,
+        500,
     )
     # DR5.2/DR5.4: the sync loader, one process, the cosine schedule and fresh evaluation
     assert (cfg.loader, cfg.ddp, cfg.schedule, cfg.eval_set_seed, cfg.eval_batches) == (
-        "sync", False, "cosine", None, 5,
+        "sync",
+        False,
+        "cosine",
+        None,
+        5,
     )
     model_cfg = ModelConfig(**_TINY_RICH)
     prior_cfg = PriorConfig(max_features=8, max_classes=2, n_rows=32)
@@ -269,13 +373,17 @@ def test_default_training_matches_the_pre_lever_loop(tmp_path):
     from fintfm.config import ModelConfigDefaults, load_config
 
     model_section = load_config().model
-    levers_at_default = ModelConfig(**_TINY_RICH, **{
-        f.name: getattr(model_section, f.name)
-        for f in fields(ModelConfigDefaults)
-        if f.name not in _TINY_RICH and f.name != "d_ff"
-    })
+    levers_at_default = ModelConfig(
+        **_TINY_RICH,
+        **{
+            f.name: getattr(model_section, f.name)
+            for f in fields(ModelConfigDefaults)
+            if f.name not in _TINY_RICH and f.name != "d_ff"
+        },
+    )
     got = train(
-        levers_at_default, prior_cfg,
+        levers_at_default,
+        prior_cfg,
         TrainConfig(steps=steps, batch_size=2, eval_every=1000, log_every=1000, seed=seed),
         str(tmp_path / "m.pt"),
     )
@@ -291,9 +399,20 @@ def test_cli_without_model_lever_flags_builds_the_pre_lever_architecture(tmp_pat
 
     model_cfg, _ = _captured_configs(monkeypatch, ["--out", str(tmp_path / "x.pt")])
     before = ModelConfig(
-        pooling="meanmax", column_id_dim=None, n_cell_blocks=0, cell_labels=False,
-        mask_embedding=False, head_type="binned", n_quantiles=99, d_ff=4 * 192,
-        max_features=24, max_classes=10, d_cell=64, d_model=192, n_col_layers=2, n_layers=6,
+        pooling="meanmax",
+        column_id_dim=None,
+        n_cell_blocks=0,
+        cell_labels=False,
+        mask_embedding=False,
+        head_type="binned",
+        n_quantiles=99,
+        d_ff=4 * 192,
+        max_features=24,
+        max_classes=10,
+        d_cell=64,
+        d_model=192,
+        n_col_layers=2,
+        n_layers=6,
         n_horizons=None,
     )
     assert asdict(model_cfg) == asdict(before)
@@ -318,9 +437,20 @@ def test_cli_without_flags_builds_the_pre_dr13_prior_and_training_configs(tmp_pa
 #: ``runs/v4-cellattn-labels.pt``'s stored ``ModelConfig``, read from the checkpoint on
 #: 2026-10-16 (SHA-256 d231b062...); keys it predates load at their defaults.
 _PUBLISHED_STORED_CONFIG = {
-    "max_features": 136, "max_classes": 2, "d_cell": 48, "d_model": 128, "n_heads": 4,
-    "n_col_layers": 2, "n_layers": 4, "d_ff": 512, "dropout": 0.0, "pooling": "meanmax",
-    "column_id_dim": 16, "n_horizons": None, "n_cell_blocks": 1, "cell_labels": True,
+    "max_features": 136,
+    "max_classes": 2,
+    "d_cell": 48,
+    "d_model": 128,
+    "n_heads": 4,
+    "n_col_layers": 2,
+    "n_layers": 4,
+    "d_ff": 512,
+    "dropout": 0.0,
+    "pooling": "meanmax",
+    "column_id_dim": 16,
+    "n_horizons": None,
+    "n_cell_blocks": 1,
+    "cell_labels": True,
 }
 _PUBLISHED_YAML = Path(__file__).resolve().parents[1] / "configs/published/v4-cellattn-labels.yaml"
 
@@ -333,12 +463,16 @@ def test_published_recipe_builds_the_published_checkpoints_model(tmp_path, monke
     from dataclasses import asdict
 
     model_cfg, train_cfg, prior_cfg = _captured_configs(
-        monkeypatch, ["--config", str(_PUBLISHED_YAML), "--out", str(tmp_path / "x.pt")],
+        monkeypatch,
+        ["--config", str(_PUBLISHED_YAML), "--out", str(tmp_path / "x.pt")],
         with_prior=True,
     )
     assert asdict(model_cfg) == asdict(ModelConfig(**_PUBLISHED_STORED_CONFIG))
     assert (train_cfg.steps, train_cfg.batch_size, train_cfg.lr, train_cfg.seed) == (
-        6000, 8, 3e-4, 0,
+        6000,
+        8,
+        3e-4,
+        0,
     )
     assert train_cfg.feature_chunk == 8 and train_cfg.optimizer == "adamw"
     assert prior_cfg.n_rows_choices == (256, 512, 1024) and prior_cfg.p_financial == 1.0
@@ -354,8 +488,14 @@ def test_published_recipe_pins_every_key_fintfm_train_reads():
 
     data = yaml.safe_load(_PUBLISHED_YAML.read_text())
     per_invocation = {
-        "device", "run_steps", "run_seconds", "resume", "init_from", "train_only",
-        "reinit_trained", "new_prior_phase",
+        "device",
+        "run_steps",
+        "run_seconds",
+        "resume",
+        "init_from",
+        "train_only",
+        "reinit_trained",
+        "new_prior_phase",
     }
     assert set(data["model"]) == {f.name for f in fields(ModelConfigDefaults)}
     assert set(data["prior"]) == {f.name for f in fields(PriorConfigDefaults)}
@@ -401,10 +541,15 @@ def test_bf16_autocast_runs_the_forward_in_bf16_and_keeps_loss_and_weights_float
 
     prior_cfg = PriorConfig(max_features=8, max_classes=2, n_rows=32)
     common = {"steps": 3, "batch_size": 2, "eval_every": 2, "log_every": 1000, "seed": 1}
-    fp32 = train(ModelConfig(**_TINY_RICH), prior_cfg, TrainConfig(**common),
-                 str(tmp_path / "a.pt"))
-    bf16 = train(ModelConfig(**_TINY_RICH), prior_cfg, TrainConfig(**common, amp="bf16"),
-                 str(tmp_path / "b.pt"))
+    fp32 = train(
+        ModelConfig(**_TINY_RICH), prior_cfg, TrainConfig(**common), str(tmp_path / "a.pt")
+    )
+    bf16 = train(
+        ModelConfig(**_TINY_RICH),
+        prior_cfg,
+        TrainConfig(**common, amp="bf16"),
+        str(tmp_path / "b.pt"),
+    )
     assert all(p.dtype == torch.float32 and torch.isfinite(p).all() for p in bf16.parameters())
     assert any(not torch.equal(a, b) for a, b in zip(fp32.parameters(), bf16.parameters()))
 
@@ -450,12 +595,14 @@ def test_bf16_hazard_training_smoke_runs_with_finite_loss(tmp_path):
     )
     from fintfm.prior.mixture import sample_batch
 
-    prior_cfg = PriorConfig(max_features=8, max_classes=2, p_financial=1.0, n_rows=48,
-                            n_horizons=6)
+    prior_cfg = PriorConfig(max_features=8, max_classes=2, p_financial=1.0, n_rows=48, n_horizons=6)
     cfg = ModelConfig(**{**_TINY_RICH, "cell_labels": False, "n_horizons": 6})
-    model = train(cfg, prior_cfg,
-                  TrainConfig(steps=3, batch_size=2, eval_every=2, log_every=1000, seed=0,
-                              amp="bf16"), str(tmp_path / "h.pt"))
+    model = train(
+        cfg,
+        prior_cfg,
+        TrainConfig(steps=3, batch_size=2, eval_every=2, log_every=1000, seed=0, amp="bf16"),
+        str(tmp_path / "h.pt"),
+    )
     assert all(torch.isfinite(p).all() for p in model.parameters())
 
     torch.manual_seed(0)
@@ -512,8 +659,9 @@ def test_grad_scaler_wiring_matches_the_unscaled_step_on_cpu():
     torch.manual_seed(0)
     plain = FinancialTFM(ModelConfig(**_TINY_RICH))
     scaled = copy.deepcopy(plain)
-    batch = sample_batch(np.random.default_rng(0), PriorConfig(max_features=8, max_classes=2,
-                                                                n_rows=32), 2)
+    batch = sample_batch(
+        np.random.default_rng(0), PriorConfig(max_features=8, max_classes=2, n_rows=32), 2
+    )
     _one_step(plain, batch, None)
     _one_step(scaled, batch, torch.amp.GradScaler("cpu", init_scale=2.0**12))
     for (name, a), (_, b) in zip(plain.state_dict().items(), scaled.state_dict().items()):
@@ -533,11 +681,13 @@ def test_grad_scaler_skips_a_step_whose_gradients_overflow():
     torch.manual_seed(0)
     model = FinancialTFM(ModelConfig(**_TINY_RICH))
     before = copy.deepcopy(model.state_dict())
-    batch = sample_batch(np.random.default_rng(0), PriorConfig(max_features=8, max_classes=2,
-                                                                n_rows=32), 2)
+    batch = sample_batch(
+        np.random.default_rng(0), PriorConfig(max_features=8, max_classes=2, n_rows=32), 2
+    )
     scaler = torch.amp.GradScaler("cpu", init_scale=2.0**12)
-    _one_step(model, batch, scaler,
-              loss_override=lambda *a, **k: (model.head.weight * float("inf")).sum())
+    _one_step(
+        model, batch, scaler, loss_override=lambda *a, **k: (model.head.weight * float("inf")).sum()
+    )
     assert scaler.get_scale() == 2.0**11
     for name, value in model.state_dict().items():
         assert torch.equal(value, before[name]), name
@@ -551,14 +701,25 @@ def test_fp16_trains_on_cuda_and_its_scaler_survives_a_resume(tmp_path):
 
     model_cfg = ModelConfig(**_TINY_RICH)
     prior_cfg = PriorConfig(max_features=8, max_classes=2, n_rows=32)
-    common = {"steps": 4, "batch_size": 2, "eval_every": 2, "log_every": 1000, "seed": 0,
-              "device": "cuda", "amp": "fp16"}
+    common = {
+        "steps": 4,
+        "batch_size": 2,
+        "eval_every": 2,
+        "log_every": 1000,
+        "seed": 0,
+        "device": "cuda",
+        "amp": "fp16",
+    }
     part = tmp_path / "part.pt"
     train(model_cfg, prior_cfg, TrainConfig(**common, run_steps=2), str(part))
     state = torch.load(f"{part}.state", weights_only=False)
     assert "grad_scaler" in state and state["grad_scaler"]["scale"] > 0
-    model = train(model_cfg, prior_cfg, TrainConfig(**common, resume=f"{part}.state"),
-                  str(tmp_path / "whole.pt"))
+    model = train(
+        model_cfg,
+        prior_cfg,
+        TrainConfig(**common, resume=f"{part}.state"),
+        str(tmp_path / "whole.pt"),
+    )
     assert all(p.dtype == torch.float32 and torch.isfinite(p).all() for p in model.parameters())
 
 
@@ -596,14 +757,24 @@ def test_decay_norm_bias_false_exempts_norms_biases_and_embeddings():
     opt, _ = _build_optimizer(model, TrainConfig(decay_norm_bias=False))
     wd = _decay_by_name(opt, model)
     exempt = [n for n in wd if "norm" in n or n.endswith("bias")] + [
-        "mask_embed.weight", "query_token", "cell_mask_token", "pool_query",
+        "mask_embed.weight",
+        "query_token",
+        "cell_mask_token",
+        "pool_query",
     ]
     assert any("norm" in n for n in exempt) and any(n.endswith("bias") for n in exempt)
     for n in exempt:
         assert wd[n] == 0.0, n
-    for n in ("head.weight", "row_proj.weight", "y_proj.weight", "col_id_proj.weight",
-              "encoder.layers.0.linear1.weight", "encoder.layers.0.self_attn.in_proj_weight",
-              "pool_attn.out_proj.weight", "value_embed.0.weight"):
+    for n in (
+        "head.weight",
+        "row_proj.weight",
+        "y_proj.weight",
+        "col_id_proj.weight",
+        "encoder.layers.0.linear1.weight",
+        "encoder.layers.0.self_attn.in_proj_weight",
+        "pool_attn.out_proj.weight",
+        "value_embed.0.weight",
+    ):
         assert wd[n] == 0.01, n
     assert set(wd) - set(exempt) == {n for n, v in wd.items() if v == 0.01}
 
@@ -630,8 +801,15 @@ def test_warmup_steps_sets_the_schedule():
 # --- Design review DR5.4: the warmup-stable-decay schedule and the fixed evaluation set.
 
 _TINY_WSD = {
-    "steps": 12, "batch_size": 2, "eval_every": 1000, "log_every": 1000, "seed": 3,
-    "warmup_steps": 2, "schedule": "wsd", "decay_frac": 0.25, "lr_min": 3e-5,
+    "steps": 12,
+    "batch_size": 2,
+    "eval_every": 1000,
+    "log_every": 1000,
+    "seed": 3,
+    "warmup_steps": 2,
+    "schedule": "wsd",
+    "decay_frac": 0.25,
+    "lr_min": 3e-5,
 }
 
 
@@ -680,7 +858,8 @@ def test_wsd_stable_state_resumes_with_a_longer_horizon_to_the_uninterrupted_wei
     longer = {**_TINY_WSD, "steps": 20, "loader": loader}
     whole = train(model_cfg, prior_cfg, TrainConfig(**longer), str(tmp_path / "whole.pt"))
     resumed = train(
-        model_cfg, prior_cfg,
+        model_cfg,
+        prior_cfg,
         TrainConfig(**longer, resume=f"{short}.stable.state"),
         str(tmp_path / "resumed.pt"),
     )
@@ -697,13 +876,19 @@ def test_wsd_refuses_a_new_horizon_once_the_decay_has_started(tmp_path):
     out = tmp_path / "m.pt"
     train(model_cfg, prior_cfg, TrainConfig(**{**_TINY_WSD, "steps": 12}), str(out))
     with pytest.raises(ValueError, match="schedule"):
-        train(model_cfg, prior_cfg,
-              TrainConfig(**{**_TINY_WSD, "steps": 20}, resume=f"{out}.state"),
-              str(tmp_path / "x.pt"))
+        train(
+            model_cfg,
+            prior_cfg,
+            TrainConfig(**{**_TINY_WSD, "steps": 20}, resume=f"{out}.state"),
+            str(tmp_path / "x.pt"),
+        )
     with pytest.raises(ValueError, match="--schedule wsd"):  # a cosine run resuming it
-        train(model_cfg, prior_cfg,
-              TrainConfig(**{**_TINY_WSD, "schedule": "cosine"}, resume=f"{out}.state"),
-              str(tmp_path / "y.pt"))
+        train(
+            model_cfg,
+            prior_cfg,
+            TrainConfig(**{**_TINY_WSD, "schedule": "cosine"}, resume=f"{out}.state"),
+            str(tmp_path / "y.pt"),
+        )
 
 
 @pytest.mark.parametrize(
@@ -743,8 +928,10 @@ def test_eval_set_seed_scores_the_same_tasks_at_every_evaluation(tmp_path, monke
             import copy
 
             probe = copy.deepcopy(rng)
-            batches = [train_mod.sample_batch(probe, prior_cfg, kw["batch_size"])
-                       for _ in range(kw["n_batches"])]
+            batches = [
+                train_mod.sample_batch(probe, prior_cfg, kw["batch_size"])
+                for _ in range(kw["n_batches"])
+            ]
         seen.append([b.y for b in batches])
         return real(model, prior_cfg, rng, **kw)
 
@@ -753,8 +940,12 @@ def test_eval_set_seed_scores_the_same_tasks_at_every_evaluation(tmp_path, monke
     prior_cfg = PriorConfig(max_features=8, max_classes=2, n_rows=32)
     common = {"steps": 3, "batch_size": 2, "eval_every": 1, "log_every": 1000, "seed": 0}
 
-    fixed = train(model_cfg, prior_cfg, TrainConfig(**common, eval_set_seed=11, eval_batches=2),
-                  str(tmp_path / "f.pt"))
+    fixed = train(
+        model_cfg,
+        prior_cfg,
+        TrainConfig(**common, eval_set_seed=11, eval_batches=2),
+        str(tmp_path / "f.pt"),
+    )
     assert len(seen) == 3 and all(len(s) == 2 for s in seen)
     for later in seen[1:]:
         assert all(torch.equal(a, b) for a, b in zip(seen[0], later))
@@ -776,14 +967,34 @@ def test_cli_passes_the_schedule_and_eval_set_flags(tmp_path, monkeypatch):
     base = ["--steps", "1", "--out", str(tmp_path / "x.pt")]
     cfg = _captured_train_cfg(monkeypatch, base)
     assert (cfg.schedule, cfg.decay_frac, cfg.lr_min, cfg.eval_set_seed, cfg.eval_batches) == (
-        "cosine", 0.1, 0.0, None, 5,
+        "cosine",
+        0.1,
+        0.0,
+        None,
+        5,
     )
-    cfg = _captured_train_cfg(monkeypatch, [
-        *base, "--schedule", "wsd", "--decay-frac", "0.2", "--lr-min", "1e-5",
-        "--eval-set-seed", "7", "--eval-batches", "64",
-    ])
+    cfg = _captured_train_cfg(
+        monkeypatch,
+        [
+            *base,
+            "--schedule",
+            "wsd",
+            "--decay-frac",
+            "0.2",
+            "--lr-min",
+            "1e-5",
+            "--eval-set-seed",
+            "7",
+            "--eval-batches",
+            "64",
+        ],
+    )
     assert (cfg.schedule, cfg.decay_frac, cfg.lr_min, cfg.eval_set_seed, cfg.eval_batches) == (
-        "wsd", 0.2, 1e-5, 7, 64,
+        "wsd",
+        0.2,
+        1e-5,
+        7,
+        64,
     )
 
 
@@ -806,9 +1017,24 @@ def _captured_train_cfg(monkeypatch, argv):
 
 
 _TINY_CLI = [
-    "--steps", "2", "--batch-size", "2", "--max-features", "8", "--max-classes", "2",
-    "--d-model", "16", "--d-cell", "8", "--n-layers", "1", "--n-col-layers", "1",
-    "--n-rows", "32",
+    "--steps",
+    "2",
+    "--batch-size",
+    "2",
+    "--max-features",
+    "8",
+    "--max-classes",
+    "2",
+    "--d-model",
+    "16",
+    "--d-cell",
+    "8",
+    "--n-layers",
+    "1",
+    "--n-col-layers",
+    "1",
+    "--n-rows",
+    "32",
 ]
 
 
@@ -818,25 +1044,48 @@ _TINY_CLI = [
         (["--n-heads", "2"], {"n_heads": 2}),
         (["--n-cell-heads", "2"], {"n_cell_heads": 2}),
         (["--n-summary-tokens", "3"], {"n_summary_tokens": 3}),
-        (["--value-embedding", "rbf", "--value-basis-size", "6", "--value-basis-learnable"],
-         {"value_embedding": "rbf", "value_basis_size": 6, "value_basis_learnable": True}),
-        (["--value-embedding", "fourier", "--value-basis-size", "4"],
-         {"value_embedding": "fourier", "value_basis_size": 4}),
+        (
+            ["--value-embedding", "rbf", "--value-basis-size", "6", "--value-basis-learnable"],
+            {"value_embedding": "rbf", "value_basis_size": 6, "value_basis_learnable": True},
+        ),
+        (
+            ["--value-embedding", "fourier", "--value-basis-size", "4"],
+            {"value_embedding": "fourier", "value_basis_size": 4},
+        ),
         (["--value-ecdf"], {"value_ecdf": True}),
-        (["--attn-length-scale", "--attn-length-ref", "64"],
-         {"attn_length_scale": True, "attn_length_ref": 64}),
-        (["--hazard-period-context", "--n-horizons", "3"],
-         {"hazard_period_context": True, "n_horizons": 3}),
-        (["--n-cell-blocks", "1", "--cell-row-attn", "induced", "--n-inducing", "4"],
-         {"n_cell_blocks": 1, "cell_row_attn": "induced", "n_inducing": 4}),
+        (
+            ["--attn-length-scale", "--attn-length-ref", "64"],
+            {"attn_length_scale": True, "attn_length_ref": 64},
+        ),
+        (
+            ["--hazard-period-context", "--n-horizons", "3"],
+            {"hazard_period_context": True, "n_horizons": 3},
+        ),
+        (
+            ["--n-cell-blocks", "1", "--cell-row-attn", "induced", "--n-inducing", "4"],
+            {"n_cell_blocks": 1, "cell_row_attn": "induced", "n_inducing": 4},
+        ),
         (["--readout", "cls", "--n-readout", "2"], {"readout": "cls", "n_readout": 2}),
         (["--head-mlp"], {"head_mlp": True}),
-        (["--n-cell-blocks", "1", "--cell-mixing", "latent"],
-         {"n_cell_blocks": 1, "cell_mixing": "latent"}),
+        (
+            ["--n-cell-blocks", "1", "--cell-mixing", "latent"],
+            {"n_cell_blocks": 1, "cell_mixing": "latent"},
+        ),
     ],
-    ids=["n-heads", "n-cell-heads", "summary-tokens", "rbf", "fourier", "ecdf",
-         "length-scale", "hazard-period", "induced-cell-rows", "readout-cls", "head-mlp",
-         "latent-cell-mixing"],
+    ids=[
+        "n-heads",
+        "n-cell-heads",
+        "summary-tokens",
+        "rbf",
+        "fourier",
+        "ecdf",
+        "length-scale",
+        "hazard-period",
+        "induced-cell-rows",
+        "readout-cls",
+        "head-mlp",
+        "latent-cell-mixing",
+    ],
 )
 def test_each_model_lever_trains_from_the_cli(tmp_path, monkeypatch, flags, expected):
     """Smoke test per Phase 5 model lever: the flag reaches the model, two steps train, and
@@ -861,18 +1110,39 @@ def test_cli_takes_the_new_knobs_from_config_and_flags(tmp_path, monkeypatch):
     base = ["--steps", "1", "--out", str(tmp_path / "x.pt")]
     cfg = _captured_train_cfg(monkeypatch, base)
     assert (cfg.warmup_steps, cfg.decay_norm_bias, cfg.amp, cfg.muon_lr, cfg.optimizer) == (
-        500, True, "none", None, "adamw",
+        500,
+        True,
+        "none",
+        None,
+        "adamw",
     )
     override = tmp_path / "o.yaml"
     override.write_text("train:\n  warmup_steps: 9\n  decay_norm_bias: false\n")
     cfg = _captured_train_cfg(monkeypatch, [*base, "--config", str(override)])
     assert (cfg.warmup_steps, cfg.decay_norm_bias) == (9, False)
-    cfg = _captured_train_cfg(monkeypatch, [
-        *base, "--config", str(override), "--warmup-steps", "7", "--decay-norm-bias",
-        "--amp", "bf16", "--optimizer", "muon", "--muon-lr", "0.01",
-    ])
+    cfg = _captured_train_cfg(
+        monkeypatch,
+        [
+            *base,
+            "--config",
+            str(override),
+            "--warmup-steps",
+            "7",
+            "--decay-norm-bias",
+            "--amp",
+            "bf16",
+            "--optimizer",
+            "muon",
+            "--muon-lr",
+            "0.01",
+        ],
+    )
     assert (cfg.warmup_steps, cfg.decay_norm_bias, cfg.amp, cfg.optimizer, cfg.muon_lr) == (
-        7, True, "bf16", "muon", 0.01,
+        7,
+        True,
+        "bf16",
+        "muon",
+        0.01,
     )
 
 
@@ -884,11 +1154,30 @@ def test_benchmark_reports_throughput_and_saves_nothing(tmp_path, monkeypatch, c
 
     train_mod = importlib.import_module("fintfm.modeling.train")
     monkeypatch.delenv("FINTFM_CONFIG", raising=False)
-    train_mod.main([
-        "--benchmark-steps", "2", "--batch-size", "2", "--max-features", "8",
-        "--max-classes", "2", "--d-model", "16", "--d-cell", "8", "--n-layers", "1",
-        "--n-col-layers", "1", "--n-rows", "32", "--out", str(tmp_path / "x.pt"),
-    ])
+    train_mod.main(
+        [
+            "--benchmark-steps",
+            "2",
+            "--batch-size",
+            "2",
+            "--max-features",
+            "8",
+            "--max-classes",
+            "2",
+            "--d-model",
+            "16",
+            "--d-cell",
+            "8",
+            "--n-layers",
+            "1",
+            "--n-col-layers",
+            "1",
+            "--n-rows",
+            "32",
+            "--out",
+            str(tmp_path / "x.pt"),
+        ]
+    )
     record = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
     assert record["steps"] == 2 and record["tasks"] == 4
     assert record["tasks_per_second"] > 0
@@ -909,9 +1198,26 @@ def test_benchmark_reads_the_task_dump_instead_of_sampling(tmp_path, monkeypatch
     train_mod = importlib.import_module("fintfm.modeling.train")
     monkeypatch.delenv("FINTFM_CONFIG", raising=False)
     args = [
-        "--batch-size", "2", "--max-features", "8", "--max-classes", "2", "--d-model", "16",
-        "--d-cell", "8", "--n-layers", "1", "--n-col-layers", "1", "--n-rows", "32",
-        "--out", str(tmp_path / "x.pt"), "--task-dump", str(tmp_path / "d"),
+        "--batch-size",
+        "2",
+        "--max-features",
+        "8",
+        "--max-classes",
+        "2",
+        "--d-model",
+        "16",
+        "--d-cell",
+        "8",
+        "--n-layers",
+        "1",
+        "--n-col-layers",
+        "1",
+        "--n-rows",
+        "32",
+        "--out",
+        str(tmp_path / "x.pt"),
+        "--task-dump",
+        str(tmp_path / "d"),
     ]
     prior = train_mod.PriorConfig(max_features=8, max_classes=2, n_rows=32)
     write_task_dump(tmp_path / "d", prior, seed=0, batch_size=2, n_batches=5)
@@ -960,12 +1266,16 @@ def test_muon_step_applies_an_orthogonalised_update():
     the plain Adam update."""
     from fintfm.modeling.muon import Muon
 
-    for scale, factor in (("keller", (24 / 8) ** 0.5), ("rms_match", 0.2 * 24 ** 0.5)):
+    for scale, factor in (("keller", (24 / 8) ** 0.5), ("rms_match", 0.2 * 24**0.5)):
         torch.manual_seed(0)
         w = torch.nn.Parameter(torch.randn(24, 8))
         b = torch.nn.Parameter(torch.zeros(8))
-        opt = Muon([{"params": [w], "use_muon": True, "lr": 0.02, "scale": scale},
-                    {"params": [b], "use_muon": False, "lr": 0.001}])
+        opt = Muon(
+            [
+                {"params": [w], "use_muon": True, "lr": 0.02, "scale": scale},
+                {"params": [b], "use_muon": False, "lr": 0.001},
+            ]
+        )
         w0 = w.detach().clone()
         w.grad = 1000.0 * torch.randn(24, 8)
         b.grad = torch.randn(8)
@@ -996,8 +1306,15 @@ def test_muon_takes_the_hidden_matrices_and_adamw_the_rest():
     assert "column_encoder.layers.0.linear2.weight" in muon
     assert "row_within_feature_encoder.layers.0.linear1.weight" in muon
     assert "pool_attn.out_proj.weight" in muon
-    for n in ("head.weight", "row_proj.weight", "y_proj.weight", "value_embed.0.weight",
-              "mask_embed.weight", "encoder.layers.0.norm1.weight", "query_token"):
+    for n in (
+        "head.weight",
+        "row_proj.weight",
+        "y_proj.weight",
+        "value_embed.0.weight",
+        "mask_embed.weight",
+        "encoder.layers.0.norm1.weight",
+        "query_token",
+    ):
         assert n not in muon, n
     assert all(dict(model.named_parameters())[n].ndim == 2 for n in muon)
 
@@ -1009,19 +1326,32 @@ def test_muon_run_resumes_to_the_same_weights_as_an_uninterrupted_one(tmp_path):
 
     model_cfg = ModelConfig(**_TINY_RICH)
     prior_cfg = PriorConfig(max_features=8, max_classes=2, n_rows=32)
-    common = {"steps": 6, "batch_size": 2, "eval_every": 1000, "log_every": 1000, "seed": 3,
-              "optimizer": "muon"}
+    common = {
+        "steps": 6,
+        "batch_size": 2,
+        "eval_every": 1000,
+        "log_every": 1000,
+        "seed": 3,
+        "optimizer": "muon",
+    }
     whole = train(model_cfg, prior_cfg, TrainConfig(**common), str(tmp_path / "whole.pt"))
     part = tmp_path / "part.pt"
     train(model_cfg, prior_cfg, TrainConfig(**common, run_steps=3), str(part))
-    resumed = train(model_cfg, prior_cfg, TrainConfig(**common, resume=f"{part}.state"),
-                    str(tmp_path / "resumed.pt"))
+    resumed = train(
+        model_cfg,
+        prior_cfg,
+        TrainConfig(**common, resume=f"{part}.state"),
+        str(tmp_path / "resumed.pt"),
+    )
     for (name, a), (_, b) in zip(whole.state_dict().items(), resumed.state_dict().items()):
         assert torch.allclose(a, b, atol=1e-6), name
     with pytest.raises(ValueError, match="schedule"):
-        train(model_cfg, prior_cfg, TrainConfig(**{**common, "steps": 9},
-                                                resume=f"{part}.state"),
-              str(tmp_path / "x.pt"))
+        train(
+            model_cfg,
+            prior_cfg,
+            TrainConfig(**{**common, "steps": 9}, resume=f"{part}.state"),
+            str(tmp_path / "x.pt"),
+        )
 
 
 def test_two_step_checkpoint_states_its_normalised_source_shares(tmp_path):
@@ -1031,13 +1361,16 @@ def test_two_step_checkpoint_states_its_normalised_source_shares(tmp_path):
     from fintfm.modeling.train import TrainConfig, train
     from fintfm.provenance import read_checkpoint_provenance
 
-    prior_cfg = PriorConfig(max_features=8, max_classes=2, n_rows=32, p_tree=0.3,
-                            p_financial=0.7)
+    prior_cfg = PriorConfig(max_features=8, max_classes=2, n_rows=32, p_tree=0.3, p_financial=0.7)
     out = tmp_path / "m.pt"
-    train(ModelConfig(**_TINY_RICH), prior_cfg,
-          TrainConfig(steps=2, batch_size=3, eval_every=1000, log_every=1000,
-                      checkpoint_every=1, seed=0),
-          str(out))
+    train(
+        ModelConfig(**_TINY_RICH),
+        prior_cfg,
+        TrainConfig(
+            steps=2, batch_size=3, eval_every=1000, log_every=1000, checkpoint_every=1, seed=0
+        ),
+        str(out),
+    )
     rec = read_checkpoint_provenance(out)
     shares = rec["source_shares"]
     assert shares["configured"]["tree"] == 0.3 and shares["configured"]["financial"] == 0.7
@@ -1066,8 +1399,17 @@ def test_source_weights_flag_trains_and_the_checkpoint_states_the_weighted_share
     train_mod = importlib.import_module("fintfm.modeling.train")
     monkeypatch.delenv("FINTFM_CONFIG", raising=False)
     out = tmp_path / "m.pt"
-    train_mod.main([*_TINY_CLI, "--source-weights", "tree=1,financial=1,scm=2",
-                    "--scm-reuse-graph", "2", "--out", str(out)])
+    train_mod.main(
+        [
+            *_TINY_CLI,
+            "--source-weights",
+            "tree=1,financial=1,scm=2",
+            "--scm-reuse-graph",
+            "2",
+            "--out",
+            str(out),
+        ]
+    )
     rec = read_checkpoint_provenance(out)
     assert rec["prior_config"]["source_weights"] == {"tree": 1.0, "financial": 1.0, "scm": 2.0}
     assert rec["source_shares"] == {
@@ -1111,11 +1453,9 @@ def test_init_from_records_the_starting_checkpoint(tmp_path):
     common = {"steps": 2, "batch_size": 2, "eval_every": 1000, "log_every": 1000}
     first = tmp_path / "a.pt"
     train(model_cfg, prior_cfg, TrainConfig(**common), str(first))
-    train(model_cfg, prior_cfg, TrainConfig(**common, init_from=str(first)),
-          str(tmp_path / "b.pt"))
+    train(model_cfg, prior_cfg, TrainConfig(**common, init_from=str(first)), str(tmp_path / "b.pt"))
     rec = read_checkpoint_provenance(tmp_path / "b.pt")
-    assert rec["init_from"] == {"path": str(first), "sha256": sha256_file(first),
-                                "tasks_seen": 4}
+    assert rec["init_from"] == {"path": str(first), "sha256": sha256_file(first), "tasks_seen": 4}
     assert rec["tasks_seen"] == 4
 
 
@@ -1142,17 +1482,13 @@ def _trunk_then_credit(tmp_path: Path) -> tuple[PriorConfig, PriorConfig, str]:
     from fintfm.modeling.train import TrainConfig, train
 
     trunk = PriorConfig(max_features=8, max_classes=2, n_rows=32)
-    credit = replace(trunk, p_financial=1.0, financial_gate_prob=0.5,
-                     financial_sign_flip_prob=0.5)
+    credit = replace(trunk, p_financial=1.0, financial_gate_prob=0.5, financial_sign_flip_prob=0.5)
     first = tmp_path / "a.pt"
-    train(ModelConfig(**_TINY_RICH), trunk, TrainConfig(**_PHASE_COMMON, run_steps=4),
-          str(first))
+    train(ModelConfig(**_TINY_RICH), trunk, TrainConfig(**_PHASE_COMMON, run_steps=4), str(first))
     return trunk, credit, f"{first}.state"
 
 
-def test_new_prior_phase_trains_on_the_new_prior_and_records_both_phases(
-    tmp_path, monkeypatch
-):
+def test_new_prior_phase_trains_on_the_new_prior_and_records_both_phases(tmp_path, monkeypatch):
     """DR2.4's curriculum: ``run_steps`` on one prior, then ``resume`` with
     ``new_prior_phase`` on another. Every batch of the second phase comes from the new
     prior, and the checkpoint states both phases with their step ranges while its top-level
@@ -1173,10 +1509,12 @@ def test_new_prior_phase_trains_on_the_new_prior_and_records_both_phases(
 
     monkeypatch.setattr(train_mod, "sample_batch", spy)
     out = tmp_path / "b.pt"
-    train_mod.train(ModelConfig(**_TINY_RICH), credit,
-                    TrainConfig(**_PHASE_COMMON, resume=state, new_prior_phase=True,
-                                checkpoint_every=2),
-                    str(out))
+    train_mod.train(
+        ModelConfig(**_TINY_RICH),
+        credit,
+        TrainConfig(**_PHASE_COMMON, resume=state, new_prior_phase=True, checkpoint_every=2),
+        str(out),
+    )
     assert len(seen) == 4 and all(cfg == credit for cfg in seen)
     rec = read_checkpoint_provenance(out)
     phases = rec["prior_phases"]
@@ -1201,8 +1539,12 @@ def test_resume_under_a_different_prior_is_refused_without_new_prior_phase(tmp_p
 
     _, credit, state = _trunk_then_credit(tmp_path)
     with pytest.raises(ValueError, match="different prior.*financial_gate_prob"):
-        train(ModelConfig(**_TINY_RICH), credit, TrainConfig(**_PHASE_COMMON, resume=state),
-              str(tmp_path / "x.pt"))
+        train(
+            ModelConfig(**_TINY_RICH),
+            credit,
+            TrainConfig(**_PHASE_COMMON, resume=state),
+            str(tmp_path / "x.pt"),
+        )
 
 
 def test_new_prior_phase_is_refused_when_it_could_not_take_effect(tmp_path):
@@ -1215,17 +1557,22 @@ def test_new_prior_phase_is_refused_when_it_could_not_take_effect(tmp_path):
     trunk, credit, state = _trunk_then_credit(tmp_path)
     model_cfg = ModelConfig(**_TINY_RICH)
     with pytest.raises(ValueError, match="inert"):
-        train(model_cfg, trunk,
-              TrainConfig(**_PHASE_COMMON, resume=state, new_prior_phase=True),
-              str(tmp_path / "x.pt"))
+        train(
+            model_cfg,
+            trunk,
+            TrainConfig(**_PHASE_COMMON, resume=state, new_prior_phase=True),
+            str(tmp_path / "x.pt"),
+        )
     old = torch.load(state, weights_only=False)
     del old["prior_phases"]
     torch.save(old, tmp_path / "old.state")
     with pytest.raises(ValueError, match="records no prior"):
-        train(model_cfg, credit,
-              TrainConfig(**_PHASE_COMMON, resume=str(tmp_path / "old.state"),
-                          new_prior_phase=True),
-              str(tmp_path / "y.pt"))
+        train(
+            model_cfg,
+            credit,
+            TrainConfig(**_PHASE_COMMON, resume=str(tmp_path / "old.state"), new_prior_phase=True),
+            str(tmp_path / "y.pt"),
+        )
 
 
 def test_a_resume_under_its_own_prior_records_no_phases(tmp_path):
@@ -1237,15 +1584,19 @@ def test_a_resume_under_its_own_prior_records_no_phases(tmp_path):
 
     trunk, _, state = _trunk_then_credit(tmp_path)
     model_cfg = ModelConfig(**_TINY_RICH)
-    new = train(model_cfg, trunk, TrainConfig(**_PHASE_COMMON, resume=state),
-                str(tmp_path / "b.pt"))
+    new = train(
+        model_cfg, trunk, TrainConfig(**_PHASE_COMMON, resume=state), str(tmp_path / "b.pt")
+    )
     assert "prior_phases" not in read_checkpoint_provenance(tmp_path / "b.pt")
     old = torch.load(state, weights_only=False)
     del old["prior_phases"]
     torch.save(old, tmp_path / "old.state")
-    legacy = train(model_cfg, trunk,
-                   TrainConfig(**_PHASE_COMMON, resume=str(tmp_path / "old.state")),
-                   str(tmp_path / "c.pt"))
+    legacy = train(
+        model_cfg,
+        trunk,
+        TrainConfig(**_PHASE_COMMON, resume=str(tmp_path / "old.state")),
+        str(tmp_path / "c.pt"),
+    )
     assert "prior_phases" not in read_checkpoint_provenance(tmp_path / "c.pt")
     for (name, a), (_, b) in zip(new.state_dict().items(), legacy.state_dict().items()):
         assert torch.equal(a, b), name
@@ -1262,11 +1613,21 @@ def test_cli_passes_new_prior_phase(tmp_path, monkeypatch):
 # --- design review DR8.2: --run-seconds, a wall-time budget per invocation ---
 
 _BUDGET_MODEL = ModelConfig(
-    max_features=8, max_classes=2, d_cell=8, d_model=16, n_layers=1, n_col_layers=1, n_heads=2,
+    max_features=8,
+    max_classes=2,
+    d_cell=8,
+    d_model=16,
+    n_layers=1,
+    n_col_layers=1,
+    n_heads=2,
 )
 _BUDGET_PRIOR = PriorConfig(max_features=8, max_classes=2, n_rows=32)
 _BUDGET_COMMON = {
-    "steps": 12, "batch_size": 2, "eval_every": 1000, "log_every": 1000, "device": "cpu",
+    "steps": 12,
+    "batch_size": 2,
+    "eval_every": 1000,
+    "log_every": 1000,
+    "device": "cpu",
     "seed": 3,
 }
 
@@ -1292,12 +1653,12 @@ def test_run_seconds_stop_resumes_to_the_uninterrupted_weights(tmp_path, monkeyp
     from fintfm.modeling.train import TrainConfig, train
     from fintfm.provenance import read_checkpoint_provenance
 
-    whole = train(_BUDGET_MODEL, _BUDGET_PRIOR, TrainConfig(**_BUDGET_COMMON),
-                  str(tmp_path / "whole.pt"))
+    whole = train(
+        _BUDGET_MODEL, _BUDGET_PRIOR, TrainConfig(**_BUDGET_COMMON), str(tmp_path / "whole.pt")
+    )
     _step_clock(monkeypatch)
     part = tmp_path / "part.pt"
-    train(_BUDGET_MODEL, _BUDGET_PRIOR, TrainConfig(**_BUDGET_COMMON, run_seconds=4.5),
-          str(part))
+    train(_BUDGET_MODEL, _BUDGET_PRIOR, TrainConfig(**_BUDGET_COMMON, run_seconds=4.5), str(part))
     rec = read_checkpoint_provenance(part)
     assert rec["steps_completed"] == 5 and rec["tasks_seen"] == 10
     budget = rec["time_budget"]
@@ -1306,9 +1667,12 @@ def test_run_seconds_stop_resumes_to_the_uninterrupted_weights(tmp_path, monkeyp
     state = torch.load(f"{part}.state", weights_only=False)
     assert state["step"] == 5 and state["total_steps"] == 12
     monkeypatch.undo()
-    resumed = train(_BUDGET_MODEL, _BUDGET_PRIOR,
-                    TrainConfig(**_BUDGET_COMMON, resume=f"{part}.state"),
-                    str(tmp_path / "resumed.pt"))
+    resumed = train(
+        _BUDGET_MODEL,
+        _BUDGET_PRIOR,
+        TrainConfig(**_BUDGET_COMMON, resume=f"{part}.state"),
+        str(tmp_path / "resumed.pt"),
+    )
     assert "time_budget" not in read_checkpoint_provenance(tmp_path / "resumed.pt")
     for (name, a), (_, b) in zip(whole.state_dict().items(), resumed.state_dict().items()):
         assert torch.allclose(a, b, atol=1e-6), f"{name} diverged between stopped and whole run"
@@ -1321,12 +1685,17 @@ def test_run_seconds_budget_not_reached_runs_to_the_end(tmp_path):
     from fintfm.provenance import read_checkpoint_provenance
 
     common = {**_BUDGET_COMMON, "steps": 3}
-    train(_BUDGET_MODEL, _BUDGET_PRIOR, TrainConfig(**common, run_seconds=1e6),
-          str(tmp_path / "a.pt"))
+    train(
+        _BUDGET_MODEL, _BUDGET_PRIOR, TrainConfig(**common, run_seconds=1e6), str(tmp_path / "a.pt")
+    )
     budget = read_checkpoint_provenance(tmp_path / "a.pt")["time_budget"]
     assert (budget["stop_step"], budget["stopped_early"]) == (3, False)
-    train(_BUDGET_MODEL, _BUDGET_PRIOR, TrainConfig(**common, run_seconds=1e6, run_steps=2),
-          str(tmp_path / "b.pt"))
+    train(
+        _BUDGET_MODEL,
+        _BUDGET_PRIOR,
+        TrainConfig(**common, run_seconds=1e6, run_steps=2),
+        str(tmp_path / "b.pt"),
+    )
     budget = read_checkpoint_provenance(tmp_path / "b.pt")["time_budget"]
     assert (budget["stop_step"], budget["stopped_early"]) == (2, False)
 
@@ -1344,8 +1713,12 @@ def test_run_seconds_default_reads_no_clock(tmp_path, monkeypatch):
         raise AssertionError("read the budget clock without --run-seconds")
 
     monkeypatch.setattr(train_mod, "_training_clock", no_clock)
-    train(_BUDGET_MODEL, _BUDGET_PRIOR, TrainConfig(**{**_BUDGET_COMMON, "steps": 2}),
-          str(tmp_path / "m.pt"))
+    train(
+        _BUDGET_MODEL,
+        _BUDGET_PRIOR,
+        TrainConfig(**{**_BUDGET_COMMON, "steps": 2}),
+        str(tmp_path / "m.pt"),
+    )
     assert "time_budget" not in read_checkpoint_provenance(tmp_path / "m.pt")
 
 
@@ -1353,8 +1726,12 @@ def test_run_seconds_refuses_a_negative_budget(tmp_path):
     from fintfm.modeling.train import TrainConfig, train
 
     with pytest.raises(ValueError, match="run_seconds"):
-        train(_BUDGET_MODEL, _BUDGET_PRIOR, TrainConfig(**_BUDGET_COMMON, run_seconds=-1.0),
-              str(tmp_path / "x.pt"))
+        train(
+            _BUDGET_MODEL,
+            _BUDGET_PRIOR,
+            TrainConfig(**_BUDGET_COMMON, run_seconds=-1.0),
+            str(tmp_path / "x.pt"),
+        )
 
 
 def test_cli_passes_run_seconds(tmp_path, monkeypatch):
@@ -1376,8 +1753,14 @@ _TRAIN_ONLY_DEVICES = [
 
 def _tiny_train_only_setup():
     model_cfg = ModelConfig(
-        max_features=6, max_classes=2, d_cell=8, d_model=16, n_heads=2, n_col_layers=1,
-        n_layers=1, d_ff=16,
+        max_features=6,
+        max_classes=2,
+        d_cell=8,
+        d_model=16,
+        n_heads=2,
+        n_col_layers=1,
+        n_layers=1,
+        d_ff=16,
     )
     return model_cfg, PriorConfig(max_features=6, max_classes=2, n_rows=16)
 
@@ -1391,14 +1774,26 @@ def test_train_only_leaves_the_frozen_parameters_bit_identical(device, part, tra
     from fintfm.modeling.train import TrainConfig, train
 
     model_cfg, prior_cfg = _tiny_train_only_setup()
-    common = {"steps": 3, "batch_size": 2, "eval_every": 1000, "log_every": 1000,
-              "warmup_steps": 1, "lr": 1e-2, "device": device}
+    common = {
+        "steps": 3,
+        "batch_size": 2,
+        "eval_every": 1000,
+        "log_every": 1000,
+        "warmup_steps": 1,
+        "lr": 1e-2,
+        "device": device,
+    }
     base = tmp_path / "base.pt"
     train(model_cfg, prior_cfg, TrainConfig(**common), str(base))
     out = tmp_path / "head.pt"
-    train(model_cfg, prior_cfg, TrainConfig(**common, init_from=str(base), train_only=part,
-                              reinit_trained=(part == "head")),
-          str(out))
+    train(
+        model_cfg,
+        prior_cfg,
+        TrainConfig(
+            **common, init_from=str(base), train_only=part, reinit_trained=(part == "head")
+        ),
+        str(out),
+    )
     before = FinancialTFM.load(str(base)).state_dict()
     after = FinancialTFM.load(str(out)).state_dict()
     moved = {k.split(".")[0] for k in before if not torch.equal(before[k], after[k])}

@@ -42,25 +42,44 @@ from fintfm.prior.mixture import PriorConfig, sample_batch, sample_task
 
 #: ``tests/test_prior_levers.py``'s mixture: every synthetic source plus regression.
 _MIX = PriorConfig(
-    max_features=12, max_classes=5, n_rows_choices=(40, 64), p_tree=0.15, p_regression=0.1,
-    p_trivial=0.1, p_crossed=0.1, p_task_family=0.15, p_financial=0.5,
+    max_features=12,
+    max_classes=5,
+    n_rows_choices=(40, 64),
+    p_tree=0.15,
+    p_regression=0.1,
+    p_trivial=0.1,
+    p_crossed=0.1,
+    p_task_family=0.15,
+    p_financial=0.5,
 )
 
 #: Every DR2.2/DR2.3 field spelled out at its default.
 _OFF = {
-    "financial_gate_prob": 0.0, "financial_sign_flip_prob": 0.0, "financial_max_lr_auc": None, "feature_ratio_bands": (),
+    "financial_gate_prob": 0.0,
+    "financial_sign_flip_prob": 0.0,
+    "financial_max_lr_auc": None,
+    "feature_ratio_bands": (),
     "p_binary": None,
-    "imbalance_draws": False, "categorical_mode": "ordered", "missing_mode": "mcar",
-    "tie_column_prob": 0.0, "irrelevant_frac_max": 0.0, "duplicate_frac_max": 0.0,
+    "imbalance_draws": False,
+    "categorical_mode": "ordered",
+    "missing_mode": "mcar",
+    "tie_column_prob": 0.0,
+    "irrelevant_frac_max": 0.0,
+    "duplicate_frac_max": 0.0,
     "label_flip_max": 0.0,
 }
 
 #: Every knob on, at the values ``scripts/prior_stats.py`` checks.
 _ON = {
     "feature_ratio_bands": ((0.5, 0.0, 0.05), (0.35, 0.05, 0.2), (0.15, 0.2, 0.5)),
-    "p_binary": 0.7, "imbalance_draws": True, "categorical_mode": "unordered",
-    "missing_mode": "mixed", "tie_column_prob": 0.15, "irrelevant_frac_max": 0.2,
-    "duplicate_frac_max": 0.1, "label_flip_max": 0.05,
+    "p_binary": 0.7,
+    "imbalance_draws": True,
+    "categorical_mode": "unordered",
+    "missing_mode": "mixed",
+    "tie_column_prob": 0.15,
+    "irrelevant_frac_max": 0.2,
+    "duplicate_frac_max": 0.1,
+    "label_flip_max": 0.05,
 }
 
 
@@ -76,7 +95,9 @@ def test_every_new_field_at_its_default_keeps_the_recorded_stream():
         rng = np.random.default_rng(2026)
         got = [sample_batch(rng, cfg, 4) for _ in range(4)]
         assert [(b.n_ctx, b.X.shape[1], b.n_classes.tolist()) for b in got] == [
-            (52, 64, [2, 2, 3, 5]), (26, 40, [2, 2, 2, 2]), (33, 40, [3, 2, 2, 3]),
+            (52, 64, [2, 2, 3, 5]),
+            (26, 40, [2, 2, 2, 2]),
+            (33, 40, [3, 2, 2, 3]),
             (31, 64, [2, 5, 5, 2]),
         ]
         assert rng.random() == 0.21560154636155637
@@ -191,8 +212,14 @@ def test_sign_flip_off_keeps_the_recorded_gated_financial_stream():
     # SHA-256 over X, y, n_classes and n_ctx of four gated financial batches, and the
     # generator's position after them, recorded at e1bc433 before the flip existed. The
     # default mixture's stream is pinned by the first test in this file.
-    cfg = PriorConfig(max_features=40, max_classes=5, n_rows_choices=(128, 256),
-                      source_weights={"financial": 1.0}, financial_gate_prob=1.0)
+    cfg = PriorConfig(
+        max_features=40,
+        max_classes=5,
+        n_rows_choices=(128, 256),
+        source_weights={"financial": 1.0},
+        financial_gate_prob=1.0,
+    )
+
     def digest(c: PriorConfig) -> tuple[str, float]:
         rng = np.random.default_rng(2026)
         h = hashlib.sha256()
@@ -210,7 +237,8 @@ def test_sign_flip_off_keeps_the_recorded_gated_financial_stream():
     # transcendental functions round differently in Linux's libm (CI failed on 411d098).
     if sys.platform == "darwin" and platform.machine() == "arm64":
         assert unset == (
-            "388ee2ea6327ba36e65e7b1af707f5bc9ef51beafcbaa40db7c0ef4c36337899", 0.6906481870401622
+            "388ee2ea6327ba36e65e7b1af707f5bc9ef51beafcbaa40db7c0ef4c36337899",
+            0.6906481870401622,
         )
 
 
@@ -220,11 +248,17 @@ def test_sign_flip_negates_ratio_columns_and_leaves_the_rest_of_the_task(gate_pr
     # some ratio columns negated: same label, gate, column names and NaN pattern.
     flipped = ratios = 0
     for seed in range(30):
-        base = sample_financial_task(np.random.default_rng(seed), 256, max_features=40,
-                                     gate_prob=gate_prob)
+        base = sample_financial_task(
+            np.random.default_rng(seed), 256, max_features=40, gate_prob=gate_prob
+        )
         for p in (0.5, 1.0):
-            t = sample_financial_task(np.random.default_rng(seed), 256, max_features=40,
-                                      gate_prob=gate_prob, sign_flip_prob=p)
+            t = sample_financial_task(
+                np.random.default_rng(seed),
+                256,
+                max_features=40,
+                gate_prob=gate_prob,
+                sign_flip_prob=p,
+            )
             assert np.array_equal(t.y, base.y)
             if base.meta is not None:  # with the gate off the unflipped task records nothing
                 assert t.meta["columns"] == base.meta["columns"]
@@ -247,8 +281,12 @@ def test_sign_flip_negates_ratio_columns_and_leaves_the_rest_of_the_task(gate_pr
 
 
 def test_sign_flip_reaches_the_financial_source_and_is_range_checked():
-    cfg = PriorConfig(max_features=30, n_rows_choices=(64,), source_weights={"financial": 1.0},
-                      financial_sign_flip_prob=1.0)
+    cfg = PriorConfig(
+        max_features=30,
+        n_rows_choices=(64,),
+        source_weights={"financial": 1.0},
+        financial_sign_flip_prob=1.0,
+    )
     t = sample_task(np.random.default_rng(0), cfg, 64)
     assert t.meta["flipped"] == [_is_ratio_column(c) for c in t.meta["columns"]]
     with pytest.raises(ValueError, match="financial_sign_flip_prob"):
@@ -262,8 +300,7 @@ def test_rank_conditioner_and_normalisation_treat_a_negated_column_as_its_mirror
     # exactly odd. ("power" is not: Yeo-Johnson fits its lambda per sign, measured off by
     # up to 1.0 on a few cells.)
     for seed in range(6):
-        t = sample_financial_task(np.random.default_rng(seed), 512, max_features=40,
-                                  gate_prob=1.0)
+        t = sample_financial_task(np.random.default_rng(seed), 512, max_features=40, gate_prob=1.0)
         n_ctx = 358
         ratio = np.array([_is_ratio_column(c) for c in t.meta["columns"]])
         X = t.X[:, ratio]
@@ -306,7 +343,8 @@ def test_unordered_categoricals_replace_the_ordered_codes():
     tasks = _draw("scm", 40, n_rows=512, categorical_mode="unordered")
     cards = [
         len(np.unique(t.X[np.isfinite(t.X[:, j]), j]))
-        for t in tasks for j in np.flatnonzero(t.is_categorical)
+        for t in tasks
+        for j in np.flatnonzero(t.is_categorical)
     ]
     assert cards and max(cards) <= 64 and max(cards) > 7  # the ordered codes stop at 7
     assert all("categorical_levels" in t.meta["knobs"] for t in tasks)
@@ -332,8 +370,9 @@ def test_mixed_missingness_draws_each_mechanism_and_mnar_follows_the_value():
 def test_ties_irrelevant_duplicates_and_flips_on_one_task():
     rng = np.random.default_rng(0)
     base = sample_gated_task(rng, 300, n_features=6)
-    knobs = TaskKnobs(tie_column_prob=1.0, irrelevant_frac_max=1.0, duplicate_frac_max=1.0,
-                      label_flip_max=0.2)
+    knobs = TaskKnobs(
+        tie_column_prob=1.0, irrelevant_frac_max=1.0, duplicate_frac_max=1.0, label_flip_max=0.2
+    )
     t = apply_task_knobs(np.random.default_rng(1), base, knobs, max_features=20)
     rec = t.meta["knobs"]
     assert t.n_features == 6 + rec["n_irrelevant"] + rec["n_duplicate"] <= 20
@@ -376,23 +415,47 @@ def test_config_and_flags_reach_the_prior(tmp_path):
     from fintfm.modeling.train import build_parser, build_prior_config
 
     f = tmp_path / "c.yaml"
-    f.write_text("prior:\n  feature_ratio_bands: [[0.5, 0, 0.05], [0.5, 0.05, 0.2]]\n"
-                 "  categorical_mode: unordered\n  financial_gate_prob: 0.25\n")
+    f.write_text(
+        "prior:\n  feature_ratio_bands: [[0.5, 0, 0.05], [0.5, 0.05, 0.2]]\n"
+        "  categorical_mode: unordered\n  financial_gate_prob: 0.25\n"
+    )
     cfg = load_config(f)
     prior = build_prior_config(build_parser().parse_args([]), cfg)
     assert prior.feature_ratio_bands == ((0.5, 0.0, 0.05), (0.5, 0.05, 0.2))
     assert prior.categorical_mode == "unordered" and prior.financial_gate_prob == 0.25
-    args = build_parser().parse_args([
-        "--feature-ratio-bands", "1:0.1:0.2", "--p-binary", "0.7", "--imbalance-draws",
-        "--missing-mode", "mixed", "--tie-column-prob", "0.1", "--irrelevant-frac-max", "0.2",
-        "--duplicate-frac-max", "0.1", "--label-flip-max", "0.05",
-        "--financial-gate-prob", "0.5", "--financial-sign-flip-prob", "0.25",
-    ])
+    args = build_parser().parse_args(
+        [
+            "--feature-ratio-bands",
+            "1:0.1:0.2",
+            "--p-binary",
+            "0.7",
+            "--imbalance-draws",
+            "--missing-mode",
+            "mixed",
+            "--tie-column-prob",
+            "0.1",
+            "--irrelevant-frac-max",
+            "0.2",
+            "--duplicate-frac-max",
+            "0.1",
+            "--label-flip-max",
+            "0.05",
+            "--financial-gate-prob",
+            "0.5",
+            "--financial-sign-flip-prob",
+            "0.25",
+        ]
+    )
     prior = build_prior_config(args, cfg)
     assert prior.feature_ratio_bands == ((1.0, 0.1, 0.2),)
     assert (prior.p_binary, prior.imbalance_draws, prior.missing_mode) == (0.7, True, "mixed")
-    assert (prior.tie_column_prob, prior.irrelevant_frac_max, prior.duplicate_frac_max,
-            prior.label_flip_max, prior.financial_gate_prob) == (0.1, 0.2, 0.1, 0.05, 0.5)
+    assert (
+        prior.tie_column_prob,
+        prior.irrelevant_frac_max,
+        prior.duplicate_frac_max,
+        prior.label_flip_max,
+        prior.financial_gate_prob,
+    ) == (0.1, 0.2, 0.1, 0.05, 0.5)
     assert prior.financial_sign_flip_prob == 0.25
     assert build_prior_config(build_parser().parse_args([]), cfg).financial_sign_flip_prob == 0.0
     assert parse_feature_ratio_bands("") == ()
@@ -420,10 +483,20 @@ def test_config_refuses_malformed_knobs(tmp_path, text, match):
 
 def test_every_knob_on_still_collates_a_batch():
     cfg = PriorConfig(
-        max_features=30, max_classes=5, n_rows_choices=(64, 128), scm_reuse_graph=3,
-        source_weights={"scm": 0.3, "tree": 0.2, "task_family": 0.1, "gated": 0.1,
-                        "financial": 0.2, "regression": 0.1},
-        financial_gate_prob=0.5, **_ON,
+        max_features=30,
+        max_classes=5,
+        n_rows_choices=(64, 128),
+        scm_reuse_graph=3,
+        source_weights={
+            "scm": 0.3,
+            "tree": 0.2,
+            "task_family": 0.1,
+            "gated": 0.1,
+            "financial": 0.2,
+            "regression": 0.1,
+        },
+        financial_gate_prob=0.5,
+        **_ON,
     )
     rng = np.random.default_rng(0)
     for _ in range(3):

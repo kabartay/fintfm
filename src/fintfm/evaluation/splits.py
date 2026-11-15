@@ -63,7 +63,9 @@ def time_based_split(
     period = np.asarray(period)
     groups = np.asarray(groups)
     if period.shape != groups.shape or period.ndim != 1:
-        raise ValueError(f"period {period.shape} and groups {groups.shape} must be equal 1-D shapes")
+        raise ValueError(
+            f"period {period.shape} and groups {groups.shape} must be equal 1-D shapes"
+        )
     if on_overlap not in ("raise", "drop_from_train"):
         raise ValueError(f"unknown on_overlap {on_overlap!r}")
     if np.issubdtype(period.dtype, np.floating) and np.isnan(period).any():

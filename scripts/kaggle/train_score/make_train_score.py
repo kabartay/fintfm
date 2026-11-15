@@ -18,20 +18,49 @@ S0_48K = ["--seed", "0", "--steps", "6000"]
 #: DR2.4 (FINDINGS §180). The DR2.3 knobs at scripts/prior_stats.py's V2_KNOBS, the values
 #: their checks passed at; p_binary 0.7 is left out because it is inert at max_classes 2.
 BANDS = "0.5:0:0.05,0.35:0.05:0.2,0.15:0.2:0.5"
-KNOBS = ["--feature-ratio-bands", BANDS, "--imbalance-draws", "--categorical-mode", "unordered",
-         "--missing-mode", "mixed", "--tie-column-prob", "0.15", "--irrelevant-frac-max", "0.2",
-         "--duplicate-frac-max", "0.1", "--label-flip-max", "0.05"]
+KNOBS = [
+    "--feature-ratio-bands",
+    BANDS,
+    "--imbalance-draws",
+    "--categorical-mode",
+    "unordered",
+    "--missing-mode",
+    "mixed",
+    "--tie-column-prob",
+    "0.15",
+    "--irrelevant-frac-max",
+    "0.2",
+    "--duplicate-frac-max",
+    "0.1",
+    "--label-flip-max",
+    "0.05",
+]
 #: Financial v2: half the labels gated, each ratio's sign a per-task coin (DR2.2), and the
 #: width bands, the only knob the financial source reads. The published recipe's sequential
 #: p_financial 1.0 draws every task from it.
-FIN_V2 = ["--financial-gate-prob", "0.5", "--financial-sign-flip-prob", "0.5",
-          "--feature-ratio-bands", BANDS]
+FIN_V2 = [
+    "--financial-gate-prob",
+    "0.5",
+    "--financial-sign-flip-prob",
+    "0.5",
+    "--feature-ratio-bands",
+    BANDS,
+]
 #: The general trunk: prior_stats.py's "v2" mixture without its financial share. --p-financial
 #: goes back to PriorConfig's default 0.7, since a weighted draw refuses a non-default p_*.
 TRUNK_WEIGHTS = "scm=0.3,tree=0.2,task_family=0.1,gated=0.1"
 TRUNK = ["--p-financial", "0.7", "--source-weights", TRUNK_WEIGHTS, *KNOBS]
-INTERLEAVED = ["--p-financial", "0.7", "--source-weights", f"{TRUNK_WEIGHTS},financial=0.3",
-               "--financial-gate-prob", "0.5", "--financial-sign-flip-prob", "0.5", *KNOBS]
+INTERLEAVED = [
+    "--p-financial",
+    "0.7",
+    "--source-weights",
+    f"{TRUNK_WEIGHTS},financial=0.3",
+    "--financial-gate-prob",
+    "0.5",
+    "--financial-sign-flip-prob",
+    "0.5",
+    *KNOBS,
+]
 #: DR7.4 (FINDINGS §185): the multiclass control v4-multiclass.pt's prior (§99: --max-classes
 #: 10 --p-financial 0.5, so half the tasks are the generic SCM's, uniform on 2 to 10 classes)
 #: with the SCM sampler it was trained on (--scm-legacy: it predates 48.17/48.19's widening of
@@ -40,9 +69,20 @@ MULTICLASS = ["--max-classes", "10", "--p-financial", "0.5", "--scm-legacy", "--
 #: AU5.11 (docs/results/drafts/au5.11_2026-11c.md): the broader mixture, as the sequential chain's
 #: conditional weights, with the existing diversity flags, and (arm "diverse") the three new ones.
 #: p_tree and p_task_family are 0.3 of what the chain leaves; max_classes stays at the recipe's 2.
-AU511_MIXTURE = ["--p-financial", "0.3", "--p-tree", "0.3", "--p-task-family", "0.3",
-                 "--categorical-mode", "unordered", "--missing-mode", "mixed",
-                 "--feature-ratio-bands", BANDS]
+AU511_MIXTURE = [
+    "--p-financial",
+    "0.3",
+    "--p-tree",
+    "0.3",
+    "--p-task-family",
+    "0.3",
+    "--categorical-mode",
+    "unordered",
+    "--missing-mode",
+    "mixed",
+    "--feature-ratio-bands",
+    BANDS,
+]
 AU511_NEW = ["--heavy-tail-column-prob", "0.15", "--tree-split-by", "uniform", "--missing-label"]
 ARMS = {
     "e1-v48-s0": (E1 + ["--seed", "0", "--steps", "6000"], True),
@@ -51,10 +91,14 @@ ARMS = {
     "e1-v480-s1": (E1 + ["--seed", "1", "--steps", "60000"], True),
     # DR6.2 / DR6.3 screening (FINDINGS §175): E1's 48k recipe at seed 0, one lever each,
     # against E1's 48k arms as controls
-    "dr62-induced-s0": (E1 + ["--seed", "0", "--steps", "6000", "--cell-row-attn", "induced"],
-                        True),
-    "dr63-cls-s0": (E1 + ["--seed", "0", "--steps", "6000", "--readout", "cls", "--head-mlp"],
-                    True),
+    "dr62-induced-s0": (
+        E1 + ["--seed", "0", "--steps", "6000", "--cell-row-attn", "induced"],
+        True,
+    ),
+    "dr63-cls-s0": (
+        E1 + ["--seed", "0", "--steps", "6000", "--readout", "cls", "--head-mlp"],
+        True,
+    ),
     # DR2.4 prior v2 A/B (FINDINGS §180): E1's 48k recipe at seed 0, against e1-v48-s0
     "dr24-a-s0": (E1 + S0_48K + FIN_V2, True),  # financial v2 alone
     "dr24-b-s0": (E1 + S0_48K + TRUNK, True),  # general trunk alone
@@ -72,8 +116,24 @@ ARMS = {
     "dr82-depth8-s0": (E1 + ["--seed", "0", "--steps", "60000", "--n-layers", "8"], True),
     # DR8.2 width (FINDINGS §199): d_model 192 at 6 heads in the row stages, cell stage kept at
     # 4 heads, 1.88M parameters against the depth arm's 1.68M
-    "dr82-width192-s0": (E1 + ["--seed", "0", "--steps", "60000", "--d-model", "192", "--d-ff", "768",
-                               "--n-heads", "6", "--n-cell-heads", "4"], True),
+    "dr82-width192-s0": (
+        E1
+        + [
+            "--seed",
+            "0",
+            "--steps",
+            "60000",
+            "--d-model",
+            "192",
+            "--d-ff",
+            "768",
+            "--n-heads",
+            "6",
+            "--n-cell-heads",
+            "4",
+        ],
+        True,
+    ),
     # 2026-11 screening (docs/results/drafts/preregs_2026-11.md): E1's 48k recipe at seed 0,
     # one lever each, against e1-v48-s0, pinned at its commit d05ea19, which carries every
     # flag below. Ranked by expected value per GPU-hour in that file.
@@ -87,8 +147,10 @@ ARMS = {
     "au53-cell2-s0": (E1 + S0_48K + ["--n-cell-blocks", "2"], True),
     # AU5.4: contexts to inference's 2,000 rows (int(0.9 * 2223) == 2000), queries capped at
     # inference's query_chunk 512
-    "au54-ctx2k-s0": (E1 + S0_48K + ["--n-rows-choices", "256,512,1024,2223",
-                                     "--max-query-rows", "512"], True),
+    "au54-ctx2k-s0": (
+        E1 + S0_48K + ["--n-rows-choices", "256,512,1024,2223", "--max-query-rows", "512"],
+        True,
+    ),
     # AU5.11: prior diversity (mixture + heavy tails + uniform tree splits + label-driven
     # missingness) against e1-v48-s0, and the same mixture without the three new flags
     "au511-diverse-s0": (E1 + S0_48K + AU511_MIXTURE + AU511_NEW, True),
@@ -96,8 +158,22 @@ ARMS = {
     # 48.25 (docs/results/drafts/48.25_2026-11.md): a read-out head re-drawn and trained on the
     # published checkpoint's frozen trunk, one GPU, masked attention (the checkpoint's own
     # attn_impl: --init-from refuses a different architecture), 48,000 tasks
-    "4825-headonly-s0": (["--amp", "fp16", "--loader", "stream", "--seed", "0", "--steps", "6000",
-                          "--train-only", "head", "--reinit-trained"], False),
+    "4825-headonly-s0": (
+        [
+            "--amp",
+            "fp16",
+            "--loader",
+            "stream",
+            "--seed",
+            "0",
+            "--steps",
+            "6000",
+            "--train-only",
+            "head",
+            "--reinit-trained",
+        ],
+        False,
+    ),
 }
 #: Arms trained but not scored on V4FinBench, which is binary: a multiclass arm is decided
 #: on the proxy suite, run off Kaggle
@@ -121,20 +197,27 @@ DR82_COMMIT = "e493123"
 #: 62a73c3 contains 7dfd663 (the AU5.11 flags), checked with merge-base --is-ancestor
 AU511_COMMIT = "62a73c3"
 #: The 48.25 arm's code is not pushed yet: UNPINNED kernels refuse to run
-COMMITS = {"4825-headonly-s0": "UNPINNED", "dr62-induced-s0": "6916a89",
-           "au511-diverse-s0": AU511_COMMIT, "au511-mixture-s0": AU511_COMMIT, "dr63-cls-s0": "6916a89",
-           **{arm: DR24_COMMIT for arm in ARMS if arm.startswith("dr24-")},
-           # DR7.4 needs no code change: a901cdc (origin/main, 2026-10-24) carries every flag
-           "dr74-mc-s0": "a901cdc",
-           "dr74-mc-s1": "a901cdc",
-           "dr74-mc-v480-s0": "a901cdc",
-           "dr82-depth8-s0": DR82_COMMIT,
-           "dr82-width192-s0": DR82_COMMIT}
+COMMITS = {
+    "4825-headonly-s0": "UNPINNED",
+    "dr62-induced-s0": "6916a89",
+    "au511-diverse-s0": AU511_COMMIT,
+    "au511-mixture-s0": AU511_COMMIT,
+    "dr63-cls-s0": "6916a89",
+    **{arm: DR24_COMMIT for arm in ARMS if arm.startswith("dr24-")},
+    # DR7.4 needs no code change: a901cdc (origin/main, 2026-10-24) carries every flag
+    "dr74-mc-s0": "a901cdc",
+    "dr74-mc-s1": "a901cdc",
+    "dr74-mc-v480-s0": "a901cdc",
+    "dr82-depth8-s0": DR82_COMMIT,
+    "dr82-width192-s0": DR82_COMMIT,
+}
 #: Arms that start from the public checkpoint kabartay/fintfm-binary: (URL, SHA-256), the pair
 #: scripts/kaggle/task_dr310_ft_ctl verifies against runs/v4-cellattn-labels.pt
 PUBLISHED_CKPT = (
-    ("https://huggingface.co/kabartay/fintfm-binary/resolve/"
-     "f116bfd43a2b15c65ed3551ea8c38e3364629ddc/v4-cellattn-labels.pt"),
+    (
+        "https://huggingface.co/kabartay/fintfm-binary/resolve/"
+        "f116bfd43a2b15c65ed3551ea8c38e3364629ddc/v4-cellattn-labels.pt"
+    ),
     "d231b062483c9261aae4c503ad5359db295fc7206fa0183f51763e4953c518d2",
 )
 INITS = {"4825-headonly-s0": PUBLISHED_CKPT}
@@ -168,26 +251,41 @@ for arm in wanted:
         name = f"{arm}{suffix}"
         d = HERE.parent / f"ts_{name.replace('-', '_')}"
         d.mkdir(exist_ok=True)
-        code = (TEMPLATE.replace("__COMMIT__", COMMITS.get(arm, COMMIT))
-                .replace("__ARM__", arm)
-                .replace("[]  # __FLAGS__", json.dumps(flags))
-                .replace("False  # __DDP__", str(ddp)).replace("False  # __PART__", "False")
-                .replace('""  # __INITURL__', json.dumps(INITS.get(arm, ("", ""))[0]))
-                .replace('""  # __INITSHA__', json.dumps(INITS.get(arm, ("", ""))[1]))
-                .replace("0  # __SWITCH__", str(switch))
-                .replace("[]  # __PHASE2__", json.dumps(phase2))
-                .replace("0  # __SESSION__", str(session))
-                .replace("0  # __RUN_SECONDS__", str(SESSIONS.get(arm, 0)))
-                .replace('""  # __SESSION1__', json.dumps(source or ""))
-                .replace("True  # __SCORE__", str(arm not in TRAIN_ONLY)))
+        code = (
+            TEMPLATE.replace("__COMMIT__", COMMITS.get(arm, COMMIT))
+            .replace("__ARM__", arm)
+            .replace("[]  # __FLAGS__", json.dumps(flags))
+            .replace("False  # __DDP__", str(ddp))
+            .replace("False  # __PART__", "False")
+            .replace('""  # __INITURL__', json.dumps(INITS.get(arm, ("", ""))[0]))
+            .replace('""  # __INITSHA__', json.dumps(INITS.get(arm, ("", ""))[1]))
+            .replace("0  # __SWITCH__", str(switch))
+            .replace("[]  # __PHASE2__", json.dumps(phase2))
+            .replace("0  # __SESSION__", str(session))
+            .replace("0  # __RUN_SECONDS__", str(SESSIONS.get(arm, 0)))
+            .replace('""  # __SESSION1__', json.dumps(source or ""))
+            .replace("True  # __SCORE__", str(arm not in TRAIN_ONLY))
+        )
         (d / "kernel.py").write_text(code)
-        (d / "kernel-metadata.json").write_text(json.dumps({
-            "id": f"muhakabartay/fintfm-ts-{name}", "title": f"fintfm-ts-{name}",
-            "code_file": "kernel.py", "language": "python", "kernel_type": "script",
-            "is_private": "true", "enable_gpu": "true", "enable_tpu": "false",
-            "enable_internet": "true",
-            "dataset_sources": ["sebastiantomczak10/v4-group-corporate-bankruptcy"],
-            "competition_sources": [], "kernel_sources": [source] if source else [],
-            "model_sources": [],
-        }, indent=2) + "\n")
+        (d / "kernel-metadata.json").write_text(
+            json.dumps(
+                {
+                    "id": f"muhakabartay/fintfm-ts-{name}",
+                    "title": f"fintfm-ts-{name}",
+                    "code_file": "kernel.py",
+                    "language": "python",
+                    "kernel_type": "script",
+                    "is_private": "true",
+                    "enable_gpu": "true",
+                    "enable_tpu": "false",
+                    "enable_internet": "true",
+                    "dataset_sources": ["sebastiantomczak10/v4-group-corporate-bankruptcy"],
+                    "competition_sources": [],
+                    "kernel_sources": [source] if source else [],
+                    "model_sources": [],
+                },
+                indent=2,
+            )
+            + "\n"
+        )
         print(d)

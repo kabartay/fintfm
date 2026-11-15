@@ -36,7 +36,7 @@ HERE = Path(__file__).parent
 #: 48.24's two arms, verbatim from ``runs/local_queue/cfg/4824-*.yaml``.
 CONFIGS = {
     "maj4000": "inference:\n  context_positive_floor: 1000000\n  feature_chunk: 8\n"
-               "  max_context: 4000\n  query_chunk: 512\n",
+    "  max_context: 4000\n  query_chunk: 512\n",
     "uni4000": "inference:\n  feature_chunk: 8\n  max_context: 4000\n  query_chunk: 512\n",
 }
 
@@ -124,25 +124,46 @@ def write_kernel(name: str, title: str, kind: str, fold: int, config: str = "") 
     d = HERE / name
     d.mkdir(exist_ok=True)
     slug = "fintfm-" + name.replace("_", "-")
-    (d / f"{name}.py").write_text(TEMPLATE.format(
-        title=title, commit=COMMIT, kind=kind, fold=fold, out=name, config=config))
-    (d / "kernel-metadata.json").write_text(json.dumps({
-        "id": f"{OWNER}/{slug}", "title": slug, "code_file": f"{name}.py", "language": "python",
-        "kernel_type": "script", "is_private": "true", "enable_gpu": "false",
-        "enable_tpu": "false", "enable_internet": "true",
-        "dataset_sources": ["sebastiantomczak10/v4-group-corporate-bankruptcy"],
-        "competition_sources": [], "kernel_sources": [], "model_sources": [],
-    }, indent=2) + "\n")
+    (d / f"{name}.py").write_text(
+        TEMPLATE.format(title=title, commit=COMMIT, kind=kind, fold=fold, out=name, config=config)
+    )
+    (d / "kernel-metadata.json").write_text(
+        json.dumps(
+            {
+                "id": f"{OWNER}/{slug}",
+                "title": slug,
+                "code_file": f"{name}.py",
+                "language": "python",
+                "kernel_type": "script",
+                "is_private": "true",
+                "enable_gpu": "false",
+                "enable_tpu": "false",
+                "enable_internet": "true",
+                "dataset_sources": ["sebastiantomczak10/v4-group-corporate-bankruptcy"],
+                "competition_sources": [],
+                "kernel_sources": [],
+                "model_sources": [],
+            },
+            indent=2,
+        )
+        + "\n"
+    )
     return d
 
 
 def main() -> None:
     """Write the probe-plus-partition fold kernels and 48.24's per-fold kernels."""
-    made = [write_kernel(f"cpu_pp_v4_f{k}", f"probe plus partition, V4FinBench fold {k}", "pp", k)
-            for k in (2, 3, 4)]
-    made += [write_kernel(f"cpu_4824_{arm}_f{k}", f"48.24 arm {arm}, V4FinBench fold {k}", "v4", k,
-                          CONFIGS[arm])
-             for arm in CONFIGS for k in range(5)]
+    made = [
+        write_kernel(f"cpu_pp_v4_f{k}", f"probe plus partition, V4FinBench fold {k}", "pp", k)
+        for k in (2, 3, 4)
+    ]
+    made += [
+        write_kernel(
+            f"cpu_4824_{arm}_f{k}", f"48.24 arm {arm}, V4FinBench fold {k}", "v4", k, CONFIGS[arm]
+        )
+        for arm in CONFIGS
+        for k in range(5)
+    ]
     for d in made:
         print(d.name)
 

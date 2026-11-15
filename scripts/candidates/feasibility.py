@@ -57,16 +57,15 @@ def _cv_scores(X: np.ndarray, y: np.ndarray, model_name: str, seed: int) -> dict
     for tr, te in StratifiedKFold(5, shuffle=True, random_state=seed).split(X, y):
         if model_name == "logreg":
             model = make_pipeline(
-                SimpleImputer(strategy="median"), StandardScaler(),
+                SimpleImputer(strategy="median"),
+                StandardScaler(),
                 LogisticRegression(max_iter=2000),
             )
         else:
             import lightgbm as lgb
 
             # n_jobs capped: the machine is shared with an always-on pipeline (CLAUDE.md).
-            model = lgb.LGBMClassifier(
-                n_estimators=300, learning_rate=0.05, verbose=-1, n_jobs=4
-            )
+            model = lgb.LGBMClassifier(n_estimators=300, learning_rate=0.05, verbose=-1, n_jobs=4)
         model.fit(X[tr], y[tr])
         oof[te] = model.predict_proba(X[te])[:, 1]
     return {"auc": float(roc_auc_score(y, oof)), "ap": float(average_precision_score(y, oof))}
@@ -95,8 +94,11 @@ def feasibility(panel: pd.DataFrame, max_rows: int, seed: int) -> dict:
         "positives": int(y_full.sum()),
         "positive_rate": rate,
         "v4_regime": (
-            "inside" if V4_BAND[0] <= rate <= V4_BAND[1]
-            else "rarer" if rate < V4_BAND[0] else "more common"
+            "inside"
+            if V4_BAND[0] <= rate <= V4_BAND[1]
+            else "rarer"
+            if rate < V4_BAND[0]
+            else "more common"
         ),
         "missing_overall": float(miss.mean()),
         "features_over_50pct_missing": int((miss > 0.5).sum()),
@@ -107,10 +109,12 @@ def feasibility(panel: pd.DataFrame, max_rows: int, seed: int) -> dict:
         rng = np.random.default_rng(seed)
         pos, neg = np.flatnonzero(y_full == 1), np.flatnonzero(y_full == 0)
         k_pos = max(1, round(max_rows * rate))
-        idx = np.concatenate([
-            rng.choice(pos, size=min(k_pos, len(pos)), replace=False),
-            rng.choice(neg, size=min(max_rows - k_pos, len(neg)), replace=False),
-        ])
+        idx = np.concatenate(
+            [
+                rng.choice(pos, size=min(k_pos, len(pos)), replace=False),
+                rng.choice(neg, size=min(max_rows - k_pos, len(neg)), replace=False),
+            ]
+        )
         sub = panel.iloc[idx]
     X = sub[feats].to_numpy(dtype=np.float64)
     y = sub["label"].to_numpy(dtype=np.int64)

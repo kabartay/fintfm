@@ -93,8 +93,9 @@ class Coverage:
                 attempted and never resolved.
         """
         if self.n_attempted != self.n_scored + self.n_skipped:
-            open_units = [u for u in self._attempted
-                          if u not in self._scored and u not in self._skipped]
+            open_units = [
+                u for u in self._attempted if u not in self._scored and u not in self._skipped
+            ]
             raise ValueError(
                 f"{self.n_attempted} attempted but {self.n_scored} scored + "
                 f"{self.n_skipped} skipped; unresolved: {open_units}"
@@ -117,8 +118,10 @@ class Coverage:
             ``"coverage: 18/20 tasks scored, 2 skipped"`` plus one line per skip.
         """
         rec = self.to_dict()
-        head = (f"coverage: {rec['n_scored']}/{rec['n_attempted']} {what} scored, "
-                f"{rec['n_skipped']} skipped")
+        head = (
+            f"coverage: {rec['n_scored']}/{rec['n_attempted']} {what} scored, "
+            f"{rec['n_skipped']} skipped"
+        )
         lines = [head]
         lines += [f"  skipped {u}: {r}" for u, r in rec["skipped"].items()]
         return "\n".join(lines)

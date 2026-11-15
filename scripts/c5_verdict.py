@@ -56,14 +56,18 @@ def fold_diffs(control: Path, arm: Path) -> list[float]:
     check_protocol(control, arm)
     c, a = _folds(control), _folds(arm)
     if sorted(c) != sorted(a) or len(c) != 5:
-        raise SystemExit(f"{arm} vs {control}: folds {sorted(a)} vs {sorted(c)}, need the same five")
+        raise SystemExit(
+            f"{arm} vs {control}: folds {sorted(a)} vs {sorted(c)}, need the same five"
+        )
     out = []
     for k in sorted(c):
         y = c[k]["y_true"]
         if not np.array_equal(y, a[k]["y_true"]):
             raise SystemExit(f"fold {k}: rows differ between {control} and {arm}")
-        out.append(average_precision_score(y, a[k]["pred_fintfm"])
-                   - average_precision_score(y, c[k]["pred_fintfm"]))
+        out.append(
+            average_precision_score(y, a[k]["pred_fintfm"])
+            - average_precision_score(y, c[k]["pred_fintfm"])
+        )
     return out
 
 
@@ -139,7 +143,9 @@ def _fmt(diffs: list[float]) -> str:
 
 def main() -> None:
     """Entry point: print the verdict and the numbers it was read from."""
-    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     sub = p.add_subparsers(dest="mode", required=True)
     pr = sub.add_parser("pair", help="Rules 1-2: an arm at seeds 0 and 1")
     pr.add_argument("name")
@@ -165,12 +171,16 @@ def main() -> None:
         print(f"{args.name} seed 1: {_fmt(d1)}")
         print(f"average of seed means {(m0 + m1) / 2:+.4f} (yardstick ±{YARDSTICK})")
         print(f"Rule 1: {rule1(m0, m1)}")
-        print(f"Rule 2: next source {'eligible' if rule2(m0, m1) else 'NOT eligible'} "
-              f"(seed signs {'agree' if rule2(m0, m1) else 'disagree'})")
+        print(
+            f"Rule 2: next source {'eligible' if rule2(m0, m1) else 'NOT eligible'} "
+            f"(seed signs {'agree' if rule2(m0, m1) else 'disagree'})"
+        )
     elif args.mode == "helps":
         d = fold_diffs(args.control, args.arm)
-        print(f"{args.name}: {_fmt(d)}  ({sum(x > 0 for x in d)}/5 positive, "
-              f"{sum(x < 0 for x in d)}/5 negative; yardstick ±{YARDSTICK})")
+        print(
+            f"{args.name}: {_fmt(d)}  ({sum(x > 0 for x in d)}/5 positive, "
+            f"{sum(x < 0 for x in d)}/5 negative; yardstick ±{YARDSTICK})"
+        )
         print(f"§163 rule: {rule_helps(d)}")
     else:
         d = fold_diffs(args.control, args.arm)

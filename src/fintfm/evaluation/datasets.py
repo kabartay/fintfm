@@ -40,9 +40,7 @@ def _repo_root() -> Path:
 CACHE_DIR = _repo_root() / "data" / "cache"
 
 _POLISH_URL = "https://archive.ics.uci.edu/static/public/365/polish+companies+bankruptcy+data.zip"
-_TAIWAN_URL = (
-    "https://archive.ics.uci.edu/static/public/572/taiwanese+bankruptcy+prediction.zip"
-)
+_TAIWAN_URL = "https://archive.ics.uci.edu/static/public/572/taiwanese+bankruptcy+prediction.zip"
 
 
 @dataclass(frozen=True)

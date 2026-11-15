@@ -15,9 +15,11 @@ import pandas as pd
 from fintfm.evaluation import credit_estonia as ce
 from fintfm.evaluation import credit_suite as cs
 
-REPORT_COLS = ('"report_id";"taidetud_aruanne_report_id";"registrikood";"õiguslik vorm";'
-               '"staatus";"aruandeaasta";"kas konsolideeritud?";"period_start";"period_end";'
-               '"esitatud_kpv";"kas auditeeritud?"')
+REPORT_COLS = (
+    '"report_id";"taidetud_aruanne_report_id";"registrikood";"õiguslik vorm";'
+    '"staatus";"aruandeaasta";"kas konsolideeritud?";"period_start";"period_end";'
+    '"esitatud_kpv";"kas auditeeritud?"'
+)
 
 
 def _write(root: Path, specs: list[tuple]) -> Path:
@@ -27,34 +29,57 @@ def _write(root: Path, specs: list[tuple]) -> Path:
     lines = [REPORT_COLS]
     el = ['"report_id";"tabel";"elemendi_label";"elemendi_nimetus";"vaartus"']
     for rid, code, status, year, filed, cons in specs:
-        lines.append(f'{rid};;{code};"OÜ";"{status}";{year};"{"Jah" if cons else "Ei"}";'
-                     f'"01.01.{year}";"31.12.{year}";"{filed}";"Jah"')
-        for name, val in (("Assets", 100 + rid), ("Equity", 40), ("CurrentAssets", 60),
-                          ("CurrentLiabilities", 30), ("NonCurrentLiabilities", 20),
-                          ("Revenue", 200), ("TotalAnnualPeriodProfitLoss", -5 * (rid % 3))):
+        lines.append(
+            f'{rid};;{code};"OÜ";"{status}";{year};"{"Jah" if cons else "Ei"}";'
+            f'"01.01.{year}";"31.12.{year}";"{filed}";"Jah"'
+        )
+        for name, val in (
+            ("Assets", 100 + rid),
+            ("Equity", 40),
+            ("CurrentAssets", 60),
+            ("CurrentLiabilities", 30),
+            ("NonCurrentLiabilities", 20),
+            ("Revenue", 200),
+            ("TotalAnnualPeriodProfitLoss", -5 * (rid % 3)),
+        ):
             el.append(f'{rid};"Bilanss";"x";"{name}";"{val}"')
         el.append(f'{rid};"Kasumi jaotamise otsus";"x";"Equity";"999999"')  # must be skipped
     (d / ce.REPORTS_FILE).write_text("\n".join(lines).replace('";"', '";"') + "\n")
     (d / ce.ELEMENT_FILE.format(year=2022)).write_text("\n".join(el) + "\n")
-    cards = [{"ariregistri_kood": 1, "registrikaardid": [{"kanded": [
-        {"kpv": "01.02.2021", "kandeliik_tekstina": "Esmakanne"},
-        {"kpv": "01.06.2022", "kandeliik_tekstina": ce.BANKRUPTCY_ENTRY}]}]},
-        {"ariregistri_kood": 2, "registrikaardid": [{"kanded": [
-            {"kpv": "01.02.2021", "kandeliik_tekstina": "Esmakanne"}]}]}]
+    cards = [
+        {
+            "ariregistri_kood": 1,
+            "registrikaardid": [
+                {
+                    "kanded": [
+                        {"kpv": "01.02.2021", "kandeliik_tekstina": "Esmakanne"},
+                        {"kpv": "01.06.2022", "kandeliik_tekstina": ce.BANKRUPTCY_ENTRY},
+                    ]
+                }
+            ],
+        },
+        {
+            "ariregistri_kood": 2,
+            "registrikaardid": [
+                {"kanded": [{"kpv": "01.02.2021", "kandeliik_tekstina": "Esmakanne"}]}
+            ],
+        },
+    ]
     (d / ce.CARDS_FILE).write_text(json.dumps(cards, indent=4, ensure_ascii=False))
     basic = ["nimi;ariregistri_kood;ettevotja_esmakande_kpv"] + [
-        f"f{c};{c};01.01.2010" for c in (1, 2, 3, 4)]
+        f"f{c};{c};01.01.2010" for c in (1, 2, 3, 4)
+    ]
     (d / ce.BASIC_FILE).write_text("﻿" + "\n".join(basic) + "\n", encoding="utf-8")
     return d
 
 
 def _frame(tmp_path: Path) -> pd.DataFrame:
     specs = [
-        (1, 1, "Pankrotis", 2021, "01.04.2022", False),   # filed 2 months before: positive
-        (2, 1, "Pankrotis", 2022, "01.09.2022", False),   # filed after the declaration: drop
+        (1, 1, "Pankrotis", 2021, "01.04.2022", False),  # filed 2 months before: positive
+        (2, 1, "Pankrotis", 2022, "01.09.2022", False),  # filed after the declaration: drop
         (3, 2, "Registrisse kantud", 2021, "01.04.2022", False),  # negative
         (4, 3, "Kustutatud", 2021, "01.04.2022", False),  # deleted: label unobservable, drop
-        (5, 4, "Registrisse kantud", 2021, "01.04.2022", True),   # consolidated: drop
+        (5, 4, "Registrisse kantud", 2021, "01.04.2022", True),  # consolidated: drop
         (6, 2, "Registrisse kantud", 2025, "01.04.2026", False),  # window past the cut: drop
         (7, 4, "Registrisse kantud", 2021, "01.04.2022", False),  # second report, code 4
     ]
@@ -82,12 +107,14 @@ def test_label_window_and_dropped_rows(tmp_path):
 
 def test_profit_allocation_tables_are_skipped_and_ratios_use_the_balance_sheet(tmp_path):
     f = _frame(tmp_path)
-    assert np.isclose(f.loc[0, "equity_to_assets"], 40 / 101)      # not 999999
+    assert np.isclose(f.loc[0, "equity_to_assets"], 40 / 101)  # not 999999
     assert np.isclose(f.loc[0, "liabilities_to_assets"], 50 / 101)
     assert np.isclose(f.loc[0, "current_ratio"], 2.0)
     assert f.loc[0, "form_OÜ"] == 1 and f.loc[0, "form_AS"] == 0
-    assert np.isclose(f.loc[0, "log_age_days"], np.log1p(
-        (pd.Timestamp("2022-04-01") - pd.Timestamp("2010-01-01")).days))
+    assert np.isclose(
+        f.loc[0, "log_age_days"],
+        np.log1p((pd.Timestamp("2022-04-01") - pd.Timestamp("2010-01-01")).days),
+    )
     assert not any("status" in c for c in f.columns)  # current status contains the label
 
 

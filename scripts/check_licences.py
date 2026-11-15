@@ -24,8 +24,17 @@ from importlib.metadata import PackageMetadata, distributions
 #: the distribution declares, which is inconsistent across packaging generations -- some use
 #: `License-Expression` (PEP 639), some a free-text `License`, some only classifiers.
 PERMISSIVE: tuple[str, ...] = (
-    "MIT", "BSD", "Apache", "ISC", "Zlib", "Unlicense", "HPND",
-    "Python Software Foundation", "PSF", "MPL", "Mozilla Public",
+    "MIT",
+    "BSD",
+    "Apache",
+    "ISC",
+    "Zlib",
+    "Unlicense",
+    "HPND",
+    "Python Software Foundation",
+    "PSF",
+    "MPL",
+    "Mozilla Public",
 )
 
 #: CUDA runtime libraries that `torch` pulls in **on Linux only**, every one of them

@@ -19,10 +19,22 @@ def test_variants_isolate_exactly_one_variable():
 
 
 def test_ablation_matches_compute_and_writes_rederivable_results(tmp_path: Path):
-    cfg = ModelConfig(max_features=8, max_classes=2, d_cell=8, d_model=16, n_heads=2,
-                      n_col_layers=1, n_layers=1, d_ff=16)
+    cfg = ModelConfig(
+        max_features=8,
+        max_classes=2,
+        d_cell=8,
+        d_model=16,
+        n_heads=2,
+        n_col_layers=1,
+        n_layers=1,
+        d_ff=16,
+    )
     record = run_ablation(
-        out_dir=tmp_path, steps=2, batch_size=2, n_rows=16, model_cfg=cfg,
+        out_dir=tmp_path,
+        steps=2,
+        batch_size=2,
+        n_rows=16,
+        model_cfg=cfg,
         variants={"financial": 1.0, "generic": 0.0},
         horizons=(),  # training-harness test; real-data scoring is exercised separately
     )
@@ -43,8 +55,14 @@ def test_summarise_reports_the_exit_condition():
     record = {
         "config": {"steps": 10},
         "variants": {
-            "financial": {"n_parameters": 100, "metrics": {"d/balanced": {"roc_auc": 0.7, "ece": 0.01}}},
-            "generic": {"n_parameters": 100, "metrics": {"d/balanced": {"roc_auc": 0.6, "ece": 0.02}}},
+            "financial": {
+                "n_parameters": 100,
+                "metrics": {"d/balanced": {"roc_auc": 0.7, "ece": 0.01}},
+            },
+            "generic": {
+                "n_parameters": 100,
+                "metrics": {"d/balanced": {"roc_auc": 0.6, "ece": 0.02}},
+            },
         },
     }
     text = summarise(record)
@@ -70,11 +88,25 @@ def test_summarise_says_so_rather_than_printing_nan_when_nothing_scored():
 
 
 def test_untrained_control_can_be_disabled(tmp_path: Path):
-    cfg = ModelConfig(max_features=6, max_classes=2, d_cell=8, d_model=16, n_heads=2,
-                      n_col_layers=1, n_layers=1, d_ff=16)
+    cfg = ModelConfig(
+        max_features=6,
+        max_classes=2,
+        d_cell=8,
+        d_model=16,
+        n_heads=2,
+        n_col_layers=1,
+        n_layers=1,
+        d_ff=16,
+    )
     record = run_ablation(
-        out_dir=tmp_path, steps=1, batch_size=2, n_rows=16, model_cfg=cfg,
-        variants={"financial": 1.0}, horizons=(), include_untrained_control=False,
+        out_dir=tmp_path,
+        steps=1,
+        batch_size=2,
+        n_rows=16,
+        model_cfg=cfg,
+        variants={"financial": 1.0},
+        horizons=(),
+        include_untrained_control=False,
     )
     assert set(record["variants"]) == {"financial"}
 
@@ -146,9 +178,11 @@ def test_run_includes_an_untrained_control(tmp_path):
     from fintfm.modeling.model import FinancialTFM, ModelConfig
 
     ckpt = tmp_path / "m.pt"
-    FinancialTFM(ModelConfig(max_features=20, d_model=16, d_cell=8, n_layers=1,
-                             n_col_layers=1, max_classes=2)).save(
-        str(ckpt), trained_objectives=("classification",))
+    FinancialTFM(
+        ModelConfig(
+            max_features=20, d_model=16, d_cell=8, n_layers=1, n_col_layers=1, max_classes=2
+        )
+    ).save(str(ckpt), trained_objectives=("classification",))
     rec = run({"probe": str(ckpt)}, tmp_path, seeds=(0,), max_context=200, n_features=20)
     arms = {r["arm"] for r in rec["results"]}
     assert "untrained_control" in arms
@@ -165,9 +199,11 @@ def test_untrained_control_is_reproducible(tmp_path):
     from fintfm.modeling.model import FinancialTFM, ModelConfig
 
     ckpt = tmp_path / "m.pt"
-    FinancialTFM(ModelConfig(max_features=20, d_model=16, d_cell=8, n_layers=1,
-                             n_col_layers=1, max_classes=2)).save(
-        str(ckpt), trained_objectives=("classification",))
+    FinancialTFM(
+        ModelConfig(
+            max_features=20, d_model=16, d_cell=8, n_layers=1, n_col_layers=1, max_classes=2
+        )
+    ).save(str(ckpt), trained_objectives=("classification",))
 
     def control_scores():
         rec = run({"probe": str(ckpt)}, tmp_path, seeds=(0,), max_context=200, n_features=20)
@@ -189,9 +225,11 @@ def test_feature_sweep_reproduces_the_shape_finding_49_reports(tmp_path):
     from fintfm.modeling.model import FinancialTFM, ModelConfig
 
     ckpt = tmp_path / "m.pt"
-    FinancialTFM(ModelConfig(max_features=40, d_model=16, d_cell=8, n_layers=1,
-                             n_col_layers=1, max_classes=2)).save(
-        str(ckpt), trained_objectives=("classification",))
+    FinancialTFM(
+        ModelConfig(
+            max_features=40, d_model=16, d_cell=8, n_layers=1, n_col_layers=1, max_classes=2
+        )
+    ).save(str(ckpt), trained_objectives=("classification",))
     sweep = feature_sweep({"probe": str(ckpt)}, widths=(5, 40), seeds=(0,), max_context=200)
 
     assert sweep["widths"] == [5, 40]
@@ -213,11 +251,12 @@ def test_base_rate_sweep_keeps_the_linear_baseline_flat(tmp_path):
     from fintfm.modeling.model import FinancialTFM, ModelConfig
 
     ckpt = tmp_path / "m.pt"
-    FinancialTFM(ModelConfig(max_features=8, d_model=16, d_cell=8, n_layers=1,
-                             n_col_layers=1, max_classes=2)).save(
-        str(ckpt), trained_objectives=("classification",))
-    sweep = base_rate_sweep({"probe": str(ckpt)}, rates=(0.05, 0.50), n_features=5,
-                            seeds=(0,), max_context=300)
+    FinancialTFM(
+        ModelConfig(max_features=8, d_model=16, d_cell=8, n_layers=1, n_col_layers=1, max_classes=2)
+    ).save(str(ckpt), trained_objectives=("classification",))
+    sweep = base_rate_sweep(
+        {"probe": str(ckpt)}, rates=(0.05, 0.50), n_features=5, seeds=(0,), max_context=300
+    )
 
     assert sweep["rates"] == [0.05, 0.50]
     lr = sweep["arms"]["logistic_regression"]
@@ -254,8 +293,7 @@ def test_bayes_ceiling_probe_runs_and_regret_is_consistent(tmp_path):
     from fintfm.modeling.model import FinancialTFM, ModelConfig
 
     model = FinancialTFM(
-        ModelConfig(max_features=8, d_model=16, d_cell=8, n_layers=1, n_col_layers=1,
-                    max_classes=2)
+        ModelConfig(max_features=8, d_model=16, d_cell=8, n_layers=1, n_col_layers=1, max_classes=2)
     ).eval()
     targets = (0.5, 0.9, 0.999)
     result = bayes_ceiling_probe(model, targets=targets, seeds=2, n=200, n_ensemble=2)
@@ -302,18 +340,22 @@ def test_multiclass_sweep_skips_checkpoints_that_cannot_represent_the_task(tmp_p
     from fintfm.experiments.capability import multiclass_sweep
     from fintfm.modeling.model import FinancialTFM, ModelConfig
 
-    base = {"max_features": 8, "d_model": 16, "d_cell": 8, "n_layers": 1,
-            "n_col_layers": 1}
+    base = {"max_features": 8, "d_model": 16, "d_cell": 8, "n_layers": 1, "n_col_layers": 1}
     binary = tmp_path / "binary.pt"
     wide = tmp_path / "wide.pt"
     FinancialTFM(ModelConfig(max_classes=2, **base)).save(
-        str(binary), trained_objectives=("classification",))
+        str(binary), trained_objectives=("classification",)
+    )
     FinancialTFM(ModelConfig(max_classes=5, **base)).save(
-        str(wide), trained_objectives=("classification",))
+        str(wide), trained_objectives=("classification",)
+    )
 
     sweep = multiclass_sweep(
-        {"wide": str(wide), "binary": str(binary)}, class_counts=(3,), n_features=6,
-        seeds=(0,), max_context=300,
+        {"wide": str(wide), "binary": str(binary)},
+        class_counts=(3,),
+        n_features=6,
+        seeds=(0,),
+        max_context=300,
     )
 
     assert sweep["class_counts"] == [3]
@@ -337,8 +379,16 @@ def test_regression_sweep_scores_a_quantile_head_checkpoint(tmp_path):
     ckpt = tmp_path / "quantile.pt"
     FinancialTFM(
         ModelConfig(
-            max_features=20, max_classes=3, d_cell=16, d_model=32, n_heads=2, n_col_layers=1,
-            n_layers=1, d_ff=32, head_type="quantile", n_quantiles=9,
+            max_features=20,
+            max_classes=3,
+            d_cell=16,
+            d_model=32,
+            n_heads=2,
+            n_col_layers=1,
+            n_layers=1,
+            d_ff=32,
+            head_type="quantile",
+            n_quantiles=9,
         )
     ).save(str(ckpt), trained_objectives=("quantile",))
 
@@ -410,7 +460,8 @@ def test_bayesian_regret_skips_single_class_tasks_and_aggregates_the_rest():
 
     # Ceiling at chance: R_norm is 0 / 0, reported as None rather than NaN or inf.
     chance = bayesian_regret(
-        np.array([0, 1, 0, 1]), np.full(4, 0.5), np.array([0.1, 0.9, 0.2, 0.8]))
+        np.array([0, 1, 0, 1]), np.full(4, 0.5), np.array([0.1, 0.9, 0.2, 0.8])
+    )
     assert chance["regret_norm"] is None
 
 
@@ -422,11 +473,20 @@ def test_capability_record_carries_regret_beside_raw_auc(tmp_path):
     from fintfm.modeling.model import FinancialTFM, ModelConfig
 
     ckpt = tmp_path / "m.pt"
-    FinancialTFM(ModelConfig(max_features=20, d_model=16, d_cell=8, n_layers=1,
-                             n_col_layers=1, max_classes=2)).save(
-        str(ckpt), trained_objectives=("classification",))
-    rec = run({"probe": str(ckpt)}, tmp_path, seeds=(0,), max_context=200, n_features=20,
-              bayes_targets=(0.9,), bayes_seeds=2)
+    FinancialTFM(
+        ModelConfig(
+            max_features=20, d_model=16, d_cell=8, n_layers=1, n_col_layers=1, max_classes=2
+        )
+    ).save(str(ckpt), trained_objectives=("classification",))
+    rec = run(
+        {"probe": str(ckpt)},
+        tmp_path,
+        seeds=(0,),
+        max_context=200,
+        n_features=20,
+        bayes_targets=(0.9,),
+        bayes_seeds=2,
+    )
     assert all("auc_mean" in r for r in rec["results"])
     cell = rec["bayes_ceiling"]["probe"]["0.9"]
     for key in ("auc_bayes", "auc_model", "regret", "regret_norm", "n_tasks", "n_skipped"):

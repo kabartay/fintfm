@@ -19,8 +19,10 @@ from pathlib import Path
 COMMIT = "49f415c"
 ARM = "nocell-s0"
 ARM_FLAGS: list[str] = ["--seed", "0", "--n-cell-blocks", "0", "--no-cell-labels"]
-RECIPE_URL = (f"https://raw.githubusercontent.com/kabartay/fintfm/{COMMIT}/"
-              "configs/published/v4-cellattn-labels.yaml")
+RECIPE_URL = (
+    f"https://raw.githubusercontent.com/kabartay/fintfm/{COMMIT}/"
+    "configs/published/v4-cellattn-labels.yaml"
+)
 
 
 def main() -> None:
@@ -29,20 +31,46 @@ def main() -> None:
     if len(hits) != 1:
         sys.exit(f"expected one company_years_h1.parquet under /kaggle/input, found {hits}")
     root = hits[0].parent
-    smi = subprocess.run(["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
-                         capture_output=True, text=True, check=False)
+    smi = subprocess.run(
+        ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
     if smi.returncode != 0 or not smi.stdout.strip():
         sys.exit("no GPU in this session (quota exhausted?) -- refusing a CPU run")
     print(f"GPUs: {smi.stdout.strip()}; data: {root}", flush=True)
-    subprocess.run([sys.executable, "-m", "pip", "install", "--quiet",
-                    f"fintfm @ git+https://github.com/kabartay/fintfm.git@{COMMIT}"], check=True)
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pip",
+            "install",
+            "--quiet",
+            f"fintfm @ git+https://github.com/kabartay/fintfm.git@{COMMIT}",
+        ],
+        check=True,
+    )
     out = Path("/kaggle/working") / ARM
     out.mkdir(parents=True, exist_ok=True)
     recipe = out / "recipe.yaml"
     urllib.request.urlretrieve(RECIPE_URL, recipe)
     ckpt = out / f"{ARM}.pt"
-    train = [sys.executable, "-u", "-m", "fintfm.modeling.train", "--config", str(recipe),
-             "--device", "cuda", "--checkpoint-every", "1000", "--out", str(ckpt), *ARM_FLAGS]
+    train = [
+        sys.executable,
+        "-u",
+        "-m",
+        "fintfm.modeling.train",
+        "--config",
+        str(recipe),
+        "--device",
+        "cuda",
+        "--checkpoint-every",
+        "1000",
+        "--out",
+        str(ckpt),
+        *ARM_FLAGS,
+    ]
     print("$ " + " ".join(train), flush=True)
     with (out / "train.log").open("w") as log:
         rc = subprocess.run(train, stdout=log, stderr=subprocess.STDOUT, check=False).returncode
@@ -51,8 +79,16 @@ def main() -> None:
         sys.exit(f"training failed with exit {rc}")
     from fintfm.experiments.v4_protocol import run, summarise
 
-    record = run(str(ckpt), out / "score", horizon=0, folds=(0, 1, 2, 3, 4), root=root,
-                 with_boosting=False, classical=("logistic_regression",), device="cuda")
+    record = run(
+        str(ckpt),
+        out / "score",
+        horizon=0,
+        folds=(0, 1, 2, 3, 4),
+        root=root,
+        with_boosting=False,
+        classical=("logistic_regression",),
+        device="cuda",
+    )
     print(summarise(record), flush=True)
     for p in out.glob(f"{ARM}.pt.step*"):
         p.unlink()  # keep the final checkpoint only

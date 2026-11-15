@@ -158,9 +158,7 @@ def sample_tree_task(
 
     n_trees = int(np.exp(rng.uniform(0.0, np.log(MAX_TREES))))
     depth = int(rng.integers(1, MAX_DEPTH + 1))
-    t = _oblivious_forest(
-        rng, X, n_trees, depth, "std" if knobs is None else knobs.tree_split_by
-    )
+    t = _oblivious_forest(rng, X, n_trees, depth, "std" if knobs is None else knobs.tree_split_by)
     t = t + rng.normal(0, rng.uniform(0.0, 1.5) * (t.std() + 1e-9), size=n_rows)
     if _latent_out is not None:
         _latent_out.append(t.copy())
@@ -173,9 +171,7 @@ def sample_tree_task(
         is_cat = rng.random(n_features) < rng.uniform(0.0, 0.4)
         for j in np.flatnonzero(is_cat):
             k = int(rng.integers(2, 8))
-            X[:, j] = np.searchsorted(
-                np.quantile(X[:, j], np.linspace(0, 1, k + 1)[1:-1]), X[:, j]
-            )
+            X[:, j] = np.searchsorted(np.quantile(X[:, j], np.linspace(0, 1, k + 1)[1:-1]), X[:, j])
     if not (knobs is not None and knobs.mixed_missing) and rng.random() < 0.5:
         X[rng.random(X.shape) < rng.uniform(0, 0.2)] = np.nan
     return Task(

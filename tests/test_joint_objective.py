@@ -19,8 +19,18 @@ from fintfm.prior import PriorConfig
 from fintfm.prior.mixture import sample_batch
 
 _MODEL = {
-    "d_model": 16, "n_heads": 2, "n_layers": 1, "n_col_layers": 1, "d_ff": 32, "d_cell": 8, "max_features": 8,
-    "max_classes": 2, "n_cell_blocks": 0, "cell_labels": False, "column_id_dim": None, "pooling": "meanmax",
+    "d_model": 16,
+    "n_heads": 2,
+    "n_layers": 1,
+    "n_col_layers": 1,
+    "d_ff": 32,
+    "d_cell": 8,
+    "max_features": 8,
+    "max_classes": 2,
+    "n_cell_blocks": 0,
+    "cell_labels": False,
+    "column_id_dim": None,
+    "pooling": "meanmax",
     "n_horizons": 4,
 }
 _PRIOR = PriorConfig(max_features=8, max_classes=2, p_financial=1.0, n_rows=48, n_horizons=4)
@@ -66,9 +76,17 @@ def _run(tmp_path, name: str, weight: float) -> FinancialTFM:
     """Train three CPU steps and return the reloaded checkpoint."""
     out = tmp_path / name
     train(
-        ModelConfig(**_MODEL), _PRIOR,
-        TrainConfig(steps=3, batch_size=2, eval_every=2, log_every=1000, seed=0,
-                    device="cpu", joint_classification_weight=weight),
+        ModelConfig(**_MODEL),
+        _PRIOR,
+        TrainConfig(
+            steps=3,
+            batch_size=2,
+            eval_every=2,
+            log_every=1000,
+            seed=0,
+            device="cpu",
+            joint_classification_weight=weight,
+        ),
         str(out),
     )
     return FinancialTFM.load(str(out))
@@ -93,12 +111,15 @@ def test_nonsense_combinations_are_refused(tmp_path):
         train(
             ModelConfig(**{**_MODEL, "n_horizons": None}),
             PriorConfig(max_features=8, max_classes=2, n_rows=48),
-            TrainConfig(steps=1, batch_size=2, joint_classification_weight=1.0), out,
+            TrainConfig(steps=1, batch_size=2, joint_classification_weight=1.0),
+            out,
         )
     with pytest.raises(ValueError, match="at least 0"):
         train(
-            ModelConfig(**_MODEL), _PRIOR,
-            TrainConfig(steps=1, batch_size=2, joint_classification_weight=-1.0), out,
+            ModelConfig(**_MODEL),
+            _PRIOR,
+            TrainConfig(steps=1, batch_size=2, joint_classification_weight=-1.0),
+            out,
         )
 
 

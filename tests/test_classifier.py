@@ -161,8 +161,9 @@ def _model(n_feat=6):
 
     torch.manual_seed(0)
     return FinancialTFM(
-        ModelConfig(max_features=n_feat, d_model=32, d_cell=16, n_layers=1,
-                    n_col_layers=1, max_classes=2)
+        ModelConfig(
+            max_features=n_feat, d_model=32, d_cell=16, n_layers=1, n_col_layers=1, max_classes=2
+        )
     )
 
 
@@ -174,14 +175,25 @@ def test_ensemble_averages_distinct_members_rather_than_repeating_one():
 
     Xtr, ytr, Xte, _ = _toy()
     m = _model()
-    single = FinancialTFMClassifier(m, max_context=100, context_strategy="uniform",
-                                    random_state=0).fit(Xtr, ytr).predict_proba(Xte)
-    other = FinancialTFMClassifier(m, max_context=100, context_strategy="uniform",
-                                   random_state=1).fit(Xtr, ytr).predict_proba(Xte)
+    single = (
+        FinancialTFMClassifier(m, max_context=100, context_strategy="uniform", random_state=0)
+        .fit(Xtr, ytr)
+        .predict_proba(Xte)
+    )
+    other = (
+        FinancialTFMClassifier(m, max_context=100, context_strategy="uniform", random_state=1)
+        .fit(Xtr, ytr)
+        .predict_proba(Xte)
+    )
     assert not np.allclose(single, other, atol=1e-4), "context draw does not vary with seed"
 
-    ens = FinancialTFMClassifier(m, max_context=100, context_strategy="uniform",
-                                 random_state=0, n_ensemble=2).fit(Xtr, ytr).predict_proba(Xte)
+    ens = (
+        FinancialTFMClassifier(
+            m, max_context=100, context_strategy="uniform", random_state=0, n_ensemble=2
+        )
+        .fit(Xtr, ytr)
+        .predict_proba(Xte)
+    )
     np.testing.assert_allclose(ens, (single + other) / 2, atol=1e-5)
 
 
@@ -192,8 +204,11 @@ def test_ensemble_of_one_is_exactly_the_single_model():
 
     Xtr, ytr, Xte, _ = _toy()
     m = _model()
-    a = FinancialTFMClassifier(m, max_context=100, random_state=0,
-                               n_ensemble=1).fit(Xtr, ytr).predict_proba(Xte)
+    a = (
+        FinancialTFMClassifier(m, max_context=100, random_state=0, n_ensemble=1)
+        .fit(Xtr, ytr)
+        .predict_proba(Xte)
+    )
     b = FinancialTFMClassifier(m, max_context=100, random_state=0).fit(Xtr, ytr).predict_proba(Xte)
     np.testing.assert_allclose(a, b, atol=1e-6)
 
@@ -204,8 +219,11 @@ def test_ensemble_output_is_a_valid_probability_distribution():
     from fintfm.inference.classifier import FinancialTFMClassifier
 
     Xtr, ytr, Xte, _ = _toy()
-    p = FinancialTFMClassifier(_model(), max_context=100, random_state=0,
-                               n_ensemble=3).fit(Xtr, ytr).predict_proba(Xte)
+    p = (
+        FinancialTFMClassifier(_model(), max_context=100, random_state=0, n_ensemble=3)
+        .fit(Xtr, ytr)
+        .predict_proba(Xte)
+    )
     assert np.isfinite(p).all()
     np.testing.assert_allclose(p.sum(axis=1), 1.0, atol=1e-5)
     assert (p >= 0).all()
@@ -222,8 +240,9 @@ def test_ensemble_members_refit_the_conditioner_not_inherit_it():
     from fintfm.inference.classifier import FinancialTFMClassifier
 
     Xtr, ytr, _, _ = _toy()
-    parent = FinancialTFMClassifier(_model(), max_context=100, feature_transform="rank",
-                                    random_state=0, n_ensemble=2).fit(Xtr, ytr)
+    parent = FinancialTFMClassifier(
+        _model(), max_context=100, feature_transform="rank", random_state=0, n_ensemble=2
+    ).fit(Xtr, ytr)
     twin = parent._clone_with_seed(7)
     assert twin.random_state == 7
     assert twin.n_ensemble == 1  # no recursion
@@ -267,8 +286,9 @@ def test_feature_subsetting_produces_genuinely_different_members():
     Xtr, ytr, Xte, _ = _toy()
     m = _model()
     full = FinancialTFMClassifier(m, max_context=100, random_state=0).fit(Xtr, ytr)
-    sub = FinancialTFMClassifier(m, max_context=100, random_state=0,
-                                 ensemble_feature_frac=0.5).fit(Xtr, ytr)
+    sub = FinancialTFMClassifier(m, max_context=100, random_state=0, ensemble_feature_frac=0.5).fit(
+        Xtr, ytr
+    )
     assert not np.allclose(full.predict_proba(Xte), sub.predict_proba(Xte), atol=1e-3)
 
 
@@ -278,9 +298,18 @@ def test_feature_subset_ensemble_stays_a_valid_distribution():
     from fintfm.inference.classifier import FinancialTFMClassifier
 
     Xtr, ytr, Xte, _ = _toy()
-    p = FinancialTFMClassifier(_model(), max_context=100, random_state=0, n_ensemble=3,
-                               ensemble_feature_frac=0.6, ensemble_label_swap=True
-                               ).fit(Xtr, ytr).predict_proba(Xte)
+    p = (
+        FinancialTFMClassifier(
+            _model(),
+            max_context=100,
+            random_state=0,
+            n_ensemble=3,
+            ensemble_feature_frac=0.6,
+            ensemble_label_swap=True,
+        )
+        .fit(Xtr, ytr)
+        .predict_proba(Xte)
+    )
     assert np.isfinite(p).all() and (p >= 0).all()
     np.testing.assert_allclose(p.sum(axis=1), 1.0, atol=1e-5)
 
@@ -308,8 +337,16 @@ def test_ensembling_recovers_column_order_invariance():
 
     torch.manual_seed(0)
     model = FinancialTFM(
-        ModelConfig(max_features=8, max_classes=2, d_cell=16, d_model=32, n_heads=2,
-                    n_col_layers=1, n_layers=2, d_ff=64)
+        ModelConfig(
+            max_features=8,
+            max_classes=2,
+            d_cell=16,
+            d_model=32,
+            n_heads=2,
+            n_col_layers=1,
+            n_layers=2,
+            d_ff=64,
+        )
     ).eval()
     model.trained_objectives = ("classification",)
 
@@ -321,8 +358,11 @@ def test_ensembling_recovers_column_order_invariance():
 
     def gap(n_ensemble):
         kw = {
-            "max_context": 120, "context_strategy": "uniform", "feature_transform": "none",
-            "n_ensemble": n_ensemble, "random_state": 0,
+            "max_context": 120,
+            "context_strategy": "uniform",
+            "feature_transform": "none",
+            "n_ensemble": n_ensemble,
+            "random_state": 0,
         }
         a = FinancialTFMClassifier(model, **kw).fit(X, y).predict_proba(Xq)[:, 1]
         b = FinancialTFMClassifier(model, **kw).fit(X[:, perm], y).predict_proba(Xq[:, perm])[:, 1]
@@ -339,9 +379,7 @@ ACCELERATORS = [
     pytest.param(
         "mps", marks=pytest.mark.skipif(not torch.backends.mps.is_available(), reason="no MPS")
     ),
-    pytest.param(
-        "cuda", marks=pytest.mark.skipif(not torch.cuda.is_available(), reason="no CUDA")
-    ),
+    pytest.param("cuda", marks=pytest.mark.skipif(not torch.cuda.is_available(), reason="no CUDA")),
 ]
 
 
@@ -385,7 +423,10 @@ def test_pooled_prior_shift_uses_each_class_share_in_multiclass_retrieval():
     y = rng.choice(3, size=300, p=[0.7, 0.2, 0.1])
     torch.manual_seed(0)
     clf = FinancialTFMClassifier(
-        _tiny_model(), max_context=60, context_strategy="retrieval", retrieval_groups=4,
+        _tiny_model(),
+        max_context=60,
+        context_strategy="retrieval",
+        retrieval_groups=4,
     ).fit(X, y)
     Xq = clf._conditioner.transform(rng.normal(size=(40, 4)).astype(np.float32))
     plan = clf._retrieval_plan(Xq)
@@ -424,8 +465,12 @@ _LEVERS_OFF = {
 
 @pytest.mark.parametrize(
     "kw",
-    [{}, {"n_ensemble": 3}, {"ensemble_label_swap": True},
-     {"n_ensemble": 2, "ensemble_feature_frac": 0.5}],
+    [
+        {},
+        {"n_ensemble": 3},
+        {"ensemble_label_swap": True},
+        {"n_ensemble": 2, "ensemble_feature_frac": 0.5},
+    ],
 )
 def test_levers_default_off_and_the_default_member_is_the_plain_model(kw):
     """The defaults reproduce the classifier as it was, bit for bit.
@@ -444,7 +489,9 @@ def test_levers_default_off_and_the_default_member_is_the_plain_model(kw):
     np.testing.assert_array_equal(default, off)
     if kw == {"n_ensemble": 3}:
         singles = [
-            FinancialTFMClassifier(m, max_context=60, random_state=s).fit(Xtr, ytr).predict_proba(Xte)
+            FinancialTFMClassifier(m, max_context=60, random_state=s)
+            .fit(Xtr, ytr)
+            .predict_proba(Xte)
             for s in (2, 3, 4)
         ]
         np.testing.assert_array_equal(default, np.mean(singles, axis=0))
@@ -454,12 +501,15 @@ def test_ensemble_transforms_cycle_the_conditioning_over_members():
     Xtr, ytr, Xte, _ = _toy(n=240)
     m = _model()
     kw = {"max_context": 60, "random_state": 0}
-    ens = FinancialTFMClassifier(
-        m, n_ensemble=3, ensemble_transforms=("rank", "squash"), **kw
-    ).fit(Xtr, ytr).predict_proba(Xte)
+    ens = (
+        FinancialTFMClassifier(m, n_ensemble=3, ensemble_transforms=("rank", "squash"), **kw)
+        .fit(Xtr, ytr)
+        .predict_proba(Xte)
+    )
     by_hand = [
         FinancialTFMClassifier(m, max_context=60, random_state=s, feature_transform=t)
-        .fit(Xtr, ytr).predict_proba(Xte)
+        .fit(Xtr, ytr)
+        .predict_proba(Xte)
         for s, t in ((0, "rank"), (1, "squash"), (2, "rank"))
     ]
     np.testing.assert_array_equal(ens, np.mean(by_hand, axis=0))
@@ -514,9 +564,13 @@ def test_svd_components_refuse_settings_where_no_member_would_carry_them():
 def test_class_shift_on_a_binary_task_swaps_labels_on_odd_members():
     Xtr, ytr, Xte, _ = _toy(n=240)
     m = _model()
-    ens = FinancialTFMClassifier(
-        m, max_context=60, random_state=0, n_ensemble=2, ensemble_class_shift=True
-    ).fit(Xtr, ytr).predict_proba(Xte)
+    ens = (
+        FinancialTFMClassifier(
+            m, max_context=60, random_state=0, n_ensemble=2, ensemble_class_shift=True
+        )
+        .fit(Xtr, ytr)
+        .predict_proba(Xte)
+    )
     member0 = FinancialTFMClassifier(m, max_context=60, random_state=0).fit(Xtr, ytr)
     member1 = FinancialTFMClassifier(m, max_context=60, random_state=1).fit(Xtr, 1 - ytr)
     np.testing.assert_array_equal(
@@ -533,13 +587,21 @@ def test_class_shift_maps_multiclass_probabilities_back_to_the_original_classes(
     Xq = rng.normal(size=(12, 4)).astype(np.float32)
     torch.manual_seed(0)
     m = _tiny_model()
-    ens = FinancialTFMClassifier(
-        m, max_context=60, random_state=0, n_ensemble=3, ensemble_class_shift=True
-    ).fit(X, y).predict_proba(Xq)
+    ens = (
+        FinancialTFMClassifier(
+            m, max_context=60, random_state=0, n_ensemble=3, ensemble_class_shift=True
+        )
+        .fit(X, y)
+        .predict_proba(Xq)
+    )
     by_hand = []
     for s in range(3):
         shifted = names[(np.searchsorted(names, y) + s) % 3]
-        p = FinancialTFMClassifier(m, max_context=60, random_state=s).fit(X, shifted).predict_proba(Xq)
+        p = (
+            FinancialTFMClassifier(m, max_context=60, random_state=s)
+            .fit(X, shifted)
+            .predict_proba(Xq)
+        )
         by_hand.append(np.stack([p[:, (c + s) % 3] for c in range(3)], axis=1))
     np.testing.assert_array_equal(ens, np.mean(by_hand, axis=0))
     np.testing.assert_allclose(ens.sum(axis=1), 1.0, atol=1e-5)
@@ -570,7 +632,10 @@ def test_subsample_covers_every_feature_with_balanced_round_robin_members(
     """Ten features through a four-feature model: every column seen, coverage within one."""
     Xtr, ytr, Xq = _wide()
     clf = FinancialTFMClassifier(
-        _model(4), max_context=40, n_ensemble=n_ensemble, ensemble_feature_frac=frac,
+        _model(4),
+        max_context=40,
+        n_ensemble=n_ensemble,
+        ensemble_feature_frac=frac,
         max_features_strategy="subsample",
     ).fit(Xtr, ytr)
     assert clf.n_members_ == n_members  # raised above n_ensemble when 10 / size needs it
@@ -583,7 +648,8 @@ def test_subsample_covers_every_feature_with_balanced_round_robin_members(
     np.testing.assert_allclose(p.sum(axis=1), 1.0, atol=1e-5)
     by_hand = [
         FinancialTFMClassifier(clf.model_, max_context=40, random_state=i)
-        .fit(Xtr[:, c], ytr).predict_proba(Xq[:, c])
+        .fit(Xtr[:, c], ytr)
+        .predict_proba(Xq[:, c])
         for i, c in enumerate(cols)
     ]
     np.testing.assert_array_equal(p, np.mean(by_hand, axis=0))
@@ -591,9 +657,9 @@ def test_subsample_covers_every_feature_with_balanced_round_robin_members(
 
 def test_subsample_refuses_paths_that_need_the_whole_row():
     Xtr, ytr, Xq = _wide()
-    clf = FinancialTFMClassifier(
-        _model(4), max_context=40, max_features_strategy="subsample"
-    ).fit(Xtr, ytr)
+    clf = FinancialTFMClassifier(_model(4), max_context=40, max_features_strategy="subsample").fit(
+        Xtr, ytr
+    )
     with pytest.raises(ValueError, match="one forward pass"):
         clf.transform_representation(Xq)
     with pytest.raises(ValueError, match="feature width"):
@@ -628,21 +694,33 @@ def test_every_inference_caller_goes_through_predict_context(monkeypatch):
     X = rng.normal(size=(60, 4)).astype(np.float32)
     y = (rng.random(60) < 0.4).astype(np.int64)
     torch.manual_seed(0)
-    hz = FinancialTFM(ModelConfig(max_features=6, max_classes=2, d_model=16, n_heads=2,
-                                  n_layers=1, d_ff=32, n_horizons=3))
+    hz = FinancialTFM(
+        ModelConfig(
+            max_features=6, max_classes=2, d_model=16, n_heads=2, n_layers=1, d_ff=32, n_horizons=3
+        )
+    )
     clf = FinancialTFMClassifier(hz).fit(X[:50], y[:50])
     for method, expected in (
         (lambda: clf.predict_proba(X[50:]), "logits"),
         (lambda: clf.predict_term_structure(X[50:]), "term_structure"),
         (lambda: clf.transform_representation(X[50:], stage="pre_head"), "representation"),
-        (lambda: bayes_ceiling_probe(hz, targets=(0.8,), seeds=1, n=40, n_ensemble=1),
-         "logits"),
+        (lambda: bayes_ceiling_probe(hz, targets=(0.8,), seeds=1, n=40, n_ensemble=1), "logits"),
     ):
         calls.clear()
         method()
         assert calls == [expected]
-    q = FinancialTFM(ModelConfig(max_features=6, max_classes=2, d_model=16, n_heads=2,
-                                 n_layers=1, d_ff=32, head_type="quantile", n_quantiles=5))
+    q = FinancialTFM(
+        ModelConfig(
+            max_features=6,
+            max_classes=2,
+            d_model=16,
+            n_heads=2,
+            n_layers=1,
+            d_ff=32,
+            head_type="quantile",
+            n_quantiles=5,
+        )
+    )
     calls.clear()
     FinancialTFMQuantileRegressor(q).fit(X[:50], X[:50, 0]).predict_quantile_grid(X[50:])
     assert calls == ["logits"]
@@ -710,8 +788,10 @@ def test_context_positive_floor_holds_exactly_the_requested_positives(floor, exp
         counts.add(int(y[idx].sum()))
     assert counts == {expected}
     # the uniform draw it replaces leaves the count to chance
-    plain = {int(y[_select_context(y, 2000, "uniform", np.random.default_rng(s))].sum())
-             for s in range(6)}
+    plain = {
+        int(y[_select_context(y, 2000, "uniform", np.random.default_rng(s))].sum())
+        for s in range(6)
+    }
     assert len(plain) > 1
 
 
@@ -720,9 +800,7 @@ def test_context_positive_floor_off_is_the_uniform_draw_byte_for_byte():
     for seed in range(3):
         legacy = np.sort(np.random.default_rng(seed).choice(len(y), size=2000, replace=False))
         got = _select_context(y, 2000, "uniform", np.random.default_rng(seed))
-        off = _select_context(
-            y, 2000, "uniform", np.random.default_rng(seed), positive_floor=None
-        )
+        off = _select_context(y, 2000, "uniform", np.random.default_rng(seed), positive_floor=None)
         assert got.tobytes() == legacy.tobytes() == off.tobytes()
     torch.manual_seed(0)
     model = _tiny_model()
@@ -743,7 +821,10 @@ def test_context_positive_floor_reaches_the_stored_context_and_every_member():
     X = rng.normal(size=(2000, 4))
     y = _rare(2000, 10)  # 0.5%: round(200 x 0.005) = 1, the floor lifts it to 6
     clf = FinancialTFMClassifier(
-        _tiny_model(), max_context=200, context_positive_floor=6, n_ensemble=3,
+        _tiny_model(),
+        max_context=200,
+        context_positive_floor=6,
+        n_ensemble=3,
         ensemble_label_swap=True,
     ).fit(X, y)
     s = clf.context_summary_
@@ -881,9 +962,9 @@ def test_context_positive_cap_reaches_every_member_and_stays_calibrated():
     assert (s.n_context, s.n_positive) == (400, 120)
     assert raw.predict_proba(Xq)[:, 1].mean() == pytest.approx(0.3, rel=1e-5)
     assert fixed.predict_proba(Xq)[:, 1].mean() == pytest.approx(0.55, rel=1e-5)
-    clf = FinancialTFMClassifier(
-        _tiny_model(), n_ensemble=3, ensemble_label_swap=True, **kw
-    ).fit(X, y)
+    clf = FinancialTFMClassifier(_tiny_model(), n_ensemble=3, ensemble_label_swap=True, **kw).fit(
+        X, y
+    )
     for seed in (1, 2):
         twin = clf._clone_with_seed(seed, clf._raw_X, clf._raw_y)
         swapped = clf._clone_with_seed(seed, clf._raw_X, clf._flip(clf._raw_y))

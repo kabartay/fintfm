@@ -329,11 +329,10 @@ def summarise(
         d = np.array([r["with_periods"][k] - r["blind"][k] for r in rows])
         lo, hi = _boot_ci(d)
         out.setdefault("paired_with_minus_blind", {})[k] = {
-            "mean": float(d.mean()), "ci95": [lo, hi]
+            "mean": float(d.mean()),
+            "ci95": [lo, hi],
         }
-    out["truth_shape0"] = {
-        r: float(regime_cdf(r, cfg.n_horizons, cfg.decay)[0]) for r in REGIMES
-    }
+    out["truth_shape0"] = {r: float(regime_cdf(r, cfg.n_horizons, cfg.decay)[0]) for r in REGIMES}
     out["verdict"] = verdict(out)
     return out
 

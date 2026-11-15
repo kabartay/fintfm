@@ -26,8 +26,12 @@ PATIENCE = 50
 
 
 def inner_split(
-    y: np.ndarray, time_: np.ndarray | None = None, groups: np.ndarray | None = None,
-    embargo: float = 0.0, frac: float = 0.25, seed: int = 0,
+    y: np.ndarray,
+    time_: np.ndarray | None = None,
+    groups: np.ndarray | None = None,
+    embargo: float = 0.0,
+    frac: float = 0.25,
+    seed: int = 0,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Carve an inner (fit, validation) split from training rows.
 
@@ -105,9 +109,17 @@ def sample_config(rng: np.random.RandomState) -> dict[str, Any]:
 
 
 def tune_lightgbm(
-    X: np.ndarray, y: np.ndarray, *, n_configs: int = 30, seed: int = 0,
-    time_: np.ndarray | None = None, groups: np.ndarray | None = None, embargo: float = 0.0,
-    n_jobs: int = 2, time_budget_s: float | None = None, max_trees: int = MAX_TREES,
+    X: np.ndarray,
+    y: np.ndarray,
+    *,
+    n_configs: int = 30,
+    seed: int = 0,
+    time_: np.ndarray | None = None,
+    groups: np.ndarray | None = None,
+    embargo: float = 0.0,
+    n_jobs: int = 2,
+    time_budget_s: float | None = None,
+    max_trees: int = MAX_TREES,
     init_score: np.ndarray | None = None,
 ) -> dict[str, Any]:
     """Random-search LightGBM on an inner split of the training rows.
@@ -151,30 +163,56 @@ def tune_lightgbm(
         t0 = time.perf_counter()
         est = LGBMClassifier(
             n_estimators=min(1000, max_trees) if i == 0 else max_trees,
-            metric="average_precision", n_jobs=n_jobs, random_state=seed, verbosity=-1, **params,
+            metric="average_precision",
+            n_jobs=n_jobs,
+            random_state=seed,
+            verbosity=-1,
+            **params,
         )
         if init_score is None:
-            est.fit(X[fit], y[fit], eval_set=[(X[val], y[val])],
-                    callbacks=[early_stopping(PATIENCE, verbose=False)])
+            est.fit(
+                X[fit],
+                y[fit],
+                eval_set=[(X[val], y[val])],
+                callbacks=[early_stopping(PATIENCE, verbose=False)],
+            )
             p = est.predict_proba(X[val])[:, 1]
         else:
-            est.fit(X[fit], y[fit], init_score=init_score[fit], eval_set=[(X[val], y[val])],
-                    eval_init_score=[init_score[val]],
-                    callbacks=[early_stopping(PATIENCE, verbose=False)])
+            est.fit(
+                X[fit],
+                y[fit],
+                init_score=init_score[fit],
+                eval_set=[(X[val], y[val])],
+                eval_init_score=[init_score[val]],
+                callbacks=[early_stopping(PATIENCE, verbose=False)],
+            )
             p = est.predict(X[val], raw_score=True) + init_score[val]
-        trials.append({
-            "params": params, "val_ap": float(average_precision_score(y[val], p)),
-            "best_iteration": int(est.best_iteration_ or est.n_estimators),
-            "seconds": round(time.perf_counter() - t0, 1),
-        })
+        trials.append(
+            {
+                "params": params,
+                "val_ap": float(average_precision_score(y[val], p)),
+                "best_iteration": int(est.best_iteration_ or est.n_estimators),
+                "seconds": round(time.perf_counter() - t0, 1),
+            }
+        )
     best = max(trials, key=lambda t: t["val_ap"])
-    return {"best_params": best["params"], "best_iteration": best["best_iteration"],
-            "val_ap": best["val_ap"], "trials": trials}
+    return {
+        "best_params": best["params"],
+        "best_iteration": best["best_iteration"],
+        "val_ap": best["val_ap"],
+        "trials": trials,
+    }
 
 
 def fit_predict_tuned(
-    Xtr: np.ndarray, ytr: np.ndarray, Xte: np.ndarray, tuned: dict[str, Any], seed: int = 0,
-    n_jobs: int = 2, init_train: np.ndarray | None = None, init_test: np.ndarray | None = None,
+    Xtr: np.ndarray,
+    ytr: np.ndarray,
+    Xte: np.ndarray,
+    tuned: dict[str, Any],
+    seed: int = 0,
+    n_jobs: int = 2,
+    init_train: np.ndarray | None = None,
+    init_test: np.ndarray | None = None,
 ) -> np.ndarray:
     """Refit the chosen config on all training rows and score the test rows.
 
@@ -202,8 +240,11 @@ def fit_predict_tuned(
     if (init_train is None) != (init_test is None):
         raise ValueError("init_train and init_test go together")
     est = LGBMClassifier(
-        n_estimators=max(10, round(tuned["best_iteration"] * 1.1)), n_jobs=n_jobs,
-        random_state=seed, verbosity=-1, **tuned["best_params"],
+        n_estimators=max(10, round(tuned["best_iteration"] * 1.1)),
+        n_jobs=n_jobs,
+        random_state=seed,
+        verbosity=-1,
+        **tuned["best_params"],
     )
     if init_train is None:
         return est.fit(Xtr, ytr).predict_proba(Xte)[:, 1]
@@ -238,29 +279,39 @@ def main(argv: list[str]) -> int:
     bte = d["bte"] if btr is not None else None
     t0 = time.perf_counter()
     tuned = tune_lightgbm(
-        d["Xtr"], d["ytr"], n_configs=n_configs, seed=seed, time_budget_s=budget,
-        time_=d["ttr"] if "ttr" in d.files else None, init_score=btr,
+        d["Xtr"],
+        d["ytr"],
+        n_configs=n_configs,
+        seed=seed,
+        time_budget_s=budget,
+        time_=d["ttr"] if "ttr" in d.files else None,
+        init_score=btr,
         groups=d["gtr"] if "gtr" in d.files else None,
         embargo=float(d["embargo"]) if "embargo" in d.files else 0.0,
     )
     tune_s = time.perf_counter() - t0
     yte = d["yte"]
-    p = fit_predict_tuned(d["Xtr"], d["ytr"], d["Xte"], tuned, seed=seed,
-                          init_train=btr, init_test=bte)
-    control = LGBMClassifier(n_estimators=1000, learning_rate=0.05, n_jobs=2, verbosity=-1,
-                             random_state=seed)
+    p = fit_predict_tuned(
+        d["Xtr"], d["ytr"], d["Xte"], tuned, seed=seed, init_train=btr, init_test=bte
+    )
+    control = LGBMClassifier(
+        n_estimators=1000, learning_rate=0.05, n_jobs=2, verbosity=-1, random_state=seed
+    )
     if btr is None:
         p0 = control.fit(d["Xtr"], d["ytr"]).predict_proba(d["Xte"])[:, 1]
     else:
-        raw0 = control.fit(d["Xtr"], d["ytr"], init_score=btr).predict(
-            d["Xte"], raw_score=True) + bte
+        raw0 = (
+            control.fit(d["Xtr"], d["ytr"], init_score=btr).predict(d["Xte"], raw_score=True) + bte
+        )
         p0 = 1.0 / (1.0 + np.exp(-raw0))
     out = {
         "tuned_ap": float(average_precision_score(yte, p)),
         "tuned_auc": float(roc_auc_score(yte, p)),
         "untuned_ap": float(average_precision_score(yte, p0)),
         "untuned_auc": float(roc_auc_score(yte, p0)),
-        "n_trials": len(tuned["trials"]), "tune_seconds": round(tune_s, 1), **tuned,
+        "n_trials": len(tuned["trials"]),
+        "tune_seconds": round(tune_s, 1),
+        **tuned,
     }
     if len(argv) > 5:
         np.save(argv[5], p)

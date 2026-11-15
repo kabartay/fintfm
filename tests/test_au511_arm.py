@@ -40,8 +40,14 @@ def test_arm_file_differs_from_published_in_prior_keys_only(arm: str) -> None:
     ref = yaml.safe_load(PUBLISHED.read_text())
     assert a["model"] == ref["model"] and a["train"] == ref["train"]
     changed = {k for k in ref["prior"] if a["prior"][k] != ref["prior"][k]}
-    assert {"p_financial", "p_tree", "p_task_family", "categorical_mode", "missing_mode",
-            "feature_ratio_bands"} <= changed
+    assert {
+        "p_financial",
+        "p_tree",
+        "p_task_family",
+        "categorical_mode",
+        "missing_mode",
+        "feature_ratio_bands",
+    } <= changed
     assert (NEW_FLAGS <= changed) is ARMS[arm]
     assert (changed & NEW_FLAGS) == (NEW_FLAGS if ARMS[arm] else set())
 
@@ -59,7 +65,10 @@ def test_kernel_flags_build_the_same_prior_and_model_as_the_file(arm: str) -> No
     assert asdict(from_flags[1]) == asdict(from_file[1])
     assert from_flags[1].heavy_tail_column_prob == (0.15 if ARMS[arm] else 0.0)
     # 48,000 tasks under DDP on two GPUs, as every screening arm
-    batch, steps = int(flags[flags.index("--batch-size") + 1]), int(flags[flags.index("--steps") + 1])
+    batch, steps = (
+        int(flags[flags.index("--batch-size") + 1]),
+        int(flags[flags.index("--steps") + 1]),
+    )
     assert batch * 2 * steps == 48_000
 
 

@@ -78,8 +78,15 @@ def _cfg(max_features: int, n_horizons: int | None) -> ModelConfig:
         The configuration.
     """
     return ModelConfig(
-        max_features=max_features, max_classes=2, d_cell=24, d_model=48, n_heads=4,
-        n_col_layers=1, n_layers=3, d_ff=96, n_horizons=n_horizons,
+        max_features=max_features,
+        max_classes=2,
+        d_cell=24,
+        d_model=48,
+        n_heads=4,
+        n_col_layers=1,
+        n_layers=3,
+        d_ff=96,
+        n_horizons=n_horizons,
     )
 
 
@@ -165,15 +172,19 @@ def collect_curves(
         bb = b.to(device)
         if isinstance(models, list):
             cols = [
-                torch.softmax(m(bb.X, ((bb.period >= 0) & (bb.period <= k)).long(),
-                                bb.n_ctx, bb.n_classes)[:, bb.n_ctx:, :2], dim=-1)[..., 1]
+                torch.softmax(
+                    m(bb.X, ((bb.period >= 0) & (bb.period <= k)).long(), bb.n_ctx, bb.n_classes)[
+                        :, bb.n_ctx :, :2
+                    ],
+                    dim=-1,
+                )[..., 1]
                 for k, m in enumerate(models)
             ]
             pd_curve = torch.stack(cols, dim=-1)
         else:
             pd_curve = models.term_structure(bb.X, bb.y, bb.n_ctx, period=bb.period)
         curves.append(pd_curve.reshape(-1, n_horizons).cpu().numpy())
-        per = bb.period[:, bb.n_ctx:]
+        per = bb.period[:, bb.n_ctx :]
         p = per.reshape(-1).cpu().numpy()
         truths.append(np.stack([((p >= 0) & (p <= k)).astype(int) for k in range(n_horizons)], 1))
         tasks.append(np.repeat(np.arange(per.shape[0]) + offset, per.shape[1]))
@@ -200,8 +211,12 @@ def summarise_curves(
 
 
 def evaluate(
-    arm: str, models: FinancialTFM | list[FinancialTFM], batches: list, device: str,
-    n_horizons: int, total_steps: int,
+    arm: str,
+    models: FinancialTFM | list[FinancialTFM],
+    batches: list,
+    device: str,
+    n_horizons: int,
+    total_steps: int,
 ) -> ArmResult:
     """Score an arm's cumulative-PD curves on the shared held-out batches."""
     C, T, _ = collect_curves(models, batches, device, n_horizons)
@@ -238,11 +253,24 @@ def paired_arm_comparisons(
     for other in sorted(a for a in curves if a != reference):
         for k in range(truth.shape[1]):
             d, (lo, hi), p = paired_auc_difference(
-                truth[:, k], curves[reference][:, k], curves[other][:, k],
-                n_boot=n_boot, seed=seed, groups=tasks,
+                truth[:, k],
+                curves[reference][:, k],
+                curves[other][:, k],
+                n_boot=n_boot,
+                seed=seed,
+                groups=tasks,
             )
-            rows.append({"reference": reference, "other": other, "horizon": k, "delta": d,
-                         "ci_lo": lo, "ci_hi": hi, "p_raw": p})
+            rows.append(
+                {
+                    "reference": reference,
+                    "other": other,
+                    "horizon": k,
+                    "delta": d,
+                    "ci_lo": lo,
+                    "ci_hi": hi,
+                    "p_raw": p,
+                }
+            )
     for r, adj in zip(rows, holm_adjusted_p([r["p_raw"] for r in rows]), strict=True):
         r["p_holm"] = adj
         r["significant"] = bool(adj < 0.05)
@@ -250,14 +278,23 @@ def paired_arm_comparisons(
 
 
 def run(
-    out_dir: Path, steps: int = 1500, batch_size: int = 16, n_rows: int = 128,
-    max_features: int = 32, n_horizons: int = 5, device: str = "cpu", seed: int = 0,
+    out_dir: Path,
+    steps: int = 1500,
+    batch_size: int = 16,
+    n_rows: int = 128,
+    max_features: int = 32,
+    n_horizons: int = 5,
+    device: str = "cpu",
+    seed: int = 0,
     n_boot: int = 1000,
 ) -> dict:
     """Run both arms under both compute conventions and write the comparison."""
     prior = PriorConfig(
-        max_features=max_features, max_classes=2, p_financial=1.0,
-        n_rows=n_rows, n_horizons=n_horizons,
+        max_features=max_features,
+        max_classes=2,
+        p_financial=1.0,
+        n_rows=n_rows,
+        n_horizons=n_horizons,
     )
     # one shared held-out set, drawn from a seed no arm trains on
     batches = _eval_batches(np.random.default_rng(9_999), prior, n_batches=6, batch_size=batch_size)
@@ -288,8 +325,12 @@ def run(
 
     record = {
         "config": {
-            "steps": steps, "batch_size": batch_size, "n_rows": n_rows,
-            "max_features": max_features, "n_horizons": n_horizons, "seed": seed,
+            "steps": steps,
+            "batch_size": batch_size,
+            "n_rows": n_rows,
+            "max_features": max_features,
+            "n_horizons": n_horizons,
+            "seed": seed,
         },
         "arms": [asdict(r) for r in results],
         "comparisons": (
@@ -351,13 +392,23 @@ def main() -> None:
     p.add_argument("--n-horizons", type=int, default=5)
     p.add_argument("--device", type=str, default="cpu")
     p.add_argument("--seed", type=int, default=0)
-    p.add_argument("--n-boot", type=int, default=1000,
-                   help="bootstrap resamples per comparison; 0 skips the Holm table")
+    p.add_argument(
+        "--n-boot",
+        type=int,
+        default=1000,
+        help="bootstrap resamples per comparison; 0 skips the Holm table",
+    )
     args = p.parse_args()
     record = run(
-        Path(args.out), steps=args.steps, batch_size=args.batch_size, n_rows=args.n_rows,
-        max_features=args.max_features, n_horizons=args.n_horizons, device=args.device,
-        seed=args.seed, n_boot=args.n_boot,
+        Path(args.out),
+        steps=args.steps,
+        batch_size=args.batch_size,
+        n_rows=args.n_rows,
+        max_features=args.max_features,
+        n_horizons=args.n_horizons,
+        device=args.device,
+        seed=args.seed,
+        n_boot=args.n_boot,
     )
     print("\n" + summarise(record))
 

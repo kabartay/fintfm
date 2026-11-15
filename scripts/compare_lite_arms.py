@@ -48,7 +48,9 @@ def elo(run: str) -> str:
     lb = pd.read_csv(EVAL / run / "tabarena_leaderboard.csv")
     row = lb[lb["method"].astype(str).str.startswith("[New]")].iloc[0]
     cols = [c for c in lb.columns if c.lower().startswith("elo")]
-    return ", ".join(f"{c}={row[c]:.0f}" if isinstance(row[c], float) else f"{c}={row[c]}" for c in cols)
+    return ", ".join(
+        f"{c}={row[c]:.0f}" if isinstance(row[c], float) else f"{c}={row[c]}" for c in cols
+    )
 
 
 def compare(arm: str, baseline: str, tie: float) -> tuple[dict, pd.DataFrame]:
@@ -71,8 +73,14 @@ def compare(arm: str, baseline: str, tie: float) -> tuple[dict, pd.DataFrame]:
     table = pd.DataFrame({"auc_arm": 1 - a[shared], "auc_base": 1 - b[shared], "delta_auc": delta})
     table = table.reindex(delta.abs().sort_values(ascending=False).index)
     summary = {
-        "arm": arm, "datasets": len(shared), "better": better, "worse": worse,
-        "tied": len(shared) - n, "sign_p": p, "mean_delta_auc": float(delta.mean()), "elo": elo(arm),
+        "arm": arm,
+        "datasets": len(shared),
+        "better": better,
+        "worse": worse,
+        "tied": len(shared) - n,
+        "sign_p": p,
+        "mean_delta_auc": float(delta.mean()),
+        "elo": elo(arm),
     }
     return summary, table
 
@@ -91,14 +99,25 @@ def main() -> None:
     for arm in args.arms:
         s, t = compare(arm, args.baseline, args.tie)
         rows.append(s)
-        print(f"\n{arm}: {s['better']} better / {s['worse']} worse / {s['tied']} tied of "
-              f"{s['datasets']}, sign p={s['sign_p']:.3f}, mean dAUC={s['mean_delta_auc']:+.5f}; {s['elo']}")
-        print(t.head(args.top).to_string(float_format=lambda v: f"{v:+.4f}" if abs(v) < 0.5 else f"{v:.4f}"))
+        print(
+            f"\n{arm}: {s['better']} better / {s['worse']} worse / {s['tied']} tied of "
+            f"{s['datasets']}, sign p={s['sign_p']:.3f}, mean dAUC={s['mean_delta_auc']:+.5f}; {s['elo']}"
+        )
+        print(
+            t.head(args.top).to_string(
+                float_format=lambda v: f"{v:+.4f}" if abs(v) < 0.5 else f"{v:.4f}"
+            )
+        )
     if args.markdown:
-        lines = ["| arm | better / worse / tied | sign test p | mean ROC-AUC change | Elo |",
-                 "| --- | --- | --- | --- | --- |"]
-        lines += [f"| `{r['arm']}` | {r['better']} / {r['worse']} / {r['tied']} | {r['sign_p']:.2f} | "
-                  f"{r['mean_delta_auc']:+.5f} | {r['elo']} |" for r in rows]
+        lines = [
+            "| arm | better / worse / tied | sign test p | mean ROC-AUC change | Elo |",
+            "| --- | --- | --- | --- | --- |",
+        ]
+        lines += [
+            f"| `{r['arm']}` | {r['better']} / {r['worse']} / {r['tied']} | {r['sign_p']:.2f} | "
+            f"{r['mean_delta_auc']:+.5f} | {r['elo']} |"
+            for r in rows
+        ]
         args.markdown.write_text("\n".join(lines) + "\n")
 
 

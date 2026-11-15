@@ -89,7 +89,10 @@ def test_single_class_draw_is_repaired_with_real_rows_not_flipped_labels():
     panel["true_label_echo"] = panel["label"].astype(float)
     for seed in range(20):
         task = sample_real_mortgage_task(
-            np.random.default_rng(seed), n_rows=64, max_features=10, panel=panel,
+            np.random.default_rng(seed),
+            n_rows=64,
+            max_features=10,
+            panel=panel,
             min_positives=2,
         )
         assert task.y.sum() >= 2
@@ -217,15 +220,29 @@ def test_training_at_p_real_mortgage_one_decreases_loss(tmp_path, monkeypatch):
     panel.to_parquet(path)
 
     model_cfg = ModelConfig(
-        max_features=10, max_classes=2, d_cell=16, d_model=32, n_heads=2,
-        n_col_layers=1, n_layers=1, d_ff=32,
+        max_features=10,
+        max_classes=2,
+        d_cell=16,
+        d_model=32,
+        n_heads=2,
+        n_col_layers=1,
+        n_layers=1,
+        d_ff=32,
     )
     prior_cfg = PriorConfig(
-        max_features=10, max_classes=2, n_rows=64, p_real_mortgage=1.0,
+        max_features=10,
+        max_classes=2,
+        n_rows=64,
+        p_real_mortgage=1.0,
         real_mortgage_panel_path=str(path),
     )
     train_cfg = TrainConfig(
-        steps=60, batch_size=4, eval_every=1000, log_every=1000, device="cpu", seed=0,
+        steps=60,
+        batch_size=4,
+        eval_every=1000,
+        log_every=1000,
+        device="cpu",
+        seed=0,
     )
 
     losses: list[float] = []

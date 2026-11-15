@@ -99,28 +99,57 @@ import pandas as pd
 
 #: TabArena-v0.1's 51 datasets as (OpenML dataset id, name). Source in the module docstring.
 TABARENA_V0_1: tuple[tuple[int, str], ...] = (
-    (46904, "airfoil_self_noise"), (46905, "Amazon_employee_access"), (46906, "anneal"),
-    (46907, "Another-Dataset-on-used-Fiat-500"), (46908, "APSFailure"),
-    (46910, "bank-marketing"), (46911, "Bank_Customer_Churn"), (46912, "Bioresponse"),
-    (46913, "blood-transfusion-service-center"), (46915, "churn"),
-    (46916, "coil2000_insurance_policies"), (46917, "concrete_compressive_strength"),
-    (46918, "credit-g"), (46919, "credit_card_clients_default"),
-    (46920, "customer_satisfaction_in_airline"), (46921, "diabetes"), (46922, "Diabetes130US"),
-    (46923, "diamonds"), (46924, "E-CommereShippingData"), (46927, "Fitness_Club"),
-    (46928, "Food_Delivery_Time"), (46929, "GiveMeSomeCredit"),
-    (46930, "hazelnut-spread-contaminant-detection"), (46931, "healthcare_insurance_expenses"),
-    (46932, "heloc"), (46933, "hiva_agnostic"), (46934, "houses"),
+    (46904, "airfoil_self_noise"),
+    (46905, "Amazon_employee_access"),
+    (46906, "anneal"),
+    (46907, "Another-Dataset-on-used-Fiat-500"),
+    (46908, "APSFailure"),
+    (46910, "bank-marketing"),
+    (46911, "Bank_Customer_Churn"),
+    (46912, "Bioresponse"),
+    (46913, "blood-transfusion-service-center"),
+    (46915, "churn"),
+    (46916, "coil2000_insurance_policies"),
+    (46917, "concrete_compressive_strength"),
+    (46918, "credit-g"),
+    (46919, "credit_card_clients_default"),
+    (46920, "customer_satisfaction_in_airline"),
+    (46921, "diabetes"),
+    (46922, "Diabetes130US"),
+    (46923, "diamonds"),
+    (46924, "E-CommereShippingData"),
+    (46927, "Fitness_Club"),
+    (46928, "Food_Delivery_Time"),
+    (46929, "GiveMeSomeCredit"),
+    (46930, "hazelnut-spread-contaminant-detection"),
+    (46931, "healthcare_insurance_expenses"),
+    (46932, "heloc"),
+    (46933, "hiva_agnostic"),
+    (46934, "houses"),
     (46935, "HR_Analytics_Job_Change_of_Data_Scientists"),
-    (46937, "in_vehicle_coupon_recommendation"), (46938, "Is-this-a-good-customer"),
-    (46939, "kddcup09_appetency"), (46940, "Marketing_Campaign"),
-    (46941, "maternal_health_risk"), (46942, "miami_housing"),
-    (46947, "online_shoppers_intention"), (46949, "physiochemical_protein"),
-    (46950, "polish_companies_bankruptcy"), (46952, "qsar-biodeg"), (46953, "QSAR-TID-11"),
-    (46954, "QSAR_fish_toxicity"), (46955, "SDSS17"), (46956, "seismic-bumps"),
-    (46958, "splice"), (46960, "students_dropout_and_academic_success"),
-    (46961, "superconductivity"), (46962, "taiwanese_bankruptcy_prediction"),
-    (46963, "website_phishing"), (46964, "wine_quality"), (46969, "NATICUSdroid"),
-    (46979, "jm1"), (46980, "MIC"),
+    (46937, "in_vehicle_coupon_recommendation"),
+    (46938, "Is-this-a-good-customer"),
+    (46939, "kddcup09_appetency"),
+    (46940, "Marketing_Campaign"),
+    (46941, "maternal_health_risk"),
+    (46942, "miami_housing"),
+    (46947, "online_shoppers_intention"),
+    (46949, "physiochemical_protein"),
+    (46950, "polish_companies_bankruptcy"),
+    (46952, "qsar-biodeg"),
+    (46953, "QSAR-TID-11"),
+    (46954, "QSAR_fish_toxicity"),
+    (46955, "SDSS17"),
+    (46956, "seismic-bumps"),
+    (46958, "splice"),
+    (46960, "students_dropout_and_academic_success"),
+    (46961, "superconductivity"),
+    (46962, "taiwanese_bankruptcy_prediction"),
+    (46963, "website_phishing"),
+    (46964, "wine_quality"),
+    (46969, "NATICUSdroid"),
+    (46979, "jm1"),
+    (46980, "MIC"),
 )
 
 #: Where BeyondArena's files live: a Hugging Face *dataset* repository.
@@ -172,8 +201,9 @@ def _read_beyondarena() -> tuple[BeyondArenaDataset, ...]:
     """The rows of ``beyondarena_datasets.csv``, in its order (sorted by name)."""
     text = (files("fintfm.evaluation") / "beyondarena_datasets.csv").read_text(encoding="utf-8")
     return tuple(
-        BeyondArenaDataset(r["dataset_name"], r["target_name"], r["data_foundry_uri"],
-                           int(r["parquet_bytes"]))
+        BeyondArenaDataset(
+            r["dataset_name"], r["target_name"], r["data_foundry_uri"], int(r["parquet_bytes"])
+        )
         for r in csv.DictReader(text.splitlines())
     )
 
@@ -432,8 +462,9 @@ def _feature_names(path: Path, target: str | None) -> list[str]:
     import pyarrow.parquet as pq
 
     schema = pq.read_schema(path)
-    index = {c for c in (schema.pandas_metadata or {}).get("index_columns", [])
-             if isinstance(c, str)}
+    index = {
+        c for c in (schema.pandas_metadata or {}).get("index_columns", []) if isinstance(c, str)
+    }
     names = [n for n in schema.names if n not in index]
     if target is not None and target not in names:
         raise ValueError(f"{path}: no target column {target!r}")
@@ -592,17 +623,23 @@ def fetch_tabarena(dataset_id: int, cache_dir: Path = TABARENA_OPENML_CACHE) -> 
             read here).
     """
     if tuple(cache_dir.parts[-4:]) != ("org", "openml", "www", "datasets"):
-        raise ReferenceUnavailable(f"{cache_dir} is not an openml-python dataset cache "
-                                   "(<root>/org/openml/www/datasets)")
+        raise ReferenceUnavailable(
+            f"{cache_dir} is not an openml-python dataset cache (<root>/org/openml/www/datasets)"
+        )
     try:
         import openml
     except ImportError as exc:
-        raise ReferenceUnavailable("openml-python not installed (uv sync --extra overlap, with "
-                                   "the session's other extras)") from exc
+        raise ReferenceUnavailable(
+            "openml-python not installed (uv sync --extra overlap, with the session's other extras)"
+        ) from exc
     openml.config.set_root_cache_directory(cache_dir.parents[3])
     try:
-        openml.datasets.get_dataset(dataset_id, download_data=True, download_qualities=False,
-                                    download_features_meta_data=False)
+        openml.datasets.get_dataset(
+            dataset_id,
+            download_data=True,
+            download_qualities=False,
+            download_features_meta_data=False,
+        )
     except Exception as exc:  # any failure is one reference's status
         raise ReferenceUnavailable(f"openml fetch failed ({type(exc).__name__}: {exc})") from exc
     path = cache_dir / str(dataset_id) / f"dataset_{dataset_id}.pq"
@@ -661,23 +698,33 @@ def beyondarena_parquet(dataset: BeyondArenaDataset, fetch: bool = False) -> Pat
     try:
         from huggingface_hub import hf_hub_download
     except ImportError as exc:
-        raise ReferenceUnavailable("huggingface_hub not installed (uv sync --extra overlap, "
-                                   "with the session's other extras)") from exc
+        raise ReferenceUnavailable(
+            "huggingface_hub not installed (uv sync --extra overlap, "
+            "with the session's other extras)"
+        ) from exc
 
     def get(filename: str) -> Path:
         """One file of the repository at the pinned revision, from the cache or the Hub."""
         try:
-            return Path(hf_hub_download(BEYONDARENA_REPO, filename, repo_type="dataset",
-                                        revision=BEYONDARENA_REVISION,
-                                        local_files_only=not fetch))
+            return Path(
+                hf_hub_download(
+                    BEYONDARENA_REPO,
+                    filename,
+                    repo_type="dataset",
+                    revision=BEYONDARENA_REVISION,
+                    local_files_only=not fetch,
+                )
+            )
         except Exception as exc:  # any failure is one reference's status
             where = "fetch failed" if fetch else "not in the Hugging Face cache; pass --fetch"
             raise ReferenceUnavailable(f"{filename}: {where} ({type(exc).__name__})") from exc
 
     meta = json.loads(get(dataset.task_metadata_file).read_text(encoding="utf-8"))
     if meta.get("target_column_name") != dataset.target:
-        raise ReferenceUnavailable(f"task metadata names target {meta.get('target_column_name')!r},"
-                                   f" the fork's metadata {dataset.target!r}")
+        raise ReferenceUnavailable(
+            f"task metadata names target {meta.get('target_column_name')!r},"
+            f" the fork's metadata {dataset.target!r}"
+        )
     return get(dataset.parquet_file)
 
 
@@ -699,16 +746,23 @@ def load_reference_fingerprints(
         not cached, BeyondArena, no parquet reader). An empty dict means the check is skipped,
         and the notes say why.
     """
-    beyond = ("BeyondArena: not compared by contents here; the full report "
-              "(python -m fintfm.evaluation.overlap --report) compares it, and its names are "
-              "checked by name_clashes")
+    beyond = (
+        "BeyondArena: not compared by contents here; the full report "
+        "(python -m fintfm.evaluation.overlap --report) compares it, and its names are "
+        "checked by name_clashes"
+    )
     if not cache_dir.is_dir():
         return {}, [f"TabArena-v0.1: no local cache at {cache_dir}; row-hash check skipped", beyond]
     try:
         import pyarrow  # noqa: F401  pandas' parquet engine, from the bench extra
     except ImportError:
-        return {}, [("TabArena-v0.1: pyarrow not installed (uv sync --extra bench); row-hash "
-                     "check skipped"), beyond]
+        return {}, [
+            (
+                "TabArena-v0.1: pyarrow not installed (uv sync --extra bench); row-hash "
+                "check skipped"
+            ),
+            beyond,
+        ]
     out: dict[str, ContentFingerprint] = {}
     missing: list[str] = []
     for dataset_id, name in TABARENA_V0_1:
@@ -722,8 +776,9 @@ def load_reference_fingerprints(
         out[tabarena_label(dataset_id, name)] = parquet_fingerprint(pq, target, keep_rows)
     notes = [f"TabArena-v0.1: {len(out)} of {len(TABARENA_V0_1)} datasets read from {cache_dir}"]
     if missing:
-        notes.append(f"TabArena-v0.1: not cached, so not compared by contents: "
-                     f"{', '.join(missing)}")
+        notes.append(
+            f"TabArena-v0.1: not cached, so not compared by contents: {', '.join(missing)}"
+        )
     return out, [*notes, beyond]
 
 
@@ -734,8 +789,10 @@ def best_content_match(
     matches = [content_match(candidate, ref, label) for label, ref in references.items()]
     if not matches:
         return None
-    return max(matches, key=lambda m: (m.overlaps, np.nan_to_num(m.row_share),
-                                       np.nan_to_num(m.column_share)))
+    return max(
+        matches,
+        key=lambda m: (m.overlaps, np.nan_to_num(m.row_share), np.nan_to_num(m.column_share)),
+    )
 
 
 def row_hash_report(
@@ -767,8 +824,10 @@ def row_hash_report(
             print_fn(f"{head}  no reference")
             continue
         flag = "OVERLAP" if match.overlaps else "clean"
-        print_fn(f"{head}  {flag:<7} best {match.reference}: row share {match.row_share:.3f}, "
-                 f"column share {match.column_share:.3f} ({match.shared_columns} shared)")
+        print_fn(
+            f"{head}  {flag:<7} best {match.reference}: row share {match.row_share:.3f}, "
+            f"column share {match.column_share:.3f} ({match.shared_columns} shared)"
+        )
         if match.overlaps:
             hits.append(name)
     return hits

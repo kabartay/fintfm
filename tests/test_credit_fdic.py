@@ -23,31 +23,53 @@ def _fixture(n_banks: int = 40, seed: int = 0) -> tuple[pd.DataFrame, pd.DataFra
     quarters = pd.date_range("2003-03-31", "2012-12-31", freq="QE")
     rows, fails = [], []
     for cert in range(1, n_banks + 1):
-        fail = pd.Timestamp("2009-06-15") + pd.Timedelta(days=int(rng.integers(0, 500))) \
-            if cert % 5 == 0 else None
+        fail = (
+            pd.Timestamp("2009-06-15") + pd.Timedelta(days=int(rng.integers(0, 500)))
+            if cert % 5 == 0
+            else None
+        )
         for q in quarters:
             if fail is not None and q >= fail:
                 break
             row = {c: float(rng.normal()) for c in fd.NUMERIC_FIELDS}
-            row.update(CERT=cert, REPDTE=int(q.strftime("%Y%m%d")), INSDATE="19340101",
-                       ESTYMD=19000101, BKCLASS="N" if cert % 2 else "SM",
-                       STALP="CA" if cert % 3 else "NY", ASSET=1000.0 + cert)
+            row.update(
+                CERT=cert,
+                REPDTE=int(q.strftime("%Y%m%d")),
+                INSDATE="19340101",
+                ESTYMD=19000101,
+                BKCLASS="N" if cert % 2 else "SM",
+                STALP="CA" if cert % 3 else "NY",
+                ASSET=1000.0 + cert,
+            )
             rows.append(row)
         if fail is not None:
-            fails.append({"CERT": cert, "FAILDATE": f"{fail.month}/{fail.day}/{fail.year}",
-                          "RESTYPE": "FAILURE"})
+            fails.append(
+                {
+                    "CERT": cert,
+                    "FAILDATE": f"{fail.month}/{fail.day}/{fail.year}",
+                    "RESTYPE": "FAILURE",
+                }
+            )
     fails.append({"CERT": 999, "FAILDATE": "1/2/2010", "RESTYPE": "ASSISTANCE"})
     fails.append({"CERT": None, "FAILDATE": "5/28/1934", "RESTYPE": "FAILURE"})
     return pd.DataFrame(rows), pd.DataFrame(fails)
 
 
 def test_label_window_lag_and_censoring_by_hand():
-    fin = pd.DataFrame([
-        {c: 1.0 for c in fd.NUMERIC_FIELDS}
-        | {"CERT": 7, "REPDTE": r, "INSDATE": "19340101", "ESTYMD": 1, "BKCLASS": "N",
-           "STALP": "CA"}
-        for r in (20090331, 20090630, 20090930, 20091231)
-    ])
+    fin = pd.DataFrame(
+        [
+            {c: 1.0 for c in fd.NUMERIC_FIELDS}
+            | {
+                "CERT": 7,
+                "REPDTE": r,
+                "INSDATE": "19340101",
+                "ESTYMD": 1,
+                "BKCLASS": "N",
+                "STALP": "CA",
+            }
+            for r in (20090331, 20090630, 20090930, 20091231)
+        ]
+    )
     fails = pd.DataFrame([{"CERT": 7, "FAILDATE": "4/20/2009", "RESTYPE": "FAILURE"}])
     # Only the 2009-03-31 row has a failure inside the 35-day lag (to 2009-05-05)... no: the
     # failure on 4/20 is 20 days after the report, so that row is dropped; later rows follow
@@ -63,8 +85,9 @@ def test_label_window_lag_and_censoring_by_hand():
     fails = pd.DataFrame([{"CERT": 7, "FAILDATE": "12/20/2011", "RESTYPE": "FAILURE"}])
     assert fd.fdic_frame(fin.iloc[:3], fails, as_of="2026-01-01")["label"].sum() == 0
     # censoring: with as_of before a row's window closes, the row is dropped, not a negative
-    late = fd.fdic_frame(fin.iloc[:3], fails.iloc[:0].assign(CERT=[], FAILDATE=[], RESTYPE=[]),
-                         as_of="2010-02-01")
+    late = fd.fdic_frame(
+        fin.iloc[:3], fails.iloc[:0].assign(CERT=[], FAILDATE=[], RESTYPE=[]), as_of="2010-02-01"
+    )
     assert late.attrs["dropped_censored"] == 3 and len(late) == 0
 
 
@@ -74,9 +97,11 @@ def test_only_failure_records_label_and_unknown_certs_are_counted():
     assert frame["label"].sum() == frame.attrs["positives"] > 0
     assert 999 not in set(frame["_cert"])  # the ASSISTANCE record labels nothing
     # no bank reports after it failed, so every positive row precedes its bank's failure
-    failed = {int(c): pd.to_datetime(d, format="%m/%d/%Y")
-              for c, d in zip(fails["CERT"], fails["FAILDATE"], strict=True)
-              if pd.notna(c) and c != 999}
+    failed = {
+        int(c): pd.to_datetime(d, format="%m/%d/%Y")
+        for c, d in zip(fails["CERT"], fails["FAILDATE"], strict=True)
+        if pd.notna(c) and c != 999
+    }
     pos = frame[frame["label"] == 1]
     assert all(r < failed[int(c)] for c, r in zip(pos["_cert"], pos["_repdte"], strict=True))
     assert frame.attrs["failures_unmatched"] == 0
@@ -108,8 +133,9 @@ def test_crisis_split_trains_before_and_respects_the_embargo_and_groups():
     fin, fails = _fixture(n_banks=60)
     frame = fd.fdic_frame(fin, fails, as_of="2026-01-01")
     panel = fd.panel_from_frame(frame, grouped=True)
-    train, test = fd.crisis_split(panel, train_end="2006-12-31", test_start="2008-01-01",
-                                  test_end="2011-12-31")
+    train, test = fd.crisis_split(
+        panel, train_end="2006-12-31", test_start="2008-01-01", test_end="2011-12-31"
+    )
     assert len(train) and len(test) and panel.y[test].sum() > 0
     assert panel.time[train].max() < panel.time[test].min() - panel.embargo
     assert not set(train) & set(test)
@@ -146,5 +172,9 @@ def test_registered_evaluation_only_and_admitted_fintfm_only():
 
 
 def test_quarter_ends():
-    assert fd.quarter_ends("2000-03-31", "2000-12-31") == ["20000331", "20000630", "20000930",
-                                                           "20001231"]
+    assert fd.quarter_ends("2000-03-31", "2000-12-31") == [
+        "20000331",
+        "20000630",
+        "20000930",
+        "20001231",
+    ]

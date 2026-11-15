@@ -264,7 +264,9 @@ def main(argv: list[str] | None = None) -> int:
     """
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--model", required=True, help="checkpoint path (read only)")
-    ap.add_argument("--n-tasks", type=int, default=50, help="synthetic tasks, split over two generators")
+    ap.add_argument(
+        "--n-tasks", type=int, default=50, help="synthetic tasks, split over two generators"
+    )
     ap.add_argument("--n-rows", type=int, default=512, help="rows per synthetic task")
     ap.add_argument("--ctx-frac", type=float, default=0.5, help="context share of a synthetic task")
     ap.add_argument("--cache-dir", type=Path, default=datasets.CACHE_DIR)
@@ -274,8 +276,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--threads", type=int, default=4, help="torch CPU threads")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", type=Path, default=None, help="optional JSON output path")
-    ap.add_argument(REPORTING_FLAG, action="store_true",
-                    help="probe the Polish and Taiwanese panels too, for reporting only")
+    ap.add_argument(
+        REPORTING_FLAG,
+        action="store_true",
+        help="probe the Polish and Taiwanese panels too, for reporting only",
+    )
     args = ap.parse_args(argv)
 
     torch.set_num_threads(args.threads)
@@ -285,15 +290,20 @@ def main(argv: list[str] | None = None) -> int:
         print("checkpoint has no binary head", file=sys.stderr)
         return 1
     arms = [
-        probe_synthetic(model, 1.0, args.n_tasks - args.n_tasks // 2, args.n_rows,
-                        args.ctx_frac, args.seed),
-        probe_synthetic(model, 0.0, args.n_tasks // 2, args.n_rows, args.ctx_frac,
-                        args.seed + 10_000),
+        probe_synthetic(
+            model, 1.0, args.n_tasks - args.n_tasks // 2, args.n_rows, args.ctx_frac, args.seed
+        ),
+        probe_synthetic(
+            model, 0.0, args.n_tasks // 2, args.n_rows, args.ctx_frac, args.seed + 10_000
+        ),
     ]
     panels = _cached_panels(args.cache_dir, args.allow_tabarena_for_reporting)
     for name, X, y in panels:
-        arms.append(probe_panel(model, name, X, y, args.real_draws, args.real_context,
-                                args.real_queries, args.seed))
+        arms.append(
+            probe_panel(
+                model, name, X, y, args.real_draws, args.real_context, args.real_queries, args.seed
+            )
+        )
     # ru_maxrss is bytes on macOS and kilobytes on Linux
     rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     peak_gb = rss / 1e9 if sys.platform == "darwin" else rss / 1e6
@@ -309,15 +319,19 @@ def main(argv: list[str] | None = None) -> int:
         "reporting_only": [name for name, _, _ in panels],
     }
     print(f"label-symmetry probe, MEASURED, {args.model}")
-    print(f"{'source':<26}{'tasks':>6}{'queries':>9}{'pooled r':>10}{'median r':>10}"
-          f"{'neg share':>10}{'mean |d|':>10}")
+    print(
+        f"{'source':<26}{'tasks':>6}{'queries':>9}{'pooled r':>10}{'median r':>10}"
+        f"{'neg share':>10}{'mean |d|':>10}"
+    )
     for s in summaries:
         if not s["n_tasks"]:
             print(f"{s['source']:<26}{0:>6}  (no task probed: {s['skipped']})")
             continue
-        print(f"{s['source']:<26}{s['n_tasks']:>6}{s['n_queries']:>9}{s['pooled_corr']:>10.3f}"
-              f"{s['median_task_corr']:>10.3f}{s['share_tasks_negative']:>10.2f}"
-              f"{s['mean_abs_change']:>10.4f}")
+        print(
+            f"{s['source']:<26}{s['n_tasks']:>6}{s['n_queries']:>9}{s['pooled_corr']:>10.3f}"
+            f"{s['median_task_corr']:>10.3f}{s['share_tasks_negative']:>10.2f}"
+            f"{s['mean_abs_change']:>10.4f}"
+        )
         if s["skipped"]:
             print(f"{'':<26}skipped: {s['skipped']}")
     print(f"{report['seconds']} s, peak RSS {report['peak_rss_gb']} GB")

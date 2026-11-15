@@ -165,15 +165,18 @@ def main(argv: list[str] | None = None) -> None:
     """
     p = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
     p.add_argument("--findings", type=Path, default=REPO / "docs" / "results" / "FINDINGS.md")
-    p.add_argument("--runs-dir", type=Path, default=REPO / "runs",
-                   help="where the checkpoints are; read only")
+    p.add_argument(
+        "--runs-dir", type=Path, default=REPO / "runs", help="where the checkpoints are; read only"
+    )
     p.add_argument("--out", type=Path, default=REPO / "runs" / "MANIFEST.json")
     args = p.parse_args(argv)
     manifest = build_manifest(args.findings, args.runs_dir.resolve())
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n")
-    print(f"{len(manifest['checkpoints'])} cited checkpoints found, "
-          f"{len(manifest['missing'])} cited but absent; wrote {args.out}")
+    print(
+        f"{len(manifest['checkpoints'])} cited checkpoints found, "
+        f"{len(manifest['missing'])} cited but absent; wrote {args.out}"
+    )
 
 
 if __name__ == "__main__":

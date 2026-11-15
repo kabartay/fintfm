@@ -40,9 +40,14 @@ def synthetic_panel(path: Path, n_companies: int = 400, n_features: int = 12) ->
         for _ in range(rng.randint(1, 6)):
             x = rng.randn(n_features)
             p = 1.0 / (1.0 + np.exp(-(x[0] * 1.5 - 4.0)))
-            rows.append({"company": f"c{k}", "country": f"C{k % 4}",
-                         "main_label": int(rng.rand() < p),
-                         **{f"f{j}": float(v) for j, v in enumerate(x)}})
+            rows.append(
+                {
+                    "company": f"c{k}",
+                    "country": f"C{k % 4}",
+                    "main_label": int(rng.rand() < p),
+                    **{f"f{j}": float(v) for j, v in enumerate(x)},
+                }
+            )
     pd.DataFrame(rows).to_parquet(path)
 
 
@@ -54,6 +59,7 @@ def main() -> None:
     ap.add_argument("--only", default="", help="run only kernels whose name contains this")
     args = ap.parse_args()
     import fintfm
+
     print("fintfm from", Path(fintfm.__file__).parent, flush=True)
     work = args.out or Path(tempfile.mkdtemp())
     panel = work / "panel"

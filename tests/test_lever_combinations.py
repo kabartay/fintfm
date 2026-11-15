@@ -81,6 +81,7 @@ def _all_pairs_covered(
     valid: Callable[[dict[str, Any]], bool],
 ) -> bool:
     """Check a cover independently of how it was built: every valid pair appears in a row."""
+
     def key(row: dict[str, Any]) -> set[tuple[str, str, str, str]]:
         return {(a, repr(row[a]), b, repr(row[b])) for a, b in itertools.combinations(levers, 2)}
 
@@ -122,8 +123,17 @@ def _raises_naming(fn: Callable[[], object], *levers: str) -> None:
 def _clf_model(**extra: Any) -> FinancialTFM:
     """A tiny seeded classifier checkpoint, recorded as trained for classification."""
     torch.manual_seed(0)
-    cfg = ModelConfig(max_features=8, max_classes=3, d_cell=8, d_model=16, n_heads=2,
-                      n_col_layers=1, n_layers=1, d_ff=32, **extra)
+    cfg = ModelConfig(
+        max_features=8,
+        max_classes=3,
+        d_cell=8,
+        d_model=16,
+        n_heads=2,
+        n_col_layers=1,
+        n_layers=1,
+        d_ff=32,
+        **extra,
+    )
     model = FinancialTFM(cfg).eval()
     if cfg.head_type == "binned" and cfg.n_horizons is None:
         model.trained_objectives = ("classification",)
@@ -152,7 +162,8 @@ def test_finetuning_a_quantile_checkpoint_is_refused():
     model = _clf_model(head_type="quantile", n_quantiles=5)
     _raises_naming(
         lambda: FinancialTFMClassifier(model, max_context=40, finetune_steps=1).fit(X, y),
-        "finetune_steps", "head_type",
+        "finetune_steps",
+        "head_type",
     )
 
 
@@ -163,32 +174,37 @@ def test_finetuning_a_hazard_checkpoint_is_refused():
     before = {k: v.clone() for k, v in model.state_dict().items()}
     _raises_naming(
         lambda: FinancialTFMClassifier(model, max_context=40, finetune_steps=1).fit(X, y),
-        "finetune_steps", "n_horizons",
+        "finetune_steps",
+        "n_horizons",
     )
     # recorded as survival-only: refused on the record as well
     model.trained_objectives = ("survival",)
     _raises_naming(
         lambda: FinancialTFMClassifier(model, max_context=40, finetune_steps=1).fit(X, y),
-        "finetune_steps", "trained_objectives",
+        "finetune_steps",
+        "trained_objectives",
     )
     assert all(torch.equal(before[k], v) for k, v in model.state_dict().items())
     # without fine-tuning the hazard checkpoint still fits, for its term structure
     FinancialTFMClassifier(model, max_context=40).fit(X, y)
     # and a hazard checkpoint that did train classification may be fine-tuned
     model.trained_objectives = ("classification", "survival")
-    FinancialTFMClassifier(
-        model, max_context=40, finetune_steps=1, finetune_query=8
-    ).fit(X, y)
+    FinancialTFMClassifier(model, max_context=40, finetune_steps=1, finetune_query=8).fit(X, y)
 
 
 def test_class_shift_with_label_swap_is_refused_on_a_binary_task_only():
     X, y, _ = _table()
     model = _clf_model()
-    kw = {"max_context": 40, "n_ensemble": 2, "ensemble_class_shift": True,
-          "ensemble_label_swap": True}
+    kw = {
+        "max_context": 40,
+        "n_ensemble": 2,
+        "ensemble_class_shift": True,
+        "ensemble_label_swap": True,
+    }
     _raises_naming(
         lambda: FinancialTFMClassifier(model, **kw).fit(X, y),
-        "ensemble_class_shift", "ensemble_label_swap",
+        "ensemble_class_shift",
+        "ensemble_label_swap",
     )
     # on three classes the swap is inert and the shift acts, so the pair is allowed
     X3, y3, Xq3 = _table(n_classes=3)
@@ -202,22 +218,31 @@ def test_svd_components_with_no_room_left_are_refused():
     Xw, yw, _ = _table(n_feat=11)
     _raises_naming(
         lambda: FinancialTFMClassifier(
-            model, max_context=40, n_ensemble=2, ensemble_svd_components=2,
+            model,
+            max_context=40,
+            n_ensemble=2,
+            ensemble_svd_components=2,
             max_features_strategy="subsample",
         ).fit(Xw, yw),
-        "ensemble_svd_components", "max_features_strategy",
+        "ensemble_svd_components",
+        "max_features_strategy",
     )
     X8, y8, _ = _table(n_feat=8)
     _raises_naming(
         lambda: FinancialTFMClassifier(
             model, max_context=40, n_ensemble=2, ensemble_svd_components=2
         ).fit(X8, y8),
-        "ensemble_svd_components", "max_features",
+        "ensemble_svd_components",
+        "max_features",
     )
     # a narrower member leaves room again: 11 * 0.6 rounds to 7 of 8
     clf = FinancialTFMClassifier(
-        model, max_context=40, n_ensemble=2, ensemble_svd_components=2,
-        ensemble_feature_frac=0.6, max_features_strategy="subsample",
+        model,
+        max_context=40,
+        n_ensemble=2,
+        ensemble_svd_components=2,
+        ensemble_feature_frac=0.6,
+        max_features_strategy="subsample",
     ).fit(Xw, yw)
     member = clf._clone_with_seed(1, Xw[:, clf._member_columns[1]], svd_components=2)
     assert member.svd_components_ == 1
@@ -230,7 +255,8 @@ def test_binned_regressor_refuses_class_shift_on_ordinal_bins(tmp_path):
     params = {"max_context": 40, "n_ensemble": 2, "ensemble_class_shift": True}
     _raises_naming(
         lambda: FinancialTFMRegressor(_clf_model(), n_bins=3, classifier_params=params).fit(X, y),
-        "ensemble_class_shift", "permute_classes",
+        "ensemble_class_shift",
+        "permute_classes",
     )
     # two bins are a label swap, which is allowed
     FinancialTFMRegressor(_clf_model(), n_bins=2, classifier_params=params).fit(X, y)
@@ -243,7 +269,8 @@ def test_binned_regressor_refuses_class_shift_on_ordinal_bins(tmp_path):
     _clf_model().save(str(plain), provenance={"prior_config": {"permute_classes": False}})
     _raises_naming(
         lambda: FinancialTFMRegressor(str(plain), n_bins=3, classifier_params=params).fit(X, y),
-        "ensemble_class_shift", "permute_classes",
+        "ensemble_class_shift",
+        "permute_classes",
     )
 
 
@@ -261,15 +288,25 @@ def test_train_refuses_a_model_that_disagrees_with_its_prior(
     prior_change, model_change, field, tmp_path
 ):
     """Both configurations are named, and nothing is written: it fails before any step."""
-    model_cfg = ModelConfig(**{"max_features": 8, "max_classes": 2, "d_cell": 8, "d_model": 16,
-                               "n_heads": 2, "n_col_layers": 1, "n_layers": 1, "d_ff": 32,
-                               **model_change})
-    prior_cfg = PriorConfig(**{"max_features": 8, "max_classes": 2, "n_rows": 32,
-                               **prior_change})
+    model_cfg = ModelConfig(
+        **{
+            "max_features": 8,
+            "max_classes": 2,
+            "d_cell": 8,
+            "d_model": 16,
+            "n_heads": 2,
+            "n_col_layers": 1,
+            "n_layers": 1,
+            "d_ff": 32,
+            **model_change,
+        }
+    )
+    prior_cfg = PriorConfig(**{"max_features": 8, "max_classes": 2, "n_rows": 32, **prior_change})
     out = tmp_path / "m.pt"
     _raises_naming(
         lambda: train(model_cfg, prior_cfg, TrainConfig(steps=1, batch_size=2), str(out)),
-        f"PriorConfig.{field}", f"ModelConfig.{field}",
+        f"PriorConfig.{field}",
+        f"ModelConfig.{field}",
     )
     assert not out.exists()
 
@@ -330,7 +367,10 @@ def test_finetuning_beside_an_ensemble_axis_warns_naming_both(extra, lever):
 def test_the_large_n_wrappers_refuse_before_fitting_anything(wrapper):
     X, y, _ = _table()
     inner = FinancialTFMClassifier(
-        _clf_model(), max_context=40, n_ensemble=2, ensemble_class_shift=True,
+        _clf_model(),
+        max_context=40,
+        n_ensemble=2,
+        ensemble_class_shift=True,
         ensemble_label_swap=True,
     )
     est = (
@@ -387,10 +427,20 @@ def _build_model(row: dict[str, Any]) -> FinancialTFM:
     levers = {k: v for k, v in row.items() if k != "hazard"}
     return FinancialTFM(
         ModelConfig(
-            max_features=6, max_classes=3, d_cell=8, d_model=16, n_heads=2, n_col_layers=1,
-            n_layers=2, d_ff=32, attn_length_ref=8, n_inducing=3, n_readout=2,
+            max_features=6,
+            max_classes=3,
+            d_cell=8,
+            d_model=16,
+            n_heads=2,
+            n_col_layers=1,
+            n_layers=2,
+            d_ff=32,
+            attn_length_ref=8,
+            n_inducing=3,
+            n_readout=2,
             n_horizons=None if row["hazard"] == "none" else 3,
-            hazard_period_context=row["hazard"] == "period", **levers,
+            hazard_period_context=row["hazard"] == "period",
+            **levers,
         )
     )
 
@@ -424,6 +474,7 @@ def test_model_cover_row_runs_finite_with_gradients_and_exact_chunks(row):
     yc, pc = y[0, :n_ctx].numpy(), period[0, :n_ctx].numpy()
     outputs = ["logits"] + ([] if model.hazard is None else ["term_structure"])
     for output in outputs:
+
         def score(q: np.ndarray, output: str = output) -> np.ndarray:
             return model.predict_context(
                 Xc, yc, q, n_classes=2, column_id_seed=3, output=output, period=pc
@@ -493,8 +544,13 @@ def _build_estimator(row: dict[str, Any], model: FinancialTFM):
     """The row's estimator: a classifier, or a large-n wrapper around one."""
     params = {k: v for k, v in row.items() if k not in ("width", "large_n", "n_classes")}
     clf = FinancialTFMClassifier(
-        model, max_context=40, query_chunk=10_000, retrieval_groups=4, finetune_query=8,
-        max_features_strategy=row["width"].split("-")[1], **params,
+        model,
+        max_context=40,
+        query_chunk=10_000,
+        retrieval_groups=4,
+        finetune_query=8,
+        max_features_strategy=row["width"].split("-")[1],
+        **params,
     )
     if row["large_n"] == "partition":
         return PartitionedTFMClassifier(clf, max_depth=1, min_leaf_rows=30)

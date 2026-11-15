@@ -40,10 +40,28 @@ def test_extension_is_a_no_op_for_a_task_within_the_old_reach(monkeypatch) -> No
 def test_extension_keys_are_distinct() -> None:
     """The ratio family returns no duplicate column key at 480 columns."""
     rng = np.random.default_rng(0)
-    names = ["total_assets", "current_assets", "cash", "receivables", "inventory",
-             "working_capital", "total_liabilities", "short_term_liabilities", "long_term_debt",
-             "equity", "retained_earnings", "revenue", "ebitda", "ebit", "net_profit",
-             "operating_expenses", "depreciation", "interest", "employees", "age"]
+    names = [
+        "total_assets",
+        "current_assets",
+        "cash",
+        "receivables",
+        "inventory",
+        "working_capital",
+        "total_liabilities",
+        "short_term_liabilities",
+        "long_term_debt",
+        "equity",
+        "retained_earnings",
+        "revenue",
+        "ebitda",
+        "ebit",
+        "net_profit",
+        "operating_expenses",
+        "depreciation",
+        "interest",
+        "employees",
+        "age",
+    ]
     acc = {n: np.exp(rng.normal(size=32)) for n in names}
     cols, used = financial._ratio_family(rng, acc, 480)
     assert len(cols) == 480
@@ -53,9 +71,19 @@ def test_extension_keys_are_distinct() -> None:
 def test_model_takes_512_columns_and_refuses_513() -> None:
     """A tiny model at ``max_features`` 512 encodes a 512-wide batch, back-propagates, and
     refuses 513."""
-    cfg = ModelConfig(max_features=512, max_classes=2, d_cell=8, d_model=16, n_heads=2,
-                      n_col_layers=1, n_layers=1, d_ff=32, n_cell_blocks=1, cell_labels=True,
-                      column_id_dim=4)
+    cfg = ModelConfig(
+        max_features=512,
+        max_classes=2,
+        d_cell=8,
+        d_model=16,
+        n_heads=2,
+        n_col_layers=1,
+        n_layers=1,
+        d_ff=32,
+        n_cell_blocks=1,
+        cell_labels=True,
+        column_id_dim=4,
+    )
     model = FinancialTFM(cfg)
     model.feature_chunk = 8
     y = torch.randint(0, 2, (1, 12))

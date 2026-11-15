@@ -32,8 +32,9 @@ from fintfm.experiments import openml_breadth as ob
 REPORT = Path(__file__).resolve().parents[1] / "docs" / "results" / "overlap_report.json"
 
 #: Marks a report test as an expected failure while the report file does not exist.
-needs_report = pytest.mark.xfail(not REPORT.exists(), reason="report not generated yet",
-                                 strict=True)
+needs_report = pytest.mark.xfail(
+    not REPORT.exists(), reason="report not generated yet", strict=True
+)
 
 
 def _mixed_frame(n: int = 500, seed: int = 0) -> pd.DataFrame:
@@ -47,19 +48,22 @@ def _mixed_frame(n: int = 500, seed: int = 0) -> pd.DataFrame:
     text[rng.random(n) < 0.1] = None
     flags = rng.choice([True, False], size=n).astype(object)
     flags[rng.random(n) < 0.1] = None
-    return pd.DataFrame({
-        "x": rng.normal(size=n),
-        "amount": rng.uniform(size=n).astype(np.float32) * 1000,
-        "x_nan": with_nan,
-        "count": ints,
-        "num_str": [f"{v:.3f}" for v in rng.uniform(size=n)],  # numeric strings
-        "level": pd.Categorical(rng.choice(list("abcde"), size=n)),
-        "text": text,  # a category column with missing cells
-        "flag": flags,  # bool with missing cells, read back as objects
-        "binary": rng.integers(0, 2, n),  # too few values for a column fingerprint
-        "empty": np.full(n, np.nan),
-        "label": rng.integers(0, 2, n),  # the target
-    }, index=pd.Index(np.arange(n) * 3 + 7, name="row_id"))  # stored as a column, not a feature
+    return pd.DataFrame(
+        {
+            "x": rng.normal(size=n),
+            "amount": rng.uniform(size=n).astype(np.float32) * 1000,
+            "x_nan": with_nan,
+            "count": ints,
+            "num_str": [f"{v:.3f}" for v in rng.uniform(size=n)],  # numeric strings
+            "level": pd.Categorical(rng.choice(list("abcde"), size=n)),
+            "text": text,  # a category column with missing cells
+            "flag": flags,  # bool with missing cells, read back as objects
+            "binary": rng.integers(0, 2, n),  # too few values for a column fingerprint
+            "empty": np.full(n, np.nan),
+            "label": rng.integers(0, 2, n),  # the target
+        },
+        index=pd.Index(np.arange(n) * 3 + 7, name="row_id"),
+    )  # stored as a column, not a feature
 
 
 def _same(a: ov.ContentFingerprint, b: ov.ContentFingerprint) -> bool:
@@ -136,21 +140,27 @@ def _identity(c: dict[str, Any]) -> tuple[Any, ...]:
 
 def _expected_candidates() -> set[tuple[Any, ...]]:
     """The suites as they are now, plus the control."""
-    return ({("openml_breadth", n, v) for n, v in ob.SUITE}
-            | {("proxy_suite", c.name, c.task_id, c.dataset_id) for c in ps.SUITE}
-            | {("control", ov.CONTROL_NAME, ov.CONTROL_DATASET_ID)})
+    return (
+        {("openml_breadth", n, v) for n, v in ob.SUITE}
+        | {("proxy_suite", c.name, c.task_id, c.dataset_id) for c in ps.SUITE}
+        | {("control", ov.CONTROL_NAME, ov.CONTROL_DATASET_ID)}
+    )
 
 
 @needs_report
 def test_report_compared_every_reference():
     """All 51 TabArena-v0.1 and all 142 BeyondArena datasets were read and compared."""
     report = _report()
-    expected = ({ov.tabarena_label(i, n) for i, n in ov.TABARENA_V0_1}
-                | {d.label for d in ov.BEYONDARENA_DATASETS})
+    expected = {ov.tabarena_label(i, n) for i, n in ov.TABARENA_V0_1} | {
+        d.label for d in ov.BEYONDARENA_DATASETS
+    }
     status = {r["label"]: r for r in report["references"]}
     assert set(status) == expected and len(expected) == 193
-    not_compared = {k: f"{v['status']}: {v.get('reason')}" for k, v in status.items()
-                    if v["status"] != "compared"}
+    not_compared = {
+        k: f"{v['status']}: {v.get('reason')}"
+        for k, v in status.items()
+        if v["status"] != "compared"
+    }
     assert not_compared == {}, f"re-run with --fetch: {REPORT_COMMAND}"
     assert report["complete"] is True
     assert report["thresholds"] == thresholds(), f"thresholds changed; re-run: {REPORT_COMMAND}"
@@ -164,7 +174,8 @@ def test_report_covers_exactly_the_current_suites():
     want = _expected_candidates()
     assert have == want, (
         f"the overlap report is stale: not in it {sorted(want - have)}, no longer in the "
-        f"suites {sorted(have - want)}. Regenerate it: {REPORT_COMMAND}")
+        f"suites {sorted(have - want)}. Regenerate it: {REPORT_COMMAND}"
+    )
 
 
 @needs_report
@@ -175,6 +186,9 @@ def test_report_finds_only_the_control():
     control = [c for c in candidates if c["source"] == "control"]
     assert len(control) == 1 and control[0]["overlaps"]
     assert ov.CONTROL_REFERENCE in control[0]["overlapping_references"]
-    hits = {c["name"]: c["overlapping_references"] for c in candidates
-            if c["source"] != "control" and c["overlaps"]}
+    hits = {
+        c["name"]: c["overlapping_references"]
+        for c in candidates
+        if c["source"] != "control" and c["overlaps"]
+    }
     assert hits == {}, f"suite datasets overlap TabArena-v0.1 or BeyondArena by contents: {hits}"

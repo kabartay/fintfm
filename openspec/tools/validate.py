@@ -60,8 +60,16 @@ REAL_DATA_PATTERNS = (
 # namely that the numbers testing it were fixed in advance and are quoted unchanged afterwards,
 # hit or miss. Added 2026-09-10 for §41, because labelling a hypothesis MEASURED would be the
 # exact mislabelling this check exists to prevent.
-STATUS_WORDS = ("MEASURED", "HYPOTHESIS", "SMOKE-TEST", "SIMULATED", "ESTIMATED",
-                "design invariant", "proposed strategy", "not started")
+STATUS_WORDS = (
+    "MEASURED",
+    "HYPOTHESIS",
+    "SMOKE-TEST",
+    "SIMULATED",
+    "ESTIMATED",
+    "design invariant",
+    "proposed strategy",
+    "not started",
+)
 
 
 def check_provenance() -> list[str]:
@@ -133,9 +141,7 @@ def _check_provenance_exemptions_still_hold() -> list[str]:
 
 def check_weights_untracked() -> list[str]:
     """Trained weights never enter git (spec P3)."""
-    out = subprocess.run(
-        ["git", "ls-files"], cwd=ROOT, capture_output=True, text=True, check=False
-    )
+    out = subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True, text=True, check=False)
     tracked = [f for f in out.stdout.splitlines() if f.endswith(".pt")]
     return [f"weights tracked in git: {f}" for f in tracked]
 
@@ -153,8 +159,7 @@ def check_specs() -> list[str]:
         for rid, block in zip(reqs, blocks, strict=False):
             if "Enforced by" not in block:
                 problems.append(
-                    f"{spec.relative_to(ROOT)} requirement {rid} names nothing that "
-                    f"enforces it"
+                    f"{spec.relative_to(ROOT)} requirement {rid} names nothing that enforces it"
                 )
     return problems
 
@@ -188,9 +193,7 @@ def check_changes() -> list[str]:
         for block in blocks:
             first = block.splitlines()[0] if block.splitlines() else ""
             if "Verify" not in block and "Done" not in block:
-                problems.append(
-                    f"{change.name}/tasks.md task {first[:48]!r} names no verification"
-                )
+                problems.append(f"{change.name}/tasks.md task {first[:48]!r} names no verification")
     return problems
 
 
@@ -220,7 +223,10 @@ def open_task_count() -> int:
 
 
 CHECKS = {
-    "provenance": ("pretraining provenance", lambda: check_provenance() + check_weights_untracked()),
+    "provenance": (
+        "pretraining provenance",
+        lambda: check_provenance() + check_weights_untracked(),
+    ),
     "specs": ("spec requirements are enforced", check_specs),
     "changes": ("proposals are well-formed", check_changes),
     "findings": ("findings declare provenance", check_findings),
@@ -245,7 +251,9 @@ def main() -> int:
                 print(f"        {p}")
         else:
             print(f"ok    {label}")
-    print(f"\n{open_task_count()} open tasks across {sum(1 for c in CHANGES.iterdir() if c.is_dir())} changes")
+    print(
+        f"\n{open_task_count()} open tasks across {sum(1 for c in CHANGES.iterdir() if c.is_dir())} changes"
+    )
     return 1 if failures else 0
 
 

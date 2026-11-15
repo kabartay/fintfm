@@ -293,6 +293,7 @@ class InContextClassifier(Protocol):
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
         """``(n, 2)`` class probabilities for the query rows ``X``."""
 
+
 #: Where the raw files live: ``data/real/<key>/``, gitignored, the FinTFM-R candidates' home.
 DEFAULT_ROOT = CACHE_DIR.parent / "real"
 
@@ -325,6 +326,7 @@ ODBL_NOTICE = (
     "under the Database Contents License (https://opendatacommons.org/licenses/dbcl/1-0/)."
 )
 
+
 def admitted() -> tuple[str, ...]:
     """Keys of :data:`DATASETS` whose licence entry admits them, in suite order."""
     return tuple(k for k, d in DATASETS.items() if d.licence.include)
@@ -338,10 +340,26 @@ SBA_CHECKED = "2026-10-20"
 
 #: CSV columns, in order.
 COLUMNS = (
-    "dataset", "split_kind", "split", "model", "n_train", "n_test", "n_test_positive",
-    "base_rate", "mean_predicted", "average_precision", "roc_auc", "ap_top_decile", "seconds",
-    "checkpoint_sha256", "skipped",
-    "pred_sd", "pred_p50", "pred_p99", "pred_p99_over_p50", "is_near_constant",
+    "dataset",
+    "split_kind",
+    "split",
+    "model",
+    "n_train",
+    "n_test",
+    "n_test_positive",
+    "base_rate",
+    "mean_predicted",
+    "average_precision",
+    "roc_auc",
+    "ap_top_decile",
+    "seconds",
+    "checkpoint_sha256",
+    "skipped",
+    "pred_sd",
+    "pred_p50",
+    "pred_p99",
+    "pred_p99_over_p50",
+    "is_near_constant",
 )
 
 
@@ -416,23 +434,51 @@ def one_hot(series: pd.Series, prefix: str, top: int) -> pd.DataFrame:
 
 #: Bondora numeric fields known at origination.
 BONDORA_NUMERIC = (
-    "Age", "AppliedAmount", "Amount", "Interest", "LoanDuration", "MonthlyPayment",
-    "NrOfDependants", "IncomeFromPrincipalEmployer", "IncomeFromPension",
-    "IncomeFromFamilyAllowance", "IncomeFromSocialWelfare", "IncomeFromLeavePay",
-    "IncomeFromChildSupport", "IncomeOther", "IncomeTotal", "ExistingLiabilities",
-    "LiabilitiesTotal", "RefinanceLiabilities", "DebtToIncome", "FreeCash",
-    "NoOfPreviousLoansBeforeLoan", "AmountOfPreviousLoansBeforeLoan",
-    "PreviousRepaymentsBeforeLoan", "PreviousEarlyRepaymentsBefoleLoan",
-    "PreviousEarlyRepaymentsCountBeforeLoan", "ApplicationSignedHour",
-    "ApplicationSignedWeekday", "BidsPortfolioManager", "BidsApi", "BidsManual",
+    "Age",
+    "AppliedAmount",
+    "Amount",
+    "Interest",
+    "LoanDuration",
+    "MonthlyPayment",
+    "NrOfDependants",
+    "IncomeFromPrincipalEmployer",
+    "IncomeFromPension",
+    "IncomeFromFamilyAllowance",
+    "IncomeFromSocialWelfare",
+    "IncomeFromLeavePay",
+    "IncomeFromChildSupport",
+    "IncomeOther",
+    "IncomeTotal",
+    "ExistingLiabilities",
+    "LiabilitiesTotal",
+    "RefinanceLiabilities",
+    "DebtToIncome",
+    "FreeCash",
+    "NoOfPreviousLoansBeforeLoan",
+    "AmountOfPreviousLoansBeforeLoan",
+    "PreviousRepaymentsBeforeLoan",
+    "PreviousEarlyRepaymentsBefoleLoan",
+    "PreviousEarlyRepaymentsCountBeforeLoan",
+    "ApplicationSignedHour",
+    "ApplicationSignedWeekday",
+    "BidsPortfolioManager",
+    "BidsApi",
+    "BidsManual",
     "MonthlyPaymentDay",
 )
 
 #: Bondora coded fields known at origination, one-hot encoded (field, top-k values kept).
 BONDORA_CATEGORICAL = (
-    ("Country", 4), ("VerificationType", 5), ("Gender", 3), ("UseOfLoan", 10),
-    ("Education", 6), ("MaritalStatus", 6), ("EmploymentStatus", 6), ("HomeOwnershipType", 10),
-    ("EmploymentDurationCurrentEmployer", 8), ("OccupationArea", 10),
+    ("Country", 4),
+    ("VerificationType", 5),
+    ("Gender", 3),
+    ("UseOfLoan", 10),
+    ("Education", 6),
+    ("MaritalStatus", 6),
+    ("EmploymentStatus", 6),
+    ("HomeOwnershipType", 10),
+    ("EmploymentDurationCurrentEmployer", 8),
+    ("OccupationArea", 10),
 )
 
 
@@ -457,7 +503,9 @@ def bondora_frame(raw: pd.DataFrame, horizon_months: int = 12) -> pd.DataFrame:
     keep = loan_date <= snapshot - pd.DateOffset(months=horizon_months)
     raw, loan_date = raw[keep], loan_date[keep]
     default_date = pd.to_datetime(raw["DefaultDate"])
-    label = default_date.notna() & (default_date <= loan_date + pd.DateOffset(months=horizon_months))
+    label = default_date.notna() & (
+        default_date <= loan_date + pd.DateOffset(months=horizon_months)
+    )
     out = pd.DataFrame(index=raw.index)
     for col in BONDORA_NUMERIC:
         # "10Plus" is Bondora's own top-coding of NrOfDependants; any *other* non-numeric value
@@ -498,9 +546,19 @@ SBA_STATUSES = frozenset({"CANCLD", "COMMIT", "CHGOFF", "EXEMPT", "P I F", "PIF"
 #: industry, legal form, business age) as recorded on the application, and the SBA programme
 #: it was approved under.
 SBA_FEATURE_SOURCES = (
-    "GrossApproval", "SBAGuaranteedApproval", "InitialInterestRate", "TermInMonths",
-    "JobsSupported", "ApprovalFY", "FixedorVariableInterestInd", "RevolverStatus",
-    "CollateralInd", "FranchiseCode", "NaicsCode", "BusinessType", "BusinessAge",
+    "GrossApproval",
+    "SBAGuaranteedApproval",
+    "InitialInterestRate",
+    "TermInMonths",
+    "JobsSupported",
+    "ApprovalFY",
+    "FixedorVariableInterestInd",
+    "RevolverStatus",
+    "CollateralInd",
+    "FranchiseCode",
+    "NaicsCode",
+    "BusinessType",
+    "BusinessAge",
     "ProcessingMethod",
 )
 
@@ -579,13 +637,16 @@ def sba_frame(raw: pd.DataFrame, horizon_months: int = SBA_HORIZON_MONTHS) -> pd
     """
     unclassified = sorted(set(raw.columns) - set(SBA_FEATURE_SOURCES) - set(SBA_DROPPED))
     if unclassified:
-        raise ValueError(f"sba: unclassified FOIA field(s) {unclassified}; add each to "
-                         "SBA_FEATURE_SOURCES (known at approval) or SBA_DROPPED")
+        raise ValueError(
+            f"sba: unclassified FOIA field(s) {unclassified}; add each to "
+            "SBA_FEATURE_SOURCES (known at approval) or SBA_DROPPED"
+        )
     status = raw["LoanStatus"].astype("string").str.strip()
     unknown = sorted(set(status.dropna()) - SBA_STATUSES)
     if unknown or status.isna().any():
-        raise ValueError(f"sba: unknown LoanStatus value(s) {unknown}, "
-                         f"{int(status.isna().sum())} missing")
+        raise ValueError(
+            f"sba: unknown LoanStatus value(s) {unknown}, {int(status.isna().sum())} missing"
+        )
     undated = (status == "CHGOFF").to_numpy(bool) & raw["ChargeOffDate"].isna().to_numpy()
     raw = raw[~status.isin(SBA_UNDISBURSED).to_numpy(bool) & ~undated]
     approval = pd.to_datetime(raw["ApprovalDate"], errors="coerce")
@@ -594,8 +655,10 @@ def sba_frame(raw: pd.DataFrame, horizon_months: int = SBA_HORIZON_MONTHS) -> pd
     snapshot = pd.to_datetime(raw["AsOfDate"]).max()
     window_end = approval + pd.DateOffset(months=horizon_months)
     if window_end.max() > snapshot:
-        raise ValueError(f"sba: a {horizon_months}-month window closes {window_end.max():%Y-%m-%d}"
-                         f", after the {snapshot:%Y-%m-%d} snapshot, so the label is censored")
+        raise ValueError(
+            f"sba: a {horizon_months}-month window closes {window_end.max():%Y-%m-%d}"
+            f", after the {snapshot:%Y-%m-%d} snapshot, so the label is censored"
+        )
     chargeoff = pd.to_datetime(raw["ChargeOffDate"], errors="coerce")
     label = chargeoff.notna() & (chargeoff <= window_end)
     revolver = raw["RevolverStatus"].astype("string").str.strip()
@@ -639,8 +702,11 @@ def load_ppdai(root: Path) -> CreditPanel:
     raw = pd.read_csv(root / "ppdai" / "ppdaiData.csv")
     feats = raw.drop(columns=["label", "loan_time"]).astype(np.float64)
     return CreditPanel(
-        name="ppdai", X=feats.to_numpy(), feature_names=tuple(feats.columns),
-        y=raw["label"].to_numpy(dtype=np.int64), time=raw["loan_time"].to_numpy(np.float64),
+        name="ppdai",
+        X=feats.to_numpy(),
+        feature_names=tuple(feats.columns),
+        y=raw["label"].to_numpy(dtype=np.int64),
+        time=raw["loan_time"].to_numpy(np.float64),
     )
 
 
@@ -658,9 +724,13 @@ def load_bondora(root: Path) -> CreditPanel:
     frame = bondora_frame(raw)
     feats = frame.drop(columns=["label", "_user", "_loan_date", "LoanYear"])
     return CreditPanel(
-        name="bondora", X=feats.to_numpy(np.float64), feature_names=tuple(feats.columns),
-        y=frame["label"].to_numpy(np.int64), groups=frame["_user"].to_numpy(),
-        time=_days(frame["_loan_date"]), embargo=366.0,
+        name="bondora",
+        X=feats.to_numpy(np.float64),
+        feature_names=tuple(feats.columns),
+        y=frame["label"].to_numpy(np.int64),
+        groups=frame["_user"].to_numpy(),
+        time=_days(frame["_loan_date"]),
+        embargo=366.0,
     )
 
 
@@ -676,7 +746,9 @@ def load_ulb_fraud(root: Path) -> CreditPanel:
     raw = pd.read_csv(root / "ulb_fraud" / "creditcard.csv")
     feats = raw.drop(columns=["Class"]).astype(np.float64)
     return CreditPanel(
-        name="ulb_fraud", X=feats.to_numpy(), feature_names=tuple(feats.columns),
+        name="ulb_fraud",
+        X=feats.to_numpy(),
+        feature_names=tuple(feats.columns),
         y=raw["Class"].to_numpy(dtype=np.int64),
     )
 
@@ -696,43 +768,61 @@ def load_sba(root: Path) -> CreditPanel:
     frame = sba_frame(raw)
     feats = frame.drop(columns=["label", "_approval_date", "ApprovalFY"])
     return CreditPanel(
-        name="sba", X=feats.to_numpy(np.float64), feature_names=tuple(feats.columns),
-        y=frame["label"].to_numpy(np.int64), time=_days(frame["_approval_date"]),
+        name="sba",
+        X=feats.to_numpy(np.float64),
+        feature_names=tuple(feats.columns),
+        y=frame["label"].to_numpy(np.int64),
+        time=_days(frame["_approval_date"]),
         embargo=SBA_EMBARGO_DAYS,
     )
 
 
-_UNVERIFIED = ("owner decision needed (DR4.2 rule): the grant is the uploader's, not the data "
-               "owner's, and the original source states no licence")
+_UNVERIFIED = (
+    "owner decision needed (DR4.2 rule): the grant is the uploader's, not the data "
+    "owner's, and the original source states no licence"
+)
 
 #: The suite, in run order. An entry is scored only once the owner admits it (``include=True``);
 #: PPDai and Bondora are still excluded and the other four admitted. See the module docstring for the text and pages behind each verdict.
 DATASETS: dict[str, SuiteDataset] = {
     "ppdai": SuiteDataset(
-        "ppdai", "https://ndownloader.figshare.com/files/26049599", load_ppdai,
+        "ppdai",
+        "https://ndownloader.figshare.com/files/26049599",
+        load_ppdai,
         SourceLicence(
-            "https://api.figshare.com/v2/articles/13573871", "CC BY 4.0", "CC BY 4.0", False,
+            "https://api.figshare.com/v2/articles/13573871",
+            "CC BY 4.0",
+            "CC BY 4.0",
+            False,
             f"{_UNVERIFIED}: figshare record by a researcher over PaiPaiDai's data; "
             "ai.ppdai.com unreachable, its 2026-05-10 Wayback copy gates the data behind a "
-            "competition agreement", CHECKED,
+            "competition agreement",
+            CHECKED,
         ),
     ),
     "bondora": SuiteDataset(
-        "bondora", "https://www.kaggle.com/datasets/sid321axn/bondora-peer-to-peer-lending-loan-data",
+        "bondora",
+        "https://www.kaggle.com/datasets/sid321axn/bondora-peer-to-peer-lending-loan-data",
         load_bondora,
         SourceLicence(
             "https://www.kaggle.com/datasets/sid321axn/bondora-peer-to-peer-lending-loan-data",
-            "CC0: Public Domain", "CC0: Public Domain", False,
+            "CC0: Public Domain",
+            "CC0: Public Domain",
+            False,
             f"{_UNVERIFIED}: Kaggle mirror by an individual; bondora.com/en/public-reports "
             "(Wayback 2021-07-24) states none and now redirects to goandgrow.eu, which offers "
-            "no dataset", CHECKED,
+            "no dataset",
+            CHECKED,
         ),
     ),
     "ulb_fraud": SuiteDataset(
-        "ulb_fraud", "https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud", load_ulb_fraud,
+        "ulb_fraud",
+        "https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud",
+        load_ulb_fraud,
         SourceLicence(
             "https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud",
-            "Database: Open Database, Contents: Database Contents", "ODbL-1.0 + DbCL-1.0",
+            "Database: Open Database, Contents: Database Contents",
+            "ODbL-1.0 + DbCL-1.0",
             True,
             "admitted by the owner (2026-10-19): published by ULB's Machine Learning Group, "
             "the data's collector; scores are ODbL Produced Works, public with ODBL_NOTICE, "
@@ -741,11 +831,14 @@ DATASETS: dict[str, SuiteDataset] = {
         ),
     ),
     "sba": SuiteDataset(
-        "sba", "https://data.sba.gov/sites/default/files/uploaded_resources/" + SBA_FILE,
+        "sba",
+        "https://data.sba.gov/sites/default/files/uploaded_resources/" + SBA_FILE,
         load_sba,
         SourceLicence(
-            "https://data.sba.gov/dataset/7a-504-foia", "U.S. Government Works",
-            "U.S. Government Works (public domain)", True,
+            "https://data.sba.gov/dataset/7a-504-foia",
+            "U.S. Government Works",
+            "U.S. Government Works (public domain)",
+            True,
             "admitted by the owner (2026-10-20): the SBA is the data's producer and its "
             "catalogue page states U.S. Government Works, linking "
             "https://www.usa.gov/publicdomain/label/1.0/; borrower and lender identity are "
@@ -758,11 +851,14 @@ DATASETS: dict[str, SuiteDataset] = {
 # Estonian register (DR4.3, 2026-11-04): the licence passes (RIK links CC BY 4.0); admitted by
 # the owner on 2026-11-05 with its label survivor-conditioned; see credit_estonia's docstring.
 DATASETS["estonia"] = SuiteDataset(
-    "estonia", "https://avaandmed.ariregister.rik.ee/en/downloading-open-data", load_estonia,
+    "estonia",
+    "https://avaandmed.ariregister.rik.ee/en/downloading-open-data",
+    load_estonia,
     SourceLicence(
         "https://avaandmed.ariregister.rik.ee/en/downloading-open-data",
         "License information: https://creativecommons.org/licenses/by/4.0/legalcode",
-        "CC BY 4.0", True,
+        "CC BY 4.0",
+        True,
         "admitted by the owner (2026-11-05): RIK, the operator, links CC BY 4.0 (no sentence "
         "names it beside the link); the files hold only firms currently registered, so firms "
         "bankrupt and then deleted are absent and the label is survivor-conditioned: a score "
@@ -840,8 +936,9 @@ def suite_splits(panel: CreditPanel) -> list[tuple[np.ndarray, np.ndarray]]:
     for k, (tr, te) in enumerate(splits):
         for side, idx in (("train", tr), ("test", te)):
             if len(np.unique(panel.y[idx])) < 2:
-                raise ValueError(f"{panel.name} split {k}: {side} side has one class "
-                                 f"({len(idx)} rows)")
+                raise ValueError(
+                    f"{panel.name} split {k}: {side} side has one class ({len(idx)} rows)"
+                )
     return splits
 
 
@@ -969,8 +1066,7 @@ def oof_fintfm_logits(
         raise ValueError(f"n_inner must be at least 2, got {n_inner}")
     if not len(X_train) == len(y_train) == len(train_rows):
         raise ValueError("X_train, y_train and train_rows must be aligned")
-    fold = inner_folds(y_train, groups[train_rows] if groups is not None else None,
-                       n_inner, seed)
+    fold = inner_folds(y_train, groups[train_rows] if groups is not None else None, n_inner, seed)
     plan: list[tuple[np.ndarray, np.ndarray]] = []
     for k in range(n_inner):
         ctx, qry = train_rows[fold != k], train_rows[fold == k]
@@ -983,8 +1079,11 @@ def oof_fintfm_logits(
         if len(np.unique(y_train[ctx_local])) < 2:
             raise ValueError(f"inner fold {k}'s context holds one class; lower --inner-folds")
         clf = make_classifier(k)
-        clf.fit(X_train[ctx_local], y_train[ctx_local],
-                groups=groups[train_rows[ctx_local]] if groups is not None else None)
+        clf.fit(
+            X_train[ctx_local],
+            y_train[ctx_local],
+            groups=groups[train_rows[ctx_local]] if groups is not None else None,
+        )
         logits[qry_local] = to_logit(clf.predict_proba(X_train[qry_local])[:, 1])
     if np.isnan(logits).any():
         raise RuntimeError("a training row received no out-of-fold logit")
@@ -1010,15 +1109,25 @@ def cap_panel(panel: CreditPanel, max_rows: int, seed: int = SPLIT_SEED) -> Cred
         return panel
     keep = np.sort(np.random.RandomState(seed).choice(n, size=max_rows, replace=False))
     return CreditPanel(
-        name=panel.name, X=panel.X[keep], feature_names=panel.feature_names, y=panel.y[keep],
+        name=panel.name,
+        X=panel.X[keep],
+        feature_names=panel.feature_names,
+        y=panel.y[keep],
         groups=panel.groups[keep] if panel.groups is not None else None,
-        time=panel.time[keep] if panel.time is not None else None, embargo=panel.embargo,
+        time=panel.time[keep] if panel.time is not None else None,
+        embargo=panel.embargo,
     )
 
 
 def save_oof_logits(
-    path: Path, panel: CreditPanel, train_rows: np.ndarray, test_rows: np.ndarray,
-    oof_train: np.ndarray, logit_test: np.ndarray, n_inner: int, split: int,
+    path: Path,
+    panel: CreditPanel,
+    train_rows: np.ndarray,
+    test_rows: np.ndarray,
+    oof_train: np.ndarray,
+    logit_test: np.ndarray,
+    n_inner: int,
+    split: int,
 ) -> None:
     """Save one split's FinTFM logits for a booster that starts from them.
 
@@ -1040,12 +1149,23 @@ def save_oof_logits(
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     fold = inner_folds(
-        panel.y[train_rows], panel.groups[train_rows] if panel.groups is not None else None,
-        n_inner, SPLIT_SEED + INNER_SEED_OFFSET + split,
+        panel.y[train_rows],
+        panel.groups[train_rows] if panel.groups is not None else None,
+        n_inner,
+        SPLIT_SEED + INNER_SEED_OFFSET + split,
     )
-    np.savez(path, oof_train=oof_train, logit_test=logit_test, train_rows=train_rows,
-             test_rows=test_rows, inner_fold=fold, y_train=panel.y[train_rows],
-             y_test=panel.y[test_rows], n_inner=np.array(n_inner), split=np.array(split))
+    np.savez(
+        path,
+        oof_train=oof_train,
+        logit_test=logit_test,
+        train_rows=train_rows,
+        test_rows=test_rows,
+        inner_fold=fold,
+        y_train=panel.y[train_rows],
+        y_test=panel.y[test_rows],
+        n_inner=np.array(n_inner),
+        split=np.array(split),
+    )
 
 
 def rows_coverage(rows: list[dict]) -> Coverage:
@@ -1135,9 +1255,8 @@ def run(
     refused = [d for d in datasets if not DATASETS[d].licence.include]
     if refused:
         raise ValueError(
-            "licence not admitted for " + "; ".join(
-                f"{d}: {DATASETS[d].licence.reason}" for d in refused
-            )
+            "licence not admitted for "
+            + "; ".join(f"{d}: {DATASETS[d].licence.reason}" for d in refused)
         )
     # DR4.1's one selection rule: a suite that may choose arms never holds a TabArena panel
     guard_selection(datasets, allow_reporting=False, tool="credit_suite")
@@ -1149,9 +1268,11 @@ def run(
         panel = DATASETS[key].loader(root)
         if max_rows is not None:
             panel = cap_panel(panel, max_rows)
-        print(f"{key}: {len(panel.y):,} rows, {panel.X.shape[1]} features, "
-              f"{int(panel.y.sum()):,} positive ({panel.y.mean():.3%}), {panel.split_kind}",
-              flush=True)
+        print(
+            f"{key}: {len(panel.y):,} rows, {panel.X.shape[1]} features, "
+            f"{int(panel.y.sum()):,} positive ({panel.y.mean():.3%}), {panel.split_kind}",
+            flush=True,
+        )
         for k, (tr, te) in enumerate(suite_splits(panel)):
             y_tr, y_te = panel.y[tr], panel.y[te]
             # preprocessing fitted on the training side alone, as in the V4FinBench protocol
@@ -1168,25 +1289,40 @@ def run(
             for name in models:
                 uses_checkpoint = name == "fintfm" or name in HYBRID_MODELS
                 row = {
-                    "dataset": key, "split_kind": panel.split_kind, "split": k, "model": name,
-                    "n_train": len(tr), "n_test": len(te), "n_test_positive": int(y_te.sum()),
-                    "checkpoint_sha256": sha if uses_checkpoint else "", "skipped": "",
+                    "dataset": key,
+                    "split_kind": panel.split_kind,
+                    "split": k,
+                    "model": name,
+                    "n_train": len(tr),
+                    "n_test": len(te),
+                    "n_test_positive": int(y_te.sum()),
+                    "checkpoint_sha256": sha if uses_checkpoint else "",
+                    "skipped": "",
                 }
                 if name == "fintfm" and model.cfg.max_features < Xtr.shape[1]:
-                    row["skipped"] = (f"checkpoint takes {model.cfg.max_features} features, "
-                                      f"data has {Xtr.shape[1]}")
+                    row["skipped"] = (
+                        f"checkpoint takes {model.cfg.max_features} features, "
+                        f"data has {Xtr.shape[1]}"
+                    )
                 elif name in HYBRID_MODELS and p_fintfm is None:
                     row["skipped"] = "needs the fintfm row's test scores, which were not made"
                 elif name in HYBRID_MODELS:
                     if oof is None:
-                        oof = _hybrid_oof(panel, tr, te, Xtr, y_tr, model, cfg, device, k,
-                                          n_inner)
+                        oof = _hybrid_oof(panel, tr, te, Xtr, y_tr, model, cfg, device, k, n_inner)
                     if isinstance(oof, str):
                         row["skipped"] = oof
                     else:
                         if save_oof is not None and not (save_oof / f"{key}_split{k}.npz").exists():
-                            save_oof_logits(save_oof / f"{key}_split{k}.npz", panel, tr, te,
-                                            oof[0], to_logit(p_fintfm), n_inner, k)
+                            save_oof_logits(
+                                save_oof / f"{key}_split{k}.npz",
+                                panel,
+                                tr,
+                                te,
+                                oof[0],
+                                to_logit(p_fintfm),
+                                n_inner,
+                                k,
+                            )
                         t0 = time.perf_counter()
                         p = _predict_hybrid(name, Xtr, y_tr, Xte, oof[0], to_logit(p_fintfm))
                         row["seconds"] = round(oof[1] + time.perf_counter() - t0, 1)
@@ -1220,8 +1356,15 @@ def run(
 
 
 def _predict(
-    name: str, Xtr: np.ndarray, y_tr: np.ndarray, Xte: np.ndarray, groups: np.ndarray | None,
-    model: FinancialTFM | None, cfg: Config, device: str, seed: int,
+    name: str,
+    Xtr: np.ndarray,
+    y_tr: np.ndarray,
+    Xte: np.ndarray,
+    groups: np.ndarray | None,
+    model: FinancialTFM | None,
+    cfg: Config,
+    device: str,
+    seed: int,
 ) -> np.ndarray | None:
     """Fit one model on the training side and score the test side.
 
@@ -1245,8 +1388,9 @@ def _predict(
         from fintfm.experiments.v4_protocol import fintfm_classifier
         from fintfm.inference.large_n import wrap_large_n
 
-        clf = wrap_large_n(fintfm_classifier(model, cfg, device=device, random_state=seed),
-                           cfg.large_n)
+        clf = wrap_large_n(
+            fintfm_classifier(model, cfg, device=device, random_state=seed), cfg.large_n
+        )
         clf.fit(Xtr.astype(np.float32), y_tr, groups=groups)
         return clf.predict_proba(Xte.astype(np.float32))[:, 1]
     if name == "logistic_regression":
@@ -1262,8 +1406,16 @@ def _predict(
 
 
 def _hybrid_oof(
-    panel: CreditPanel, tr: np.ndarray, te: np.ndarray, Xtr: np.ndarray, y_tr: np.ndarray,
-    model: FinancialTFM, cfg: Config, device: str, split: int, n_inner: int,
+    panel: CreditPanel,
+    tr: np.ndarray,
+    te: np.ndarray,
+    Xtr: np.ndarray,
+    y_tr: np.ndarray,
+    model: FinancialTFM,
+    cfg: Config,
+    device: str,
+    split: int,
+    n_inner: int,
 ) -> tuple[np.ndarray, float] | str:
     """One split's out-of-fold FinTFM logits for the hybrid arms, with the cost printed.
 
@@ -1291,21 +1443,29 @@ def _hybrid_oof(
     from fintfm.experiments.v4_protocol import fintfm_classifier
     from fintfm.inference.large_n import wrap_large_n
 
-    print(f"  split {split} hybrid: {n_inner} inner FinTFM fits scoring {len(tr):,} training "
-          f"rows out of fold, each context drawn from about {len(tr) * (n_inner - 1) // n_inner:,}"
-          f" rows (<= {cfg.inference.max_context:,} sampled)"
-          + (", grouped by borrower" if panel.groups is not None else ", no borrower id"),
-          flush=True)
+    print(
+        f"  split {split} hybrid: {n_inner} inner FinTFM fits scoring {len(tr):,} training "
+        f"rows out of fold, each context drawn from about {len(tr) * (n_inner - 1) // n_inner:,}"
+        f" rows (<= {cfg.inference.max_context:,} sampled)"
+        + (", grouped by borrower" if panel.groups is not None else ", no borrower id"),
+        flush=True,
+    )
     t0 = time.perf_counter()
     try:
         logits, _ = oof_fintfm_logits(
-            Xtr.astype(np.float32), y_tr, tr, te, panel.groups,
+            Xtr.astype(np.float32),
+            y_tr,
+            tr,
+            te,
+            panel.groups,
             lambda j: wrap_large_n(
-                fintfm_classifier(model, cfg, device=device,
-                                  random_state=split + INNER_SEED_OFFSET * (j + 1)),
+                fintfm_classifier(
+                    model, cfg, device=device, random_state=split + INNER_SEED_OFFSET * (j + 1)
+                ),
                 cfg.large_n,
             ),
-            n_inner=n_inner, seed=SPLIT_SEED + INNER_SEED_OFFSET + split,
+            n_inner=n_inner,
+            seed=SPLIT_SEED + INNER_SEED_OFFSET + split,
         )
     except ValueError as e:
         print(f"  split {split} hybrid: skipped, {e}", flush=True)
@@ -1316,7 +1476,11 @@ def _hybrid_oof(
 
 
 def _predict_hybrid(
-    name: str, Xtr: np.ndarray, y_tr: np.ndarray, Xte: np.ndarray, oof_train: np.ndarray,
+    name: str,
+    Xtr: np.ndarray,
+    y_tr: np.ndarray,
+    Xte: np.ndarray,
+    oof_train: np.ndarray,
     logit_test: np.ndarray,
 ) -> np.ndarray | None:
     """Fit one hybrid arm's LightGBM out of process and score the test side.
@@ -1340,13 +1504,21 @@ def _predict_hybrid(
 
     if name == "lightgbm_fintfm_feature":
         return fit_predict_boosting(
-            "lightgbm", np.column_stack([Xtr, oof_train]), y_tr,
-            np.column_stack([Xte, logit_test]), params=LIGHTGBM_PARAMS,
+            "lightgbm",
+            np.column_stack([Xtr, oof_train]),
+            y_tr,
+            np.column_stack([Xte, logit_test]),
+            params=LIGHTGBM_PARAMS,
         )
     if name == "lightgbm_fintfm_baseline":
         return fit_predict_boosting(
-            "lightgbm", Xtr, y_tr, Xte, params=LIGHTGBM_PARAMS,
-            init_score_train=oof_train, init_score_test=logit_test,
+            "lightgbm",
+            Xtr,
+            y_tr,
+            Xte,
+            params=LIGHTGBM_PARAMS,
+            init_score_train=oof_train,
+            init_score_test=logit_test,
         )
     raise ValueError(f"unknown hybrid model {name!r}")
 
@@ -1357,11 +1529,14 @@ def _report(row: dict) -> None:
     if row["skipped"]:
         print(f"{head} skipped ({row['skipped']})", flush=True)
         return
-    print(f"{head} AP {row['average_precision']:.4f}  ROC-AUC {row['roc_auc']:.4f}  "
-          f"AP@decile {row['ap_top_decile']:.4f}  pred mean {row['mean_predicted']:.3%} vs "
-          f"{row['base_rate']:.3%}  spread sd {row['pred_sd']:.4f} "
-          f"p99/p50 {row['pred_p99_over_p50']:.2f}  ({row['n_test_positive']:,}/{row['n_test']:,} positive, "
-          f"{row['n_train']:,} train, {row['seconds']}s)", flush=True)
+    print(
+        f"{head} AP {row['average_precision']:.4f}  ROC-AUC {row['roc_auc']:.4f}  "
+        f"AP@decile {row['ap_top_decile']:.4f}  pred mean {row['mean_predicted']:.3%} vs "
+        f"{row['base_rate']:.3%}  spread sd {row['pred_sd']:.4f} "
+        f"p99/p50 {row['pred_p99_over_p50']:.2f}  ({row['n_test_positive']:,}/{row['n_test']:,} positive, "
+        f"{row['n_train']:,} train, {row['seconds']}s)",
+        flush=True,
+    )
 
 
 def _summarise(rows: list[dict]) -> None:
@@ -1379,30 +1554,49 @@ def _summarise(rows: list[dict]) -> None:
 def main(argv: Sequence[str] | None = None) -> int:
     """Entry point: ``python -m fintfm.evaluation.credit_suite --model ... --out ...``."""
     p = argparse.ArgumentParser(description="Credit evaluation suite outside V4FinBench (DR4.3).")
-    p.add_argument("--model", default=None,
-                   help="FinTFM checkpoint; omit to score the baselines alone")
+    p.add_argument(
+        "--model", default=None, help="FinTFM checkpoint; omit to score the baselines alone"
+    )
     p.add_argument("--out", required=True, type=Path, help="CSV to write")
-    p.add_argument("--datasets", default=",".join(admitted()),
-                   help=f"comma-separated subset of {','.join(DATASETS)} "
-                        f"(default: the admitted ones, {','.join(admitted())})")
-    p.add_argument("--root", type=Path, default=DEFAULT_ROOT,
-                   help="directory holding <dataset>/<raw file>")
+    p.add_argument(
+        "--datasets",
+        default=",".join(admitted()),
+        help=f"comma-separated subset of {','.join(DATASETS)} "
+        f"(default: the admitted ones, {','.join(admitted())})",
+    )
+    p.add_argument(
+        "--root", type=Path, default=DEFAULT_ROOT, help="directory holding <dataset>/<raw file>"
+    )
     p.add_argument("--config", default=None, help="configuration override (inference section)")
     p.add_argument("--device", default="cpu")
     p.add_argument("--no-lightgbm", action="store_true")
-    p.add_argument("--hybrid", action="store_true",
-                   help="also score LightGBM with FinTFM's out-of-fold logit as a feature and "
-                        "as its starting score (DR8.4); needs --model")
-    p.add_argument("--inner-folds", type=int, default=INNER_FOLDS,
-                   help=f"inner folds for the hybrid arms' out-of-fold logits "
-                        f"(default {INNER_FOLDS})")
-    p.add_argument("--save-oof", type=Path, default=None,
-                   help="directory for each split's out-of-fold FinTFM logits, as "
-                        "<dataset>_split<k>.npz, for a tuned booster that starts from them "
-                        "(DR8.4); needs --hybrid; off by default")
-    p.add_argument("--max-rows", type=int, default=None,
-                   help="development cap: a seeded random subset of each panel's rows "
-                        "(smoke tests only; the scores are not comparable with a full run)")
+    p.add_argument(
+        "--hybrid",
+        action="store_true",
+        help="also score LightGBM with FinTFM's out-of-fold logit as a feature and "
+        "as its starting score (DR8.4); needs --model",
+    )
+    p.add_argument(
+        "--inner-folds",
+        type=int,
+        default=INNER_FOLDS,
+        help=f"inner folds for the hybrid arms' out-of-fold logits (default {INNER_FOLDS})",
+    )
+    p.add_argument(
+        "--save-oof",
+        type=Path,
+        default=None,
+        help="directory for each split's out-of-fold FinTFM logits, as "
+        "<dataset>_split<k>.npz, for a tuned booster that starts from them "
+        "(DR8.4); needs --hybrid; off by default",
+    )
+    p.add_argument(
+        "--max-rows",
+        type=int,
+        default=None,
+        help="development cap: a seeded random subset of each panel's rows "
+        "(smoke tests only; the scores are not comparable with a full run)",
+    )
     args = p.parse_args(argv)
     if args.save_oof is not None and not args.hybrid:
         p.error("--save-oof needs --hybrid")
@@ -1411,9 +1605,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.inner_folds < 2:
         p.error("--inner-folds must be at least 2")
     run(
-        args.out, args.model, tuple(filter(None, args.datasets.split(","))), args.root,
-        args.config, args.device, with_lightgbm=not args.no_lightgbm, hybrid=args.hybrid,
-        n_inner=args.inner_folds, save_oof=args.save_oof, max_rows=args.max_rows,
+        args.out,
+        args.model,
+        tuple(filter(None, args.datasets.split(","))),
+        args.root,
+        args.config,
+        args.device,
+        with_lightgbm=not args.no_lightgbm,
+        hybrid=args.hybrid,
+        n_inner=args.inner_folds,
+        save_oof=args.save_oof,
+        max_rows=args.max_rows,
     )
     return 0
 

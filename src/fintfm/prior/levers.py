@@ -98,8 +98,6 @@ def prior_lever_values(args: argparse.Namespace, prior: PriorConfigDefaults) -> 
             prior.max_query_rows if args.max_query_rows is None else args.max_query_rows
         ),
         "pad_to_batch_width": (
-            prior.pad_to_batch_width
-            if args.pad_to_batch_width is None
-            else args.pad_to_batch_width
+            prior.pad_to_batch_width if args.pad_to_batch_width is None else args.pad_to_batch_width
         ),
     }

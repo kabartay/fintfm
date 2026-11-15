@@ -28,8 +28,16 @@ NETWORK_TIMEOUT_S: Final = 10
 # these change on a scale of years and an offline run should still catch a typo.
 UPLOAD_TYPES: Final = frozenset(
     {
-        "publication", "poster", "presentation", "dataset", "image", "video",
-        "software", "lesson", "physicalobject", "other",
+        "publication",
+        "poster",
+        "presentation",
+        "dataset",
+        "image",
+        "video",
+        "software",
+        "lesson",
+        "physicalobject",
+        "other",
     }
 )
 ACCESS_RIGHTS: Final = frozenset({"open", "embargoed", "restricted", "closed"})

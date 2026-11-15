@@ -34,9 +34,20 @@ REGISTRY = ROOT / "docs" / "research" / "data_candidates.csv"
 BENCHMARKS = ROOT / "docs" / "research" / "benchmark_datasets.csv"
 
 VERDICTS = {
-    "IN_USE", "SHORTLIST", "EVAL_ONLY", "HOLD_LICENCE", "HOLD_ACCESS", "HOLD_BREADTH",
-    "EXCLUDED_BENCHMARK", "EXCLUDED_DUPLICATE", "EXCLUDED_SYNTHETIC", "EXCLUDED_NOT_ROW_LEVEL",
-    "EXCLUDED_NO_LABEL", "EXCLUDED_TOO_SMALL", "EXCLUDED_DETERMINISTIC", "EXCLUDED_NO_DATA",
+    "IN_USE",
+    "SHORTLIST",
+    "EVAL_ONLY",
+    "HOLD_LICENCE",
+    "HOLD_ACCESS",
+    "HOLD_BREADTH",
+    "EXCLUDED_BENCHMARK",
+    "EXCLUDED_DUPLICATE",
+    "EXCLUDED_SYNTHETIC",
+    "EXCLUDED_NOT_ROW_LEVEL",
+    "EXCLUDED_NO_LABEL",
+    "EXCLUDED_TOO_SMALL",
+    "EXCLUDED_DETERMINISTIC",
+    "EXCLUDED_NO_DATA",
 }
 
 #: Verdicts under which a source may train a model; none may carry a benchmark_match (AU0.1).
@@ -46,10 +57,42 @@ TRAINABLE = {"IN_USE", "SHORTLIST"}
 #: in dozens of unrelated names). Distinctive tokens -- platform, place or dataset names -- are
 #: what the fuzzy check looks for.
 _GENERIC = {
-    "data", "dataset", "datasets", "prediction", "credit", "loan", "loans", "default", "risk",
-    "uci", "kaggle", "zenodo", "the", "and", "of", "for", "in", "only", "csv", "release",
-    "detection", "classification", "survival", "patient", "disease", "set", "sets", "1m",
-    "fraud", "financial", "customer", "card", "public", "level", "single", "family",
+    "data",
+    "dataset",
+    "datasets",
+    "prediction",
+    "credit",
+    "loan",
+    "loans",
+    "default",
+    "risk",
+    "uci",
+    "kaggle",
+    "zenodo",
+    "the",
+    "and",
+    "of",
+    "for",
+    "in",
+    "only",
+    "csv",
+    "release",
+    "detection",
+    "classification",
+    "survival",
+    "patient",
+    "disease",
+    "set",
+    "sets",
+    "1m",
+    "fraud",
+    "financial",
+    "customer",
+    "card",
+    "public",
+    "level",
+    "single",
+    "family",
 }
 
 
@@ -119,7 +162,8 @@ def check(registry: pd.DataFrame, benchmarks: pd.DataFrame) -> list[str]:
             continue
         cand, cand_flat = _tokens(row["name"]), _flat(row["name"])
         hits = sorted(
-            n for n, toks in bench_tokens.items()
+            n
+            for n, toks in bench_tokens.items()
             if n not in reviewed
             and (
                 cand & toks

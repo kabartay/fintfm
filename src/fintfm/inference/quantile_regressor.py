@@ -190,8 +190,7 @@ class FinancialTFMQuantileRegressor(BaseEstimator, RegressorMixin):
         Xc = self._conditioner.transform(X)
         if Xc.shape[1] > self.model.cfg.max_features:
             raise ValueError(
-                f"model supports at most {self.model.cfg.max_features} features, "
-                f"got {Xc.shape[1]}"
+                f"model supports at most {self.model.cfg.max_features} features, got {Xc.shape[1]}"
             )
         self.n_features_in_ = X.shape[1]
         # fitted attributes are created here, not in __init__ (scikit-learn convention)
@@ -199,7 +198,11 @@ class FinancialTFMQuantileRegressor(BaseEstimator, RegressorMixin):
         self.taus_ = self.model.quantile_taus.detach().cpu().numpy()
         rng = np.random.default_rng(self.random_state)
         n = Xc.shape[0]
-        idx = np.sort(rng.choice(n, size=self.max_context, replace=False)) if n > self.max_context else np.arange(n)
+        idx = (
+            np.sort(rng.choice(n, size=self.max_context, replace=False))
+            if n > self.max_context
+            else np.arange(n)
+        )
         self._ctx_X = Xc[idx]
         ctx_y = y[idx]
         self.scaler_.fit(ctx_y)
@@ -301,9 +304,7 @@ class FinancialTFMQuantileRegressor(BaseEstimator, RegressorMixin):
         grid = self.predict_quantile_grid(X)
         return np.array([np.interp(q, self.taus_, row) for row in grid])
 
-    def predict_interval(
-        self, X: np.ndarray, level: float = 0.8
-    ) -> tuple[np.ndarray, np.ndarray]:
+    def predict_interval(self, X: np.ndarray, level: float = 0.8) -> tuple[np.ndarray, np.ndarray]:
         """Central prediction interval at ``level`` coverage.
 
         Args:

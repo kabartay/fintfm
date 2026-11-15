@@ -25,8 +25,9 @@ from fintfm.evaluation.overlap import (
 from fintfm.modeling.model import FinancialTFM, ModelConfig
 
 BINARY = ps.Candidate("CC18", 900001, 900001, "synthetic-binary", "binary", 120, 4, 2, "")
-REGRESSION = ps.Candidate("CTR23", 900002, 900002, "synthetic-regression", "regression", 120,
-                          3, 0, "")
+REGRESSION = ps.Candidate(
+    "CTR23", 900002, 900002, "synthetic-regression", "regression", 120, 3, 0, ""
+)
 
 
 def _splits(n: int, folds: int = 3) -> list[tuple[int, int, np.ndarray, np.ndarray]]:
@@ -44,10 +45,13 @@ def _fake_fetch(candidate: ps.Candidate, cache_dir: Path, n_splits: int) -> ps.P
     """A synthetic stand-in for :func:`ps.fetch_task`: a numeric and a categorical column."""
     rng = np.random.default_rng(candidate.task_id)
     n = candidate.n_rows
-    X = pd.DataFrame({
-        "a": rng.normal(size=n), "b": rng.normal(size=n),
-        "c": rng.choice(["x", "y", "z"], size=n).astype(object),
-    })
+    X = pd.DataFrame(
+        {
+            "a": rng.normal(size=n),
+            "b": rng.normal(size=n),
+            "c": rng.choice(["x", "y", "z"], size=n).astype(object),
+        }
+    )
     X.loc[::17, "b"] = np.nan
     signal = X["a"].to_numpy() + (X["c"] == "x").to_numpy()
     if candidate.kind == "regression":
@@ -61,8 +65,9 @@ def _fake_fetch(candidate: ps.Candidate, cache_dir: Path, n_splits: int) -> ps.P
 def tiny_checkpoint(tmp_path: Path) -> str:
     """An untrained four-class checkpoint; the runner's plumbing, not its scores, is tested."""
     torch.manual_seed(0)
-    model = FinancialTFM(ModelConfig(max_features=6, max_classes=4, d_model=16, n_heads=2,
-                                     n_layers=1, d_ff=32))
+    model = FinancialTFM(
+        ModelConfig(max_features=6, max_classes=4, d_model=16, n_heads=2, n_layers=1, d_ff=32)
+    )
     path = tmp_path / "tiny.pt"
     model.save(str(path), trained_objectives=("classification",))
     return str(path)
@@ -98,13 +103,28 @@ TRAIN,1,0,1
 
 
 def test_run_scores_every_method_on_identical_splits(
-    synthetic_suite: None, tiny_checkpoint: str, tmp_path: Path,
+    synthetic_suite: None,
+    tiny_checkpoint: str,
+    tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ):
     """``run`` writes one row per task, split and method, every method on the same rows."""
     out = tmp_path / "run.csv"
-    code = ps.main(["--cache-dir", str(tmp_path / "cache"), "run", "--model", tiny_checkpoint,
-                    "--out", str(out), "--name", "FinTFM:tiny", "--n-boot", "20"])
+    code = ps.main(
+        [
+            "--cache-dir",
+            str(tmp_path / "cache"),
+            "run",
+            "--model",
+            tiny_checkpoint,
+            "--out",
+            str(out),
+            "--name",
+            "FinTFM:tiny",
+            "--n-boot",
+            "20",
+        ]
+    )
     assert code == 0
     frame = pd.read_csv(out)
     assert list(frame.columns) == list(ps.RESULT_COLUMNS)
@@ -124,7 +144,9 @@ def test_run_scores_every_method_on_identical_splits(
 
 
 def test_baselines_are_cached_and_reused(
-    synthetic_suite: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    synthetic_suite: None,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ):
     """A second run reads the baselines from the cache instead of refitting them."""
     cache = tmp_path / "cache"
@@ -141,14 +163,22 @@ def test_baselines_are_cached_and_reused(
 
 def test_run_refuses_a_selection_forbidden_task(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """DR4.1: the runner is an arm-selection tool, so a bankruptcy panel needs the flag."""
-    polish = ps.Candidate("CC18", 900003, 900003, "polish_companies_bankruptcy", "binary", 120,
-                          4, 2, "")
+    polish = ps.Candidate(
+        "CC18", 900003, 900003, "polish_companies_bankruptcy", "binary", 120, 4, 2, ""
+    )
     monkeypatch.setattr(ps, "fetch_task", _fake_fetch)
     with pytest.raises(SelectionForbiddenError):
-        ps.run_suite(None, tmp_path / "x.csv", tasks=[polish], cache_dir=tmp_path,
-                     log=lambda _: None)
-    frame = ps.run_suite(None, tmp_path / "x.csv", tasks=[polish], cache_dir=tmp_path,
-                         allow_reporting=True, log=lambda _: None)
+        ps.run_suite(
+            None, tmp_path / "x.csv", tasks=[polish], cache_dir=tmp_path, log=lambda _: None
+        )
+    frame = ps.run_suite(
+        None,
+        tmp_path / "x.csv",
+        tasks=[polish],
+        cache_dir=tmp_path,
+        allow_reporting=True,
+        log=lambda _: None,
+    )
     assert len(frame)
     meta = json.loads((tmp_path / "x.json").read_text())
     assert meta["reporting_only"] == ["polish_companies_bankruptcy"]
@@ -172,8 +202,12 @@ def _results(rows: list[tuple[int, int, str, float]]) -> pd.DataFrame:
 
 def test_elo_orders_a_dominance_chain_and_anchors_rf():
     """A beats RF beats B on every split: A > 1000 = RF > B, intervals around the point."""
-    rows = [(t, s, m, e) for t in range(6) for s in range(3)
-            for m, e in (("A", 0.1), ("RF", 0.2), ("B", 0.3))]
+    rows = [
+        (t, s, m, e)
+        for t in range(6)
+        for s in range(3)
+        for m, e in (("A", 0.1), ("RF", 0.2), ("B", 0.3))
+    ]
     table = ps.elo_table(_results(rows), n_boot=50).set_index("method")
     assert table.loc["RF", "elo"] == pytest.approx(1000.0)
     assert table.loc["A", "elo"] > 1000.0 > table.loc["B", "elo"]
@@ -212,17 +246,32 @@ def test_sign_test_counts_and_p_value():
 
 
 def test_compare_disambiguates_and_tests_a_against_b(
-    synthetic_suite: None, tiny_checkpoint: str, tmp_path: Path,
+    synthetic_suite: None,
+    tiny_checkpoint: str,
+    tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ):
     """``compare A B`` rates both checkpoints with the baselines and sign-tests A against B."""
     cache = str(tmp_path / "cache")
     for stem in ("a", "b"):
-        ps.main(["--cache-dir", cache, "run", "--model", tiny_checkpoint, "--out",
-                 str(tmp_path / f"{stem}.csv"), "--n-boot", "0"])
+        ps.main(
+            [
+                "--cache-dir",
+                cache,
+                "run",
+                "--model",
+                tiny_checkpoint,
+                "--out",
+                str(tmp_path / f"{stem}.csv"),
+                "--n-boot",
+                "0",
+            ]
+        )
     capsys.readouterr()
-    assert ps.main(["compare", str(tmp_path / "a.csv"), str(tmp_path / "b.csv"),
-                    "--n-boot", "20"]) == 0
+    assert (
+        ps.main(["compare", str(tmp_path / "a.csv"), str(tmp_path / "b.csv"), "--n-boot", "20"])
+        == 0
+    )
     out = capsys.readouterr().out
     assert "FinTFM:tiny [a]" in out and "FinTFM:tiny [b]" in out
     # the same checkpoint, settings and seed: every unit is a tie
@@ -242,10 +291,14 @@ def test_compare_refuses_runs_on_different_splits(tmp_path: Path):
 def _frame(n: int = 300, seed: int = 0) -> pd.DataFrame:
     """A mixed table: three numeric columns and a four-level category."""
     rng = np.random.default_rng(seed)
-    return pd.DataFrame({
-        "x": rng.normal(size=n), "y": rng.uniform(size=n) * 1000, "z": rng.integers(0, 50, n),
-        "k": rng.choice(list("abcd"), size=n),
-    })
+    return pd.DataFrame(
+        {
+            "x": rng.normal(size=n),
+            "y": rng.uniform(size=n) * 1000,
+            "z": rng.integers(0, 50, n),
+            "k": rng.choice(list("abcd"), size=n),
+        }
+    )
 
 
 def test_row_hash_sees_through_a_reupload():
@@ -253,7 +306,8 @@ def test_row_hash_sees_through_a_reupload():
     (TabArena's re-upload changes) leave the fingerprint matching."""
     original = _frame()
     reupload = original.sample(frac=1.0, random_state=3).rename(
-        columns={"x": "feature_x", "y": "amount", "z": "count", "k": "kind"})
+        columns={"x": "feature_x", "y": "amount", "z": "count", "k": "kind"}
+    )
     reupload = reupload[["kind", "count", "feature_x", "amount"]]
     reupload["feature_x"] = reupload["feature_x"].astype(np.float32)
     reupload["kind"] = reupload["kind"].map({"a": "alpha", "b": "beta", "c": "gamma", "d": "delta"})
@@ -289,7 +343,8 @@ def test_reference_cache_reads_parquet_and_drops_the_target(tmp_path: Path):
     (d / "description.xml").write_text(
         '<oml:data_set_description xmlns:oml="http://openml.org/openml">'
         "<oml:default_target_attribute>label</oml:default_target_attribute>"
-        "</oml:data_set_description>")
+        "</oml:data_set_description>"
+    )
     refs, notes = load_reference_fingerprints(tmp_path)
     assert list(refs) == ["TabArena-v0.1 46918 credit-g"]
     assert any("1 of 51 datasets read" in n for n in notes)
@@ -310,7 +365,9 @@ def test_isolated_estimator_matches_an_in_process_fit_and_sets_classes():
     iso = IsolatedEstimator(LogisticRegression(max_iter=500), regression=False).fit(X, y)
     np.testing.assert_allclose(
         iso.predict_proba(X_test),
-        LogisticRegression(max_iter=500).fit(X, y).predict_proba(X_test), rtol=1e-12)
+        LogisticRegression(max_iter=500).fit(X, y).predict_proba(X_test),
+        rtol=1e-12,
+    )
     assert list(iso.classes_) == [0, 1, 2]
     reg = IsolatedEstimator(Ridge(), regression=True).fit(X, y.astype(float))
     np.testing.assert_allclose(reg.predict(X_test), Ridge().fit(X, y).predict(X_test))
@@ -322,7 +379,8 @@ def test_isolated_estimator_failure_is_a_value_error_not_a_hang():
     from fintfm.evaluation.proxy_suite import IsolatedEstimator
 
     iso = IsolatedEstimator(LogisticRegression(), regression=False).fit(
-        np.zeros((10, 2)), np.zeros(10))  # one class: the fit raises in the subprocess
+        np.zeros((10, 2)), np.zeros(10)
+    )  # one class: the fit raises in the subprocess
     with pytest.raises(ValueError, match="isolated fit failed"):
         iso.predict_proba(np.zeros((3, 2)))
 

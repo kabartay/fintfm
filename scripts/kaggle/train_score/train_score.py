@@ -54,8 +54,10 @@ RUN_SECONDS = 0  # __RUN_SECONDS__
 SESSION1_KERNEL = ""  # __SESSION1__
 INIT_URL = ""  # __INITURL__
 INIT_SHA256 = ""  # __INITSHA__
-RECIPE_URL = (f"https://raw.githubusercontent.com/kabartay/fintfm/{COMMIT}/"
-              "configs/published/v4-cellattn-labels.yaml")
+RECIPE_URL = (
+    f"https://raw.githubusercontent.com/kabartay/fintfm/{COMMIT}/"
+    "configs/published/v4-cellattn-labels.yaml"
+)
 
 
 def find_session1_state(arm: str, inputs: Path = Path("/kaggle/input")) -> Path:
@@ -76,8 +78,10 @@ def find_session1_state(arm: str, inputs: Path = Path("/kaggle/input")) -> Path:
     hits = sorted(inputs.rglob(f"{arm}.pt.state"))
     if len(hits) != 1:
         listing = sorted(str(p) for p in inputs.rglob("*") if p.is_file())[:200]
-        sys.exit(f"expected one {arm}.pt.state under {inputs} (session 1's output, kernel "
-                 f"source {SESSION1_KERNEL!r}), found {hits}; files there: {listing}")
+        sys.exit(
+            f"expected one {arm}.pt.state under {inputs} (session 1's output, kernel "
+            f"source {SESSION1_KERNEL!r}), found {hits}; files there: {listing}"
+        )
     ckpt = hits[0].with_suffix("")  # <arm>.pt.state -> <arm>.pt
     if not ckpt.is_file():
         sys.exit(f"{hits[0]} has no {ckpt.name} beside it; session 1 did not finish its save")
@@ -87,8 +91,9 @@ def find_session1_state(arm: str, inputs: Path = Path("/kaggle/input")) -> Path:
 def main() -> None:
     """Train the arm (or this session's share of it), then score it on V4FinBench."""
     if COMMIT == "UNPINNED":
-        sys.exit("kernel is not pinned: regenerate with make_train_score.py once the commit "
-                 "is pushed")
+        sys.exit(
+            "kernel is not pinned: regenerate with make_train_score.py once the commit is pushed"
+        )
     if SESSION not in (0, 1, 2):
         sys.exit(f"SESSION must be 0, 1 or 2, not {SESSION}")
     if SESSION and SWITCH_STEP:
@@ -103,13 +108,26 @@ def main() -> None:
         if len(hits) != 1:
             sys.exit(f"expected one company_years_h1.parquet under /kaggle/input, found {hits}")
         root = hits[0].parent
-    smi = subprocess.run(["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
-                         capture_output=True, text=True, check=False)
+    smi = subprocess.run(
+        ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
     if smi.returncode != 0 or not smi.stdout.strip():
         sys.exit("no GPU in this session (quota exhausted?) -- refusing a CPU run")
     print(f"GPUs: {smi.stdout.strip()}; data: {root}", flush=True)
-    subprocess.run([sys.executable, "-m", "pip", "install", "--quiet",
-                    f"fintfm @ git+https://github.com/kabartay/fintfm.git@{COMMIT}"], check=True)
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pip",
+            "install",
+            "--quiet",
+            f"fintfm @ git+https://github.com/kabartay/fintfm.git@{COMMIT}",
+        ],
+        check=True,
+    )
     out = Path("/kaggle/working") / ARM
     out.mkdir(parents=True, exist_ok=True)
     recipe = out / "recipe.yaml"
@@ -117,10 +135,28 @@ def main() -> None:
     ckpt = out / f"{ARM}.pt"
     launcher = [sys.executable, "-u", "-m", "fintfm.modeling.train"]
     if DDP:
-        launcher = [sys.executable, "-u", "-m", "torch.distributed.run", "--standalone",
-                    "--nproc-per-node", "2", "-m", "fintfm.modeling.train"]
-    base = [*launcher, "--config", str(recipe), "--device", "cuda",
-            "--checkpoint-every", "1000", "--out", str(ckpt)]
+        launcher = [
+            sys.executable,
+            "-u",
+            "-m",
+            "torch.distributed.run",
+            "--standalone",
+            "--nproc-per-node",
+            "2",
+            "-m",
+            "fintfm.modeling.train",
+        ]
+    base = [
+        *launcher,
+        "--config",
+        str(recipe),
+        "--device",
+        "cuda",
+        "--checkpoint-every",
+        "1000",
+        "--out",
+        str(ckpt),
+    ]
     if INIT_URL:
         init = out / "init.pt"
         urllib.request.urlretrieve(INIT_URL, init)
@@ -142,13 +178,14 @@ def main() -> None:
         print(f"session 1's state: {found} -> {state}", flush=True)
         phases = [[*base, *ARM_FLAGS, "--resume", str(state)]]
     if SWITCH_STEP:
-        phases = [[*base, *ARM_FLAGS, "--run-steps", str(SWITCH_STEP)],
-                  [*base, *PHASE2_FLAGS, "--resume", f"{ckpt}.state", "--new-prior-phase"]]
+        phases = [
+            [*base, *ARM_FLAGS, "--run-steps", str(SWITCH_STEP)],
+            [*base, *PHASE2_FLAGS, "--resume", f"{ckpt}.state", "--new-prior-phase"],
+        ]
     for i, train in enumerate(phases):
         print("$ " + " ".join(train), flush=True)
         with (out / "train.log").open("a" if i else "w") as log:
-            rc = subprocess.run(train, stdout=log, stderr=subprocess.STDOUT,
-                                check=False).returncode
+            rc = subprocess.run(train, stdout=log, stderr=subprocess.STDOUT, check=False).returncode
         print((out / "train.log").read_text()[-3000:], flush=True)
         if rc != 0:
             sys.exit(f"training phase {i + 1} failed with exit {rc}")
@@ -157,8 +194,11 @@ def main() -> None:
     from fintfm.provenance import read_checkpoint_provenance
 
     rec = read_checkpoint_provenance(ckpt) or {}
-    print(f"checkpoint: {rec.get('steps_completed')} steps, {rec.get('tasks_seen')} tasks; "
-          f"time budget: {rec.get('time_budget')}", flush=True)
+    print(
+        f"checkpoint: {rec.get('steps_completed')} steps, {rec.get('tasks_seen')} tasks; "
+        f"time budget: {rec.get('time_budget')}",
+        flush=True,
+    )
     if SESSION == 1:
         for p in out.glob(f"{ARM}.pt.step*"):
             p.unlink()  # session 2 needs only <ARM>.pt and <ARM>.pt.state
@@ -178,15 +218,32 @@ def main() -> None:
     score_cfg = out / "score.yaml"
     score_cfg.write_text("inference:\n  query_chunk: 512\n  feature_chunk: 8\n")
     cfg = load_config(score_cfg)
-    record = run(str(ckpt), out / "score", horizon=0, folds=(0, 1, 2, 3, 4), root=root,
-                 with_boosting=False, classical=("logistic_regression",), cfg=cfg, device="cuda")
+    record = run(
+        str(ckpt),
+        out / "score",
+        horizon=0,
+        folds=(0, 1, 2, 3, 4),
+        root=root,
+        with_boosting=False,
+        classical=("logistic_regression",),
+        cfg=cfg,
+        device="cuda",
+    )
     print(summarise(record), flush=True)
     if SCORE_PARTITION:
         part_cfg = out / "score_partition.yaml"
         part_cfg.write_text(score_cfg.read_text() + "large_n:\n  method: partition\n")
-        record = run(str(ckpt), out / "score_partition", horizon=0, folds=(0, 1, 2, 3, 4),
-                     root=root, with_boosting=False, classical=("logistic_regression",),
-                     cfg=load_config(part_cfg), device="cuda")
+        record = run(
+            str(ckpt),
+            out / "score_partition",
+            horizon=0,
+            folds=(0, 1, 2, 3, 4),
+            root=root,
+            with_boosting=False,
+            classical=("logistic_regression",),
+            cfg=load_config(part_cfg),
+            device="cuda",
+        )
         print(summarise(record), flush=True)
     _keep_final(out)
     print("done")

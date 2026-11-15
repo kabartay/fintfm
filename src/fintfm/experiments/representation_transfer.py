@@ -250,8 +250,14 @@ def _leaf_probe(
                 probe = LogisticRegression(max_iter=1000).fit(rep_fit, y_fit[sub])
                 if out_opts is not None:
                     out_opts[rows] += _options_probe(
-                        est, rep_fit, X_fit[sub], y_fit[sub], rep_test, X_test[rows],
-                        probe_options, raw_conditioner,
+                        est,
+                        rep_fit,
+                        X_fit[sub],
+                        y_fit[sub],
+                        rep_test,
+                        X_test[rows],
+                        probe_options,
+                        raw_conditioner,
                     )
             out[rows] += probe.predict_proba(rep_test)[:, 1]
             counts["n_leaf_probes"] += 1
@@ -520,8 +526,7 @@ def run(
     """
     if probe_rows not in ("stratified", "context", "context-leaky"):
         raise ValueError(
-            "probe_rows must be 'stratified', 'context' or 'context-leaky', got "
-            f"{probe_rows!r}"
+            f"probe_rows must be 'stratified', 'context' or 'context-leaky', got {probe_rows!r}"
         )
     if partition and probe_rows != "stratified":
         raise ValueError("partition=True supports probe_rows='stratified' only")
@@ -579,9 +584,16 @@ def run(
             if probe_options and probe_options.get("raw"):
                 cond = FeatureConditioner("squash", random_state=fold).fit(Xtr_full)
             p_leaf, leaf_counts, p_leaf_opts = _leaf_probe(
-                part, Xtr_full, ytr_full, Xte, stratified["representation"], stage,
-                np.random.default_rng(1000 + fold), train_sample_size,
-                probe_options, cond,
+                part,
+                Xtr_full,
+                ytr_full,
+                Xte,
+                stratified["representation"],
+                stage,
+                np.random.default_rng(1000 + fold),
+                train_sample_size,
+                probe_options,
+                cond,
             )
             arms = {
                 "own_head": part.predict_proba(Xte)[:, 1],
@@ -600,9 +612,7 @@ def run(
             if probe_rows == "context":
                 arms.update(_crossfit_arms(clf, Xtr_full, ytr_full, Xte, stage, fold))
             else:
-                arms.update(
-                    _downstream_arms(clf, Xtr_full[ctx], ytr_full[ctx], Xte, stage, fold)
-                )
+                arms.update(_downstream_arms(clf, Xtr_full[ctx], ytr_full[ctx], Xte, stage, fold))
             arms.update({f"{name}_stratified": p for name, p in stratified.items()})
             row["n_probe_rows"] = len(ctx)
             row["n_probe_positive"] = int(ytr_full[ctx].sum())
@@ -614,8 +624,7 @@ def run(
             row[f"{name}_auc"], row[f"{name}_ap"] = _scores(yte, p)
         results.append(row)
         probe_note = (
-            f"probe on {row['n_probe_rows']:,} context rows, {row['n_probe_positive']} "
-            "positive; "
+            f"probe on {row['n_probe_rows']:,} context rows, {row['n_probe_positive']} positive; "
             if probe_rows != "stratified"
             else ""
         )
@@ -699,25 +708,29 @@ def main() -> None:
         "--stage", choices=("encode_rows", "encoder_mid", "pre_head"), default="encode_rows"
     )
     p.add_argument(
-        "--probe-rows", choices=("stratified", "context", "context-leaky"),
+        "--probe-rows",
+        choices=("stratified", "context", "context-leaky"),
         default="stratified",
         help="rows the downstream arms are fitted on: the stratified sample (default, as "
-             "§130 ran); the classifier's own context rows, cross-fitted over 5 folds so no "
-             "row sees its own label, with the head scored the same way (own_head_crossfit) "
-             "and the stratified arms kept under a _stratified suffix (design review DR3.4); "
-             "or context-leaky, the context rows with their labels in view, a diagnostic of "
-             "the leak only",
+        "§130 ran); the classifier's own context rows, cross-fitted over 5 folds so no "
+        "row sees its own label, with the head scored the same way (own_head_crossfit) "
+        "and the stratified arms kept under a _stratified suffix (design review DR3.4); "
+        "or context-leaky, the context rows with their labels in view, a diagnostic of "
+        "the leak only",
     )
     p.add_argument(
-        "--partition", action="store_true",
+        "--partition",
+        action="store_true",
         help="wrap the classifier in partitioned contexts (FINDINGS §169, default settings) "
-             "and fit the probe per leaf; own_head becomes the partitioned head, and the "
-             "global head and probe are kept as own_head_global and representation_global",
+        "and fit the probe per leaf; own_head becomes the partitioned head, and the "
+        "global head and probe are kept as own_head_global and representation_global",
     )
     p.add_argument(
-        "--probe-options", type=str, default=None,
+        "--probe-options",
+        type=str,
+        default=None,
         help="with --partition: a JSON object of readout options (scale, cv, raw, head, no_rep) for a "
-             "second leaf probe, written as the representation_opts arm beside the plain one",
+        "second leaf probe, written as the representation_opts arm beside the plain one",
     )
     args = p.parse_args()
     probe_options = None
@@ -727,10 +740,14 @@ def main() -> None:
         probe_options = json.loads(args.probe_options)
         unknown = set(probe_options) - PROBE_OPTIONS
         if not isinstance(probe_options, dict) or unknown:
-            p.error(f"--probe-options: unknown key(s) {sorted(unknown)}; known {sorted(PROBE_OPTIONS)}")
+            p.error(
+                f"--probe-options: unknown key(s) {sorted(unknown)}; known {sorted(PROBE_OPTIONS)}"
+            )
         if not args.partition:
             p.error("--probe-options needs --partition")
-        if probe_options.get("no_rep") and not (probe_options.get("raw") or probe_options.get("head")):
+        if probe_options.get("no_rep") and not (
+            probe_options.get("raw") or probe_options.get("head")
+        ):
             p.error("--probe-options: no_rep needs raw or head, or the probe has no input")
     run(
         args.model,

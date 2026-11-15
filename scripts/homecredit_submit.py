@@ -69,13 +69,19 @@ def main() -> None:
     p.add_argument("--out", default="runs/homecredit_submission.csv")
     p.add_argument("--max-context", type=int, default=2000)
     p.add_argument("--strategy", default="balanced")
-    p.add_argument("--holdout", type=int, default=40_000,
-                   help="rows held out of context to estimate our own AUC before submitting")
+    p.add_argument(
+        "--holdout",
+        type=int,
+        default=40_000,
+        help="rows held out of context to estimate our own AUC before submitting",
+    )
     args = p.parse_args()
 
     X_train, y, X_test, test_ids, features = prepare()
-    print(f"train {X_train.shape}, test {X_test.shape}, {len(features)} features, "
-          f"default rate {y.mean():.3%}")
+    print(
+        f"train {X_train.shape}, test {X_test.shape}, {len(features)} features, "
+        f"default rate {y.mean():.3%}"
+    )
 
     rng = np.random.default_rng(0)
     idx = rng.permutation(len(y))

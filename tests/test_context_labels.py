@@ -15,8 +15,17 @@ from fintfm.inference.classifier import FinancialTFMClassifier
 from fintfm.modeling.hazard import CENSORED
 from fintfm.modeling.model import FinancialTFM, ModelConfig
 
-_CFG = {"max_features": 6, "max_classes": 2, "d_model": 32, "d_cell": 16, "n_heads": 2,
-        "n_col_layers": 1, "n_layers": 2, "d_ff": 64, "n_horizons": 4}
+_CFG = {
+    "max_features": 6,
+    "max_classes": 2,
+    "d_model": 32,
+    "d_cell": 16,
+    "n_heads": 2,
+    "n_col_layers": 1,
+    "n_layers": 2,
+    "d_ff": 64,
+    "n_horizons": 4,
+}
 _STRATEGIES = ["uniform", "balanced", "hybrid", "prototype", "retrieval"]
 
 
@@ -42,8 +51,13 @@ def _table(n: int = 80, seed: int = 2) -> tuple[np.ndarray, ...]:
 
 
 def _kw(strategy: str) -> dict:
-    return {"max_context": 30, "context_strategy": strategy, "feature_transform": "none",
-            "retrieval_groups": 2, "retrieval_min_positive": 2}
+    return {
+        "max_context": 30,
+        "context_strategy": strategy,
+        "feature_transform": "none",
+        "retrieval_groups": 2,
+        "retrieval_min_positive": 2,
+    }
 
 
 @pytest.mark.parametrize("strategy", _STRATEGIES)
@@ -77,9 +91,11 @@ def test_calibration_split_and_restriction_keep_labels_aligned():
     clf = FinancialTFMClassifier(_model(True), **kw).fit(X, y, periods=period, n_observed=n_obs)
     rows = clf.train_rows_[clf.context_indices_]
     assert np.array_equal(clf.context_n_observed_, n_obs[rows])
-    twin = FinancialTFMClassifier(_model(True), **_kw("uniform")).fit(
-        X, y, periods=period, n_observed=n_obs
-    ).restrict_context(np.array([3, 9, 20]))
+    twin = (
+        FinancialTFMClassifier(_model(True), **_kw("uniform"))
+        .fit(X, y, periods=period, n_observed=n_obs)
+        .restrict_context(np.array([3, 9, 20]))
+    )
     assert np.array_equal(twin.context_period_, period[[3, 9, 20]])
     assert np.array_equal(twin.context_n_observed_, n_obs[[3, 9, 20]])
 
@@ -126,8 +142,6 @@ def test_omitting_or_adding_n_observed_leaves_the_binary_path_byte_identical(str
     X, y, period, n_obs = _table()
     kw = {**_kw(strategy), "n_ensemble": n_ensemble, "random_state": 7}
     plain = FinancialTFMClassifier(_model(False), **kw).fit(X, y)
-    given = FinancialTFMClassifier(_model(False), **kw).fit(
-        X, y, periods=period, n_observed=n_obs
-    )
+    given = FinancialTFMClassifier(_model(False), **kw).fit(X, y, periods=period, n_observed=n_obs)
     assert np.array_equal(plain.predict_proba(X), given.predict_proba(X))
     assert np.array_equal(plain.context_indices_, given.context_indices_)

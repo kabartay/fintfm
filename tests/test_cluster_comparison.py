@@ -22,7 +22,9 @@ from v4_fold_companies import reconstruct, verify
 def _panel(n_companies=150, rows_each=5, seed=0):
     """A small panel: a few countries, companies with several rows each, a shared label."""
     rng = np.random.RandomState(seed)
-    company = np.repeat(np.array([f"firm{i:03d}" for i in range(n_companies)], dtype=object), rows_each)
+    company = np.repeat(
+        np.array([f"firm{i:03d}" for i in range(n_companies)], dtype=object), rows_each
+    )
     country = np.repeat(rng.randint(0, 3, size=n_companies), rows_each)
     y = np.repeat((rng.rand(n_companies) < 0.3).astype(np.int64), rows_each)
     return y, country, company
@@ -35,8 +37,13 @@ def _write_run(d: Path, rebuilt, seed, with_companies=False):
     for k, f in rebuilt.items():
         y = f["y_true"]
         extra = {"company_test": f["company_test"]} if with_companies else {}
-        np.savez(d / f"predictions_fold{k}.npz", y_true=y, y_val=f["y_val"],
-                 pred_fintfm=y * 0.5 + rng.random(len(y)), **extra)
+        np.savez(
+            d / f"predictions_fold{k}.npz",
+            y_true=y,
+            y_val=f["y_val"],
+            pred_fintfm=y * 0.5 + rng.random(len(y)),
+            **extra,
+        )
     return d
 
 

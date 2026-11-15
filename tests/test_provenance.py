@@ -21,8 +21,7 @@ def test_realised_shares_match_the_sequential_draw():
     """``source_shares`` is computed analytically; 20,000 draws of ``_draw_source`` must land
     within binomial error of it, so a change to the draw order cannot leave the recorded
     shares describing a different mixture."""
-    cfg = PriorConfig(p_tree=0.3, p_trivial=0.1, p_crossed=0.2, p_task_family=0.05,
-                      p_financial=0.7)
+    cfg = PriorConfig(p_tree=0.3, p_trivial=0.1, p_crossed=0.2, p_task_family=0.05, p_financial=0.7)
     shares = source_shares(cfg)
     rng = np.random.default_rng(0)
     n = 20_000
@@ -39,10 +38,10 @@ def test_shares_clip_weights_as_the_draw_does_and_name_each_panel():
     shares = source_shares(PriorConfig(p_tree=0.0, p_trivial=1.5, p_financial=0.5))
     assert shares["realised"]["trivial"] == 1.0
     assert shares["realised"]["financial"] == 0.0 and shares["realised"]["scm"] == 0.0
-    panels = source_shares(PriorConfig(real_panels="a.parquet=0.5,b.parquet=0.5",
-                                       p_financial=0.5))["realised"]
-    assert list(panels)[-4:] == ["real_panel:a.parquet", "real_panel:b.parquet", "financial",
-                                 "scm"]
+    panels = source_shares(PriorConfig(real_panels="a.parquet=0.5,b.parquet=0.5", p_financial=0.5))[
+        "realised"
+    ]
+    assert list(panels)[-4:] == ["real_panel:a.parquet", "real_panel:b.parquet", "financial", "scm"]
     assert panels["real_panel:b.parquet"] == pytest.approx(0.25)
     assert panels["financial"] == pytest.approx(0.125)
 
@@ -50,15 +49,30 @@ def test_shares_clip_weights_as_the_draw_does_and_name_each_panel():
 def test_weighted_shares_are_the_normalised_weights_in_draw_order():
     """DR2.1: with ``source_weights`` the record states the weights as given and their
     normalised shares, every named source included (a zero weight too), panels by path."""
-    shares = source_shares(PriorConfig(source_weights={
-        "scm": 2.0, "real_panel:b.parquet": 1.0, "real_panel:a.parquet": 1.0, "tree": 0.0,
-    }))
+    shares = source_shares(
+        PriorConfig(
+            source_weights={
+                "scm": 2.0,
+                "real_panel:b.parquet": 1.0,
+                "real_panel:a.parquet": 1.0,
+                "tree": 0.0,
+            }
+        )
+    )
     assert shares["mode"] == "weighted"
-    assert list(shares["configured"]) == ["tree", "real_panel:a.parquet",
-                                          "real_panel:b.parquet", "scm"]
+    assert list(shares["configured"]) == [
+        "tree",
+        "real_panel:a.parquet",
+        "real_panel:b.parquet",
+        "scm",
+    ]
     assert shares["configured"]["scm"] == 2.0
-    assert shares["realised"] == {"tree": 0.0, "real_panel:a.parquet": 0.25,
-                                  "real_panel:b.parquet": 0.25, "scm": 0.5}
+    assert shares["realised"] == {
+        "tree": 0.0,
+        "real_panel:a.parquet": 0.25,
+        "real_panel:b.parquet": 0.25,
+        "scm": 0.5,
+    }
     assert source_shares(PriorConfig())["mode"] == "sequential"
     json.dumps(shares)
 
@@ -68,8 +82,9 @@ def test_git_state_is_none_outside_a_repository(tmp_path):
 
 
 def test_json_safe_converts_what_a_config_holds():
-    out = json_safe({"t": (1, 2), "a": np.float32(0.5), "arr": np.arange(2), 3: Path("x"),
-                     "obj": object})
+    out = json_safe(
+        {"t": (1, 2), "a": np.float32(0.5), "arr": np.arange(2), 3: Path("x"), "obj": object}
+    )
     assert out["t"] == [1, 2] and out["a"] == 0.5 and out["arr"] == [0, 1]
     assert out["3"] == "x" and out["obj"].startswith("<class")
     json.dumps(out)
@@ -85,8 +100,17 @@ def test_estimator_params_drop_the_model_and_keep_every_setting():
     from fintfm.inference.classifier import FinancialTFMClassifier
     from fintfm.modeling.model import FinancialTFM, ModelConfig
 
-    model = FinancialTFM(ModelConfig(max_features=4, max_classes=2, d_cell=8, d_model=16,
-                                     n_layers=1, n_col_layers=1, n_heads=2))
+    model = FinancialTFM(
+        ModelConfig(
+            max_features=4,
+            max_classes=2,
+            d_cell=8,
+            d_model=16,
+            n_layers=1,
+            n_col_layers=1,
+            n_heads=2,
+        )
+    )
     clf = FinancialTFMClassifier(model, n_ensemble=3, random_state=7)
     params = estimator_params(clf)
     assert "model" not in params

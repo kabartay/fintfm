@@ -64,8 +64,14 @@ def test_out_of_fold_logits_never_use_their_own_row():
     test = np.arange(40)
     fits: list[np.ndarray] = []
     logits, plan = cs.oof_fintfm_logits(
-        X[train], y[train], train, test, None, lambda k: _RowIdClassifier(300, fits),
-        n_inner=3, seed=1,
+        X[train],
+        y[train],
+        train,
+        test,
+        None,
+        lambda k: _RowIdClassifier(300, fits),
+        n_inner=3,
+        seed=1,
     )
     # no query saw itself, and each logit is its own row's
     np.testing.assert_allclose(logits, to_logit(0.1 + 0.8 * train / 300))
@@ -83,7 +89,14 @@ def test_inner_folds_keep_borrowers_whole_and_stratify():
     groups = np.arange(600) // 3  # three rows per borrower
     train, test = np.arange(600), np.array([], dtype=int)
     logits, plan = cs.oof_fintfm_logits(
-        X, y, train, test, groups, lambda k: _RowIdClassifier(600, []), n_inner=3, seed=0,
+        X,
+        y,
+        train,
+        test,
+        groups,
+        lambda k: _RowIdClassifier(600, []),
+        n_inner=3,
+        seed=0,
     )
     assert np.isfinite(logits).all()
     for ctx, qry in plan:
@@ -118,14 +131,30 @@ def test_a_single_class_inner_context_is_an_error_not_a_score():
     y = np.zeros(60, dtype=np.int64)
     y[0] = 1  # one positive: the context of the fold that scores it holds none
     with pytest.raises(ValueError, match="one class"):
-        cs.oof_fintfm_logits(X, y, np.arange(60), np.array([], dtype=int), None,
-                             lambda k: _RowIdClassifier(60, []), 3, 0)
+        cs.oof_fintfm_logits(
+            X,
+            y,
+            np.arange(60),
+            np.array([], dtype=int),
+            None,
+            lambda k: _RowIdClassifier(60, []),
+            3,
+            0,
+        )
     with pytest.raises(ValueError, match="at least 2"):
-        cs.oof_fintfm_logits(X, y, np.arange(60), np.array([], dtype=int), None,
-                             lambda k: _RowIdClassifier(60, []), 1, 0)
+        cs.oof_fintfm_logits(
+            X,
+            y,
+            np.arange(60),
+            np.array([], dtype=int),
+            None,
+            lambda k: _RowIdClassifier(60, []),
+            1,
+            0,
+        )
 
 
-_REFERENCE = '''
+_REFERENCE = """
 import json, sys
 import numpy as np
 import lightgbm as lgb
@@ -138,7 +167,7 @@ booster = lgb.train(
 )
 raw = booster.predict(d["Xte"], raw_score=True) + d["bte"]
 np.save(sys.argv[2], 1.0 / (1.0 + np.exp(-raw)))
-'''
+"""
 
 
 @needs_lightgbm
@@ -149,14 +178,20 @@ def test_init_score_worker_equals_a_direct_lightgbm_fit(tmp_path):
     y = (rng.random(300) < 1 / (1 + np.exp(-2 * X[:, 0]))).astype(np.int64)
     btr, bte = rng.normal(size=300), rng.normal(size=80)
     params = {"n_estimators": 20, "learning_rate": 0.1}
-    p = fit_predict_boosting("lightgbm", X, y, X[:80], params=params,
-                             init_score_train=btr, init_score_test=bte)
+    p = fit_predict_boosting(
+        "lightgbm", X, y, X[:80], params=params, init_score_train=btr, init_score_test=bte
+    )
     assert p is not None
     data, out = tmp_path / "d.npz", tmp_path / "p.npy"
     np.savez(data, Xtr=X, ytr=y, Xte=X[:80], btr=btr, bte=bte)
     # LightGBM never runs in the pytest process, where torch is loaded (FINDINGS §25, §179)
-    subprocess.run([sys.executable, "-c", _REFERENCE, str(data), str(out), json.dumps(params)],
-                   check=True, capture_output=True, text=True, timeout=300)
+    subprocess.run(
+        [sys.executable, "-c", _REFERENCE, str(data), str(out), json.dumps(params)],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
     np.testing.assert_allclose(p, np.load(out), rtol=1e-6, atol=1e-9)
     # and the starting score matters: without it the prediction differs
     plain = fit_predict_boosting("lightgbm", X, y, X[:80], params=params)
@@ -168,11 +203,13 @@ def test_init_score_arguments_are_checked_before_the_subprocess():
     with pytest.raises(ValueError, match="together"):
         fit_predict_boosting("lightgbm", X, y, X, init_score_train=np.zeros(4))
     with pytest.raises(ValueError, match="takes no starting score"):
-        fit_predict_boosting("xgboost", X, y, X, init_score_train=np.zeros(4),
-                             init_score_test=np.zeros(4))
+        fit_predict_boosting(
+            "xgboost", X, y, X, init_score_train=np.zeros(4), init_score_test=np.zeros(4)
+        )
     with pytest.raises(ValueError, match="do not match"):
-        fit_predict_boosting("lightgbm", X, y, X, init_score_train=np.zeros(3),
-                             init_score_test=np.zeros(4))
+        fit_predict_boosting(
+            "lightgbm", X, y, X, init_score_train=np.zeros(3), init_score_test=np.zeros(4)
+        )
 
 
 def _tiny_checkpoint(tmp_path, max_features: int = 8) -> str:
@@ -182,17 +219,30 @@ def _tiny_checkpoint(tmp_path, max_features: int = 8) -> str:
 
     torch.manual_seed(0)
     ckpt = tmp_path / "m.pt"
-    FinancialTFM(ModelConfig(max_features=max_features, max_classes=2, d_cell=8, d_model=16,
-                             n_layers=1, n_col_layers=1, n_heads=2)).save(str(ckpt))
+    FinancialTFM(
+        ModelConfig(
+            max_features=max_features,
+            max_classes=2,
+            d_cell=8,
+            d_model=16,
+            n_layers=1,
+            n_col_layers=1,
+            n_heads=2,
+        )
+    ).save(str(ckpt))
     return str(ckpt)
 
 
 def _admit(monkeypatch, **loaders):
     admitted = dataclasses.replace(cs.DATASETS["ulb_fraud"].licence, include=True)
-    monkeypatch.setattr(cs, "DATASETS", {
-        key: cs.SuiteDataset(key, "https://example.invalid", loader, admitted)
-        for key, loader in loaders.items()
-    })
+    monkeypatch.setattr(
+        cs,
+        "DATASETS",
+        {
+            key: cs.SuiteDataset(key, "https://example.invalid", loader, admitted)
+            for key, loader in loaders.items()
+        },
+    )
 
 
 def _panel(n: int, dated: bool, grouped: bool, seed: int, name: str) -> cs.CreditPanel:
@@ -201,7 +251,10 @@ def _panel(n: int, dated: bool, grouped: bool, seed: int, name: str) -> cs.Credi
     X[rng.random(X.shape) < 0.05] = np.nan
     y = (rng.random(n) < 1 / (1 + np.exp(-(2.0 * np.nan_to_num(X[:, 0]) - 1.5)))).astype(int)
     return cs.CreditPanel(
-        name=name, X=X, feature_names=tuple(f"f{i}" for i in range(5)), y=y.astype(np.int64),
+        name=name,
+        X=X,
+        feature_names=tuple(f"f{i}" for i in range(5)),
+        y=y.astype(np.int64),
         groups=rng.integers(0, n // 3, size=n) if grouped else None,
         time=np.sort(rng.uniform(0, 1000, size=n)) if dated else None,
         embargo=10.0 if dated else 0.0,
@@ -226,8 +279,24 @@ def test_hybrid_rows_reach_the_csv_with_the_suite_columns(tmp_path, monkeypatch)
     monkeypatch.setattr(cs, "_predict", counting_predict)
     ckpt = _tiny_checkpoint(tmp_path)
     out = tmp_path / "results.csv"
-    assert cs.main(["--model", ckpt, "--out", str(out), "--datasets", "dated,undated",
-                    "--root", str(tmp_path), "--hybrid", "--inner-folds", "2"]) == 0
+    assert (
+        cs.main(
+            [
+                "--model",
+                ckpt,
+                "--out",
+                str(out),
+                "--datasets",
+                "dated,undated",
+                "--root",
+                str(tmp_path),
+                "--hybrid",
+                "--inner-folds",
+                "2",
+            ]
+        )
+        == 0
+    )
     with out.open() as fh:
         rows = list(csv.DictReader(fh))
     assert tuple(rows[0]) == cs.COLUMNS
@@ -253,8 +322,13 @@ def test_a_skipped_fintfm_row_skips_the_hybrid_rows(tmp_path, monkeypatch):
     monkeypatch.setattr(cs, "_hybrid_oof", lambda *a: pytest.fail("inner fits ran"))
     ckpt = _tiny_checkpoint(tmp_path, max_features=4)  # narrower than the panel's 5 features
     real_predict = cs._predict
-    monkeypatch.setattr(cs, "_predict", lambda name, *a, **k: (
-        np.full(len(a[2]), 0.2) if name == "lightgbm_1000" else real_predict(name, *a, **k)))
+    monkeypatch.setattr(
+        cs,
+        "_predict",
+        lambda name, *a, **k: (
+            np.full(len(a[2]), 0.2) if name == "lightgbm_1000" else real_predict(name, *a, **k)
+        ),
+    )
     rows = cs.run(tmp_path / "r.csv", ckpt, datasets=("undated",), root=tmp_path, hybrid=True)
     hybrid = [r for r in rows if r["model"] in cs.HYBRID_MODELS]
     assert len(hybrid) == 6 and all("fintfm row" in r["skipped"] for r in hybrid)
@@ -286,7 +360,8 @@ def test_saving_the_oof_logits_changes_no_output_and_saves_the_logits(tmp_path, 
     saved = cs.run(tmp_path / "saved.csv", ckpt, save_oof=tmp_path / "oof", **kw)
     assert _scores(plain) == _scores(saved)
     assert sorted(f.name for f in (tmp_path / "oof").iterdir()) == [
-        f"undated_split{k}.npz" for k in range(3)]
+        f"undated_split{k}.npz" for k in range(3)
+    ]
     panel = _panel(600, False, False, 1, "undated")
     for k, (tr, te) in enumerate(cs.suite_splits(panel)):
         d = np.load(tmp_path / "oof" / f"undated_split{k}.npz")
@@ -300,7 +375,8 @@ def test_saving_the_oof_logits_changes_no_output_and_saves_the_logits(tmp_path, 
     again = cs.run(tmp_path / "again.csv", ckpt, save_oof=tmp_path / "oof2", **kw)
     np.testing.assert_array_equal(
         np.load(tmp_path / "oof" / "undated_split0.npz")["oof_train"],
-        np.load(tmp_path / "oof2" / "undated_split0.npz")["oof_train"])
+        np.load(tmp_path / "oof2" / "undated_split0.npz")["oof_train"],
+    )
     assert _scores(again) == _scores(plain)
 
 
@@ -308,8 +384,9 @@ def test_save_oof_needs_the_hybrid_arms(tmp_path):
     with pytest.raises(ValueError, match="save_oof needs"):
         cs.run(tmp_path / "r.csv", "m.pt", datasets=("sba",), save_oof=tmp_path / "o")
     with pytest.raises(SystemExit):
-        cs.main(["--model", "m.pt", "--out", str(tmp_path / "r.csv"),
-                 "--save-oof", str(tmp_path / "o")])
+        cs.main(
+            ["--model", "m.pt", "--out", str(tmp_path / "r.csv"), "--save-oof", str(tmp_path / "o")]
+        )
 
 
 def test_cap_panel_keeps_a_seeded_subset_in_order():

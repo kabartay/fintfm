@@ -213,15 +213,21 @@ def main() -> None:
     e2 = leave_one_out(cell)
     print(f"\nColumn_id_dim curve only, n={len(cell)} (cell attention, ctx 1000, 48k tasks)")
     print("MAE:", {k: round(v, 4) for k, v in summarise(e2).items()})
-    print("worst row per surrogate:", {k: cell[int(np.abs(v).argmax())].name for k, v in e2.items()})
+    print(
+        "worst row per surrogate:", {k: cell[int(np.abs(v).argmax())].name for k, v in e2.items()}
+    )
 
     print("\nUntried column_id_dim predictions (ctx 1000, 48k tasks), ESTIMATED not measured")
     preds = predict_untried(ROWS)
     for cd, p in preds.items():
-        print(f"  {cd:3d}: ridge {p['ridge']:.4f}  gbm {p['gbm']:.4f}  gbm bootstrap sd {p['gbm_boot_sd']:.4f}")
+        print(
+            f"  {cd:3d}: ridge {p['ridge']:.4f}  gbm {p['gbm']:.4f}  gbm bootstrap sd {p['gbm_boot_sd']:.4f}"
+        )
     best_known = max(r.ap for r in ROWS if r.max_context_k == 1.0 and r.tasks_k == 48)
-    print(f"\nbest recorded 48k/ctx1000 AP: {best_known:.4f}; one run's seed SD of the mean "
-          f"{SEED_SD_MEAN:.4f}; two-run yardstick {NOISE_YARDSTICK}")
+    print(
+        f"\nbest recorded 48k/ctx1000 AP: {best_known:.4f}; one run's seed SD of the mean "
+        f"{SEED_SD_MEAN:.4f}; two-run yardstick {NOISE_YARDSTICK}"
+    )
 
 
 if __name__ == "__main__":

@@ -147,14 +147,14 @@ def _finetune_rows(
             # at least one query on each side: near pos_frac=1, rounding alone gave every
             # query to the positives and the negative weight divided by zero
             n_pos = min(max(1, round(n_q * pos_frac)), n_q - 1)
-            qi = np.concatenate([
-                rng.choice(q_pos, size=n_pos, replace=len(q_pos) < n_pos),
-                rng.choice(q_neg, size=n_q - n_pos, replace=len(q_neg) < n_q - n_pos),
-            ])
-            true_rate, sampled = len(q_pos) / len(q_pool), n_pos / n_q
-            w = np.where(
-                y[qi] == pos_label, true_rate / sampled, (1 - true_rate) / (1 - sampled)
+            qi = np.concatenate(
+                [
+                    rng.choice(q_pos, size=n_pos, replace=len(q_pos) < n_pos),
+                    rng.choice(q_neg, size=n_q - n_pos, replace=len(q_neg) < n_q - n_pos),
+                ]
             )
+            true_rate, sampled = len(q_pos) / len(q_pool), n_pos / n_q
+            w = np.where(y[qi] == pos_label, true_rate / sampled, (1 - true_rate) / (1 - sampled))
             return ci, qi, w.astype(np.float32)
     qi = rng.choice(q_pool, size=n_q, replace=len(q_pool) < n_q)
     return ci, qi, None
@@ -180,10 +180,12 @@ def _draw_val_queries(
         neg = np.flatnonzero(y != y.max())
         if len(pos) and len(neg):
             n_pos = min(max(1, round(n_q * pos_frac)), n_q - 1)
-            qi = np.concatenate([
-                rng.choice(pos, size=n_pos, replace=len(pos) < n_pos),
-                rng.choice(neg, size=n_q - n_pos, replace=len(neg) < n_q - n_pos),
-            ])
+            qi = np.concatenate(
+                [
+                    rng.choice(pos, size=n_pos, replace=len(pos) < n_pos),
+                    rng.choice(neg, size=n_q - n_pos, replace=len(neg) < n_q - n_pos),
+                ]
+            )
             true_rate, sampled = len(pos) / len(y), n_pos / n_q
             w = np.where(y[qi] == y.max(), true_rate / sampled, (1 - true_rate) / (1 - sampled))
             return qi, w.astype(np.float32)
@@ -262,10 +264,12 @@ def _select_context(
             k = int(np.floor(positive_cap * m))
             n_neg = min(m - k, neg_idx.size)
             k = min(k, pos_idx.size)
-            picked = np.concatenate([
-                rng.choice(pos_idx, size=k, replace=False),
-                rng.choice(neg_idx, size=n_neg, replace=False),
-            ])
+            picked = np.concatenate(
+                [
+                    rng.choice(pos_idx, size=k, replace=False),
+                    rng.choice(neg_idx, size=n_neg, replace=False),
+                ]
+            )
             return np.sort(picked.astype(np.int64))
     if n <= max_context:
         return np.arange(n)
@@ -276,10 +280,12 @@ def _select_context(
         k = max(positive_floor, round(max_context * pos_idx.size / n))
         # never more positives than exist, nor fewer than the negatives leave room for
         k = max(min(k, pos_idx.size, max_context), max_context - neg_idx.size)
-        picked = np.concatenate([
-            rng.choice(pos_idx, size=k, replace=False),
-            rng.choice(neg_idx, size=max_context - k, replace=False),
-        ])
+        picked = np.concatenate(
+            [
+                rng.choice(pos_idx, size=k, replace=False),
+                rng.choice(neg_idx, size=max_context - k, replace=False),
+            ]
+        )
         return np.sort(picked.astype(np.int64))
     if strategy == "uniform":
         return np.sort(rng.choice(n, size=max_context, replace=False))
@@ -1159,8 +1165,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         n_observed = np.asarray(n_observed)
         if n_observed.shape != (n_rows,):
             raise ValueError(
-                f"n_observed has shape {n_observed.shape} for {n_rows} rows; pass one count "
-                "per row"
+                f"n_observed has shape {n_observed.shape} for {n_rows} rows; pass one count per row"
             )
         if not np.issubdtype(n_observed.dtype, np.integer):
             raise ValueError(f"n_observed must be integers, got dtype {n_observed.dtype}")
@@ -1280,10 +1285,16 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         use_val = self.finetune_val_frac > 0.0
         if not 0.0 <= self.finetune_val_frac < 1.0:
             raise ValueError(f"finetune_val_frac must lie in [0, 1), got {self.finetune_val_frac}")
-        if use_val and min(
-            self.finetune_eval_every, self.finetune_patience, self.finetune_val_tasks,
-            self.finetune_val_query,
-        ) < 1:
+        if (
+            use_val
+            and min(
+                self.finetune_eval_every,
+                self.finetune_patience,
+                self.finetune_val_tasks,
+                self.finetune_val_query,
+            )
+            < 1
+        ):
             raise ValueError(
                 "finetune_eval_every, finetune_patience, finetune_val_tasks and "
                 "finetune_val_query must be at least 1 with finetune_val_frac > 0"
@@ -1333,7 +1344,9 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         opt = torch.optim.AdamW(model.parameters(), lr=self.finetune_lr)
         # seed 0 keeps §163's numpy stream; other seeds mix in finetune_seed
         rng = np.random.default_rng(
-            self.random_state if self.finetune_seed == 0 else [self.random_state, self.finetune_seed]
+            self.random_state
+            if self.finetune_seed == 0
+            else [self.random_state, self.finetune_seed]
         )
         F = model.cfg.max_features
         nc = torch.full((B,), n_classes, dtype=torch.long, device=self.device)
@@ -1354,9 +1367,13 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
                 Xv[0, n_ctx:, : X.shape[1]] = X_all[val_rows[qpos]]
                 yv = np.concatenate([y[ci], vy[qpos]])[None].astype(np.int64)
                 wv = None if qw is None else torch.from_numpy(qw[None]).to(self.device)
-                val_tasks.append((
-                    torch.from_numpy(Xv).to(self.device), torch.from_numpy(yv).to(self.device), wv,
-                ))
+                val_tasks.append(
+                    (
+                        torch.from_numpy(Xv).to(self.device),
+                        torch.from_numpy(yv).to(self.device),
+                        wv,
+                    )
+                )
 
         def validate() -> float:
             """Mean validation loss over the fixed tasks, in eval mode, without gradients."""
@@ -1364,10 +1381,14 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             ncv = torch.full((1,), n_classes, dtype=torch.long, device=self.device)
             try:
                 with torch.no_grad():
-                    return float(np.mean([
-                        float(model.loss(xv, yv, n_ctx, ncv, weights=wv))
-                        for xv, yv, wv in val_tasks
-                    ]))
+                    return float(
+                        np.mean(
+                            [
+                                float(model.loss(xv, yv, n_ctx, ncv, weights=wv))
+                                for xv, yv, wv in val_tasks
+                            ]
+                        )
+                    )
             finally:
                 model.train()
 
@@ -1378,8 +1399,9 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             with _forked_rng():
                 torch.manual_seed(1_000_003 * int(self.random_state) + int(self.finetune_seed))
                 for step in range(self.finetune_steps + 1 if val_tasks else self.finetune_steps):
-                    if val_tasks and (step % self.finetune_eval_every == 0
-                                      or step == self.finetune_steps):
+                    if val_tasks and (
+                        step % self.finetune_eval_every == 0 or step == self.finetune_steps
+                    ):
                         vl = validate()
                         self.finetune_val_curve_.append((step, vl))
                         if vl < best_loss:
@@ -1408,7 +1430,8 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
                     loss = model.loss(
                         torch.from_numpy(Xb).to(self.device),
                         torch.from_numpy(yb).to(self.device),
-                        n_ctx, nc,
+                        n_ctx,
+                        nc,
                         weights=torch.from_numpy(wb).to(self.device) if weighted else None,
                     )
                     opt.zero_grad()
@@ -1492,9 +1515,12 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         if weight == 0:
             self._pooled_class_shares = self._full_prior
             return self._full_rate
-        self._pooled_class_shares = sum(
-            q.size * np.bincount(self._pool_y[c], minlength=n_classes) / c.size for q, c in plan
-        ) / weight
+        self._pooled_class_shares = (
+            sum(
+                q.size * np.bincount(self._pool_y[c], minlength=n_classes) / c.size for q, c in plan
+            )
+            / weight
+        )
         total = sum(q.size * float((self._pool_y[c] == pos_class).mean()) for q, c in plan)
         # cached so a caller reporting what was actually retrieved does not have to rebuild
         # the plan; recomputing it means a second k-means and a second pass over the pool,
@@ -1630,8 +1656,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
             )
         if self.select_method not in get_args(SelectMethod):
             raise ValueError(
-                f"select_method must be one of {get_args(SelectMethod)}, "
-                f"got {self.select_method!r}"
+                f"select_method must be one of {get_args(SelectMethod)}, got {self.select_method!r}"
             )
         if self.select_subsample < 1:
             raise ValueError(f"select_subsample must be at least 1, got {self.select_subsample}")
@@ -1799,9 +1824,7 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
         )
         n_members = max(self.n_ensemble, -(-n_features // size))
         order = np.random.default_rng(self.random_state).permutation(n_features)
-        return [
-            np.sort(order[(i * size + np.arange(size)) % n_features]) for i in range(n_members)
-        ]
+        return [np.sort(order[(i * size + np.arange(size)) % n_features]) for i in range(n_members)]
 
     def _uses_members(self) -> bool:
         """Whether :meth:`predict_proba` averages ensemble members rather than one pass."""
@@ -1986,7 +2009,9 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
 
     @torch.no_grad()
     def transform_representation(
-        self, X: np.ndarray, stage: Literal["encode_rows", "encoder_mid", "pre_head"] = "encode_rows"
+        self,
+        X: np.ndarray,
+        stage: Literal["encode_rows", "encoder_mid", "pre_head"] = "encode_rows",
     ) -> np.ndarray:
         """Row representations for ``X``, at a chosen depth short of the classification head.
 
@@ -2038,7 +2063,9 @@ class FinancialTFMClassifier(BaseEstimator, ClassifierMixin):
 
     @torch.no_grad()
     def _representation_chunk(
-        self, X: np.ndarray, stage: Literal["encode_rows", "encoder_mid", "pre_head"] = "encode_rows"
+        self,
+        X: np.ndarray,
+        stage: Literal["encode_rows", "encoder_mid", "pre_head"] = "encode_rows",
     ) -> np.ndarray:
         """One chunk of query rows, encoded but not classified. See :meth:`transform_representation`."""
         h = self.model_.predict_context(

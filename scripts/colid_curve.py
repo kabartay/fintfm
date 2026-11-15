@@ -62,8 +62,12 @@ def paired_delta(dir_a: str, dir_b: str) -> tuple[float, int, int, list[float]]:
         if not np.array_equal(za["y_true"], zb["y_true"]):
             raise ValueError(f"{a} and {b} are not the same rows; the pairing is invalid")
         d, _ci, p = paired_auc_difference(
-            za["y_true"], za["pred_fintfm"], zb["pred_fintfm"],
-            n_boot=2000, seed=0, metric=average_precision_score,
+            za["y_true"],
+            za["pred_fintfm"],
+            zb["pred_fintfm"],
+            n_boot=2000,
+            seed=0,
+            metric=average_precision_score,
         )
         deltas.append(d)
         pvals.append(p)
@@ -79,7 +83,11 @@ def main() -> None:
     if len(have) < 2:
         sys.exit("need at least two complete arms")
 
-    print(f"{'column_id_dim':>14} " + " ".join(f"{'f'+str(i):>8}" for i in range(5)) + f"{'mean':>9}")
+    print(
+        f"{'column_id_dim':>14} "
+        + " ".join(f"{'f' + str(i):>8}" for i in range(5))
+        + f"{'mean':>9}"
+    )
     means = {}
     for dim in sorted(have):
         s = fold_scores(have[dim])
@@ -96,7 +104,7 @@ def main() -> None:
         raw.extend(pv)
     adj = holm_adjusted_p(raw)
     for i, (label, d, w, n) in enumerate(rows):
-        block = adj[i * 5:(i + 1) * 5]
+        block = adj[i * 5 : (i + 1) * 5]
         print(f"{label:>22}{d:>+10.4f}{f'{w}/{n}':>8}   " + " ".join(f"{p:.3f}" for p in block))
 
     best = max(means, key=means.get)

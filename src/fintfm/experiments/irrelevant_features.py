@@ -159,15 +159,22 @@ def curve_slope(d: list[int], auc: list[float]) -> dict[str, float]:
 
 
 def _score_in_context(
-    model: FinancialTFM, Xtr: np.ndarray, ytr: np.ndarray, Xte: np.ndarray,
-    max_context: int, seed: int,
+    model: FinancialTFM,
+    Xtr: np.ndarray,
+    ytr: np.ndarray,
+    Xte: np.ndarray,
+    max_context: int,
+    seed: int,
 ) -> np.ndarray:
     """Positive-class probability for the query rows through the public classifier."""
     from fintfm.inference.classifier import FinancialTFMClassifier
 
     clf = FinancialTFMClassifier(
-        model, max_context=max_context, context_strategy="uniform",
-        feature_transform="rank", random_state=seed,
+        model,
+        max_context=max_context,
+        context_strategy="uniform",
+        feature_transform="rank",
+        random_state=seed,
     ).fit(Xtr, ytr)
     return clf.predict_proba(Xte)[:, 1]
 
@@ -211,9 +218,11 @@ def run(
 
     if min(widths) < N_RELEVANT:
         raise ValueError(f"width must be at least {N_RELEVANT}")
-    loaded = dict(models) if models is not None else {
-        name: FinancialTFM.load(p) for name, p in model_paths.items()
-    }
+    loaded = (
+        dict(models)
+        if models is not None
+        else {name: FinancialTFM.load(p) for name, p in model_paths.items()}
+    )
     if loaded:
         torch.manual_seed(UNTRAINED_SEED)  # seeded: an unseeded floor moves by 0.2 (§42)
         loaded["untrained_control"] = FinancialTFM(next(iter(loaded.values())).cfg)
@@ -242,7 +251,8 @@ def run(
             )
             preds["gradient_boosting"] = (
                 HistGradientBoostingClassifier(max_iter=100, random_state=seed)
-                .fit(Xtr, ytr).predict_proba(Xte)[:, 1]
+                .fit(Xtr, ytr)
+                .predict_proba(Xte)[:, 1]
             )
             for arm, p in preds.items():
                 c = cells.setdefault((arm, d), {"auc": [], "ap": [], "mean_pred": [], "rate": []})
@@ -256,14 +266,19 @@ def run(
     points = []
     for (arm, d), c in cells.items():
         auc = np.array(c["auc"])
-        points.append(CurvePoint(
-            arm=arm, d=d, k_irrelevant=d - N_RELEVANT,
-            auc_mean=float(auc.mean()),
-            auc_std=float(auc.std(ddof=1)) if len(auc) > 1 else float("nan"),
-            ap_mean=float(np.mean(c["ap"])),
-            mean_pred=float(np.mean(c["mean_pred"])) if arm in in_context else None,
-            observed_rate=float(np.mean(c["rate"])), n_seeds=len(auc),
-        ))
+        points.append(
+            CurvePoint(
+                arm=arm,
+                d=d,
+                k_irrelevant=d - N_RELEVANT,
+                auc_mean=float(auc.mean()),
+                auc_std=float(auc.std(ddof=1)) if len(auc) > 1 else float("nan"),
+                ap_mean=float(np.mean(c["ap"])),
+                mean_pred=float(np.mean(c["mean_pred"])) if arm in in_context else None,
+                observed_rate=float(np.mean(c["rate"])),
+                n_seeds=len(auc),
+            )
+        )
     slopes: dict[str, dict[str, float]] = {}
     for arm in sorted({p.arm for p in points}):
         arm_pts = sorted((p for p in points if p.arm == arm), key=lambda p: p.d)
@@ -272,8 +287,12 @@ def run(
     record = {
         "task": "y = thresholded(x0 + x1 + 0.5*x0*x1); k independent N(0,1) columns added",
         "config": {
-            "models": model_paths, "widths": list(widths), "seeds": list(seeds),
-            "n": n, "max_context": max_context, "rate": rate,
+            "models": model_paths,
+            "widths": list(widths),
+            "seeds": list(seeds),
+            "n": n,
+            "max_context": max_context,
+            "rate": rate,
         },
         "results": [asdict(p) for p in points],
         "slopes": slopes,
@@ -303,11 +322,16 @@ def summarise(record: dict) -> str:
             hit = [r for r in rows if r["arm"] == arm and r["d"] == d]
             cells.append(f"{hit[0]['auc_mean']:.3f}±{hit[0]['auc_std']:.3f}" if hit else "-")
         lines.append(f"{arm:>22} " + " ".join(f"{c:>13}" for c in cells))
-    lines += ["", f"{'arm (avg precision)':>22} " + " ".join(f"{'d=' + str(d):>13}" for d in widths)]
+    lines += [
+        "",
+        f"{'arm (avg precision)':>22} " + " ".join(f"{'d=' + str(d):>13}" for d in widths),
+    ]
     for arm in arms:
         cells = [
-            f"{h[0]['ap_mean']:.3f}" if (h := [r for r in rows if r["arm"] == arm and r["d"] == d])
-            else "-" for d in widths
+            f"{h[0]['ap_mean']:.3f}"
+            if (h := [r for r in rows if r["arm"] == arm and r["d"] == d])
+            else "-"
+            for d in widths
         ]
         lines.append(f"{arm:>22} " + " ".join(f"{c:>13}" for c in cells))
     lines += ["", "Mean predicted probability beside the observed rate (in-context arms):"]
@@ -337,8 +361,12 @@ def summarise(record: dict) -> str:
 def main() -> None:
     """Command-line entry point: ``python -m fintfm.experiments.irrelevant_features``."""
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--models", type=str, required=True,
-                   help="comma-separated name=path pairs, e.g. fin00=runs/a.pt,fin10=runs/b.pt")
+    p.add_argument(
+        "--models",
+        type=str,
+        required=True,
+        help="comma-separated name=path pairs, e.g. fin00=runs/a.pt,fin10=runs/b.pt",
+    )
     p.add_argument("--out", type=str, default="runs/irrelevant_features")
     p.add_argument("--seeds", type=str, default="0,1,2")
     p.add_argument("--widths", type=str, default=",".join(str(w) for w in WIDTHS))
@@ -348,9 +376,13 @@ def main() -> None:
     args = p.parse_args()
     paths = dict(pair.split("=", 1) for pair in args.models.split(",") if pair)
     record = run(
-        paths, Path(args.out), widths=tuple(int(w) for w in args.widths.split(",")),
-        seeds=tuple(int(s) for s in args.seeds.split(",")), n=args.n,
-        max_context=args.max_context, rate=args.rate,
+        paths,
+        Path(args.out),
+        widths=tuple(int(w) for w in args.widths.split(",")),
+        seeds=tuple(int(s) for s in args.seeds.split(",")),
+        n=args.n,
+        max_context=args.max_context,
+        rate=args.rate,
     )
     print("\n" + summarise(record))
 

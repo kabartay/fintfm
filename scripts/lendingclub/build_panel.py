@@ -47,19 +47,44 @@ import pandas as pd
 #: into one-hot indicators. Order is fixed so two panels built from the same source file
 #: expose the same columns in the same positions.
 FEATURE_COLUMNS: tuple[str, ...] = (
-    "revenue", "dti_n", "loan_amnt", "fico_n", "emp_length_years",
-    "purpose_debt_consolidation", "purpose_small_business", "purpose_home_improvement",
-    "purpose_major_purchase", "purpose_credit_card", "purpose_other", "purpose_house",
-    "purpose_vacation", "purpose_car", "purpose_medical", "purpose_moving",
-    "purpose_renewable_energy", "purpose_wedding",
-    "home_ownership_mortgage", "home_ownership_rent", "home_ownership_own",
+    "revenue",
+    "dti_n",
+    "loan_amnt",
+    "fico_n",
+    "emp_length_years",
+    "purpose_debt_consolidation",
+    "purpose_small_business",
+    "purpose_home_improvement",
+    "purpose_major_purchase",
+    "purpose_credit_card",
+    "purpose_other",
+    "purpose_house",
+    "purpose_vacation",
+    "purpose_car",
+    "purpose_medical",
+    "purpose_moving",
+    "purpose_renewable_energy",
+    "purpose_wedding",
+    "home_ownership_mortgage",
+    "home_ownership_rent",
+    "home_ownership_own",
     "home_ownership_other",
 )
 
 _PURPOSE_CATEGORIES = (
-    "debt_consolidation", "small_business", "home_improvement", "major_purchase",
-    "credit_card", "other", "house", "vacation", "car", "medical", "moving",
-    "renewable_energy", "wedding",
+    "debt_consolidation",
+    "small_business",
+    "home_improvement",
+    "major_purchase",
+    "credit_card",
+    "other",
+    "house",
+    "vacation",
+    "car",
+    "medical",
+    "moving",
+    "renewable_energy",
+    "wedding",
 )
 
 _HOME_OWNERSHIP_CATEGORIES = ("MORTGAGE", "RENT", "OWN", "OTHER")
@@ -93,8 +118,17 @@ def build_panel(source_csv: Path) -> pd.DataFrame:
     """
     raw = pd.read_csv(
         source_csv,
-        usecols=["id", "revenue", "dti_n", "loan_amnt", "fico_n", "emp_length", "purpose",
-                  "home_ownership_n", "Default"],
+        usecols=[
+            "id",
+            "revenue",
+            "dti_n",
+            "loan_amnt",
+            "fico_n",
+            "emp_length",
+            "purpose",
+            "home_ownership_n",
+            "Default",
+        ],
         dtype={"purpose": "str", "home_ownership_n": "str", "emp_length": "str"},
     )
     out = pd.DataFrame(index=raw.index)
@@ -118,7 +152,8 @@ def main() -> None:
     """Entry point. See module docstring for what this writes and why."""
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument(
-        "--source-csv", required=True,
+        "--source-csv",
+        required=True,
         help="LC_loans_granting_model_dataset.csv, from Zenodo record 11295916",
     )
     p.add_argument("--out", default="data/lendingclub/panel.parquet")

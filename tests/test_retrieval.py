@@ -57,9 +57,10 @@ def test_retrieved_context_is_nearer_than_a_uniform_sample():
     target = Z[0]
     got = retrieve(Z, y, target, max_context=50)
     unif = rng.choice(len(Z), size=50, replace=False)
-    assert np.linalg.norm(Z[got] - target, axis=1).mean() < np.linalg.norm(
-        Z[unif] - target, axis=1
-    ).mean()
+    assert (
+        np.linalg.norm(Z[got] - target, axis=1).mean()
+        < np.linalg.norm(Z[unif] - target, axis=1).mean()
+    )
 
 
 def test_retrieval_prefers_the_query_own_cluster():
@@ -85,7 +86,6 @@ def test_min_positive_rescues_a_context_with_no_defaults():
     assert got.size == 100  # the floor must not silently change the context size
 
 
-
 def test_min_positive_tops_up_positives_already_in_the_neighbourhood():
     """Positives already retrieved count toward the floor, and extras are new rows.
 
@@ -107,6 +107,7 @@ def test_min_positive_tops_up_positives_already_in_the_neighbourhood():
     assert got.size == 100
     assert np.unique(got).size == got.size
     assert set(near) <= set(got.tolist())  # positives already held are not dropped
+
 
 def test_grouping_covers_every_query_exactly_once():
     X, _ = _clustered(n_per=150)
@@ -161,8 +162,13 @@ def _small_model(n_features=4, n_horizons=None):
     torch.manual_seed(0)
     return FinancialTFM(
         ModelConfig(
-            max_features=n_features, d_model=32, d_cell=16, n_layers=1, n_col_layers=1,
-            max_classes=2, **({"n_horizons": n_horizons} if n_horizons else {}),
+            max_features=n_features,
+            d_model=32,
+            d_cell=16,
+            n_layers=1,
+            n_col_layers=1,
+            max_classes=2,
+            **({"n_horizons": n_horizons} if n_horizons else {}),
         )
     )
 
@@ -172,8 +178,11 @@ def test_retrieval_returns_a_prediction_for_every_row_in_order():
     X = np.concatenate([X, X[:, :1] * 0.5, X[:, 1:] * -1], axis=1).astype(np.float32)
     y = (label == 2).astype(np.int64)
     clf = FinancialTFMClassifier(
-        _small_model(), max_context=40, context_strategy="retrieval",
-        retrieval_groups=4, retrieval_min_positive=2,
+        _small_model(),
+        max_context=40,
+        context_strategy="retrieval",
+        retrieval_groups=4,
+        retrieval_min_positive=2,
     ).fit(X, y)
     p = clf.predict_proba(X)
     assert p.shape == (len(X), 2)
@@ -186,8 +195,11 @@ def test_retrieval_term_structure_stays_coherent():
     X = np.concatenate([X, X[:, :1] * 0.5, X[:, 1:] * -1], axis=1).astype(np.float32)
     y = (label == 2).astype(np.int64)
     clf = FinancialTFMClassifier(
-        _small_model(n_horizons=4), max_context=40, context_strategy="retrieval",
-        retrieval_groups=4, retrieval_min_positive=2,
+        _small_model(n_horizons=4),
+        max_context=40,
+        context_strategy="retrieval",
+        retrieval_groups=4,
+        retrieval_min_positive=2,
     ).fit(X, y)
     curve = clf.predict_term_structure(X)
     assert curve.shape == (len(X), 4)
@@ -222,10 +234,12 @@ def test_blind_strategies_keep_batch_independence_and_retrieval_does_not():
     y = (label == 2).astype(np.int64)
     model = _small_model()
 
-    blind_a = FinancialTFMClassifier(model, max_context=30, context_strategy="uniform",
-                                     query_chunk=4096).fit(X, y)
-    blind_b = FinancialTFMClassifier(model, max_context=30, context_strategy="uniform",
-                                     query_chunk=7).fit(X, y)
+    blind_a = FinancialTFMClassifier(
+        model, max_context=30, context_strategy="uniform", query_chunk=4096
+    ).fit(X, y)
+    blind_b = FinancialTFMClassifier(
+        model, max_context=30, context_strategy="uniform", query_chunk=7
+    ).fit(X, y)
     np.testing.assert_allclose(blind_a.predict_proba(X), blind_b.predict_proba(X), atol=1e-5)
 
     kw = {"max_context": 30, "context_strategy": "retrieval", "retrieval_min_positive": 2}
@@ -250,8 +264,12 @@ def test_retrieval_correction_is_one_global_shift_not_per_group():
     X, label = _clustered(n_per=50)
     X = np.concatenate([X, X[:, :1] * 0.5, X[:, 1:] * -1], axis=1).astype(np.float32)
     y = (label == 2).astype(np.int64)
-    kw = {"max_context": 40, "context_strategy": "retrieval", "retrieval_groups": 3,
-          "retrieval_min_positive": 2}
+    kw = {
+        "max_context": 40,
+        "context_strategy": "retrieval",
+        "retrieval_groups": 3,
+        "retrieval_min_positive": 2,
+    }
     model = _small_model()
     on = FinancialTFMClassifier(model, correct_prior=True, **kw).fit(X, y)
     off = FinancialTFMClassifier(model, correct_prior=False, **kw).fit(X, y)
@@ -264,8 +282,12 @@ def test_retrieval_term_structure_correction_preserves_ranking_too():
     X, label = _clustered(n_per=50)
     X = np.concatenate([X, X[:, :1] * 0.5, X[:, 1:] * -1], axis=1).astype(np.float32)
     y = (label == 2).astype(np.int64)
-    kw = {"max_context": 40, "context_strategy": "retrieval", "retrieval_groups": 3,
-          "retrieval_min_positive": 2}
+    kw = {
+        "max_context": 40,
+        "context_strategy": "retrieval",
+        "retrieval_groups": 3,
+        "retrieval_min_positive": 2,
+    }
     model = _small_model(n_horizons=4)
     on = FinancialTFMClassifier(model, correct_prior=True, **kw).fit(X, y)
     off = FinancialTFMClassifier(model, correct_prior=False, **kw).fit(X, y)
@@ -280,8 +302,11 @@ def test_pooled_context_rate_weights_by_queries_served():
     X = np.concatenate([X, X[:, :1] * 0.5, X[:, 1:] * -1], axis=1).astype(np.float32)
     y = (label == 2).astype(np.int64)
     clf = FinancialTFMClassifier(
-        _small_model(), max_context=30, context_strategy="retrieval",
-        retrieval_groups=4, retrieval_min_positive=1,
+        _small_model(),
+        max_context=30,
+        context_strategy="retrieval",
+        retrieval_groups=4,
+        retrieval_min_positive=1,
     ).fit(X, y)
     plan = clf._retrieval_plan(X)
     rate = clf._pooled_context_rate(plan)
@@ -320,8 +345,10 @@ def test_prototype_context_picks_real_rows_not_centroids():
 def test_prototype_context_spans_the_majority_clusters():
     """The point of clustering is coverage: prototypes must not all come from one blob."""
     rng = np.random.default_rng(2)
-    blobs = [np.full((300, 2), c, dtype=np.float32) + rng.normal(scale=0.2, size=(300, 2))
-             for c in (-20.0, 0.0, 20.0)]
+    blobs = [
+        np.full((300, 2), c, dtype=np.float32) + rng.normal(scale=0.2, size=(300, 2))
+        for c in (-20.0, 0.0, 20.0)
+    ]
     Z = np.concatenate(blobs).astype(np.float32)
     y = np.zeros(len(Z), dtype=np.int64)
     y[:30] = 1  # minority inside the first blob only
@@ -391,8 +418,11 @@ def _retrieval_data():
 def test_per_class_mode_fixes_every_context_class_count():
     X, y = _retrieval_data()
     clf = FinancialTFMClassifier(
-        _small_model(), max_context=40, context_strategy="retrieval",
-        retrieval_groups=4, retrieval_per_class=10,
+        _small_model(),
+        max_context=40,
+        context_strategy="retrieval",
+        retrieval_groups=4,
+        retrieval_per_class=10,
     ).fit(X, y)
     for _, ctx in clf._retrieval_plan(X):
         assert ctx.size == 40
@@ -407,13 +437,18 @@ def test_per_class_mode_is_off_by_default_and_the_default_plan_is_unchanged():
     ``retrieve`` gives, and the same predictions after the lever is turned on and off."""
     import inspect
 
-    assert inspect.signature(FinancialTFMClassifier.__init__).parameters[
-        "retrieval_per_class"
-    ].default is None
+    assert (
+        inspect.signature(FinancialTFMClassifier.__init__).parameters["retrieval_per_class"].default
+        is None
+    )
     X, y = _retrieval_data()
     model = _small_model()
-    kw = {"max_context": 40, "context_strategy": "retrieval", "retrieval_groups": 4,
-          "retrieval_min_positive": 2}
+    kw = {
+        "max_context": 40,
+        "context_strategy": "retrieval",
+        "retrieval_groups": 4,
+        "retrieval_min_positive": 2,
+    }
     clf = FinancialTFMClassifier(model, **kw).fit(X, y)
     rng = np.random.default_rng(clf.random_state)
     Zq = normalise_for_distance(X, clf._centre, clf._scale)
@@ -447,7 +482,11 @@ def test_per_class_mode_refuses_settings_it_would_ignore_or_overflow(kw):
 def test_per_class_mode_reaches_ensemble_members():
     X, y = _retrieval_data()
     clf = FinancialTFMClassifier(
-        _small_model(), max_context=40, context_strategy="retrieval", retrieval_groups=4,
-        retrieval_per_class=7, n_ensemble=2,
+        _small_model(),
+        max_context=40,
+        context_strategy="retrieval",
+        retrieval_groups=4,
+        retrieval_per_class=7,
+        n_ensemble=2,
     ).fit(X, y)
     assert clf._clone_with_seed(1).retrieval_per_class == 7

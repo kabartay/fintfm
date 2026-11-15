@@ -94,7 +94,10 @@ def test_single_class_draw_is_repaired_with_real_rows_not_flipped_labels():
     panel["true_label_echo"] = panel["label"].astype(float)
     for seed in range(20):
         task = sample_real_edgar_task(
-            np.random.default_rng(seed), n_rows=64, max_features=10, panel=panel,
+            np.random.default_rng(seed),
+            n_rows=64,
+            max_features=10,
+            panel=panel,
             min_positives=2,
         )
         assert task.y.sum() >= 2
@@ -121,9 +124,7 @@ def test_p_real_edgar_one_always_draws_from_the_panel(tmp_path):
     panel = _fixture_panel(n=100, n_features=6)
     path = tmp_path / "panel.parquet"
     panel.to_parquet(path)
-    cfg = PriorConfig(
-        p_real_edgar=1.0, max_features=20, real_edgar_panel_path=str(path), n_rows=40
-    )
+    cfg = PriorConfig(p_real_edgar=1.0, max_features=20, real_edgar_panel_path=str(path), n_rows=40)
     rng = np.random.default_rng(7)
     task = sample_task(rng, cfg, n_rows=40)
     assert task.source == "real_edgar"
@@ -133,9 +134,7 @@ def test_batch_with_p_real_edgar_collates(tmp_path):
     panel = _fixture_panel(n=100, n_features=6)
     path = tmp_path / "panel.parquet"
     panel.to_parquet(path)
-    cfg = PriorConfig(
-        p_real_edgar=1.0, max_features=20, real_edgar_panel_path=str(path), n_rows=40
-    )
+    cfg = PriorConfig(p_real_edgar=1.0, max_features=20, real_edgar_panel_path=str(path), n_rows=40)
     rng = np.random.default_rng(8)
     batch = sample_batch(rng, cfg, batch_size=4)
     assert batch.X.shape == (4, 40, 20)
@@ -156,9 +155,7 @@ def test_no_firm_appears_in_both_context_and_query(tmp_path):
     panel["label"] = (rng.random(n) < 0.05).astype(np.int64)
     path = tmp_path / "panel.parquet"
     panel.to_parquet(path)
-    cfg = PriorConfig(
-        p_real_edgar=1.0, max_features=20, real_edgar_panel_path=str(path), n_rows=60
-    )
+    cfg = PriorConfig(p_real_edgar=1.0, max_features=20, real_edgar_panel_path=str(path), n_rows=60)
     echo = feature_columns(panel).index("firm_echo")
     for _ in range(25):
         batch = sample_batch(rng, cfg, batch_size=4)
@@ -224,15 +221,29 @@ def test_training_at_p_real_edgar_one_decreases_loss(tmp_path, monkeypatch):
     panel.to_parquet(path)
 
     model_cfg = ModelConfig(
-        max_features=10, max_classes=2, d_cell=16, d_model=32, n_heads=2,
-        n_col_layers=1, n_layers=1, d_ff=32,
+        max_features=10,
+        max_classes=2,
+        d_cell=16,
+        d_model=32,
+        n_heads=2,
+        n_col_layers=1,
+        n_layers=1,
+        d_ff=32,
     )
     prior_cfg = PriorConfig(
-        max_features=10, max_classes=2, n_rows=64, p_real_edgar=1.0,
+        max_features=10,
+        max_classes=2,
+        n_rows=64,
+        p_real_edgar=1.0,
         real_edgar_panel_path=str(path),
     )
     train_cfg = TrainConfig(
-        steps=60, batch_size=4, eval_every=1000, log_every=1000, device="cpu", seed=0,
+        steps=60,
+        batch_size=4,
+        eval_every=1000,
+        log_every=1000,
+        device="cpu",
+        seed=0,
     )
 
     losses: list[float] = []

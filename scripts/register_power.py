@@ -138,9 +138,7 @@ def main() -> None:
             if d < 2:
                 print(f"{n:>9,}  {d:>10.1f}  (fewer than 2 defaults)")
                 continue
-            cells = "".join(
-                f" {min_detectable_diff(args.auc, d, n - d, r):>9.4f}" for r in rs
-            )
+            cells = "".join(f" {min_detectable_diff(args.auc, d, n - d, r):>9.4f}" for r in rs)
             print(f"{n:>9,}  {d:>10.1f}  {ci_half_width(args.auc, d, n - d):>13.4f} |{cells}")
 
 

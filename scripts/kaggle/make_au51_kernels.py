@@ -109,15 +109,29 @@ def render(arm: str, group: str, commit: str) -> tuple[str, dict]:
     config = (CONFIGS / f"au51-{arm}.yaml").read_text()
     assert '"""' not in config
     slug = f"task_au51_{arm}_{group}"
-    src = TEMPLATE.format(arm=f"au51-{arm}-{group}", lr=ARMS[arm], folds=FOLD_GROUPS[group],
-                          commit=commit, config=config, placeholder=PLACEHOLDER)
+    src = TEMPLATE.format(
+        arm=f"au51-{arm}-{group}",
+        lr=ARMS[arm],
+        folds=FOLD_GROUPS[group],
+        commit=commit,
+        config=config,
+        placeholder=PLACEHOLDER,
+    )
     kid = slug.replace("_", "-")
     meta = {
-        "id": f"muhakabartay/fintfm-{kid}", "title": f"fintfm-{kid}", "code_file": f"{slug}.py",
-        "language": "python", "kernel_type": "script", "is_private": "true",
-        "enable_gpu": "true", "enable_tpu": "false", "enable_internet": "true",
+        "id": f"muhakabartay/fintfm-{kid}",
+        "title": f"fintfm-{kid}",
+        "code_file": f"{slug}.py",
+        "language": "python",
+        "kernel_type": "script",
+        "is_private": "true",
+        "enable_gpu": "true",
+        "enable_tpu": "false",
+        "enable_internet": "true",
         "dataset_sources": ["sebastiantomczak10/v4-group-corporate-bankruptcy"],
-        "competition_sources": [], "kernel_sources": [], "model_sources": [],
+        "competition_sources": [],
+        "kernel_sources": [],
+        "model_sources": [],
     }
     return src, meta
 

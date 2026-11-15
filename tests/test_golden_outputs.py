@@ -71,11 +71,11 @@ def describe_mismatch(recorded: dict[str, np.ndarray], actual: np.ndarray) -> st
     sample = recorded["sample"]
     now = golden.strided_sample(actual)
     if now.shape != sample.shape or now.dtype != sample.dtype:
-        return f"sample shape/dtype {now.shape} {now.dtype} vs recorded {sample.shape} {sample.dtype}"
+        return (
+            f"sample shape/dtype {now.shape} {now.dtype} vs recorded {sample.shape} {sample.dtype}"
+        )
     diff = np.abs(now.astype(np.float64) - sample.astype(np.float64))
-    return (
-        f"{int((diff > 0).sum())}/{diff.size} sampled values differ, max |diff| {diff.max():.3e}"
-    )
+    return f"{int((diff > 0).sum())}/{diff.size} sampled values differ, max |diff| {diff.max():.3e}"
 
 
 def one_ulp_variants(arr: np.ndarray) -> list[np.ndarray]:
@@ -143,7 +143,9 @@ def test_random_init_fingerprint(name, random_init_outputs):
             # rest exactly and the moved rows to a coarse bound; a real change moves most rows.
             close = np.isclose(actual, stored, rtol=1e-4, atol=1e-5).all(axis=-1)
             assert close.mean() >= 0.9, f"{name}: only {close.mean():.0%} of rows held ({mismatch})"
-            np.testing.assert_allclose(actual, stored, atol=0.05, err_msg=f"{name} moved ({mismatch})")
+            np.testing.assert_allclose(
+                actual, stored, atol=0.05, err_msg=f"{name} moved ({mismatch})"
+            )
             return
         np.testing.assert_allclose(
             actual, stored, rtol=1e-4, atol=1e-5, err_msg=f"{name} moved ({mismatch})"
@@ -180,7 +182,9 @@ def checkpoint_outputs() -> tuple[dict[str, np.ndarray], str | None]:
         )
     mismatch = environment_mismatch(_ck_meta)
     if mismatch is not None:
-        pytest.skip(f"golden outputs were recorded on another environment: {mismatch}; {REBASELINE}")
+        pytest.skip(
+            f"golden outputs were recorded on another environment: {mismatch}; {REBASELINE}"
+        )
     # a wrong file under the right name fails here rather than skipping: it is not absent
     model = golden.load_checkpoint(path)
     table = golden.golden_table()

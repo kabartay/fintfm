@@ -107,8 +107,17 @@ def test_accepted_licences(licence: str):
 
 @pytest.mark.parametrize(
     "licence",
-    ["Public", "public", "", "GPL (>= 2)", "Non-commercial scholarly and teaching purposes.",
-     "CC BY-NC 4.0", "CC BY-SA 4.0", "CC BY-ND 4.0", "MIT-0 research only"],
+    [
+        "Public",
+        "public",
+        "",
+        "GPL (>= 2)",
+        "Non-commercial scholarly and teaching purposes.",
+        "CC BY-NC 4.0",
+        "CC BY-SA 4.0",
+        "CC BY-ND 4.0",
+        "MIT-0 research only",
+    ],
 )
 def test_rejected_licences(licence: str):
     """OpenML's default ``Public`` grants research use only, so it is not a verified licence."""

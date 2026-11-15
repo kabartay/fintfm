@@ -299,9 +299,13 @@ def test_partitioned_regressor_leaves_bin_their_own_target_range():
 
 def test_partitioned_regressor_small_leaves_fall_back_and_bags_average():
     X, y = _reg_data()
-    tiny = PartitionedTFMRegressor(_reg_base(), min_samples_leaf=0.1, min_leaf_rows=10_000).fit(X, y)
+    tiny = PartitionedTFMRegressor(_reg_base(), min_samples_leaf=0.1, min_leaf_rows=10_000).fit(
+        X, y
+    )
     assert all(e is None for e in tiny.leaf_estimators_[0].values())
-    np.testing.assert_allclose(tiny.predict(X[:30]), tiny.global_estimator_.predict(X[:30]), rtol=1e-6)
+    np.testing.assert_allclose(
+        tiny.predict(X[:30]), tiny.global_estimator_.predict(X[:30]), rtol=1e-6
+    )
     bag = PartitionedTFMRegressor(
         _reg_base(), n_bags=3, min_samples_leaf=0.1, min_leaf_rows=20
     ).fit(X, y)

@@ -141,9 +141,7 @@ def _certifi_path() -> str:
     return certifi.where()
 
 
-def score_task(
-    X: np.ndarray, y: np.ndarray, model_path: str, seed: int = 0
-) -> dict[str, float]:
+def score_task(X: np.ndarray, y: np.ndarray, model_path: str, seed: int = 0) -> dict[str, float]:
     """Average precision for fintfm and baselines on one stratified split.
 
     A single 70/30 split rather than five folds: this suite exists to compare a *pattern*
@@ -174,9 +172,7 @@ def score_task(
     from fintfm.inference.classifier import FinancialTFMClassifier
     from fintfm.modeling.model import FinancialTFM
 
-    Xtr, Xte, ytr, yte = train_test_split(
-        X, y, test_size=0.3, random_state=seed, stratify=y
-    )
+    Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=0.3, random_state=seed, stratify=y)
     imp = SimpleImputer(strategy="median").fit(Xtr)
     Xtr_i, Xte_i = imp.transform(Xtr), imp.transform(Xte)
     out: dict[str, float] = {}
@@ -234,8 +230,9 @@ def run(
     from fintfm.evaluation.overlap import guard_selection
 
     suite = SUITE if suite is None else suite
-    reporting = guard_selection([n for n, _ in suite], allow_tabarena_for_reporting,
-                                "openml_breadth")
+    reporting = guard_selection(
+        [n for n, _ in suite], allow_tabarena_for_reporting, "openml_breadth"
+    )
     if reporting:
         print(f"REPORTING ONLY ({', '.join(reporting)}): not for choosing an arm (DR4.1)")
     results: list[DatasetResult] = []
@@ -314,8 +311,10 @@ def _row_hash(reference_dir: Path) -> int:
         return lambda: suite_features(name, version)
 
     hits = row_hash_report([(n, loader(n, v)) for n, v in SUITE], references)
-    print(f"\n{len(hits)} of {len(SUITE)} SUITE datasets overlap a cached TabArena-v0.1 dataset"
-          + (f": {', '.join(hits)}" if hits else ""))
+    print(
+        f"\n{len(hits)} of {len(SUITE)} SUITE datasets overlap a cached TabArena-v0.1 dataset"
+        + (f": {', '.join(hits)}" if hits else "")
+    )
     return 1 if hits else 0
 
 
@@ -334,18 +333,28 @@ def main(argv: Sequence[str] | None = None) -> int:
     p.add_argument("--model", default=None, help="fintfm checkpoint to score")
     p.add_argument("--max-rows", type=int, default=20_000)
     p.add_argument("--seed", type=int, default=0)
-    p.add_argument(REPORTING_FLAG, action="store_true",
-                   help="permit a selection-forbidden dataset, for reporting only")
-    p.add_argument("--row-hash", action="store_true",
-                   help="compare SUITE's contents with the cached TabArena-v0.1 datasets")
+    p.add_argument(
+        REPORTING_FLAG,
+        action="store_true",
+        help="permit a selection-forbidden dataset, for reporting only",
+    )
+    p.add_argument(
+        "--row-hash",
+        action="store_true",
+        help="compare SUITE's contents with the cached TabArena-v0.1 datasets",
+    )
     p.add_argument("--tabarena-cache", type=Path, default=TABARENA_OPENML_CACHE)
     args = p.parse_args(argv)
     if args.row_hash:
         return _row_hash(args.tabarena_cache)
     if args.model is None:
         p.error("--model is required unless --row-hash is given")
-    run(args.model, args.max_rows, args.seed,
-        allow_tabarena_for_reporting=args.allow_tabarena_for_reporting)
+    run(
+        args.model,
+        args.max_rows,
+        args.seed,
+        allow_tabarena_for_reporting=args.allow_tabarena_for_reporting,
+    )
     return 0
 
 

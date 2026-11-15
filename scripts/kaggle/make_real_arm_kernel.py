@@ -110,8 +110,11 @@ def main() -> None:
     p.add_argument("--share", type=float, default=0.3, help="fraction of tasks from the source")
     p.add_argument("--dataset", default="fintfm-r-panels", help="private Kaggle dataset slug")
     p.add_argument("--user", default="muhakabartay")
-    p.add_argument("--seeds", default="0,1",
-                   help=f"comma-separated; each needs a matched control, one of {sorted(CONTROLS)}")
+    p.add_argument(
+        "--seeds",
+        default="0,1",
+        help=f"comma-separated; each needs a matched control, one of {sorted(CONTROLS)}",
+    )
     args = p.parse_args()
     seeds = [int(s) for s in args.seeds.split(",")]
     if unmatched := [s for s in seeds if s not in CONTROLS]:
@@ -121,18 +124,32 @@ def main() -> None:
         out = HERE / f"fintfm_r_{arm}_s{seed}"
         out.mkdir(exist_ok=True)
         code = out / f"fintfm_r_{arm}_s{seed}.py"
-        code.write_text(TEMPLATE.format(
-            arm=arm, seed=seed, control=CONTROLS[seed], share=args.share,
-            commit=args.commit, dataset=args.dataset,
-        ))
+        code.write_text(
+            TEMPLATE.format(
+                arm=arm,
+                seed=seed,
+                control=CONTROLS[seed],
+                share=args.share,
+                commit=args.commit,
+                dataset=args.dataset,
+            )
+        )
         # id must equal the slug Kaggle derives from the title, or push fails with 409/400 --
         # the mismatch that cost several launches earlier in this project.
         meta = {
-            "id": f"{args.user}/{slug}", "title": slug, "code_file": code.name,
-            "language": "python", "kernel_type": "script", "is_private": "true",
-            "enable_gpu": "true", "enable_tpu": "false", "enable_internet": "true",
+            "id": f"{args.user}/{slug}",
+            "title": slug,
+            "code_file": code.name,
+            "language": "python",
+            "kernel_type": "script",
+            "is_private": "true",
+            "enable_gpu": "true",
+            "enable_tpu": "false",
+            "enable_internet": "true",
             "dataset_sources": [f"{args.user}/{args.dataset}"],
-            "competition_sources": [], "kernel_sources": [], "model_sources": [],
+            "competition_sources": [],
+            "kernel_sources": [],
+            "model_sources": [],
         }
         (out / "kernel-metadata.json").write_text(json.dumps(meta, indent=2) + "\n")
         print(f"wrote {out.relative_to(HERE.parents[1])}")

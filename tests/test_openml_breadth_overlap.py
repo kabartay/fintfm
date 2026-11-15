@@ -19,8 +19,15 @@ from fintfm.experiments.openml_breadth import SUITE
 #: scikit-learn OpenML cache (``~/scikit_learn_data/openml``) on 2026-10-16. A new SUITE entry
 #: must add its id here, which the first test enforces.
 SUITE_OPENML_IDS: dict[str, int] = {
-    "mammography": 310, "wilt": 1570, "ozone-level-8hr": 1487, "pc4": 1049, "kc1": 1067,
-    "MagicTelescope": 1120, "phoneme": 1489, "spambase": 44, "banknote-authentication": 1462,
+    "mammography": 310,
+    "wilt": 1570,
+    "ozone-level-8hr": 1487,
+    "pc4": 1049,
+    "kc1": 1067,
+    "MagicTelescope": 1120,
+    "phoneme": 1489,
+    "spambase": 44,
+    "banknote-authentication": 1462,
 }
 
 

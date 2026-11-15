@@ -17,8 +17,16 @@ from fintfm.modeling.model import FinancialTFM, ModelConfig
 def _model() -> FinancialTFM:
     torch.manual_seed(0)
     model = FinancialTFM(
-        ModelConfig(max_features=8, max_classes=2, d_cell=16, d_model=32, n_heads=2,
-                    n_col_layers=1, n_layers=2, d_ff=64)
+        ModelConfig(
+            max_features=8,
+            max_classes=2,
+            d_cell=16,
+            d_model=32,
+            n_heads=2,
+            n_col_layers=1,
+            n_layers=2,
+            d_ff=64,
+        )
     ).eval()
     model.trained_objectives = ("classification",)
     return model
@@ -40,9 +48,11 @@ def test_off_by_default_is_byte_identical():
     X, y, g = _data()
     Xq = np.random.default_rng(1).normal(size=(30, 6)).astype(np.float32)
     a = FinancialTFMClassifier(_model(), max_context=100).fit(X, y).predict_proba(Xq)
-    b = FinancialTFMClassifier(_model(), max_context=100, finetune_steps=0).fit(
-        X, y, groups=g
-    ).predict_proba(Xq)
+    b = (
+        FinancialTFMClassifier(_model(), max_context=100, finetune_steps=0)
+        .fit(X, y, groups=g)
+        .predict_proba(Xq)
+    )
     assert np.array_equal(a, b)
 
 
@@ -51,7 +61,11 @@ def test_finetuning_copies_the_model_and_changes_the_copy():
     model = _model()
     before = _state(model)
     clf = FinancialTFMClassifier(
-        model, max_context=100, finetune_steps=3, finetune_lr=1e-3, finetune_batch=2,
+        model,
+        max_context=100,
+        finetune_steps=3,
+        finetune_lr=1e-3,
+        finetune_batch=2,
         finetune_query=32,
     ).fit(X, y, groups=g)
     for k, v in model.state_dict().items():
@@ -76,8 +90,13 @@ def test_query_groups_never_appear_in_the_context():
 def test_finetuning_reduces_the_loss_on_a_learnable_task():
     X, y, g = _data(n=600)
     clf = FinancialTFMClassifier(
-        _model(), max_context=128, finetune_steps=60, finetune_lr=3e-3, finetune_batch=4,
-        finetune_query=64, random_state=0,
+        _model(),
+        max_context=128,
+        finetune_steps=60,
+        finetune_lr=3e-3,
+        finetune_batch=4,
+        finetune_query=64,
+        random_state=0,
     ).fit(X, y, groups=g)
     losses = clf.finetune_losses_
     assert np.mean(losses[-10:]) < np.mean(losses[:10])
@@ -107,7 +126,11 @@ def test_string_company_ids_work_and_stay_linear():
     X, y, _ = _data()
     names = np.array([f"firm-{i // 3}" for i in range(len(y))])
     clf = FinancialTFMClassifier(
-        _model(), max_context=100, finetune_steps=2, finetune_batch=2, finetune_query=32,
+        _model(),
+        max_context=100,
+        finetune_steps=2,
+        finetune_batch=2,
+        finetune_query=32,
     ).fit(X, y, groups=names)
     assert len(clf.finetune_losses_) == 2
 
@@ -132,8 +155,14 @@ def test_enriched_queries_hit_their_share_and_weight_back_to_the_true_rate():
     groups = np.arange(n) // 4
     uniq = np.unique(groups)
     ci, qi, w = _finetune_rows(
-        np.random.default_rng(1), groups, uniq, n_q_groups=1500, n_ctx=500, n_q=500,
-        y=y, pos_frac=0.1,
+        np.random.default_rng(1),
+        groups,
+        uniq,
+        n_q_groups=1500,
+        n_ctx=500,
+        n_q=500,
+        y=y,
+        pos_frac=0.1,
     )
     assert y[qi].mean() == 0.1
     # weights are true/sampled per class, so the weighted positive share comes back to the
@@ -230,7 +259,10 @@ def test_finetune_context_never_exceeds_the_context_pool(monkeypatch):
     monkeypatch.setattr(mod, "_finetune_rows", spy)
     X, y, g = _data(n=60)  # 20 companies of three rows
     FinancialTFMClassifier(
-        _model(), max_context=2000, finetune_steps=2, finetune_query=8,
+        _model(),
+        max_context=2000,
+        finetune_steps=2,
+        finetune_query=8,
     ).fit(X, y, groups=g)
     assert drawn
     for ci in drawn:
@@ -257,7 +289,10 @@ def test_query_positive_fraction_must_lie_strictly_between_zero_and_one():
     X, y, g = _data(n=60)
     for frac in (0.0, 1.0, 1.5):
         clf = FinancialTFMClassifier(
-            _model(), max_context=30, finetune_steps=1, finetune_query=8,
+            _model(),
+            max_context=30,
+            finetune_steps=1,
+            finetune_query=8,
             finetune_query_pos_frac=frac,
         )
         with pytest.raises(ValueError, match="finetune_query_pos_frac"):
@@ -265,8 +300,14 @@ def test_query_positive_fraction_must_lie_strictly_between_zero_and_one():
     # near 1, rounding gave every query to the positives and the same division by zero
     _, y_big, g_big = _data(n=600)
     _, qi, w = _finetune_rows(
-        np.random.default_rng(0), g_big, np.unique(g_big), n_q_groups=60, n_ctx=50, n_q=32,
-        y=y_big, pos_frac=0.99,
+        np.random.default_rng(0),
+        g_big,
+        np.unique(g_big),
+        n_q_groups=60,
+        n_ctx=50,
+        n_q=32,
+        y=y_big,
+        pos_frac=0.99,
     )
     assert np.isfinite(w).all() and set(y_big[qi]) == {0, 1}
 
@@ -287,7 +328,11 @@ def test_a_zero_finetune_context_is_an_error_not_max_context():
 
     X, y, g = _data(n=60)
     clf = FinancialTFMClassifier(
-        _model(), max_context=30, finetune_steps=1, finetune_query=8, finetune_context=0,
+        _model(),
+        max_context=30,
+        finetune_steps=1,
+        finetune_query=8,
+        finetune_context=0,
     )
     with pytest.raises(ValueError, match="finetune_context"):
         clf.fit(X, y, groups=g)
@@ -335,7 +380,11 @@ def test_mps_cache_is_released_after_finetuning(monkeypatch):
     monkeypatch.setattr(torch.mps, "empty_cache", lambda: calls.append(True))
     X, y, g = _data()
     FinancialTFMClassifier(
-        _model(), device="mps", max_context=100, finetune_steps=1, finetune_query=32,
+        _model(),
+        device="mps",
+        max_context=100,
+        finetune_steps=1,
+        finetune_query=32,
     ).fit(X, y, groups=g)
     assert calls
 
@@ -358,7 +407,10 @@ def test_a_failed_finetune_leaves_no_model_in_training_mode(monkeypatch):
 def test_finetuning_leaves_no_gradients_behind():
     X, y, g = _data()
     clf = FinancialTFMClassifier(
-        _model(), max_context=100, finetune_steps=2, finetune_query=32,
+        _model(),
+        max_context=100,
+        finetune_steps=2,
+        finetune_query=32,
     ).fit(X, y, groups=g)
     assert all(p.grad is None for p in clf.model_.parameters())
 
@@ -375,19 +427,35 @@ def _imbalanced(n: int = 600, seed: int = 0) -> tuple[np.ndarray, np.ndarray, np
 
 
 def _ES(**kw):
-    base = {"max_context": 100, "finetune_steps": 30, "finetune_lr": 1e-3, "finetune_batch": 2,
-            "finetune_query": 32, "finetune_val_frac": 0.25, "finetune_eval_every": 5,
-            "finetune_patience": 2, "finetune_val_tasks": 2, "finetune_val_query": 64}
+    base = {
+        "max_context": 100,
+        "finetune_steps": 30,
+        "finetune_lr": 1e-3,
+        "finetune_batch": 2,
+        "finetune_query": 32,
+        "finetune_val_frac": 0.25,
+        "finetune_eval_every": 5,
+        "finetune_patience": 2,
+        "finetune_val_tasks": 2,
+        "finetune_val_query": 64,
+    }
     return FinancialTFMClassifier(_model(), **{**base, **kw})
 
 
 def test_early_stopping_off_by_default_changes_nothing():
     """val_frac 0 is the old loop: the same weights as before the keys existed, no curve."""
     X, y, g = _data()
-    a = FinancialTFMClassifier(_model(), max_context=100, finetune_steps=3, finetune_lr=1e-3,
-                               finetune_query=32).fit(X, y, groups=g)
-    b = FinancialTFMClassifier(_model(), max_context=100, finetune_steps=3, finetune_lr=1e-3,
-                               finetune_query=32, finetune_val_frac=0.0).fit(X, y, groups=g)
+    a = FinancialTFMClassifier(
+        _model(), max_context=100, finetune_steps=3, finetune_lr=1e-3, finetune_query=32
+    ).fit(X, y, groups=g)
+    b = FinancialTFMClassifier(
+        _model(),
+        max_context=100,
+        finetune_steps=3,
+        finetune_lr=1e-3,
+        finetune_query=32,
+        finetune_val_frac=0.0,
+    ).fit(X, y, groups=g)
     assert b.finetune_val_curve_ == [] and b.finetune_best_step_ is None
     assert len(b.finetune_losses_) == 3
     for k, v in a.model_.state_dict().items():
@@ -415,8 +483,15 @@ def test_early_stopping_restores_the_best_weights():
     model = _model()
     before = _state(model)
     clf = FinancialTFMClassifier(
-        model, max_context=100, finetune_steps=20, finetune_lr=50.0, finetune_query=32,
-        finetune_val_frac=0.25, finetune_eval_every=2, finetune_patience=2, finetune_val_tasks=2,
+        model,
+        max_context=100,
+        finetune_steps=20,
+        finetune_lr=50.0,
+        finetune_query=32,
+        finetune_val_frac=0.25,
+        finetune_eval_every=2,
+        finetune_patience=2,
+        finetune_val_tasks=2,
         finetune_val_query=64,
     ).fit(X, y, groups=g)
     assert clf.finetune_best_step_ == 0

@@ -73,13 +73,19 @@ if TYPE_CHECKING:  # torch is imported lazily below; annotations stay free
 
 #: The arms, in the order they are reported. ``fintfm`` is the protocol's own arm.
 ARMS: tuple[str, ...] = (
-    "fintfm", "catboost", "catboost_fintfm_baseline", "catboost_fintfm_feature",
+    "fintfm",
+    "catboost",
+    "catboost_fintfm_baseline",
+    "catboost_fintfm_feature",
 )
 
 #: The arms of ``--booster lightgbm_tuned`` (DR8.4): tuned LightGBM alone, from FinTFM's
 #: out-of-fold logit as its starting score, and with it as one more feature. ``fintfm`` first.
 TUNED_ARMS: tuple[str, ...] = (
-    "fintfm", "lightgbm_tuned", "lightgbm_tuned_fintfm_baseline", "lightgbm_tuned_fintfm_feature",
+    "fintfm",
+    "lightgbm_tuned",
+    "lightgbm_tuned_fintfm_baseline",
+    "lightgbm_tuned_fintfm_feature",
 )
 
 #: Probability clip before a logit, so a saturated FinTFM score cannot become infinite.
@@ -88,7 +94,7 @@ _P_CLIP = 1e-6
 #: Seed offset for the inner company dealing, so it never coincides with the outer one.
 INNER_SEED_OFFSET = 1000
 
-_WORKER = '''
+_WORKER = """
 import json, sys
 import numpy as np
 from catboost import CatBoostClassifier, Pool
@@ -103,7 +109,7 @@ raw = est.predict(Pool(d["Xte"]), prediction_type="RawFormulaVal")
 if "bte" in d.files:
     raw = raw + d["bte"]
 np.save(sys.argv[2], 1.0 / (1.0 + np.exp(-raw)))
-'''
+"""
 
 
 class LeakageError(AssertionError):
@@ -146,7 +152,9 @@ def fold_group_key(country: np.ndarray, company: np.ndarray) -> np.ndarray:
 
 
 def assert_no_leak(
-    context_rows: np.ndarray, forbidden_rows: np.ndarray, company: np.ndarray | None,
+    context_rows: np.ndarray,
+    forbidden_rows: np.ndarray,
+    company: np.ndarray | None,
     what: str,
 ) -> None:
     """Refuse a context that shares a row, or a company, with rows it must not see.
@@ -270,7 +278,10 @@ def fit_predict_catboost(
         np.savez(data, **arrays)
         proc = subprocess.run(
             [sys.executable, "-c", _WORKER, str(data), str(out), json.dumps(params or {})],
-            capture_output=True, text=True, timeout=timeout, check=False,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
         )
         if proc.returncode != 0 or not out.exists():
             reason = (proc.stderr or "").strip().splitlines()
@@ -295,9 +306,7 @@ def cap_train_rows(
     """
     if len(train_rows) <= max_rows:
         return train_rows
-    names, inverse, counts = np.unique(
-        company[train_rows], return_inverse=True, return_counts=True
-    )
+    names, inverse, counts = np.unique(company[train_rows], return_inverse=True, return_counts=True)
     order = np.random.RandomState(seed).permutation(len(names))
     kept = order[: max(1, int(np.searchsorted(np.cumsum(counts[order]), max_rows, "right")))]
     return np.sort(train_rows[np.isin(inverse.ravel(), kept)])
@@ -398,16 +407,23 @@ def run_arrays(
             f"{n_inner} folds), each fit sampling <= {cfg.inference.max_context:,}"
             + (
                 f"; fine-tunes {n_inner + 1} x {cfg.inference.finetune_steps} steps"
-                if cfg.inference.finetune_steps else ""
+                if cfg.inference.finetune_steps
+                else ""
             ),
             flush=True,
         )
         oof, plan = inner_oof_logits(
-            Z, y, tr, country, company, held,
+            Z,
+            y,
+            tr,
+            country,
+            company,
+            held,
             lambda k, fold=fold: fintfm_classifier(
                 model, cfg, device=device, random_state=fold + INNER_SEED_OFFSET * (k + 1)
             ),
-            n_inner, seed=FOLD_SEED + INNER_SEED_OFFSET + fold,
+            n_inner,
+            seed=FOLD_SEED + INNER_SEED_OFFSET + fold,
         )
         outer = fintfm_classifier(model, cfg, device=device, random_state=fold)
         outer.fit(Z[tr], y[tr], groups=company[tr])
@@ -416,8 +432,9 @@ def run_arrays(
 
         arms: dict[str, np.ndarray] = {"fintfm": p_held}
         if booster == "lightgbm_tuned":
-            arms |= _tuned_arms(Z, y, company, tr, held, oof, b_held, tuned_configs,
-                                tuned_budget_s, fold)
+            arms |= _tuned_arms(
+                Z, y, company, tr, held, oof, b_held, tuned_configs, tuned_budget_s, fold
+            )
         else:
             base = fit_predict_catboost(Z[tr], y[tr], Z[held], catboost_params)
             if base is not None:
@@ -428,7 +445,9 @@ def run_arrays(
             if hybrid is not None:
                 arms["catboost_fintfm_baseline"] = hybrid
             feature = fit_predict_catboost(
-                np.column_stack([Z[tr], oof]), y[tr], np.column_stack([Z[held], b_held]),
+                np.column_stack([Z[tr], oof]),
+                y[tr],
+                np.column_stack([Z[held], b_held]),
                 catboost_params,
             )
             if feature is not None:
@@ -436,7 +455,10 @@ def run_arrays(
 
         nv = len(va)
         common = {
-            "y_true": y[te], "y_val": y[va], "company_test": codes[te], "company_val": codes[va],
+            "y_true": y[te],
+            "y_val": y[va],
+            "company_test": codes[te],
+            "company_val": codes[va],
         }
         np.savez_compressed(
             out_dir / f"predictions_fold{fold}.npz",
@@ -449,35 +471,55 @@ def run_arrays(
             d.mkdir(parents=True, exist_ok=True)
             # the arm under the name compare_v4_scores.py reads, so any two arms pair directly
             np.savez_compressed(
-                d / f"predictions_fold{fold}.npz", **common,
-                pred_fintfm=p[nv:], val_fintfm=p[:nv],
+                d / f"predictions_fold{fold}.npz",
+                **common,
+                pred_fintfm=p[nv:],
+                val_fintfm=p[:nv],
             )
-        scores = {a: {"test": _metrics(y[te], p[nv:]), "val": _metrics(y[va], p[:nv])}
-                  for a, p in arms.items()}
-        for a in (TUNED_ARMS if booster == "lightgbm_tuned" else ARMS):
+        scores = {
+            a: {"test": _metrics(y[te], p[nv:]), "val": _metrics(y[va], p[:nv])}
+            for a, p in arms.items()
+        }
+        for a in TUNED_ARMS if booster == "lightgbm_tuned" else ARMS:
             if a in scores:
                 t = scores[a]["test"]
-                print(f"  fold {fold} {a:>26}: AP {t['avg_precision']:.4f}  ROC-AUC "
-                      f"{t['roc_auc']:.4f}  mean predicted {t['mean_predicted']:.4%} vs "
-                      f"observed {t['observed_rate']:.4%}  spread sd {t['pred_sd']:.4f} "
-                      f"p99/p50 {t['pred_p99_over_p50']:.2f}", flush=True)
+                print(
+                    f"  fold {fold} {a:>26}: AP {t['avg_precision']:.4f}  ROC-AUC "
+                    f"{t['roc_auc']:.4f}  mean predicted {t['mean_predicted']:.4%} vs "
+                    f"observed {t['observed_rate']:.4%}  spread sd {t['pred_sd']:.4f} "
+                    f"p99/p50 {t['pred_p99_over_p50']:.2f}",
+                    flush=True,
+                )
             else:
                 print(f"  fold {fold} {a:>26}: FAILED, excluded from this fold")
-        fold_records.append({
-            "fold": fold, "n_train": len(tr), "n_train_uncapped": n_full, "n_val": nv,
-            "n_test": len(te), "inner_folds": n_inner,
-            "inner_contexts_checked": len(plan),
-            "fintfm_query_rows": len(tr) + len(held),
-            "inner_pool_rows_total": len(tr) * (n_inner - 1),
-            "scores": scores,
-        })
+        fold_records.append(
+            {
+                "fold": fold,
+                "n_train": len(tr),
+                "n_train_uncapped": n_full,
+                "n_val": nv,
+                "n_test": len(te),
+                "inner_folds": n_inner,
+                "inner_contexts_checked": len(plan),
+                "fintfm_query_rows": len(tr) + len(held),
+                "inner_pool_rows_total": len(tr) * (n_inner - 1),
+                "scores": scores,
+            }
+        )
 
     config = {
         **(protocol or {}),
-        "n_features": int(X.shape[1]), "fold_seed": FOLD_SEED, "n_splits": N_SPLITS,
-        "folds": list(folds), "inner_folds": n_inner, "max_train_rows": max_train_rows,
-        "catboost_params": catboost_params or {}, "booster": booster,
-        "tuned_configs": tuned_configs, "tuned_budget_s": tuned_budget_s, "inference": asdict(cfg.inference),
+        "n_features": int(X.shape[1]),
+        "fold_seed": FOLD_SEED,
+        "n_splits": N_SPLITS,
+        "folds": list(folds),
+        "inner_folds": n_inner,
+        "max_train_rows": max_train_rows,
+        "catboost_params": catboost_params or {},
+        "booster": booster,
+        "tuned_configs": tuned_configs,
+        "tuned_budget_s": tuned_budget_s,
+        "inference": asdict(cfg.inference),
         "config_sources": list(cfg.sources),
     }
     record = {
@@ -502,8 +544,16 @@ def run_arrays(
 
 
 def _tuned_arms(
-    Z: np.ndarray, y: np.ndarray, company: np.ndarray, tr: np.ndarray, held: np.ndarray,
-    oof: np.ndarray, b_held: np.ndarray, n_configs: int, budget_s: float | None, fold: int,
+    Z: np.ndarray,
+    y: np.ndarray,
+    company: np.ndarray,
+    tr: np.ndarray,
+    held: np.ndarray,
+    oof: np.ndarray,
+    b_held: np.ndarray,
+    n_configs: int,
+    budget_s: float | None,
+    fold: int,
 ) -> dict[str, np.ndarray]:
     """The three tuned-LightGBM arms of one outer fold (:data:`TUNED_ARMS`, minus ``fintfm``).
 
@@ -533,18 +583,22 @@ def _tuned_arms(
     base = {"ytr": y[tr], "yte": y[held], "gtr": company_codes(company)[tr]}
     variants = {
         "lightgbm_tuned": {"Xtr": Z[tr], "Xte": Z[held]},
-        "lightgbm_tuned_fintfm_baseline": {"Xtr": Z[tr], "Xte": Z[held], "btr": oof,
-                                           "bte": b_held},
-        "lightgbm_tuned_fintfm_feature": {"Xtr": np.column_stack([Z[tr], oof]),
-                                          "Xte": np.column_stack([Z[held], b_held])},
+        "lightgbm_tuned_fintfm_baseline": {"Xtr": Z[tr], "Xte": Z[held], "btr": oof, "bte": b_held},
+        "lightgbm_tuned_fintfm_feature": {
+            "Xtr": np.column_stack([Z[tr], oof]),
+            "Xte": np.column_stack([Z[held], b_held]),
+        },
     }
     out: dict[str, np.ndarray] = {}
     for name, arrays in variants.items():
         res = run_tuned({**base, **arrays}, n_configs, budget_s, seed=fold, predictions=True)
         if res is None:
             continue
-        print(f"  fold {fold} {name}: {res['n_trials']} configs in {res['tune_seconds']}s, "
-              f"best inner-validation AP {res['val_ap']:.4f}", flush=True)
+        print(
+            f"  fold {fold} {name}: {res['n_trials']} configs in {res['tune_seconds']}s, "
+            f"best inner-validation AP {res['val_ap']:.4f}",
+            flush=True,
+        )
         out[name] = res["predictions"]
     return out
 
@@ -555,33 +609,61 @@ def main() -> None:
     from fintfm.experiments.v4_protocol import _load_horizon
     from fintfm.modeling.model import FinancialTFM
 
-    p = argparse.ArgumentParser(description=__doc__,
-                                formatter_class=argparse.RawDescriptionHelpFormatter)
+    p = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     p.add_argument("--model", required=True)
     p.add_argument("--out", type=str, default="runs/hybrid-catboost")
     p.add_argument("--config", type=str, default=None)
     p.add_argument("--horizon", type=int, default=0, choices=sorted(HORIZON_FILES))
     p.add_argument("--folds", type=str, default="0,1,2,3,4", help="comma-separated")
-    p.add_argument("--max-rows", type=int, default=None,
-                   help="development cap on the panel, whole companies, as fintfm-v4protocol")
-    p.add_argument("--max-train-rows", type=int, default=None,
-                   help="development cap on each fold's training rows, whole companies; "
-                        "val/test rows are untouched, so arms still pair with a full run")
-    p.add_argument("--inner-folds", type=int, default=5,
-                   help="company-grouped inner folds for the out-of-fold FinTFM logits; "
-                        "FinTFM fits per outer fold = this + 1")
-    p.add_argument("--catboost-params", type=str, default="",
-                   help="k=v,... for every CatBoost arm, e.g. iterations=200,depth=6; "
-                        "empty is library defaults (1,000 iterations)")
+    p.add_argument(
+        "--max-rows",
+        type=int,
+        default=None,
+        help="development cap on the panel, whole companies, as fintfm-v4protocol",
+    )
+    p.add_argument(
+        "--max-train-rows",
+        type=int,
+        default=None,
+        help="development cap on each fold's training rows, whole companies; "
+        "val/test rows are untouched, so arms still pair with a full run",
+    )
+    p.add_argument(
+        "--inner-folds",
+        type=int,
+        default=5,
+        help="company-grouped inner folds for the out-of-fold FinTFM logits; "
+        "FinTFM fits per outer fold = this + 1",
+    )
+    p.add_argument(
+        "--catboost-params",
+        type=str,
+        default="",
+        help="k=v,... for every CatBoost arm, e.g. iterations=200,depth=6; "
+        "empty is library defaults (1,000 iterations)",
+    )
     p.add_argument("--device", type=str, default="cpu")
-    p.add_argument("--booster", choices=["catboost", "lightgbm_tuned"], default="catboost",
-                   help="catboost: the AU4.4 arms (default). lightgbm_tuned: a tuned LightGBM "
-                        "alone and with the FinTFM logit as init score and as a feature (DR8.4)")
-    p.add_argument("--tuned-configs", type=int, default=30,
-                   help="configs per search with --booster lightgbm_tuned")
-    p.add_argument("--tuned-budget", type=float, default=600.0,
-                   help="seconds per search with --booster lightgbm_tuned; 0 runs the first "
-                        "config only")
+    p.add_argument(
+        "--booster",
+        choices=["catboost", "lightgbm_tuned"],
+        default="catboost",
+        help="catboost: the AU4.4 arms (default). lightgbm_tuned: a tuned LightGBM "
+        "alone and with the FinTFM logit as init score and as a feature (DR8.4)",
+    )
+    p.add_argument(
+        "--tuned-configs",
+        type=int,
+        default=30,
+        help="configs per search with --booster lightgbm_tuned",
+    )
+    p.add_argument(
+        "--tuned-budget",
+        type=float,
+        default=600.0,
+        help="seconds per search with --booster lightgbm_tuned; 0 runs the first config only",
+    )
     args = p.parse_args()
     if args.inner_folds < 2:
         p.error("--inner-folds must be at least 2")
@@ -590,13 +672,22 @@ def main() -> None:
     except ValueError as e:
         p.error(str(e))
     cfg = load_config(args.config)
-    X, y, country, company, _ = _load_horizon(CACHE_DIR / "v4finbench", args.horizon,
-                                              args.max_rows)
+    X, y, country, company, _ = _load_horizon(CACHE_DIR / "v4finbench", args.horizon, args.max_rows)
     record = run_arrays(
-        X, y, country, company, FinancialTFM.load(args.model), Path(args.out),
-        folds=tuple(int(v) for v in args.folds.split(",")), cfg=cfg, device=args.device,
-        n_inner=args.inner_folds, max_train_rows=args.max_train_rows,
-        catboost_params=params, booster=args.booster, tuned_configs=args.tuned_configs,
+        X,
+        y,
+        country,
+        company,
+        FinancialTFM.load(args.model),
+        Path(args.out),
+        folds=tuple(int(v) for v in args.folds.split(",")),
+        cfg=cfg,
+        device=args.device,
+        n_inner=args.inner_folds,
+        max_train_rows=args.max_train_rows,
+        catboost_params=params,
+        booster=args.booster,
+        tuned_configs=args.tuned_configs,
         tuned_budget_s=args.tuned_budget,
         protocol={"model": args.model, "horizon": args.horizon, "max_rows": args.max_rows},
     )

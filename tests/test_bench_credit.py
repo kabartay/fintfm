@@ -86,8 +86,16 @@ def _dated_panel(n: int = 400) -> SurvivalDataset:
     X = rng.normal(size=(n, 4)).astype(np.float32)
     year = np.where(np.arange(n) < n // 2, 2014, 2018)
     return SurvivalDataset(
-        X, (X[:, 0] > 1).astype(int), np.full(n, -1), np.ones(n, dtype=int), 1, year,
-        "synthetic-dated", "test", "synthetic", groups=np.arange(n),
+        X,
+        (X[:, 0] > 1).astype(int),
+        np.full(n, -1),
+        np.ones(n, dtype=int),
+        1,
+        year,
+        "synthetic-dated",
+        "test",
+        "synthetic",
+        groups=np.arange(n),
     )
 
 

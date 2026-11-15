@@ -59,8 +59,11 @@ def test_n9_matches_scipy_on_random_data() -> None:
     from scipy.stats import permutation_test
 
     ref = permutation_test(
-        (x,), lambda a: spearmanr(a, y).statistic, permutation_type="pairings",
-        alternative="two-sided", n_resamples=np.inf,
+        (x,),
+        lambda a: spearmanr(a, y).statistic,
+        permutation_type="pairings",
+        alternative="two-sided",
+        n_resamples=np.inf,
     ).pvalue
     assert exact
     assert two == pytest.approx(ref, abs=1e-9)
@@ -94,11 +97,18 @@ def test_build_inputs_skips_incomplete_and_unscored(tmp_path: Path) -> None:
 
     def frame(method: str, n: int, status: str = "ok") -> pd.DataFrame:
         auc = rng.uniform(0.6, 0.9, n)
-        return pd.DataFrame({
-            "task_id": np.repeat(np.arange(16), 3)[:n], "kind": "binary",
-            "split": np.tile(np.arange(3), 16)[:n], "method": method, "status": status,
-            "error": 1 - auc, "roc_auc": auc, "ap": rng.uniform(0.4, 0.8, n),
-        })
+        return pd.DataFrame(
+            {
+                "task_id": np.repeat(np.arange(16), 3)[:n],
+                "kind": "binary",
+                "split": np.tile(np.arange(3), 16)[:n],
+                "method": method,
+                "status": status,
+                "error": 1 - auc,
+                "roc_auc": auc,
+                "ap": rng.uniform(0.4, 0.8, n),
+            }
+        )
 
     base = pd.concat([frame(m, 48) for m in ("RF", "KNN", "FinTFM-binary")])
     base.to_csv(tmp_path / "dr73" / "proxy_binary.csv", index=False)
@@ -106,10 +116,13 @@ def test_build_inputs_skips_incomplete_and_unscored(tmp_path: Path) -> None:
     frame("armfull", 48).to_csv(d42 / "proxy_armfull.csv", index=False)
     frame("armpart", 20).to_csv(d42 / "proxy_armpart.csv", index=False)
     frame("armnolite", 48).to_csv(d42 / "proxy_armnolite.csv", index=False)
-    pd.DataFrame({
-        "arm": ["published_nan", "e1-v480-s0", "armfull", "armpart"],
-        "elo_stored_pool": [750, 840, 800, 790], "elo_common_pool": [750, 840, 800, 790],
-        "mean_error": [0.2] * 4,
-    }).to_csv(d42 / "lite_elo.csv", index=False)
+    pd.DataFrame(
+        {
+            "arm": ["published_nan", "e1-v480-s0", "armfull", "armpart"],
+            "elo_stored_pool": [750, 840, 800, 790],
+            "elo_common_pool": [750, 840, 800, 790],
+            "mean_error": [0.2] * 4,
+        }
+    ).to_csv(d42 / "lite_elo.csv", index=False)
     table = mod.build_inputs(tmp_path, ["armfull", "armpart", "armnolite"])
     assert set(table.index) == {"published", "e1-v480-s0", "armfull"}

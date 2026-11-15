@@ -84,8 +84,11 @@ def test_survival_loss_decreases_under_optimisation():
     head = HazardHead(d_model=12, n_horizons=5)
     x = torch.randn(256, 12)
     # firms with a large first feature default early; others are censored
-    period = torch.where(x[:, 0] > 0.5, torch.zeros(256, dtype=torch.long),
-                         torch.full((256,), CENSORED, dtype=torch.long))
+    period = torch.where(
+        x[:, 0] > 0.5,
+        torch.zeros(256, dtype=torch.long),
+        torch.full((256,), CENSORED, dtype=torch.long),
+    )
     opt = torch.optim.Adam(head.parameters(), lr=0.05)
     losses = []
     for _ in range(120):
@@ -124,8 +127,17 @@ def test_model_term_structure_is_monotone_end_to_end():
     from fintfm.modeling.model import FinancialTFM, ModelConfig
 
     torch.manual_seed(0)
-    cfg = ModelConfig(max_features=8, max_classes=2, d_cell=16, d_model=32, n_heads=2,
-                      n_col_layers=1, n_layers=2, d_ff=64, n_horizons=5)
+    cfg = ModelConfig(
+        max_features=8,
+        max_classes=2,
+        d_cell=16,
+        d_model=32,
+        n_heads=2,
+        n_col_layers=1,
+        n_layers=2,
+        d_ff=64,
+        n_horizons=5,
+    )
     model = FinancialTFM(cfg).eval()
     X = torch.randn(2, 20, 8)
     X[0, 3, 4] = float("nan")
@@ -140,8 +152,16 @@ def test_model_term_structure_is_monotone_end_to_end():
 def test_model_without_hazard_head_refuses_clearly():
     from fintfm.modeling.model import FinancialTFM, ModelConfig
 
-    cfg = ModelConfig(max_features=6, max_classes=2, d_cell=8, d_model=16, n_heads=2,
-                      n_col_layers=1, n_layers=1, d_ff=16)
+    cfg = ModelConfig(
+        max_features=6,
+        max_classes=2,
+        d_cell=8,
+        d_model=16,
+        n_heads=2,
+        n_col_layers=1,
+        n_layers=1,
+        d_ff=16,
+    )
     model = FinancialTFM(cfg)
     with pytest.raises(RuntimeError, match="no hazard head"):
         model.term_structure(torch.randn(1, 4, 6), torch.zeros(1, 4, dtype=torch.long), n_ctx=2)
@@ -151,8 +171,17 @@ def test_term_structure_checkpoint_roundtrip(tmp_path):
     """n_horizons must survive save/load, or a served model silently loses the head."""
     from fintfm.modeling.model import FinancialTFM, ModelConfig
 
-    cfg = ModelConfig(max_features=6, max_classes=2, d_cell=8, d_model=16, n_heads=2,
-                      n_col_layers=1, n_layers=1, d_ff=16, n_horizons=4)
+    cfg = ModelConfig(
+        max_features=6,
+        max_classes=2,
+        d_cell=8,
+        d_model=16,
+        n_heads=2,
+        n_col_layers=1,
+        n_layers=1,
+        d_ff=16,
+        n_horizons=4,
+    )
     path = str(tmp_path / "hz.pt")
     FinancialTFM(cfg).save(path)
     loaded = FinancialTFM.load(path)
@@ -221,8 +250,17 @@ def test_survival_training_reduces_loss_and_keeps_the_guarantee():
     from fintfm.prior.mixture import sample_batch
 
     torch.manual_seed(0)
-    cfg = ModelConfig(max_features=32, max_classes=2, d_cell=16, d_model=32, n_heads=2,
-                      n_col_layers=1, n_layers=2, d_ff=64, n_horizons=5)
+    cfg = ModelConfig(
+        max_features=32,
+        max_classes=2,
+        d_cell=16,
+        d_model=32,
+        n_heads=2,
+        n_col_layers=1,
+        n_layers=2,
+        d_ff=64,
+        n_horizons=5,
+    )
     model = FinancialTFM(cfg)
     prior = PriorConfig(max_features=32, max_classes=2, p_financial=1.0, n_rows=64, n_horizons=5)
     rng = np.random.default_rng(0)
@@ -326,12 +364,23 @@ def test_classifier_term_structure_applies_the_correction():
     n = 3000
     X = rng.normal(size=(n, 8)).astype(np.float32)
     y = (rng.random(n) < 0.02).astype(np.int64)
-    model = FinancialTFM(ModelConfig(max_features=8, d_model=32, d_cell=16, n_layers=1,
-                                     n_col_layers=1, max_classes=2, n_horizons=4))
-    corrected = FinancialTFMClassifier(model, max_context=200, context_strategy="balanced",
-                                       correct_prior=True).fit(X, y)
-    raw = FinancialTFMClassifier(model, max_context=200, context_strategy="balanced",
-                                 correct_prior=False).fit(X, y)
+    model = FinancialTFM(
+        ModelConfig(
+            max_features=8,
+            d_model=32,
+            d_cell=16,
+            n_layers=1,
+            n_col_layers=1,
+            max_classes=2,
+            n_horizons=4,
+        )
+    )
+    corrected = FinancialTFMClassifier(
+        model, max_context=200, context_strategy="balanced", correct_prior=True
+    ).fit(X, y)
+    raw = FinancialTFMClassifier(
+        model, max_context=200, context_strategy="balanced", correct_prior=False
+    ).fit(X, y)
     summary = corrected.context_summary_
     assert summary.context_rate > 5 * summary.population_rate  # balancing really did distort
     c, r = corrected.predict_term_structure(X[:200]), raw.predict_term_structure(X[:200])
@@ -344,8 +393,17 @@ def test_classifier_term_structure_is_chunk_exact():
     rng = np.random.default_rng(1)
     X = rng.normal(size=(400, 6)).astype(np.float32)
     y = (rng.random(400) < 0.1).astype(np.int64)
-    model = FinancialTFM(ModelConfig(max_features=6, d_model=32, d_cell=16, n_layers=1,
-                                     n_col_layers=1, max_classes=2, n_horizons=3))
+    model = FinancialTFM(
+        ModelConfig(
+            max_features=6,
+            d_model=32,
+            d_cell=16,
+            n_layers=1,
+            n_col_layers=1,
+            max_classes=2,
+            n_horizons=3,
+        )
+    )
     kw = {"max_context": 100, "context_strategy": "balanced"}
     whole = FinancialTFMClassifier(model, query_chunk=4096, **kw).fit(X, y)
     split = FinancialTFMClassifier(model, query_chunk=37, **kw).fit(X, y)
@@ -358,8 +416,9 @@ def test_classifier_term_structure_refuses_a_model_without_a_hazard_head():
     rng = np.random.default_rng(2)
     X = rng.normal(size=(50, 5)).astype(np.float32)
     y = (rng.random(50) < 0.3).astype(np.int64)
-    model = FinancialTFM(ModelConfig(max_features=5, d_model=16, d_cell=8, n_layers=1,
-                                     n_col_layers=1, max_classes=2))
+    model = FinancialTFM(
+        ModelConfig(max_features=5, d_model=16, d_cell=8, n_layers=1, n_col_layers=1, max_classes=2)
+    )
     clf = FinancialTFMClassifier(model, max_context=40).fit(X, y)
     with pytest.raises(RuntimeError, match="no hazard head"):
         clf.predict_term_structure(X)
@@ -370,8 +429,17 @@ def test_classifier_term_structure_refuses_a_model_without_a_hazard_head():
 
 def _period_models():
     """A hazard model with and without the flag, sharing every weight the two have."""
-    cfg = {"max_features": 6, "max_classes": 2, "d_cell": 16, "d_model": 32, "n_heads": 2,
-           "n_col_layers": 1, "n_layers": 2, "d_ff": 64, "n_horizons": 4}
+    cfg = {
+        "max_features": 6,
+        "max_classes": 2,
+        "d_cell": 16,
+        "d_model": 32,
+        "n_heads": 2,
+        "n_col_layers": 1,
+        "n_layers": 2,
+        "d_ff": 64,
+        "n_horizons": 4,
+    }
     torch.manual_seed(0)
     off = FinancialTFM(ModelConfig(**cfg)).eval()
     on = FinancialTFM(ModelConfig(**cfg, hazard_period_context=True)).eval()
@@ -388,8 +456,10 @@ def test_hazard_period_context_is_zero_at_init_and_requires_periods():
     off, on, X, y, period = _period_models()
     with torch.no_grad():
         torch.testing.assert_close(
-            on.term_structure(X, y, 9, period=period), off.term_structure(X, y, 9),
-            rtol=0, atol=0,
+            on.term_structure(X, y, 9, period=period),
+            off.term_structure(X, y, 9),
+            rtol=0,
+            atol=0,
         )
         on(X, y, 9)  # the classification path neither needs nor reads periods
     with pytest.raises(ValueError, match="hazard_period_context"):
@@ -486,9 +556,7 @@ def test_classifier_term_structure_reads_the_stored_context_periods(strategy):
 
     # a query's curve depends on the context and itself, never on the other queries
     np.testing.assert_allclose(clf.predict_term_structure(Xq[:5]), base[:5], atol=1e-5)
-    chunked = FinancialTFMClassifier(on, query_chunk=3, **kw).fit(
-        X[tr], y[tr], periods=periods[tr]
-    )
+    chunked = FinancialTFMClassifier(on, query_chunk=3, **kw).fit(X[tr], y[tr], periods=periods[tr])
     np.testing.assert_allclose(chunked.predict_term_structure(Xq), base, atol=1e-5)
 
 
@@ -496,12 +564,15 @@ def test_classifier_retrieval_term_structure_reads_the_retrieved_periods():
     on = _trained_period_model()
     X, y, periods = _period_table()
     tr, Xq = np.arange(60), X[60:]
-    kw = {"max_context": 30, "context_strategy": "retrieval", "retrieval_groups": 2,
-          "retrieval_min_positive": 2, "feature_transform": "none"}
+    kw = {
+        "max_context": 30,
+        "context_strategy": "retrieval",
+        "retrieval_groups": 2,
+        "retrieval_min_positive": 2,
+        "feature_transform": "none",
+    }
     clf = FinancialTFMClassifier(on, **kw).fit(X[tr], y[tr], periods=periods[tr])
-    np.testing.assert_array_equal(
-        clf._pool_period, periods[clf._pool_X[:, 0].astype(np.int64)]
-    )
+    np.testing.assert_array_equal(clf._pool_period, periods[clf._pool_X[:, 0].astype(np.int64)])
     base = clf.predict_term_structure(Xq)
     moved = FinancialTFMClassifier(on, **kw).fit(X[tr], y[tr], periods=_moved(periods, tr)[tr])
     assert not np.allclose(moved.predict_term_structure(Xq), base)
@@ -510,13 +581,12 @@ def test_classifier_retrieval_term_structure_reads_the_retrieved_periods():
 def test_classifier_ensemble_members_keep_their_own_rows_periods():
     on = _trained_period_model()
     X, y, periods = _period_table()
-    clf = FinancialTFMClassifier(on, max_context=30, n_ensemble=3, ensemble_label_swap=True,
-                                 feature_transform="none").fit(X, y, periods=periods)
+    clf = FinancialTFMClassifier(
+        on, max_context=30, n_ensemble=3, ensemble_label_swap=True, feature_transform="none"
+    ).fit(X, y, periods=periods)
     for seed in (1, 2):
         twin = clf._clone_with_seed(seed, y=clf._flip(y))
-        np.testing.assert_array_equal(
-            twin._ctx_period, periods[twin._ctx_X[:, 0].astype(np.int64)]
-        )
+        np.testing.assert_array_equal(twin._ctx_period, periods[twin._ctx_X[:, 0].astype(np.int64)])
     assert clf.predict_proba(X[:5]).shape == (5, 2)  # members fit without raising
 
 
@@ -536,14 +606,16 @@ def test_classifier_ignores_periods_on_a_flag_off_model(strategy):
     """A flag-off checkpoint is byte-identical with or without periods, and stores none."""
     off, *_ = _period_models()
     X, y, periods = _period_table()
-    kw = {"max_context": 30, "context_strategy": strategy, "retrieval_groups": 2,
-          "retrieval_min_positive": 2}
+    kw = {
+        "max_context": 30,
+        "context_strategy": strategy,
+        "retrieval_groups": 2,
+        "retrieval_min_positive": 2,
+    }
     plain = FinancialTFMClassifier(off, **kw).fit(X, y)
     given = FinancialTFMClassifier(off, **kw).fit(X, y, periods=periods)
     assert given._ctx_period is None and given._raw_period is None
-    np.testing.assert_array_equal(
-        given.predict_term_structure(X), plain.predict_term_structure(X)
-    )
+    np.testing.assert_array_equal(given.predict_term_structure(X), plain.predict_term_structure(X))
     np.testing.assert_array_equal(given.predict_proba(X), plain.predict_proba(X))
     with pytest.raises(ValueError, match="periods has shape"):
         FinancialTFMClassifier(off, **kw).fit(X, y, periods=periods[:-1])
@@ -568,8 +640,17 @@ def test_classifier_term_structure_draws_column_identities_at_random_state(monke
     X = rng.normal(size=(120, 6)).astype(np.float32)
     y = (rng.random(120) < 0.3).astype(np.int64)
     torch.manual_seed(0)
-    model = FinancialTFM(ModelConfig(max_features=8, d_model=16, d_cell=8, n_layers=1,
-                                     n_col_layers=1, max_classes=2, n_horizons=3))
+    model = FinancialTFM(
+        ModelConfig(
+            max_features=8,
+            d_model=16,
+            d_cell=8,
+            n_layers=1,
+            n_col_layers=1,
+            max_classes=2,
+            n_horizons=3,
+        )
+    )
     clf = FinancialTFMClassifier(model, random_state=3).fit(X[:100], y[:100])
     clf.predict_proba(X[100:])
     proba_seeds = set(seeds)

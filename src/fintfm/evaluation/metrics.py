@@ -343,9 +343,7 @@ def paired_auc_difference(
     p_a = np.asarray(p_a, dtype=float)
     p_b = np.asarray(p_b, dtype=float)
     if not (y_true.shape == p_a.shape == p_b.shape):
-        raise ValueError(
-            f"shape mismatch: y_true {y_true.shape}, p_a {p_a.shape}, p_b {p_b.shape}"
-        )
+        raise ValueError(f"shape mismatch: y_true {y_true.shape}, p_a {p_a.shape}, p_b {p_b.shape}")
     if groups is not None and np.shape(groups) != y_true.shape:
         raise ValueError(f"shape mismatch: groups {np.shape(groups)} vs y_true {y_true.shape}")
     if len(np.unique(y_true)) < 2:

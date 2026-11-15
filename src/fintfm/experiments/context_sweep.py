@@ -127,13 +127,26 @@ def paired_strategy_comparisons(
                 if m.sum() < min_rows or len(np.unique(truth[m, k])) < 2:
                     continue
                 d, (lo, hi), p = paired_auc_difference(
-                    truth[m, k], curves[(ctx, a, sd)][m, k], curves[(ctx, b, sd)][m, k],
-                    n_boot=n_boot, seed=seed, groups=None if groups is None else groups[m],
+                    truth[m, k],
+                    curves[(ctx, a, sd)][m, k],
+                    curves[(ctx, b, sd)][m, k],
+                    n_boot=n_boot,
+                    seed=seed,
+                    groups=None if groups is None else groups[m],
                 )
-                rows.append({
-                    "max_context": ctx, "seed": sd, "a": a, "b": b, "horizon": k,
-                    "delta": d, "ci_lo": lo, "ci_hi": hi, "p_raw": p,
-                })
+                rows.append(
+                    {
+                        "max_context": ctx,
+                        "seed": sd,
+                        "a": a,
+                        "b": b,
+                        "horizon": k,
+                        "delta": d,
+                        "ci_lo": lo,
+                        "ci_hi": hi,
+                        "p_raw": p,
+                    }
+                )
     for r, adj in zip(rows, holm_adjusted_p([r["p_raw"] for r in rows]), strict=True):
         r["p_holm"] = adj
     return rows
@@ -267,8 +280,12 @@ def run(
 
     comparisons = (
         paired_strategy_comparisons(
-            curves, truth, seen, None if ds.groups is None else ds.groups[te],
-            cfg.evaluation.min_rows_per_horizon, n_boot=n_boot,
+            curves,
+            truth,
+            seen,
+            None if ds.groups is None else ds.groups[te],
+            cfg.evaluation.min_rows_per_horizon,
+            n_boot=n_boot,
         )
         if n_boot > 0
         else []
@@ -342,7 +359,9 @@ def summarise(record: dict) -> str:
         )
         keys = sorted({(c["max_context"], c["seed"], c["a"], c["b"]) for c in cmps})
         for ctx, sd, a, b in keys:
-            g = [c for c in cmps if (c["max_context"], c["seed"], c["a"], c["b"]) == (ctx, sd, a, b)]
+            g = [
+                c for c in cmps if (c["max_context"], c["seed"], c["a"], c["b"]) == (ctx, sd, a, b)
+            ]
             ps = [c["p_holm"] for c in g if np.isfinite(c["p_holm"])]
             lines.append(
                 f"{ctx:>6} {sd:>5} {a + ' - ' + b:>22} {len(g):>9} "
@@ -368,10 +387,16 @@ def main() -> None:
     p.add_argument("--test-from", type=int, default=None)
     p.add_argument("--seeds", type=str, default=None, help="comma-separated")
     p.add_argument("--retrieval-groups", type=int, default=None)
-    p.add_argument("--n-boot", type=int, default=1000,
-                   help="bootstrap resamples per strategy comparison; 0 skips the Holm table")
     p.add_argument(
-        "--split", choices=("embargoed", "legacy"), default="embargoed",
+        "--n-boot",
+        type=int,
+        default=1000,
+        help="bootstrap resamples per strategy comparison; 0 skips the Holm table",
+    )
+    p.add_argument(
+        "--split",
+        choices=("embargoed", "legacy"),
+        default="embargoed",
         help="'legacy' reproduces the leaking split of FINDINGS 29-35",
     )
     args = p.parse_args()
@@ -382,9 +407,7 @@ def main() -> None:
         max_rows=args.max_rows,
         train_until=args.train_until,
         test_from=args.test_from,
-        seeds=(
-            tuple(int(s) for s in args.seeds.split(",")) if args.seeds else None
-        ),
+        seeds=(tuple(int(s) for s in args.seeds.split(",")) if args.seeds else None),
         retrieval_groups=args.retrieval_groups,
         cfg=cfg,
         split=args.split,

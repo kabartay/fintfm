@@ -13,8 +13,9 @@ from fintfm.modeling.model import FinancialTFM, ModelConfig
 
 def _tiny() -> FinancialTFM:
     torch.manual_seed(1)
-    return FinancialTFM(ModelConfig(max_features=8, max_classes=2, d_model=16, n_heads=2,
-                                    n_layers=1, d_ff=32))
+    return FinancialTFM(
+        ModelConfig(max_features=8, max_classes=2, d_model=16, n_heads=2, n_layers=1, d_ff=32)
+    )
 
 
 def test_shapes_and_label_rate():
@@ -63,7 +64,12 @@ def test_curve_slope():
 def test_end_to_end_untrained_two_widths(tmp_path):
     t0 = time.perf_counter()
     rec = irr.run(
-        {}, tmp_path, widths=(2, 6), seeds=(0, 1), n=200, max_context=100,
+        {},
+        tmp_path,
+        widths=(2, 6),
+        seeds=(0, 1),
+        n=200,
+        max_context=100,
         models={"tiny": _tiny()},
     )
     print(f"tiny end-to-end: {time.perf_counter() - t0:.1f} s")  # input to the CPU-time estimate

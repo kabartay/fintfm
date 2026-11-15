@@ -250,15 +250,47 @@ AMP_MODES = ("none", "bf16", "fp16")
 #: and needs no list because all of them are taken. ``tests/test_config.py`` checks that each
 #: name is a field of both ``PriorConfig`` and :class:`fintfm.config.PriorConfigDefaults`.
 _PRIOR_CONFIG_KNOBS = (
-    "n_rows", "n_rows_choices", "p_financial", "p_tree", "p_trivial", "p_crossed",
-    "p_task_family", "p_regression", "p_learnability_filter", "scm_legacy", "scm_reuse_graph",
-    "identity_shuffle", "discretize_frac", "n_noise_features", "n_correlated_block_features",
-    "label_noise_rate", "min_ctx_per_class", "p_real_edgar", "real_edgar_panel_path",
-    "p_real_mortgage", "real_mortgage_panel_path", "p_real_lendingclub",
-    "real_lendingclub_panel_path", "real_panels", "source_weights", "financial_gate_prob",
-    "financial_sign_flip_prob", "financial_max_lr_auc", "financial_sample_horizon", "feature_ratio_bands", "p_binary", "imbalance_draws", "categorical_mode", "missing_mode",
-    "tie_column_prob", "irrelevant_frac_max", "duplicate_frac_max", "label_flip_max",
-    "heavy_tail_column_prob", "tree_split_by", "missing_label",
+    "n_rows",
+    "n_rows_choices",
+    "p_financial",
+    "p_tree",
+    "p_trivial",
+    "p_crossed",
+    "p_task_family",
+    "p_regression",
+    "p_learnability_filter",
+    "scm_legacy",
+    "scm_reuse_graph",
+    "identity_shuffle",
+    "discretize_frac",
+    "n_noise_features",
+    "n_correlated_block_features",
+    "label_noise_rate",
+    "min_ctx_per_class",
+    "p_real_edgar",
+    "real_edgar_panel_path",
+    "p_real_mortgage",
+    "real_mortgage_panel_path",
+    "p_real_lendingclub",
+    "real_lendingclub_panel_path",
+    "real_panels",
+    "source_weights",
+    "financial_gate_prob",
+    "financial_sign_flip_prob",
+    "financial_max_lr_auc",
+    "financial_sample_horizon",
+    "feature_ratio_bands",
+    "p_binary",
+    "imbalance_draws",
+    "categorical_mode",
+    "missing_mode",
+    "tie_column_prob",
+    "irrelevant_frac_max",
+    "duplicate_frac_max",
+    "label_flip_max",
+    "heavy_tail_column_prob",
+    "tree_split_by",
+    "missing_label",
 )
 
 #: Accepted values of :attr:`TrainConfig.optimizer`.
@@ -462,7 +494,9 @@ def _freeze_all_but(model: FinancialTFM, train_only: str | None) -> None:
     if train_only is None:
         return
     if train_only not in TRAIN_ONLY_PARTS:
-        raise ValueError(f"train_only must be one of {sorted(TRAIN_ONLY_PARTS)}, got {train_only!r}")
+        raise ValueError(
+            f"train_only must be one of {sorted(TRAIN_ONLY_PARTS)}, got {train_only!r}"
+        )
     if model.cfg.n_horizons is not None:
         raise ValueError("--train-only trains the classification head; a hazard model has none")
     keep: set[int] = set()
@@ -531,27 +565,44 @@ def _build_optimizer(
         fused = _fused_qkv_parameters(model)
         params = _trainable(model)
         groups = [
-            {"params": [p for p in params if id(p) in muon_ids and id(p) not in fused],
-             "use_muon": True, "lr": muon_lr, "weight_decay": _ADAMW_WEIGHT_DECAY,
-             "row_blocks": 1},
-            {"params": [p for p in params if id(p) in muon_ids and id(p) in fused],
-             "use_muon": True, "lr": muon_lr, "weight_decay": _ADAMW_WEIGHT_DECAY,
-             "row_blocks": 3},
-            {"params": [p for p in params if id(p) not in muon_ids and id(p) not in exempt],
-             "use_muon": False, "lr": train_cfg.lr, "weight_decay": _ADAMW_WEIGHT_DECAY},
-            {"params": [p for p in params if id(p) not in muon_ids and id(p) in exempt],
-             "use_muon": False, "lr": train_cfg.lr, "weight_decay": 0.0},
+            {
+                "params": [p for p in params if id(p) in muon_ids and id(p) not in fused],
+                "use_muon": True,
+                "lr": muon_lr,
+                "weight_decay": _ADAMW_WEIGHT_DECAY,
+                "row_blocks": 1,
+            },
+            {
+                "params": [p for p in params if id(p) in muon_ids and id(p) in fused],
+                "use_muon": True,
+                "lr": muon_lr,
+                "weight_decay": _ADAMW_WEIGHT_DECAY,
+                "row_blocks": 3,
+            },
+            {
+                "params": [p for p in params if id(p) not in muon_ids and id(p) not in exempt],
+                "use_muon": False,
+                "lr": train_cfg.lr,
+                "weight_decay": _ADAMW_WEIGHT_DECAY,
+            },
+            {
+                "params": [p for p in params if id(p) not in muon_ids and id(p) in exempt],
+                "use_muon": False,
+                "lr": train_cfg.lr,
+                "weight_decay": 0.0,
+            },
         ]
-        opt = Muon([g for g in groups if g["params"]], lr=train_cfg.lr,
-                   scale=train_cfg.muon_scale)
+        opt = Muon([g for g in groups if g["params"]], lr=train_cfg.lr, scale=train_cfg.muon_scale)
     elif train_cfg.decay_norm_bias:
         opt = torch.optim.AdamW(_trainable(model), lr=train_cfg.lr)
     else:
         params = _trainable(model)
         opt = torch.optim.AdamW(
             [
-                {"params": [p for p in params if id(p) not in exempt],
-                 "weight_decay": _ADAMW_WEIGHT_DECAY},
+                {
+                    "params": [p for p in params if id(p) not in exempt],
+                    "weight_decay": _ADAMW_WEIGHT_DECAY,
+                },
                 {"params": [p for p in params if id(p) in exempt], "weight_decay": 0.0},
             ],
             lr=train_cfg.lr,
@@ -1199,8 +1250,11 @@ def _save_training_state(
         state["grad_scaler"] = scaler.state_dict()
     if train_cfg is not None:
         state["schedule"] = {
-            "name": train_cfg.schedule, "warmup_steps": train_cfg.warmup_steps,
-            "lr": train_cfg.lr, "lr_min": train_cfg.lr_min, "decay_frac": train_cfg.decay_frac,
+            "name": train_cfg.schedule,
+            "warmup_steps": train_cfg.warmup_steps,
+            "lr": train_cfg.lr,
+            "lr_min": train_cfg.lr_min,
+            "decay_frac": train_cfg.decay_frac,
         }
         state["loader"] = train_cfg.loader
         state["world_size"] = world_size
@@ -1360,7 +1414,9 @@ def _training_provenance(
         "tasks_seen": steps_done * train_cfg.batch_size * world_size,
         "task_dump": None if dump is None else dump.record(),
         "init_from": init_from,
-        "eval_set": None if train_cfg.eval_set_seed is None else {
+        "eval_set": None
+        if train_cfg.eval_set_seed is None
+        else {
             "seed": train_cfg.eval_set_seed,
             "batches": train_cfg.eval_batches,
             "tasks": train_cfg.eval_batches * train_cfg.batch_size,
@@ -1727,9 +1783,16 @@ def train(
         None
         if train_cfg.loader != "stream"
         else stream_batches(
-            prior_cfg, train_cfg.batch_size, train_cfg.seed, start_step * world,
-            stop_step * world, rank=rank, world_size=world, workers=train_cfg.loader_workers,
-            prefetch=train_cfg.loader_prefetch, device=device,
+            prior_cfg,
+            train_cfg.batch_size,
+            train_cfg.seed,
+            start_step * world,
+            stop_step * world,
+            rank=rank,
+            world_size=world,
+            workers=train_cfg.loader_workers,
+            prefetch=train_cfg.loader_prefetch,
+            device=device,
         )
     )
     eval_set = (
@@ -1796,7 +1859,14 @@ def train(
             )
             swapped_total += n_swapped
         loss = _training_step(
-            model, batch, opt, sched, train_cfg.amp, objectives, scaler, ddp_module,
+            model,
+            batch,
+            opt,
+            sched,
+            train_cfg.amp,
+            objectives,
+            scaler,
+            ddp_module,
             train_cfg.joint_classification_weight,
         )
         running += loss.item()
@@ -1848,14 +1918,22 @@ def train(
             _set_optimizer_mode(opt, train_cfg.optimizer, "eval")
             if model.cfg.head_type == "quantile":
                 qq = _eval_quality_quantile(
-                    model, prior_cfg, eval_rng, n_batches=train_cfg.eval_batches,
-                    batch_size=train_cfg.batch_size, batches=eval_set,
+                    model,
+                    prior_cfg,
+                    eval_rng,
+                    n_batches=train_cfg.eval_batches,
+                    batch_size=train_cfg.batch_size,
+                    batches=eval_set,
                 )
                 say(f"  held-out: pinball {qq['pinball']:.4f}  nRMSE {qq['nrmse']:.4f}")
             else:
                 q = _eval_quality(
-                    model, prior_cfg, eval_rng, n_batches=train_cfg.eval_batches,
-                    batch_size=train_cfg.batch_size, batches=eval_set,
+                    model,
+                    prior_cfg,
+                    eval_rng,
+                    n_batches=train_cfg.eval_batches,
+                    batch_size=train_cfg.batch_size,
+                    batches=eval_set,
                 )
                 say(
                     f"  held-out: AUC/task {q['auc_per_task']:.3f}  AUC pooled {q['auc']:.3f}"
@@ -1889,7 +1967,13 @@ def train(
             out_path,
             trained_objectives=tuple(sorted(objectives)),
             provenance=_training_provenance(
-                prior_cfg, train_cfg, stop_step, dump, init_record, world, prior_phases,
+                prior_cfg,
+                train_cfg,
+                stop_step,
+                dump,
+                init_record,
+                world,
+                prior_phases,
                 time_budget,
             ),
         )
@@ -2002,8 +2086,14 @@ def benchmark(
         None
         if train_cfg.loader != "stream"
         else stream_batches(
-            prior_cfg, train_cfg.batch_size, train_cfg.seed, 0, warmup + n_steps,
-            workers=train_cfg.loader_workers, prefetch=train_cfg.loader_prefetch, device=device,
+            prior_cfg,
+            train_cfg.batch_size,
+            train_cfg.seed,
+            0,
+            warmup + n_steps,
+            workers=train_cfg.loader_workers,
+            prefetch=train_cfg.loader_prefetch,
+            device=device,
         )
     )
 
@@ -2639,8 +2729,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--attn-length-ref",
         type=int,
         default=None,
-        help="context length at which --attn-length-scale is the identity (config default "
-        "512)",
+        help="context length at which --attn-length-scale is the identity (config default 512)",
     )
     p.add_argument(
         "--attn-impl",

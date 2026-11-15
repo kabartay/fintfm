@@ -93,10 +93,21 @@ BASIC_FILE = "ettevotja_rekvisiidid__lihtandmed.csv"
 
 #: Key indicators read from the element files (``elemendi_nimetus``).
 ELEMENTS = (
-    "Assets", "CurrentAssets", "NonCurrentAssets", "CashAndCashEquivalents", "Equity",
-    "IssuedCapital", "CurrentLiabilities", "NonCurrentLiabilities", "Revenue",
-    "EmployeeExpense", "LaborExpense", "DepreciationAndImpairmentLossReversal",
-    "TotalAnnualPeriodProfitLoss", "TotalProfitLossBeforeTax", "RetainedEarningsLoss",
+    "Assets",
+    "CurrentAssets",
+    "NonCurrentAssets",
+    "CashAndCashEquivalents",
+    "Equity",
+    "IssuedCapital",
+    "CurrentLiabilities",
+    "NonCurrentLiabilities",
+    "Revenue",
+    "EmployeeExpense",
+    "LaborExpense",
+    "DepreciationAndImpairmentLossReversal",
+    "TotalAnnualPeriodProfitLoss",
+    "TotalProfitLossBeforeTax",
+    "RetainedEarningsLoss",
     "AverageNumberOfEmployeesInFullTimeEquivalentUnits",
 )
 #: Tables whose rows describe a liquidation or a profit-allocation proposal, not the going
@@ -134,19 +145,35 @@ def read_reports(path: Path) -> pd.DataFrame:
         ``audited`` (0/1), ``filed`` and ``period_end`` (timestamps), ``consolidated``
         (bool).
     """
-    raw = pd.read_csv(path, sep=";", dtype=str, usecols=[
-        "report_id", "registrikood", "õiguslik vorm", "staatus", "aruandeaasta",
-        "kas konsolideeritud?", "period_end", "esitatud_kpv", "kas auditeeritud?",
-    ])
-    return pd.DataFrame({
-        "report_id": raw["report_id"].astype(np.int64),
-        "code": pd.to_numeric(raw["registrikood"], errors="coerce"),
-        "form": raw["õiguslik vorm"], "status": raw["staatus"],
-        "year": pd.to_numeric(raw["aruandeaasta"], errors="coerce"),
-        "audited": (raw["kas auditeeritud?"] == "Jah").astype(np.int8),
-        "filed": _date(raw["esitatud_kpv"]), "period_end": _date(raw["period_end"]),
-        "consolidated": raw["kas konsolideeritud?"] == "Jah",
-    })
+    raw = pd.read_csv(
+        path,
+        sep=";",
+        dtype=str,
+        usecols=[
+            "report_id",
+            "registrikood",
+            "õiguslik vorm",
+            "staatus",
+            "aruandeaasta",
+            "kas konsolideeritud?",
+            "period_end",
+            "esitatud_kpv",
+            "kas auditeeritud?",
+        ],
+    )
+    return pd.DataFrame(
+        {
+            "report_id": raw["report_id"].astype(np.int64),
+            "code": pd.to_numeric(raw["registrikood"], errors="coerce"),
+            "form": raw["õiguslik vorm"],
+            "status": raw["staatus"],
+            "year": pd.to_numeric(raw["aruandeaasta"], errors="coerce"),
+            "audited": (raw["kas auditeeritud?"] == "Jah").astype(np.int8),
+            "filed": _date(raw["esitatud_kpv"]),
+            "period_end": _date(raw["period_end"]),
+            "consolidated": raw["kas konsolideeritud?"] == "Jah",
+        }
+    )
 
 
 def read_elements(root: Path, report_ids: set[int]) -> pd.DataFrame:
@@ -166,8 +193,13 @@ def read_elements(root: Path, report_ids: set[int]) -> pd.DataFrame:
         path = root / ELEMENT_FILE.format(year=year)
         if not path.exists():
             continue
-        for chunk in pd.read_csv(path, sep=";", dtype=str, chunksize=2_000_000,
-                                 usecols=["report_id", "tabel", "elemendi_nimetus", "vaartus"]):
+        for chunk in pd.read_csv(
+            path,
+            sep=";",
+            dtype=str,
+            chunksize=2_000_000,
+            usecols=["report_id", "tabel", "elemendi_nimetus", "vaartus"],
+        ):
             chunk = chunk[chunk["elemendi_nimetus"].isin(ELEMENTS)]
             chunk = chunk[~chunk["tabel"].str.match(_SKIP_TABLE)]
             chunk = chunk.assign(report_id=chunk["report_id"].astype(np.int64))
@@ -210,8 +242,12 @@ def read_bankruptcies(path: Path) -> pd.DataFrame:
 
 
 def estonia_frame(
-    reports: pd.DataFrame, elements: pd.DataFrame, bankruptcies: pd.DataFrame,
-    first_entry: pd.Series, horizon_days: int = HORIZON_DAYS, cut: pd.Timestamp = DATA_CUT,
+    reports: pd.DataFrame,
+    elements: pd.DataFrame,
+    bankruptcies: pd.DataFrame,
+    first_entry: pd.Series,
+    horizon_days: int = HORIZON_DAYS,
+    cut: pd.Timestamp = DATA_CUT,
 ) -> pd.DataFrame:
     """Join the tables into a labelled firm-year frame (module docstring, "Label").
 
@@ -237,8 +273,9 @@ def estonia_frame(
     r = r[~(declared.reindex(r.index) <= r["filed"]) & (window_end <= cut)]
     declared = declared.reindex(r.index)
     out = pd.DataFrame(index=r.index)
-    out["label"] = ((declared > r["filed"])
-                    & (declared <= r["filed"] + pd.Timedelta(days=horizon_days))).astype(int)
+    out["label"] = (
+        (declared > r["filed"]) & (declared <= r["filed"] + pd.Timedelta(days=horizon_days))
+    ).astype(int)
     out["_code"], out["_filed"] = r["code"].astype(np.int64), r["filed"]
     v = {c: r[c] for c in ELEMENTS}
     both = r[["CurrentLiabilities", "NonCurrentLiabilities"]]
@@ -248,8 +285,7 @@ def estonia_frame(
         out[name] = (v[num] / v[den].where(v[den].abs() > 0)).replace([np.inf, -np.inf], np.nan)
     out["log_assets"] = np.log1p(r["Assets"].clip(lower=0))
     out["log_revenue"] = np.log1p(r["Revenue"].clip(lower=0))
-    out["log_age_days"] = np.log1p(
-        (r["filed"] - r["code"].map(first_entry)).dt.days.clip(lower=0))
+    out["log_age_days"] = np.log1p((r["filed"] - r["code"].map(first_entry)).dt.days.clip(lower=0))
     out["audited"] = r["audited"]
     out["employees_fte"] = r["AverageNumberOfEmployeesInFullTimeEquivalentUnits"]
     for form in LEGAL_FORMS:
@@ -274,15 +310,26 @@ def load_estonia(root: Path) -> CreditPanel:
     reports = read_reports(d / REPORTS_FILE)
     kept = reports[~reports["consolidated"] & (reports["status"] != DELETED)]
     elements = read_elements(d, set(kept["report_id"]))
-    basic = pd.read_csv(d / BASIC_FILE, sep=";", dtype=str, encoding="utf-8-sig",
-                        usecols=["ariregistri_kood", "ettevotja_esmakande_kpv"])
-    first = pd.Series(_date(basic["ettevotja_esmakande_kpv"]).to_numpy(),
-                      index=pd.to_numeric(basic["ariregistri_kood"], errors="coerce"))
+    basic = pd.read_csv(
+        d / BASIC_FILE,
+        sep=";",
+        dtype=str,
+        encoding="utf-8-sig",
+        usecols=["ariregistri_kood", "ettevotja_esmakande_kpv"],
+    )
+    first = pd.Series(
+        _date(basic["ettevotja_esmakande_kpv"]).to_numpy(),
+        index=pd.to_numeric(basic["ariregistri_kood"], errors="coerce"),
+    )
     first = first[~first.index.duplicated()]
     frame = estonia_frame(reports, elements, read_bankruptcies(d / CARDS_FILE), first)
     feats = frame.drop(columns=["label", "_code", "_filed"]).astype(np.float64)
     return CreditPanel(
-        name="estonia", X=feats.to_numpy(), feature_names=tuple(feats.columns),
-        y=frame["label"].to_numpy(np.int64), groups=frame["_code"].to_numpy(),
-        time=_days(frame["_filed"]), embargo=EMBARGO_DAYS,
+        name="estonia",
+        X=feats.to_numpy(),
+        feature_names=tuple(feats.columns),
+        y=frame["label"].to_numpy(np.int64),
+        groups=frame["_code"].to_numpy(),
+        time=_days(frame["_filed"]),
+        embargo=EMBARGO_DAYS,
     )

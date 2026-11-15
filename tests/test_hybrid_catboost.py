@@ -94,8 +94,15 @@ def test_inner_contexts_never_hold_an_outer_val_or_test_row():
     held = np.concatenate([va, te])
     cfg = _cfg()
     logits, plan = inner_oof_logits(
-        np.nan_to_num(X), y, tr, country, company, held,
-        lambda k: fintfm_classifier(_model(), cfg, random_state=k), n_inner=3, seed=7,
+        np.nan_to_num(X),
+        y,
+        tr,
+        country,
+        company,
+        held,
+        lambda k: fintfm_classifier(_model(), cfg, random_state=k),
+        n_inner=3,
+        seed=7,
     )
     assert logits.shape == (len(tr),) and np.isfinite(logits).all()
     assert len(plan) == 3
@@ -118,8 +125,17 @@ def test_a_leaking_split_is_refused_before_any_fit():
 
     # outer test rows wrongly included in the training rows handed to the inner folds
     with pytest.raises(LeakageError, match="outer val/test"):
-        inner_oof_logits(X, y, np.concatenate([tr, te]), country, company,
-                         np.concatenate([va, te]), must_not_fit, n_inner=3, seed=7)
+        inner_oof_logits(
+            X,
+            y,
+            np.concatenate([tr, te]),
+            country,
+            company,
+            np.concatenate([va, te]),
+            must_not_fit,
+            n_inner=3,
+            seed=7,
+        )
 
 
 def test_cap_keeps_whole_companies_within_the_cap():
@@ -142,8 +158,12 @@ def test_catboost_baseline_is_the_starting_score():
     y = (rng.random(200) < 0.3).astype(np.int64)
     b_tr, b_te = rng.normal(scale=3, size=200), rng.normal(scale=3, size=50)
     p = fit_predict_catboost(
-        X, y, X[:50], {"iterations": 1, "learning_rate": 1e-4, "thread_count": 1},
-        baseline_train=b_tr, baseline_test=b_te,
+        X,
+        y,
+        X[:50],
+        {"iterations": 1, "learning_rate": 1e-4, "thread_count": 1},
+        baseline_train=b_tr,
+        baseline_test=b_te,
     )
     np.testing.assert_allclose(p, 1 / (1 + np.exp(-b_te)), atol=1e-3)
     with pytest.raises(ValueError, match="together"):
@@ -155,16 +175,34 @@ def test_run_writes_the_v4protocol_layout_and_pairs_with_compare(tmp_path):
     X, y, country, company = _panel()
     out = tmp_path / "hybrid"
     record = run_arrays(
-        X, y, country, company, _model(), out, folds=(0,), cfg=_cfg(), n_inner=3,
-        max_train_rows=200, catboost_params=_CATBOOST,
+        X,
+        y,
+        country,
+        company,
+        _model(),
+        out,
+        folds=(0,),
+        cfg=_cfg(),
+        n_inner=3,
+        max_train_rows=200,
+        catboost_params=_CATBOOST,
         protocol={"horizon": 0, "max_rows": None},
     )
     fold = record["folds"][0]
     assert fold["n_train"] <= 200 and fold["inner_contexts_checked"] == 3
     assert fold["fintfm_query_rows"] == fold["n_train"] + fold["n_val"] + fold["n_test"]
     d = np.load(out / "predictions_fold0.npz")
-    for key in ("y_true", "y_val", "company_test", "company_val", "pred_fintfm", "val_fintfm",
-                "pred_catboost", "pred_catboost_fintfm_baseline", "pred_catboost_fintfm_feature"):
+    for key in (
+        "y_true",
+        "y_val",
+        "company_test",
+        "company_val",
+        "pred_fintfm",
+        "val_fintfm",
+        "pred_catboost",
+        "pred_catboost_fintfm_baseline",
+        "pred_catboost_fintfm_feature",
+    ):
         assert key in d.files, key
     assert d["pred_catboost"].shape == d["y_true"].shape
     for a in ("catboost", "catboost_fintfm_baseline", "catboost_fintfm_feature"):
@@ -175,8 +213,12 @@ def test_run_writes_the_v4protocol_layout_and_pairs_with_compare(tmp_path):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
     from compare_v4_scores import compare
 
-    rows = compare(out / "arms" / "catboost", out / "arms" / "catboost_fintfm_baseline",
-                   n_boot=50, cluster=True)
+    rows = compare(
+        out / "arms" / "catboost",
+        out / "arms" / "catboost_fintfm_baseline",
+        n_boot=50,
+        cluster=True,
+    )
     assert [r["fold"] for r in rows] == [0]
     assert np.isfinite(rows[0]["arm"]) and np.isfinite(rows[0]["control"])
 
@@ -187,9 +229,20 @@ def test_tuned_lightgbm_booster_writes_the_three_arms_and_pairs_with_compare(tmp
     X, y, country, company = _panel()
     out = tmp_path / "tuned"
     record = run_arrays(
-        X, y, country, company, _model(), out, folds=(0,), cfg=_cfg(), n_inner=3,
-        max_train_rows=200, protocol={"horizon": 0, "max_rows": None},
-        booster="lightgbm_tuned", tuned_configs=2, tuned_budget_s=None,
+        X,
+        y,
+        country,
+        company,
+        _model(),
+        out,
+        folds=(0,),
+        cfg=_cfg(),
+        n_inner=3,
+        max_train_rows=200,
+        protocol={"horizon": 0, "max_rows": None},
+        booster="lightgbm_tuned",
+        tuned_configs=2,
+        tuned_budget_s=None,
     )
     assert record["config"]["booster"] == "lightgbm_tuned"
     d = np.load(out / "predictions_fold0.npz")
@@ -202,8 +255,12 @@ def test_tuned_lightgbm_booster_writes_the_three_arms_and_pairs_with_compare(tmp
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
     from compare_v4_scores import compare
 
-    rows = compare(out / "arms" / "lightgbm_tuned", out / "arms" / "lightgbm_tuned_fintfm_baseline",
-                   n_boot=50, cluster=True)
+    rows = compare(
+        out / "arms" / "lightgbm_tuned",
+        out / "arms" / "lightgbm_tuned_fintfm_baseline",
+        n_boot=50,
+        cluster=True,
+    )
     assert [r["fold"] for r in rows] == [0]
 
 

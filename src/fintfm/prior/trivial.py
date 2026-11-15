@@ -61,7 +61,9 @@ def sample_trivial_task(
         ValueError: If the feature bounds are inconsistent.
     """
     if not 1 <= min_features <= max_features:
-        raise ValueError(f"need 1 <= min_features <= max_features, got {min_features}, {max_features}")
+        raise ValueError(
+            f"need 1 <= min_features <= max_features, got {min_features}, {max_features}"
+        )
     n_features = int(rng.integers(min_features, max_features + 1))
     X = rng.normal(size=(n_rows, n_features)).astype(np.float32)
     # random magnitudes and random signs: the rule is easy to apply and still has to be
@@ -74,6 +76,9 @@ def sample_trivial_task(
         y[int(np.argmax(score))] = 1
         y[int(np.argmin(score))] = 0
     return Task(
-        X=X, y=y, n_classes=2,
-        is_categorical=np.zeros(n_features, dtype=bool), source="trivial",
+        X=X,
+        y=y,
+        n_classes=2,
+        is_categorical=np.zeros(n_features, dtype=bool),
+        source="trivial",
     )

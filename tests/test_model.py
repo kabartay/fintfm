@@ -121,8 +121,17 @@ def test_predictions_are_invariant_to_column_permutation(column_id_dim):
       and was measured at chance on ``x_0 - x_1``. This is the trade, made deliberately.
     """
     torch.manual_seed(0)
-    cfg = ModelConfig(max_features=8, max_classes=3, d_cell=16, d_model=32, n_heads=2,
-                      n_col_layers=1, n_layers=2, d_ff=64, column_id_dim=column_id_dim)
+    cfg = ModelConfig(
+        max_features=8,
+        max_classes=3,
+        d_cell=16,
+        d_model=32,
+        n_heads=2,
+        n_col_layers=1,
+        n_layers=2,
+        d_ff=64,
+        column_id_dim=column_id_dim,
+    )
     model = FinancialTFM(cfg).eval()
     X = torch.randn(2, 10, 8)
     X[0, 3, 5] = float("nan")  # keep a missing cell in the picture
@@ -150,8 +159,17 @@ def test_padding_width_does_not_change_predictions(column_id_dim):
     distribution with them, exactly as the test above.
     """
     torch.manual_seed(0)
-    narrow = ModelConfig(max_features=8, max_classes=2, d_cell=16, d_model=32, n_heads=2,
-                         n_col_layers=1, n_layers=2, d_ff=64, column_id_dim=column_id_dim)
+    narrow = ModelConfig(
+        max_features=8,
+        max_classes=2,
+        d_cell=16,
+        d_model=32,
+        n_heads=2,
+        n_col_layers=1,
+        n_layers=2,
+        d_ff=64,
+        column_id_dim=column_id_dim,
+    )
     model = FinancialTFM(narrow).eval()
     real = torch.randn(1, 8, 5)
     X8 = torch.full((1, 8, 8), float("nan"))
@@ -175,8 +193,16 @@ def test_padding_width_does_not_change_predictions(column_id_dim):
 def test_query_rows_never_see_each_other():
     """Changing one query row must not move another query row's prediction."""
     torch.manual_seed(0)
-    cfg = ModelConfig(max_features=6, max_classes=2, d_cell=16, d_model=32, n_heads=2,
-                      n_col_layers=1, n_layers=2, d_ff=64)
+    cfg = ModelConfig(
+        max_features=6,
+        max_classes=2,
+        d_cell=16,
+        d_model=32,
+        n_heads=2,
+        n_col_layers=1,
+        n_layers=2,
+        d_ff=64,
+    )
     model = FinancialTFM(cfg).eval()
     X = torch.randn(1, 10, 6)
     y = torch.randint(0, 2, (1, 10))
@@ -210,8 +236,16 @@ def test_training_completes_on_each_available_device(device, tmp_path):
     """
     from fintfm.modeling.train import TrainConfig, train
 
-    cfg = ModelConfig(max_features=6, max_classes=2, d_cell=8, d_model=16, n_heads=2,
-                      n_col_layers=1, n_layers=1, d_ff=16)
+    cfg = ModelConfig(
+        max_features=6,
+        max_classes=2,
+        d_cell=8,
+        d_model=16,
+        n_heads=2,
+        n_col_layers=1,
+        n_layers=1,
+        d_ff=16,
+    )
     prior_cfg = PriorConfig(max_features=6, max_classes=2, n_rows=16)
     train_cfg = TrainConfig(
         steps=4, batch_size=2, device=device, log_every=2, eval_every=2, warmup_steps=1
@@ -231,8 +265,17 @@ def test_checkpoint_records_which_objectives_were_trained(tmp_path):
     from fintfm.modeling.model import FinancialTFM, ModelConfig
 
     path = tmp_path / "m.pt"
-    m = FinancialTFM(ModelConfig(max_features=4, d_model=16, d_cell=8, n_layers=1,
-                                 n_col_layers=1, max_classes=2, n_horizons=3))
+    m = FinancialTFM(
+        ModelConfig(
+            max_features=4,
+            d_model=16,
+            d_cell=8,
+            n_layers=1,
+            n_col_layers=1,
+            max_classes=2,
+            n_horizons=3,
+        )
+    )
     m.save(str(path), trained_objectives=("survival",))
     loaded = FinancialTFM.load(str(path))
     assert loaded.trained_objectives == ("survival",)
@@ -246,8 +289,9 @@ def test_checkpoint_without_a_record_is_allowed_through(tmp_path):
     from fintfm.modeling.model import FinancialTFM, ModelConfig
 
     path = tmp_path / "m.pt"
-    m = FinancialTFM(ModelConfig(max_features=4, d_model=16, d_cell=8, n_layers=1,
-                                 n_col_layers=1, max_classes=2))
+    m = FinancialTFM(
+        ModelConfig(max_features=4, d_model=16, d_cell=8, n_layers=1, n_col_layers=1, max_classes=2)
+    )
     m.save(str(path))
     FinancialTFM.load(str(path)).assert_trained_for("classification")
 
@@ -259,9 +303,17 @@ def test_predict_proba_refuses_a_survival_only_checkpoint(tmp_path):
     from fintfm.modeling.model import FinancialTFM, ModelConfig
 
     path = tmp_path / "m.pt"
-    FinancialTFM(ModelConfig(max_features=4, d_model=16, d_cell=8, n_layers=1,
-                             n_col_layers=1, max_classes=2, n_horizons=3)).save(
-        str(path), trained_objectives=("survival",))
+    FinancialTFM(
+        ModelConfig(
+            max_features=4,
+            d_model=16,
+            d_cell=8,
+            n_layers=1,
+            n_col_layers=1,
+            max_classes=2,
+            n_horizons=3,
+        )
+    ).save(str(path), trained_objectives=("survival",))
     rng = np.random.default_rng(0)
     X = rng.normal(size=(40, 4)).astype(np.float32)
     y = (rng.random(40) < 0.3).astype(np.int64)
@@ -286,8 +338,14 @@ def test_eval_quality_handles_multi_class_tasks():
 
     for max_classes in (2, 5):
         model = FinancialTFM(
-            ModelConfig(max_features=16, d_model=32, d_cell=16, n_layers=1,
-                        n_col_layers=1, max_classes=max_classes)
+            ModelConfig(
+                max_features=16,
+                d_model=32,
+                d_cell=16,
+                n_layers=1,
+                n_col_layers=1,
+                max_classes=max_classes,
+            )
         )
         cfg = PriorConfig(max_features=16, max_classes=max_classes, p_financial=0.5, n_rows=200)
         q = _eval_quality(model, cfg, np.random.default_rng(0), n_batches=2)
@@ -313,12 +371,18 @@ def test_periodic_checkpointing_writes_recoverable_files(tmp_path):
     from fintfm.prior import PriorConfig
 
     out = tmp_path / "m.pt"
-    model_cfg = ModelConfig(max_features=8, d_model=16, d_cell=8, n_layers=1,
-                            n_col_layers=1, max_classes=2)
+    model_cfg = ModelConfig(
+        max_features=8, d_model=16, d_cell=8, n_layers=1, n_col_layers=1, max_classes=2
+    )
     prior_cfg = PriorConfig(max_features=8, max_classes=2, n_rows=64)
-    train(model_cfg, prior_cfg,
-          TrainConfig(steps=4, batch_size=2, eval_every=99, log_every=99,
-                      checkpoint_every=2, device="cpu"), str(out))
+    train(
+        model_cfg,
+        prior_cfg,
+        TrainConfig(
+            steps=4, batch_size=2, eval_every=99, log_every=99, checkpoint_every=2, device="cpu"
+        ),
+        str(out),
+    )
 
     mid = sorted(tmp_path.glob("m.pt.step*"))
     assert [p.name for p in mid] == ["m.pt.step2", "m.pt.step4"]
@@ -336,11 +400,14 @@ def test_checkpointing_is_off_by_default(tmp_path):
     from fintfm.prior import PriorConfig
 
     out = tmp_path / "m.pt"
-    train(ModelConfig(max_features=8, d_model=16, d_cell=8, n_layers=1,
-                      n_col_layers=1, max_classes=2),
-          PriorConfig(max_features=8, max_classes=2, n_rows=64),
-          TrainConfig(steps=2, batch_size=2, eval_every=99, log_every=99, device="cpu"),
-          str(out))
+    train(
+        ModelConfig(
+            max_features=8, d_model=16, d_cell=8, n_layers=1, n_col_layers=1, max_classes=2
+        ),
+        PriorConfig(max_features=8, max_classes=2, n_rows=64),
+        TrainConfig(steps=2, batch_size=2, eval_every=99, log_every=99, device="cpu"),
+        str(out),
+    )
     assert list(tmp_path.glob("m.pt.step*")) == []
     assert out.exists()
 
@@ -352,10 +419,20 @@ def _pool_model(pooling, n_feat=24, column_id_dim=None):
     from fintfm.modeling.model import FinancialTFM, ModelConfig
 
     torch.manual_seed(0)
-    return FinancialTFM(ModelConfig(max_features=n_feat, max_classes=2, d_cell=16,
-                                    d_model=32, n_heads=2, n_layers=2, n_col_layers=2,
-                                    d_ff=64, pooling=pooling,
-                                    column_id_dim=column_id_dim))
+    return FinancialTFM(
+        ModelConfig(
+            max_features=n_feat,
+            max_classes=2,
+            d_cell=16,
+            d_model=32,
+            n_heads=2,
+            n_layers=2,
+            n_col_layers=2,
+            d_ff=64,
+            pooling=pooling,
+            column_id_dim=column_id_dim,
+        )
+    )
 
 
 def test_attention_pooling_keeps_column_order_invariance():
@@ -406,8 +483,16 @@ def test_attention_pooling_adds_almost_no_parameters():
     """
     from fintfm.modeling.model import FinancialTFM, ModelConfig
 
-    kw = {"max_features": 136, "max_classes": 2, "d_cell": 48, "d_model": 128,
-          "n_heads": 4, "n_layers": 4, "n_col_layers": 2, "d_ff": 512}
+    kw = {
+        "max_features": 136,
+        "max_classes": 2,
+        "d_cell": 48,
+        "d_model": 128,
+        "n_heads": 4,
+        "n_layers": 4,
+        "n_col_layers": 2,
+        "d_ff": 512,
+    }
     base = FinancialTFM(ModelConfig(pooling="meanmax", **kw)).num_parameters()
     attn = FinancialTFM(ModelConfig(pooling="attention", **kw)).num_parameters()
     growth = attn / base - 1
@@ -452,8 +537,14 @@ def test_row_encoder_can_tell_its_own_columns_apart(n_ctx):
     from fintfm.modeling.model import FinancialTFM, ModelConfig
 
     base = {
-        "max_features": 8, "max_classes": 2, "d_cell": 16, "d_model": 32, "n_heads": 2,
-        "n_col_layers": 1, "n_layers": 2, "d_ff": 64,
+        "max_features": 8,
+        "max_classes": 2,
+        "d_cell": 16,
+        "d_model": 32,
+        "n_heads": 2,
+        "n_col_layers": 1,
+        "n_layers": 2,
+        "d_ff": 64,
     }
     n_rows, n_feat = n_ctx * 2, 6
 
@@ -490,8 +581,14 @@ def test_n_cell_blocks_zero_is_byte_identical_to_the_pre_39_1_architecture():
     from fintfm.modeling.model import FinancialTFM, ModelConfig
 
     base = {
-        "max_features": 8, "max_classes": 3, "d_cell": 16, "d_model": 32, "n_heads": 2,
-        "n_col_layers": 1, "n_layers": 2, "d_ff": 64,
+        "max_features": 8,
+        "max_classes": 3,
+        "d_cell": 16,
+        "d_model": 32,
+        "n_heads": 2,
+        "n_col_layers": 1,
+        "n_layers": 2,
+        "d_ff": 64,
     }
     X = torch.randn(2, 10, 8)
     y = torch.randint(0, 3, (2, 10))
@@ -520,17 +617,21 @@ def test_two_way_cell_attention_trains(n_cell_blocks, cell_labels):
     from fintfm.modeling.model import FinancialTFM, ModelConfig
 
     base = {
-        "max_features": 8, "max_classes": 3, "d_cell": 16, "d_model": 32, "n_heads": 2,
-        "n_col_layers": 1, "n_layers": 2, "d_ff": 64,
+        "max_features": 8,
+        "max_classes": 3,
+        "d_cell": 16,
+        "d_model": 32,
+        "n_heads": 2,
+        "n_col_layers": 1,
+        "n_layers": 2,
+        "d_ff": 64,
     }
     X = torch.randn(2, 10, 8)
     y = torch.randint(0, 3, (2, 10))
     nc = torch.tensor([3, 3])
 
     torch.manual_seed(2)
-    model = FinancialTFM(
-        ModelConfig(**base, n_cell_blocks=n_cell_blocks, cell_labels=cell_labels)
-    )
+    model = FinancialTFM(ModelConfig(**base, n_cell_blocks=n_cell_blocks, cell_labels=cell_labels))
     out = model(X, y, 6, nc)
     assert out.shape == (2, 10, 3)
 
@@ -546,8 +647,14 @@ def test_cell_labels_ignored_without_n_cell_blocks():
     from fintfm.modeling.model import FinancialTFM, ModelConfig
 
     base = {
-        "max_features": 8, "max_classes": 3, "d_cell": 16, "d_model": 32, "n_heads": 2,
-        "n_col_layers": 1, "n_layers": 2, "d_ff": 64,
+        "max_features": 8,
+        "max_classes": 3,
+        "d_cell": 16,
+        "d_model": 32,
+        "n_heads": 2,
+        "n_col_layers": 1,
+        "n_layers": 2,
+        "d_ff": 64,
     }
     model = FinancialTFM(ModelConfig(**base, n_cell_blocks=0, cell_labels=True))
     assert not hasattr(model, "cell_y_proj")
@@ -564,8 +671,14 @@ def test_pre_39_1_shaped_checkpoint_loads(tmp_path):
     from fintfm.modeling.model import FinancialTFM, ModelConfig
 
     base = {
-        "max_features": 8, "max_classes": 3, "d_cell": 16, "d_model": 32, "n_heads": 2,
-        "n_col_layers": 1, "n_layers": 2, "d_ff": 64,
+        "max_features": 8,
+        "max_classes": 3,
+        "d_cell": 16,
+        "d_model": 32,
+        "n_heads": 2,
+        "n_col_layers": 1,
+        "n_layers": 2,
+        "d_ff": 64,
     }
     path = tmp_path / "ckpt.pt"
     FinancialTFM(ModelConfig(**base)).save(str(path), trained_objectives=("classification",))
@@ -583,8 +696,14 @@ def test_mask_embedding_false_is_byte_identical_to_the_pre_48_10_architecture():
     from fintfm.modeling.model import FinancialTFM, ModelConfig
 
     base = {
-        "max_features": 8, "max_classes": 3, "d_cell": 16, "d_model": 32, "n_heads": 2,
-        "n_col_layers": 1, "n_layers": 2, "d_ff": 64,
+        "max_features": 8,
+        "max_classes": 3,
+        "d_cell": 16,
+        "d_model": 32,
+        "n_heads": 2,
+        "n_col_layers": 1,
+        "n_layers": 2,
+        "d_ff": 64,
     }
     X = torch.randn(2, 10, 8)
     y = torch.randint(0, 3, (2, 10))
@@ -608,8 +727,14 @@ def test_mask_embedding_true_trains(n_cell_blocks=0):
     from fintfm.modeling.model import FinancialTFM, ModelConfig
 
     base = {
-        "max_features": 8, "max_classes": 3, "d_cell": 16, "d_model": 32, "n_heads": 2,
-        "n_col_layers": 1, "n_layers": 2, "d_ff": 64,
+        "max_features": 8,
+        "max_classes": 3,
+        "d_cell": 16,
+        "d_model": 32,
+        "n_heads": 2,
+        "n_col_layers": 1,
+        "n_layers": 2,
+        "d_ff": 64,
     }
     X = torch.randn(2, 10, 8)
     y = torch.randint(0, 3, (2, 10))
@@ -634,8 +759,14 @@ def test_mask_embedding_true_differs_from_the_joint_embedding():
     from fintfm.modeling.model import FinancialTFM, ModelConfig
 
     base = {
-        "max_features": 8, "max_classes": 3, "d_cell": 16, "d_model": 32, "n_heads": 2,
-        "n_col_layers": 1, "n_layers": 2, "d_ff": 64,
+        "max_features": 8,
+        "max_classes": 3,
+        "d_cell": 16,
+        "d_model": 32,
+        "n_heads": 2,
+        "n_col_layers": 1,
+        "n_layers": 2,
+        "d_ff": 64,
     }
     X = torch.randn(2, 10, 8)
     y = torch.randint(0, 3, (2, 10))
@@ -658,8 +789,14 @@ def test_pre_48_10_shaped_checkpoint_loads(tmp_path):
     from fintfm.modeling.model import FinancialTFM, ModelConfig
 
     base = {
-        "max_features": 8, "max_classes": 3, "d_cell": 16, "d_model": 32, "n_heads": 2,
-        "n_col_layers": 1, "n_layers": 2, "d_ff": 64,
+        "max_features": 8,
+        "max_classes": 3,
+        "d_cell": 16,
+        "d_model": 32,
+        "n_heads": 2,
+        "n_col_layers": 1,
+        "n_layers": 2,
+        "d_ff": 64,
     }
     path = tmp_path / "ckpt.pt"
     FinancialTFM(ModelConfig(**base)).save(str(path), trained_objectives=("classification",))
@@ -699,8 +836,14 @@ def test_head_type_binned_default_is_byte_identical_to_pre_48_3_architecture():
     from fintfm.modeling.model import FinancialTFM, ModelConfig
 
     base = {
-        "max_features": 8, "max_classes": 3, "d_cell": 16, "d_model": 32, "n_heads": 2,
-        "n_col_layers": 1, "n_layers": 2, "d_ff": 64,
+        "max_features": 8,
+        "max_classes": 3,
+        "d_cell": 16,
+        "d_model": 32,
+        "n_heads": 2,
+        "n_col_layers": 1,
+        "n_layers": 2,
+        "d_ff": 64,
     }
     X = torch.randn(2, 10, 8)
     y = torch.randint(0, 3, (2, 10))
@@ -723,8 +866,14 @@ def test_quantile_head_shapes_and_gradients(n_cell_blocks=0):
     from fintfm.modeling.model import FinancialTFM, ModelConfig
 
     base = {
-        "max_features": 8, "max_classes": 3, "d_cell": 16, "d_model": 32, "n_heads": 2,
-        "n_col_layers": 1, "n_layers": 2, "d_ff": 64,
+        "max_features": 8,
+        "max_classes": 3,
+        "d_cell": 16,
+        "d_model": 32,
+        "n_heads": 2,
+        "n_col_layers": 1,
+        "n_layers": 2,
+        "d_ff": 64,
     }
     n_q = 7
     X = torch.randn(2, 10, 8)
@@ -750,8 +899,15 @@ def test_quantile_head_taus_are_evenly_spaced_and_interior():
     from fintfm.modeling.model import FinancialTFM, ModelConfig
 
     model = FinancialTFM(
-        ModelConfig(max_features=4, d_model=8, n_heads=1, n_layers=1, d_ff=8,
-                    head_type="quantile", n_quantiles=9)
+        ModelConfig(
+            max_features=4,
+            d_model=8,
+            n_heads=1,
+            n_layers=1,
+            d_ff=8,
+            head_type="quantile",
+            n_quantiles=9,
+        )
     )
     taus = model.quantile_taus
     assert taus.shape == (9,)
@@ -770,8 +926,16 @@ def test_quantile_head_learns_a_known_linear_target():
 
     torch.manual_seed(6)
     cfg = ModelConfig(
-        max_features=6, max_classes=3, d_cell=16, d_model=32, n_heads=2, n_col_layers=1,
-        n_layers=1, d_ff=32, head_type="quantile", n_quantiles=9,
+        max_features=6,
+        max_classes=3,
+        d_cell=16,
+        d_model=32,
+        n_heads=2,
+        n_col_layers=1,
+        n_layers=1,
+        d_ff=32,
+        head_type="quantile",
+        n_quantiles=9,
     )
     model = FinancialTFM(cfg)
     opt = torch.optim.AdamW(model.parameters(), lr=3e-3)
@@ -784,8 +948,12 @@ def test_quantile_head_learns_a_known_linear_target():
             y_cont = (X[:, 0] * 2.0 + rng.normal(scale=0.2, size=n_rows)).astype(np.float64)
             tasks.append(
                 Task(
-                    X=X, y=np.zeros(n_rows, dtype=np.int64), n_classes=0,
-                    is_categorical=np.zeros(5, dtype=bool), source="test", y_continuous=y_cont,
+                    X=X,
+                    y=np.zeros(n_rows, dtype=np.int64),
+                    n_classes=0,
+                    is_categorical=np.zeros(5, dtype=bool),
+                    source="test",
+                    y_continuous=y_cont,
                 )
             )
         return collate(tasks, n_ctx=30, max_features=6, head_type="quantile")
@@ -809,8 +977,11 @@ def test_quantile_head_requires_continuous_y_in_collate():
     from fintfm.prior.base import Task, collate
 
     task = Task(
-        X=np.zeros((10, 3), dtype=np.float32), y=np.zeros(10, dtype=np.int64), n_classes=2,
-        is_categorical=np.zeros(3, dtype=bool), source="financial",
+        X=np.zeros((10, 3), dtype=np.float32),
+        y=np.zeros(10, dtype=np.int64),
+        n_classes=2,
+        is_categorical=np.zeros(3, dtype=bool),
+        source="financial",
     )
     with pytest.raises(ValueError, match="quantile"):
         collate([task], n_ctx=5, max_features=3, head_type="quantile")
@@ -830,8 +1001,16 @@ def test_feature_chunking_is_an_identity():
     """
     torch.manual_seed(0)
     cfg = ModelConfig(
-        max_features=17, d_cell=16, d_model=32, n_layers=2, n_col_layers=2,
-        n_heads=4, max_classes=3, n_cell_blocks=2, cell_labels=True, column_id_dim=8,
+        max_features=17,
+        d_cell=16,
+        d_model=32,
+        n_layers=2,
+        n_col_layers=2,
+        n_heads=4,
+        max_classes=3,
+        n_cell_blocks=2,
+        cell_labels=True,
+        column_id_dim=8,
     )
     model = FinancialTFM(cfg).eval()
     X = torch.randn(3, 40, 17)
@@ -850,8 +1029,14 @@ def test_feature_chunking_is_an_identity():
 def test_feature_chunk_rejects_a_nonsense_size():
     """A zero or negative chunk must fail loudly rather than silently skipping features."""
     cfg = ModelConfig(
-        max_features=6, d_cell=8, d_model=16, n_layers=1, n_col_layers=1,
-        n_heads=2, max_classes=2, n_cell_blocks=1,
+        max_features=6,
+        d_cell=8,
+        d_model=16,
+        n_layers=1,
+        n_col_layers=1,
+        n_heads=2,
+        max_classes=2,
+        n_cell_blocks=1,
     )
     model = FinancialTFM(cfg).eval()
     model.feature_chunk = 0
@@ -881,9 +1066,18 @@ def test_query_chunking_is_exact_with_a_context_empty_column(n_cell_blocks):
     value in a column the context leaves entirely NaN; ``a``'s output must not move.
     """
     torch.manual_seed(0)
-    cfg = ModelConfig(max_features=6, max_classes=2, d_cell=16, d_model=32, n_heads=2,
-                      n_col_layers=1, n_layers=2, d_ff=64, n_cell_blocks=n_cell_blocks,
-                      cell_labels=n_cell_blocks > 0)
+    cfg = ModelConfig(
+        max_features=6,
+        max_classes=2,
+        d_cell=16,
+        d_model=32,
+        n_heads=2,
+        n_col_layers=1,
+        n_layers=2,
+        d_ff=64,
+        n_cell_blocks=n_cell_blocks,
+        cell_labels=n_cell_blocks > 0,
+    )
     model = FinancialTFM(cfg).eval()
     n_ctx = 8
     ctx = torch.randn(n_ctx, 6)
@@ -907,27 +1101,58 @@ def test_query_chunking_is_exact_with_a_context_empty_column(n_cell_blocks):
 # values. A drift here means the default path changed, which would invalidate every existing
 # checkpoint's comparisons. AU5.9's hazard tests live in tests/test_hazard.py.
 
-_P5_BASE = {"max_features": 6, "max_classes": 3, "d_cell": 16, "d_model": 32, "n_heads": 2,
-            "n_col_layers": 1, "n_layers": 2, "d_ff": 64}
-_P5_FINGERPRINT = {
-    "meanmax": ({}, -33.0643186122179,
-                [0.09483376145362854, -0.8273341655731201, -0.38515689969062805]),
-    "attention": ({"pooling": "attention"}, 11.312919471412897,
-                  [0.5645540952682495, 0.12391750514507294, -0.2492905855178833]),
-    "cellblocks": ({"n_cell_blocks": 1, "cell_labels": True}, 42.728899128735065,
-                   [0.2567908763885498, 0.4492500424385071, 0.5122548937797546]),
-    "maskemb": ({"mask_embedding": True}, -15.284929860383272,
-                [-0.3825910985469818, 0.10315485298633575, 0.26675528287887573]),
-    "hazard": ({"max_classes": 2, "n_horizons": 4}, 29.38597935438156,
-               [0.37285876274108887, 0.7123607397079468, 0.8926969170570374]),
+_P5_BASE = {
+    "max_features": 6,
+    "max_classes": 3,
+    "d_cell": 16,
+    "d_model": 32,
+    "n_heads": 2,
+    "n_col_layers": 1,
+    "n_layers": 2,
+    "d_ff": 64,
 }
-_P5_KEYS = ("n_cell_heads", "n_summary_tokens", "value_embedding", "value_basis_size",
-            "value_basis_learnable", "value_ecdf", "attn_length_scale", "attn_length_ref",
-            "attn_impl", "hazard_period_context")
+_P5_FINGERPRINT = {
+    "meanmax": (
+        {},
+        -33.0643186122179,
+        [0.09483376145362854, -0.8273341655731201, -0.38515689969062805],
+    ),
+    "attention": (
+        {"pooling": "attention"},
+        11.312919471412897,
+        [0.5645540952682495, 0.12391750514507294, -0.2492905855178833],
+    ),
+    "cellblocks": (
+        {"n_cell_blocks": 1, "cell_labels": True},
+        42.728899128735065,
+        [0.2567908763885498, 0.4492500424385071, 0.5122548937797546],
+    ),
+    "maskemb": (
+        {"mask_embedding": True},
+        -15.284929860383272,
+        [-0.3825910985469818, 0.10315485298633575, 0.26675528287887573],
+    ),
+    "hazard": (
+        {"max_classes": 2, "n_horizons": 4},
+        29.38597935438156,
+        [0.37285876274108887, 0.7123607397079468, 0.8926969170570374],
+    ),
+}
+_P5_KEYS = (
+    "n_cell_heads",
+    "n_summary_tokens",
+    "value_embedding",
+    "value_basis_size",
+    "value_basis_learnable",
+    "value_ecdf",
+    "attn_length_scale",
+    "attn_length_ref",
+    "attn_impl",
+    "hazard_period_context",
+)
 #: The design review DR6 levers (DR6.2, DR6.3), deleted alongside: a checkpoint saved before
 #: them lacks their keys too.
-_DR6_KEYS = ("cell_row_attn", "n_inducing", "readout", "n_readout", "head_mlp",
-              "cell_mixing")
+_DR6_KEYS = ("cell_row_attn", "n_inducing", "readout", "n_readout", "head_mlp", "cell_mixing")
 
 
 def _p5_inputs(max_classes):
@@ -1021,15 +1246,24 @@ def test_value_basis_rbf_peaks_at_its_centres_and_fourier_is_bounded():
 
 @pytest.mark.parametrize(
     "kind, learnable, ecdf, mask_embedding",
-    [("rbf", False, False, False), ("rbf", True, True, False),
-     ("fourier", False, True, True), ("fourier", True, False, False),
-     ("mlp", False, True, False)],
+    [
+        ("rbf", False, False, False),
+        ("rbf", True, True, False),
+        ("fourier", False, True, True),
+        ("fourier", True, False, False),
+        ("mlp", False, True, False),
+    ],
 )
 def test_value_embedding_variants_run_and_train(kind, learnable, ecdf, mask_embedding):
     torch.manual_seed(0)
-    cfg = ModelConfig(**_P5_BASE, value_embedding=kind, value_basis_size=4,
-                      value_basis_learnable=learnable, value_ecdf=ecdf,
-                      mask_embedding=mask_embedding)
+    cfg = ModelConfig(
+        **_P5_BASE,
+        value_embedding=kind,
+        value_basis_size=4,
+        value_basis_learnable=learnable,
+        value_ecdf=ecdf,
+        mask_embedding=mask_embedding,
+    )
     model = FinancialTFM(cfg)
     X, y = _p5_inputs(3)
     loss = model.loss(X, y, 9, torch.tensor([3, 3]))
@@ -1151,9 +1385,7 @@ def test_summary_tokens_replace_pooling_and_keep_column_order_invariance():
 def _masked_reference(q, k, v, n_ctx, scale):
     """The masked row attention through SDPA, the definition split_row_attention matches."""
     allowed = ~FinancialTFM._row_mask(q.shape[-2], n_ctx, q.device)
-    return torch.nn.functional.scaled_dot_product_attention(
-        q, k, v, attn_mask=allowed, scale=scale
-    )
+    return torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=allowed, scale=scale)
 
 
 @pytest.mark.parametrize(
@@ -1166,8 +1398,10 @@ def test_split_row_attention_equals_the_masked_attention(n_rows, n_ctx, d):
     q, k, v = (torch.randn(2, 3, n_rows, d, generator=g) * 2 for _ in range(3))
     for scale in (1 / d**0.5, 2.7 / d**0.5):
         torch.testing.assert_close(
-            split_row_attention(q, k, v, n_ctx, scale), _masked_reference(q, k, v, n_ctx, scale),
-            rtol=1e-5, atol=1e-5,
+            split_row_attention(q, k, v, n_ctx, scale),
+            _masked_reference(q, k, v, n_ctx, scale),
+            rtol=1e-5,
+            atol=1e-5,
         )
 
 
@@ -1228,7 +1462,8 @@ def test_attn_impl_split_matches_masked_partway_through_the_row_stack():
             torch.testing.assert_close(
                 split._row_attention(h, 9, n_layers=n_layers),
                 masked._row_attention(h, 9, n_layers=n_layers),
-                rtol=1e-5, atol=1e-5,
+                rtol=1e-5,
+                atol=1e-5,
             )
         one = masked._row_attention(h, 9, n_layers=1)
         assert not torch.allclose(one, masked._row_attention(h, 9))
@@ -1348,7 +1583,10 @@ def test_head_padding_leaves_attention_and_its_gradients_unchanged(shape):
     for padded in (False, True):
         qkv = [t.clone().requires_grad_(True) for t in base]
         if padded:
-            pad = (0, model_mod.HALF_PRECISION_HEAD_ALIGN - 12 % model_mod.HALF_PRECISION_HEAD_ALIGN)
+            pad = (
+                0,
+                model_mod.HALF_PRECISION_HEAD_ALIGN - 12 % model_mod.HALF_PRECISION_HEAD_ALIGN,
+            )
             q, k, v = (torch.nn.functional.pad(t, pad) for t in qkv)
             out = sdpa(q, k, v, attn_mask=mask, scale=12**-0.5)[..., :12]
         else:
@@ -1359,16 +1597,16 @@ def test_head_padding_leaves_attention_and_its_gradients_unchanged(shape):
         torch.testing.assert_close(a, b, rtol=1e-5, atol=1e-6)
     # and fp32 input passes through aligned_attention untouched: same call, same bits
     torch.testing.assert_close(
-        model_mod.aligned_attention(*base, attn_mask=mask), sdpa(*base, attn_mask=mask),
-        rtol=0, atol=0,
+        model_mod.aligned_attention(*base, attn_mask=mask),
+        sdpa(*base, attn_mask=mask),
+        rtol=0,
+        atol=0,
     )
 
 
 @pytest.mark.parametrize("attn_impl", ["masked", "split"])
 @pytest.mark.parametrize("chunk", [None, 2])
-def test_half_precision_route_matches_the_stock_encoders_in_float32(
-    monkeypatch, attn_impl, chunk
-):
+def test_half_precision_route_matches_the_stock_encoders_in_float32(monkeypatch, attn_impl, chunk):
     """The cell stages' half-precision route (the encoder layers run by ``_prenorm_stack``
     with boolean masks) computes what the stock ``nn.TransformerEncoder`` computes: forced
     on in fp32, outputs and gradients equal the stock path's within 1e-5."""
@@ -1386,8 +1624,9 @@ def test_half_precision_route_matches_the_stock_encoders_in_float32(
         torch.manual_seed(5)  # training draws fresh column identities; draw the same ones
         loss = model.loss(X, y, 9, torch.tensor([3, 3]))
         loss.backward()
-        results.append([loss.detach(), *(p.grad.clone() for p in model.parameters()
-                                          if p.grad is not None)])
+        results.append(
+            [loss.detach(), *(p.grad.clone() for p in model.parameters() if p.grad is not None)]
+        )
     assert len(results[0]) == len(results[1])
     for a, b in zip(*results):
         torch.testing.assert_close(b, a, rtol=1e-5, atol=1e-5)
@@ -1401,9 +1640,20 @@ def test_fp16_peak_memory_is_at_most_fp32s_on_cuda(attn_impl):
     step in fp32. Before the fix fp16 fell back to the math kernel and ran out of memory on
     a T4 where fp32 needed 6.2 GB (FINDINGS §170)."""
     torch.manual_seed(0)
-    cfg = ModelConfig(max_features=64, max_classes=2, d_cell=48, d_model=128, n_heads=4,
-                      n_col_layers=2, n_layers=2, d_ff=512, n_cell_blocks=1, cell_labels=True,
-                      column_id_dim=16, attn_impl=attn_impl)
+    cfg = ModelConfig(
+        max_features=64,
+        max_classes=2,
+        d_cell=48,
+        d_model=128,
+        n_heads=4,
+        n_col_layers=2,
+        n_layers=2,
+        d_ff=512,
+        n_cell_blocks=1,
+        cell_labels=True,
+        column_id_dim=16,
+        attn_impl=attn_impl,
+    )
     model = FinancialTFM(cfg).cuda().train()
     g = torch.Generator().manual_seed(0)
     X = torch.randn(2, 512, 64, generator=g).cuda()
@@ -1464,8 +1714,18 @@ def test_checkpoint_records_provenance_and_load_ignores_it(tmp_path):
 def _context_model(**extra) -> FinancialTFM:
     """A tiny seeded eval-mode model for the predict_context tests."""
     torch.manual_seed(0)
-    cfg = ModelConfig(max_features=8, max_classes=3, d_cell=8, d_model=16, n_heads=2,
-                      n_col_layers=1, n_layers=2, d_ff=32, column_id_dim=4, **extra)
+    cfg = ModelConfig(
+        max_features=8,
+        max_classes=3,
+        d_cell=8,
+        d_model=16,
+        n_heads=2,
+        n_col_layers=1,
+        n_layers=2,
+        d_ff=32,
+        column_id_dim=4,
+        **extra,
+    )
     return FinancialTFM(cfg).eval()
 
 
@@ -1555,8 +1815,12 @@ def test_predict_context_refuses_what_it_cannot_score():
 # these fields existed and still passes, and tests/test_golden_outputs.py fingerprints every
 # inference output; the test below adds that no default builds a DR6 module.
 
-_DR6_INDUCED = {"n_cell_blocks": 1, "cell_labels": True, "cell_row_attn": "induced",
-                "n_inducing": 4}
+_DR6_INDUCED = {
+    "n_cell_blocks": 1,
+    "cell_labels": True,
+    "cell_row_attn": "induced",
+    "n_inducing": 4,
+}
 _DR6_CLS = {"readout": "cls", "n_readout": 4}
 _DR6_CASES = {
     "induced": _DR6_INDUCED,
@@ -1620,15 +1884,19 @@ def test_dr6_levers_score_in_query_and_feature_chunks_exactly(case):
     X, y = _p5_inputs(3)
     Xc, yc, Xq = X[0, :9].numpy(), y[0, :9].numpy(), X[0, 9:].numpy()
     whole = model.predict_context(Xc, yc, Xq, n_classes=3, pad_features=False)
-    chunked = torch.cat([
-        model.predict_context(Xc, yc, Xq[i : i + 2], n_classes=3, pad_features=False)
-        for i in range(0, len(Xq), 2)
-    ])
+    chunked = torch.cat(
+        [
+            model.predict_context(Xc, yc, Xq[i : i + 2], n_classes=3, pad_features=False)
+            for i in range(0, len(Xq), 2)
+        ]
+    )
     torch.testing.assert_close(chunked, whole, rtol=1e-5, atol=1e-6)
     model.feature_chunk = 2
     torch.testing.assert_close(
-        model.predict_context(Xc, yc, Xq, n_classes=3, pad_features=False), whole,
-        rtol=1e-5, atol=1e-6,
+        model.predict_context(Xc, yc, Xq, n_classes=3, pad_features=False),
+        whole,
+        rtol=1e-5,
+        atol=1e-6,
     )
 
 
@@ -1707,9 +1975,9 @@ def test_dr6_levers_get_fused_head_widths_in_half_precision(monkeypatch, attn_im
     from fintfm.modeling.model import HALF_PRECISION_HEAD_ALIGN
 
     torch.manual_seed(0)
-    model = FinancialTFM(ModelConfig(
-        **{**_DR55_BASE, **_DR6_INDUCED, **_DR6_CLS, "attn_impl": attn_impl}
-    )).train()
+    model = FinancialTFM(
+        ModelConfig(**{**_DR55_BASE, **_DR6_INDUCED, **_DR6_CLS, "attn_impl": attn_impl})
+    ).train()
     model.feature_chunk = chunk
     X, y = _p5_inputs(3)
     calls = _record_attention_calls(monkeypatch)
@@ -1809,10 +2077,12 @@ def test_latent_mode_scores_in_query_chunks_exactly():
     X, y = _p5_inputs(3)
     Xc, yc, Xq = X[0, :9].numpy(), y[0, :9].numpy(), X[0, 9:].numpy()
     whole = model.predict_context(Xc, yc, Xq, n_classes=3, pad_features=False)
-    chunked = torch.cat([
-        model.predict_context(Xc, yc, Xq[i : i + 2], n_classes=3, pad_features=False)
-        for i in range(0, len(Xq), 2)
-    ])
+    chunked = torch.cat(
+        [
+            model.predict_context(Xc, yc, Xq[i : i + 2], n_classes=3, pad_features=False)
+            for i in range(0, len(Xq), 2)
+        ]
+    )
     torch.testing.assert_close(chunked, whole, rtol=1e-5, atol=1e-6)
 
 

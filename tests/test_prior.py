@@ -49,7 +49,9 @@ def test_mixture_batch_collates_with_quantile_head_via_p_regression():
     wires the two together end-to-end, as a real --p-regression 1.0 --head-type quantile
     training run must."""
     rng = np.random.default_rng(3)
-    cfg = PriorConfig(max_features=20, max_classes=8, n_rows=64, p_regression=1.0, head_type="quantile")
+    cfg = PriorConfig(
+        max_features=20, max_classes=8, n_rows=64, p_regression=1.0, head_type="quantile"
+    )
     batch = sample_batch(rng, cfg, batch_size=8)
     assert batch.X.shape == (8, 64, 20)
     assert batch.y.shape == (8, 64)
@@ -60,7 +62,9 @@ def test_mixture_batch_with_quantile_head_and_p_regression_below_one_is_refused(
     """A classification task reaching collate() under head_type='quantile' must raise, not be
     silently coerced -- this is the contract the training CLI's own help text states."""
     rng = np.random.default_rng(3)
-    cfg = PriorConfig(max_features=20, max_classes=8, n_rows=64, p_regression=0.0, head_type="quantile")
+    cfg = PriorConfig(
+        max_features=20, max_classes=8, n_rows=64, p_regression=0.0, head_type="quantile"
+    )
     with pytest.raises(ValueError, match="quantile"):
         sample_batch(rng, cfg, batch_size=8)
 
@@ -97,8 +101,7 @@ def test_batch_task_size_varies_when_choices_given():
     from fintfm.prior import PriorConfig
     from fintfm.prior.mixture import sample_batch
 
-    cfg = PriorConfig(max_features=16, max_classes=2, n_rows=128,
-                      n_rows_choices=(64, 256, 512))
+    cfg = PriorConfig(max_features=16, max_classes=2, n_rows=128, n_rows_choices=(64, 256, 512))
     rng = np.random.default_rng(0)
     sizes = {sample_batch(rng, cfg, batch_size=2).X.shape[1] for _ in range(12)}
     assert sizes <= {64, 256, 512}
@@ -218,8 +221,10 @@ def test_trivial_prior_is_actually_trivial():
         assert len(np.unique(y)) == 2
         k = 600
         aucs.append(
-            roc_auc_score(y[k:], LogisticRegression(max_iter=1000)
-                          .fit(X[:k], y[:k]).predict_proba(X[k:])[:, 1])
+            roc_auc_score(
+                y[k:],
+                LogisticRegression(max_iter=1000).fit(X[:k], y[:k]).predict_proba(X[k:])[:, 1],
+            )
         )
     assert np.mean(aucs) > 0.99, f"trivial tasks are not trivial: {np.mean(aucs):.4f}"
 
@@ -327,9 +332,7 @@ def test_n_noise_features_adds_width_capped_by_room():
     base_width = task.n_features
 
     rng = np.random.default_rng(0)
-    task_more = sample_financial_task(
-        rng, n_rows=200, max_features=24, n_noise_features=100
-    )
+    task_more = sample_financial_task(rng, n_rows=200, max_features=24, n_noise_features=100)
     # Capped by the room under max_features, never exceeding it (collate requires this).
     assert task_more.n_features <= 24
     assert task_more.n_features >= base_width
@@ -337,9 +340,7 @@ def test_n_noise_features_adds_width_capped_by_room():
 
 def test_n_correlated_block_features_adds_width_capped_by_room():
     rng = np.random.default_rng(0)
-    task = sample_financial_task(
-        rng, n_rows=200, max_features=24, n_correlated_block_features=100
-    )
+    task = sample_financial_task(rng, n_rows=200, max_features=24, n_correlated_block_features=100)
     assert task.n_features <= 24
 
 
@@ -348,9 +349,7 @@ def test_label_noise_rate_flips_a_measurable_fraction_of_labels():
     clean = sample_financial_task(rng_clean, n_rows=4000, max_features=16)
 
     rng_noisy = np.random.default_rng(0)
-    noisy = sample_financial_task(
-        rng_noisy, n_rows=4000, max_features=16, label_noise_rate=0.3
-    )
+    noisy = sample_financial_task(rng_noisy, n_rows=4000, max_features=16, label_noise_rate=0.3)
     # Same seed, same features/drivers up to the label-noise draw -- the flip fraction should
     # land near the requested rate, not exactly (the single-class guarantee can also flip a
     # few), and must be far from zero.
@@ -362,7 +361,5 @@ def test_label_noise_rate_zero_reproduces_unflipped_labels():
     rng = np.random.default_rng(0)
     base = sample_financial_task(rng, n_rows=500, max_features=16)
     rng = np.random.default_rng(0)
-    explicit_zero = sample_financial_task(
-        rng, n_rows=500, max_features=16, label_noise_rate=0.0
-    )
+    explicit_zero = sample_financial_task(rng, n_rows=500, max_features=16, label_noise_rate=0.0)
     assert np.array_equal(base.y, explicit_zero.y)

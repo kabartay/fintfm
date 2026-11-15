@@ -54,9 +54,7 @@ def _standardize(X: np.ndarray) -> np.ndarray:
     return np.nan_to_num(Z, nan=0.0)
 
 
-def _label_from_features_scm_style(
-    rng: np.random.Generator, X: np.ndarray
-) -> np.ndarray:
+def _label_from_features_scm_style(rng: np.random.Generator, X: np.ndarray) -> np.ndarray:
     """An SCM-style computational graph applied to *existing* columns, not fresh noise.
 
     Mirrors ``scm.sample_scm_task``'s node-building loop -- a random sparse linear map,
@@ -147,9 +145,13 @@ def sample_financial_features_scm_label(
 ) -> Task:
     """Financial features, SCM-style label. One cell of the §66 crossed design."""
     t = sample_financial_task(
-        rng, n_rows, max_features=max_features, min_features=min_features,
+        rng,
+        n_rows,
+        max_features=max_features,
+        min_features=min_features,
         min_expected_positives=min_expected_positives,
-        absolute_rate_floor=absolute_rate_floor, rate_ceiling=rate_ceiling,
+        absolute_rate_floor=absolute_rate_floor,
+        rate_ceiling=rate_ceiling,
     )
     distress = _label_from_features_scm_style(rng, t.X.astype(np.float64))
     y = _finish_binary(
@@ -170,7 +172,9 @@ def sample_scm_features_financial_label(
     sharpness_max: float = _SHARPNESS_MAX,
 ) -> Task:
     """SCM features, financial-style label. The other cell of the §66 crossed design."""
-    t = sample_scm_task(rng, n_rows, max_features=max_features, min_features=min_features, max_classes=2)
+    t = sample_scm_task(
+        rng, n_rows, max_features=max_features, min_features=min_features, max_classes=2
+    )
     distress = _label_from_features_financial_style(
         rng, t.X.astype(np.float64), sharpness_min, sharpness_max
     )

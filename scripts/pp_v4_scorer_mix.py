@@ -107,14 +107,20 @@ def fold_report(path: Path) -> dict[str, float]:
     y = d["y_true"].astype(int)
     leaf, glob, head = d["pred_representation"], d["pred_representation_global"], d["pred_own_head"]
     masks = groups(d)
-    print(f"\n{path.parent.name}: {len(y):,} rows, {y.sum():,} defaults, AUC as run {roc_auc_score(y, leaf):.4f}")
-    print("| group | rows | defaults | mean leaf-probe score | mean global-probe score | AP leaf-probe arm | AP global probe | AP partition head |")
+    print(
+        f"\n{path.parent.name}: {len(y):,} rows, {y.sum():,} defaults, AUC as run {roc_auc_score(y, leaf):.4f}"
+    )
+    print(
+        "| group | rows | defaults | mean leaf-probe score | mean global-probe score | AP leaf-probe arm | AP global probe | AP partition head |"
+    )
     print("| --- | --- | --- | --- | --- | --- | --- | --- |")
     for name, m in masks.items():
         if not m.any():
             continue
-        print(f"| {name} | {m.sum():,} | {y[m].sum():,} | {leaf[m].mean():.4f} | {glob[m].mean():.4f} "
-              f"| {_ap(y[m], leaf[m]):.4f} | {_ap(y[m], glob[m]):.4f} | {_ap(y[m], head[m]):.4f} |")
+        print(
+            f"| {name} | {m.sum():,} | {y[m].sum():,} | {leaf[m].mean():.4f} | {glob[m].mean():.4f} "
+            f"| {_ap(y[m], leaf[m]):.4f} | {_ap(y[m], glob[m]):.4f} | {_ap(y[m], head[m]):.4f} |"
+        )
     head_to_global = np.where(masks["leaf head"], glob, leaf)
     rescaled = leaf.copy()
     both = head_to_global.copy()
@@ -142,7 +148,9 @@ def main(root: Path) -> None:
     base = np.array([r["global head"] for r in rows])
     for key in ("as run", "head -> global", "rescaled", "both", "global probe", "global head"):
         v = np.array([r[key] for r in rows])
-        print(f"| {key} | {v.mean():.4f} | {v.mean() - base.mean():+.4f} | {(v > base).sum()} of 5 |")
+        print(
+            f"| {key} | {v.mean():.4f} | {v.mean() - base.mean():+.4f} | {(v > base).sum()} of 5 |"
+        )
 
 
 if __name__ == "__main__":

@@ -84,7 +84,9 @@ SHAPE_885K = Shape("885K", 136, 48, 128, 4, 2, 1, 4)
 SHAPE_5M = Shape("5M", 136, 64, 256, 4, 3, 1, 6)
 
 
-def score_bytes_row_within_feature(s: Shape, n: int, batch: int = 1, chunk: int | None = None) -> float:
+def score_bytes_row_within_feature(
+    s: Shape, n: int, batch: int = 1, chunk: int | None = None
+) -> float:
     """Bytes of one fp32 score tensor of the row-within-feature stage.
 
     Args:
@@ -203,38 +205,50 @@ def table_cpu() -> None:
         ("S79 est", 4048, None, 63.0, "ESTIMATED"),
     ]
     print("Table 1. CPU no-grad inference, 885K shape, F=136, B=1 (GB, peak resident)")
-    print(f"{'source':8} {'N':>5} {'chunk':>5} {'low':>6} {'central':>7} {'high':>6} "
-          f"{'measured':>8} {'ratio':>6}  within 2x  label")
+    print(
+        f"{'source':8} {'N':>5} {'chunk':>5} {'low':>6} {'central':>7} {'high':>6} "
+        f"{'measured':>8} {'ratio':>6}  within 2x  label"
+    )
     for src, n, chunk, meas, label in rows:
         lo, mid, hi = (cpu_peak_gb(SHAPE_885K, n, chunk, c) for c in CPU_SCORE_COPIES)
         inside = "yes" if 0.5 <= mid / meas <= 2.0 else "NO"
-        print(f"{src:8} {n:>5} {chunk!s:>5} {lo:6.1f} {mid:7.1f} {hi:6.1f} "
-              f"{meas:8.1f} {mid / meas:6.2f}  {inside:9}  {label}")
+        print(
+            f"{src:8} {n:>5} {chunk!s:>5} {lo:6.1f} {mid:7.1f} {hi:6.1f} "
+            f"{meas:8.1f} {mid / meas:6.2f}  {inside:9}  {label}"
+        )
     print()
 
 
 def table_cuda() -> None:
     """Print table 2: CUDA training retrodiction against §94 and §95."""
     print("Table 2. CUDA training (fp32, fused attention), saved-for-backward bytes (GB)")
-    print(f"{'source':10} {'model':>5} {'B':>2} {'N':>5} {'saved':>7} {'measured':>9} "
-          f"{'saved/meas':>10}  note")
+    print(
+        f"{'source':10} {'model':>5} {'B':>2} {'N':>5} {'saved':>7} {'measured':>9} "
+        f"{'saved/meas':>10}  note"
+    )
     for n, meas in [(128, 0.85), (256, 1.67), (384, 2.49), (512, 3.31), (768, 4.96)]:
         saved = cuda_saved_gb(SHAPE_885K, 4, n, UNITS_885K)
-        print(f"{'S95 L4':10} {'885K':>5} {4:>2} {n:>5} {saved:7.2f} {meas:9.2f} "
-              f"{saved / meas:10.2f}  MEASURED peak allocated")
+        print(
+            f"{'S95 L4':10} {'885K':>5} {4:>2} {n:>5} {saved:7.2f} {meas:9.2f} "
+            f"{saved / meas:10.2f}  MEASURED peak allocated"
+        )
     saved512 = cuda_saved_gb(SHAPE_5M, 8, 512, UNITS_5M)
     overhead = 12.28 / saved512
     for n, meas in [(512, 12.28), (1024, None)]:
         saved = cuda_saved_gb(SHAPE_5M, 8, n, UNITS_5M)
         if meas is not None:
-            print(f"{'S94 L4':10} {'5M':>5} {8:>2} {n:>5} {saved:7.2f} {meas:9.2f} "
-                  f"{saved / meas:10.2f}  MEASURED, fits")
+            print(
+                f"{'S94 L4':10} {'5M':>5} {8:>2} {n:>5} {saved:7.2f} {meas:9.2f} "
+                f"{saved / meas:10.2f}  MEASURED, fits"
+            )
         else:
             peak = saved * overhead
             verdict = "OOM" if peak > 23.7 else "fits"
-            print(f"{'S94 L4':10} {'5M':>5} {8:>2} {n:>5} {saved:7.2f} {'OOM':>9} "
-                  f"{'':>10}  saved alone {saved / 23.7:.0%} of 23.7 GB; "
-                  f"x{overhead:.3f} overhead from N=512 gives {peak:.1f} GB -> {verdict}")
+            print(
+                f"{'S94 L4':10} {'5M':>5} {8:>2} {n:>5} {saved:7.2f} {'OOM':>9} "
+                f"{'':>10}  saved alone {saved / 23.7:.0%} of 23.7 GB; "
+                f"x{overhead:.3f} overhead from N=512 gives {peak:.1f} GB -> {verdict}"
+            )
     print()
 
 
@@ -242,8 +256,10 @@ def table_projection() -> None:
     """Print table 3: projection at V4FinBench's shape, current against three-stage."""
     s = SHAPE_5M
     print("Table 3. Projection, 5M shape, F=136, per task (B=1), ESTIMATED")
-    print(f"{'N':>5} | {'score GB/layer (cur)':>20} {'(3-stage)':>10} | "
-          f"{'GFLOP cur':>10} {'3-stage':>9} {'x':>5} | {'CUDA saved GB':>13} {'3-stage':>8}")
+    print(
+        f"{'N':>5} | {'score GB/layer (cur)':>20} {'(3-stage)':>10} | "
+        f"{'GFLOP cur':>10} {'3-stage':>9} {'x':>5} | {'CUDA saved GB':>13} {'3-stage':>8}"
+    )
     for n in (512, 1024, 2024, 4096):
         cur_score = score_bytes_row_within_feature(s, n) / 1e9
         fac_score = s.features * s.heads * (2 * 64 * n) * FP32 / 1e9
@@ -251,8 +267,10 @@ def table_projection() -> None:
         fac = attention_gflop_factorized(s, n) + linear_gflop(s, n)
         saved = cuda_saved_gb(s, 1, n, UNITS_5M)
         saved_fac = cuda_saved_gb(s, 1, n, UNITS_5M_INDUCED)
-        print(f"{n:>5} | {cur_score:20.2f} {fac_score:10.3f} | {cur:10.0f} {fac:9.0f} "
-              f"{cur / fac:5.1f} | {saved:13.2f} {saved_fac:8.2f}")
+        print(
+            f"{n:>5} | {cur_score:20.2f} {fac_score:10.3f} | {cur:10.0f} {fac:9.0f} "
+            f"{cur / fac:5.1f} | {saved:13.2f} {saved_fac:8.2f}"
+        )
     print()
 
 

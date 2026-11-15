@@ -46,14 +46,22 @@ def test_the_forbidden_panels_are_tabarena_datasets():
     """The list names TabArena's own entries, so it cannot drift from the benchmark."""
     tabarena = {n for _, n in TABARENA_V0_1}
     assert {"polish_companies_bankruptcy", "taiwanese_bankruptcy_prediction"} <= set(
-        SELECTION_FORBIDDEN) & tabarena
+        SELECTION_FORBIDDEN
+    ) & tabarena
     assert {"polish_companies_bankruptcy", "taiwanese_bankruptcy_prediction"} <= set(BEYONDARENA)
 
 
-@pytest.mark.parametrize("name", [
-    "polish_companies_bankruptcy", "taiwanese_bankruptcy_prediction", "polish-bankruptcy-3y",
-    "polish_bankruptcy.zip", "taiwan-bankruptcy", "taiwan_bankruptcy.zip",
-])
+@pytest.mark.parametrize(
+    "name",
+    [
+        "polish_companies_bankruptcy",
+        "taiwanese_bankruptcy_prediction",
+        "polish-bankruptcy-3y",
+        "polish_bankruptcy.zip",
+        "taiwan-bankruptcy",
+        "taiwan_bankruptcy.zip",
+    ],
+)
 def test_every_spelling_of_the_panels_is_forbidden(name: str):
     """TabArena's names, the loaders' names (``datasets.load_*``) and the cache archives."""
     assert selection_forbidden(name)
@@ -78,7 +86,8 @@ def test_guard_refuses_then_flags_for_reporting():
     with pytest.raises(SelectionForbiddenError, match="allow-tabarena-for-reporting"):
         guard_selection(["v4finbench", "taiwan-bankruptcy"], False, "tool")
     assert guard_selection(["v4finbench", "taiwan-bankruptcy"], True, "tool") == [
-        "taiwan-bankruptcy"]
+        "taiwan-bankruptcy"
+    ]
     assert guard_selection(["v4finbench"], False, "tool") == []
 
 
@@ -88,9 +97,15 @@ def _arm(root: Path, arm: str, dataset: str) -> None:
     d.mkdir(parents=True)
     rng = np.random.default_rng(len(arm))
     y = np.r_[np.zeros(40), np.ones(10)].astype(int)
-    np.savez(d / "predictions_fold0.npz", y_val=y, val_fintfm=rng.uniform(size=50),
-             val_logistic_regression=rng.uniform(size=50), y_true=y,
-             pred_fintfm=rng.uniform(size=50), pred_logistic_regression=rng.uniform(size=50))
+    np.savez(
+        d / "predictions_fold0.npz",
+        y_val=y,
+        val_fintfm=rng.uniform(size=50),
+        val_logistic_regression=rng.uniform(size=50),
+        y_true=y,
+        pred_fintfm=rng.uniform(size=50),
+        pred_logistic_regression=rng.uniform(size=50),
+    )
     (d / "v4_protocol.json").write_text(json.dumps({"dataset": dataset}))
 
 
@@ -120,7 +135,9 @@ def test_pilot_compare_runs_unchanged_on_v4finbench(tmp_path: Path):
 
 
 def test_label_symmetry_probe_skips_the_panels_without_the_flag(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ):
     """Both archives cached: neither is loaded by default, both are with the flag."""
     probe = _script("scripts/label_symmetry_probe.py")

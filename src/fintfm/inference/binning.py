@@ -221,15 +221,11 @@ class QuantileBinner:
         """
         proba = np.asarray(proba, dtype=np.float64)
         if proba.ndim != 2 or proba.shape[1] != self.n_bins_:
-            raise ValueError(
-                f"proba must be (n, {self.n_bins_}), got {proba.shape}"
-            )
+            raise ValueError(f"proba must be (n, {self.n_bins_}), got {proba.shape}")
         return proba
 
 
-def interval_coverage(
-    y_true: np.ndarray, lower: np.ndarray, upper: np.ndarray
-) -> float:
+def interval_coverage(y_true: np.ndarray, lower: np.ndarray, upper: np.ndarray) -> float:
     """Fraction of targets inside their predicted interval (task 46.5).
 
     An 80% interval should contain the truth 80% of the time. Reporting RMSE alone would pass

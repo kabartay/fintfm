@@ -280,7 +280,10 @@ def log_int(rng: np.random.Generator, lo: int, hi: int) -> int:
 
 
 def draw_width(
-    rng: np.random.Generator, knobs: TaskKnobs, n_rows: int, min_features: int,
+    rng: np.random.Generator,
+    knobs: TaskKnobs,
+    n_rows: int,
+    min_features: int,
     max_features: int,
 ) -> tuple[int, int]:
     """Draw a task's width from :attr:`TaskKnobs.feature_ratio_bands`.
@@ -306,9 +309,7 @@ def draw_width(
     return width, band
 
 
-def draw_extra_counts(
-    rng: np.random.Generator, knobs: TaskKnobs, width: int
-) -> tuple[int, int]:
+def draw_extra_counts(rng: np.random.Generator, knobs: TaskKnobs, width: int) -> tuple[int, int]:
     """Draw how many irrelevant and near-duplicate columns a task of ``width`` carries.
 
     Args:
@@ -321,11 +322,13 @@ def draw_extra_counts(
     """
     n_irr = (
         round(rng.uniform(0.0, knobs.irrelevant_frac_max) * width)
-        if knobs.irrelevant_frac_max > 0 else 0
+        if knobs.irrelevant_frac_max > 0
+        else 0
     )
     n_dup = (
         round(rng.uniform(0.0, knobs.duplicate_frac_max) * width)
-        if knobs.duplicate_frac_max > 0 else 0
+        if knobs.duplicate_frac_max > 0
+        else 0
     )
     return n_irr, n_dup
 
@@ -646,8 +649,7 @@ def apply_task_knobs(
         y, n_classes, realised = _flip_labels(rng, y, n_classes, rate)
         record["label_flip_rate"] = realised
     n_irr, n_dup = (
-        extra_counts if extra_counts is not None
-        else draw_extra_counts(rng, knobs, X.shape[1])
+        extra_counts if extra_counts is not None else draw_extra_counts(rng, knobs, X.shape[1])
     )
     room = max(0, max_features - X.shape[1])
     n_irr = min(n_irr, room)
@@ -666,8 +668,9 @@ def apply_task_knobs(
             added.append(src.copy())
         else:
             spread = float(np.nanstd(src)) if np.isfinite(src).any() else 0.0
-            added.append(src + rng.normal(0.0, log_uniform(rng, 0.01, 0.2) * spread + 1e-12,
-                                          n_rows))
+            added.append(
+                src + rng.normal(0.0, log_uniform(rng, 0.01, 0.2) * spread + 1e-12, n_rows)
+            )
         added_cat.append(bool(is_cat[j]))
     origin = np.array(["base"] * X.shape[1] + ["irrelevant"] * n_irr + ["duplicate"] * n_dup)
     if added:

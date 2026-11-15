@@ -16,10 +16,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import dr64_arm_verdict as d
 
 ARM = "au517-lenscale-s0"
-CFG = {"horizon": 0, "folds": [0, 1, 2, 3, 4], "max_rows": None, "n_features": 130,
-       "fold_seed": 42, "n_splits": 5, "boosting": [], "classical": ["logistic_regression"],
-       "tuned": False, "finetune_steps": 0, "n_ensemble": 1, "drop_columns": [],
-       "large_n": {"method": "none"}}
+CFG = {
+    "horizon": 0,
+    "folds": [0, 1, 2, 3, 4],
+    "max_rows": None,
+    "n_features": 130,
+    "fold_seed": 42,
+    "n_splits": 5,
+    "boosting": [],
+    "classical": ["logistic_regression"],
+    "tuned": False,
+    "finetune_steps": 0,
+    "n_ensemble": 1,
+    "drop_columns": [],
+    "large_n": {"method": "none"},
+}
 
 
 def _write_scores(out: Path, shift: float) -> None:
@@ -29,8 +40,12 @@ def _write_scores(out: Path, shift: float) -> None:
         r = np.random.default_rng(k)
         y = (r.random(400) < 0.1).astype(int)
         pred = r.random(400) + y * 0.5 + shift * y * r.random(400)
-        np.savez(out / f"predictions_fold{k}.npz", y_true=y, pred_fintfm=pred,
-                 company_test=np.arange(400) // 4)
+        np.savez(
+            out / f"predictions_fold{k}.npz",
+            y_true=y,
+            pred_fintfm=pred,
+            company_test=np.arange(400) // 4,
+        )
     (out / "v4_protocol.json").write_text(json.dumps({"dataset": "v4finbench", "config": CFG}))
 
 
@@ -51,7 +66,8 @@ def _fetched(runs: Path, ok: bool = True) -> Path:
     (arm / f"{ARM}.pt").write_bytes(b"x")
     (arm / f"{ARM}.pt.step1000").write_bytes(b"x")
     (arm / "train.log").write_text(
-        "model parameters: 885,650\nddp: 2 processes, 8 tasks per step\nstep 6000/6000  loss 0.1\n")
+        "model parameters: 885,650\nddp: 2 processes, 8 tasks per step\nstep 6000/6000  loss 0.1\n"
+    )
     gpu = "GPUs: Tesla T4\n" if ok else "nothing\n"
     (out / "k.log").write_text(gpu + "$ " + " ".join(kernel["flags"]) + "\n")
     return out
@@ -74,7 +90,11 @@ def test_lever_flags_drop_execution_flags():
     k = d.read_kernel(ARM)
     assert d.lever_flags(k["flags"]) == ["--attn-length-scale"]
     assert d.lever_flags(d.read_kernel("au54-ctx2k-s0")["flags"]) == [
-        "--n-rows-choices", "256,512,1024,2223", "--max-query-rows", "512"]
+        "--n-rows-choices",
+        "256,512,1024,2223",
+        "--max-query-rows",
+        "512",
+    ]
     assert d.lever_of("au517-lenscale-s1") == "au517-lenscale"
 
 
@@ -82,8 +102,15 @@ def test_prepare_passes_and_writes_the_control_command(runs):
     out = _fetched(runs)
     assert d.main(["prepare", str(out), "--runs", str(runs)]) == 0
     cmd = (out / "dr64_score_command.sh").read_text()
-    for part in ("fintfm-v4protocol", "--horizon 0", "--folds 0,1,2,3,4", "--no-boosting",
-                 "--classical logistic_regression", "--device cpu", "score.yaml"):
+    for part in (
+        "fintfm-v4protocol",
+        "--horizon 0",
+        "--folds 0,1,2,3,4",
+        "--no-boosting",
+        "--classical logistic_regression",
+        "--device cpu",
+        "score.yaml",
+    ):
         assert part in cmd
     assert f"{ARM}.pt " in cmd and ".step1000" not in cmd
 
@@ -122,8 +149,7 @@ def test_verdict_writes_file_and_applies_rule(runs):
 def _probe_record(path: Path, arm: str, auc: float | None) -> None:
     rows = [{"probe": "linear", "arm": arm, "auc_mean": 0.99, "auc_std": 0.0, "n": 3}]
     if auc is not None:
-        rows.append({"probe": "antisymmetric", "arm": arm, "auc_mean": auc, "auc_std": 0.0,
-                     "n": 3})
+        rows.append({"probe": "antisymmetric", "arm": arm, "auc_mean": auc, "auc_std": 0.0, "n": 3})
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({"results": rows}))
 
@@ -157,10 +183,17 @@ def _v(lever, seed, verdict):
 
 
 def test_compose_needs_both_seeds_and_harm_at_neither():
-    res = d.compose([_v("a", 0, "promising"), _v("a", 1, "promising"),
-                     _v("b", 0, "promising"), _v("b", 1, "null"),
-                     _v("c", 0, "promising"), _v("c", 1, "harmful"),
-                     _v("e", 0, "null")])
+    res = d.compose(
+        [
+            _v("a", 0, "promising"),
+            _v("a", 1, "promising"),
+            _v("b", 0, "promising"),
+            _v("b", 1, "null"),
+            _v("c", 0, "promising"),
+            _v("c", 1, "harmful"),
+            _v("e", 0, "null"),
+        ]
+    )
     assert res["outcome"] == "single-lever" and res["bundle"] == ["a"]
     assert res["levers"]["b"]["status"] == "excluded"
     assert res["levers"]["c"]["reason"].startswith("harmful")

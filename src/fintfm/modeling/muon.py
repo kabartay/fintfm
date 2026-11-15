@@ -165,9 +165,16 @@ class Muon(torch.optim.Optimizer):
     ) -> None:
         """See the class docstring."""
         defaults = {
-            "lr": lr, "momentum": momentum, "nesterov": nesterov, "ns_steps": ns_steps,
-            "scale": scale, "row_blocks": row_blocks, "betas": betas, "eps": eps,
-            "weight_decay": weight_decay, "use_muon": False,
+            "lr": lr,
+            "momentum": momentum,
+            "nesterov": nesterov,
+            "ns_steps": ns_steps,
+            "scale": scale,
+            "row_blocks": row_blocks,
+            "betas": betas,
+            "eps": eps,
+            "weight_decay": weight_decay,
+            "use_muon": False,
         }
         super().__init__(params, defaults)
         #: Newton-Schulz precision per device, looked up once (not optimiser state).
@@ -197,11 +204,13 @@ class Muon(torch.optim.Optimizer):
         if m.device not in self._ns_dtypes:
             self._ns_dtypes[m.device] = newton_schulz_dtype(m.device)
         dtype = self._ns_dtypes[m.device]
-        return torch.cat([
-            newton_schulz(b, group["ns_steps"], dtype=dtype).to(m.dtype)
-            * update_scale(b.shape[0], b.shape[1], group["scale"])
-            for b in m.chunk(group["row_blocks"], dim=0)
-        ])
+        return torch.cat(
+            [
+                newton_schulz(b, group["ns_steps"], dtype=dtype).to(m.dtype)
+                * update_scale(b.shape[0], b.shape[1], group["scale"])
+                for b in m.chunk(group["row_blocks"], dim=0)
+            ]
+        )
 
     @torch.no_grad()
     def step(self, closure: Callable[[], float] | None = None) -> float | None:  # type: ignore[override]

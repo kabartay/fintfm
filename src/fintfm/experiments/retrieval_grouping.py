@@ -157,9 +157,7 @@ def run(
     started = time.perf_counter()
     reference = fitted(0).predict_term_structure(ds.X[keep])  # groups=0 -> one query each
     ref_seconds = time.perf_counter() - started
-    ref_auc, ref_by_h = _score(
-        reference, truth, seen, cfg.evaluation.min_rows_per_horizon
-    )
+    ref_auc, ref_by_h = _score(reference, truth, seen, cfg.evaluation.min_rows_per_horizon)
     print(
         f"  exact per-query reference: {ref_seconds:.0f}s for {len(keep):,} queries "
         f"({ref_seconds / max(len(keep), 1):.3f} s/query), mean AUC {ref_auc:.4f}"
@@ -257,15 +255,13 @@ def main() -> None:
     p.add_argument("--out", type=str, default="runs/retrieval-grouping")
     p.add_argument("--config", type=str, default=None, help="YAML overriding the defaults")
     p.add_argument("--n-negatives", type=int, default=2000)
-    p.add_argument(
-        "--n-positives", type=int, default=0, help="0 keeps every defaulting firm"
-    )
-    p.add_argument(
-        "--group-sizes", type=str, default="2,8,32,128,512", help="comma-separated"
-    )
+    p.add_argument("--n-positives", type=int, default=0, help="0 keeps every defaulting firm")
+    p.add_argument("--group-sizes", type=str, default="2,8,32,128,512", help="comma-separated")
     p.add_argument("--seed", type=int, default=0)
     p.add_argument(
-        "--split", choices=("embargoed", "legacy"), default="embargoed",
+        "--split",
+        choices=("embargoed", "legacy"),
+        default="embargoed",
         help="'legacy' reproduces the leaking split of FINDINGS 35",
     )
     args = p.parse_args()

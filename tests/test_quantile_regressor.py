@@ -19,8 +19,16 @@ from fintfm.prior.base import Task, collate
 
 def _tiny_model(n_quantiles: int = 9) -> FinancialTFM:
     cfg = ModelConfig(
-        max_features=6, max_classes=3, d_cell=16, d_model=32, n_heads=2, n_col_layers=1,
-        n_layers=1, d_ff=32, head_type="quantile", n_quantiles=n_quantiles,
+        max_features=6,
+        max_classes=3,
+        d_cell=16,
+        d_model=32,
+        n_heads=2,
+        n_col_layers=1,
+        n_layers=1,
+        d_ff=32,
+        head_type="quantile",
+        n_quantiles=n_quantiles,
     )
     return FinancialTFM(cfg)
 
@@ -47,8 +55,9 @@ def test_scaler_raises_before_fit():
 
 
 def test_refuses_a_binned_head_checkpoint():
-    binned = FinancialTFM(ModelConfig(max_features=6, max_classes=5, d_model=16, n_heads=2,
-                                       n_layers=1, d_ff=32))
+    binned = FinancialTFM(
+        ModelConfig(max_features=6, max_classes=5, d_model=16, n_heads=2, n_layers=1, d_ff=32)
+    )
     with pytest.raises(ValueError, match="head_type"):
         FinancialTFMQuantileRegressor(binned)
 
@@ -154,8 +163,16 @@ def test_quantile_head_learns_a_known_linear_target_end_to_end():
     forward pass test_model.py already covers."""
     torch.manual_seed(7)
     cfg = ModelConfig(
-        max_features=8, max_classes=3, d_cell=16, d_model=32, n_heads=2, n_col_layers=1,
-        n_layers=1, d_ff=32, head_type="quantile", n_quantiles=9,
+        max_features=8,
+        max_classes=3,
+        d_cell=16,
+        d_model=32,
+        n_heads=2,
+        n_col_layers=1,
+        n_layers=1,
+        d_ff=32,
+        head_type="quantile",
+        n_quantiles=9,
     )
     model = FinancialTFM(cfg)
     opt = torch.optim.AdamW(model.parameters(), lr=3e-3)
@@ -170,8 +187,12 @@ def test_quantile_head_learns_a_known_linear_target_end_to_end():
             y_cont = (Xr[:, 0] * 2.0 + rng.normal(scale=0.2, size=n_rows)).astype(np.float64)
             tasks.append(
                 Task(
-                    X=Xp, y=np.zeros(n_rows, dtype=np.int64), n_classes=0,
-                    is_categorical=np.zeros(8, dtype=bool), source="test", y_continuous=y_cont,
+                    X=Xp,
+                    y=np.zeros(n_rows, dtype=np.int64),
+                    n_classes=0,
+                    is_categorical=np.zeros(8, dtype=bool),
+                    source="test",
+                    y_continuous=y_cont,
                 )
             )
         return collate(tasks, n_ctx=30, max_features=8, head_type="quantile")

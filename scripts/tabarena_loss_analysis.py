@@ -43,9 +43,15 @@ BASELINES = {"LR": "LR (default)", "RF": "RF (default)", "CAT": "CAT (default)"}
 #: Default configs of the in-context foundation models on the board; the best non-imputed one
 #: per dataset is the "best TFM" column.
 TFMS = (
-    "TABPFNV2_GPU (default)", "TABICL_GPU (default)", "TABICLV2 (default)",
-    "REALTABPFN-V2.5 (default)", "TA-TABPFN-3.5 (default)", "TABPFN-V2.6 (default)",
-    "MITRA_GPU (default)", "TA-LIMIX (default)", "TABDPT_GPU (default)",
+    "TABPFNV2_GPU (default)",
+    "TABICL_GPU (default)",
+    "TABICLV2 (default)",
+    "REALTABPFN-V2.5 (default)",
+    "TA-TABPFN-3.5 (default)",
+    "TABPFN-V2.6 (default)",
+    "MITRA_GPU (default)",
+    "TA-LIMIX (default)",
+    "TABDPT_GPU (default)",
 )
 
 
@@ -153,8 +159,17 @@ def build_table() -> pd.DataFrame:
 
 def report(T: pd.DataFrame) -> None:
     """Print correlations, threshold splits and the arm deltas."""
-    covs = ["log_ntrain", "features", "cat_share", "tieheavy_share", "miss_share", "minority",
-            "pos_rate", "rf_minus_lr", "tfm_minus_lr"]
+    covs = [
+        "log_ntrain",
+        "features",
+        "cat_share",
+        "tieheavy_share",
+        "miss_share",
+        "minority",
+        "pos_rate",
+        "rf_minus_lr",
+        "tfm_minus_lr",
+    ]
     outs = ["gap_lr", "gap_cat", "gap_tfm", "rank96", "lp_minus_head"]
     rho = pd.DataFrame(index=covs, columns=outs, dtype=float)
     pval = rho.copy()
@@ -177,15 +192,30 @@ def report(T: pd.DataFrame) -> None:
         for o in ("gap_lr", "gap_cat", "lp_minus_head"):
             a, b = T.loc[mask, o], T.loc[~mask, o]
             p = mannwhitneyu(a, b).pvalue
-            print(f"{name}: n={len(a)}/{len(b)} {o} median {a.median():+.4f} vs "
-                  f"{b.median():+.4f}, Mann-Whitney p={p:.3f}")
-    print("FinTFM below LR", int((T.gap_lr < 0).sum()), "RF", int((T.gap_rf < 0).sum()),
-          "CatBoost", int((T.gap_cat < 0).sum()), "best TFM", int((T.gap_tfm < 0).sum()),
-          "probe below LR", int((T.lp_gap_lr < 0).sum()), "of", len(T))
+            print(
+                f"{name}: n={len(a)}/{len(b)} {o} median {a.median():+.4f} vs "
+                f"{b.median():+.4f}, Mann-Whitney p={p:.3f}"
+            )
+    print(
+        "FinTFM below LR",
+        int((T.gap_lr < 0).sum()),
+        "RF",
+        int((T.gap_rf < 0).sum()),
+        "CatBoost",
+        int((T.gap_cat < 0).sum()),
+        "best TFM",
+        int((T.gap_tfm < 0).sum()),
+        "probe below LR",
+        int((T.lp_gap_lr < 0).sum()),
+        "of",
+        len(T),
+    )
     big = T.n_train * 7 / 8 > 1000
     d_ctx = (T.fintfm - T.ctx500)[big]
-    print(f"context 500 -> 1000 on the {int(big.sum())} tables larger than 1,000 rows per bag "
-          f"fold: mean {d_ctx.mean():+.4f}, positive on {int((d_ctx > 0).sum())}")
+    print(
+        f"context 500 -> 1000 on the {int(big.sum())} tables larger than 1,000 rows per bag "
+        f"fold: mean {d_ctx.mean():+.4f}, positive on {int((d_ctx > 0).sum())}"
+    )
 
 
 def to_markdown(T: pd.DataFrame) -> str:

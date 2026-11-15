@@ -68,8 +68,17 @@ HORIZON_FILES: dict[int, str] = {
 #: Columns their protocol drops before feature selection. Identifiers plus fields excluded
 #: from the released schema.
 DROP_COLUMNS: tuple[str, ...] = (
-    "company", "industry", "link", "num", "emis_id", "sector_2", "sector_3", "sector_4",
-    "Revenue/employee", "Fixed_assets/employee", "EBITDA/cash_flow",
+    "company",
+    "industry",
+    "link",
+    "num",
+    "emis_id",
+    "sector_2",
+    "sector_3",
+    "sector_4",
+    "Revenue/employee",
+    "Fixed_assets/employee",
+    "EBITDA/cash_flow",
 )
 
 #: Their target column.
@@ -97,15 +106,18 @@ CLASSICAL_GRIDS: dict[str, dict[str, list]] = {
 #: Boosting grids from the same table. Applied through the out-of-process worker.
 BOOSTING_GRIDS: dict[str, dict[str, list]] = {
     "xgboost": {
-        "n_estimators": [100, 200], "max_depth": [3, 5, 7],
+        "n_estimators": [100, 200],
+        "max_depth": [3, 5, 7],
         "learning_rate": [0.05, 0.1, 0.2],
     },
     "catboost": {
-        "iterations": [100, 200], "depth": [4, 6, 8],
+        "iterations": [100, 200],
+        "depth": [4, 6, 8],
         "learning_rate": [0.01, 0.05, 0.1],
     },
     "lightgbm": {
-        "n_estimators": [100, 200], "max_depth": [-1, 5, 10],
+        "n_estimators": [100, 200],
+        "max_depth": [-1, 5, 10],
         "learning_rate": [0.05, 0.1, 0.2],
     },
 }
@@ -180,10 +192,13 @@ def _classical_estimator(name: str, params: dict) -> ClassifierMixin:
     if name == "logistic_regression":
         return LogisticRegression(max_iter=1000, **params)
     if name == "mlp":
-        return MLPClassifier(**{"max_iter": 300, "early_stopping": True, "random_state": 0, **params})
+        return MLPClassifier(
+            **{"max_iter": 300, "early_stopping": True, "random_state": 0, **params}
+        )
     if name == "random_forest":
         return RandomForestClassifier(n_jobs=-1, random_state=0, **params)
     raise ValueError(f"unknown classical baseline {name!r}")
+
 
 #: Fold-assignment parameters, fixed by their protocol.
 N_SPLITS = 5
@@ -365,9 +380,7 @@ def _load_horizon(
 
     path = root / HORIZON_FILES[horizon]
     if not path.exists():
-        raise FileNotFoundError(
-            f"{path} not found. Fetch with:  uv run fintfm-fetch v4finbench"
-        )
+        raise FileNotFoundError(f"{path} not found. Fetch with:  uv run fintfm-fetch v4finbench")
     table = pq.read_table(path)
     df = table.to_pandas()
     missing = [c for c in drop_columns if c not in df.columns]
@@ -521,8 +534,7 @@ def run(
     root = root or (CACHE_DIR / "v4finbench")
     X, y, country, company, _names = _load_horizon(root, horizon, max_rows, drop_columns)
     if drop_columns:
-        print(f"dropping {len(drop_columns)} extra column(s) for an ablation: "
-              f"{list(drop_columns)}")
+        print(f"dropping {len(drop_columns)} extra column(s) for an ablation: {list(drop_columns)}")
     print(
         f"horizon {horizon} ({HORIZON_FILES[horizon]}): {len(y):,} rows, {X.shape[1]} features, "
         f"{y.sum():,} positive ({y.mean():.3%})"
@@ -546,8 +558,10 @@ def run(
         print("  no boosting baselines available; install with `uv sync --extra bench`")
     clash = set(fixed_names) & set(boosters)
     if clash:
-        raise ValueError(f"--booster-params arms {sorted(clash)} collide with the default "
-                         "booster arms; drop the empty spec or pass --no-boosting")
+        raise ValueError(
+            f"--booster-params arms {sorted(clash)} collide with the default "
+            "booster arms; drop the empty spec or pass --no-boosting"
+        )
     results: list[FoldResult] = []
     for fold in folds:
         tr, va, te = split_indices_for_fold(assignments, fold)
@@ -570,8 +584,10 @@ def run(
             est, params = best
             arms[name] = (est.predict_proba(Xva)[:, 1], est.predict_proba(Xte)[:, 1])
             if tune:
-                print(f"    {name} best params: {params} (selected on val {select_metric}; "
-                      f"val AP {best_val[0]:.4f}, val AUC {best_val[1]:.4f})")
+                print(
+                    f"    {name} best params: {params} (selected on val {select_metric}; "
+                    f"val AP {best_val[0]:.4f}, val AUC {best_val[1]:.4f})"
+                )
 
         if model is None:
             pass  # baselines only
@@ -584,16 +600,20 @@ def run(
             if cfg.inference.finetune_steps and clf is base:
                 fl = clf.finetune_losses_
                 k = max(1, len(fl) // 10)
-                print(f"  fine-tuned {len(fl)} steps: loss first-10% {np.mean(fl[:k]):.4f}, "
-                      f"last-10% {np.mean(fl[-k:]):.4f}")
+                print(
+                    f"  fine-tuned {len(fl)} steps: loss first-10% {np.mean(fl[:k]):.4f}, "
+                    f"last-10% {np.mean(fl[-k:]):.4f}"
+                )
                 if cfg.inference.finetune_val_frac > 0:
                     finetune_selection[str(fold)] = {
                         "best_step": clf.finetune_best_step_,
                         "stopped_step": clf.finetune_stopped_step_,
                         "val_curve": [[int(a), float(b)] for a, b in clf.finetune_val_curve_],
                     }
-                    print(f"  inner validation: best step {clf.finetune_best_step_}, "
-                          f"stopped at {clf.finetune_stopped_step_}")
+                    print(
+                        f"  inner validation: best step {clf.finetune_best_step_}, "
+                        f"stopped at {clf.finetune_stopped_step_}"
+                    )
             arms["fintfm"] = (
                 clf.predict_proba(Xva.astype(np.float32))[:, 1],
                 clf.predict_proba(Xte.astype(np.float32))[:, 1],
@@ -617,14 +637,21 @@ def run(
                         continue
                     score, ap, auc = selection_scores(y[va], p_both[: len(va)], select_metric)
                     if score > best_score:
-                        best_pred, best_score, best_params, best_val = p_both, score, params, (ap, auc)
+                        best_pred, best_score, best_params, best_val = (
+                            p_both,
+                            score,
+                            params,
+                            (ap, auc),
+                        )
                 if best_pred is None:
                     print(f"  {name} failed on fold {fold}; excluded from this fold")
                     continue
                 arms[name] = (best_pred[: len(va)], best_pred[len(va) :])
                 if tune:
-                    print(f"    {name} best params: {best_params} (selected on val "
-                          f"{select_metric}; val AP {best_val[0]:.4f}, val AUC {best_val[1]:.4f})")
+                    print(
+                        f"    {name} best params: {best_params} (selected on val "
+                        f"{select_metric}; val AP {best_val[0]:.4f}, val AUC {best_val[1]:.4f})"
+                    )
 
         # fixed-parameter booster arms (audit AU4.1): one fit each, no search
         if fixed_arms:
@@ -668,8 +695,19 @@ def run(
             # procedure reaches, and useful only as the gap against `f1`
             _, f1_orc = best_f1_threshold(y[te], p_test) if both else (0.0, float("nan"))
             results.append(
-                FoldResult(arm, fold, len(tr), len(te), int(y[te].sum()), float(auc),
-                           float(f1), thr, float(ap), float(f1_orc), float(ap_val))
+                FoldResult(
+                    arm,
+                    fold,
+                    len(tr),
+                    len(te),
+                    int(y[te].sum()),
+                    float(auc),
+                    float(f1),
+                    thr,
+                    float(ap),
+                    float(f1_orc),
+                    float(ap_val),
+                )
             )
             print(
                 f"  fold {fold} {arm:>20}: ROC-AUC {auc:.4f}  AP {ap:.4f}  F1 {f1:.4f}  "
@@ -704,17 +742,19 @@ def run(
             "reimplemented not copied. Data: Kostrzewa et al., arXiv:2605.10896, CC BY 4.0."
         ),
         "config": {
-            "model": model_path, "horizon": horizon, "folds": list(folds),
-            "max_rows": max_rows, "n_features": int(X.shape[1]),
-            "fold_seed": FOLD_SEED, "n_splits": N_SPLITS,
+            "model": model_path,
+            "horizon": horizon,
+            "folds": list(folds),
+            "max_rows": max_rows,
+            "n_features": int(X.shape[1]),
+            "fold_seed": FOLD_SEED,
+            "n_splits": N_SPLITS,
             "boosting": boosters,
             "classical": list(classical),
             "tuned": tune,
             "select_metric": select_metric if tune else None,
             "drop_columns": list(drop_columns),
-            "booster_params": [
-                {"arm": a, "booster": n, "params": p} for a, n, p in fixed_arms
-            ],
+            "booster_params": [{"arm": a, "booster": n, "params": p} for a, n, p in fixed_arms],
             "context_strategy": cfg.inference.context_strategy,
             "feature_transform": cfg.inference.feature_transform,
             "max_context": cfg.inference.max_context,
@@ -766,7 +806,8 @@ def summarise(record: dict) -> str:
         f"{len(c['folds'])} folds, {c['n_features']} features"
     )
     lines = [
-        header, "",
+        header,
+        "",
         f"{'arm':>22} {'ROC-AUC':>17} {'F1':>17} {'AP':>9} {'F1-oracle':>11}",
     ]
     for a in record["arms"]:
@@ -804,24 +845,36 @@ def summarise(record: dict) -> str:
             "Baselines were grid-searched on the validation fold, per their Table 5."
             if tuned
             else "*** BASELINES ARE UNTUNED (library defaults: CatBoost 1,000 iterations, "
-                 "LightGBM and XGBoost 100 trees). Their protocol grid-searches every baseline "
-                 "on the validation fold, so these are NOT their baselines. Untuned is not "
-                 "necessarily weaker: the --tune grid caps CatBoost at 200 iterations. Quote "
-                 "a booster with its iteration count. ***"
+            "LightGBM and XGBoost 100 trees). Their protocol grid-searches every baseline "
+            "on the validation fold, so these are NOT their baselines. Untuned is not "
+            "necessarily weaker: the --tune grid caps CatBoost at 200 iterations. Quote "
+            "a booster with its iteration count. ***"
         ),
         *(
-            ["", "Fixed-parameter booster arms (one fit per fold, never tuned): "
-             + ", ".join(b["arm"] for b in c["booster_params"]) + "."]
-            if c.get("booster_params") else []
+            [
+                "",
+                "Fixed-parameter booster arms (one fit per fold, never tuned): "
+                + ", ".join(b["arm"] for b in c["booster_params"])
+                + ".",
+            ]
+            if c.get("booster_params")
+            else []
         ),
         *(
             ["", f"*** ABLATION: dropped beyond their drop list: {c['drop_columns']}. ***"]
-            if c.get("drop_columns") else []
+            if c.get("drop_columns")
+            else []
         ),
         *(
-            ["", (f"*** THE FINTFM ARM IS WRAPPED: large_n.method={c['large_n']['method']} "
-                  "(audit AU5.8), not the plain classifier. ***")]
-            if (c.get("large_n") or {}).get("method", "none") != "none" else []
+            [
+                "",
+                (
+                    f"*** THE FINTFM ARM IS WRAPPED: large_n.method={c['large_n']['method']} "
+                    "(audit AU5.8), not the plain classifier. ***"
+                ),
+            ]
+            if (c.get("large_n") or {}).get("method", "none") != "none"
+            else []
         ),
         "",
         "Their published reference at this horizon is in docs/results/FINDINGS.md §36.",
@@ -849,7 +902,8 @@ def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--model", default=None)
     p.add_argument(
-        "--no-fintfm", action="store_true",
+        "--no-fintfm",
+        action="store_true",
         help="score the baselines only; for folds whose fintfm scores already exist",
     )
     p.add_argument("--out", type=str, default="runs/v4-protocol")
@@ -858,48 +912,63 @@ def main() -> None:
     p.add_argument("--folds", type=str, default="0,1,2,3,4", help="comma-separated")
     p.add_argument("--max-rows", type=int, default=None, help="development cap")
     p.add_argument(
-        "--device", type=str, default="cpu",
+        "--device",
+        type=str,
+        default="cpu",
         help="torch device for the fintfm arm. Cell-attention checkpoints "
-             "(n_cell_blocks>0) are far cheaper on mps/cuda than cpu",
+        "(n_cell_blocks>0) are far cheaper on mps/cuda than cpu",
     )
     p.add_argument(
-        "--tune", action="store_true",
+        "--tune",
+        action="store_true",
         help="grid-search every baseline on the validation fold, as their protocol and "
-             "Table 5 specify. Expensive: ~76 fits per fold on 600k rows. Without it, the "
-             "baselines run at library defaults and the output says so",
+        "Table 5 specify. Expensive: ~76 fits per fold on 600k rows. Without it, the "
+        "baselines run at library defaults and the output says so",
     )
     p.add_argument(
-        "--classical", type=str, default="logistic_regression",
+        "--classical",
+        type=str,
+        default="logistic_regression",
         help="comma-separated, from logistic_regression, mlp, random_forest",
     )
     p.add_argument(
-        "--no-boosting", action="store_true",
+        "--no-boosting",
+        action="store_true",
         help="skip LightGBM/CatBoost/XGBoost; they are the baselines that compete, so this "
-             "is for quick development runs only",
+        "is for quick development runs only",
     )
     p.add_argument(
-        "--select-metric", choices=("ap", "auc"), default="ap",
+        "--select-metric",
+        choices=("ap", "auc"),
+        default="ap",
         help="what --tune selects each baseline on, on the validation fold (runs before "
-             "2026-10-16 used auc)",
+        "2026-10-16 used auc)",
     )
     p.add_argument(
-        "--drop-columns", type=str, default="",
+        "--drop-columns",
+        type=str,
+        default="",
         help="comma-separated feature columns to drop beyond their drop list, for an "
-             "ablation (e.g. operational_status); recorded in the run config",
+        "ablation (e.g. operational_status); recorded in the run config",
     )
     p.add_argument(
-        "--booster-params", nargs="+", default=[], metavar="NAME:K=V,...",
+        "--booster-params",
+        nargs="+",
+        default=[],
+        metavar="NAME:K=V,...",
         help="extra booster arms at fixed parameters, one fit per fold and never tuned, "
-             "e.g. lightgbm:n_estimators=1000,learning_rate=0.05 catboost:iterations=100. "
-             "'name:' alone is that booster at library defaults (pair with --no-boosting). "
-             "Arms are named name[k=v,...]; recorded in the run config",
+        "e.g. lightgbm:n_estimators=1000,learning_rate=0.05 catboost:iterations=100. "
+        "'name:' alone is that booster at library defaults (pair with --no-boosting). "
+        "Arms are named name[k=v,...]; recorded in the run config",
     )
     p.add_argument(
-        "--large-n", choices=("none", "partition", "boost"), default=None,
+        "--large-n",
+        choices=("none", "partition", "boost"),
+        default=None,
         help="wrap the fintfm arm in a large-table method (audit AU5.8): a tree partition "
-             "with a context per leaf, or boosting rounds of small contexts. Overrides "
-             "large_n.method; the wrapper's other settings come from the large_n section. "
-             "Default: the config's value, 'none' in the packaged default",
+        "with a context per leaf, or boosting rounds of small contexts. Overrides "
+        "large_n.method; the wrapper's other settings come from the large_n section. "
+        "Default: the config's value, 'none' in the packaged default",
     )
     args = p.parse_args()
     try:
@@ -912,14 +981,19 @@ def main() -> None:
     if args.large_n is not None:
         cfg = replace(cfg, large_n=replace(cfg.large_n, method=args.large_n))
     record = run(
-        None if args.no_fintfm else args.model, Path(args.out), horizon=args.horizon,
+        None if args.no_fintfm else args.model,
+        Path(args.out),
+        horizon=args.horizon,
         folds=tuple(int(v) for v in args.folds.split(",")),
-        max_rows=args.max_rows, with_boosting=not args.no_boosting, tune=args.tune,
+        max_rows=args.max_rows,
+        with_boosting=not args.no_boosting,
+        tune=args.tune,
         select_metric=args.select_metric,
         drop_columns=tuple(v.strip() for v in args.drop_columns.split(",") if v.strip()),
         booster_params=booster_params,
         classical=tuple(v.strip() for v in args.classical.split(",") if v.strip()),
-        cfg=cfg, device=args.device,
+        cfg=cfg,
+        device=args.device,
     )
     print("\n" + summarise(record))
     print(f"\nconfig: {cfg.provenance()}")

@@ -115,8 +115,10 @@ def evaluate_on_credit(
     for horizon in horizons:
         ds = load_polish_bankruptcy(horizon)
         if ds.X.shape[1] > cfg.max_features:
-            print(f"    skipping {ds.name}: needs max_features >= {ds.X.shape[1]}, "
-                  f"model has {cfg.max_features}")
+            print(
+                f"    skipping {ds.name}: needs max_features >= {ds.X.shape[1]}, "
+                f"model has {cfg.max_features}"
+            )
             continue
         X_train, X_test, y_train, y_test = train_test_split(
             ds.X, ds.y, test_size=0.3, random_state=seed, stratify=ds.y
@@ -262,9 +264,10 @@ def summarise(record: dict) -> str:
         for name in variants:
             m = variants[name]["metrics"].get(key)
             cells.append(
-                "".ljust(36) if m is None
+                "".ljust(36)
+                if m is None
                 else f"AUC {m['roc_auc']:.4f} ECE {m['ece']:.4f} "
-                     f"p99/p50 {m.get('pred_p99_over_p50', float('nan')):.2f}"
+                f"p99/p50 {m.get('pred_p99_over_p50', float('nan')):.2f}"
             )
         lines.append(f"{key:38s} " + " ".join(f"{c:>36s}" for c in cells))
 
@@ -317,12 +320,11 @@ def summarise(record: dict) -> str:
             ]
             for (k, delta, lo, hi, p), ok in zip(rows, survives, strict=True):
                 mark = "significant" if ok else "not significant"
-                lines.append(
-                    f"  {k:38s} {delta:+.4f}  [{lo:+.4f}, {hi:+.4f}]  p={p:.4f}  {mark}"
-                )
+                lines.append(f"  {k:38s} {delta:+.4f}  [{lo:+.4f}, {hi:+.4f}]  p={p:.4f}  {mark}")
             n_sig = sum(survives)
             n_sig_fav = sum(
-                ok and delta > 0 for (_k, delta, _lo, _hi, _p), ok in zip(rows, survives, strict=True)
+                ok and delta > 0
+                for (_k, delta, _lo, _hi, _p), ok in zip(rows, survives, strict=True)
             )
             lines += [
                 "",

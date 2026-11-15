@@ -183,8 +183,15 @@ class Candidate:
 
 
 def _c(
-    suite: str, task_id: int, dataset_id: int, name: str, kind: str, n_rows: int,
-    n_features: int, n_classes: int, licence: str,
+    suite: str,
+    task_id: int,
+    dataset_id: int,
+    name: str,
+    kind: str,
+    n_rows: int,
+    n_features: int,
+    n_classes: int,
+    licence: str,
 ) -> Candidate:
     """Positional constructor that keeps the :data:`CANDIDATES` table one row per task."""
     return Candidate(suite, task_id, dataset_id, name, kind, n_rows, n_features, n_classes, licence)
@@ -194,119 +201,165 @@ def _c(
 #: OpenML API returned on :data:`FETCHED` (``/study/99``, ``/study/353``, ``/task/<id>``,
 #: ``/data/<id>``, ``/data/qualities/<id>``).
 CANDIDATES: tuple[Candidate, ...] = (
-    _c('CC18', 3, 3, 'kr-vs-kp', 'binary', 3196, 36, 2, 'Public'),
-    _c('CC18', 6, 6, 'letter', 'multiclass', 20000, 16, 26, 'Public'),
-    _c('CC18', 11, 11, 'balance-scale', 'multiclass', 625, 4, 3, 'Public'),
-    _c('CC18', 12, 12, 'mfeat-factors', 'multiclass', 2000, 216, 10, 'Public'),
-    _c('CC18', 14, 14, 'mfeat-fourier', 'multiclass', 2000, 76, 10, 'Public'),
-    _c('CC18', 15, 15, 'breast-w', 'binary', 699, 9, 2, 'Public'),
-    _c('CC18', 16, 16, 'mfeat-karhunen', 'multiclass', 2000, 64, 10, 'Public'),
-    _c('CC18', 18, 18, 'mfeat-morphological', 'multiclass', 2000, 6, 10, 'Public'),
-    _c('CC18', 22, 22, 'mfeat-zernike', 'multiclass', 2000, 47, 10, 'Public'),
-    _c('CC18', 23, 23, 'cmc', 'multiclass', 1473, 9, 3, 'Public'),
-    _c('CC18', 28, 28, 'optdigits', 'multiclass', 5620, 64, 10, 'Public'),
-    _c('CC18', 29, 29, 'credit-approval', 'binary', 690, 15, 2, 'Public'),
-    _c('CC18', 31, 31, 'credit-g', 'binary', 1000, 20, 2, 'Public'),
-    _c('CC18', 32, 32, 'pendigits', 'multiclass', 10992, 16, 10, 'Public'),
-    _c('CC18', 37, 37, 'diabetes', 'binary', 768, 8, 2, 'Public'),
-    _c('CC18', 43, 44, 'spambase', 'binary', 4601, 57, 2, 'Public'),
-    _c('CC18', 45, 46, 'splice', 'multiclass', 3190, 60, 3, 'Public'),
-    _c('CC18', 49, 50, 'tic-tac-toe', 'binary', 958, 9, 2, 'Public'),
-    _c('CC18', 53, 54, 'vehicle', 'multiclass', 846, 18, 4, 'Public'),
-    _c('CC18', 219, 151, 'electricity', 'binary', 45312, 8, 2, 'Public'),
-    _c('CC18', 2074, 182, 'satimage', 'multiclass', 6430, 36, 6, 'Public'),
-    _c('CC18', 2079, 188, 'eucalyptus', 'multiclass', 736, 19, 5, 'Public'),
-    _c('CC18', 3021, 38, 'sick', 'binary', 3772, 29, 2, 'Public'),
-    _c('CC18', 3022, 307, 'vowel', 'multiclass', 990, 12, 11, 'Public'),
-    _c('CC18', 3481, 300, 'isolet', 'multiclass', 7797, 617, 26, 'Public'),
-    _c('CC18', 3549, 458, 'analcatdata_authorship', 'multiclass', 841, 70, 4, 'Public'),
-    _c('CC18', 3560, 469, 'analcatdata_dmft', 'multiclass', 797, 4, 6, 'Public'),
-    _c('CC18', 3573, 554, 'mnist_784', 'multiclass', 70000, 784, 10, 'Public'),
-    _c('CC18', 3902, 1049, 'pc4', 'binary', 1458, 37, 2, 'Public'),
-    _c('CC18', 3903, 1050, 'pc3', 'binary', 1563, 37, 2, 'Public'),
-    _c('CC18', 3904, 1053, 'jm1', 'binary', 10885, 21, 2, 'Public'),
-    _c('CC18', 3913, 1063, 'kc2', 'binary', 522, 21, 2, 'Public'),
-    _c('CC18', 3917, 1067, 'kc1', 'binary', 2109, 21, 2, 'Public'),
-    _c('CC18', 3918, 1068, 'pc1', 'binary', 1109, 21, 2, 'Public'),
-    _c('CC18', 7592, 1590, 'adult', 'binary', 48842, 14, 2, 'Public'),
-    _c('CC18', 9910, 4134, 'Bioresponse', 'binary', 3751, 1776, 2, 'Public'),
-    _c('CC18', 9946, 1510, 'wdbc', 'binary', 569, 30, 2, 'Public'),
-    _c('CC18', 9952, 1489, 'phoneme', 'binary', 5404, 5, 2, 'Public'),
-    _c('CC18', 9957, 1494, 'qsar-biodeg', 'binary', 1055, 41, 2, 'Public'),
-    _c('CC18', 9960, 1497, 'wall-robot-navigation', 'multiclass', 5456, 24, 4, 'Public'),
-    _c('CC18', 9964, 1501, 'semeion', 'multiclass', 1593, 256, 10, 'Public'),
-    _c('CC18', 9971, 1480, 'ilpd', 'binary', 583, 10, 2, 'Public'),
-    _c('CC18', 9976, 1485, 'madelon', 'binary', 2600, 500, 2, 'Public'),
-    _c('CC18', 9977, 1486, 'nomao', 'binary', 34465, 118, 2, 'Public'),
-    _c('CC18', 9978, 1487, 'ozone-level-8hr', 'binary', 2534, 72, 2, 'Public'),
-    _c('CC18', 9981, 1468, 'cnae-9', 'multiclass', 1080, 856, 9, 'Public'),
-    _c('CC18', 9985, 1475, 'first-order-theorem-proving', 'multiclass', 6118, 51, 6, 'Public'),
-    _c('CC18', 10093, 1462, 'banknote-authentication', 'binary', 1372, 4, 2, 'Public'),
-    _c('CC18', 10101, 1464, 'blood-transfusion-service-center', 'binary', 748, 4, 2, 'Public'),
-    _c('CC18', 14952, 4534, 'PhishingWebsites', 'binary', 11055, 30, 2, 'Public'),
-    _c('CC18', 14954, 6332, 'cylinder-bands', 'binary', 540, 39, 2, 'Public'),
-    _c('CC18', 14965, 1461, 'bank-marketing', 'binary', 45211, 16, 2, 'Public'),
-    _c('CC18', 14969, 4538, 'GesturePhaseSegmentationProcessed', 'multiclass', 9873, 32, 5,
-        'Public'),
-    _c('CC18', 14970, 1478, 'har', 'multiclass', 10299, 561, 6, 'Public'),
-    _c('CC18', 125920, 23381, 'dresses-sales', 'binary', 500, 12, 2, 'Public'),
-    _c('CC18', 125922, 40499, 'texture', 'multiclass', 5500, 40, 11, 'Public'),
-    _c('CC18', 146195, 40668, 'connect-4', 'multiclass', 67557, 42, 3, 'public'),
-    _c('CC18', 146800, 40966, 'MiceProtein', 'multiclass', 1080, 81, 8, 'Public'),
-    _c('CC18', 146817, 40982, 'steel-plates-fault', 'multiclass', 1941, 27, 7, 'Public'),
-    _c('CC18', 146819, 40994, 'climate-model-simulation-crashes', 'binary', 540, 20, 2, 'Public'),
-    _c('CC18', 146820, 40983, 'wilt', 'binary', 4839, 5, 2, 'Public'),
-    _c('CC18', 146821, 40975, 'car', 'multiclass', 1728, 6, 4, 'Public'),
-    _c('CC18', 146822, 40984, 'segment', 'multiclass', 2310, 19, 7, 'Public'),
-    _c('CC18', 146824, 40979, 'mfeat-pixel', 'multiclass', 2000, 240, 10, 'Public'),
-    _c('CC18', 146825, 40996, 'Fashion-MNIST', 'multiclass', 70000, 784, 10, 'Public'),
-    _c('CC18', 167119, 41027, 'jungle_chess_2pcs_raw_endgame_complete', 'multiclass', 44819, 6, 3,
-        'Public'),
-    _c('CC18', 167120, 23517, 'numerai28.6', 'binary', 96320, 21, 2, 'Public'),
-    _c('CC18', 167121, 40923, 'Devnagari-Script', 'multiclass', 92000, 1024, 46, 'Public'),
-    _c('CC18', 167124, 40927, 'CIFAR_10', 'multiclass', 60000, 3072, 10, 'Public'),
-    _c('CC18', 167125, 40978, 'Internet-Advertisements', 'binary', 3279, 1558, 2, 'Public'),
-    _c('CC18', 167140, 40670, 'dna', 'multiclass', 3186, 180, 3, 'public'),
-    _c('CC18', 167141, 40701, 'churn', 'binary', 5000, 20, 2, 'public'),
-    _c('CTR23', 361234, 44956, 'abalone', 'regression', 4177, 8, 0, 'CC BY 4.0'),
-    _c('CTR23', 361235, 44957, 'airfoil_self_noise', 'regression', 1503, 5, 0, 'CC BY 4.0'),
-    _c('CTR23', 361236, 44958, 'auction_verification', 'regression', 2043, 7, 0, 'CC BY 4.0'),
-    _c('CTR23', 361237, 44959, 'concrete_compressive_strength', 'regression', 1030, 8, 0,
-        'CC BY 4.0'),
-    _c('CTR23', 361241, 44963, 'physiochemical_protein', 'regression', 45730, 9, 0, 'CC BY 4.0'),
-    _c('CTR23', 361242, 44964, 'superconductivity', 'regression', 21263, 81, 0, 'CC BY 4.0'),
-    _c('CTR23', 361243, 44965, 'geographical_origin_of_music', 'regression', 1059, 116, 0,
-        'CC BY 4.0'),
-    _c('CTR23', 361244, 44966, 'solar_flare', 'regression', 1066, 10, 0, 'CC BY 4.0'),
-    _c('CTR23', 361247, 44969, 'naval_propulsion_plant', 'regression', 11934, 14, 0, 'CC BY 4.0'),
-    _c('CTR23', 361249, 44971, 'white_wine', 'regression', 4898, 11, 0, 'CC BY 4.0'),
-    _c('CTR23', 361250, 44972, 'red_wine', 'regression', 1599, 11, 0, 'CC BY 4.0'),
-    _c('CTR23', 361251, 44973, 'grid_stability', 'regression', 10000, 12, 0, 'CC BY 4.0'),
-    _c('CTR23', 361252, 44974, 'video_transcoding', 'regression', 68784, 18, 0, 'CC BY 4.0'),
-    _c('CTR23', 361253, 44975, 'wave_energy', 'regression', 72000, 48, 0, 'CC BY 4.0'),
-    _c('CTR23', 361254, 44976, 'sarcos', 'regression', 48933, 21, 0, 'Public'),
-    _c('CTR23', 361255, 44977, 'california_housing', 'regression', 20640, 8, 0, 'Public'),
-    _c('CTR23', 361256, 44978, 'cpu_activity', 'regression', 8192, 21, 0, 'Public'),
-    _c('CTR23', 361257, 44979, 'diamonds', 'regression', 53940, 9, 0, 'Public'),
-    _c('CTR23', 361258, 44980, 'kin8nm', 'regression', 8192, 8, 0, 'Public'),
-    _c('CTR23', 361259, 44981, 'pumadyn32nh', 'regression', 8192, 32, 0, 'Public'),
-    _c('CTR23', 361260, 44983, 'miami_housing', 'regression', 13932, 15, 0, 'CC0: Public Domain'),
-    _c('CTR23', 361261, 44984, 'cps88wages', 'regression', 28155, 6, 0, 'Public'),
-    _c('CTR23', 361264, 44987, 'socmob', 'regression', 1156, 5, 0,
-        'Non-commercial scholarly and teaching purposes.'),
-    _c('CTR23', 361266, 44989, 'kings_county', 'regression', 21613, 21, 0, 'CC 0: Public Domain'),
-    _c('CTR23', 361267, 44990, 'brazilian_houses', 'regression', 10692, 9, 0,
-        'CC 0: Public Domain'),
-    _c('CTR23', 361268, 44992, 'fps_benchmark', 'regression', 24624, 43, 0, 'CC BY'),
-    _c('CTR23', 361269, 44993, 'health_insurance', 'regression', 22272, 11, 0, 'GPL (>= 2)'),
-    _c('CTR23', 361272, 45012, 'fifa', 'regression', 19178, 28, 0, 'CC0: Public Domain'),
-    _c('CTR23', 361616, 41021, 'Moneyball', 'regression', 1232, 14, 0, 'Public'),
-    _c('CTR23', 361617, 44960, 'energy_efficiency', 'regression', 768, 8, 0, 'CC BY 4.0'),
-    _c('CTR23', 361618, 44962, 'forest_fires', 'regression', 517, 12, 0, 'CC BY 4.0'),
-    _c('CTR23', 361619, 44967, 'student_performance_por', 'regression', 649, 30, 0, 'CC BY 4.0'),
-    _c('CTR23', 361621, 44970, 'QSAR_fish_toxicity', 'regression', 908, 6, 0, 'CC BY 4.0'),
-    _c('CTR23', 361622, 44994, 'cars', 'regression', 804, 17, 0, 'Public'),
-    _c('CTR23', 361623, 45402, 'space_ga', 'regression', 3107, 6, 0, 'Public'),
+    _c("CC18", 3, 3, "kr-vs-kp", "binary", 3196, 36, 2, "Public"),
+    _c("CC18", 6, 6, "letter", "multiclass", 20000, 16, 26, "Public"),
+    _c("CC18", 11, 11, "balance-scale", "multiclass", 625, 4, 3, "Public"),
+    _c("CC18", 12, 12, "mfeat-factors", "multiclass", 2000, 216, 10, "Public"),
+    _c("CC18", 14, 14, "mfeat-fourier", "multiclass", 2000, 76, 10, "Public"),
+    _c("CC18", 15, 15, "breast-w", "binary", 699, 9, 2, "Public"),
+    _c("CC18", 16, 16, "mfeat-karhunen", "multiclass", 2000, 64, 10, "Public"),
+    _c("CC18", 18, 18, "mfeat-morphological", "multiclass", 2000, 6, 10, "Public"),
+    _c("CC18", 22, 22, "mfeat-zernike", "multiclass", 2000, 47, 10, "Public"),
+    _c("CC18", 23, 23, "cmc", "multiclass", 1473, 9, 3, "Public"),
+    _c("CC18", 28, 28, "optdigits", "multiclass", 5620, 64, 10, "Public"),
+    _c("CC18", 29, 29, "credit-approval", "binary", 690, 15, 2, "Public"),
+    _c("CC18", 31, 31, "credit-g", "binary", 1000, 20, 2, "Public"),
+    _c("CC18", 32, 32, "pendigits", "multiclass", 10992, 16, 10, "Public"),
+    _c("CC18", 37, 37, "diabetes", "binary", 768, 8, 2, "Public"),
+    _c("CC18", 43, 44, "spambase", "binary", 4601, 57, 2, "Public"),
+    _c("CC18", 45, 46, "splice", "multiclass", 3190, 60, 3, "Public"),
+    _c("CC18", 49, 50, "tic-tac-toe", "binary", 958, 9, 2, "Public"),
+    _c("CC18", 53, 54, "vehicle", "multiclass", 846, 18, 4, "Public"),
+    _c("CC18", 219, 151, "electricity", "binary", 45312, 8, 2, "Public"),
+    _c("CC18", 2074, 182, "satimage", "multiclass", 6430, 36, 6, "Public"),
+    _c("CC18", 2079, 188, "eucalyptus", "multiclass", 736, 19, 5, "Public"),
+    _c("CC18", 3021, 38, "sick", "binary", 3772, 29, 2, "Public"),
+    _c("CC18", 3022, 307, "vowel", "multiclass", 990, 12, 11, "Public"),
+    _c("CC18", 3481, 300, "isolet", "multiclass", 7797, 617, 26, "Public"),
+    _c("CC18", 3549, 458, "analcatdata_authorship", "multiclass", 841, 70, 4, "Public"),
+    _c("CC18", 3560, 469, "analcatdata_dmft", "multiclass", 797, 4, 6, "Public"),
+    _c("CC18", 3573, 554, "mnist_784", "multiclass", 70000, 784, 10, "Public"),
+    _c("CC18", 3902, 1049, "pc4", "binary", 1458, 37, 2, "Public"),
+    _c("CC18", 3903, 1050, "pc3", "binary", 1563, 37, 2, "Public"),
+    _c("CC18", 3904, 1053, "jm1", "binary", 10885, 21, 2, "Public"),
+    _c("CC18", 3913, 1063, "kc2", "binary", 522, 21, 2, "Public"),
+    _c("CC18", 3917, 1067, "kc1", "binary", 2109, 21, 2, "Public"),
+    _c("CC18", 3918, 1068, "pc1", "binary", 1109, 21, 2, "Public"),
+    _c("CC18", 7592, 1590, "adult", "binary", 48842, 14, 2, "Public"),
+    _c("CC18", 9910, 4134, "Bioresponse", "binary", 3751, 1776, 2, "Public"),
+    _c("CC18", 9946, 1510, "wdbc", "binary", 569, 30, 2, "Public"),
+    _c("CC18", 9952, 1489, "phoneme", "binary", 5404, 5, 2, "Public"),
+    _c("CC18", 9957, 1494, "qsar-biodeg", "binary", 1055, 41, 2, "Public"),
+    _c("CC18", 9960, 1497, "wall-robot-navigation", "multiclass", 5456, 24, 4, "Public"),
+    _c("CC18", 9964, 1501, "semeion", "multiclass", 1593, 256, 10, "Public"),
+    _c("CC18", 9971, 1480, "ilpd", "binary", 583, 10, 2, "Public"),
+    _c("CC18", 9976, 1485, "madelon", "binary", 2600, 500, 2, "Public"),
+    _c("CC18", 9977, 1486, "nomao", "binary", 34465, 118, 2, "Public"),
+    _c("CC18", 9978, 1487, "ozone-level-8hr", "binary", 2534, 72, 2, "Public"),
+    _c("CC18", 9981, 1468, "cnae-9", "multiclass", 1080, 856, 9, "Public"),
+    _c("CC18", 9985, 1475, "first-order-theorem-proving", "multiclass", 6118, 51, 6, "Public"),
+    _c("CC18", 10093, 1462, "banknote-authentication", "binary", 1372, 4, 2, "Public"),
+    _c("CC18", 10101, 1464, "blood-transfusion-service-center", "binary", 748, 4, 2, "Public"),
+    _c("CC18", 14952, 4534, "PhishingWebsites", "binary", 11055, 30, 2, "Public"),
+    _c("CC18", 14954, 6332, "cylinder-bands", "binary", 540, 39, 2, "Public"),
+    _c("CC18", 14965, 1461, "bank-marketing", "binary", 45211, 16, 2, "Public"),
+    _c(
+        "CC18",
+        14969,
+        4538,
+        "GesturePhaseSegmentationProcessed",
+        "multiclass",
+        9873,
+        32,
+        5,
+        "Public",
+    ),
+    _c("CC18", 14970, 1478, "har", "multiclass", 10299, 561, 6, "Public"),
+    _c("CC18", 125920, 23381, "dresses-sales", "binary", 500, 12, 2, "Public"),
+    _c("CC18", 125922, 40499, "texture", "multiclass", 5500, 40, 11, "Public"),
+    _c("CC18", 146195, 40668, "connect-4", "multiclass", 67557, 42, 3, "public"),
+    _c("CC18", 146800, 40966, "MiceProtein", "multiclass", 1080, 81, 8, "Public"),
+    _c("CC18", 146817, 40982, "steel-plates-fault", "multiclass", 1941, 27, 7, "Public"),
+    _c("CC18", 146819, 40994, "climate-model-simulation-crashes", "binary", 540, 20, 2, "Public"),
+    _c("CC18", 146820, 40983, "wilt", "binary", 4839, 5, 2, "Public"),
+    _c("CC18", 146821, 40975, "car", "multiclass", 1728, 6, 4, "Public"),
+    _c("CC18", 146822, 40984, "segment", "multiclass", 2310, 19, 7, "Public"),
+    _c("CC18", 146824, 40979, "mfeat-pixel", "multiclass", 2000, 240, 10, "Public"),
+    _c("CC18", 146825, 40996, "Fashion-MNIST", "multiclass", 70000, 784, 10, "Public"),
+    _c(
+        "CC18",
+        167119,
+        41027,
+        "jungle_chess_2pcs_raw_endgame_complete",
+        "multiclass",
+        44819,
+        6,
+        3,
+        "Public",
+    ),
+    _c("CC18", 167120, 23517, "numerai28.6", "binary", 96320, 21, 2, "Public"),
+    _c("CC18", 167121, 40923, "Devnagari-Script", "multiclass", 92000, 1024, 46, "Public"),
+    _c("CC18", 167124, 40927, "CIFAR_10", "multiclass", 60000, 3072, 10, "Public"),
+    _c("CC18", 167125, 40978, "Internet-Advertisements", "binary", 3279, 1558, 2, "Public"),
+    _c("CC18", 167140, 40670, "dna", "multiclass", 3186, 180, 3, "public"),
+    _c("CC18", 167141, 40701, "churn", "binary", 5000, 20, 2, "public"),
+    _c("CTR23", 361234, 44956, "abalone", "regression", 4177, 8, 0, "CC BY 4.0"),
+    _c("CTR23", 361235, 44957, "airfoil_self_noise", "regression", 1503, 5, 0, "CC BY 4.0"),
+    _c("CTR23", 361236, 44958, "auction_verification", "regression", 2043, 7, 0, "CC BY 4.0"),
+    _c(
+        "CTR23",
+        361237,
+        44959,
+        "concrete_compressive_strength",
+        "regression",
+        1030,
+        8,
+        0,
+        "CC BY 4.0",
+    ),
+    _c("CTR23", 361241, 44963, "physiochemical_protein", "regression", 45730, 9, 0, "CC BY 4.0"),
+    _c("CTR23", 361242, 44964, "superconductivity", "regression", 21263, 81, 0, "CC BY 4.0"),
+    _c(
+        "CTR23",
+        361243,
+        44965,
+        "geographical_origin_of_music",
+        "regression",
+        1059,
+        116,
+        0,
+        "CC BY 4.0",
+    ),
+    _c("CTR23", 361244, 44966, "solar_flare", "regression", 1066, 10, 0, "CC BY 4.0"),
+    _c("CTR23", 361247, 44969, "naval_propulsion_plant", "regression", 11934, 14, 0, "CC BY 4.0"),
+    _c("CTR23", 361249, 44971, "white_wine", "regression", 4898, 11, 0, "CC BY 4.0"),
+    _c("CTR23", 361250, 44972, "red_wine", "regression", 1599, 11, 0, "CC BY 4.0"),
+    _c("CTR23", 361251, 44973, "grid_stability", "regression", 10000, 12, 0, "CC BY 4.0"),
+    _c("CTR23", 361252, 44974, "video_transcoding", "regression", 68784, 18, 0, "CC BY 4.0"),
+    _c("CTR23", 361253, 44975, "wave_energy", "regression", 72000, 48, 0, "CC BY 4.0"),
+    _c("CTR23", 361254, 44976, "sarcos", "regression", 48933, 21, 0, "Public"),
+    _c("CTR23", 361255, 44977, "california_housing", "regression", 20640, 8, 0, "Public"),
+    _c("CTR23", 361256, 44978, "cpu_activity", "regression", 8192, 21, 0, "Public"),
+    _c("CTR23", 361257, 44979, "diamonds", "regression", 53940, 9, 0, "Public"),
+    _c("CTR23", 361258, 44980, "kin8nm", "regression", 8192, 8, 0, "Public"),
+    _c("CTR23", 361259, 44981, "pumadyn32nh", "regression", 8192, 32, 0, "Public"),
+    _c("CTR23", 361260, 44983, "miami_housing", "regression", 13932, 15, 0, "CC0: Public Domain"),
+    _c("CTR23", 361261, 44984, "cps88wages", "regression", 28155, 6, 0, "Public"),
+    _c(
+        "CTR23",
+        361264,
+        44987,
+        "socmob",
+        "regression",
+        1156,
+        5,
+        0,
+        "Non-commercial scholarly and teaching purposes.",
+    ),
+    _c("CTR23", 361266, 44989, "kings_county", "regression", 21613, 21, 0, "CC 0: Public Domain"),
+    _c(
+        "CTR23", 361267, 44990, "brazilian_houses", "regression", 10692, 9, 0, "CC 0: Public Domain"
+    ),
+    _c("CTR23", 361268, 44992, "fps_benchmark", "regression", 24624, 43, 0, "CC BY"),
+    _c("CTR23", 361269, 44993, "health_insurance", "regression", 22272, 11, 0, "GPL (>= 2)"),
+    _c("CTR23", 361272, 45012, "fifa", "regression", 19178, 28, 0, "CC0: Public Domain"),
+    _c("CTR23", 361616, 41021, "Moneyball", "regression", 1232, 14, 0, "Public"),
+    _c("CTR23", 361617, 44960, "energy_efficiency", "regression", 768, 8, 0, "CC BY 4.0"),
+    _c("CTR23", 361618, 44962, "forest_fires", "regression", 517, 12, 0, "CC BY 4.0"),
+    _c("CTR23", 361619, 44967, "student_performance_por", "regression", 649, 30, 0, "CC BY 4.0"),
+    _c("CTR23", 361621, 44970, "QSAR_fish_toxicity", "regression", 908, 6, 0, "CC BY 4.0"),
+    _c("CTR23", 361622, 44994, "cars", "regression", 804, 17, 0, "Public"),
+    _c("CTR23", 361623, 45402, "space_ga", "regression", 3107, 6, 0, "Public"),
 )
 
 #: Candidates that pass the id and name checks but hold a TabArena-v0.1 or BeyondArena dataset
@@ -368,8 +421,13 @@ _DELVE = (
 def _uci(uci_id: int, slug: str, note: str = "") -> SourceLicence:
     """An included entry for a dataset whose UCI page states :data:`UCI_CC_BY_4`."""
     reason = "UCI page states CC BY 4.0" + (f"; {note}" if note else "")
-    return SourceLicence(f"https://archive.ics.uci.edu/dataset/{uci_id}/{slug}", UCI_CC_BY_4,
-                         "CC BY 4.0", True, reason)
+    return SourceLicence(
+        f"https://archive.ics.uci.edu/dataset/{uci_id}/{slug}",
+        UCI_CC_BY_4,
+        "CC BY 4.0",
+        True,
+        reason,
+    )
 
 
 def _none(url: str, reason: str) -> SourceLicence:
@@ -380,15 +438,24 @@ def _none(url: str, reason: str) -> SourceLicence:
 def _kaggle(ref: str, include: bool, reason: str) -> SourceLicence:
     """An entry read from a Kaggle dataset's licence field (``licenseNameNullable`` from
     ``https://www.kaggle.com/api/v1/datasets/view/<ref>``, the field the page displays)."""
-    return SourceLicence(f"https://www.kaggle.com/datasets/{ref}", "CC0: Public Domain",
-                         "CC0: Public Domain", include, reason)
+    return SourceLicence(
+        f"https://www.kaggle.com/datasets/{ref}",
+        "CC0: Public Domain",
+        "CC0: Public Domain",
+        include,
+        reason,
+    )
 
 
 _MFEAT = "one UCI page (Multiple Features) for all six mfeat sets"
-_PROMISE = ("tera-PROMISE page states no licence and links no data DOI; no Zenodo record found "
-            "under its name; NASA MDP defect data, origin licence unverified")
-_ELENA = ("KEEL page says the data was obtained from the ELENA project and states no licence (only "
-          "KEEL's site copyright); the ELENA page timed out")
+_PROMISE = (
+    "tera-PROMISE page states no licence and links no data DOI; no Zenodo record found "
+    "under its name; NASA MDP defect data, origin licence unverified"
+)
+_ELENA = (
+    "KEEL page says the data was obtained from the ELENA project and states no licence (only "
+    "KEEL's site copyright); the ELENA page timed out"
+)
 
 #: Licence at the original source for every candidate that passes the overlap filters, keyed
 #: by OpenML dataset id and read on :data:`SOURCE_CHECKED` from the page the OpenML
@@ -407,8 +474,11 @@ SOURCE_LICENCES: dict[int, SourceLicence] = {
     22: _uci(72, "multiple+features", _MFEAT),
     23: _uci(30, "contraceptive+method+choice"),
     28: _uci(80, "optical+recognition+of+handwritten+digits"),
-    32: _uci(81, "pen+based+recognition+of+handwritten+digits",
-             "OpenML's original_data_url names optdigits; its description names this page"),
+    32: _uci(
+        81,
+        "pen+based+recognition+of+handwritten+digits",
+        "OpenML's original_data_url names optdigits; its description names this page",
+    ),
     44: _uci(94, "spambase"),
     50: _uci(101, "tic+tac+toe+endgame"),
     182: _uci(146, "statlog+landsat+satellite"),
@@ -430,9 +500,12 @@ SOURCE_LICENCES: dict[int, SourceLicence] = {
     6332: _uci(32, "cylinder+bands"),
     23381: _uci(289, "dresses+attribute+sales"),
     40668: _uci(26, "connect+4"),
-    40923: _uci(389, "devanagari+handwritten+character+dataset",
-                "UCI lists the creators (Shailesh Acharya, Prashnna Gyawali); OpenML cites "
-                "their archived cvresearchnepal page and a Kaggle mirror"),
+    40923: _uci(
+        389,
+        "devanagari+handwritten+character+dataset",
+        "UCI lists the creators (Shailesh Acharya, Prashnna Gyawali); OpenML cites "
+        "their archived cvresearchnepal page and a Kaggle mirror",
+    ),
     40975: _uci(19, "car+evaluation"),
     40978: _uci(51, "internet+advertisements"),
     40979: _uci(72, "multiple+features", _MFEAT),
@@ -441,35 +514,56 @@ SOURCE_LICENCES: dict[int, SourceLicence] = {
     40984: _uci(50, "image+segmentation"),
     40994: _uci(252, "climate+model+simulation+crashes"),
     # OpenML-CC18, other sources.
-    151: _none("http://www.inescporto.pt/~jgama/ales/ales_5.html",
-               "source page returns 404; MOA's datasets page (https://moa.cms.waikato.ac.nz/"
-               "datasets/) describes Elec2 without a licence; unverifiable"),
-    188: _none("https://ml.cms.waikato.ac.nz/weka/datasets.html",
-               "Weka datasets page (moved from www.cs.waikato.ac.nz) states no licence for the "
-               "collection; unverifiable"),
-    458: _none("https://pages.stern.nyu.edu/~jsimonof/AnalCatData/",
-               "book data site (Simonoff, Analyzing Categorical Data) states no licence"),
-    469: _none("https://pages.stern.nyu.edu/~jsimonof/AnalCatData/",
-               "book data site (Simonoff, Analyzing Categorical Data) states no licence"),
-    554: _none("http://yann.lecun.com/exdb/mnist/",
-               "the page is an empty directory listing and states no licence; unverifiable"),
+    151: _none(
+        "http://www.inescporto.pt/~jgama/ales/ales_5.html",
+        "source page returns 404; MOA's datasets page (https://moa.cms.waikato.ac.nz/"
+        "datasets/) describes Elec2 without a licence; unverifiable",
+    ),
+    188: _none(
+        "https://ml.cms.waikato.ac.nz/weka/datasets.html",
+        "Weka datasets page (moved from www.cs.waikato.ac.nz) states no licence for the "
+        "collection; unverifiable",
+    ),
+    458: _none(
+        "https://pages.stern.nyu.edu/~jsimonof/AnalCatData/",
+        "book data site (Simonoff, Analyzing Categorical Data) states no licence",
+    ),
+    469: _none(
+        "https://pages.stern.nyu.edu/~jsimonof/AnalCatData/",
+        "book data site (Simonoff, Analyzing Categorical Data) states no licence",
+    ),
+    554: _none(
+        "http://yann.lecun.com/exdb/mnist/",
+        "the page is an empty directory listing and states no licence; unverifiable",
+    ),
     1049: _none("https://openscience.us/repo/defect/mccabehalsted/pc4.html", _PROMISE),
     1050: _none("https://openscience.us/repo/defect/mccabehalsted/pc3.html", _PROMISE),
     1063: _none("https://openscience.us/repo/defect/mccabehalsted/kc2.html", _PROMISE),
-    1067: _none("https://openscience.us/repo/defect/mccabehalsted/kc1.html",
-                "the page's data DOI (zenodo.268441, CC BY 4.0) is the class-level KC1 with 94 "
-                "variables, not this method-level kc1 (21 features); no licence for this one"),
-    1068: SourceLicence("https://zenodo.org/records/268456", "cc-by-4.0", "CC BY 4.0", True,
-                       "Zenodo record 'pc1' (creator Tim Menzies, the donor), linked as the data "
-                       "DOI from https://openscience.us/repo/defect/mccabehalsted/pc1.html; "
-                       "licence id read from https://zenodo.org/api/records/268456"),
+    1067: _none(
+        "https://openscience.us/repo/defect/mccabehalsted/kc1.html",
+        "the page's data DOI (zenodo.268441, CC BY 4.0) is the class-level KC1 with 94 "
+        "variables, not this method-level kc1 (21 features); no licence for this one",
+    ),
+    1068: SourceLicence(
+        "https://zenodo.org/records/268456",
+        "cc-by-4.0",
+        "CC BY 4.0",
+        True,
+        "Zenodo record 'pc1' (creator Tim Menzies, the donor), linked as the data "
+        "DOI from https://openscience.us/repo/defect/mccabehalsted/pc1.html; "
+        "licence id read from https://zenodo.org/api/records/268456",
+    ),
     1489: _none("https://sci2s.ugr.es/keel/dataset.php?cod=105", _ELENA),
-    23517: _kaggle("numerai/encrypted-stock-market-data-from-numerai", True,
-                   "Kaggle states CC0; the uploader is Numerai, the data's owner"),
+    23517: _kaggle(
+        "numerai/encrypted-stock-market-data-from-numerai",
+        True,
+        "Kaggle states CC0; the uploader is Numerai, the data's owner",
+    ),
     40499: _none("https://sci2s.ugr.es/keel/dataset.php?cod=72", _ELENA),
-    40927: _none("https://www.cs.toronto.edu/~kriz/cifar.html",
-                 "the page states no licence (a labelled subset of 80 Million Tiny Images); "
-                 "unverifiable"),
+    40927: _none(
+        "https://www.cs.toronto.edu/~kriz/cifar.html",
+        "the page states no licence (a labelled subset of 80 Million Tiny Images); unverifiable",
+    ),
     40996: SourceLicence(
         "https://github.com/zalandoresearch/fashion-mnist/blob/master/LICENSE",
         "The MIT License (MIT) Copyright © 2017 Zalando SE, https://tech.zalando.com Permission "
@@ -477,18 +571,24 @@ SOURCE_LICENCES: dict[int, SourceLicence] = {
         "associated documentation files (the “Software”), to deal in the Software without "
         "restriction, including without limitation the rights to use, copy, modify, merge, "
         "publish, distribute, sublicense, and/or sell copies of the Software",
-        "MIT", True,
+        "MIT",
+        True,
         "the creator's repository, which holds the data, is MIT (README section License "
         "repeats it); MIT grants commercial use and redistribution",
     ),
-    41027: _none("https://arxiv.org/abs/1604.07312",
-                 "OpenML cites the paper (van Rijn and Vis); arXiv's licence covers the paper, "
-                 "and no licence for the generated data is stated"),
+    41027: _none(
+        "https://arxiv.org/abs/1604.07312",
+        "OpenML cites the paper (van Rijn and Vis); arXiv's licence covers the paper, "
+        "and no licence for the generated data is stated",
+    ),
     # OpenML-CTR23.
-    41021: _kaggle("wduckett/moneyball-mlb-stats-19622012", False,
-                   "Kaggle states CC0, but the page says 'The data itself is gathered from "
-                   "baseball-reference.com', whose terms (sports-reference.com) returned 403; "
-                   "the uploader's right to grant CC0 is unverified"),
+    41021: _kaggle(
+        "wduckett/moneyball-mlb-stats-19622012",
+        False,
+        "Kaggle states CC0, but the page says 'The data itself is gathered from "
+        "baseball-reference.com', whose terms (sports-reference.com) returned 403; "
+        "the uploader's right to grant CC0 is unverified",
+    ),
     44956: _uci(1, "abalone"),
     44958: _uci(713, "auction+verification"),
     44960: _uci(242, "energy+efficiency"),
@@ -497,41 +597,75 @@ SOURCE_LICENCES: dict[int, SourceLicence] = {
     44969: _uci(316, "condition+based+maintenance+of+naval+propulsion+plants"),
     44973: _uci(471, "electrical+grid+stability+simulated+data"),
     44975: _uci(494, "wave+energy+converters"),
-    44976: _none("http://gaussianprocess.org/gpml/data/",
-                 "GPML data page states no licence; unverifiable"),
-    44978: SourceLicence("https://www.cs.toronto.edu/~delve/copyright.html", _DELVE, "", False,
-                         "Torgo's page (https://www.dcc.fc.up.pt/~ltorgo/Regression/DataSets.html)"
-                         " timed out; the data is Delve's comp-activ, and Delve's notice "
-                         "grants non-commercial use only"),
-    44980: SourceLicence("https://www.cs.toronto.edu/~delve/copyright.html", _DELVE, "", False,
-                         "Delve (data/kin/desc.html) grants non-commercial use only"),
-    44981: SourceLicence("https://www.cs.toronto.edu/~delve/copyright.html", _DELVE, "", False,
-                         "Delve (data/pumadyn/desc.html) grants non-commercial use only"),
-    44984: _none("http://www.personal.psu.edu/hxb11/MEDIAN.HTM",
-                 "page timed out (http and https); the data is a sample of the 1988 March CPS, "
-                 "a US Census Bureau survey, but the extract's terms could not be read"),
-    44987: SourceLicence("https://www.openml.org/api/v1/json/data/44987",
-                         "Non-commercial scholarly and teaching purposes.", "", False,
-                         "non-commercial; source StatLib (http://lib.stat.cmu.edu/datasets/"
-                         "socmob), Biblarz and Raftery (1993)"),
-    44989: _kaggle("harlfoxem/housesalesprediction", True,
-                   "Kaggle states CC0; the page names no upstream source for the King County "
-                   "sales records"),
-    44993: SourceLicence("https://cran.r-project.org/package=Ecdat",
-                         "License: GPL-2 | GPL-3 [expanded from: GPL (≥ 2)]", "GPL (>= 2)",
-                         False,
-                         "the R package's copyleft software licence, not a data licence; the "
-                         "data's source (Olson 1998, Journal of Applied Econometrics data "
-                         "archive, per https://rdrr.io/cran/Ecdat/man/HI.html) states none"),
-    44994: _none("https://search.r-project.org/CRAN/refmans/caret/html/cars.html",
-                 "caret (GPL-2 | GPL-3) cites Kuiper (2008), Journal of Statistics Education; "
-                 "no data licence stated"),
-    45012: _kaggle("stefanoleone992/fifa-22-complete-player-dataset", False,
-                   "Kaggle states CC0, but the page says 'Data has been scraped from the "
-                   "publicly available website sofifa.com', whose terms returned 403; the "
-                   "uploader's right to grant CC0 is unverified"),
-    45402: _none("http://lib.stat.cmu.edu/datasets/space_ga",
-                 "the StatLib file header (Pace and Barry 1997) states no licence"),
+    44976: _none(
+        "http://gaussianprocess.org/gpml/data/", "GPML data page states no licence; unverifiable"
+    ),
+    44978: SourceLicence(
+        "https://www.cs.toronto.edu/~delve/copyright.html",
+        _DELVE,
+        "",
+        False,
+        "Torgo's page (https://www.dcc.fc.up.pt/~ltorgo/Regression/DataSets.html)"
+        " timed out; the data is Delve's comp-activ, and Delve's notice "
+        "grants non-commercial use only",
+    ),
+    44980: SourceLicence(
+        "https://www.cs.toronto.edu/~delve/copyright.html",
+        _DELVE,
+        "",
+        False,
+        "Delve (data/kin/desc.html) grants non-commercial use only",
+    ),
+    44981: SourceLicence(
+        "https://www.cs.toronto.edu/~delve/copyright.html",
+        _DELVE,
+        "",
+        False,
+        "Delve (data/pumadyn/desc.html) grants non-commercial use only",
+    ),
+    44984: _none(
+        "http://www.personal.psu.edu/hxb11/MEDIAN.HTM",
+        "page timed out (http and https); the data is a sample of the 1988 March CPS, "
+        "a US Census Bureau survey, but the extract's terms could not be read",
+    ),
+    44987: SourceLicence(
+        "https://www.openml.org/api/v1/json/data/44987",
+        "Non-commercial scholarly and teaching purposes.",
+        "",
+        False,
+        "non-commercial; source StatLib (http://lib.stat.cmu.edu/datasets/"
+        "socmob), Biblarz and Raftery (1993)",
+    ),
+    44989: _kaggle(
+        "harlfoxem/housesalesprediction",
+        True,
+        "Kaggle states CC0; the page names no upstream source for the King County sales records",
+    ),
+    44993: SourceLicence(
+        "https://cran.r-project.org/package=Ecdat",
+        "License: GPL-2 | GPL-3 [expanded from: GPL (≥ 2)]",
+        "GPL (>= 2)",
+        False,
+        "the R package's copyleft software licence, not a data licence; the "
+        "data's source (Olson 1998, Journal of Applied Econometrics data "
+        "archive, per https://rdrr.io/cran/Ecdat/man/HI.html) states none",
+    ),
+    44994: _none(
+        "https://search.r-project.org/CRAN/refmans/caret/html/cars.html",
+        "caret (GPL-2 | GPL-3) cites Kuiper (2008), Journal of Statistics Education; "
+        "no data licence stated",
+    ),
+    45012: _kaggle(
+        "stefanoleone992/fifa-22-complete-player-dataset",
+        False,
+        "Kaggle states CC0, but the page says 'Data has been scraped from the "
+        "publicly available website sofifa.com', whose terms returned 403; the "
+        "uploader's right to grant CC0 is unverified",
+    ),
+    45402: _none(
+        "http://lib.stat.cmu.edu/datasets/space_ga",
+        "the StatLib file header (Pace and Barry 1997) states no licence",
+    ),
 }
 
 
@@ -639,7 +773,9 @@ def select_suite(
     """
     targets = TARGET_COUNTS if targets is None else targets
     pool = eligible(candidates)
-    return [c for kind in KINDS for c in [c for c in pool if c.kind == kind][: targets.get(kind, 0)]]
+    return [
+        c for kind in KINDS for c in [c for c in pool if c.kind == kind][: targets.get(kind, 0)]
+    ]
 
 
 #: The proxy suite as currently selected.
@@ -682,7 +818,8 @@ def _http_get(url: str, timeout: float = 60.0) -> bytes:
             raise RuntimeError(f"could not fetch {url}: {exc}; curl unavailable") from exc
         result = subprocess.run(
             [curl, "-sSfL", "--max-time", str(int(timeout)), url],
-            capture_output=True, check=False,
+            capture_output=True,
+            check=False,
         )
         if result.returncode != 0:
             raise RuntimeError(f"could not fetch {url}: {result.stderr.decode().strip()}") from exc
@@ -694,28 +831,43 @@ def _dry_run(out: TextIO | None = None) -> None:
     out = sys.stdout if out is None else out
     suite_ids = {c.task_id for c in SUITE}
     within = sum(c.n_features <= FEATURE_CAP for c in SUITE)
-    print(f"Proxy suite (DR4.2): {len(SUITE)} tasks, {within} within the {FEATURE_CAP}-feature "
-          f"cap; OpenML metadata fetched {FETCHED}", file=out)
-    print(f"licences read at each dataset's original source on {SOURCE_CHECKED} "
-          f"(SOURCE_LICENCES); OpenML's field ({LICENCE_SOURCE}) is recorded, not used", file=out)
+    print(
+        f"Proxy suite (DR4.2): {len(SUITE)} tasks, {within} within the {FEATURE_CAP}-feature "
+        f"cap; OpenML metadata fetched {FETCHED}",
+        file=out,
+    )
+    print(
+        f"licences read at each dataset's original source on {SOURCE_CHECKED} "
+        f"(SOURCE_LICENCES); OpenML's field ({LICENCE_SOURCE}) is recorded, not used",
+        file=out,
+    )
     pool = eligible()
     for kind in KINDS:
         chosen = [c for c in SUITE if c.kind == kind]
         capped = sum(c.n_features <= FEATURE_CAP for c in chosen)
         n_pool = sum(c.kind == kind for c in pool)
-        print(f"\n{kind}: {len(chosen)} of target {TARGET_COUNTS[kind]}, {capped} within the "
-              f"{FEATURE_CAP}-feature cap ({n_pool} eligible)", file=out)
+        print(
+            f"\n{kind}: {len(chosen)} of target {TARGET_COUNTS[kind]}, {capped} within the "
+            f"{FEATURE_CAP}-feature cap ({n_pool} eligible)",
+            file=out,
+        )
         for c in chosen:
             cap = "" if c.n_features <= FEATURE_CAP else f"  (over the {FEATURE_CAP}-feature cap)"
             src = SOURCE_LICENCES[c.dataset_id]
-            print(f"  task {c.task_id:>6}  data {c.dataset_id:>5}  {c.name:<32} {c.n_rows:>6} rows "
-                  f"x {c.n_features:>4} features  {src.licence} at {src.url}{cap}", file=out)
+            print(
+                f"  task {c.task_id:>6}  data {c.dataset_id:>5}  {c.name:<32} {c.n_rows:>6} rows "
+                f"x {c.n_features:>4} features  {src.licence} at {src.url}{cap}",
+                file=out,
+            )
     excluded = [c for c in CANDIDATES if c.task_id not in suite_ids]
     print(f"\nexcluded: {len(excluded)} of {len(CANDIDATES)} candidates", file=out)
     for c in sorted(excluded, key=lambda c: (c.suite, c.task_id)):
         reasons = exclusion_reasons(c) or ["eligible, beyond the target count"]
-        print(f"  {c.suite:<5} task {c.task_id:>6}  data {c.dataset_id:>5}  {c.name:<34} "
-              f"{c.kind:<10} {c.n_rows:>6} x {c.n_features:<4} | {'; '.join(reasons)}", file=out)
+        print(
+            f"  {c.suite:<5} task {c.task_id:>6}  data {c.dataset_id:>5}  {c.name:<34} "
+            f"{c.kind:<10} {c.n_rows:>6} x {c.n_features:<4} | {'; '.join(reasons)}",
+            file=out,
+        )
 
 
 def _verify_licences(candidates: Sequence[Candidate], out: TextIO | None = None) -> int:
@@ -726,8 +878,10 @@ def _verify_licences(candidates: Sequence[Candidate], out: TextIO | None = None)
         live = fetch_licence(c.dataset_id)
         if live != c.licence:
             changed += 1
-            print(f"CHANGED data {c.dataset_id} {c.name}: recorded {c.licence!r}, now {live!r}",
-                  file=out)
+            print(
+                f"CHANGED data {c.dataset_id} {c.name}: recorded {c.licence!r}, now {live!r}",
+                file=out,
+            )
     print(f"{changed} of {len(candidates)} licences changed since {FETCHED}", file=out)
     return changed
 
@@ -754,8 +908,23 @@ BASELINES: tuple[str, ...] = ("RF", "ExtraTrees", "Linear", "KNN", "LightGBM")
 #: One row per task, split and method. ``error`` is what Elo and the sign test compare (lower
 #: is better); ``status`` is ``ok`` or the reason a method has no score on that split.
 RESULT_COLUMNS: tuple[str, ...] = (
-    "task_id", "dataset_id", "name", "kind", "split", "repeat", "fold", "method", "metric",
-    "error", "roc_auc", "ap", "n_train", "n_test", "n_features", "seconds", "status",
+    "task_id",
+    "dataset_id",
+    "name",
+    "kind",
+    "split",
+    "repeat",
+    "fold",
+    "method",
+    "metric",
+    "error",
+    "roc_auc",
+    "ap",
+    "n_train",
+    "n_test",
+    "n_features",
+    "seconds",
+    "status",
 )
 
 #: Error metric per kind.
@@ -897,8 +1066,11 @@ def openml_frame(
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         bunch = fetch_openml(
-            data_id=dataset_id, target_column=target or "default-target", as_frame=True,
-            parser="auto", data_home=None if data_home is None else str(data_home),
+            data_id=dataset_id,
+            target_column=target or "default-target",
+            as_frame=True,
+            parser="auto",
+            data_home=None if data_home is None else str(data_home),
         )
     return bunch.data, bunch.target
 
@@ -915,8 +1087,9 @@ def _prepare(X: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(out, index=X.index)
 
 
-def fetch_task(candidate: Candidate, cache_dir: Path = PROXY_CACHE,
-               n_splits: int = N_SPLITS) -> ProxyTask:
+def fetch_task(
+    candidate: Candidate, cache_dir: Path = PROXY_CACHE, n_splits: int = N_SPLITS
+) -> ProxyTask:
     """Fetch a suite task's data and OpenML splits (network on first use, cached after).
 
     Args:
@@ -934,10 +1107,13 @@ def fetch_task(candidate: Candidate, cache_dir: Path = PROXY_CACHE,
     ensure_ca_bundle()
     task = task_definition(candidate.task_id, cache_dir)
     if task["dataset_id"] != candidate.dataset_id:
-        raise RuntimeError(f"task {candidate.task_id} is on dataset {task['dataset_id']}, "
-                           f"the table records {candidate.dataset_id}")
-    text = _cached_get(task["splits_url"],
-                       cache_dir / "tasks" / f"{candidate.task_id}_splits.arff").decode()
+        raise RuntimeError(
+            f"task {candidate.task_id} is on dataset {task['dataset_id']}, "
+            f"the table records {candidate.dataset_id}"
+        )
+    text = _cached_get(
+        task["splits_url"], cache_dir / "tasks" / f"{candidate.task_id}_splits.arff"
+    ).decode()
     all_splits = parse_splits_arff(text)
     keys = [(0, f) for f in range(n_splits)]
     missing = [k for k in keys if k not in all_splits]
@@ -983,22 +1159,33 @@ def _baseline(method: str, kind: str, X: pd.DataFrame, seed: int, n_jobs: int) -
 
     num, cat = _columns(X)
     clf = kind != "regression"
-    ordinal = ColumnTransformer([
-        ("num", SimpleImputer(strategy="median"), num),
-        ("cat", OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1,
-                               encoded_missing_value=-1), cat),
-    ])
-    onehot = ColumnTransformer([
-        ("num", make_pipeline(SimpleImputer(strategy="median"), StandardScaler()), num),
-        ("cat", OneHotEncoder(handle_unknown="ignore"), cat),
-    ])
+    ordinal = ColumnTransformer(
+        [
+            ("num", SimpleImputer(strategy="median"), num),
+            (
+                "cat",
+                OrdinalEncoder(
+                    handle_unknown="use_encoded_value", unknown_value=-1, encoded_missing_value=-1
+                ),
+                cat,
+            ),
+        ]
+    )
+    onehot = ColumnTransformer(
+        [
+            ("num", make_pipeline(SimpleImputer(strategy="median"), StandardScaler()), num),
+            ("cat", OneHotEncoder(handle_unknown="ignore"), cat),
+        ]
+    )
     if method == "RF":
         est = (RandomForestClassifier if clf else RandomForestRegressor)(
-            random_state=seed, n_jobs=n_jobs)
+            random_state=seed, n_jobs=n_jobs
+        )
         return make_pipeline(ordinal, est)
     if method == "ExtraTrees":
         est = (ExtraTreesClassifier if clf else ExtraTreesRegressor)(
-            random_state=seed, n_jobs=n_jobs)
+            random_state=seed, n_jobs=n_jobs
+        )
         return make_pipeline(ordinal, est)
     if method == "Linear":
         return make_pipeline(onehot, LogisticRegression(max_iter=1000) if clf else Ridge())
@@ -1008,7 +1195,8 @@ def _baseline(method: str, kind: str, X: pd.DataFrame, seed: int, n_jobs: int) -
         import lightgbm
 
         est = (lightgbm.LGBMClassifier if clf else lightgbm.LGBMRegressor)(
-            random_state=seed, n_jobs=n_jobs, verbose=-1)
+            random_state=seed, n_jobs=n_jobs, verbose=-1
+        )
         # out of process: LightGBM's libomp after torch's deadlocks or segfaults (FINDINGS §25)
         return IsolatedEstimator(make_pipeline(ordinal, est), regression=not clf)
     raise ValueError(f"unknown baseline {method!r}")
@@ -1068,8 +1256,12 @@ class IsolatedEstimator:
             with open(src, "wb") as fh:
                 pickle.dump((self.estimator, *self._train, X_test, self.regression), fh)
             try:
-                proc = subprocess.run([sys.executable, "-c", _ISOLATED_WORKER, str(src), str(dst)],
-                                      capture_output=True, timeout=self.timeout, check=False)
+                proc = subprocess.run(
+                    [sys.executable, "-c", _ISOLATED_WORKER, str(src), str(dst)],
+                    capture_output=True,
+                    timeout=self.timeout,
+                    check=False,
+                )
             except subprocess.TimeoutExpired as exc:
                 raise ValueError(f"isolated fit timed out after {self.timeout:.0f} s") from exc
             if proc.returncode != 0 or not dst.exists():
@@ -1099,8 +1291,9 @@ def available_baselines() -> tuple[str, ...]:
     return BASELINES
 
 
-def _fintfm_matrix(X: pd.DataFrame, train: np.ndarray, test: np.ndarray
-                   ) -> tuple[np.ndarray, np.ndarray]:
+def _fintfm_matrix(
+    X: pd.DataFrame, train: np.ndarray, test: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
     """Float32 train and test matrices for FinTFM: numerics as they are (NaN kept, the model
     reads missingness), categories as ordinal codes fitted on the training rows, unseen or
     missing categories as NaN."""
@@ -1108,11 +1301,20 @@ def _fintfm_matrix(X: pd.DataFrame, train: np.ndarray, test: np.ndarray
     from sklearn.preprocessing import OrdinalEncoder
 
     num, cat = _columns(X)
-    ct = ColumnTransformer([
-        ("num", "passthrough", num),
-        ("cat", OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=np.nan,
-                               encoded_missing_value=np.nan), cat),
-    ])
+    ct = ColumnTransformer(
+        [
+            ("num", "passthrough", num),
+            (
+                "cat",
+                OrdinalEncoder(
+                    handle_unknown="use_encoded_value",
+                    unknown_value=np.nan,
+                    encoded_missing_value=np.nan,
+                ),
+                cat,
+            ),
+        ]
+    )
     Xtr = ct.fit_transform(X.iloc[train])
     return Xtr.astype(np.float32), ct.transform(X.iloc[test]).astype(np.float32)
 
@@ -1125,16 +1327,17 @@ def _fintfm(kind: str, model: FinancialTFM, cfg: Config, seed: int, device: str)
 
     if kind != "regression":
         return FinancialTFMClassifier.from_config(
-            model, cfg.inference, device=device, random_state=seed)
+            model, cfg.inference, device=device, random_state=seed
+        )
     params = {f.name: getattr(cfg.inference, f.name) for f in fields(cfg.inference)}
     return FinancialTFMRegressor(
-        model, n_bins=min(DEFAULT_N_BINS, model.cfg.max_classes),
+        model,
+        n_bins=min(DEFAULT_N_BINS, model.cfg.max_classes),
         classifier_params={**params, "device": device, "random_state": seed},
     )
 
 
-def _score(kind: str, y: np.ndarray, est: Any, X_test: Any, n_classes: int
-           ) -> dict[str, float]:
+def _score(kind: str, y: np.ndarray, est: Any, X_test: Any, n_classes: int) -> dict[str, float]:
     """``error``, ``roc_auc`` and ``ap`` for one fitted estimator on one test split."""
     from sklearn.metrics import average_precision_score, log_loss, roc_auc_score
 
@@ -1148,8 +1351,11 @@ def _score(kind: str, y: np.ndarray, est: Any, X_test: Any, n_classes: int
     full = np.clip(full, 1e-15, None)
     full /= full.sum(axis=1, keepdims=True)
     if kind == "multiclass":
-        return {"error": float(log_loss(y, full, labels=range(n_classes))), "roc_auc": nan,
-                "ap": nan}
+        return {
+            "error": float(log_loss(y, full, labels=range(n_classes))),
+            "roc_auc": nan,
+            "ap": nan,
+        }
     if len(np.unique(y)) < 2:
         return {"error": nan, "roc_auc": nan, "ap": nan}
     auc = float(roc_auc_score(y, full[:, 1]))
@@ -1158,21 +1364,37 @@ def _score(kind: str, y: np.ndarray, est: Any, X_test: Any, n_classes: int
     return {"error": 1.0 - auc, "roc_auc": auc, "ap": ap}
 
 
-def _row(task: ProxyTask, split: int, method: str, n_features: int, **values: Any
-         ) -> dict[str, Any]:
+def _row(
+    task: ProxyTask, split: int, method: str, n_features: int, **values: Any
+) -> dict[str, Any]:
     """One :data:`RESULT_COLUMNS` row."""
     c = task.candidate
     rep, fold, train, test = task.splits[split]
-    base = {"task_id": c.task_id, "dataset_id": c.dataset_id, "name": c.name, "kind": c.kind,
-            "split": split, "repeat": rep, "fold": fold, "method": method,
-            "metric": METRICS[c.kind], "error": float("nan"), "roc_auc": float("nan"),
-            "ap": float("nan"), "n_train": len(train), "n_test": len(test),
-            "n_features": n_features, "seconds": float("nan"), "status": "ok"}
+    base = {
+        "task_id": c.task_id,
+        "dataset_id": c.dataset_id,
+        "name": c.name,
+        "kind": c.kind,
+        "split": split,
+        "repeat": rep,
+        "fold": fold,
+        "method": method,
+        "metric": METRICS[c.kind],
+        "error": float("nan"),
+        "roc_auc": float("nan"),
+        "ap": float("nan"),
+        "n_train": len(train),
+        "n_test": len(test),
+        "n_features": n_features,
+        "seconds": float("nan"),
+        "status": "ok",
+    }
     return {**base, **values}
 
 
-def _fit_and_score(task: ProxyTask, split: int, method: str, est: Any, X_train: Any,
-                   X_test: Any, n_features: int) -> dict[str, Any]:
+def _fit_and_score(
+    task: ProxyTask, split: int, method: str, est: Any, X_train: Any, X_test: Any, n_features: int
+) -> dict[str, Any]:
     """Fit on a split's training rows, score on its test rows; a fit-time refusal (a task
     wider than the checkpoint, more classes than its head) is recorded, not raised."""
     _, _, train, test = task.splits[split]
@@ -1184,8 +1406,9 @@ def _fit_and_score(task: ProxyTask, split: int, method: str, est: Any, X_train: 
     except ValueError as exc:
         return _row(task, split, method, n_features, status=f"skipped: {exc}".splitlines()[0])
     status = "ok" if np.isfinite(scores["error"]) else "skipped: one class in the test split"
-    return _row(task, split, method, n_features, seconds=round(time.time() - t0, 3),
-                status=status, **scores)
+    return _row(
+        task, split, method, n_features, seconds=round(time.time() - t0, 3), status=status, **scores
+    )
 
 
 def frame_coverage(frame: pd.DataFrame) -> Coverage:
@@ -1198,8 +1421,10 @@ def frame_coverage(frame: pd.DataFrame) -> Coverage:
         The resolved :class:`~fintfm.evaluation.coverage.Coverage`; a row's ``status`` is its
         skip reason.
     """
-    units = [f"{t}/split{s}/{m}" for t, s, m in
-             zip(frame["task_id"], frame["split"], frame["method"], strict=True)]
+    units = [
+        f"{t}/split{s}/{m}"
+        for t, s, m in zip(frame["task_id"], frame["split"], frame["method"], strict=True)
+    ]
     skipped = {u: str(st) for u, st in zip(units, frame["status"], strict=True) if st != "ok"}
     return Coverage.from_rows(units, skipped)
 
@@ -1217,8 +1442,13 @@ def _library_tag() -> str:
     return f"sklearn-{sklearn.__version__}_lightgbm-{lgb}"
 
 
-def baseline_rows(task: ProxyTask, cache_dir: Path = PROXY_CACHE, seed: int = 0,
-                  n_jobs: int = 1, log: Callable[[str], None] = print) -> list[dict[str, Any]]:
+def baseline_rows(
+    task: ProxyTask,
+    cache_dir: Path = PROXY_CACHE,
+    seed: int = 0,
+    n_jobs: int = 1,
+    log: Callable[[str], None] = print,
+) -> list[dict[str, Any]]:
     """Every baseline's rows on a task's splits, from the cache where present.
 
     The cache is one CSV per task under ``<cache_dir>/baselines/<library versions>/seed<seed>``;
@@ -1237,10 +1467,13 @@ def baseline_rows(task: ProxyTask, cache_dir: Path = PROXY_CACHE, seed: int = 0,
             if (split, method) in have:
                 continue
             est = _baseline(method, c.kind, task.X, seed, n_jobs)
-            row = _fit_and_score(task, split, method, est, task.X.iloc[train],
-                                 task.X.iloc[test], task.X.shape[1])
-            log(f"  {c.name:<28} fold {fold} {method:<11} {row['metric']} {row['error']:.4f} "
-                f"({row['seconds']} s) {row['status'] if row['status'] != 'ok' else ''}")
+            row = _fit_and_score(
+                task, split, method, est, task.X.iloc[train], task.X.iloc[test], task.X.shape[1]
+            )
+            log(
+                f"  {c.name:<28} fold {fold} {method:<11} {row['metric']} {row['error']:.4f} "
+                f"({row['seconds']} s) {row['status'] if row['status'] != 'ok' else ''}"
+            )
             new.append(row)
     if new:
         cached = pd.concat([cached, pd.DataFrame(new, columns=RESULT_COLUMNS)], ignore_index=True)
@@ -1251,17 +1484,26 @@ def baseline_rows(task: ProxyTask, cache_dir: Path = PROXY_CACHE, seed: int = 0,
     return cached[keep].sort_values(["split", "method"]).to_dict("records")
 
 
-def fintfm_rows(task: ProxyTask, model: FinancialTFM, cfg: Config, method: str, seed: int = 0,
-                device: str = "cpu", log: Callable[[str], None] = print) -> list[dict[str, Any]]:
+def fintfm_rows(
+    task: ProxyTask,
+    model: FinancialTFM,
+    cfg: Config,
+    method: str,
+    seed: int = 0,
+    device: str = "cpu",
+    log: Callable[[str], None] = print,
+) -> list[dict[str, Any]]:
     """FinTFM's rows on a task's splits; a split it cannot take is a ``skipped`` row."""
     rows = []
     for split, (_, fold, train, test) in enumerate(task.splits):
         Xtr, Xte = _fintfm_matrix(task.X, train, test)
         est = _fintfm(task.candidate.kind, model, cfg, seed, device)
         row = _fit_and_score(task, split, method, est, Xtr, Xte, Xtr.shape[1])
-        log(f"  {task.candidate.name:<28} fold {fold} {method:<11} {row['metric']} "
+        log(
+            f"  {task.candidate.name:<28} fold {fold} {method:<11} {row['metric']} "
             f"{row['error']:.4f} ({row['seconds']} s) "
-            f"{row['status'] if row['status'] != 'ok' else ''}")
+            f"{row['status'] if row['status'] != 'ok' else ''}"
+        )
         rows.append(row)
     return rows
 
@@ -1324,17 +1566,25 @@ def run_suite(
         name = name or f"FinTFM:{Path(model_path).stem}"
     out.parent.mkdir(parents=True, exist_ok=True)
     meta: dict[str, Any] = {
-        "model": model_path, "method": name, "config_sources": list(cfg.sources),
-        "n_splits": n_splits, "splits": f"repeat 0, folds 0-{n_splits - 1}", "seed": seed,
+        "model": model_path,
+        "method": name,
+        "config_sources": list(cfg.sources),
+        "n_splits": n_splits,
+        "splits": f"repeat 0, folds 0-{n_splits - 1}",
+        "seed": seed,
         "baselines": list(available_baselines()) if baselines else [],
-        "libraries": _library_tag(), "reporting_only": reporting, "procedures": {},
+        "libraries": _library_tag(),
+        "reporting_only": reporting,
+        "procedures": {},
     }
     rows: list[dict[str, Any]] = []
     for cand in tasks:
         task = fetch_task(cand, cache_dir, n_splits)
         meta["procedures"][str(cand.task_id)] = task.procedure
-        log(f"task {cand.task_id} {cand.name}: {len(task.y)} rows x {task.X.shape[1]} features, "
-            f"{task.procedure}, scoring {n_splits} split(s)")
+        log(
+            f"task {cand.task_id} {cand.name}: {len(task.y)} rows x {task.X.shape[1]} features, "
+            f"{task.procedure}, scoring {n_splits} split(s)"
+        )
         if baselines:
             rows += baseline_rows(task, cache_dir, seed, n_jobs, log)
         if model is not None:
@@ -1368,8 +1618,9 @@ def _task_win_matrices(results: pd.DataFrame, methods: Sequence[str]) -> dict[in
     return out
 
 
-def bradley_terry(W: np.ndarray, prior: float = 0.5, max_iter: int = 10_000,
-                  tol: float = 1e-10) -> np.ndarray:
+def bradley_terry(
+    W: np.ndarray, prior: float = 0.5, max_iter: int = 10_000, tol: float = 1e-10
+) -> np.ndarray:
     """Bradley-Terry log-strengths by Hunter's (2004) MM algorithm.
 
     ``P(i beats j) = p_i / (p_i + p_j)``; the update is ``p_i <- w_i / sum_j n_ij / (p_i +
@@ -1408,8 +1659,13 @@ def bradley_terry(W: np.ndarray, prior: float = 0.5, max_iter: int = 10_000,
     return logp
 
 
-def elo_table(results: pd.DataFrame, anchor: str = ANCHOR, n_boot: int = 1000, seed: int = 0,
-              prior: float = 0.5) -> pd.DataFrame:
+def elo_table(
+    results: pd.DataFrame,
+    anchor: str = ANCHOR,
+    n_boot: int = 1000,
+    seed: int = 0,
+    prior: float = 0.5,
+) -> pd.DataFrame:
     """Elo-scale Bradley-Terry ratings over every pairwise per-split result.
 
     Args:
@@ -1452,11 +1708,16 @@ def elo_table(results: pd.DataFrame, anchor: str = ANCHOR, n_boot: int = 1000, s
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", RuntimeWarning)
         lo, hi = np.nanpercentile(boot, [2.5, 97.5], axis=0) if n_boot else (point, point)
-    table = pd.DataFrame({
-        "method": methods, "elo": point, "lo": lo, "hi": hi,
-        "battles": (total + total.T).sum(axis=1).astype(int),
-        "tasks": [ok.loc[ok["method"] == m, "task_id"].nunique() for m in methods],
-    })
+    table = pd.DataFrame(
+        {
+            "method": methods,
+            "elo": point,
+            "lo": lo,
+            "hi": hi,
+            "battles": (total + total.T).sum(axis=1).astype(int),
+            "tasks": [ok.loc[ok["method"] == m, "task_id"].nunique() for m in methods],
+        }
+    )
     return table.sort_values("elo", ascending=False, ignore_index=True)
 
 
@@ -1486,8 +1747,9 @@ class SignTest:
     mean_difference: float
 
 
-def sign_test(results: pd.DataFrame, candidate: str, reference: str, unit: str = "task"
-              ) -> SignTest:
+def sign_test(
+    results: pd.DataFrame, candidate: str, reference: str, unit: str = "task"
+) -> SignTest:
     """Paired sign test over the tasks (or splits) both methods scored.
 
     Args:
@@ -1516,24 +1778,37 @@ def sign_test(results: pd.DataFrame, candidate: str, reference: str, unit: str =
     diff = (pair["error_r"] - pair["error_c"]).to_numpy()
     wins, losses = int((diff > 0).sum()), int((diff < 0).sum())
     p = binomtest(wins, wins + losses, 0.5).pvalue if wins + losses else float("nan")
-    return SignTest(candidate, reference, unit, wins, losses, int((diff == 0).sum()), float(p),
-                    float(diff.mean()) if len(diff) else float("nan"))
+    return SignTest(
+        candidate,
+        reference,
+        unit,
+        wins,
+        losses,
+        int((diff == 0).sum()),
+        float(p),
+        float(diff.mean()) if len(diff) else float("nan"),
+    )
 
 
 def _print_elo(table: pd.DataFrame, anchor: str, n_boot: int) -> None:
     """Print an :func:`elo_table`."""
-    print(f"\nElo (Bradley-Terry over per-split pairwise results, {anchor} = "
-          f"{ANCHOR_RATING:.0f}; 95% interval from {n_boot} task resamples)")
+    print(
+        f"\nElo (Bradley-Terry over per-split pairwise results, {anchor} = "
+        f"{ANCHOR_RATING:.0f}; 95% interval from {n_boot} task resamples)"
+    )
     print(f"{'method':<32}{'elo':>8}{'95% interval':>20}{'battles':>9}{'tasks':>7}")
     for r in table.itertuples():
-        print(f"{r.method:<32}{r.elo:>8.0f}   [{r.lo:>6.0f}, {r.hi:>6.0f}]{r.battles:>9}"
-              f"{r.tasks:>7}")
+        print(
+            f"{r.method:<32}{r.elo:>8.0f}   [{r.lo:>6.0f}, {r.hi:>6.0f}]{r.battles:>9}{r.tasks:>7}"
+        )
 
 
 def _print_sign(t: SignTest) -> None:
     """Print a :class:`SignTest`."""
-    print(f"\nsign test, {t.candidate} against {t.reference}, per {t.unit}: {t.wins} wins, "
-          f"{t.losses} losses, {t.ties} ties, two-sided p = {t.p_value:.4f}")
+    print(
+        f"\nsign test, {t.candidate} against {t.reference}, per {t.unit}: {t.wins} wins, "
+        f"{t.losses} losses, {t.ties} ties, two-sided p = {t.p_value:.4f}"
+    )
 
 
 def _fintfm_methods(frame: pd.DataFrame) -> list[str]:
@@ -1541,8 +1816,9 @@ def _fintfm_methods(frame: pd.DataFrame) -> list[str]:
     return sorted(set(frame["method"]) - set(BASELINES))
 
 
-def compare_runs(a: Path, b: Path, anchor: str = ANCHOR, n_boot: int = 1000, seed: int = 0,
-                 unit: str = "task") -> tuple[pd.DataFrame, SignTest]:
+def compare_runs(
+    a: Path, b: Path, anchor: str = ANCHOR, n_boot: int = 1000, seed: int = 0, unit: str = "task"
+) -> tuple[pd.DataFrame, SignTest]:
     """Elo over both runs' methods, and the sign test of run A's checkpoint against run B's.
 
     Args:
@@ -1574,16 +1850,19 @@ def compare_runs(a: Path, b: Path, anchor: str = ANCHOR, n_boot: int = 1000, see
     base_a = fa[fa["method"].isin(BASELINES)]
     base_b = fb[fb["method"].isin(BASELINES)]
     shared = base_a.merge(base_b, on=key, suffixes=("_a", "_b"))
-    bad = shared[~np.isclose(shared["error_a"], shared["error_b"], equal_nan=True)
-                 | (shared["n_train_a"] != shared["n_train_b"])]
+    bad = shared[
+        ~np.isclose(shared["error_a"], shared["error_b"], equal_nan=True)
+        | (shared["n_train_a"] != shared["n_train_b"])
+    ]
     if len(bad):
-        raise ValueError(f"the runs' baselines differ on {len(bad)} shared split(s), so they "
-                         "were not scored on identical splits")
+        raise ValueError(
+            f"the runs' baselines differ on {len(bad)} shared split(s), so they "
+            "were not scored on identical splits"
+        )
     extra_b = base_b.merge(base_a[key], on=key, how="left", indicator=True)
     extra_b = extra_b.loc[extra_b["_merge"] == "left_only", base_b.columns]
     combined = pd.concat([fa, fb[fb["method"] == ref], extra_b], ignore_index=True)
-    return (elo_table(combined, anchor, n_boot, seed),
-            sign_test(combined, cand, ref, unit))
+    return (elo_table(combined, anchor, n_boot, seed), sign_test(combined, cand, ref, unit))
 
 
 def suite_features(
@@ -1637,13 +1916,17 @@ def _row_hash(cache_dir: Path, reference_dir: Path, tasks: Sequence[Candidate]) 
     print("\npositive control (must read OVERLAP):")
     control = row_hash_report([(CONTROL_NAME, loader(CONTROL_DATASET_ID, None))], references)
     if not control:
-        print("CONTROL MISSED: the original of a TabArena dataset was not flagged; the check "
-              "below cannot be trusted")
+        print(
+            "CONTROL MISSED: the original of a TabArena dataset was not flagged; the check "
+            "below cannot be trusted"
+        )
         return 1
     print(f"\nsuite ({len(tasks)} tasks):")
     hits = row_hash_report([(c.name, loader(c.dataset_id, c.task_id)) for c in tasks], references)
-    print(f"\n{len(hits)} of {len(tasks)} suite datasets overlap a cached TabArena-v0.1 dataset"
-          + (f": {', '.join(hits)}" if hits else ""))
+    print(
+        f"\n{len(hits)} of {len(tasks)} suite datasets overlap a cached TabArena-v0.1 dataset"
+        + (f": {', '.join(hits)}" if hits else "")
+    )
     return 1 if hits else 0
 
 
@@ -1667,19 +1950,37 @@ def _select_tasks(ids: str | None) -> list[Candidate]:
 def main(argv: Sequence[str] | None = None) -> int:
     """Command-line entry point; see the module docstring for the options' purpose."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--dry-run", action="store_true",
-                        help="print the suite, the exclusions and their reasons")
-    parser.add_argument("--task-ids", action="store_true",
-                        help="print the suite's OpenML task ids, comma-separated, for the runner")
-    parser.add_argument("--verify-licences", action="store_true",
-                        help="re-fetch every candidate's OpenML licence field (network)")
-    parser.add_argument("--row-hash", action="store_true",
-                        help="fetch every suite dataset and compare its rows and columns with "
-                             "the TabArena-v0.1 datasets in the local OpenML cache (network)")
-    parser.add_argument("--tabarena-cache", type=Path, default=TABARENA_OPENML_CACHE,
-                        help="openml-python dataset cache holding TabArena's datasets (read only)")
-    parser.add_argument("--cache-dir", type=Path, default=PROXY_CACHE,
-                        help="runner cache: OpenML downloads and baseline scores")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="print the suite, the exclusions and their reasons"
+    )
+    parser.add_argument(
+        "--task-ids",
+        action="store_true",
+        help="print the suite's OpenML task ids, comma-separated, for the runner",
+    )
+    parser.add_argument(
+        "--verify-licences",
+        action="store_true",
+        help="re-fetch every candidate's OpenML licence field (network)",
+    )
+    parser.add_argument(
+        "--row-hash",
+        action="store_true",
+        help="fetch every suite dataset and compare its rows and columns with "
+        "the TabArena-v0.1 datasets in the local OpenML cache (network)",
+    )
+    parser.add_argument(
+        "--tabarena-cache",
+        type=Path,
+        default=TABARENA_OPENML_CACHE,
+        help="openml-python dataset cache holding TabArena's datasets (read only)",
+    )
+    parser.add_argument(
+        "--cache-dir",
+        type=Path,
+        default=PROXY_CACHE,
+        help="runner cache: OpenML downloads and baseline scores",
+    )
     sub = parser.add_subparsers(dest="command")
 
     run = sub.add_parser("run", help="score a checkpoint and the baselines on the suite")
@@ -1688,15 +1989,22 @@ def main(argv: Sequence[str] | None = None) -> int:
     run.add_argument("--config", default=None, help="YAML whose inference section builds FinTFM")
     run.add_argument("--name", default=None, help="FinTFM's method name in the CSV")
     run.add_argument("--tasks", default=None, help="comma-separated suite task ids (default all)")
-    run.add_argument("--n-splits", type=int, default=N_SPLITS,
-                     help="folds of OpenML's repeat 0 to score per task")
+    run.add_argument(
+        "--n-splits",
+        type=int,
+        default=N_SPLITS,
+        help="folds of OpenML's repeat 0 to score per task",
+    )
     run.add_argument("--no-baselines", action="store_true", help="FinTFM rows only")
     run.add_argument("--n-jobs", type=int, default=1, help="threads for trees and LightGBM")
     run.add_argument("--device", default="cpu")
     run.add_argument("--seed", type=int, default=0)
     run.add_argument("--n-boot", type=int, default=1000, help="Elo bootstrap resamples")
-    run.add_argument(REPORTING_FLAG, action="store_true",
-                     help="permit a selection-forbidden dataset, for reporting only")
+    run.add_argument(
+        REPORTING_FLAG,
+        action="store_true",
+        help="permit a selection-forbidden dataset, for reporting only",
+    )
 
     cmp_ = sub.add_parser("compare", help="Elo and sign test: checkpoint A against reference B")
     cmp_.add_argument("a", type=Path, help="run CSV of the checkpoint under test")
@@ -1711,9 +2019,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         from fintfm.config import load_config
 
         frame = run_suite(
-            args.model, args.out, tasks=_select_tasks(args.tasks), cfg=load_config(args.config),
-            name=args.name, n_splits=args.n_splits, baselines=not args.no_baselines,
-            cache_dir=args.cache_dir, n_jobs=args.n_jobs, device=args.device, seed=args.seed,
+            args.model,
+            args.out,
+            tasks=_select_tasks(args.tasks),
+            cfg=load_config(args.config),
+            name=args.name,
+            n_splits=args.n_splits,
+            baselines=not args.no_baselines,
+            cache_dir=args.cache_dir,
+            n_jobs=args.n_jobs,
+            device=args.device,
+            seed=args.seed,
             allow_reporting=args.allow_tabarena_for_reporting,
         )
         n_ok = int((frame["status"] == "ok").sum())

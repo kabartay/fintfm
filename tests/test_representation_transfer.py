@@ -39,8 +39,9 @@ def _panel(n=1500, seed=0):
 def _model() -> FinancialTFM:
     """A seeded untrained network, so every call builds the same weights."""
     torch.manual_seed(0)
-    return FinancialTFM(ModelConfig(max_features=6, max_classes=2, d_model=16, n_heads=2,
-                                    n_layers=1, d_ff=32))
+    return FinancialTFM(
+        ModelConfig(max_features=6, max_classes=2, d_model=16, n_heads=2, n_layers=1, d_ff=32)
+    )
 
 
 @pytest.fixture
@@ -55,8 +56,14 @@ def _run(tmp_path, name, **kw):
     """One fold of the harness on the synthetic panel, with its per-row predictions."""
     out = tmp_path / name
     record = rt.run(
-        _model(), out / "rt.json", folds=(0,), root=tmp_path, train_sample_size=_SAMPLE,
-        max_context=_CTX, predictions_dir=out, **kw,
+        _model(),
+        out / "rt.json",
+        folds=(0,),
+        root=tmp_path,
+        train_sample_size=_SAMPLE,
+        max_context=_CTX,
+        predictions_dir=out,
+        **kw,
     )
     return record, dict(np.load(out / "predictions_fold0.npz")), (out / "rt.json").read_bytes()
 
@@ -83,13 +90,20 @@ def _pre_dr34_arms(X, y, country, company, fold=0):
         rep_te = clf.transform_representation(Xte)
         p_rep = LogisticRegression(max_iter=1000).fit(rep_tr, ytr).predict_proba(rep_te)[:, 1]
         p_raw = LogisticRegression(max_iter=1000).fit(Xtr, ytr).predict_proba(Xte)[:, 1]
-        mlp = MLPClassifier(hidden_layer_sizes=(64,), early_stopping=True, n_iter_no_change=15,
-                            max_iter=500, random_state=fold).fit(rep_tr, ytr)
+        mlp = MLPClassifier(
+            hidden_layer_sizes=(64,),
+            early_stopping=True,
+            n_iter_no_change=15,
+            max_iter=500,
+            random_state=fold,
+        ).fit(rep_tr, ytr)
         p_mlp = mlp.predict_proba(rep_te)[:, 1]
     return (
-        {"own_head": p_own_head, "representation": p_rep, "raw_features": p_raw,
-         "mlp_head": p_mlp},
-        clf, Xtr_full, ytr_full, Xte,
+        {"own_head": p_own_head, "representation": p_rep, "raw_features": p_raw, "mlp_head": p_mlp},
+        clf,
+        Xtr_full,
+        ytr_full,
+        Xte,
     )
 
 
@@ -104,7 +118,10 @@ def test_default_probe_rows_is_the_harness_before_the_control(tmp_path, panel):
     for arm, p in ref.items():
         assert preds[f"pred_{arm}"].tobytes() == p.tobytes() == preds_s[f"pred_{arm}"].tobytes()
     assert list(rec["folds"][0]) == [
-        "fold", "n_train_full", "n_train_sample", "n_test",
+        "fold",
+        "n_train_full",
+        "n_train_sample",
+        "n_test",
         *(f"{a}_{m}" for a in ref for m in ("auc", "ap")),
     ]
 
@@ -158,9 +175,9 @@ def test_context_probe_is_cross_fitted_and_the_head_scored_the_same_way(tmp_path
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         probe = LogisticRegression(max_iter=1000).fit(rep, ytr_full[ctx])
-        want = np.mean([
-            probe.predict_proba(c.transform_representation(Xte))[:, 1] for c in restricted
-        ], axis=0)
+        want = np.mean(
+            [probe.predict_proba(c.transform_representation(Xte))[:, 1] for c in restricted], axis=0
+        )
         head = np.mean([c.predict_proba(Xte)[:, 1] for c in restricted], axis=0)
     assert preds["pred_representation"].tobytes() == want.tobytes()
     assert preds["pred_own_head_crossfit"].tobytes() == head.tobytes()
@@ -181,8 +198,18 @@ def test_a_context_rows_own_label_never_reaches_its_cross_fitted_representation(
     kind, and through the row-to-row encoder at ``pre_head``."""
     X, y, *_ = _panel(n=600)
     torch.manual_seed(0)
-    model = FinancialTFM(ModelConfig(max_features=6, max_classes=2, d_model=16, n_heads=2,
-                                     n_layers=1, d_ff=32, n_cell_blocks=1, cell_labels=True))
+    model = FinancialTFM(
+        ModelConfig(
+            max_features=6,
+            max_classes=2,
+            d_model=16,
+            n_heads=2,
+            n_layers=1,
+            d_ff=32,
+            n_cell_blocks=1,
+            cell_labels=True,
+        )
+    )
     clf = FinancialTFMClassifier(model, max_context=100).fit(X, y)
     ctx = clf.context_indices_
     rep, _ = rt.crossfit_representations(clf, X, stage, seed=3)
@@ -205,7 +232,9 @@ def test_a_context_rows_own_label_never_reaches_its_cross_fitted_representation(
 def test_a_single_class_probe_set_records_a_gap_not_a_crash():
     X, y, *_ = _panel(n=300)
     clf = FinancialTFMClassifier(_model(), max_context=50).fit(X, y)
-    arms = rt._downstream_arms(clf, X[:40], np.zeros(40, dtype=np.int64), X[40:60], "encode_rows", 0)
+    arms = rt._downstream_arms(
+        clf, X[:40], np.zeros(40, dtype=np.int64), X[40:60], "encode_rows", 0
+    )
     assert set(arms) == {"representation", "raw_features", "mlp_head"}
     for p in arms.values():
         assert p.shape == (20,) and np.isnan(p).all()
@@ -225,12 +254,23 @@ def test_partition_keeps_the_default_runs_global_arms_bit_for_bit(tmp_path, pane
     rec, preds, _ = _run(tmp_path, "partition", partition=True)
     assert rec["partition"] is True
     assert set(preds) == {"y_true", "company_test"} | {
-        f"pred_{a}" for a in ("own_head", "representation", "own_head_global",
-                              "representation_global", "raw_features", "mlp_head")
+        f"pred_{a}"
+        for a in (
+            "own_head",
+            "representation",
+            "own_head_global",
+            "representation_global",
+            "raw_features",
+            "mlp_head",
+        )
     }
     assert preds["company_test"].shape == preds["y_true"].shape
-    for arm, ref in (("own_head_global", "own_head"), ("representation_global", "representation"),
-                     ("raw_features", "raw_features"), ("mlp_head", "mlp_head")):
+    for arm, ref in (
+        ("own_head_global", "own_head"),
+        ("representation_global", "representation"),
+        ("raw_features", "raw_features"),
+        ("mlp_head", "mlp_head"),
+    ):
         assert preds[f"pred_{arm}"].tobytes() == base[f"pred_{ref}"].tobytes()
     row = rec["folds"][0]
     assert row["n_leaf_probes"] >= 1
@@ -261,8 +301,9 @@ def test_no_rep_option_is_a_raw_only_probe_on_the_same_rows(tmp_path, panel):
     the options arm differs from the one that also reads the representation."""
     opts = {"scale": True, "cv": True, "raw": True}
     _rec, with_rep, _ = _run(tmp_path, "with_rep", partition=True, probe_options=opts)
-    rec, raw_only, _ = _run(tmp_path, "raw_only", partition=True,
-                            probe_options={**opts, "no_rep": True})
+    rec, raw_only, _ = _run(
+        tmp_path, "raw_only", partition=True, probe_options={**opts, "no_rep": True}
+    )
     assert rec["probe_options"]["no_rep"] is True
     for key in with_rep:
         if key != "pred_representation_opts":
@@ -278,7 +319,8 @@ def test_partition_with_every_leaf_falling_back_is_the_global_probe(tmp_path, pa
     import functools
 
     monkeypatch.setattr(
-        rt, "PartitionedTFMClassifier",
+        rt,
+        "PartitionedTFMClassifier",
         functools.partial(rt.PartitionedTFMClassifier, min_leaf_rows=10**9),
     )
     rec, preds, _ = _run(tmp_path, "fallback", partition=True)

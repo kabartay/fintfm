@@ -50,8 +50,14 @@ def load_grouping(root: Path, horizon: int) -> tuple[np.ndarray, np.ndarray, np.
     """
     import pyarrow.parquet as pq
 
-    df = pq.read_table(root / HORIZON_FILES[horizon], columns=[TARGET, "country", "company"]).to_pandas()
-    return df[TARGET].to_numpy().astype(np.int64), df["country"].to_numpy(), df["company"].to_numpy()
+    df = pq.read_table(
+        root / HORIZON_FILES[horizon], columns=[TARGET, "country", "company"]
+    ).to_pandas()
+    return (
+        df[TARGET].to_numpy().astype(np.int64),
+        df["country"].to_numpy(),
+        df["company"].to_numpy(),
+    )
 
 
 def reconstruct(
@@ -73,7 +79,12 @@ def reconstruct(
     out = {}
     for k in range(n_splits):
         _, va, te = split_indices_for_fold(folds, k, n_splits)
-        out[k] = {"y_true": y[te], "company_test": codes[te], "y_val": y[va], "company_val": codes[va]}
+        out[k] = {
+            "y_true": y[te],
+            "company_test": codes[te],
+            "y_val": y[va],
+            "company_val": codes[va],
+        }
     return out
 
 
@@ -95,7 +106,10 @@ def verify(run: Path, rebuilt: dict[int, dict[str, np.ndarray]]) -> list[int]:
         cfg = json.loads(cfg_file.read_text()).get("config", {})
         if cfg.get("max_rows") is not None:
             raise SystemExit(f"{run}: max_rows={cfg['max_rows']}; only full-panel runs are rebuilt")
-        if (cfg.get("fold_seed", FOLD_SEED), cfg.get("n_splits", N_SPLITS)) != (FOLD_SEED, N_SPLITS):
+        if (cfg.get("fold_seed", FOLD_SEED), cfg.get("n_splits", N_SPLITS)) != (
+            FOLD_SEED,
+            N_SPLITS,
+        ):
             raise SystemExit(f"{run}: fold seed or count differs from the protocol's")
     checked = []
     for f in sorted(run.glob("predictions_fold*.npz")):
@@ -112,7 +126,9 @@ def verify(run: Path, rebuilt: dict[int, dict[str, np.ndarray]]) -> list[int]:
 
 def main() -> None:
     """Entry point: rebuild, verify against every given run, then write."""
-    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     p.add_argument("--root", required=True, type=Path, help="directory holding the parquet files")
     p.add_argument("--out", required=True, type=Path)
     p.add_argument("--horizon", type=int, default=0)
@@ -127,8 +143,10 @@ def main() -> None:
     for k, arrays in rebuilt.items():
         np.savez_compressed(args.out / f"companies_fold{k}.npz", **arrays)
         n, g = len(arrays["y_true"]), len(np.unique(arrays["company_test"]))
-        print(f"fold {k}: {n:,} test rows, {g:,} companies ({n / g:.2f} rows each), "
-              f"{int(arrays['y_true'].sum()):,} positive")
+        print(
+            f"fold {k}: {n:,} test rows, {g:,} companies ({n / g:.2f} rows each), "
+            f"{int(arrays['y_true'].sum()):,} positive"
+        )
 
 
 if __name__ == "__main__":

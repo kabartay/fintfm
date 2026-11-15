@@ -31,5 +31,7 @@ def test_package_and_readme_citation_state_the_same_version():
     project = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"]
     bib = re.search(r"version\s*=\s*\{([^}]+)\}", (ROOT / "README.md").read_text())
     assert bib is not None, "README.md has no BibTeX version field"
-    assert fintfm.__version__ == project, f"installed {fintfm.__version__}, pyproject {project}: re-sync"
+    assert fintfm.__version__ == project, (
+        f"installed {fintfm.__version__}, pyproject {project}: re-sync"
+    )
     assert bib.group(1).strip() == project, f"README BibTeX {bib.group(1)}, pyproject {project}"

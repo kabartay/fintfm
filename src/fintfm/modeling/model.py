@@ -359,9 +359,7 @@ class ModelConfig:
                 blocks or with ``cell_row_attn="induced"`` or ``readout="cls"``.
         """
         if self.cell_mixing not in CELL_MIXINGS:
-            raise ValueError(
-                f"cell_mixing must be one of {CELL_MIXINGS}, got {self.cell_mixing!r}"
-            )
+            raise ValueError(f"cell_mixing must be one of {CELL_MIXINGS}, got {self.cell_mixing!r}")
         if self.cell_mixing == "latent":
             if self.n_cell_blocks < 1:
                 raise ValueError("cell_mixing='latent' requires n_cell_blocks >= 1")
@@ -396,8 +394,7 @@ class ModelConfig:
             )
         if self.value_embedding not in ("mlp", "rbf", "fourier"):
             raise ValueError(
-                "value_embedding must be 'mlp', 'rbf' or 'fourier', "
-                f"got {self.value_embedding!r}"
+                f"value_embedding must be 'mlp', 'rbf' or 'fourier', got {self.value_embedding!r}"
             )
         if self.value_basis_size < 1:
             raise ValueError(f"value_basis_size must be >= 1, got {self.value_basis_size}")
@@ -417,9 +414,7 @@ class ModelConfig:
         if self.hazard_period_context and self.n_horizons is None:
             raise ValueError("hazard_period_context requires n_horizons (a hazard head)")
         if self.head_type not in ("binned", "quantile"):
-            raise ValueError(
-                f"head_type must be 'binned' or 'quantile', got {self.head_type!r}"
-            )
+            raise ValueError(f"head_type must be 'binned' or 'quantile', got {self.head_type!r}")
         if self.head_type == "quantile" and self.n_horizons is not None:
             raise ValueError(
                 "head_type='quantile' is incompatible with n_horizons: the hazard head "
@@ -680,7 +675,9 @@ def aligned_attention(
         )
     pad = (0, HALF_PRECISION_HEAD_ALIGN - d % HALF_PRECISION_HEAD_ALIGN)
     out = F.scaled_dot_product_attention(
-        F.pad(q, pad), F.pad(k, pad), F.pad(v, pad),
+        F.pad(q, pad),
+        F.pad(k, pad),
+        F.pad(v, pad),
         attn_mask=attn_mask,
         dropout_p=dropout_p,
         scale=1.0 / math.sqrt(d) if scale is None else scale,
@@ -751,9 +748,7 @@ def split_row_attention(
         sentinel[..., d] = 1.0
         k_aug = torch.cat([F.pad(k_ctx, (0, extra)), sentinel], dim=-2)
         v_aug = torch.cat([F.pad(v_ctx, (0, extra)), sentinel.to(v.dtype)], dim=-2)
-        out = F.scaled_dot_product_attention(
-            q_aug, k_aug, v_aug, dropout_p=dropout_p, scale=scale
-        )
+        out = F.scaled_dot_product_attention(q_aug, k_aug, v_aug, dropout_p=dropout_p, scale=scale)
         parts.append(out[..., :d] + out[..., d : d + 1] * v_qry)
     return torch.cat(parts, dim=-2)
 
@@ -1084,9 +1079,7 @@ class FinancialTFM(nn.Module):
         # Pooling over columns is a masked mean (order-invariant) plus a masked max, which
         # keeps a signal a mean washes out: one extreme ratio in an otherwise ordinary firm.
         if cfg.pooling not in ("meanmax", "attention"):
-            raise ValueError(
-                f"pooling must be 'meanmax' or 'attention', got {cfg.pooling!r}"
-            )
+            raise ValueError(f"pooling must be 'meanmax' or 'attention', got {cfg.pooling!r}")
         if cfg.readout == "cls":
             # DR6.3: K learned readout tokens join every row's column attention; their outputs,
             # concatenated, are the row vector. Same small init as the other learned tokens.
@@ -1488,9 +1481,12 @@ class FinancialTFM(nn.Module):
                 cells = self.cell_embed(torch.cat([v, missing.unsqueeze(-1)], dim=-1))
 
         if self.col_id_proj is not None:
-            cells = cells + self.col_id_proj(
-                self._column_ids(B, Fdim, cells.device, cells.dtype, column_id_seed)
-            )[:, None, :, :]
+            cells = (
+                cells
+                + self.col_id_proj(
+                    self._column_ids(B, Fdim, cells.device, cells.dtype, column_id_seed)
+                )[:, None, :, :]
+            )
 
         pad_rows = pad.repeat_interleave(N, dim=0)  # (B*N, F)
         # A row of all-padding would make softmax produce NaN over a fully masked sequence;
@@ -1576,9 +1572,7 @@ class FinancialTFM(nn.Module):
             summary, _ = self.summary_attn(
                 q, tokens, tokens, key_padding_mask=safe_pad, need_weights=False
             )
-            return self.row_proj(
-                summary.reshape(B, N, self.cfg.n_summary_tokens * self.cfg.d_cell)
-            )
+            return self.row_proj(summary.reshape(B, N, self.cfg.n_summary_tokens * self.cfg.d_cell))
 
         keep = (~pad)[:, None, :, None].to(cells.dtype)  # (B, 1, F, 1)
         denom = keep.sum(dim=2).clamp(min=1.0)
@@ -1590,13 +1584,9 @@ class FinancialTFM(nn.Module):
 
         # attention pooling: one learned query over the feature tokens of every row
         q = self.pool_query.expand(flat.shape[0], -1, -1)
-        attended, _ = self.pool_attn(
-            q, flat, flat, key_padding_mask=safe_pad, need_weights=False
-        )
+        attended, _ = self.pool_attn(q, flat, flat, key_padding_mask=safe_pad, need_weights=False)
         pooled_attn = attended.reshape(B, N, self.cfg.d_cell)
-        return self.row_proj(
-            torch.cat([pooled_mean, pooled_max, pooled_attn], dim=-1)
-        )
+        return self.row_proj(torch.cat([pooled_mean, pooled_max, pooled_attn], dim=-1))
 
     def _label_embedding(
         self,
@@ -1681,9 +1671,7 @@ class FinancialTFM(nn.Module):
         if self.cfg.attn_impl == "split":
             return self._prenorm_stack(layers, h, n_ctx, None, factor)
         mask = self._row_mask(h.shape[1], n_ctx, h.device)
-        if not self.cfg.attn_length_scale and not self._needs_aligned_heads(
-            layers[0].self_attn, h
-        ):
+        if not self.cfg.attn_length_scale and not self._needs_aligned_heads(layers[0].self_attn, h):
             if n_layers is None:
                 return self.encoder(h, mask=mask)
             for layer in layers:
@@ -1946,9 +1934,7 @@ class FinancialTFM(nn.Module):
             taus = self.quantile_taus.to(out.dtype)
             return torch.maximum(taus * diff, (taus - 1.0) * diff).mean()
         if weights is None:
-            return F.cross_entropy(
-                out.reshape(-1, self.cfg.max_classes), y[:, n_ctx:].reshape(-1)
-            )
+            return F.cross_entropy(out.reshape(-1, self.cfg.max_classes), y[:, n_ctx:].reshape(-1))
         per_row = F.cross_entropy(
             out.reshape(-1, self.cfg.max_classes), y[:, n_ctx:].reshape(-1), reduction="none"
         )

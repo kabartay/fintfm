@@ -60,9 +60,11 @@ def score(frame: pd.DataFrame, datasets: list[str] | None, method: str) -> pd.Se
     """
     from tabarena.contexts import TabArenaContext
 
-    lb = TabArenaContext().compare(
-        output_dir=None, ta_results=frame, datasets=datasets, fillna=None, plot=False
-    ).reset_index(drop=True)
+    lb = (
+        TabArenaContext()
+        .compare(output_dir=None, ta_results=frame, datasets=datasets, fillna=None, plot=False)
+        .reset_index(drop=True)
+    )
     lb["position"] = lb["elo"].rank(ascending=False, method="min").astype(int)
     row = lb[lb["method"] == method].iloc[0].copy()
     row["n_methods"] = len(lb)
@@ -80,18 +82,24 @@ def main(argv: Sequence[str] | None = None) -> None:
     frame = pd.read_csv(args.results)
     wanted = subset_datasets(args.subset)
     covered = sorted(set(wanted) & set(frame["dataset"]))
-    print(f"frame: {frame['method'].nunique()} methods x {frame['dataset'].nunique()} datasets, "
-          f"splits {sorted(frame['fold'].unique().tolist())}")
+    print(
+        f"frame: {frame['method'].nunique()} methods x {frame['dataset'].nunique()} datasets, "
+        f"splits {sorted(frame['fold'].unique().tolist())}"
+    )
     print(f"{args.subset}: {len(wanted)} datasets; {len(covered)} in the frame: {covered}")
     print(f"not in the frame: {sorted(set(wanted) - set(covered))}")
     sub = frame[frame["dataset"].isin(covered)]
-    print(f"imputed rows in the subset frame: {int(sub['imputed'].sum())} of {len(sub)}, "
-          f"{args.method}: {int(sub.loc[sub['method'] == args.method, 'imputed'].sum())}")
+    print(
+        f"imputed rows in the subset frame: {int(sub['imputed'].sum())} of {len(sub)}, "
+        f"{args.method}: {int(sub.loc[sub['method'] == args.method, 'imputed'].sum())}"
+    )
     for label, datasets in (("all datasets", None), (args.subset, covered)):
         r = score(frame, datasets, args.method)
-        print(f"{label}: Elo {r['elo']:.1f} (+{r['elo+']:.1f}/-{r['elo-']:.1f}), "
-              f"position {r['position']} of {r['n_methods']}, win rate {r['winrate']:.3f}, "
-              f"mean rank {r['rank']:.2f}")
+        print(
+            f"{label}: Elo {r['elo']:.1f} (+{r['elo+']:.1f}/-{r['elo-']:.1f}), "
+            f"position {r['position']} of {r['n_methods']}, win rate {r['winrate']:.3f}, "
+            f"mean rank {r['rank']:.2f}"
+        )
 
 
 if __name__ == "__main__":

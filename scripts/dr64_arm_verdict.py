@@ -98,10 +98,17 @@ def read_kernel(arm: str, kernels: Path = KERNELS) -> dict:
                 except ValueError:
                     pass
         if consts.get("ARM") == arm:
-            hits.append({"dir": f.parent, "flags": list(consts.get("ARM_FLAGS", [])),
-                         "score_v4": bool(consts.get("SCORE_V4", False))})
+            hits.append(
+                {
+                    "dir": f.parent,
+                    "flags": list(consts.get("ARM_FLAGS", [])),
+                    "score_v4": bool(consts.get("SCORE_V4", False)),
+                }
+            )
     if len(hits) != 1:
-        raise SystemExit(f"expected one kernel under {kernels} with ARM = {arm!r}, found {len(hits)}")
+        raise SystemExit(
+            f"expected one kernel under {kernels} with ARM = {arm!r}, found {len(hits)}"
+        )
     return hits[0]
 
 
@@ -123,9 +130,13 @@ def lever_flags(flags: list[str]) -> list[str]:
     i = 0
     while i < len(flags):
         tok = flags[i]
-        step = 1 if tok in EXEC_NOVALUE or (i + 1 < len(flags) and flags[i + 1].startswith("--")) else 2
+        step = (
+            1
+            if tok in EXEC_NOVALUE or (i + 1 < len(flags) and flags[i + 1].startswith("--"))
+            else 2
+        )
         if tok not in EXEC_FLAGS:
-            out.extend(flags[i:i + step])
+            out.extend(flags[i : i + step])
         i += step
     return out
 
@@ -235,19 +246,43 @@ def score_command(ctrl: Path, ckpt: Path, out: Path) -> str:
     if not rec_file.is_file():
         raise SystemExit(f"{rec_file} missing: cannot read the control's settings")
     cfg = json.loads(rec_file.read_text())["config"]
-    odd = {k: cfg.get(k) for k, want in (("finetune_steps", 0), ("n_ensemble", 1),
-                                         ("max_rows", None), ("tuned", False))
-           if cfg.get(k) != want}
+    odd = {
+        k: cfg.get(k)
+        for k, want in (
+            ("finetune_steps", 0),
+            ("n_ensemble", 1),
+            ("max_rows", None),
+            ("tuned", False),
+        )
+        if cfg.get(k) != want
+    }
     if (cfg.get("large_n") or {}).get("method", "none") != "none":
         odd["large_n"] = cfg["large_n"]["method"]
     if odd:
         raise SystemExit(f"control settings not expressible as flags: {odd}")
-    parts = ["nice", "-n", "19", "uv", "run", "--frozen", "fintfm-v4protocol", "--model", str(ckpt),
-             "--horizon", str(cfg["horizon"]), "--folds", ",".join(map(str, cfg["folds"]))]
+    parts = [
+        "nice",
+        "-n",
+        "19",
+        "uv",
+        "run",
+        "--frozen",
+        "fintfm-v4protocol",
+        "--model",
+        str(ckpt),
+        "--horizon",
+        str(cfg["horizon"]),
+        "--folds",
+        ",".join(map(str, cfg["folds"])),
+    ]
     if not cfg.get("boosting"):
         parts.append("--no-boosting")
-    parts += ["--classical", ",".join(cfg.get("classical") or ["logistic_regression"]),
-              "--device", "cpu"]
+    parts += [
+        "--classical",
+        ",".join(cfg.get("classical") or ["logistic_regression"]),
+        "--device",
+        "cpu",
+    ]
     yaml = ctrl.parent / "score.yaml"
     if yaml.is_file():
         parts += ["--config", str(yaml)]
@@ -317,14 +352,23 @@ def teaching_axis(out_dir: Path, arm: str) -> dict:
         rows = [r for r in json.loads(f.read_text())["results"] if r["arm"] == arm]
         by = {r["probe"]: float(r["auc_mean"]) for r in rows}
         if "antisymmetric" in by:
-            return {"antisymmetric_auc": by["antisymmetric"],
-                    "symmetric_auc": {k: by[k] for k in ("symmetric_sum", "symmetric_count")
-                                      if k in by},
-                    "source": str(f)}
-        return {"antisymmetric_auc": None, "symmetric_auc": {},
-                "source": f"{f}: no antisymmetric row for arm {arm}"}
-    return {"antisymmetric_auc": None, "symmetric_auc": {},
-            "source": "not run: no capability.json under " + str(out_dir)}
+            return {
+                "antisymmetric_auc": by["antisymmetric"],
+                "symmetric_auc": {
+                    k: by[k] for k in ("symmetric_sum", "symmetric_count") if k in by
+                },
+                "source": str(f),
+            }
+        return {
+            "antisymmetric_auc": None,
+            "symmetric_auc": {},
+            "source": f"{f}: no antisymmetric row for arm {arm}",
+        }
+    return {
+        "antisymmetric_auc": None,
+        "symmetric_auc": {},
+        "source": "not run: no capability.json under " + str(out_dir),
+    }
 
 
 def cmd_prepare(args: argparse.Namespace) -> int:
@@ -336,12 +380,15 @@ def cmd_prepare(args: argparse.Namespace) -> int:
     seed = int(flag_value(kernel["flags"], "--seed") or 0)
     fails = check_logs(out_dir, ckpt, kernel)
     cmd = score_command(control_dir(args.runs, seed), ckpt, out_dir / "score_cpu")
-    (out_dir / "dr64_score_command.sh").write_text("#!/usr/bin/env bash\ncd " + shlex.quote(str(REPO))
-                                                  + f"\n{cmd}\n")
+    (out_dir / "dr64_score_command.sh").write_text(
+        "#!/usr/bin/env bash\ncd " + shlex.quote(str(REPO)) + f"\n{cmd}\n"
+    )
     scored = find_scores(out_dir, ckpt)
     print(f"arm {arm} (seed {seed}), checkpoint {ckpt}")
-    print(f"kernel scores itself on Kaggle: {kernel['score_v4']}; scored predictions found: "
-          f"{scored if scored else 'none (run dr64_score_command.sh, one scoring at a time)'}")
+    print(
+        f"kernel scores itself on Kaggle: {kernel['score_v4']}; scored predictions found: "
+        f"{scored if scored else 'none (run dr64_score_command.sh, one scoring at a time)'}"
+    )
     print(f"command written to {out_dir / 'dr64_score_command.sh'}")
     for f in fails:
         print(f"FAIL: {f}")
@@ -372,42 +419,67 @@ def cmd_verdict(args: argparse.Namespace) -> int:
     if len(diffs) != 5:
         raise SystemExit(f"{scored}: {len(diffs)} folds scored, the rule needs five")
     ckernel = read_kernel(f"e1-v48-s{seed}")
-    differs = sorted({t for t in lever_flags(kernel["flags"]) if t.startswith("--")}
-                     | {f for f in ("--batch-size", "--steps")
-                        if flag_value(kernel["flags"], f) != flag_value(ckernel["flags"], f)})
+    differs = sorted(
+        {t for t in lever_flags(kernel["flags"]) if t.startswith("--")}
+        | {
+            f
+            for f in ("--batch-size", "--steps")
+            if flag_value(kernel["flags"], f) != flag_value(ckernel["flags"], f)
+        }
+    )
     rec = {
-        "arm": arm, "lever": lever_of(arm), "seed": seed, "control": f"e1-v48-s{seed}",
-        "scored_dir": str(scored), "bootstrap": boot, "yardstick": YARDSTICK,
-        "min_folds": MIN_FOLDS, "verdict": judge(diffs), "mean_diff": float(np.mean(diffs)),
+        "arm": arm,
+        "lever": lever_of(arm),
+        "seed": seed,
+        "control": f"e1-v48-s{seed}",
+        "scored_dir": str(scored),
+        "bootstrap": boot,
+        "yardstick": YARDSTICK,
+        "min_folds": MIN_FOLDS,
+        "verdict": judge(diffs),
+        "mean_diff": float(np.mean(diffs)),
         "folds_positive": int(sum(d > 0 for d in diffs)),
         "folds_negative": int(sum(d < 0 for d in diffs)),
         "mean_ap_arm": float(np.mean([r["arm"] for r in rows])),
         "mean_ap_control": float(np.mean([r["control"] for r in rows])),
-        "folds": [{k: (list(v) if isinstance(v, tuple) else v) for k, v in r.items()}
-                  for r in rows],
+        "folds": [
+            {k: (list(v) if isinstance(v, tuple) else v) for k, v in r.items()} for r in rows
+        ],
         "teaching_axis": teaching_axis(out_dir, arm),
         "lever_flags": lever_flags(kernel["flags"]),
         "differs_from_control": differs,
         "recipe_matches_control_execution": all(
             flag_value(kernel["flags"], f) == flag_value(ckernel["flags"], f)
-            for f in ("--batch-size", "--steps")),
+            for f in ("--batch-size", "--steps")
+        ),
     }
     (out_dir / "dr64_verdict.json").write_text(json.dumps(rec, indent=2, default=float) + "\n")
-    print(f"{arm}: mean AP {rec['mean_ap_arm']:.4f} vs {rec['mean_ap_control']:.4f}, "
-          f"diff {rec['mean_diff']:+.4f}, {rec['folds_positive']}/5 positive "
-          f"({boot}-level bootstrap) -> {rec['verdict'].upper()}")
+    print(
+        f"{arm}: mean AP {rec['mean_ap_arm']:.4f} vs {rec['mean_ap_control']:.4f}, "
+        f"diff {rec['mean_diff']:+.4f}, {rec['folds_positive']}/5 positive "
+        f"({boot}-level bootstrap) -> {rec['verdict'].upper()}"
+    )
     ta = rec["teaching_axis"]
-    print(f"{arm}: antisymmetric-probe AUC "
-          + (f"{ta['antisymmetric_auc']:.4f}" if ta["antisymmetric_auc"] is not None
-             else f"MISSING ({ta['source']})") + " beside the protocol AP above (§63)")
+    print(
+        f"{arm}: antisymmetric-probe AUC "
+        + (
+            f"{ta['antisymmetric_auc']:.4f}"
+            if ta["antisymmetric_auc"] is not None
+            else f"MISSING ({ta['source']})"
+        )
+        + " beside the protocol AP above (§63)"
+    )
     if not rec["recipe_matches_control_execution"]:
-        print("note: batch size or steps differ from the control's; a confound the verdict "
-              "does not remove (dr8.3_2026-11.md)")
+        print(
+            "note: batch size or steps differ from the control's; a confound the verdict "
+            "does not remove (dr8.3_2026-11.md)"
+        )
     return 0
 
 
-def compose(verdicts: list[dict], expect: list[str] | None = None,
-            not_composable: tuple[str, ...] = ()) -> dict:
+def compose(
+    verdicts: list[dict], expect: list[str] | None = None, not_composable: tuple[str, ...] = ()
+) -> dict:
     """DR6.4's composition rule over per-arm verdicts.
 
     A lever enters if promising at seed 0 against ``e1-v48-s0`` and at seed 1 against
@@ -466,8 +538,9 @@ def cmd_compose(args: argparse.Namespace) -> int:
     expect = args.expect.split(",") if args.expect else None
     res = compose(verdicts, expect, tuple(filter(None, args.not_composable.split(","))))
     res["verdict_files"] = [str(f) for f in files]
-    (args.runs / "dr64_composition.json").write_text(json.dumps(res, indent=2) + "\n") \
-        if args.write else None
+    (args.runs / "dr64_composition.json").write_text(
+        json.dumps(res, indent=2) + "\n"
+    ) if args.write else None
     print(f"{len(verdicts)} verdict file(s)")
     for lever, r in res["levers"].items():
         print(f"  {lever}: {r['status']} ({r['reason']})")
@@ -477,7 +550,9 @@ def cmd_compose(args: argparse.Namespace) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     """Entry point."""
-    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     sub = p.add_subparsers(dest="mode", required=True)
     for name in ("prepare", "verdict"):
         s = sub.add_parser(name)

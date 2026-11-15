@@ -82,7 +82,10 @@ _SHARPNESS_MAX = 12.0
 #: * ``ratio_threshold`` -- a random ratio from :data:`_RATIO_CLASSES` thresholded at a random
 #:   tail on a random side, so the gate is not always one of the three named tests.
 _GATE_KINDS: tuple[str, ...] = (
-    "negative_equity", "negative_working_capital", "coverage_below_one", "ratio_threshold",
+    "negative_equity",
+    "negative_working_capital",
+    "coverage_below_one",
+    "ratio_threshold",
 )
 
 #: Share of rows inside a gate when the share is drawn (a quantile gate, or the negative-equity
@@ -124,8 +127,7 @@ _GATE_NATURAL_SHARE_BAND: tuple[float, float] = (0.01, 0.6)
 #: ``num/den``) and the gated ratio. Levels (assets, debt, equity ...), the sector code and
 #: pure-noise columns are never flipped.
 _NAMED_RATIOS: frozenset[str] = frozenset(
-    {"margin", "leverage", "cash_ratio", "current_ratio", "coverage", "turnover",
-     "debt_to_ebitda"}
+    {"margin", "leverage", "cash_ratio", "current_ratio", "coverage", "turnover", "debt_to_ebitda"}
 )
 
 
@@ -143,7 +145,7 @@ def _is_ratio_column(name: str) -> bool:
     """
     for prefix in ("gate:", "redundant:", "block:"):
         while name.startswith(prefix):
-            name = name[len(prefix):]
+            name = name[len(prefix) :]
     return "/" in name or name in _NAMED_RATIOS
 
 
@@ -171,8 +173,14 @@ def _solve_intercept(z: np.ndarray, target_rate: float) -> float:
     return 0.5 * (lo + hi)
 
 
-def _accounts(rng: np.random.Generator, n: int, macro: dict, sector_of: np.ndarray,
-              sector_par: dict, insolvent_share: float | None = None) -> dict[str, np.ndarray]:
+def _accounts(
+    rng: np.random.Generator,
+    n: int,
+    macro: dict,
+    sector_of: np.ndarray,
+    sector_par: dict,
+    insolvent_share: float | None = None,
+) -> dict[str, np.ndarray]:
     """Generate a balance sheet and P&L per firm, respecting accounting identities.
 
     Real credit datasets are wide because many ratios are computed over a few underlying
@@ -269,19 +277,36 @@ def _accounts(rng: np.random.Generator, n: int, macro: dict, sector_of: np.ndarr
 
 #: Ratio classes a real credit panel computes. Numerator/denominator names index accounts.
 _RATIO_CLASSES: tuple[tuple[str, str], ...] = (
-    ("net_profit", "total_assets"), ("ebit", "total_assets"), ("ebitda", "total_assets"),
-    ("net_profit", "revenue"), ("ebit", "revenue"), ("ebitda", "revenue"),
-    ("net_profit", "equity"), ("retained_earnings", "total_assets"),
-    ("total_liabilities", "total_assets"), ("equity", "total_assets"),
-    ("equity", "total_liabilities"), ("long_term_debt", "equity"),
-    ("total_liabilities", "ebitda"), ("short_term_liabilities", "total_assets"),
-    ("current_assets", "short_term_liabilities"), ("cash", "short_term_liabilities"),
-    ("working_capital", "total_assets"), ("cash", "total_assets"),
-    ("receivables", "revenue"), ("inventory", "revenue"),
-    ("revenue", "total_assets"), ("revenue", "receivables"), ("revenue", "inventory"),
-    ("ebit", "interest"), ("ebitda", "interest"), ("operating_expenses", "revenue"),
-    ("depreciation", "total_assets"), ("net_profit", "total_liabilities"),
-    ("revenue", "employees"), ("total_assets", "employees"),
+    ("net_profit", "total_assets"),
+    ("ebit", "total_assets"),
+    ("ebitda", "total_assets"),
+    ("net_profit", "revenue"),
+    ("ebit", "revenue"),
+    ("ebitda", "revenue"),
+    ("net_profit", "equity"),
+    ("retained_earnings", "total_assets"),
+    ("total_liabilities", "total_assets"),
+    ("equity", "total_assets"),
+    ("equity", "total_liabilities"),
+    ("long_term_debt", "equity"),
+    ("total_liabilities", "ebitda"),
+    ("short_term_liabilities", "total_assets"),
+    ("current_assets", "short_term_liabilities"),
+    ("cash", "short_term_liabilities"),
+    ("working_capital", "total_assets"),
+    ("cash", "total_assets"),
+    ("receivables", "revenue"),
+    ("inventory", "revenue"),
+    ("revenue", "total_assets"),
+    ("revenue", "receivables"),
+    ("revenue", "inventory"),
+    ("ebit", "interest"),
+    ("ebitda", "interest"),
+    ("operating_expenses", "revenue"),
+    ("depreciation", "total_assets"),
+    ("net_profit", "total_liabilities"),
+    ("revenue", "employees"),
+    ("total_assets", "employees"),
 )
 
 
@@ -367,7 +392,10 @@ def _extend_ratio_family(
         cols.append(acc[num] / np.where(d < 0, -floor, floor))
         used.append(f"{num}/{den}")
     triples = [
-        (a, b, s) for i, a in enumerate(names) for b in names[i + 1 :] for s in names
+        (a, b, s)
+        for i, a in enumerate(names)
+        for b in names[i + 1 :]
+        for s in names
         if s != a and s != b
     ]
     for k in rng.permutation(len(triples)):
@@ -425,9 +453,18 @@ def _draw_gate(
         side = float(rng.choice([-1.0, 1.0]))
         q = _floored_ratio(acc[num], acc[den])
         at = float(np.quantile(side * q, 1.0 - share))
-        return side * q > at, q, {"kind": kind, "ratio": f"{num}/{den}", "economic": None,
-                                  "side": "high" if side > 0 else "low", "threshold": "quantile",
-                                  "cut": side * at}
+        return (
+            side * q > at,
+            q,
+            {
+                "kind": kind,
+                "ratio": f"{num}/{den}",
+                "economic": None,
+                "side": "high" if side > 0 else "low",
+                "threshold": "quantile",
+                "cut": side * at,
+            },
+        )
     num, den, cut = {
         "negative_equity": ("equity", "total_assets", 0.0),
         "negative_working_capital": ("working_capital", "total_assets", 0.0),
@@ -573,17 +610,27 @@ def _holdout_lr_auc(X: np.ndarray, y: np.ndarray) -> float | None:
     Xf = np.clip((Xf - mu) / sd, -10.0, 10.0)
     clf = LogisticRegression(max_iter=200).fit(Xf[:h], y[:h])
     return float(roc_auc_score(y[h:], clf.decision_function(Xf[h:])))
+
+
 #: Driver quantity each exposed column name carries in the label (see
 #: :func:`_column_attributions`); the value is the driver's row in the driver matrix, or
 #: ``"sector"``. ``leverage`` is also the raw term of the rate effect.
 _ATTRIBUTION_DRIVER = {
-    "leverage": 0, "coverage": 1, "margin": 2, "cash_ratio": 3, "current_ratio": 4,
-    "growth": 5, "payment_delay": 6, "age": 7, "log_assets": 8, "assets": 8, "sector": "sector",
+    "leverage": 0,
+    "coverage": 1,
+    "margin": 2,
+    "cash_ratio": 3,
+    "current_ratio": 4,
+    "growth": 5,
+    "payment_delay": 6,
+    "age": 7,
+    "log_assets": 8,
+    "assets": 8,
+    "sector": "sector",
 }
 #: Driver columns computed from the true accounts, which ``identity_shuffle`` decouples.
 _ATTRIBUTION_FROM_ACCOUNTS = frozenset(
-    {"leverage", "coverage", "margin", "cash_ratio", "current_ratio", "age", "log_assets",
-     "assets"}
+    {"leverage", "coverage", "margin", "cash_ratio", "current_ratio", "age", "log_assets", "assets"}
 )
 
 
@@ -865,7 +912,8 @@ def sample_financial_task(
                 f"{max_lr_auc} and {max_lr_auc_tries}"
             )
         kwargs = {
-            k: v for k, v in locals().items()
+            k: v
+            for k, v in locals().items()
             if k not in ("rng", "n_rows", "max_lr_auc", "max_lr_auc_tries")
         }
         task = None
@@ -924,6 +972,7 @@ def sample_financial_task(
     payment_delay = np.maximum(
         0.0, rng.normal(15, 20, size=n_rows) + 30 * leverage - 20 * cash_ratio
     )
+
     # --- latent distress -----------------------------------------------------
     def z(v: np.ndarray) -> np.ndarray:
         """Standardise, guarding a constant column against division by zero.
@@ -971,7 +1020,9 @@ def sample_financial_task(
     # is to teach in-context inference, not to look like the deployment distribution — the
     # lesson of §42, restated. The *features* keep their accounting identities and realistic
     # correlations; only the direction of the label relationship varies.
-    w = np.abs(rng.normal(1.0, 0.5, size=drivers.shape[1])) * rng.uniform(0.3, 1.0, drivers.shape[1])
+    w = np.abs(rng.normal(1.0, 0.5, size=drivers.shape[1])) * rng.uniform(
+        0.3, 1.0, drivers.shape[1]
+    )
     w = w * rng.choice([-1.0, 1.0], size=drivers.shape[1])
     distress = drivers @ w
     cycle_scale = rng.uniform(0.2, 1.0)
@@ -1059,9 +1110,7 @@ def sample_financial_task(
         if period is not None:
             # keep period consistent with the flipped label, or the survival likelihood
             # would be trained against a contradiction
-            period[flip] = np.where(
-                y[flip] == 1, rng.integers(0, n_horizons, size=len(flip)), -1
-            )
+            period[flip] = np.where(y[flip] == 1, rng.integers(0, n_horizons, size=len(flip)), -1)
     if label_noise_rate > 0.0:
         noisy = rng.random(n_rows) < label_noise_rate
         y = np.where(noisy, 1 - y, y).astype(np.int64)
@@ -1241,14 +1290,24 @@ def sample_financial_task(
     names_out = [col_names[i] for i in perm]
     meta: dict | None = (
         {"gate": gate_info, "columns": names_out}
-        if gate_prob > 0.0 or sign_flip_prob > 0.0 or return_attributions else None
+        if gate_prob > 0.0 or sign_flip_prob > 0.0 or return_attributions
+        else None
     )
     if return_attributions:
         assert meta is not None
         meta["attribution"] = _column_attributions(
-            names_out, drivers, w, leverage, sector, sector_hazard, sector_cyclicality,
-            cycle * cycle_scale, rate * rate_scale, nonlinear,
-            sharpness / (raw_std if raw_std > 1e-9 else 1.0), identity_shuffle,
+            names_out,
+            drivers,
+            w,
+            leverage,
+            sector,
+            sector_hazard,
+            sector_cyclicality,
+            cycle * cycle_scale,
+            rate * rate_scale,
+            nonlinear,
+            sharpness / (raw_std if raw_std > 1e-9 else 1.0),
+            identity_shuffle,
         )
         meta["attribution_scope"] = "distress_score" if gate_info is not None else "label"
     if horizon is not None:

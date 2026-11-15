@@ -77,14 +77,20 @@ def check_protocol(control: Path, arm: Path) -> None:
         if cfg.get("n_features") is not None:
             cfg["n_features"] += len(cfg.get("drop_columns") or ())
         recs.append(cfg)
-    diff = {k: (recs[0].get(k), recs[1].get(k)) for k in PROTOCOL_KEYS
-            if recs[0].get(k) != recs[1].get(k)}
+    diff = {
+        k: (recs[0].get(k), recs[1].get(k))
+        for k in PROTOCOL_KEYS
+        if recs[0].get(k) != recs[1].get(k)
+    }
     if diff:
         raise SystemExit(f"{arm} vs {control}: protocol settings differ {diff} -- not comparable")
 
 
 def fold_companies(
-    k: int, y: np.ndarray, ctrl: dict[str, np.ndarray], arm: dict[str, np.ndarray],
+    k: int,
+    y: np.ndarray,
+    ctrl: dict[str, np.ndarray],
+    arm: dict[str, np.ndarray],
     companies: Path | None,
 ) -> np.ndarray:
     """The company of every test row of fold ``k``, for a cluster bootstrap.
@@ -112,8 +118,10 @@ def fold_companies(
     if saved:
         return saved[0]
     if companies is None:
-        raise SystemExit(f"fold {k}: no company_test in either run; pass --companies "
-                         "(written by scripts/v4_fold_companies.py)")
+        raise SystemExit(
+            f"fold {k}: no company_test in either run; pass --companies "
+            "(written by scripts/v4_fold_companies.py)"
+        )
     rec = np.load(companies / f"companies_fold{k}.npz")
     if not np.array_equal(rec["y_true"], y):
         raise SystemExit(f"fold {k}: reconstructed companies do not match this fold's rows")
@@ -121,7 +129,10 @@ def fold_companies(
 
 
 def compare(
-    control: Path, arm_dir: Path, n_boot: int = 2000, cluster: bool = False,
+    control: Path,
+    arm_dir: Path,
+    n_boot: int = 2000,
+    cluster: bool = False,
     companies: Path | None = None,
 ) -> list[dict]:
     """Per-fold paired AP comparison of one arm against the control.
@@ -151,11 +162,19 @@ def compare(
     for k in folds:
         y = ctrl[k]["y_true"]
         if not np.array_equal(y, arm[k]["y_true"]):
-            raise SystemExit(f"{arm_dir}: fold {k} rows differ from the control's -- not comparable")
+            raise SystemExit(
+                f"{arm_dir}: fold {k} rows differ from the control's -- not comparable"
+            )
         a, c = arm[k]["pred_fintfm"], ctrl[k]["pred_fintfm"]
         d, ci, pv = paired_auc_difference(y, a, c, n_boot=n_boot, metric=average_precision_score)
-        row = {"fold": k, "control": average_precision_score(y, c),
-               "arm": average_precision_score(y, a), "diff": d, "ci": ci, "p": pv}
+        row = {
+            "fold": k,
+            "control": average_precision_score(y, c),
+            "arm": average_precision_score(y, a),
+            "diff": d,
+            "ci": ci,
+            "p": pv,
+        }
         if cluster:
             g = fold_companies(k, y, ctrl[k], arm[k], companies)
             _, row["ci_company"], row["p_company"] = paired_auc_difference(
@@ -174,34 +193,47 @@ def main() -> None:
     p.add_argument("--control", required=True, type=Path)
     p.add_argument("arms", nargs="+", help="name=directory")
     p.add_argument("--n-boot", type=int, default=2000)
-    p.add_argument("--cluster", action="store_true",
-                   help="also resample whole companies, reported beside the row bootstrap")
-    p.add_argument("--companies", type=Path, default=None,
-                   help="companies_fold<k>.npz directory from scripts/v4_fold_companies.py, "
-                        "for runs saved before predictions carried company_test")
+    p.add_argument(
+        "--cluster",
+        action="store_true",
+        help="also resample whole companies, reported beside the row bootstrap",
+    )
+    p.add_argument(
+        "--companies",
+        type=Path,
+        default=None,
+        help="companies_fold<k>.npz directory from scripts/v4_fold_companies.py, "
+        "for runs saved before predictions carried company_test",
+    )
     args = p.parse_args()
     for spec in args.arms:
         name, _, path = spec.partition("=")
         rows = compare(args.control, Path(path), args.n_boot, args.cluster, args.companies)
         print(f"\n{name} vs control ({args.control})")
         if args.cluster:
-            print("| fold | control AP | arm AP | diff | 95% CI (rows) | Holm p (rows) "
-                  "| 95% CI (companies) | Holm p (companies) |")
+            print(
+                "| fold | control AP | arm AP | diff | 95% CI (rows) | Holm p (rows) "
+                "| 95% CI (companies) | Holm p (companies) |"
+            )
             print("| --- | --- | --- | --- | --- | --- | --- | --- |")
         else:
             print("| fold | control AP | arm AP | diff | 95% CI | Holm-adjusted p |")
             print("| --- | --- | --- | --- | --- | --- |")
         for r in rows:
             (lo, hi) = r["ci"]
-            line = (f"| {r['fold']} | {r['control']:.4f} | {r['arm']:.4f} | {r['diff']:+.4f} "
-                    f"| [{lo:+.4f}, {hi:+.4f}] | {r['holm']:.3f} |")
+            line = (
+                f"| {r['fold']} | {r['control']:.4f} | {r['arm']:.4f} | {r['diff']:+.4f} "
+                f"| [{lo:+.4f}, {hi:+.4f}] | {r['holm']:.3f} |"
+            )
             if args.cluster:
                 (clo, chi) = r["ci_company"]
                 line += f" [{clo:+.4f}, {chi:+.4f}] | {r['holm_company']:.3f} |"
             print(line)
         diffs = [r["diff"] for r in rows]
-        print(f"mean diff {float(np.mean(diffs)):+.4f} over {len(rows)} fold(s); "
-              f"{sum(d < 0 for d in diffs)} negative, {sum(d > 0 for d in diffs)} positive")
+        print(
+            f"mean diff {float(np.mean(diffs)):+.4f} over {len(rows)} fold(s); "
+            f"{sum(d < 0 for d in diffs)} negative, {sum(d > 0 for d in diffs)} positive"
+        )
 
 
 if __name__ == "__main__":

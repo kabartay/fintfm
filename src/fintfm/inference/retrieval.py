@@ -40,9 +40,7 @@ import numpy as np
 _SCALE_FLOOR = 1e-6
 
 
-def normalise_for_distance(
-    X: np.ndarray, centre: np.ndarray, scale: np.ndarray
-) -> np.ndarray:
+def normalise_for_distance(X: np.ndarray, centre: np.ndarray, scale: np.ndarray) -> np.ndarray:
     """Put features on a common scale and make missing values distance-neutral.
 
     Financial ratios differ by orders of magnitude, so an unnormalised Euclidean distance is
@@ -272,9 +270,7 @@ def prototype_context(
     n_major = min(n_major, max(max_context - n_minor, 1))
 
     kept_minor = (
-        minority
-        if minority.size <= n_minor
-        else rng.choice(minority, size=n_minor, replace=False)
+        minority if minority.size <= n_minor else rng.choice(minority, size=n_minor, replace=False)
     )
     if n_major >= majority.size:
         kept_major = majority

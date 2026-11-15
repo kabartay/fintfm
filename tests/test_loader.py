@@ -50,8 +50,9 @@ def test_stream_batch_i_equals_the_dumps_batch_i(tmp_path):
     from fintfm.modeling.loader import stream_batches
     from fintfm.prior.dump import TaskDump, write_task_dump
 
-    write_task_dump(tmp_path / "d", _PRIOR, seed=5, batch_size=3, n_batches=6,
-                    shard_size=1, stream="per_shard")
+    write_task_dump(
+        tmp_path / "d", _PRIOR, seed=5, batch_size=3, n_batches=6, shard_size=1, stream="per_shard"
+    )
     dump = TaskDump.open(tmp_path / "d")
     got = list(stream_batches(_PRIOR, 3, seed=5, start=0, stop=6))
     assert [i for i, _ in got] == list(range(6))
@@ -67,9 +68,7 @@ def test_two_workers_give_the_same_stream_as_one():
     one = list(stream_batches(_PRIOR, 2, seed=1, start=3, stop=9, workers=1))
     two = list(stream_batches(_PRIOR, 2, seed=1, start=3, stop=9, workers=2, prefetch=1))
     inline = list(stream_batches(_PRIOR, 2, seed=1, start=3, stop=9, workers=0))
-    assert [i for i, _ in one] == [i for i, _ in two] == [i for i, _ in inline] == list(
-        range(3, 9)
-    )
+    assert [i for i, _ in one] == [i for i, _ in two] == [i for i, _ in inline] == list(range(3, 9))
     for (_, a), (_, b), (_, c) in zip(one, two, inline):
         _assert_batches_equal(a, b)
         _assert_batches_equal(a, c)
@@ -93,8 +92,9 @@ def test_stream_training_trains_on_the_dumps_batches(tmp_path):
     weight: step ``i`` consumed batch ``i``."""
     from fintfm.prior.dump import write_task_dump
 
-    write_task_dump(tmp_path / "d", _PRIOR, seed=2, batch_size=2, n_batches=6, shard_size=1,
-                    stream="per_shard")
+    write_task_dump(
+        tmp_path / "d", _PRIOR, seed=2, batch_size=2, n_batches=6, shard_size=1, stream="per_shard"
+    )
     streamed = _train(tmp_path, "s.pt", loader="stream")
     dumped = _train(tmp_path, "d.pt", task_dump=str(tmp_path / "d"))
     for (name, a), (_, b) in zip(streamed.state_dict().items(), dumped.state_dict().items()):
@@ -183,17 +183,52 @@ def test_cli_passes_the_loader_flags(tmp_path, monkeypatch):
     monkeypatch.delenv("FINTFM_CONFIG", raising=False)
     train_mod.main(["--out", str(tmp_path / "x.pt")])
     assert (seen["t"].loader, seen["t"].loader_workers, seen["t"].ddp) == ("sync", 0, False)
-    train_mod.main(["--out", str(tmp_path / "x.pt"), "--loader", "stream", "--loader-workers",
-                    "3", "--loader-prefetch", "4", "--ddp"])
+    train_mod.main(
+        [
+            "--out",
+            str(tmp_path / "x.pt"),
+            "--loader",
+            "stream",
+            "--loader-workers",
+            "3",
+            "--loader-prefetch",
+            "4",
+            "--ddp",
+        ]
+    )
     t = seen["t"]
     assert (t.loader, t.loader_workers, t.loader_prefetch, t.ddp) == ("stream", 3, 4, True)
 
 
 _TINY_CLI = [
-    "--steps", "3", "--batch-size", "2", "--max-features", "8", "--max-classes", "2",
-    "--d-model", "16", "--d-cell", "8", "--n-layers", "1", "--n-col-layers", "1",
-    "--n-heads", "2", "--n-rows-choices", "24,32", "--seed", "4", "--eval-every", "1000",
-    "--log-every", "1", "--loader", "stream",
+    "--steps",
+    "3",
+    "--batch-size",
+    "2",
+    "--max-features",
+    "8",
+    "--max-classes",
+    "2",
+    "--d-model",
+    "16",
+    "--d-cell",
+    "8",
+    "--n-layers",
+    "1",
+    "--n-col-layers",
+    "1",
+    "--n-heads",
+    "2",
+    "--n-rows-choices",
+    "24,32",
+    "--seed",
+    "4",
+    "--eval-every",
+    "1000",
+    "--log-every",
+    "1",
+    "--loader",
+    "stream",
 ]
 
 
@@ -213,13 +248,33 @@ def _torchrun(args: list[str], script: str | None = None) -> subprocess.Complete
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         port = s.getsockname()[1]
-    target = (["-m", "fintfm.modeling.train", *_TINY_CLI, *args, "--ddp"] if script is None
-              else [script, *args])
+    target = (
+        ["-m", "fintfm.modeling.train", *_TINY_CLI, *args, "--ddp"]
+        if script is None
+        else [script, *args]
+    )
     proc = subprocess.run(
-        [sys.executable, "-m", "torch.distributed.run", "--nnodes", "1", "--nproc-per-node",
-         "2", "--master-addr", "127.0.0.1", "--master-port", str(port), "--local-addr",
-         "127.0.0.1", *target],
-        env=env, capture_output=True, text=True, timeout=300, check=False,
+        [
+            sys.executable,
+            "-m",
+            "torch.distributed.run",
+            "--nnodes",
+            "1",
+            "--nproc-per-node",
+            "2",
+            "--master-addr",
+            "127.0.0.1",
+            "--master-port",
+            str(port),
+            "--local-addr",
+            "127.0.0.1",
+            *target,
+        ],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=300,
+        check=False,
     )
     assert proc.returncode == 0, proc.stdout[-3000:] + proc.stderr[-3000:]
     return proc
@@ -289,8 +344,16 @@ def test_two_process_run_resumes_to_the_uninterrupted_weights(tmp_path):
     _torchrun(["--steps", "4", "--run-steps", "2", "--out", str(tmp_path / "part.pt")])
     state = torch.load(tmp_path / "part.pt.state", weights_only=False)
     assert state["world_size"] == 2 and len(state["torch_rng_ranks"]) == 2
-    _torchrun(["--steps", "4", "--resume", str(tmp_path / "part.pt.state"),
-               "--out", str(tmp_path / "resumed.pt")])
+    _torchrun(
+        [
+            "--steps",
+            "4",
+            "--resume",
+            str(tmp_path / "part.pt.state"),
+            "--out",
+            str(tmp_path / "resumed.pt"),
+        ]
+    )
     whole = FinancialTFM.load(str(tmp_path / "whole.pt"))
     resumed = FinancialTFM.load(str(tmp_path / "resumed.pt"))
     for (name, a), (_, b) in zip(whole.state_dict().items(), resumed.state_dict().items()):
@@ -298,7 +361,7 @@ def test_two_process_run_resumes_to_the_uninterrupted_weights(tmp_path):
 
 
 #: Two ranks whose clocks disagree: rank 0 alone has spent the budget, then rank 1 alone.
-_BUDGET_SCRIPT = '''
+_BUDGET_SCRIPT = """
 import torch.distributed as dist
 
 from fintfm.modeling.train import _time_budget_spent
@@ -309,7 +372,7 @@ first = _time_budget_spent(10.0 if rank == 0 else 0.0, 5.0, 2, "cpu")
 second = _time_budget_spent(0.0 if rank == 0 else 10.0, 5.0, 2, "cpu")
 print(f"rank {rank}: {first} {second}", flush=True)
 dist.destroy_process_group()
-'''
+"""
 
 
 @_NEEDS_GLOO
@@ -339,8 +402,16 @@ def test_two_process_run_seconds_stop_resumes_to_the_uninterrupted_weights(tmp_p
     assert (budget["stop_step"], budget["stopped_early"]) == (1, True)
     state = torch.load(tmp_path / "part.pt.state", weights_only=False)
     assert state["step"] == 1 and len(state["torch_rng_ranks"]) == 2
-    _torchrun(["--steps", "4", "--resume", str(tmp_path / "part.pt.state"),
-               "--out", str(tmp_path / "resumed.pt")])
+    _torchrun(
+        [
+            "--steps",
+            "4",
+            "--resume",
+            str(tmp_path / "part.pt.state"),
+            "--out",
+            str(tmp_path / "resumed.pt"),
+        ]
+    )
     whole = FinancialTFM.load(str(tmp_path / "whole.pt"))
     resumed = FinancialTFM.load(str(tmp_path / "resumed.pt"))
     for (name, a), (_, b) in zip(whole.state_dict().items(), resumed.state_dict().items()):
@@ -360,10 +431,20 @@ def test_benchmark_measures_the_stream_loader(tmp_path, monkeypatch, capsys):
         raise AssertionError("sampled on the sync path despite --loader stream")
 
     monkeypatch.setattr(train_mod, "sample_batch", no_sync_sampling)
-    train_mod.main([*_TINY_CLI, "--benchmark-steps", "2", "--loader-workers", "1",
-                    "--out", str(tmp_path / "x.pt")])
+    train_mod.main(
+        [
+            *_TINY_CLI,
+            "--benchmark-steps",
+            "2",
+            "--loader-workers",
+            "1",
+            "--out",
+            str(tmp_path / "x.pt"),
+        ]
+    )
     record = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
     assert (record["loader"], record["loader_workers"], record["tasks"]) == ("stream", 1, 4)
     with pytest.raises(ValueError, match="one process"):
-        train_mod.main([*_TINY_CLI, "--benchmark-steps", "2", "--ddp",
-                        "--out", str(tmp_path / "x.pt")])
+        train_mod.main(
+            [*_TINY_CLI, "--benchmark-steps", "2", "--ddp", "--out", str(tmp_path / "x.pt")]
+        )
