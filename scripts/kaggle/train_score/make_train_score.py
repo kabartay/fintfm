@@ -98,6 +98,10 @@ ARMS = {
     # attn_impl: --init-from refuses a different architecture), 48,000 tasks
     "4825-headonly-s0": (["--amp", "fp16", "--loader", "stream", "--seed", "0", "--steps", "6000",
                           "--train-only", "head", "--reinit-trained"], False),
+    # 41.3 (openspec/changes/explicit-task-representation): the explicit task token against a
+    # matched control, E1's 48k recipe at seed 0, differing by --task-token alone
+    "4130-token-s0": (E1 + S0_48K + ["--task-token"], True),
+    "4130-ctrl-s0": (E1 + S0_48K, True),
 }
 #: Arms trained but not scored on V4FinBench, which is binary: a multiclass arm is decided
 #: on the proxy suite, run off Kaggle
@@ -121,7 +125,8 @@ DR82_COMMIT = "e493123"
 #: 62a73c3 contains 7dfd663 (the AU5.11 flags), checked with merge-base --is-ancestor
 AU511_COMMIT = "62a73c3"
 #: The 48.25 arm's code is not pushed yet: UNPINNED kernels refuse to run
-COMMITS = {"4825-headonly-s0": "UNPINNED", "dr62-induced-s0": "6916a89",
+#: 41.3's pair is pinned at d58141e (local main, pushed), the commit that carries --task-token
+COMMITS = {"4825-headonly-s0": "UNPINNED", "4130-token-s0": "d58141e", "4130-ctrl-s0": "d58141e", "dr62-induced-s0": "6916a89",
            "au511-diverse-s0": AU511_COMMIT, "au511-mixture-s0": AU511_COMMIT, "dr63-cls-s0": "6916a89",
            **{arm: DR24_COMMIT for arm in ARMS if arm.startswith("dr24-")},
            # DR7.4 needs no code change: a901cdc (origin/main, 2026-10-24) carries every flag
