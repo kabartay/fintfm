@@ -358,6 +358,34 @@ def summarise(record: dict) -> str:
     return "\n".join(lines)
 
 
+def plot_curves(record: dict, out_dir: Path) -> Path:
+    """Write the AUC-vs-total-width plot (one line per arm) next to the JSON.
+
+    Args:
+        record: Output of :func:`run`.
+        out_dir: Directory that receives ``irrelevant_features.svg``.
+
+    Returns:
+        The path of the written SVG.
+    """
+    from fintfm.evaluation.svgplot import line_plot
+
+    series: dict[str, list[tuple[float, float]]] = {}
+    for r in record["results"]:
+        series.setdefault(r["arm"], []).append((float(r["d"]), r["auc_mean"]))
+    svg = line_plot(
+        series,
+        title="ROC-AUC vs total width (2 relevant columns plus noise)",
+        x_label="total columns d",
+        y_label="ROC-AUC (mean over seeds)",
+        reference_lines={"chance 0.5": 0.5},
+    )
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / "irrelevant_features.svg"
+    path.write_text(svg)
+    return path
+
+
 def main() -> None:
     """Command-line entry point: ``python -m fintfm.experiments.irrelevant_features``."""
     p = argparse.ArgumentParser(description=__doc__)
@@ -373,6 +401,7 @@ def main() -> None:
     p.add_argument("--n", type=int, default=2000)
     p.add_argument("--max-context", type=int, default=1000)
     p.add_argument("--rate", type=float, default=0.25)
+    p.add_argument("--plot", action="store_true", help="also write irrelevant_features.svg")
     args = p.parse_args()
     paths = dict(pair.split("=", 1) for pair in args.models.split(",") if pair)
     record = run(
@@ -385,6 +414,8 @@ def main() -> None:
         rate=args.rate,
     )
     print("\n" + summarise(record))
+    if args.plot:
+        print(f"wrote {plot_curves(record, Path(args.out))}")
 
 
 if __name__ == "__main__":

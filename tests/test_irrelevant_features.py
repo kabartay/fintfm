@@ -90,3 +90,15 @@ def test_end_to_end_untrained_two_widths(tmp_path):
 def test_width_beyond_model_capacity_is_refused():
     with pytest.raises(ValueError, match="max_features"):
         irr.run({}, None, widths=(2, 20), seeds=(0,), n=100, models={"tiny": _tiny()})
+
+
+def test_plot_writes_svg(tmp_path):
+    import xml.etree.ElementTree as ET
+
+    rec = irr.run(
+        {}, tmp_path, widths=(2, 6), seeds=(0, 1), n=200, max_context=100, models={"tiny": _tiny()}
+    )
+    path = irr.plot_curves(rec, tmp_path)
+    assert path == tmp_path / "irrelevant_features.svg"
+    root = ET.fromstring(path.read_text())
+    assert len(root.findall("{http://www.w3.org/2000/svg}polyline")) == 4
