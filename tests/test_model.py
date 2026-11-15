@@ -2177,3 +2177,192 @@ def test_inference_runs_the_encoders_unfused_and_restores_the_switch(monkeypatch
     monkeypatch.setattr(model_module.FinancialTFM, "_row_attention", rows)
     expected = model.predict_context(Xc, yc, Xq, n_classes=2, column_id_seed=5)
     torch.testing.assert_close(got, expected, rtol=1e-5, atol=1e-5)
+
+
+# --- Task 44.3: cell_mixing="factorized", a pooled latent per column instead of row-within-feature
+# attention ---
+
+_FACT = {"n_cell_blocks": 2, "cell_labels": True, "cell_mixing": "factorized"}
+
+
+def test_factorized_replaces_only_the_row_within_feature_stage():
+    """44.3: the column stage is built, the row-within-feature encoder is not, and the
+    column-within-row encoder, row encoder and head are the ones the default has."""
+    model = _dr6_model(**_FACT)
+    names = {n for n, _ in model.named_parameters()}
+    assert any(n.startswith("factorized_block.") for n in names)
+    assert "factorized_col_query" in names
+    assert not hasattr(model, "row_within_feature_encoder")
+    assert any(n.startswith("column_encoder.") for n in names)
+    base = _dr6_model(n_cell_blocks=2, cell_labels=True)
+    assert not any(n.startswith("factorized_") for n, _ in base.named_parameters())
+    n_fact = sum(p.numel() for p in model.parameters())
+    n_base = sum(p.numel() for p in base.parameters())
+    print(f"parameters: attention={n_base} factorized={n_fact}")  # reported under -s
+    assert n_fact != n_base
+    X, y = _p5_inputs(3)
+    out = _p5_run(model, X, y)
+    assert out.shape == _p5_run(base, X, y).shape == (2, 14, 3)
+    assert torch.isfinite(out).all()
+
+
+def test_factorized_is_invariant_to_context_row_permutation():
+    """44.3 / D4: reordering the context rows (and their labels) moves no query logit."""
+    model = _dr6_model(**_FACT, column_id_dim=0)
+    X, y = _p5_inputs(3)
+    ctx_perm = torch.randperm(9, generator=torch.Generator().manual_seed(2))
+    perm = torch.cat([ctx_perm, torch.arange(9, 14)])
+    base, shuffled = _p5_run(model, X, y), _p5_run(model, X[:, perm], y[:, perm])
+    torch.testing.assert_close(shuffled[:, 9:], base[:, 9:], rtol=1e-4, atol=1e-5)
+
+
+def test_factorized_is_equivariant_in_columns():
+    """44.3 / D4: the column stage maps a column permutation to the same permutation of its
+    output cells, and the whole model is invariant to it (no column identities)."""
+    model = _dr6_model(**_FACT, column_id_dim=0)
+    cells = torch.randn(2, 14, 6, 16, generator=torch.Generator().manual_seed(3))
+    pad = torch.zeros(2, 6, dtype=torch.bool)
+    pad[:, 5] = True
+    perm = torch.tensor([3, 0, 5, 1, 4, 2])
+    with torch.no_grad():
+        out = model.factorized_block(cells, model.factorized_col_query, 9, pad)
+        out_p = model.factorized_block(
+            cells[:, :, perm], model.factorized_col_query, 9, pad[:, perm]
+        )
+    torch.testing.assert_close(out_p, out[:, :, perm], rtol=1e-4, atol=1e-5)
+    X, y = _p5_inputs(3)
+    torch.testing.assert_close(
+        _p5_run(model, X[:, :, perm], y), _p5_run(model, X, y), rtol=1e-4, atol=1e-5
+    )
+
+
+def test_factorized_lets_no_query_reach_another_row():
+    """44.3: a query row is never a key of a column latent, so changing one query row (and every
+    query label) moves no other row."""
+    model = _dr6_model(**_FACT)
+    X, y = _p5_inputs(3)
+    n_ctx, row = 9, 12
+    X2, y2 = X.clone(), y.clone()
+    X2[:, row, :5] = 5.0 * torch.randn(2, 5, generator=torch.Generator().manual_seed(4))
+    y2[:, n_ctx:] = (y2[:, n_ctx:] + 1) % 3
+    base, moved = _p5_run(model, X, y, n_ctx), _p5_run(model, X2, y2, n_ctx)
+    others = [r for r in range(X.shape[1]) if r != row]
+    torch.testing.assert_close(moved[:, others], base[:, others], rtol=0, atol=1e-6)
+    assert not torch.allclose(moved[:, row], base[:, row])
+
+
+def test_factorized_scores_in_query_chunks_exactly_and_ignores_padding():
+    model = _dr6_model(**_FACT, column_id_dim=0)
+    X, y = _p5_inputs(3)
+    Xc, yc, Xq = X[0, :9].numpy(), y[0, :9].numpy(), X[0, 9:].numpy()
+    whole = model.predict_context(Xc, yc, Xq, n_classes=3, pad_features=False)
+    chunked = torch.cat(
+        [
+            model.predict_context(Xc, yc, Xq[i : i + 2], n_classes=3, pad_features=False)
+            for i in range(0, len(Xq), 2)
+        ]
+    )
+    torch.testing.assert_close(chunked, whole, rtol=1e-5, atol=1e-6)
+    torch.testing.assert_close(
+        _p5_run(model, X[:, :, :5], y), _p5_run(model, X, y), rtol=1e-5, atol=1e-6
+    )
+
+
+def test_factorized_has_no_rows_squared_attention_per_feature(monkeypatch):
+    """44.3: the block's pooling is one query against the 9 context rows; the only N x N
+    cell-width attention would be the row-within-feature stage, which is absent. Gradients
+    reach the pooling query."""
+    model = _dr6_model(**{**_FACT, "n_cell_blocks": 1}).train()
+    calls = _record_attention_shapes(monkeypatch)
+    X, y = _p5_inputs(3)
+    model.loss(X, y, 9, torch.tensor([3, 3])).backward()
+    cell = {(lq, lk) for width, lq, lk in calls if width == 8}
+    assert (14, 14) not in cell, cell  # no cells-across-rows attention at all
+    assert (1, 9) in cell, cell
+    grad = model.factorized_col_query.grad
+    assert grad is not None and grad.abs().sum() > 0
+
+
+def test_factorized_query_is_exempt_from_weight_decay():
+    from fintfm.modeling.train import _no_decay_parameters
+
+    model = _dr6_model(**_FACT)
+    assert id(model.factorized_col_query) in _no_decay_parameters(model)
+
+
+def test_factorized_refuses_an_empty_context():
+    model = _dr6_model(**_FACT)
+    X, y = _p5_inputs(3)
+    with pytest.raises(ValueError, match="at least one context row"):
+        model(X, y, 0)
+
+
+def test_default_state_dict_loads_and_checkpoint_roundtrips_factorized(tmp_path):
+    """44.3: a state_dict of the default model (no factorized keys) loads into a default model
+    strictly, and a factorized checkpoint reloads with identical outputs."""
+    default = _dr6_model(n_cell_blocks=1)
+    clone = _dr6_model(n_cell_blocks=1)
+    clone.load_state_dict(default.state_dict(), strict=True)
+    assert not any(k.startswith("factorized_") for k in default.state_dict())
+    model = _dr6_model(**_FACT)
+    path = tmp_path / "fact.pt"
+    model.save(str(path))
+    loaded = FinancialTFM.load(str(path))
+    assert loaded.cfg.cell_mixing == "factorized"
+    X, y = _p5_inputs(3)
+    torch.testing.assert_close(_p5_run(loaded, X, y), _p5_run(model, X, y), rtol=0, atol=0)
+
+
+@pytest.mark.parametrize(
+    "device",
+    [
+        "cpu",
+        pytest.param(
+            "mps",
+            marks=pytest.mark.skipif(
+                not torch.backends.mps.is_available(), reason="no Metal GPU here"
+            ),
+        ),
+        pytest.param(
+            "cuda",
+            marks=pytest.mark.skipif(not torch.cuda.is_available(), reason="no CUDA device here"),
+        ),
+    ],
+)
+def test_factorized_trains_three_steps_on_each_available_device(device, tmp_path):
+    """44.3: three real training steps (eval path entered) with the factorized encoder."""
+    from fintfm.modeling.train import TrainConfig, train
+
+    cfg = ModelConfig(
+        max_features=6,
+        max_classes=2,
+        d_cell=8,
+        d_model=16,
+        n_heads=2,
+        n_col_layers=1,
+        n_layers=1,
+        d_ff=16,
+        n_cell_blocks=1,
+        cell_labels=True,
+        cell_mixing="factorized",
+    )
+    prior_cfg = PriorConfig(max_features=6, max_classes=2, n_rows=16)
+    train_cfg = TrainConfig(
+        steps=3, batch_size=2, device=device, log_every=1, eval_every=2, warmup_steps=1
+    )
+    model = train(cfg, prior_cfg, train_cfg, str(tmp_path / "ckpt.pt"))
+    assert str(next(model.parameters()).device).startswith(device)
+    assert all(torch.isfinite(p).all() for p in model.parameters())
+
+
+@pytest.mark.parametrize(
+    "bad, match",
+    [
+        ({"cell_mixing": "factorized"}, "requires n_cell_blocks"),
+        ({"cell_mixing": "factorized", "n_cell_blocks": 1, "cell_row_attn": "induced"}, "induced"),
+        ({"cell_mixing": "factorized", "n_cell_blocks": 1, "readout": "cls"}, "readout='cls'"),
+    ],
+)
+def test_factorized_config_refuses_nonsense(bad, match):
+    with pytest.raises(ValueError, match=match):
+        ModelConfig(**{**_P5_BASE, **bad})

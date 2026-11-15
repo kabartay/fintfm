@@ -1071,6 +1071,10 @@ _TINY_CLI = [
             ["--n-cell-blocks", "1", "--cell-mixing", "latent"],
             {"n_cell_blocks": 1, "cell_mixing": "latent"},
         ),
+        (
+            ["--n-cell-blocks", "1", "--cell-mixing", "factorized"],
+            {"n_cell_blocks": 1, "cell_mixing": "factorized"},
+        ),
     ],
     ids=[
         "n-heads",
@@ -1085,6 +1089,7 @@ _TINY_CLI = [
         "readout-cls",
         "head-mlp",
         "latent-cell-mixing",
+        "factorized-cell-mixing",
     ],
 )
 def test_each_model_lever_trains_from_the_cli(tmp_path, monkeypatch, flags, expected):

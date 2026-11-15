@@ -2758,8 +2758,9 @@ def build_parser() -> argparse.ArgumentParser:
         choices=CELL_MIXINGS,
         help="how cell blocks mix cells (task 48.27): 'attention', the config default, is "
         "today's two-way cell attention; 'latent' replaces it with one latent per row and one "
-        "per column (rows^2 + columns^2 attention). Requires --n-cell-blocks >= 1, "
-        "--cell-row-attn full and --readout pool",
+        "per column (rows^2 + columns^2 attention); 'factorized' (task 44.3) replaces only "
+        "the row-within-feature stage with one pooled latent per column (linear in rows). "
+        "Both require --n-cell-blocks >= 1, --cell-row-attn full and --readout pool",
     )
     p.add_argument(
         "--n-inducing",
