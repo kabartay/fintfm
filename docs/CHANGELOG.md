@@ -27,6 +27,48 @@ not paste one into the other. See `CLAUDE.md`.
 - The `large_n` config section mirrors `missing_classes` as `partition_missing_classes`
   (default `fallback`), so `fintfm-v4protocol --large-n partition` can set it.
 
+- `sample_financial_task(sample_horizon=True)` (`prior.financial_sample_horizon`,
+  `--financial-sample-horizon`): draws one prediction horizon `h` per task and labels default
+  within the first `h` periods, so a shorter horizon gives a lower base rate; `h` is
+  `meta["horizon"]`. Needs `--n-horizons`. Opt-in, default `false` consumes no draw and keeps
+  every batch. No result yet (task 2.4).
+- `sample_financial_task(return_attributions=True)`: adds `meta["attribution"]`, a global
+  per-task importance of each driver quantity in the generator's logit, aligned with the
+  permuted columns of `X`. Opt-in, draws no random number, and `X` and `y` are byte-identical
+  to the default. Not yet used to score a model (task 12.3).
+- `sample_financial_task(max_lr_auc=...)` (`prior.financial_max_lr_auc`): redraws a task whose
+  held-out logistic-regression AUC (fit on the first half, scored on the second) exceeds the
+  limit, up to 20 draws, keeping the last if none passes. Default `null` draws nothing extra
+  and keeps every batch. The shift in task difficulty is not measured (task 15.4, still open).
+- `--joint-classification-weight` (`train.joint_classification_weight`): trains survival plus
+  the weight times the classification loss on a batch that carries `period`, and records both
+  objectives. Default `0.0` is survival alone, unchanged. Refused without a hazard head, with a
+  non-binned head, with `--train-only`, or when negative. No trained result yet (task 34.1).
+- `spread_fields` (`fintfm.evaluation.metrics`): prediction standard deviation, `p50`, `p99`,
+  their ratio and a near-constant flag, put beside calibration numbers so a base-rate
+  predictor cannot pass as calibrated. Added to the credit-suite and hybrid CatBoost rows and
+  to the credit-suite printout; new columns only, existing ones unchanged (task 14.3).
+- `fintfm-bench --credit --time-split` prints random-split and time-based AUC side by side for
+  V4FinBench after the credit panels, and each panel states whether a time-based split exists.
+  Without the flag, the output says the time-based number was not run. Not yet run with a real
+  checkpoint (task 3.3, still open; 3.4 closed).
+- Holm-adjusted paired bootstrap in the term-structure and context-sweep harnesses: per
+  comparison deltas, intervals, raw and Holm-adjusted p-values, through the shared
+  `paired_auc_difference` and `holm_adjusted_p`. The measured runs are still owed (tasks 11.8,
+  32.3).
+- `Coverage` (`fintfm.evaluation.coverage`): `n_attempted`, `n_scored` and `n_skipped` with the
+  skip reasons, reported by the synthetic bench, `credit_suite`, `proxy_suite`,
+  `openml_breadth` and `prior_score`. Other harnesses are not covered yet (task 36.4, still
+  open).
+- `fintfm-capability --bayes-targets`: adds `bayesian_regret` and normalised regret beside AUC
+  on the Bayes probe (the Bayes-optimal AUC minus the model's, per task and aggregated), as a
+  `bayes_ceiling` section of `capability.json` and the printout. Single-class tasks are
+  skipped and counted. Existing outputs are unchanged; no measured result yet (task 39.18).
+- `python -m fintfm.experiments.irrelevant_features`: a fixed `y = f(x0, x1)` task with `k`
+  independent noise columns up to `d = 100`, scored on each checkpoint, a seeded untrained
+  control, logistic regression and gradient boosting, with slopes. Tests are SMOKE-TEST only;
+  the harness has not been run, so there is no curve (tasks 42.1, 39.13, still open).
+
 ### Changed
 
 - **Inference runs PyTorch's encoder layers unfused** (`unfused_encoder_layers` in
@@ -38,6 +80,10 @@ not paste one into the other. See `CLAUDE.md`.
   move by float32 rounding only (largest difference 3.6e-7 in a probability, 5.1e-6 in a
   representation), and the golden fixtures are rebaselined for it. Training is unchanged; the
   caller's fast-path setting is restored on exit.
+- **Formatting is gated.** CI runs `ruff format --check`, and the pre-commit hook formats
+  staged files with ruff 0.16.6, the version `uv.lock` pins. The tree was reformatted once, in
+  an isolated formatting-only commit (061d4d1, listed in `.git-blame-ignore-revs`). No
+  behaviour changes (task 8.6).
 
 ## [0.10.1] — 2026-11-13
 
