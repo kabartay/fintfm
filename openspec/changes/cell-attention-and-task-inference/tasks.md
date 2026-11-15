@@ -241,7 +241,7 @@ none is scoped or scheduled yet. Verify: the label-functional-form experiment is
 
 ## Added 2026-09-14: deltas from a second external review round, not already covered above
 
-- [ ] 39.20 **Full label-condition matrix**, extending the existing shuffle test (§47/§48).
+- [x] 39.20 **Done (2026-11-15): FINDINGS §247: the five conditions (true, shuffled, inverted, none, unrelated) plus flips at 10/25/50% side by side for the trivial probes and three Bayes-ceiling probes, published and fin00 checkpoints with the untrained control; both follow the context labels (Bayes 0.9: true 0.899/0.900, inverted 0.100/0.101, shuffled about 0.5).** **Full label-condition matrix**, extending the existing shuffle test (§47/§48).
       **Progress (2026-11-15): harness built, measured matrix not yet run.**
       `src/fintfm/experiments/label_conditions.py` scores true, shuffled, inverted, none
       (constant class-0 label; the model has no label-absent mode) and unrelated-task labels,

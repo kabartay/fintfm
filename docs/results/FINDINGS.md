@@ -15537,3 +15537,71 @@ per-horizon split (h3 to h5) could still show trajectory signal and was not run.
 about a synthetic temporal prior (task 2.5) beyond removing the real-data motivation as measured
 here. The task's Verify asks for the comparison as a `fintfm.evaluation.bench` variant; it is a
 standalone script because `bench` imports torch.
+
+## §247: the full label-condition matrix: both checkpoints follow the context labels, reach the Bayes ceiling with true labels and fall to its mirror with inverted ones (task 39.20)
+
+**MEASURED, synthetic probes, CPU, 2026-11-15.** Harness
+`python -m fintfm.experiments.label_conditions --models published=runs/v4-cellattn-labels.pt,fin00=runs/dl/v4-cellattn-fin00.pt --bayes-targets 0.7,0.9,0.999 --flip-rates 0.1,0.25,0.5 --out runs/label_conditions`
+(10 minutes). Queries are always scored against their true labels; only the context labels
+change: `true`, `shuffled` (a permutation, same marginal), `inverted` (1 − y), `none` (a
+constant class-0 label, since the model has no label-absent mode), `unrelated` (labels of an
+independent task of the same kind) and label flips at 10%, 25% and 50%. Probes: `orientation`
+and `linear` (the capability probes) and three Bayes-ceiling tasks with closed-form ceilings.
+The seeded untrained control is the floor. This extends §47/§48's shuffle test to the full matrix.
+
+| probe (ROC-AUC) | ceiling | published true | shuffled | inverted | none | unrelated | flip 10% | flip 25% | flip 50% |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| orientation | 1.000 | 0.998 | 0.514 | 0.000 | 0.531 | 0.515 | 0.998 | 0.990 | 0.492 |
+| linear | 0.999 | 0.940 | 0.562 | 0.067 | 0.553 | 0.537 | 0.935 | 0.908 | 0.502 |
+| Bayes 0.7 | 0.700 | 0.708 | 0.513 | 0.292 | 0.501 | 0.548 | 0.704 | 0.680 | 0.462 |
+| Bayes 0.9 | 0.900 | 0.899 | 0.511 | 0.100 | 0.538 | 0.586 | 0.899 | 0.889 | 0.429 |
+| Bayes 0.999 | 0.999 | 0.998 | 0.472 | 0.002 | 0.631 | 0.559 | 0.998 | 0.996 | 0.407 |
+
+fin00 (pure SCM, §74): true 1.000 / 0.960 / 0.710 / 0.900 / 0.998 on the same five probes,
+inverted 0.001 / 0.033 / 0.294 / 0.101 / 0.002, shuffled 0.47 to 0.58, flip 25% on `linear` 0.681
+(published 0.908). The untrained control is the same in every column of a row (orientation
+0.501 to 0.514; Bayes 0.999 0.639 to 0.645): it reads nothing from the labels, as a floor should.
+
+**What it says.**
+- Both checkpoints do in-context inference in the sense CLAUDE.md's first diagnostic asks: with
+  true labels they reach the closed-form ceiling (Bayes 0.9: 0.899 and 0.900), with labels that
+  carry no relation they fall to about 0.5, and with inverted labels they fall to the ceiling's
+  mirror (1 − 0.9 = 0.1: 0.100 and 0.101). §47's failure mode (higher AUC with random labels) is
+  absent on these probes.
+- Label noise is absorbed at 10% (no change beyond 0.005) and mostly at 25% for the published
+  checkpoint; fin00 loses more on `linear` at 25% (0.960 to 0.681).
+- `none` sits above 0.5 on the near-separable probes (published 0.631 on Bayes 0.999, fin00
+  0.639), as does the untrained control on that probe (0.64): part of that score comes from the
+  feature structure of the probe itself, not from reading labels.
+- Scope: synthetic probes only, one seed setting per probe; it says nothing about real panels.
+
+## §248: §18's prior properties re-measured on today's prior: the width gap is closed, correlation and missingness still sit above the real panels (task 15.3)
+
+**MEASURED, prior sampling only (no model), CPU, 2026-11-15.** Script `scripts/prior_properties.py`
+(`uv run --frozen python scripts/prior_properties.py --n-tasks 1000 --seed 0`, replicated at seed
+5000), sampling the published recipe's prior (`configs/published/v4-cellattn-labels.yaml`,
+`max_features` 136, rows 256/512/1024 per task). Held-out logistic-regression AUC as in
+`financial._holdout_lr_auc` (fit on the first half, score the second); tasks with one class in a
+half are excluded from the AUC row (94 of 1,000 at seed 0, 69 at seed 5000). Draft with all
+quantiles: `docs/results/drafts/15.3_2026-11-15.md`. §18's synthetic column was 12 tasks of the
+2026-09-08 prior, and its exact correlation definition is not in the repository, so the
+comparison is indicative, not like-for-like.
+
+| property | §18 real panels | §18 synthetic (12 tasks) | today, seed 0 (seed 5000) |
+| --- | --- | --- | --- |
+| LR AUC | mean 0.7687 (0.697 to 0.899) | mean 0.7610 (0.565 to 0.981) | mean 0.7134 (0.6977); median 0.740; 5th to 95th percentile 0.41 to 0.966 |
+| width | 64, 64, 64, 95 | 9 to 21 | mean 72.3; median 73; interquartile 39 to 106; max 136 |
+| mean abs correlation | 0.081 to 0.110 | 0.096 to 0.220 | mean 0.133 (0.135); 95th percentile 0.177 |
+| missingness | 0% to 1.5% | 0.08% to 13.0% | mean 7.6% (7.8%); 95th percentile 14.4% |
+| default rate | 3.2% to 6.9% | 1.0% to 16.4% | median 3.3% (3.9%); 0.10% to 29.9% |
+
+**15.4's rejection option, paired draws (`financial_max_lr_auc: 0.95`):** mean LR AUC falls by
+0.022 (0.7134 to 0.6913) at seed 0 and 0.023 at seed 5000; the share of tasks above 0.95 falls
+from about 7.1% to 0%; width, default rate, correlation and missingness barely move; generation
+time 16 s to 18 s per 1,000 tasks.
+
+**What it says.** Width now spans the real panels (64 to 95 sit inside the interquartile range),
+which §18 named as the largest gap. Difficulty spans the real range, with a mean 0.055 to 0.071
+below it; CLAUDE.md asks a prior to span difficulty, not match it, so this is not a regression.
+Correlation and missingness remain above the real panels' ranges. The 15.4 option moves only
+difficulty, as designed; whether that helps a trained model is still unmeasured.

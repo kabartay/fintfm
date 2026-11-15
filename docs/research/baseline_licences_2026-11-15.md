@@ -134,14 +134,14 @@ All fetched 2026-11-15. "Commit" is the default-branch head at fetch time.
 Existing notes grepped: `docs/paper/RELATED_WORK.md`, `docs/research/REFERENCES.md`,
 `docs/research/RESEARCH_NOTES.md`, `README.md`.
 
-- **TabICL/TabICLv2, BSD-3-Clause for both** (`RELATED_WORK.md` line 1141; `REFERENCES.md` line
+- **TabICL/TabICLv2, BSD-3-Clause for both** (`docs/paper/RELATED_WORK.md` line 1141; `REFERENCES.md` line
   545): agrees. Added precision: the `LICENSE` file has a second, Apache-2.0 text for `forecast/`,
   and the weights grant is the card field of `jingang/TabICL` with no licence file.
-- **TabDPT Apache-2.0 for both** (`RELATED_WORK.md` line 1144): agrees; now backed by the Hub
+- **TabDPT Apache-2.0 for both** (`docs/paper/RELATED_WORK.md` line 1144): agrees; now backed by the Hub
   LICENSE file as well as the card.
 - **TabPFN code Apache-2.0, 2.5 onwards non-commercial, TabPFN-2 Prior Labs licence**
-  (`RELATED_WORK.md` lines 1141 to 1143, 1208 to 1224): agrees on weights. **One update, not a
-  conflict:** `RELATED_WORK.md` line 1219 records PyPI `tabpfn` 9.2.0 on 2026-11-13; PyPI now lists
+  (`docs/paper/RELATED_WORK.md` lines 1141 to 1143, 1208 to 1224): agrees on weights. **One update, not a
+  conflict:** `docs/paper/RELATED_WORK.md` line 1219 records PyPI `tabpfn` 9.2.0 on 2026-11-13; PyPI now lists
   10.0.0, uploaded 2026-11-13, still Apache-2.0. The older wording "TabPFN code Apache-2.0 with
   attribution requirement" (line 1211) is already flagged there as out of date for current code, and
   this check confirms the repository `LICENSE` is plain Apache-2.0. The attribution paragraph
