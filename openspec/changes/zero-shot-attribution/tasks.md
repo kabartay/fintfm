@@ -3,7 +3,13 @@
 - [x] 12.1 **Done (2026-11-11, docs/research/REFERENCES.md "ExplainerPFN").** Read ExplainerPFN in full and record how attribution targets are generated and
       what fidelity they claim. Verify: entry expanded in `docs/research/REFERENCES.md`; currently
       only the abstract has been read.
-- [ ] 12.2 Establish the baseline to beat: SHAP over gradient boosting on the UCI panels,
+- [ ] 12.2 **Progress (2026-11-15): `src/fintfm/experiments/attribution_baseline.py` fits
+      LightGBM per stratified fold and takes exact TreeSHAP from `pred_contrib=True` (no `shap`
+      dependency); run as a script, not `-m`, because torch and LightGBM segfault together on
+      macOS. MEASURED on Polish 3-year and Taiwan, 5 folds x 3 seeds: seed-to-seed Spearman 0.981
+      and 0.925, fold-to-fold 0.875 and 0.700, TreeSHAP about 215 microseconds per row. Numbers
+      and command in `docs/results/drafts/12.2_2026-11-15.md`; stays open until they are entered
+      in `docs/results/FINDINGS.md`.** Establish the baseline to beat: SHAP over gradient boosting on the UCI panels,
       including runtime. Verify: numbers into `docs/results/FINDINGS.md`, re-derived from the run.
 - [x] 12.3 **Done (2026-11-15): `sample_financial_task(return_attributions=True)` adds
       `meta["attribution"]` (one float per column of X, after the column permutation) and
