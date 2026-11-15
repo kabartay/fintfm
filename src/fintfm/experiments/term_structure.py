@@ -39,7 +39,6 @@ import torch
 from sklearn.metrics import roc_auc_score
 
 from fintfm.evaluation.metrics import holm_adjusted_p, paired_auc_difference
-
 from fintfm.modeling.model import FinancialTFM, ModelConfig
 from fintfm.prior import PriorConfig
 from fintfm.prior.mixture import sample_batch

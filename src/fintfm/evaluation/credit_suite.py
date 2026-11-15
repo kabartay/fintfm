@@ -272,8 +272,8 @@ import pandas as pd
 
 from fintfm.evaluation.credit_estonia import load_estonia
 from fintfm.evaluation.datasets import CACHE_DIR
-from fintfm.evaluation.overlap import guard_selection
 from fintfm.evaluation.metrics import spread_fields
+from fintfm.evaluation.overlap import guard_selection
 from fintfm.evaluation.proxy_suite import SourceLicence
 from fintfm.experiments.hybrid_catboost import INNER_SEED_OFFSET, assert_no_leak, to_logit
 

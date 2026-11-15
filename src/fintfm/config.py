@@ -203,6 +203,7 @@ class PriorConfigDefaults:
     financial_gate_prob: float = 0.0
     financial_sign_flip_prob: float = 0.0
     financial_max_lr_auc: float | None = None
+    financial_sample_horizon: bool = False
     feature_ratio_bands: tuple[tuple[float, float, float], ...] = ()
     p_binary: float | None = None
     imbalance_draws: bool = False

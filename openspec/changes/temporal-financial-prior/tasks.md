@@ -14,7 +14,7 @@
 - [ ] 2.3 Add persistent firm effects and autocorrelated ratios to `prior/financial.py`,
       keeping the macro regime sampled rather than learned. Verify: `uv run pytest
       tests/test_prior.py -q` plus a new test asserting successive years correlate.
-- [ ] 2.4 Sample the prediction horizon per task and expose it. Verify: a test that tasks
+- [x] 2.4 **Done (2026-11-15): opt-in `PriorConfig.financial_sample_horizon` (needs `n_horizons`) draws one horizon per financial task, labels `y` as default within it and exposes it as `task.meta["horizon"]`; `tests/test_prior_horizon.py` shows longer horizons give higher base rates and that off reproduces the recorded task.** Sample the prediction horizon per task and expose it. Verify: a test that tasks
       drawn with different horizons produce different base rates in the expected direction.
 - [ ] 2.5 Rerun `phase1-prior-ablation` with the temporal prior as a fourth variant. Verify:
       `results.json` shows whether temporal beats cross-sectional at matched compute.

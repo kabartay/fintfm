@@ -711,6 +711,7 @@ def sample_financial_task(
     max_lr_auc: float | None = None,
     max_lr_auc_tries: int = 20,
     return_attributions: bool = False,
+    sample_horizon: bool = False,
 ) -> Task:
     """Sample one synthetic corporate-default classification task.
 
@@ -846,6 +847,12 @@ def sample_financial_task(
             ``attribution_scope`` says ``"distress_score"``), the survival head, and
             ``label_noise_rate`` flips. With ``n_horizons`` the score is the one the hazard
             uses.
+        sample_horizon: Task 2.4 of ``temporal-financial-prior``. Needs ``n_horizons``. Draws
+            one prediction horizon ``h`` in ``1..n_horizons`` per task and labels ``y`` as
+            "defaults within the first ``h`` periods", so a shorter horizon gives a lower
+            base rate. ``period`` keeps the full-grid default period (the hazard head still
+            trains on all of it) and ``h`` is exposed as ``meta["horizon"]``. ``False``
+            (default) consumes no draw and reproduces every checkpoint's tasks.
 
     Returns:
         A binary :class:`Task` whose columns are a random subset of financial quantities with
@@ -1064,6 +1071,16 @@ def sample_financial_task(
                 np.where(y == 1, rng.integers(0, n_horizons, size=n_rows), -1),
                 period,
             )
+    horizon: int | None = None
+    if sample_horizon:
+        if n_horizons is None or period is None:
+            raise ValueError("sample_horizon requires n_horizons: a binary task has no time axis")
+        horizon = int(rng.integers(1, n_horizons + 1))
+        y = ((period >= 0) & (period < horizon)).astype(np.int64)
+        if y.min() == y.max():  # guarantee both classes at this horizon
+            flip = rng.choice(n_rows, size=max(1, n_rows // 50), replace=False)
+            y[flip] = 1 - y[flip]
+            period[flip] = np.where(y[flip] == 1, rng.integers(0, horizon, size=len(flip)), -1)
     # --- observation model ---------------------------------------------------
     # identity_shuffle (§67-§71, task 38.11): the exposed candidates and ratio family are
     # built from `acc_x`, an independently-per-account-permuted copy of the true `acc`, when
@@ -1234,6 +1251,8 @@ def sample_financial_task(
             sharpness / (raw_std if raw_std > 1e-9 else 1.0), identity_shuffle,
         )
         meta["attribution_scope"] = "distress_score" if gate_info is not None else "label"
+    if horizon is not None:
+        meta = {**(meta or {}), "horizon": horizon}
     if sign_flip_prob > 0.0:
         # DR2.2: a per-task sign on each ratio, drawn after everything else so the label,
         # gate and NaN pattern are the unflipped task's; see ``sign_flip_prob`` above
