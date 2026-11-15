@@ -67,14 +67,14 @@ says plainly where it does not yet.
 
 | | |
 | --- | --- |
-| **TabArena-Lite (own run)** | **926 Elo, 106th of 110, all 51 datasets, none excluded** (§232). One fold, run in this project's TabArena fork, not on [tabarena.ai](https://tabarena.ai). The entry is "FinTFM with a trained linear readout": a linear model on the network's representation, which also takes the row's own features. By type: binary 997 on 30 datasets (§232), multiclass 874 on 8 (§227), regression 639 on 13 (§231). On the same board RandomForest (default), the resubmission bar, scores 1,000 and Linear (tuned) 919. General-tabular results, not credit results |
+| **TabArena-Lite (own run)** | **932 Elo, 106th of 110, all 51 datasets, none excluded** (§235). One fold, run in this project's TabArena fork, not on [tabarena.ai](https://tabarena.ai). The entry is "FinTFM with a trained linear readout": a linear model on the network's representation, which also takes the row's own features. By type: binary 997 on 30 datasets (§232), multiclass 874 on 8 (§227), regression 689 on 13 (§235). On the same board RandomForest (default), the resubmission bar, scores 1,000 and Linear (tuned) 919. General-tabular results, not credit results |
 | **TabArena submission** | The zero-shot model on 27 binary datasets ranked **94th of 95**; a maintainer confirmed the integration and declined the entry on competitiveness (§122). On today's field it scores 750 Elo, 107th of 108 (§225). No resubmission until the readout entry reaches 1,000 overall Elo (design review DR7.6) |
 | **Real credit panels** | Gradient boosting wins. On V4FinBench's full panel FinTFM scores 0.20 mean AP against 0.40 for untuned CatBoost (§163); LightGBM at 1,000 trees reaches 0.3908 (§167), so the gap is boosting rounds, not one library. On four more credit datasets (SBA 7(a), ULB, FDIC, Estonia) FinTFM is below untuned logistic regression on mean AP (§216). Calibration was best or near-best on four panels for the pre-cell-attention architecture, one split each (Claim 9, a single draw, §73), and is not claimed for the published checkpoint: it over-predicts the default rate 1.2 to 1.7 times on ULB (§174), and 1.9 and 3.2 times on two FDIC splits while under-predicting the third (0.396% against 0.735%; run record behind §216, `docs/results/drafts/dr4.3-runs_2026-11-07.md`) |
 | **Levers on V4FinBench** | Opt-in fine-tuning (`finetune_steps`, 0.7.0): mean AP 0.1986 to 0.2062, better on 5 of 5 folds, 3.8% of the gap to CatBoost (§163). Zero-shot partitioned contexts (`fintfm-v4protocol --large-n partition`): 0.1986 to 0.2362, +0.0375, 5 of 5 folds (§169), and ahead of fine-tuning on 5 of 5 (§205) |
 | **Licence** | Apache-2.0 for **code and weights**, each chosen separately (see [Licensing](#licensing--provenance)) |
 | **Checkpoint** | [kabartay/fintfm-binary](https://huggingface.co/kabartay/fintfm-binary): 885K parameters, binary, up to 136 features |
 | **Tests** | about 1,350 (2026-11-13), plus `ruff`, the openspec validator, a dependency-licence check and a documentation-link check, all in CI |
-| **Measurement log** | 234 numbered entries, each stating how its numbers were produced; pre-registrations are written before their arms run |
+| **Measurement log** | 235 numbered entries, each stating how its numbers were produced; pre-registrations are written before their arms run |
 | **Problem types** | Binary is declared and is the only published checkpoint. Multiclass and regression run on TabArena-Lite with unpublished checkpoints (§221-§224) and are **not** declared (§121) |
 
 **Read [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md) before anything else.** It tags every
@@ -96,14 +96,14 @@ numbers its rows from 0, so ranks quoted from it before 2026-11-13 were one plac
 
 | entry | datasets | Elo | position | source |
 | --- | --- | --- | --- | --- |
-| **FinTFM with a trained linear readout** | all 51, none excluded | **926** (+85 / −103) | **106th of 110** | §232 |
+| **FinTFM with a trained linear readout** | all 51, none excluded | **932** (+83 / −98) | **106th of 110** | §235 |
 | the published model, zero-shot, own head | 27 binary | 750 (+134 / −186) | 107th of 108 | §225 |
 | RandomForest (default), the resubmission bar | all 51 | 1,000 | 100th of 110 | §224, §225 |
 
 The zero-shot row re-scores §204's stored predictions against today's field, with no refit.
 **Position moved once, by one place:** Elo rose from 880 to 909 over §221 to §231 with the
 position fixed at 107th of 110, and §232's binary readout options (926) put the entry above
-LR (tuned) at 919.5, 106th of 110.
+LR (tuned) at 919.5, 106th of 110; §235's four regression bags took it to 932.
 
 ### TabArena-Lite, with a trained linear readout
 
@@ -126,7 +126,8 @@ significant on its own; the cited entries give the paired per-dataset tests.
 | four partition bags for multiclass | 51 | 903 | 107th of 110 | §224, §225 |
 | eight bags for multiclass, and a pure-regression checkpoint (`--p-regression 1.0`) | 51 | 905 | 107th of 110 | §227 |
 | partitioned contexts for regression, a readout per leaf | 51 | 909 | 107th of 110 | §231 |
-| binary readout scaled, C cross-validated, row features appended | 51 | **926** | **106th of 110** | §232 |
+| binary readout scaled, C cross-validated, row features appended | 51 | 926 | 106th of 110 | §232 |
+| four partition bags for regression | 51 | **932** | **106th of 110** | §235 |
 
 **These are breadth results, not credit results.** On V4FinBench a readout per partition leaf
 first scored −0.0570 mean AP, better on 0 of 5 folds (§218). §219 traced that to a sampling
@@ -504,7 +505,7 @@ conclusion is not reached twice.
 - [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md): **start here.** Every claim the project could
   make, tagged by status; the newest evidence wins.
 - [`docs/results/FINDINGS.md`](docs/results/FINDINGS.md): the measurement log, numbered in
-  order (234 entries on 2026-11-15), each stating how its numbers were produced.
+  order (235 entries on 2026-11-15), each stating how its numbers were produced.
 - [`docs/paper/NEGATIVE_RESULTS.md`](docs/paper/NEGATIVE_RESULTS.md): every null and harmful
   result in one place, so a lever already ruled out is not tried again by accident.
 - [`docs/paper/LIMITATIONS.md`](docs/paper/LIMITATIONS.md): what the model and the evidence

@@ -23,7 +23,7 @@ not paste one into the other. See `CLAUDE.md`.
   classifiers on `y > t_k` at the training targets' quantiles, so the grid is `K` rather than
   the head's `max_classes`. Predicts the mean of the implied step distribution; exposes the
   survival probabilities and their logits for a fitted readout. Costs `K` forward passes.
-  Opt-in; a pilot on five small TabArena-Lite tables is queued (FINDINGS §235).
+  Opt-in. Its TabArena-Lite pilot was worse on 3 of 5 small tables (FINDINGS §235).
 - The `large_n` config section mirrors `missing_classes` as `partition_missing_classes`
   (default `fallback`), so `fintfm-v4protocol --large-n partition` can set it.
 

@@ -15040,3 +15040,70 @@ options of §232 move Bioresponse 21 places and lose kddcup09 14. Both together 
   not a lift.
 - CPU inference is unaffected by the 512-column OOM; the fix (unfused encoders) also made CPU
   inference 3 to 4 times faster (SMOKE-TEST, f55bc3b).
+
+## §235: four partition bags lift regression from 639 to 689 Elo, better on 12 of 13, overall 932; threshold regression (15 binary classifiers) is worse on 3 of 5 small tables at 15 times the cost
+
+**MEASURED, TabArena-Lite (repeat 0, fold 0), CPU, 2026-11-14 and 15.**
+
+**Four bags, run `fintfm_lp_reg_rawpart4_pure_1114`** (`reg-part-bag4`): §231's partitioned
+regression (48,000-task pure-regression checkpoint, squash, `select`, ridge readout with the row's
+features, a readout per leaf) with `FINTFM_PARTITION='{"n_bags": 4}'`, as §224 did for
+multiclass. Paired against §231's one-bag run `fintfm_lp_reg_rawpart_pure_1114`; comparison
+`runs/fintfm_lp_reg_rawpart4_pure_1114_vs_part.md`, log `runs/local_queue/reg-part-bag4.log` (269
+min under a load average near 100 to 270 from other sessions, peak RSS 3.0 GB, 13 of 13 exit 0).
+
+**12 better, 1 worse of 13 (sign test p < 0.01); regression Elo 639 to 689 (+91 / −206), 99th of
+103 on the regression board.** RMSE, sorted by ratio:
+
+| dataset | one bag (§231) | four bags | ratio |
+| --- | --- | --- | --- |
+| diamonds | 994.7766 | 918.2049 | 0.923 |
+| miami_housing | 112,091.8321 | 106,093.7997 | 0.946 |
+| QSAR-TID-11 | 0.9550 | 0.9134 | 0.956 |
+| concrete_compressive_strength | 5.7675 | 5.6003 | 0.971 |
+| physiochemical_protein | 4.6299 | 4.5011 | 0.972 |
+| airfoil_self_noise | 2.4867 | 2.4281 | 0.976 |
+| Another-Dataset-on-used-Fiat-500 | 740.9762 | 726.5134 | 0.980 |
+| houses | 0.2786 | 0.2733 | 0.981 |
+| wine_quality | 0.6794 | 0.6700 | 0.986 |
+| QSAR_fish_toxicity | 0.9717 | 0.9666 | 0.995 |
+| Food_Delivery_Time | 7.9122 | 7.8944 | 0.998 |
+| superconductivity | 12.8381 | 12.8101 | 0.998 |
+| healthcare_insurance_expenses | 4,247.4454 | 4,378.7308 | 1.031 |
+
+Geometric-mean RMSE ratio 0.978, median 0.980. Unlike one bag (§231), four bags also help the
+small tables where a single tree had few usable leaves (concrete, Fiat-500, QSAR_fish): averaging
+four trees on 60% bags smooths the readout where one tree's leaves were too small.
+
+**Overall, §232's binary run + §227's multiclass bag8 + this run: 931.9 Elo (+83 / −98), 106th
+of 110** (`fintfm_linprobe_all51_1115`, log `runs/merge_all51_1115.log`, position from
+`scripts/lite_positions.py`), 3.7 Elo below LR (tuned + ensemble) at 935.6. §232 was 925.6.
+
+**Threshold regression, pilot, run `fintfm_lp_reg_thr15_pure_1114`** (`reg-thr15-pilot`,
+`runs/local_queue/lite_reg_thr_pilot.sh`): fintfm's new `ThresholdTFMRegressor` (0774f11) with
+`K = 15`, i.e. 15 binary classifiers on `y > t_k` at the training targets' quantiles, so a
+16-step grid instead of the head's 10 bins, and a ridge readout on the 15 survival logits plus the
+row's squashed features (fork 2c5a8a9, `FINTFM_REG_THRESHOLDS=15`). Same checkpoint; no partition.
+The five smallest regression tables only, because the cost is 15 forward passes per prediction:
+
+| dataset | binned (§227) | four bags | threshold, K = 15 | ratio to binned |
+| --- | --- | --- | --- | --- |
+| Another-Dataset-on-used-Fiat-500 | 727.72 | 726.51 | 719.25 | 0.988 |
+| QSAR_fish_toxicity | 0.9666 | 0.9666 | 0.9650 | 0.998 |
+| healthcare_insurance_expenses | 4,450.50 | 4,378.73 | 5,027.93 | 1.130 |
+| concrete_compressive_strength | 5.7319 | 5.6003 | 7.2706 | 1.268 |
+| airfoil_self_noise | 2.8304 | 2.4281 | 3.9833 | 1.407 |
+
+2 better, 3 worse against the binned run (p = 1.0), the three losses by 13% to 41%; worse than
+four bags on the same three. 1,633 to 2,649 s per table of about 1,000 to 1,500 rows (193 min
+for five), against tens of seconds for the binned regressor.
+
+**What it says.**
+- Bagging the partition is the regression lever that works: +50 Elo on top of §231's +57, with
+  12 of 13 tables better. `reg-part-d3b4` (depth 3, four bags) and `reg-part-bag8` are queued.
+- The threshold design is falsified at `K = 15` as a TabArena-Lite lever: finer resolution from
+  separate binary classifiers loses on the tables where the target is smooth in the features
+  (airfoil, concrete), most likely because 15 independent contexts each see only a 0/1 split and
+  the readout must reassemble a curve from them. It stays in fintfm as an opt-in estimator; it
+  is not pursued further here.
+- Not a credit result; V4FinBench is binary.
