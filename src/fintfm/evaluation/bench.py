@@ -224,6 +224,7 @@ def run_credit(
     horizons: tuple[int, ...] = (1, 3, 5),
     sample_efficiency: bool = True,
     probe_sizes: tuple[int, ...] = DEFAULT_PROBE_SIZES,
+    time_panel: SurvivalDataset | None = None,
 ) -> dict:
     """Benchmark on real corporate-default data across context-construction strategies.
 
@@ -241,10 +242,16 @@ def run_credit(
             ``sample-efficiency-regime`` task 13.6), so a full-panel-only number is never
             the whole credit output. ``--no-sample-efficiency`` turns it off.
         probe_sizes: Training sizes for that probe, ascending.
+        time_panel: A dated panel (V4FinBench). When given, random and time-based AUC are
+            printed side by side for it after the credit panels (openspec
+            ``time-based-evaluation`` task 3.3). When ``None`` the output says, per panel,
+            that no time-based number exists, so its absence is never silent.
 
     Returns:
-        ``{"sample_efficiency": <probe record>}`` when the probe ran, else ``{}``. The probe
-        record carries per-size metrics, ``crossover_size`` and ``leads_at`` (see
+        ``{"sample_efficiency": <probe record>}`` when the probe ran, plus
+        ``{"time_vs_random": {"random": {...}, "time": {...}}}`` when ``time_panel`` was
+        given; else ``{}``. The probe record carries per-size metrics, ``crossover_size``
+        and ``leads_at`` (see
         :func:`fintfm.experiments.prior_ablation.sample_efficiency_probe`).
     """
     cfg = FinancialTFM.load(model_path).cfg
@@ -255,6 +262,7 @@ def run_credit(
         print(f"\n=== {ds.name}: {ds.X.shape[0]} companies, {ds.X.shape[1]} features, "
               f"default rate {ds.default_rate:.3%} ===")
         print(f"    source: {ds.attribution}")
+        print(f"    {time_split_note(ds)}")
         if ds.X.shape[1] > cfg.max_features:
             print(f"    SKIPPED for fintfm: model takes {cfg.max_features} features, data has "
                   f"{ds.X.shape[1]}. Pretrain with --max-features {ds.X.shape[1]} to evaluate it.")
@@ -263,6 +271,12 @@ def run_credit(
             strategies: tuple[ContextStrategy, ...] = ("uniform", "hybrid", "balanced")
             _compare_context_strategies(ds, model_path, strategies)
     record: dict = {}
+    if time_panel is not None:
+        record["time_vs_random"] = run_time_vs_random(time_panel, model_path)
+    else:
+        print("\nTIME-BASED SPLIT: NOT RUN. The panels above carry no period column, and no "
+              "dated panel was supplied (use --time-split with --credit and the V4FinBench "
+              "data). Every number above is a RANDOM-split number.")
     if sample_efficiency:
         record["sample_efficiency"] = _run_sample_efficiency(
             panels, cfg.max_features, model_path, probe_sizes
@@ -297,6 +311,22 @@ def _run_sample_efficiency(
     print(f"    crossover_size={record['crossover_size']} leads_at={record['leads_at']} "
           f"(single seed)")
     return record
+
+
+def time_split_note(ds: CreditDataset | SurvivalDataset) -> str:
+    """Say whether a panel supports a time-based split, and why not if it does not.
+
+    Args:
+        ds: Any benchmark panel.
+
+    Returns:
+        A one-line statement for the bench output, so a missing time-based number is stated
+        rather than silently omitted.
+    """
+    if ds.has_period_labels:
+        return "time-based split: available (period column present)"
+    return ("time-based split: NOT AVAILABLE (no period column; scores on this panel are "
+            "random-split only)")
 
 
 def run_time_vs_random(
@@ -390,16 +420,23 @@ def main() -> None:
     p.add_argument("--no-sample-efficiency", action="store_true",
                    help="with --credit: skip the small-n sample-efficiency probe (on by default)")
     p.add_argument("--time-split", action="store_true",
-                   help="V4FinBench random vs time-based AUC side by side (needs the cached data)")
+                   help="V4FinBench random vs time-based AUC side by side (needs the cached data); "
+                        "with --credit it is printed after the credit panels")
     p.add_argument("--max-rows", type=int, default=None,
                    help="with --time-split: subsample this many company-years")
     p.add_argument("--v4-root", type=str, default=None, help="V4FinBench parquet directory")
     args = p.parse_args()
+    if args.credit:
+        kwargs: dict = {"sample_efficiency": not args.no_sample_efficiency}
+        if args.time_split:
+            try:
+                kwargs["time_panel"] = load_v4finbench(args.v4_root, max_rows=args.max_rows)
+            except FileNotFoundError as exc:
+                print(f"TIME-BASED SPLIT: NOT RUN, V4FinBench data not found ({exc})")
+        run_credit(args.model, **kwargs)
+        return
     if args.time_split:
         run_time_vs_random(load_v4finbench(args.v4_root, max_rows=args.max_rows), args.model)
-        return
-    if args.credit:
-        run_credit(args.model, sample_efficiency=not args.no_sample_efficiency)
         return
     run_synthetic(args.model, n_tasks=args.synthetic_tasks)
     if args.openml_id:

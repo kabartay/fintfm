@@ -329,6 +329,11 @@ features, since the architecture may be carrying more than the prior.
 - **Exit condition B:** the model beats gradient boosting **somewhere on the size sweep** —
   most plausibly below 1,000 rows. If it loses at every size, the small-data thesis is dead
   regardless of what the prior ablation says.
+- **Every Phase 1 credit number is reported with its time-based counterpart.** Random and
+  time-based AUC side by side (`fintfm-bench --credit --time-split`; the splitter refuses a
+  firm on both sides and the bench refuses a panel with `has_period_labels=False`). The UCI
+  panels have no dates (`FINDINGS` §7), so their numbers are labelled random-split only; the
+  time-based number comes from V4FinBench. Openspec `time-based-evaluation`.
 - **The untrained control decides how to read a tie.** "The domain prior adds nothing" and
   "no pretraining adds anything" are different results and only the control separates them.
 - **If A fails but B holds:** keep the model, drop the domain-prior story, compete on

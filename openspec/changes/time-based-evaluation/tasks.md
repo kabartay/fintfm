@@ -16,7 +16,12 @@
       `experiments/v4_out_of_time.py:76 time_split`, checks year windows only and lets a firm
       sit on both sides, so it was not equivalent; it is left in place. `SurvivalDataset`
       gained an optional `groups` field (V4FinBench `emis_id`).**
-- [ ] 3.3 **Progress (2026-11-08): code and SMOKE-TEST run done; the FINDINGS entry is not written because the only checkpoint run was a smoke test.** Report random and time-based numbers side by side in `bench.py`. Verify:
+- [ ] 3.3 **Progress (2026-11-15): `fintfm-bench --credit --time-split` now prints both in one
+      run (`run_credit(time_panel=...)`, CLI loads V4FinBench); plain `--credit` states per
+      panel "time-based split: NOT AVAILABLE" and a closing "TIME-BASED SPLIT: NOT RUN" line,
+      so the absence is never silent; tests in `tests/test_bench_credit.py`. Still missing:
+      the FINDINGS gap entry from a MEASURED run with a real checkpoint (not written here).**
+      **Progress (2026-11-08): code and SMOKE-TEST run done; the FINDINGS entry is not written because the only checkpoint run was a smoke test.** Report random and time-based numbers side by side in `bench.py`. Verify:
       `uv run fintfm-bench --credit` prints both, and the gap is recorded in
       `docs/results/FINDINGS.md` re-derived from the run output.
       **Implemented as `uv run fintfm-bench --time-split [--max-rows N] [--v4-root DIR]`
@@ -31,7 +36,10 @@
       shows; with ~110 test positives and the first 16 columns only, this proves the pipeline
       and says nothing about the gap. Remaining: a MEASURED run on the full panel with a real
       checkpoint, then the FINDINGS entry.**
-- [ ] 3.4 Update `docs/roadmap/STRATEGY.md` Phase 1 to require the time-split number, since the phase
+- [x] 3.4 **Done (2026-11-15): `docs/roadmap/STRATEGY.md` Phase 1 now carries the requirement
+      (line 332, `grep -n "time-based"`); the harness refuses a panel with
+      `has_period_labels=False` (`bench.py::run_time_vs_random` raises ValueError, pinned by
+      `tests/test_bench_credit.py::test_time_split_refuses_a_panel_without_periods`).** Update `docs/roadmap/STRATEGY.md` Phase 1 to require the time-split number, since the phase
       currently says "with time-based splits" while the harness does not do it. Verify:
       `grep -n "time-based" docs/roadmap/STRATEGY.md` shows the requirement, and the harness refuses to
       run a time split on a dataset with `has_period_labels=False`.
