@@ -15673,3 +15673,30 @@ probe's class shift on feature 0 (same rows, mirrored task) moves the unlabelled
   and §72's inversion on the identity-shuffle checkpoint, which does read its labels (38.14's
   tail-weight harness tests its candidate). The unlabelled AUC here (0.477 to 0.485) is milder
   than §91's 0.44 to 0.46 at smaller n and a 4-member ensemble; the sign agrees.
+
+## §251: on the UCI credit panels the context-size curve is flat from 250 to 2,000 rows (task 16.1)
+
+**MEASURED, CPU, 2026-11-15.** `fintfm-binctx --model runs/v4-cellattn-labels.pt --panels polish1,polish3,polish5,taiwan --strategies uniform,balanced --sizes 250,500,2000 --seeds 0,1 --n-ensemble 1 --n-boot 1000`
+(about 55 minutes under heavy machine load; 48 of 48 cells scored). Each panel split 70/30
+stratified per seed; the UCI pools are 4.1k to 7.4k training rows, so §23's 8,000 and 20,000-row
+contexts cannot be reproduced and a 2,000-row context is 27% to 48% of the pool (against §23's
+0.75% on Home Credit). Draft with per-seed values: `docs/results/drafts/16.1_2026-11-15.md`.
+
+| panel (uniform, mean of 2 seeds) | AP at 250 / 500 / 2,000 | ROC-AUC at 250 / 500 / 2,000 |
+| --- | --- | --- |
+| Polish 1y | 0.1833 / 0.2206 / 0.2082 | 0.7809 / 0.8111 / 0.8015 |
+| Polish 3y | 0.1628 / 0.1648 / 0.1574 | 0.7670 / 0.7689 / 0.7657 |
+| Polish 5y | 0.3716 / 0.3777 / 0.3829 | 0.8391 / 0.8385 / 0.8395 |
+| Taiwan | 0.3710 / 0.3753 / 0.3784 | 0.9224 / 0.9282 / 0.9323 |
+
+The balanced strategy is flat in context size on every panel (AP range 0.002 to 0.011). In the
+Holm-adjusted paired strategy comparisons, Polish 1y favours balanced over uniform; elsewhere no
+uniform-versus-balanced difference survives, apart from one Taiwan ROC-AUC cell at 2,000 rows.
+
+**What it says.** With §23 (Home Credit) and §162 (V4FinBench, five folds), three of these four
+panels are flat within about 0.01 ROC-AUC and 0.011 AP between 250 and 2,000 context rows, and
+Polish 1y peaks at 500 rows, the shape §162 saw. More context is not the lever on corporate panels
+either, which removes the context-size premise for building an adapter (the adapter code from 16.2
+stays as an option). It does not test adaptation to domain shift, which is 16.3's question.
+Limits: two seeds, no interval on the size effect itself (the bootstrap compares strategies), and
+the grid stops at 2,000 rows.
