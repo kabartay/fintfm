@@ -80,14 +80,14 @@
       `uptime` checked first if local, `--checkpoint-every` set if remote, and a throughput
       check taken within the first 15 minutes against a known-good baseline, before any real
       compute is spent on the decisive run (A6).
-- [ ] A6 **The decisive run**: a full matched-compute checkpoint (same architecture, step
+- [ ] A6 **Progress (2026-11-15): the EDGAR arm was trained and scored, and its pre-registered rule (§159 Rule 1) is decided: a stable null, −0.0019 and −0.0029 mean AP against the matched `max_classes 10` control at seeds 0 and 1 (FINDINGS §160-§161, 30% real share, 6,000 steps, five V4FinBench folds; `docs/paper/CLAIMS.md` Claim 17). Left open because the Verify names a §74 Bayes-ceiling probe run first, and no probe on the EDGAR checkpoints is recorded in FINDINGS §152-§161; the control is also the retrained `max_classes 10` run, not `v4-cellattn-labels.pt`.** **The decisive run**: a full matched-compute checkpoint (same architecture, step
       count and seed as the current `v4-cellattn-labels.pt` control) with `p_real_edgar` at a
       scoped weight. Per `CLAUDE.md`'s benchmark-ordering rule: V4FinBench before TabArena,
       always. Verify: scored against the matched control on V4FinBench under the exact
       protocol §144-§150 used — paired bootstrap, Holm-corrected — with the §74 Bayes-ceiling
       probe run first to confirm the checkpoint is not broken before any accuracy claim is
       trusted.
-- [ ] A7 **Write up the result, honestly, either direction.** Verify: a new `docs/results/FINDINGS.md`
+- [x] A7 **Done (2026-11-15, evidence): FINDINGS §160 (EDGAR, both seeds, appended 2026-10-12) and §161 state that the weighted real-EDGAR mixture did not move V4FinBench AP against the matched synthetic-only control: −0.0019 and −0.0029 mean AP, a stable null under §159 Rule 1. `docs/paper/CLAIMS.md` Claim 17 is the FinTFM-R-scoped claim (Claim 2 is scoped to FinTFM only, its line 83 note). `docs/design/DECISIONS.md` D17 carries the "Status 2026-10-12 (§157, §161)" note that its premise has no support at this recipe.** **Write up the result, honestly, either direction.** Verify: a new `docs/results/FINDINGS.md`
       entry states whether a weighted real-EDGAR mixture moved V4FinBench AP against the
       matched synthetic-only control either way; `docs/paper/CLAIMS.md` gains a FinTFM-R-scoped
       claim without retroactively broadening Claim 2; `docs/design/DECISIONS.md` D17 is updated
