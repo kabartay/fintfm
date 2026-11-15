@@ -11,7 +11,7 @@
       multiple horizons are evaluated. Verify: a test with a deliberately inverted term
       structure that asserts it is flagged. **Done 2026-09-08:
       `hazard.coherence_violations`, and `test_coherence_violations_detects_a_broken_curve`.**
-- [ ] 11.3 Extend `prior/financial.py` to sample a survival process and emit a hazard path
+- [ ] 11.3 **Progress (2026-11-15): the sampling half is met, the test half is not. `_sample_survival` in `src/fintfm/prior/financial.py` draws per-period hazards h_{i,k} = sigmoid(b_k + shape_k + scale*distress_i) with a rising, falling, hump or flat shape per task, solves the intercept for the cumulative target rate, and `sample_financial_task(n_horizons=K)` emits the default `period` (first fired period or -1) with `y` derived from it, the macro regime still parametric (commit 1a7e9f5; tests/test_hazard.py `test_prior_emits_periods_consistent_with_the_binary_label`, tests/test_prior_horizon.py; 49 passed). Missing: a prior-side test that cumulative hazard is non-decreasing by construction (monotonicity is tested only on the model `HazardHead`, tests/test_hazard.py), and the prior emits a first-event period rather than the per-row hazard path.** Extend `prior/financial.py` to sample a survival process and emit a hazard path
       rather than one Bernoulli label, keeping the macro regime parametric. Verify:
       `uv run pytest tests/test_prior.py -q` plus a test that cumulative hazard is
       non-decreasing by construction.
