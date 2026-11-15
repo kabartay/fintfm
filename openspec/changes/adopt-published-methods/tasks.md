@@ -19,7 +19,7 @@
       256-1,024-row tasks. Verify: whether pretraining on larger tasks lifts the ceiling, or
       whether the limit is architectural — `docs/infra/COMPUTE.md` prices 2,048-row tasks at 32× per
       step, so cost the experiment before running it.
-- [ ] 36.4 **Report native coverage** — the fraction of datasets or tasks scored without
+- [ ] 36.4 **Progress (2026-11-15): partly met. TabArena runs report a coverage fraction (`eligible_datasets()`, 51 of 51 with `select`, see 46.7) and `fintfm-bench` prints `n_scored/n_tasks` for the synthetic tasks, but not every experiment harness does, and no test asserts attempted = scored + explicitly skipped (grep of `tests/` finds none). Left open.** **Report native coverage** — the fraction of datasets or tasks scored without
       falling back — alongside accuracy, everywhere. One commercial model running 100% of TabBench while two
       of eight models silently failed on 19% and 29% is a real result, and an average over
       only the easy cases flatters a model exactly as §25 warned. Verify: every experiment

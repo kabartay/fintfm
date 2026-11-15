@@ -63,7 +63,7 @@
       themselves concentrated at the ends of a bimodal target. Outer mass alone measures the
       binning, not the model. The claim that survives is the conjunction with per-row
       assignment: Spearman 0.6579 and nRMSE 0.7199 against the control's 0.0555 and 1.0235.
-- [ ] 46.7 **Only then, coverage.** Re-run the TabArena eligibility count and report the new
+- [x] 46.7 **Done (2026-11-15, evidence): recomputed from TabArena task metadata with `eligible_datasets()` in `/Users/morganoko/proj/tabarena/run_fintfm_lite.py` (MEASURED 2026-11-15, `FINTFM_ALLOW_MULTICLASS=1 FINTFM_ALLOW_REGRESSION=1`, tabarena venv): suite 51 datasets (30 binary, 13 regression, 8 multiclass); default config covers 46 of 51 (90%: 27 binary, 12 regression, 7 multiclass, 5 excluded over 136 features); with `max_features_strategy: select` it covers 51 of 51 (100%). The arms behind it are scored: regression on 13 datasets and multiclass on 8 (§223-§241, 51-dataset entry §235), so the fraction is no longer a capability claim without measurement.** **Only then, coverage.** Re-run the TabArena eligibility count and report the new
       fraction. Verify: the coverage number is recomputed from TabArena's task metadata rather
       than assumed from this proposal's estimate.
       **Counted, not closed.** `eligible_datasets()` derives **46 of 51 (90%)** from the task
