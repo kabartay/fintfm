@@ -13,7 +13,12 @@ LightGBM when installed. Metric: ROC-AUC (binary) or macro-OVR AUC (multiclass).
 from __future__ import annotations
 
 import argparse
+import json
+import subprocess
+import sys
+import tempfile
 import time
+from pathlib import Path
 
 import numpy as np
 from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
@@ -440,6 +445,84 @@ def _compare_context_strategies(
         print(f"        {summary.n_positive} defaults in a {summary.n_context}-row context")
 
 
+TEMPORAL_GBM_SCRIPT = (
+    Path(__file__).resolve().parents[1] / "experiments" / "temporal_gbm_falsification.py"
+)
+
+
+def temporal_gbm_command(
+    v4_root: str | None = None, max_rows: int | None = None, seed: int = 0, out: str | None = None
+) -> list[str]:
+    """Build the subprocess command for the temporal-GBM falsification script.
+
+    The script runs in its own interpreter because LightGBM and torch segfault together on
+    macOS and this module imports torch; the script itself never imports it.
+
+    Args:
+        v4_root: V4FinBench parquet directory, or ``None`` for the default cache.
+        max_rows: Company-grouped subsample size, or ``None`` for the script default.
+        seed: LightGBM and bootstrap seed.
+        out: Where the script writes its JSON record.
+
+    Returns:
+        The argument vector, starting with ``sys.executable``.
+    """
+    cmd = [sys.executable, str(TEMPORAL_GBM_SCRIPT), "--seed", str(seed)]
+    if v4_root is not None:
+        cmd += ["--root", v4_root]
+    if max_rows is not None:
+        cmd += ["--max-rows", str(max_rows)]
+    if out is not None:
+        cmd += ["--out", out]
+    return cmd
+
+
+def format_temporal_gbm(result: dict) -> str:
+    """Render both arms side by side, one row per fold, with AP and ROC-AUC."""
+    lines = [
+        (
+            f"TEMPORAL GBM (levels vs levels+deltas+trends): {result['n_rows']} rows, "
+            f"{result['n_companies']} companies, default rate {result['default_rate']:.4f}"
+        ),
+        (
+            f"{'fold':>4} {'n_test':>8} {'AP levels':>10} {'AP +traj':>10} "
+            f"{'AUC levels':>11} {'AUC +traj':>10}"
+        ),
+    ]
+    for f in result["folds"]:
+        a, b = f["levels"], f["levels+traj"]
+        lines.append(
+            f"{f['fold']:>4} {f['n_test']:>8} {a['average_precision']:>10.4f} "
+            f"{b['average_precision']:>10.4f} {a['roc_auc']:>11.4f} {b['roc_auc']:>10.4f}"
+        )
+    return "\n".join(lines)
+
+
+def run_temporal_gbm(v4_root: str | None = None, max_rows: int | None = None, seed: int = 0) -> int:
+    """Run the temporal-GBM comparison in a subprocess and print both arms side by side.
+
+    Returns:
+        The subprocess exit status; the table is printed only on success.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        out = str(Path(tmp) / "temporal_gbm.json")
+        proc = subprocess.Popen(
+            temporal_gbm_command(v4_root, max_rows, seed, out),
+            stdout=subprocess.PIPE,
+            text=True,
+        )
+        assert proc.stdout is not None
+        for line in proc.stdout:  # stream the per-fold lines, skip the trailing JSON dump
+            if line.startswith("fold "):
+                print(line, end="", flush=True)
+        code = proc.wait()
+        if code != 0:
+            print(f"TEMPORAL GBM: FAILED with exit status {code}")
+            return code
+        print(format_temporal_gbm(json.loads(Path(out).read_text())))
+    return 0
+
+
 def main() -> None:
     """Run the credit-panel and OpenML benchmarks from the command line.
 
@@ -469,7 +552,16 @@ def main() -> None:
         help="with --time-split: subsample this many company-years",
     )
     p.add_argument("--v4-root", type=str, default=None, help="V4FinBench parquet directory")
+    p.add_argument(
+        "--temporal-gbm",
+        action="store_true",
+        help="LightGBM on levels vs levels+deltas+trends, run in a subprocess "
+        "(uses --v4-root, --max-rows, --seed); no checkpoint needed",
+    )
+    p.add_argument("--seed", type=int, default=0, help="with --temporal-gbm: LightGBM seed")
     args = p.parse_args()
+    if args.temporal_gbm:
+        raise SystemExit(run_temporal_gbm(args.v4_root, args.max_rows, args.seed))
     if args.credit:
         kwargs: dict = {"sample_efficiency": not args.no_sample_efficiency}
         if args.time_split:
