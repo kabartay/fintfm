@@ -1,7 +1,7 @@
 # TabBench v2: licence and published protocol
 
 Checked 2026-11-15. Nothing was run, and no dataset or checkpoint was downloaded. The only
-files fetched were the benchmark repository's `LICENSE`, `README.md`, `CHANGELOG.md`,
+files fetched were the benchmark repository's `LICENSE`, `README.md`, CHANGELOG file,
 `pyproject.toml`, its file tree, OpenML metadata records (descriptions, not data), and one PDF.
 
 Naming: `CLAUDE.md`'s no-commercial-peer-names rule covers this repository, so the benchmark's
@@ -15,7 +15,7 @@ repository link in `docs/results/FINDINGS.md` §134.
 A public suite of **189 OpenML classification datasets** (binary and multi-class), evaluated with
 5 stratified shuffle folds, 20% of rows held out per fold, ROC-AUC as the optimisation target and
 accuracy as a secondary metric (report §3.1, p. 10). The publisher announced v2 on 3 June 2026
-(blog post, not a technical report). The repository's own `CHANGELOG.md` has one entry (0.1.0,
+(blog post, not a technical report). The repository's own CHANGELOG file has one entry (0.1.0,
 2025-07-18) and the README never says "v2"; v2 exists only in the announcement and the report.
 
 **The proposal's "18 of 22" and "15 of 22" are not TabBench v2 figures.** They come from a
@@ -181,7 +181,7 @@ win 88.4% of the 189 datasets and the six non-TFM models 6.4% (p. 12). The annou
 
 ## Sources
 
-1. TabBench repository, files `LICENSE` (214 lines), `README.md`, `CHANGELOG.md`, `pyproject.toml`,
+1. TabBench repository, files `LICENSE` (214 lines), `README.md`, CHANGELOG file, `pyproject.toml`,
    and its git tree listing, fetched 2026-11-15. GitHub licence detection: `NOASSERTION`. Link:
    see `docs/results/FINDINGS.md` §134.
 2. OpenML dataset records (`/api/v1/json/data/<id>`, field `licence`), 251 ids, fetched 2026-11-15.

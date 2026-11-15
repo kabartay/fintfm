@@ -1,6 +1,6 @@
 # Tasks
 
-- [x] 6.1 **Done (2026-11-15, `docs/research/companies_house_source.md`, `docs/research/REFERENCES.md`).** Sources read and licence text recorded verbatim; the bulk products carry no formal licence (Companies House states it "imposes no rules or requirements" on register use, the Gazette is OGL v3.0), and cohort size, third-party copyright in filed accounts and dissolved-company handling are listed there as not established. Establish the data source. Check UK Companies House bulk products and API for
+- [ ] 6.1 **Progress (2026-11-15, reopened at merge): not closed, because the licence quotes below came through a fetch summariser, not the pages themselves (CLAUDE.md: a summary is a lead, not a citation); re-read each quote verbatim on its page, then close.** **Draft (2026-11-15, `docs/research/companies_house_source.md`, `docs/research/REFERENCES.md`).** Sources read and licence text recorded verbatim; the bulk products carry no formal licence (Companies House states it "imposes no rules or requirements" on register use, the Gazette is OGL v3.0), and cohort size, third-party copyright in filed accounts and dissolved-company handling are listed there as not established. Establish the data source. Check UK Companies House bulk products and API for
       accounts data, insolvency status and licence terms permitting commercial use. Verify:
       record the licence verbatim in `docs/research/REFERENCES.md`; do not proceed on a recalled
       licence. **The earlier check reached only the overview page and settled nothing.**

@@ -87,7 +87,7 @@ def test_context_sweep_comparisons_adjust_across_the_whole_family():
 
 
 def test_context_sweep_comparisons_skip_unscorable_horizons():
-    truth, tasks, curves = _panel(seed=2)
+    truth, _tasks, curves = _panel(seed=2)
     seen = np.ones(truth.shape, dtype=bool)
     seen[:, 1] = False  # horizon 1 never observed
     cs = {(100, "a", 0): curves["joint"], (100, "b", 0): curves["noise"]}

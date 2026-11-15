@@ -18,11 +18,11 @@ from fintfm.modeling.train import (
 from fintfm.prior import PriorConfig
 from fintfm.prior.mixture import sample_batch
 
-_MODEL = dict(
-    d_model=16, n_heads=2, n_layers=1, n_col_layers=1, d_ff=32, d_cell=8, max_features=8,
-    max_classes=2, n_cell_blocks=0, cell_labels=False, column_id_dim=None, pooling="meanmax",
-    n_horizons=4,
-)
+_MODEL = {
+    "d_model": 16, "n_heads": 2, "n_layers": 1, "n_col_layers": 1, "d_ff": 32, "d_cell": 8, "max_features": 8,
+    "max_classes": 2, "n_cell_blocks": 0, "cell_labels": False, "column_id_dim": None, "pooling": "meanmax",
+    "n_horizons": 4,
+}
 _PRIOR = PriorConfig(max_features=8, max_classes=2, p_financial=1.0, n_rows=48, n_horizons=4)
 
 

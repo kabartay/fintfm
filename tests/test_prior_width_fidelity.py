@@ -43,11 +43,13 @@ def test_rejection_lowers_held_out_auc_and_always_returns() -> None:
         np.random.default_rng(1), 400, max_features=20, max_lr_auc=0.5, max_lr_auc_tries=3
     )
     assert t.X.shape[0] == 400
-    aucs = [
-        _holdout_lr_auc(*(lambda k: (k.X, k.y))(sample_financial_task(
-            np.random.default_rng(s), 400, max_features=20, sharpness_min=3.0, sharpness_max=6.0)))
+    tasks = [
+        sample_financial_task(
+            np.random.default_rng(s), 400, max_features=20, sharpness_min=3.0, sharpness_max=6.0
+        )
         for s in range(6)
     ]
+    aucs = [_holdout_lr_auc(k.X, k.y) for k in tasks]
     scored = [a for a in aucs if a is not None]
     assert scored
     ceiling = float(np.median(scored))
