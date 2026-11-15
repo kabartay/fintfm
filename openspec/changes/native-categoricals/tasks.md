@@ -19,7 +19,7 @@
       **Done (§101):** mean 0.7642 to 0.7823; the numeric-only subset moved by exactly 0.0000
       on all eight datasets, and the gap-versus-log-cardinality correlation fell from -0.668
       to -0.025. Rank unchanged at 93 of 95.
-- [ ] 47.4 **Decide on a learned categorical path** from 47.3's result rather than in advance.
+- [x] 47.4 **Done (2026-11-15): no learned categorical path for now, `docs/design/DECISIONS.md` D21, from `FINDINGS` §101 (gap-versus-log-cardinality correlation -0.668 to -0.025; numeric-only subset +0.0000; gaps -0.0320/-0.0351/-0.0364/-0.0379 across buckets) and §204 (categorical share rho -0.07, p 0.74); reversal thresholds recorded in D21.** **Decide on a learned categorical path** from 47.3's result rather than in advance.
       Verify: the decision is recorded in `docs/design/DECISIONS.md` with the measured gain that
       triggered it and the threshold that would reverse it.
 - [x] 47.5 **Done (2026-11-11, `CategoricalTargetEncoder.unseen_level_fraction` in `src/fintfm/inference/categorical.py`; `scripts/categorical_unseen_report.py`; `tests/test_categorical.py::test_unseen_level_fraction_is_exact_per_column_and_in_total`, `::test_unseen_cells_are_exactly_the_cells_that_fall_back_to_the_prior`, `::test_unseen_level_fraction_does_not_change_transform_and_guards_edge_cases`; per-dataset table in `docs/results/drafts/47.5_2026-11-11.md`, measured on a seeded constructed split, not TabArena's fold; predictions unchanged).** **Handle the unseen-level case on real data specifically.** High-cardinality columns

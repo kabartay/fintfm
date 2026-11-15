@@ -872,3 +872,44 @@ checkpoint (the `mixed` one is under-trained, §16) changes the ordering.
 
 **Not yet measured:** the spread fields were added on 2026-11-08, so no existing result carries
 them except §13's 3-year panel table; re-run before quoting spread for any other panel.
+
+## D21 — No learned categorical path for now: the inference-time encoder left no cardinality axis (task 47.4)
+
+**Date:** 2026-11-15. **Status:** active. Closes `openspec/changes/native-categoricals` task 47.4,
+which required the learned-path decision to follow 47.3's measured result rather than precede it.
+
+**The measurement that decides it** (`FINDINGS` §101, MEASURED: 27 TabArena-Lite eligible datasets,
+one fold each, `v4-cellattn-labels.pt`, label encoding against out-of-fold smoothed target
+encoding): mean ROC-AUC 0.7642 to 0.7823 (+0.0181). The correlation between the per-dataset gap
+to tuned logistic regression and log maximum cardinality fell from -0.668 to -0.025. The eight
+numeric-only datasets moved by 0.0000, and the gap to tuned logistic regression is now
+-0.0320 (no categorical columns, n = 8), -0.0351 (categorical fraction up to 0.5, n = 10),
+-0.0364 (categorical fraction above 0.5, n = 9) and -0.0379 (maximum cardinality above 25, n = 5).
+A later, independent read of the newer Lite run (§204, 27 datasets, Spearman, two-sided, unadjusted)
+finds categorical share against the gap to tuned logistic regression at rho -0.07 (p 0.74).
+The leaderboard rank did not move in §101 (94th of 95 after the §225 correction).
+
+**Chose: do not change the architecture or the prior for categoricals.** The case for a learned
+path was that cardinality explained the deficit, and §101 removed that explanation: the
+categorical-heavy buckets sit 0.0031 to 0.0059 ROC-AUC below the numeric-only bucket (-0.0351,
+-0.0364 and -0.0379 against -0.0320), a spread that §101 describes as one near-flat number. A
+learned path would be retraining cost aimed at an axis on which the suite no longer varies, and
+the remaining ~0.035 deficit is one that the numeric-only datasets show without any categorical
+input at all. The inference-time encoder stays the categorical path.
+
+**Alternatives considered.** (1) A learned categorical embedding with a matching prior change:
+rejected on the grounds above; it would also spend a retrain before the residual is explained
+(§102, §204). (2) One-hot encoding: excluded in the change's non-goals (column cap). (3) Moving
+the encoder's smoothing weight: excluded in the non-goals, since TabArena is not a validation set.
+
+**Not claimed.** That the encoder is as good as a learned path would be; §101 shows only that no
+measured cardinality axis remains after it, on one fold per dataset. The categorical datasets did
+not reach parity with tuned logistic regression (-0.0894 before, -0.0364 after), and 34% of the
+§100 gap was recovered, not the 82% bound.
+
+**Reversed if** (thresholds proposed here, not derived from the data, and meant to be tightened if
+a measurement argues for it): a re-measurement of the whole eligible suite on a stronger checkpoint
+or with more than one fold per dataset shows either (a) the correlation of the per-dataset gap
+with log maximum cardinality at or below -0.4 again, or (b) the categorical-fraction-above-0.5
+bucket more than 0.02 ROC-AUC behind the numeric-only bucket. Either would reopen 47.4 as a
+costed change to `modeling/model.py` and the prior.
