@@ -45,6 +45,8 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from fintfm.evaluation.coverage import Coverage
+
 if TYPE_CHECKING:  # torch and the model are imported lazily inside each sweep
     from fintfm.modeling.model import FinancialTFM
 
@@ -1374,12 +1376,18 @@ def run(
         models["untrained_control"] = FinancialTFM(first.cfg)
 
     results: list[ProbeResult] = []
+    # Openspec 36.4: one unit per (probe, seed) cell, skipped when its test split is one class.
+    cov = Coverage()
     for probe in PROBES:
         arms: dict[str, list[float]] = {}
         for seed in seeds:
+            unit = f"{probe}/seed{seed}"
+            cov.attempt(unit)
             Xtr, ytr, Xte, yte = make_probe(probe, n_features=n_features, seed=seed)
             if len(np.unique(yte)) < 2:
+                cov.skip(unit, "single-class test split: AUC undefined")
                 continue
+            cov.scored(unit)
             for name, m in models.items():
                 clf = FinancialTFMClassifier(
                     m,
@@ -1419,6 +1427,7 @@ def run(
             "n_features": n_features,
         },
         "results": [asdict(r) for r in results],
+        "coverage": cov.to_dict(),
     }
     if bayes_targets:
         record["bayes_ceiling"] = {
@@ -1432,6 +1441,7 @@ def run(
         }
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "capability.json").write_text(json.dumps(record, indent=2))
+    print(cov.summary("probe-seed cells"))
     return record
 
 

@@ -203,3 +203,139 @@ def test_proxy_suite_frame_coverage_counts_a_single_class_split_as_skipped():
     _balanced(rec)
     assert (rec["n_attempted"], rec["n_scored"], rec["n_skipped"]) == (3, 1, 2)
     assert rec["skipped"]["1/split1/lr"] == "skipped: one class in the test split"
+
+
+def test_capability_counts_a_single_class_probe_split_as_skipped(monkeypatch, tmp_path, capsys):
+    from fintfm.experiments import capability
+
+    def fake_probe(probe, n_features=20, seed=0):
+        rng = np.random.default_rng(seed)
+        Xtr = rng.normal(size=(80, 3))
+        ytr = (Xtr[:, 0] > 0).astype(int)
+        Xte = rng.normal(size=(40, 3))
+        yte = (Xte[:, 0] > 0).astype(int)
+        if seed == 1:
+            yte = np.zeros(40, dtype=int)  # degenerate test split
+        return Xtr, ytr, Xte, yte
+
+    monkeypatch.setattr(capability, "PROBES", ("linear", "noise"))
+    monkeypatch.setattr(capability, "make_probe", fake_probe)
+    rec = capability.run({}, tmp_path, seeds=(0, 1, 2))
+    cov = rec["coverage"]
+    _balanced(cov)
+    assert (cov["n_attempted"], cov["n_scored"], cov["n_skipped"]) == (6, 4, 2)
+    assert "single-class" in cov["skipped"]["linear/seed1"]
+    assert "coverage: 4/6 probe-seed cells scored, 2 skipped" in capsys.readouterr().out
+    assert json.loads((tmp_path / "capability.json").read_text())["coverage"] == cov
+
+
+def test_prior_ablation_counts_a_too_wide_panel_as_skipped(monkeypatch):
+    from types import SimpleNamespace
+
+    from sklearn.linear_model import LogisticRegression
+
+    from fintfm.evaluation.datasets import CreditDataset
+    from fintfm.experiments import prior_ablation as pa
+
+    class _Stub:
+        def __init__(self, path, **kw):
+            self.lr = LogisticRegression(max_iter=200)
+
+        def fit(self, X, y):
+            self.lr.fit(X, y)
+            return self
+
+        def predict_proba(self, X):
+            return self.lr.predict_proba(X)
+
+    def panel(horizon):
+        d = 200 if horizon == 3 else 5  # horizon 3 is wider than the model
+        rng = np.random.default_rng(horizon)
+        X = rng.normal(size=(400, d)).astype(np.float32)
+        y = (X[:, 0] + rng.normal(size=400) > 1.0).astype(int)
+        return CreditDataset(X, y, f"synthetic-h{horizon}", horizon, "test", "synthetic")
+
+    narrow = SimpleNamespace(cfg=SimpleNamespace(max_features=64))
+    monkeypatch.setattr(pa.FinancialTFM, "load", staticmethod(lambda p: narrow))
+    monkeypatch.setattr(pa, "load_polish_bankruptcy", panel)
+    monkeypatch.setattr(pa, "FinancialTFMClassifier", _Stub)
+    cov = Coverage()
+    out = pa.evaluate_on_credit("x.pt", horizons=(1, 3, 5), coverage=cov)
+    rec = cov.to_dict()
+    _balanced(rec)
+    assert (rec["n_attempted"], rec["n_scored"], rec["n_skipped"]) == (6, 4, 2)
+    assert set(out) == {f"synthetic-h{h}/{s}" for h in (1, 5) for s in ("uniform", "balanced")}
+    assert "max_features >= 200" in rec["skipped"]["synthetic-h3/uniform"]
+
+
+def test_v4_protocol_counts_a_failed_booster_and_a_narrow_checkpoint_as_skipped(
+    tmp_path, monkeypatch, capsys
+):
+    from types import SimpleNamespace
+
+    from test_v4_protocol import _write_horizon
+
+    from fintfm.evaluation import boosting
+    from fintfm.experiments.v4_protocol import run
+    from fintfm.modeling.model import FinancialTFM
+
+    def fake_fit(name, Xtr, ytr, Xte, timeout=1800, params=None):
+        return None if name == "catboost" else np.linspace(0, 1, len(Xte))
+
+    monkeypatch.setattr(boosting, "fit_predict_boosting", fake_fit)
+    monkeypatch.setattr(boosting, "available_boosting", list)
+    _write_horizon(tmp_path)
+    rec = run(
+        None,
+        tmp_path / "out",
+        root=tmp_path,
+        classical=(),
+        folds=(0, 1),
+        booster_params=(("lightgbm", {"n_estimators": 5}), ("catboost", {})),
+    )
+    cov = rec["coverage"]
+    _balanced(cov)
+    assert (cov["n_attempted"], cov["n_scored"], cov["n_skipped"]) == (4, 2, 2)
+    assert cov["skipped"]["fold0/catboost"] == "booster returned no predictions"
+    assert "coverage: 2/4 fold-arm cells scored, 2 skipped" in capsys.readouterr().out
+    json.dumps(rec)
+
+    # a checkpoint narrower than the data is a recorded skip, not only a printed note
+    narrow = SimpleNamespace(cfg=SimpleNamespace(max_features=1))
+    monkeypatch.setattr(FinancialTFM, "load", staticmethod(lambda p: narrow))
+    monkeypatch.setattr("fintfm.provenance.sha256_file", lambda p: "0" * 64)
+    rec = run(
+        "narrow.pt",
+        tmp_path / "out2",
+        root=tmp_path,
+        classical=(),
+        with_boosting=False,
+        folds=(0,),
+    )
+    _balanced(rec["coverage"])
+    assert rec["coverage"]["n_skipped"] == 1
+    assert "checkpoint takes 1 features" in rec["coverage"]["skipped"]["fold0/fintfm"]
+
+
+def test_v4_out_of_time_counts_unscorable_horizons_as_skipped():
+    from fintfm.experiments.v4_out_of_time import arms_coverage, score_curve
+
+    rng = np.random.default_rng(0)
+    n, K = 400, 4
+    truth = (rng.random((n, K)) < 0.2).astype(int)
+    truth[:, 1] = 0  # single class at horizon 1
+    seen = np.ones((n, K), dtype=bool)
+    seen[:, 2] = False
+    seen[:5, 2] = True  # five observed rows at horizon 2, below the minimum
+    curve = rng.random((n, K))
+    curve[:, 3] = np.nan  # no model at horizon 3
+    arm = score_curve("a", curve, truth, seen, min_rows=50)
+    truth_ok = np.maximum(truth, (rng.random((n, K)) < 0.2).astype(int))
+    ok = score_curve("b", rng.random((n, K)), truth_ok, seen, 50)
+    rec = arms_coverage([arm, ok], 50).to_dict()
+    _balanced(rec)
+    assert rec["n_attempted"] == 8
+    assert "fewer than the minimum" in rec["skipped"]["a/h2"]
+    assert "single-class" in rec["skipped"]["a/h1"]
+    assert "NaN" in rec["skipped"]["a/h3"]
+    assert rec["n_scored"] >= 1 and rec["n_skipped"] >= 3

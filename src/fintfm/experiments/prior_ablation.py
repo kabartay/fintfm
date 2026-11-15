@@ -41,6 +41,7 @@ import numpy as np
 import torch
 from sklearn.model_selection import train_test_split
 
+from fintfm.evaluation.coverage import Coverage
 from fintfm.evaluation.datasets import CreditDataset, load_polish_bankruptcy
 from fintfm.evaluation.metrics import evaluate_binary, holm_bonferroni, paired_auc_difference
 from fintfm.inference.classifier import ContextStrategy, FinancialTFMClassifier
@@ -95,6 +96,7 @@ def evaluate_on_credit(
     horizons: tuple[int, ...] = (1, 3, 5),
     strategies: tuple[ContextStrategy, ...] = ("uniform", "balanced"),
     seed: int = 0,
+    coverage: Coverage | None = None,
 ) -> dict[str, dict]:
     """Score one checkpoint on the real corporate-default panels.
 
@@ -103,6 +105,9 @@ def evaluate_on_credit(
         horizons: Bankruptcy forecast horizons, in years.
         strategies: Context-construction strategies to try.
         seed: Split seed, identical across variants so the comparison is paired.
+        coverage: Optional :class:`~fintfm.evaluation.coverage.Coverage` to fill, one unit per
+            ``"<dataset>/<strategy>"`` cell (skipped when the panel is wider than the model),
+            so the caller can put ``coverage.to_dict()`` in its JSON.
 
     Returns:
         Mapping of ``"<dataset>/<strategy>"`` to a :class:`CreditMetrics` as a dict. A panel
@@ -111,6 +116,7 @@ def evaluate_on_credit(
         results for every other.
     """
     out: dict[str, dict] = {}
+    cov = coverage if coverage is not None else Coverage()
     cfg = FinancialTFM.load(model_path).cfg
     for horizon in horizons:
         ds = load_polish_bankruptcy(horizon)
@@ -119,11 +125,16 @@ def evaluate_on_credit(
                 f"    skipping {ds.name}: needs max_features >= {ds.X.shape[1]}, "
                 f"model has {cfg.max_features}"
             )
+            reason = f"panel needs max_features >= {ds.X.shape[1]}, model has {cfg.max_features}"
+            for strategy in strategies:
+                cov.attempt(f"{ds.name}/{strategy}")
+                cov.skip(f"{ds.name}/{strategy}", reason)
             continue
         X_train, X_test, y_train, y_test = train_test_split(
             ds.X, ds.y, test_size=0.3, random_state=seed, stratify=ds.y
         )
         for strategy in strategies:
+            cov.attempt(f"{ds.name}/{strategy}")
             clf = FinancialTFMClassifier(model_path, context_strategy=strategy).fit(
                 X_train, y_train
             )
@@ -135,6 +146,7 @@ def evaluate_on_credit(
             cell["_y_true"] = y_test.tolist()
             cell["_proba"] = proba.tolist()
             out[f"{ds.name}/{strategy}"] = cell
+            cov.scored(f"{ds.name}/{strategy}")
     return out
 
 
@@ -220,6 +232,7 @@ def run_ablation(
         model = train(model_cfg, prior_cfg, train_cfg, str(ckpt))
         elapsed = time.time() - started
 
+        cov = Coverage()
         result = VariantResult(
             name=name,
             p_financial=p_financial,
@@ -227,9 +240,13 @@ def run_ablation(
             train_seconds=elapsed,
             final_loss=float("nan"),
             steps=variant_steps,
-            metrics=evaluate_on_credit(str(ckpt), horizons=horizons, seed=seed),
+            metrics=evaluate_on_credit(str(ckpt), horizons=horizons, seed=seed, coverage=cov),
         )
         record["variants"][name] = asdict(result)
+        if horizons:
+            # Openspec 36.4: a mean over the panels that happened to fit flatters a narrow model.
+            record["variants"][name]["coverage"] = cov.to_dict()
+            print(f"  {name}: {cov.summary('credit cells')}")
 
     sizes = {v["n_parameters"] for v in record["variants"].values()}
     if len(sizes) > 1:
