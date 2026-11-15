@@ -15700,3 +15700,33 @@ either, which removes the context-size premise for building an adapter (the adap
 stays as an option). It does not test adaptation to domain shift, which is 16.3's question.
 Limits: two seeds, no interval on the size effect itself (the bootstrap compares strategies), and
 the grid stops at 2,000 rows.
+
+## §252: what §74's cap needs, from existing checkpoints: the cell block with labels closes it, labels are necessary, all-pairs row attention is not (task 44.2)
+
+**MEASURED, CPU inference on existing checkpoints, synthetic probes, 2026-11-15.**
+`scripts/diag_44_2_ingredients.py` (about 45 minutes): capability's antisymmetric probe (3 seeds)
+and the Bayes-ceiling probe at ceilings 0.9 and 0.999 (3 task draws, `n_ensemble` 4; the published
+convention is 10 draws at `n_ensemble` 8, so these carry more draw noise). Draft and raw output:
+`docs/results/drafts/44.2_2026-11-15.md` and `_data.json`.
+
+| checkpoint (48,000 tasks unless noted) | ingredient | antisymmetric AUC | Bayes 0.9 AUC (regret) |
+| --- | --- | --- | --- |
+| pub-s0 | cell block, labels on | 0.9936 | 0.8985 (0.0015) |
+| nocell-s0 | `n_cell_blocks=0`, otherwise matched | 0.5929 | 0.6882 (0.2117) |
+| dr62-induced-s0 | 64 inducing points instead of all-pairs row attention | 0.9910 | 0.8934 (0.0066) |
+| labelled, seeds 0 / 1 (§91, §142) | labels on | 0.994 / 0.989 | 0.8996 / 0.8994 |
+| unlabelled, seeds 0 / 1 (§91, §142) | labels off | 0.641 / 0.659 | 0.4549 / 0.4597 |
+
+**What it says (synthetic probes only).**
+- At matched protocol the labelled cell block closes §74's capacity cap: regret 0.0015 against
+  0.2117 without it, antisymmetric 0.9936 against 0.5929. The cell-free arm shows §74's signature
+  (symmetric_sum 0.993, antisymmetric 0.59). This extends §172's V4FinBench result to the probes
+  44.2 names.
+- Labels are necessary at both seeds: the unlabelled block scores below having no cell block at all
+  (Bayes 0.9: 0.455 against 0.688), consistent with §250 (it never learns to use the context).
+- All-pairs N x N row attention is not what the cap needs: 64 inducing points over the labelled
+  context keep most of it (regret 0.0066 against 0.0015; both far below 0.21). §178 found no
+  V4FinBench gain for inducing points, so this is not a real-data claim.
+- Not established: whether a factorized or non-attentional column summary suffices (no checkpoint;
+  the factorized training pair is prepared as `ts_445_factorized_s0`/`ts_445_ctrl_s0`, task 44.5),
+  and column-within-row attention alone. The one-ingredient pairs other than labels are single seed.
