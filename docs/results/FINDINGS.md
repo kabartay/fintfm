@@ -15339,3 +15339,40 @@ RMSE 11.4% lower.** RMSE, raw only against representation + raw:
   worth testing (the 20-class checkpoint, queued), and any gain from it is read against this
   control too.
 - The raw-only arm is a control, not a FinTFM entry, and is not merged.
+
+## §241: 48.24 falsified: the majority-downsampled 4,000-row context moves V4FinBench by +0.0041 mean AP, above the yardstick on 2 of 5 folds
+
+**MEASURED, V4FinBench published protocol, five folds, CPU, 2026-11-15.** Arm `runs/4824/maj4000`
+(published checkpoint `v4-cellattn-labels.pt`, `configs/arms/48.24-majority-downsample.yaml`:
+every positive in the context plus a uniform draw of negatives up to `max_context` 4,000; run
+2026-11-11, 1,367 min, peak RSS 13.9 GB). Control `runs/lrsweep/eval-published` (uniform,
+2,000 rows). Company-clustered comparisons with `scripts/compare_v4_scores.py --cluster`;
+outputs `runs/4824/cmp_vs_published.txt` plus the prototype comparisons in this entry.
+
+| fold | default AP | maj4000 AP | diff | Holm p (companies) | prototype AP | maj4000 − prototype |
+| --- | --- | --- | --- | --- | --- | --- |
+| 0 | 0.2113 | 0.2043 | −0.0070 | 0.368 | 0.2073 | −0.0030 |
+| 1 | 0.2050 | 0.1761 | −0.0289 | 0.002 | 0.1727 | +0.0034 |
+| 2 | 0.1786 | 0.2021 | +0.0236 | 0.009 | 0.1939 | +0.0082 |
+| 3 | 0.1810 | 0.2151 | +0.0341 | 0.002 | 0.2138 | +0.0013 |
+| 4 | 0.2172 | 0.2159 | −0.0013 | 0.874 | 0.2065 | +0.0094 |
+| mean | 0.1986 | 0.2027 | +0.0041 | | 0.1988 | +0.0039 |
+
+**Verdict against 48.24's pre-registered rule: falsified.** The arm clears §173's 0.0117 against the
+default on 2 of 5 folds (the rule needs 4), with significant moves both ways (fold 1 down,
+folds 2 and 3 up), the same fold pattern as AU4.2's prototype arm (+0.0002, §AU4.2 table) and
+§200's floor arm. Against the best existing context arm it is also short: §200's `dr33-floor16`
+scored +0.0055 mean AP against its same-day control (not paired with this run).
+
+**Two things the run cannot say.**
+- **Size is confounded.** The arm doubles the context to 4,000 rows; the pre-registered 4,000-row
+  uniform size control (`runs/4824/uni4000`) was never produced (the directory is empty). So the
+  +0.0041 cannot be split into "every positive" and "more rows". The verdict does not need the
+  split: the arm fails the rule as a whole.
+- **No paired floor arm.** AU4.2's floor half exists only as §200's run, scored against a
+  different control, so "not below the best context arm" is read from means, not pairs.
+
+Against the prototype arm, maj4000 is higher on 4 of 5 folds (+0.0039 mean, two folds significant):
+a consistent but small difference between two context rules, both null against the default.
+The prediction in `docs/results/drafts/48.24_2026-11.md` (null or negative) holds. No default
+changes; `context_positive_floor` stays opt-in.
