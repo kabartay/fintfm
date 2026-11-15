@@ -5,7 +5,14 @@
       only the abstract has been read.
 - [ ] 12.2 Establish the baseline to beat: SHAP over gradient boosting on the UCI panels,
       including runtime. Verify: numbers into `docs/results/FINDINGS.md`, re-derived from the run.
-- [ ] 12.3 Emit ground-truth attributions from `prior/financial.py`, which knows the true
+- [x] 12.3 **Done (2026-11-15): `sample_financial_task(return_attributions=True)` adds
+      `meta["attribution"]` (one float per column of X, after the column permutation) and
+      `meta["attribution_scope"]`. It is a global per-task importance true to the generator,
+      not a per-row or per-model explanation: mean absolute change in the sharpness-scaled
+      logit when a driver quantity is rotated across rows. Non-driver columns, including
+      correlated ones and copies, are zero; a gate column is not attributed. Draws no random
+      number, X and y byte-identical to the default. `tests/test_prior_attribution.py`.**
+      Emit ground-truth attributions from `prior/financial.py`, which knows the true
       driver weights. Verify: a test that a feature with zero weight receives near-zero
       attribution.
 - [ ] 12.4 Add an attribution head and train it jointly. Verify: agreement with SHAP-on-GBM

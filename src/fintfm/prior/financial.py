@@ -30,6 +30,8 @@ re-measure it after any change here, and treat a loss as a regression.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import numpy as np
 
 from fintfm.prior.base import Task
@@ -551,6 +553,118 @@ def _sample_survival(
     return period, any_default.astype(np.int64)
 
 
+#: Driver quantity each exposed column name carries in the label (see
+#: :func:`_column_attributions`); the value is the driver's row in the driver matrix, or
+#: ``"sector"``. ``leverage`` is also the raw term of the rate effect.
+_ATTRIBUTION_DRIVER = {
+    "leverage": 0, "coverage": 1, "margin": 2, "cash_ratio": 3, "current_ratio": 4,
+    "growth": 5, "payment_delay": 6, "age": 7, "log_assets": 8, "assets": 8, "sector": "sector",
+}
+#: Driver columns computed from the true accounts, which ``identity_shuffle`` decouples.
+_ATTRIBUTION_FROM_ACCOUNTS = frozenset(
+    {"leverage", "coverage", "margin", "cash_ratio", "current_ratio", "age", "log_assets",
+     "assets"}
+)
+
+
+def _rotation_attribution(
+    score: Callable[[dict[str, np.ndarray]], np.ndarray],
+    inputs: dict[str, np.ndarray],
+    groups: dict[str, list[str]],
+    scale: float,
+) -> dict[str, float]:
+    """Mean absolute score change when a group of inputs is taken from another row.
+
+    Args:
+        score: Maps the inputs (name to ``(n,)`` array) to the ``(n,)`` score.
+        inputs: The generator's true inputs.
+        groups: Attribution name to the input names that move together (one quantity that
+            enters the score in more than one place).
+        scale: Multiplier from the raw score to the score scale being reported.
+
+    Returns:
+        Attribution name to ``scale * mean |score(original) - score(group rotated)|``. The
+        rotation is by half the rows, so it needs no random number; ``0.0`` throughout when
+        there is a single row.
+    """
+    base = score(inputs)
+    n = base.shape[0]
+    out: dict[str, float] = {}
+    for name, keys in groups.items():
+        if n < 2:
+            out[name] = 0.0
+            continue
+        moved = dict(inputs)
+        for key in keys:
+            moved[key] = np.roll(inputs[key], n // 2, axis=0)
+        out[name] = float(scale * np.mean(np.abs(score(moved) - base)))
+    return out
+
+
+def _column_attributions(
+    names: list[str],
+    drivers: np.ndarray,
+    w: np.ndarray,
+    leverage: np.ndarray,
+    sector: np.ndarray,
+    sector_hazard: np.ndarray,
+    sector_cyclicality: np.ndarray,
+    cycle_term: float,
+    rate_term: float,
+    nonlinear: tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray] | None,
+    scale: float,
+    identity_shuffle: bool,
+) -> list[float]:
+    """Ground-truth attribution of each exposed column; see ``return_attributions``.
+
+    Rebuilds the generator's raw distress from the values it used, without drawing, and
+    rotates each driver quantity in turn (:func:`_rotation_attribution`).
+
+    Args:
+        names: Final column names, in ``X``'s column order.
+        drivers: ``(n, 9)`` standardised drivers.
+        w: ``(9,)`` signed driver weights.
+        leverage: ``(n,)`` raw leverage of the rate term.
+        sector: ``(n,)`` sector index.
+        sector_hazard: Per-sector hazard offset.
+        sector_cyclicality: Per-sector cyclicality.
+        cycle_term: ``cycle * (drawn cycle scale)``.
+        rate_term: ``rate * (drawn rate scale)``, the coefficient on ``leverage``.
+        nonlinear: ``(indices, A, b, c)`` of the tanh interaction, or ``None``.
+        scale: ``sharpness / std(raw distress)``.
+        identity_shuffle: Whether account-derived columns were decoupled from the label.
+
+    Returns:
+        One float per name: the attribution of the driver quantity the column is, else 0.0.
+    """
+    n_drv = drivers.shape[1]
+    inputs = {f"d{k}": drivers[:, k] for k in range(n_drv)}
+    inputs["lev"], inputs["sector"] = leverage, sector
+
+    def score(v: dict[str, np.ndarray]) -> np.ndarray:
+        """Raw distress from the (possibly rotated) inputs, as the generator forms it."""
+        d = np.stack([v[f"d{k}"] for k in range(n_drv)], axis=1)
+        out = d @ w + sector_hazard[v["sector"]] - cycle_term * sector_cyclicality[v["sector"]]
+        out = out + rate_term * v["lev"]
+        if nonlinear is not None:
+            idx, a, b, c = nonlinear
+            out = out + np.tanh(d[:, idx] @ a + b) @ c
+        return out
+
+    groups: dict[str, list[str]] = {str(k): [f"d{k}"] for k in range(n_drv)}
+    groups["0"] = ["d0", "lev"]
+    groups["sector"] = ["sector"]
+    by_driver = _rotation_attribution(score, inputs, groups, scale)
+    out: list[float] = []
+    for name in names:
+        key = _ATTRIBUTION_DRIVER.get(name)
+        if key is None or (identity_shuffle and name in _ATTRIBUTION_FROM_ACCOUNTS):
+            out.append(0.0)
+        else:
+            out.append(by_driver[str(key)])
+    return out
+
+
 def sample_financial_task(
     rng: np.random.Generator,
     n_rows: int,
@@ -574,6 +688,7 @@ def sample_financial_task(
     gate_share_range: tuple[float, float] = _GATE_SHARE_RANGE,
     gate_leak_range: tuple[float, float] = _GATE_LEAK_RANGE,
     sign_flip_prob: float = 0.0,
+    return_attributions: bool = False,
 ) -> Task:
     """Sample one synthetic corporate-default classification task.
 
@@ -663,6 +778,43 @@ def sample_financial_task(
             the column permutation, so the task is exactly the ``0.0`` task with some
             columns negated. ``0.0`` (default) consumes no draw and reproduces every
             checkpoint's tasks; any other value attaches ``meta`` with a ``flipped`` mask.
+        return_attributions: Opt-in ground-truth attributions (task 12.3 of
+            ``zero-shot-attribution``). ``False`` (default) changes nothing. ``True`` adds
+            ``meta["attribution"]``, a list with one float per exposed column, in the final
+            (permuted) column order of ``X``, and ``meta["attribution_scope"]``. It draws no
+            random number and alters no other output, so ``X`` and ``y`` are byte-identical
+            to the ``False`` task for the same generator state.
+
+            **What "ground truth" means here.** It is a *global, per-task* importance, not a
+            per-row explanation, and it is true to the **data-generating process**, not to
+            any fitted model. The label is drawn from a logit that is a function of nine
+            standardised driver quantities (leverage, coverage, margin, cash ratio, current
+            ratio, growth, payment delay, age, log assets), the sector, and a raw leverage
+            term, plus a random tanh interaction over a few drivers. The attribution of a
+            quantity is the mean absolute change in that logit, in logit units on the scale
+            of the final ``sharpness``-scaled score (before the base-rate intercept), when
+            the quantity's values are replaced by those of another row (a fixed half-length
+            row rotation, so no random number is used) with everything else held; for
+            ``leverage`` both places it enters move together. Because that is an interventional
+            effect of the generator's inputs, it includes the interaction term, so it is not
+            just ``|weight|``.
+
+            Mapping to columns, and its limits. Only columns that *are* a driver quantity
+            carry it: ``leverage``, ``coverage``, ``margin``, ``cash_ratio``, ``current_ratio``,
+            ``growth``, ``payment_delay``, ``age``, ``log_assets`` and ``assets`` (the last two
+            are the same quantity, so each gets the full value and attributions are not
+            additive across columns) and ``sector``. Monotone transforms, noise added to the
+            column, discretisation, sign flips and missingness do not change a column's
+            attribution. Every other column is **zero**, including ones that are
+            correlated with a driver (debt, equity, the derived ratios) and
+            ``redundant:``/``block:`` copies, because the label is a function of the driver
+            quantity and not of its copies; this is a statement about the generator, so a
+            model may legitimately lean on a correlated column. Under ``identity_shuffle``
+            the account-derived driver columns are decoupled from the label and are zero.
+            Not included: the gate of a gated task (the gate column is zero and
+            ``attribution_scope`` says ``"distress_score"``), the survival head, and
+            ``label_noise_rate`` flips. With ``n_horizons`` the score is the one the hazard
+            uses.
 
     Returns:
         A binary :class:`Task` whose columns are a random subset of financial quantities with
@@ -766,14 +918,21 @@ def sample_financial_task(
     w = np.abs(rng.normal(1.0, 0.5, size=drivers.shape[1])) * rng.uniform(0.3, 1.0, drivers.shape[1])
     w = w * rng.choice([-1.0, 1.0], size=drivers.shape[1])
     distress = drivers @ w
-    distress += sector_hazard[sector] - cycle * sector_cyclicality[sector] * rng.uniform(0.2, 1.0)
-    distress += rate * rng.uniform(5, 25) * leverage
+    cycle_scale = rng.uniform(0.2, 1.0)
+    distress += sector_hazard[sector] - cycle * sector_cyclicality[sector] * cycle_scale
+    rate_scale = rng.uniform(5, 25)
+    distress += rate * rate_scale * leverage
+    nonlinear: tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray] | None = None
     # random nonlinearity so the boundary is not purely additive
     if rng.random() < 0.7:
         k = int(rng.integers(2, 5))
         idx = rng.choice(drivers.shape[1], size=k, replace=False)
-        hidden = np.tanh(drivers[:, idx] @ rng.normal(0, 1, size=(k, 4)) + rng.normal(0, 0.5, 4))
-        distress += hidden @ rng.normal(0, 1.0, size=4)
+        hid_a = rng.normal(0, 1, size=(k, 4))
+        hid_b = rng.normal(0, 0.5, 4)
+        hidden = np.tanh(drivers[:, idx] @ hid_a + hid_b)
+        hid_c = rng.normal(0, 1.0, size=4)
+        distress += hidden @ hid_c
+        nonlinear = (idx, hid_a, hid_b, hid_c)
     # Sharpness = how deterministic default is given fundamentals. Lower means a larger
     # idiosyncratic component, which is economically right: management quality, fraud,
     # litigation and customer concentration drive real defaults and appear in no ratio.
@@ -797,6 +956,7 @@ def sample_financial_task(
     # difficulty of the *deployment* distribution is a property of the evaluation and of the
     # macro/base-rate sampling, not something to enforce on every training task.
     sharpness = float(np.exp(rng.uniform(np.log(sharpness_min), np.log(sharpness_max))))
+    raw_std = float(distress.std())
     distress = z(distress) * sharpness
     # Base rate range, and why the floor is not a constant.
     #
@@ -1015,8 +1175,16 @@ def sample_financial_task(
     names_out = [col_names[i] for i in perm]
     meta: dict | None = (
         {"gate": gate_info, "columns": names_out}
-        if gate_prob > 0.0 or sign_flip_prob > 0.0 else None
+        if gate_prob > 0.0 or sign_flip_prob > 0.0 or return_attributions else None
     )
+    if return_attributions:
+        assert meta is not None
+        meta["attribution"] = _column_attributions(
+            names_out, drivers, w, leverage, sector, sector_hazard, sector_cyclicality,
+            cycle * cycle_scale, rate * rate_scale, nonlinear,
+            sharpness / (raw_std if raw_std > 1e-9 else 1.0), identity_shuffle,
+        )
+        meta["attribution_scope"] = "distress_score" if gate_info is not None else "label"
     if sign_flip_prob > 0.0:
         # DR2.2: a per-task sign on each ratio, drawn after everything else so the label,
         # gate and NaN pattern are the unflipped task's; see ``sign_flip_prob`` above
