@@ -1,6 +1,6 @@
 # Tasks
 
-- [ ] 36.1 **Validate §42's prior fix.** Run `fintfm-capability` on the fixed-prior checkpoint
+- [x] 36.1 **Done (2026-11-15, evidence): FINDINGS §44 records the `fintfm-capability` table for the fixed prior against the old prior and the untrained control: `linear` 0.685 / 0.684 / 0.367 and `conjunction` 0.692 / 0.695 / 0.298, so the trained model clears the control by 0.318 and 0.394 AUC on the two probes. The same section records that the fix itself changed nothing (0.685 against 0.684) and that the control sits below chance, so the margin is partly a floor artefact (§44, "Untrained control at 0.367 is itself a finding"); the later checkpoints re-run the suite in §46 (`linear` 0.712, `conjunction` 0.693, control 0.357 / 0.351) and §141 (six structured probes clear the control floor, `linear` 0.973, `conjunction` 0.971).** **Validate §42's prior fix.** Run `fintfm-capability` on the fixed-prior checkpoint
       against the old one and the untrained control. Verify: the trained model clears the
       untrained control by a wide margin on `linear` and `conjunction`, recorded as a finding.
       **This gates everything below** — the fix is currently believed rather than shown.
@@ -14,7 +14,7 @@
       Implementation kept as a diagnostic: a checkpoint whose score survives label-swap
       averaging has signal in the evidence rather than in the labelling. Revisit once one
       does.
-- [ ] 36.3 **In-context scaling to larger tables**, following TabICL. §33 measured our model
+- [ ] 36.3 **Progress (2026-11-15): the costing and one measured arm exist; the verdict does not. The cost is in `docs/infra/COMPUTE.md` (2,048-row tasks 32x per step, 4,096-row tasks 500x, lines 189-190, cited in FINDINGS §31). AU5.4 pretrained with `--n-rows-choices 256,512,1024,2223` (contexts to 2,000 rows) at 48,000 tasks and scored V4FinBench: -0.0042 mean AP, 1 of 5 folds up, null (FINDINGS §211, table row AU5.4). Missing: a run whose context goes past 2,000 rows or at larger task volume, so whether the ceiling is architectural or a pretraining-length effect is not settled.** **In-context scaling to larger tables**, following TabICL. §33 measured our model
       degrading past 2,000 context rows, and §31 traced the ceiling to pretraining on
       256-1,024-row tasks. Verify: whether pretraining on larger tasks lifts the ceiling, or
       whether the limit is architectural — `docs/infra/COMPUTE.md` prices 2,048-row tasks at 32× per

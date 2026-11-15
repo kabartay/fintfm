@@ -1,6 +1,6 @@
 # Tasks
 
-- [ ] 16.1 Repeat §23's context sweep on a **corporate** panel (V4FinBench, UCI). Verify:
+- [ ] 16.1 **Progress (2026-11-15): the V4FinBench half is recorded, the UCI half and the verdict are not. FINDINGS §162 sweeps context size on V4FinBench (fold 0 at the 200k development cap: 250 rows 0.1977, 500 0.2215, 750 0.2045, 900 0.1739, 1,000 0.1795, 2,000 0.1392 AP) and its five-fold full-panel confirmation (500 rows at 1 and 8 members against the 2,000-row default: mean AP change -0.0404 and -0.0029) shows no gain from changing the context. Missing: the sweep on a UCI corporate panel (Polish, Taiwan), the sweep in AUC as §23 reported it, and the explicit decision on whether the change should close.** Repeat §23's context sweep on a **corporate** panel (V4FinBench, UCI). Verify:
       numbers into `docs/results/FINDINGS.md`. **If AUC is flat there too, this whole change is
       solving a non-problem and should be closed rather than built.**
 - [ ] 16.2 Implement a low-rank adapter over the frozen base model, training only the adapter
@@ -13,7 +13,7 @@
 - [x] 16.5 **Done (2026-11-15): recorded as P5 in `openspec/specs/pretraining-provenance/spec.md`, with a scenario: adapters and fine-tuned weights trained on a lender's or any real data are a separate artefact that inherits the FinTFM-R side of the provenance table, never the synthetic-only claim; the base checkpoint's claim is unchanged; adapters are per-lender and never merged into a shipped base model. Gap, not implemented here: no code records real-data fine-tuning in a checkpoint. `_training_provenance` (`modeling/train.py`) records `source_shares` (so `p_real_edgar` shows real EDGAR pretraining) and `init_from` (path, SHA-256, tasks seen) for continued pretraining, and `FinancialTFMClassifier(finetune_steps=N)` fine-tunes a copy in memory with no saved provenance. P5 is therefore enforced by review and the 16.2 frozen-base test, not by a checkpoint field.** Record the provenance rule in `openspec/specs/pretraining-provenance`: adapters are
       per-lender, never merged into a shipped base model. Verify:
       `uv run python openspec/tools/validate.py` passes.
-- [ ] 16.6 **Score §164's pre-registered fine-tuning arms and write the verdicts into §164.**
+- [x] 16.6 **Done (2026-11-15, evidence): FINDINGS §164 holds the verdicts. Seed gap `S1` against §163's arm: per-fold differences +0.0004 / -0.0013 / -0.0003 / -0.0013 / -0.0000, mean absolute 0.0007, gap of means 0.0005. §163 does not replicate under its own rule (S1 +0.0071 against a +0.0073 bar, 5 of 5 folds positive). `EN` +0.0009 and `L600` +0.0024, each 3 of 5 folds positive, both no different, with the device gap measured by the GPU re-run of §163's setting at +0.0001 mean AP, so neither GPU verdict is provisional. The three pre-registered predictions are left unedited.** **Score §164's pre-registered fine-tuning arms and write the verdicts into §164.**
       Full fine-tuning of a copy (`finetune_steps`, 0.7.0, D18) is the measured stand-in for
       this change's adapter: §163 raised mean AP 0.1986 → 0.2062 on five full-panel V4FinBench
       folds at one fine-tuning seed. §164 pre-registered three arms from §163's setting: `S1`
