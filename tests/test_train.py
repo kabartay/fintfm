@@ -616,6 +616,27 @@ def test_bf16_hazard_training_smoke_runs_with_finite_loss(tmp_path):
         assert torch.isfinite(loss) and loss.dtype == torch.float32
 
 
+def test_hazard_period_context_trains_three_cpu_steps(tmp_path):
+    """31.3 SMOKE-TEST: three CPU steps through the real :func:`train` with the period-label
+    embedding on; the period table moves off its zero init and every parameter stays finite.
+    Says nothing about quality."""
+    from fintfm.modeling.train import TrainConfig, train
+
+    prior_cfg = PriorConfig(max_features=8, max_classes=2, p_financial=1.0, n_rows=48, n_horizons=4)
+    cfg = ModelConfig(
+        **{**_TINY_RICH, "cell_labels": False, "n_horizons": 4, "hazard_period_context": True}
+    )
+    model = train(
+        cfg,
+        prior_cfg,
+        TrainConfig(steps=3, batch_size=2, eval_every=2, log_every=1000, seed=0),
+        str(tmp_path / "p.pt"),
+    )
+    assert model.cfg.hazard_period_context and model.period_embed.num_embeddings == 5
+    assert all(torch.isfinite(p).all() for p in model.parameters())
+    assert model.period_embed.weight.abs().sum() > 0
+
+
 def test_amp_refuses_an_unknown_mode_fp16_off_cuda_and_mps():
     from fintfm.modeling.model import FinancialTFM
     from fintfm.modeling.train import _autocast

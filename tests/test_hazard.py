@@ -692,3 +692,47 @@ def test_hazard_head_float32_path_is_unchanged_without_autocast():
     h = torch.randn(32, 8)
     old = torch.sigmoid(head.proj(h)).clamp(1e-7, head.max_hazard)
     assert torch.equal(head.hazards(h), old)
+
+
+# --- 31.3: the K + 1 state period label, and the row-order guarantee it must keep ---
+
+
+def test_period_label_indices_cover_the_k_plus_one_states_including_censored():
+    """Index 0 is the censored (no-event) state and ``p + 1`` a default in period ``p``, so a
+    model with K horizons reads K + 1 distinct states, each with its own embedding row."""
+    _off, on, _X, _y, _period = _period_models()
+    k = on.cfg.n_horizons
+    assert on.period_embed.num_embeddings == k + 1
+    seen: list[torch.Tensor] = []
+    real = on.period_embed.forward
+
+    def spy(idx: torch.Tensor) -> torch.Tensor:
+        seen.append(idx)
+        return real(idx)
+
+    on.period_embed.forward = spy  # type: ignore[method-assign]
+    states = torch.tensor([CENSORED, *range(k)]).repeat(2, 2)  # (2, 2(K+1))
+    n = states.shape[1]
+    Xs = torch.randn(2, n + 3, 6)
+    ys = torch.cat([(states != CENSORED).long(), torch.zeros(2, 3, dtype=torch.long)], dim=1)
+    ps = torch.cat([states, torch.full((2, 3), CENSORED)], dim=1)
+    with torch.no_grad():
+        on.term_structure(Xs, ys, n, period=ps)
+        # out-of-range periods clamp into the grid rather than indexing past it
+        on.term_structure(Xs, ys, n, period=ps + 7 * (ps != CENSORED))
+    assert set(seen[0].unique().tolist()) == set(range(k + 1))
+    assert int(seen[1].max()) == k and int(seen[1].min()) == 0
+
+
+def test_period_context_term_structure_is_invariant_to_context_row_order():
+    """Permuting context rows (labels and periods with them) leaves every query curve
+    unchanged: the period embedding is per-row and adds no positional information."""
+    _off, on, X, y, period = _period_models()
+    with torch.no_grad():
+        on.period_embed.weight.normal_()
+        n_ctx = 9
+        base = on.term_structure(X, y, n_ctx, period=period)
+        perm = torch.randperm(n_ctx, generator=torch.Generator().manual_seed(3))
+        idx = torch.cat([perm, torch.arange(n_ctx, X.shape[1])])
+        out = on.term_structure(X[:, idx], y[:, idx], n_ctx, period=period[:, idx])
+    torch.testing.assert_close(out, base, rtol=1e-4, atol=1e-5)
