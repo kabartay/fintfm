@@ -1,10 +1,10 @@
 # Tasks
 
-- [ ] 14.1 Add Platt- and isotonic-calibrated gradient boosting arms to the probe, fitted on a
+- [x] 14.1 **Done (2026-11-15, evidence): already closed under the same ID further down this file (`FINDINGS` §16, 2026-09-08). §16 reports four arms (fintfm, gradient boosting raw, Platt, isotonic) and §12 carries the pointer that tempers its 11.7x ratio to about 2x. Caveat: §16 calibrated by `CalibratedClassifierCV(cv=3)` cross-fitting on the training data, not a single held-out slice; the held-out-slice arms exist in code but are unrun (`sample-efficiency-regime` 13.7).** Add Platt- and isotonic-calibrated gradient boosting arms to the probe, fitted on a
       validation split carved from the training data. Verify: the probe reports four arms and
       `docs/results/FINDINGS.md` §12 is updated with the ratio against the calibrated one, re-derived
       from the run.
-- [ ] 14.2 Compare financial versus generic prior on ECE at matched compute, using the Phase 1
+- [x] 14.2 **Done (2026-11-15, evidence): already closed under the same ID further down this file; `FINDINGS` §13 poses the discriminating test and §14/§15 report generic against financial prior ECE and conclude calibration tracks prior breadth, not the financial prior.** Compare financial versus generic prior on ECE at matched compute, using the Phase 1
       checkpoints. Verify: numbers into `docs/results/FINDINGS.md` §13's discriminating-test section,
       stating plainly whether calibration is domain-specific or generic to PFNs.
 - [x] 14.3 **Done (2026-11-15): the 2026-11-08 note below claimed a test that was never committed; it now exists. `spread_fields()` in `src/fintfm/evaluation/metrics.py` is the shared helper (wraps `prediction_spread()`); it now also feeds `hybrid_catboost._metrics` and `credit_suite.score_row` (new `COLUMNS` appended, printed lines too). Tests in `tests/test_metrics.py`: `test_spread_fields_constant_prediction_is_flagged_despite_near_zero_ece`, `test_spread_fields_zero_median_guard_and_varied_predictions`, `test_every_reporting_path_carries_spread_fields`. The frozen Kaggle script `scripts/kaggle/s6e11_fintfm/s6e11_fintfm.py` is left unchanged on purpose.** Report prediction spread (sd, p99/p50) beside every calibration number, so

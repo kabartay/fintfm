@@ -32,7 +32,7 @@
       scale. Verify: a finding that says so without hedging.
       **Not triggered: retrieval won (§32).** Context quality is the lever. Recorded here
       because the contingency was pre-registered and resolving it explicitly is the point.
-- [ ] 17.5 Three seeds on §32, since a decision now rests on a single draw per cell. Verify:
+- [ ] 17.5 **Progress (2026-11-15): `fintfm-ctxsweep --seeds 0,1,2` was run and is reported in `FINDINGS` §33 (three seeds per cell, mean +/- std; retrieval beats uniform at every size, and §32's "rises monotonically" was noise). Missing: §33 does not report the paired bootstrap re-run the Verify names, and §33 is flagged as re-measure before quoting (§56, §229).** Three seeds on §32, since a decision now rests on a single draw per cell. Verify:
       `uv run fintfm-ctxsweep --seeds 0,1,2` with the paired bootstrap re-run.
 - [x] 17.6 Measure the grouped-versus-exact retrieval gap on a subsample. The grouped mode is
       an approximation adopted for cost and its error has never been quantified. Verify:
@@ -47,7 +47,7 @@
       constraint rather than an engineering detail: portfolio analytics can group, an
       individual credit decision should use exact retrieval, and 1.05 s for one firm is
       affordable in that context.
-- [ ] 17.7 Repeat §37 at a realistic base rate. §37's subsample is 89% defaulters, because
+- [ ] 17.7 **Progress (2026-11-15): the concern was answered at a real base rate by 17.8 (`FINDINGS` §70, §71: V4FinBench 0.380%, grouped retrieval drops AP by 0.133), but not with this Verify's command; `fintfm-retrgroup --n-positives 150 --n-negatives 3000` over three seeds is not recorded in FINDINGS.** Repeat §37 at a realistic base rate. §37's subsample is 89% defaulters, because
       every positive was kept to keep the AUC column non-degenerate while the exact reference
       stayed inside an hour. The deviation and Spearman columns do not depend on labels and
       stand; the **AUC deltas do not transfer to a real book**. Verify: `fintfm-retrgroup
