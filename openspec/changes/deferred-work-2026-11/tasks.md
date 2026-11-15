@@ -110,7 +110,7 @@
 
 ## Representation controls and the 20-class regression checkpoint (2026-11-15)
 
-- [ ] 49.13 **Progress (2026-11-15): running.** Kernel `scripts/kaggle/ts_reg_pure_c20_s0`
+- [x] 49.13 **Done (2026-11-15): FINDINGS §242. `fintfm_lp_reg_c20part4_1115`: 699 Elo against §235's 689, better on 5 of 13 (sign p = 0.58, median RMSE +0.17%), 13 of 13 better than §240's raw-only control; re-merged entry `fintfm_linprobe_all51_c20_1115` 932.8 Elo, 106th of 110, against 931.9, 106th of 110. Null; the entry stays on §235's run.** **Progress (2026-11-15): running.** Kernel `scripts/kaggle/ts_reg_pure_c20_s0`
       (68718fc; 6,000 steps x 8 tasks per step, DDP on 2 GPUs = 48,000 tasks, `--max-classes 20`,
       `--p-regression 1.0`) trained on Kaggle in about 1.2 h; checkpoint fetched to
       `runs/kaggle-fintfm-ts-reg-pure-c20-s0/reg-pure-c20-s0/reg-pure-c20-s0.pt`, stored
@@ -124,13 +124,13 @@
       (689, §235) and against the raw-only control `fintfm_lp_reg_rawonly4_1115` (537, §240); if
       it beats 689, the re-merged 51-dataset Elo and its position from
       `scripts/lite_positions.py` with the field size.
-- [ ] 49.14 **Separate the checkpoint from the bin count, only if 49.13 moves Elo.** 49.13
+- [ ] 49.14 **Progress (2026-11-15): not run: its precondition (49.13 moves Elo) did not hold (§242, sign p = 0.58, position unchanged). Left open under the keep-deferred rule; it applies again only if a later 20-class arm shows a gain.** **Separate the checkpoint from the bin count, only if 49.13 moves Elo.** 49.13
       changes the checkpoint and `n_bins` together, so a gain cannot be assigned to either.
       Score the 20-class checkpoint at `FINTFM_REG_BINS=10` with 49.13's configuration
       otherwise unchanged. Verify: per-dataset RMSE and Elo against 49.13's run and against
       §235's run; the FINDINGS entry says which of the two changes carries the difference. Not
       run if 49.13 is null or negative (then there is nothing to assign).
-- [ ] 49.15 **The raw-only control for multiclass.** Binary (§239) and regression (§240) each
+- [x] 49.15 **Done (2026-11-15): FINDINGS §243. `fintfm_lp_mc_rawonly8_1115` (§237's configuration with `no_rep`): 829 Elo against the entry run's 874, representation better on 7 of 8 (sign p = 0.07), median log loss 15.5% lower; README and CLAIMS now say for multiclass what §239/§240 say for binary and regression.** **The raw-only control for multiclass.** Binary (§239) and regression (§240) each
       have a matched control with `no_rep` (a tree with a linear readout per leaf on the
       squashed raw features, no FinTFM representation); multiclass, the entry's 874 Elo
       (`fintfm_lp_mc_scr_bag8_1113`), has none, so it is unknown whether multiclass's Elo is

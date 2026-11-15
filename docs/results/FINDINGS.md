@@ -15376,3 +15376,99 @@ Against the prototype arm, maj4000 is higher on 4 of 5 folds (+0.0039 mean, two 
 a consistent but small difference between two context rules, both null against the default.
 The prediction in `docs/results/drafts/48.24_2026-11.md` (null or negative) holds. No default
 changes; `context_positive_floor` stays opt-in.
+
+## §242: the 20-class regression checkpoint is null on TabArena-Lite: 699 Elo against 689, better on 5 of 13 tables
+
+**MEASURED, TabArena-Lite (repeat 0, fold 0), CPU, 2026-11-15.** Checkpoint
+`runs/kaggle-fintfm-ts-reg-pure-c20-s0/reg-pure-c20-s0/reg-pure-c20-s0.pt` (Kaggle kernel
+`scripts/kaggle/ts_reg_pure_c20_s0`, 68718fc: the pure-regression recipe of §233's control with
+`--max-classes 20`, 6,000 steps x 8 tasks per step, DDP on 2 GPUs = 48,000 tasks; stored
+`max_classes` 20). Lite run `fintfm_lp_reg_c20part4_1115`: §235's configuration (FinTFM-LinProbe,
+squash, `select`, four partition bags, ridge readout per leaf with `raw`) with the regression
+target binned into 20 classes (`FINTFM_REG_BINS=20`, fork dcd46c2) instead of 10. 13 of 13
+datasets fit in 114 minutes. Comparisons `runs/fintfm_lp_reg_c20part4_1115_vs_*.md`.
+
+**Against §235's run (689): Elo 699 (+97 / −193), better on 5 of 13, worse on 8 (sign test
+p = 0.58), median RMSE +0.17%.** Against §240's raw-only control (537): better on 13 of 13.
+
+| dataset | RMSE, 20 classes | RMSE, 10 classes (§235) | change |
+| --- | --- | --- | --- |
+| QSAR_fish_toxicity | 0.9454 | 0.9666 | −2.2% |
+| healthcare_insurance_expenses | 4337.4 | 4378.7 | −0.9% |
+| superconductivity | 12.711 | 12.810 | −0.8% |
+| Another-Dataset-on-used-Fiat-500 | 724.72 | 726.51 | −0.2% |
+| concrete_compressive_strength | 5.5952 | 5.6003 | −0.1% |
+| physiochemical_protein | 4.5020 | 4.5011 | +0.0% |
+| Food_Delivery_Time | 7.9082 | 7.8944 | +0.2% |
+| QSAR-TID-11 | 0.9166 | 0.9134 | +0.4% |
+| houses | 0.2746 | 0.2733 | +0.5% |
+| diamonds | 923.85 | 918.20 | +0.6% |
+| miami_housing | 106,905 | 106,094 | +0.8% |
+| wine_quality | 0.6760 | 0.6700 | +0.9% |
+| airfoil_self_noise | 2.5265 | 2.4281 | +4.1% |
+
+**What it says.** A finer target grid at the same 48,000 tasks does not move regression; the
+10 Elo difference sits inside both intervals and the sign test is flat. The arm changes the
+checkpoint and the bin count together, so it cannot say which of the two would help alone, and
+49.14's split is conditional on a gain that did not appear. Because 699 is numerically above 689, 49.13's rule asks for the
+re-merged entry: `fintfm_linprobe_all51_c20_1115` scores 932.8 Elo, 106th of 110
+(`scripts/lite_positions.py`), against §235's 931.9, also 106th of 110. The entry stays on
+§235's run. With
+§233 (480,000 tasks, no lift) and §240 (the representation carries regression's Elo), the
+regression levers tried on this checkpoint family are spent; a better regression representation
+needs a different prior or recipe, not more bins or more steps of this one.
+
+## §243: on TabArena-Lite multiclass the representation is better on 7 of 8 datasets against the raw-only control; Elo 874 against 829
+
+**MEASURED, TabArena-Lite (repeat 0, fold 0), CPU, 2026-11-15.** The matched control for the
+entry's multiclass run (`fintfm_lp_mc_scr_bag8_1113`, §237: FinTFM-LinProbe, eight partition
+bags, readout per leaf with `scale`, `cv`, `raw`): run `fintfm_lp_mc_rawonly8_1115`, the same
+configuration with `no_rep`, so each leaf's readout sees only the squashed raw features. 8 of 8
+datasets fit in 6 minutes. Comparison `runs/fintfm_lp_mc_rawonly8_1115_vs_bag8.md`.
+
+**Elo, from each run's own leaderboard: raw only 829 (+151 / −344); the entry's run 874. The
+representation is better on 7 of 8 datasets (sign test p = 0.07), median log loss 15.5% lower.**
+
+| dataset | log loss, raw only | log loss, representation + raw | raw only worse by |
+| --- | --- | --- | --- |
+| website_phishing | 0.4506 | 0.3221 | 39.9% |
+| anneal | 0.3076 | 0.2218 | 38.7% |
+| SDSS17 | 0.1498 | 0.1214 | 23.4% |
+| maternal_health_risk | 0.7463 | 0.6435 | 16.0% |
+| splice | 0.1408 | 0.1224 | 15.0% |
+| MIC | 0.4947 | 0.4923 | 0.5% |
+| students_dropout_and_academic_success | 0.6044 | 0.6025 | 0.3% |
+| hiva_agnostic | 0.1804 | 0.1841 | −2.0% |
+
+**What it says.** Multiclass is like regression (§240) and unlike binary (§239): removing the
+representation costs log loss on five datasets by 15% to 40% and 45 Elo. The sign test at eight
+datasets cannot reach p < 0.05 unless all eight agree, so p = 0.07 is the strongest seven-of-eight
+can give. With §239 and §240, all three problem types now carry a matched raw-only control: the
+representation carries the regression and multiclass Elo, and not the binary Elo. The raw-only
+arm is a control, not a FinTFM entry, and is not merged.
+
+## §244: SHAP over gradient boosting on the UCI panels, the attribution baseline for zero-shot attribution (task 12.2)
+
+**MEASURED, 2026-11-15, CPU (load average about 40 at launch, so timings are noisy).** LightGBM
+(200 trees, 15 leaves, learning rate 0.05, subsample and column sampling 0.8) per stratified fold,
+5 folds x 3 seeds per panel, exact TreeSHAP from `Booster.predict(pred_contrib=True)` on each
+held-out fold in log-odds space; importance is mean |SHAP| over held-out rows, normalised to sum
+to 1 per fold. No `shap` package, no FinTFM model, no tuning. Command:
+`uv run --frozen --extra bench python src/fintfm/experiments/attribution_baseline.py --seeds 0 1 2 --folds 5`
+(a script, not `-m`, because torch and LightGBM segfault together on macOS). Draft with the
+per-feature shares: `docs/results/drafts/12.2_2026-11-15.md`.
+
+| panel | rows | features | default rate | held-out AUC | fold-to-fold Spearman | seed-to-seed Spearman | top-10 Jaccard, folds / seeds |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Polish 3-year | 10,503 | 64 | 4.71% | 0.9347 | 0.875 | 0.981 | 0.787 / 0.879 |
+| Taiwan | 6,819 | 95 | 3.23% | 0.9411 | 0.700 | 0.925 | 0.549 / 0.879 |
+
+Cost per fold: fit 0.98 s and 0.68 s, TreeSHAP 0.45 s and 0.29 s (about 215 microseconds per
+explained row). The ten most important features carry 52.9% of mean |SHAP| on Polish and 35.8%
+on Taiwan.
+
+**What it says.** The baseline does not agree with itself perfectly: across folds Spearman 0.70
+to 0.88, across seeds 0.93 to 0.98. A zero-shot attribution (12.4) should be compared with the
+seed-averaged GBM importance and read against that self-agreement, not against 1.0. These are
+verification numbers about one GBM configuration on panels with no ground-truth attribution;
+the prior's ground truth (12.3) is what can say whether an attribution is right.

@@ -141,6 +141,9 @@ entry's 997, although the representation is better on 24 of 30 datasets (p < 0.0
 binary Elo is not evidence for FinTFM's representation.**
 Regression is the opposite: the same control there scores 537 Elo against the entry's 689,
 worse on 12 of 13 tables (p = 0.003, §240), so regression's Elo is the representation's.
+Multiclass is the same: its control scores 829 against the entry's 874, worse on 7 of 8
+datasets (§243). A 20-class regression checkpoint did not move regression (699 against 689,
+5 of 13 better, §242).
 
 ### The first series: the zero-shot model on 27 binary datasets
 
@@ -527,7 +530,7 @@ conclusion is not reached twice.
 - [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md): **start here.** Every claim the project could
   make, tagged by status; the newest evidence wins.
 - [`docs/results/FINDINGS.md`](docs/results/FINDINGS.md): the measurement log, numbered in
-  order (241 entries on 2026-11-15), each stating how its numbers were produced.
+  order (244 entries on 2026-11-15), each stating how its numbers were produced.
 - [`docs/paper/NEGATIVE_RESULTS.md`](docs/paper/NEGATIVE_RESULTS.md): every null and harmful
   result in one place, so a lever already ruled out is not tried again by accident.
 - [`docs/paper/LIMITATIONS.md`](docs/paper/LIMITATIONS.md): what the model and the evidence

@@ -3,7 +3,7 @@
 - [x] 12.1 **Done (2026-11-11, docs/research/REFERENCES.md "ExplainerPFN").** Read ExplainerPFN in full and record how attribution targets are generated and
       what fidelity they claim. Verify: entry expanded in `docs/research/REFERENCES.md`; currently
       only the abstract has been read.
-- [ ] 12.2 **Progress (2026-11-15): `src/fintfm/experiments/attribution_baseline.py` fits
+- [x] 12.2 **Done (2026-11-15): FINDINGS §244: LightGBM TreeSHAP baseline on Polish 3-year and Taiwan, 5 folds x 3 seeds, seed-to-seed Spearman 0.981 / 0.925, fold-to-fold 0.875 / 0.700, top-10 Jaccard reported; module `src/fintfm/experiments/attribution_baseline.py`.** **Progress (2026-11-15): `src/fintfm/experiments/attribution_baseline.py` fits
       LightGBM per stratified fold and takes exact TreeSHAP from `pred_contrib=True` (no `shap`
       dependency); run as a script, not `-m`, because torch and LightGBM segfault together on
       macOS. MEASURED on Polish 3-year and Taiwan, 5 folds x 3 seeds: seed-to-seed Spearman 0.981
