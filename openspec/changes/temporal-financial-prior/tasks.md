@@ -8,7 +8,7 @@
       nothing to join on (`docs/results/FINDINGS.md` §7). Superseded by V4FinBench (§8), which is a
       genuine company-year panel over 2006-2021 — tasks 2.2 onward now depend on
       `second-credit-panel` task 7.5 rather than being blocked outright.**
-- [ ] 2.2 Falsification test: gradient boosting on levels versus levels+deltas+trends from a
+- [ ] 2.2 **Progress (2026-11-15): harness `src/fintfm/experiments/temporal_gbm_falsification.py` run on V4FinBench (199,998 of 1,000,087 rows, 3 company-grouped folds, seed 0): deltas and trends did not raise AP (lower on 3 of 3 folds); numbers are in `docs/results/drafts/2.2_2026-11-15.md`, not yet in FINDINGS.md, so this stays open.** Falsification test: gradient boosting on levels versus levels+deltas+trends from a
       real panel. Verify: `uv run python -m fintfm.evaluation.bench` variant reporting both,
       numbers re-derived into `docs/results/FINDINGS.md`. **Do this before writing any generator.**
 - [ ] 2.3 Add persistent firm effects and autocorrelated ratios to `prior/financial.py`,
