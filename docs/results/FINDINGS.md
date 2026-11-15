@@ -15472,3 +15472,37 @@ to 0.88, across seeds 0.93 to 0.98. A zero-shot attribution (12.4) should be com
 seed-averaged GBM importance and read against that self-agreement, not against 1.0. These are
 verification numbers about one GBM configuration on panels with no ground-truth attribution;
 the prior's ground truth (12.3) is what can say whether an attribution is right.
+
+## §245: adding irrelevant columns does not degrade either §74 checkpoint on a two-column task: fin00 holds 0.995 ROC-AUC from 2 to 100 columns
+
+**MEASURED, synthetic, CPU, 2026-11-15 (openspec 42.1 and 39.13).** Harness
+`python -m fintfm.experiments.irrelevant_features --models fin00=runs/dl/v4-cellattn-fin00.pt,fin10=runs/dl/v4-cellattn-fin10.pt --out runs/irrelevant_features --seeds 0,1,2`
+(195 s). Task: y = 1[x0 + x1 + 0.5·x0·x1 above its 75th percentile] (25% positive), k independent
+N(0, 1) columns added for a total width d of 2 to 100, 2,000 rows, a 1,000-row context, three
+seeds; the noise columns are nested across d. fin00 is the pure-SCM checkpoint and fin10 the
+pure-financial one (§73, §74). Figure: `docs/results/figures/irrelevant_features_2026-11-15.svg`.
+
+| arm (ROC-AUC, mean ± sd over 3 seeds) | d = 2 | d = 5 | d = 10 | d = 20 | d = 40 | d = 70 | d = 100 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| fin00 | 0.996 ± 0.001 | 0.995 ± 0.002 | 0.995 ± 0.002 | 0.994 ± 0.002 | 0.994 ± 0.002 | 0.994 ± 0.002 | 0.995 ± 0.001 |
+| fin10 | 0.949 ± 0.018 | 0.987 ± 0.001 | 0.989 ± 0.004 | 0.991 ± 0.003 | 0.990 ± 0.003 | 0.989 ± 0.002 | 0.988 ± 0.001 |
+| gradient boosting | 0.999 | 0.999 | 0.999 | 0.998 | 0.998 | 0.998 | 0.998 |
+| logistic regression | 0.992 | 0.992 | 0.992 | 0.991 | 0.989 | 0.986 | 0.983 |
+| untrained control | 0.397 | 0.542 | 0.480 | 0.430 | 0.451 | 0.434 | 0.457 |
+
+Slope, ROC-AUC change from d = 2 to d = 100: fin00 −0.0011, fin10 +0.0396 (driven by its weak
+d = 2 point), gradient boosting −0.0011, logistic regression −0.0098. Average precision follows
+the same pattern (fin00 0.988 to 0.984; logistic regression 0.975 to 0.949). Mean predicted
+probability against the observed 0.253: fin00 0.229 to 0.261, fin10 0.192 to 0.236.
+
+**What it says.**
+- On this task neither checkpoint is diluted by noise columns up to 100 wide: fin00 is flat and
+  tracks gradient boosting, and both hold up better than logistic regression, whose AUC falls as
+  columns are added. The untrained control sits at chance throughout, so the context is doing
+  the work.
+- fin10's one weak point is the narrowest table (d = 2, 0.949 with sd 0.018), not the widest.
+  That is §137's interaction story (the task has an x0·x1 term) showing up where the interaction
+  carries the most weight, not a width effect.
+- Scope: one synthetic task with two informative columns, two checkpoints, three seeds; it does
+  not speak to real tables, where §190 and §220 measured losses on wide data. It rules out
+  "noise columns dilute the informative ones" as the cause of those losses at up to 100 columns.
