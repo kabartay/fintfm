@@ -15827,3 +15827,31 @@ This is a post-hoc check on stored predictions, not a fitted model.
 (device is a confound) and regression is unchanged. The four regression levers stay off; blend-cv is
 also too slow for the 3,600 s limit on a T4. anneal is partly a calibration problem, but a floor closes
 only about an eighth of its loss, so the entry stays as in §254 for multiclass and regression.
+
+## §256: pre-registration, binary readout ensemble on TabArena-Lite (task 49.22), written 2026-11-16 before any fitted arm runs
+
+**Basis (MEASURED re-score of stored predictions, not fitted models;
+`runs/agent_reports/ensemble_oof/REPORT.md`).** Equal-weight averages of existing runs' predictions,
+chosen by mean validation (out-of-fold) rank only, then scored on test and substituted into the
+952.8 entry's `results_per_split.csv`: binary `fintfm_lp_bin_scalecvraw_1114` + `fintfm_lp_bin_scr_xfit_1115`
+wins 26 of 30 datasets against the current binary run and gives 965.6 Elo (103rd of 110); adding
+`fintfm_lp_bin_rawonly_1115` gives 987.8 (101st of 110). 14 binary combinations were searched. The
+multiclass and regression winners came from 298 and 469 combinations on 8 and 13 datasets, gain
+2 to 3% mean relative error, and the regression pair needs a second checkpoint; they are not
+pre-registered here.
+
+**Arms** (FinTFM-LinProbe, binary, partition `{}`, squash/select, readout scale/cv/raw, one fitted
+model per dataset with the members averaged inside it; fork option `probe_ensemble`):
+1. Primary, `xfit,noxfit`: the cross-fit readout and the same readout without cross-fitting.
+2. Secondary, `xfit,noxfit,rawonly`: plus the raw-only readout.
+
+**Gate.** Before any Lite run, a reproduction check on two small binary datasets must show the
+in-model ensemble's test predictions equal the average of the stored runs' within 1e-6, or the
+difference is explained. Then all 30 binary datasets, TabArena-Lite repeat 0 fold 0, merged with
+`fintfm_lp_mc_scr_bag8_1113` and `fintfm_lp_reg_rawpart4_pure_1114`. **Adopt** the primary arm into
+the entry if the merged entry's Elo exceeds TABFLEX_GPU (default) in the same fit and no dataset
+fails or hits the time limit. The secondary arm is adopted only if the primary does not clear and
+it does, and then only with the owner's decision recorded, because a raw-only member is a linear
+readout of the squashed raw features with no FinTFM representation. Any dataset over the 3,600 s
+limit counts as a failure for the arm. A miss is recorded as such; the arms are not retuned on
+these results.

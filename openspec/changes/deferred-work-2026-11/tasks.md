@@ -181,3 +181,9 @@
       `audit_pickle` passes on the PR branch, or the crash's cause and the AutoGluon version it
       needs are written into `docs/competition/SUBMISSION.md` with the reason the entry is still
       safe to submit.
+- [ ] 49.22 **Binary readout ensemble on TabArena-Lite (pre-registered in FINDINGS §256).** Averaging
+      stored binary predictions of the cross-fit and non-cross-fit readouts (chosen on validation rows)
+      re-scores the entry at 965.6 Elo; with a raw-only member, 987.8 (MEASURED re-score, not a fitted
+      model). A fork option `probe_ensemble` that fits the members inside one model is in progress
+      (2026-11-16). Verify: the reproduction check of §256 passes, the 30-dataset Lite arm(s) run,
+      and a FINDINGS entry applies §256's gate (adopt or not) with the merged entry's Elo and position.
