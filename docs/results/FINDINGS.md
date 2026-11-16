@@ -16231,3 +16231,59 @@ not training-seed variance (the per-seed std is beside it). Absolute AUCs are ab
 three-seed table (0.7441 against 0.7653 for joint) at the same recipe; the code has changed since
 2026-09-09 (fintfm e475151) and this run did not isolate why, so compare arms within a run, not levels
 across runs. Synthetic tasks only, small models, CPU.
+
+## §265: on Kaggle CPU the regression random-Fourier-feature readout is better on 6 of 7 tables and the multiclass probability floor on 4 of 7; with both, an assembled entry reaches 973.1 Elo, 102nd of 110, 4.6 below TABFLEX_GPU; the large tables still need fitting (tasks 49.18, 49.19)
+
+**MEASURED, TabArena-Lite (repeat 0, fold 0), Kaggle CPU (4 cores), 2026-11-16.** Kernels
+`scripts/kaggle/task_lite_cpu_{mc_ctrl,mc_floor,reg_ctrl,reg_rff}` (fintfm 34fb288, fork b8612d7,
+branch `fintfm-lite-arms-1116`), entry settings of `fintfm_lp_mc_scr_bag8_1113` and
+`fintfm_lp_reg_rawpart4_pure_1114` with `FINTFM_PROBE_CROSSFIT_FOLDS=0`, each lever paired with a control
+of the same settings on the same machine.
+
+**Kaggle's CPU is too slow for the large tables.** In both regression arms `miami_housing`, `houses`,
+`superconductivity`, `Food_Delivery_Time`, `physiochemical_protein` and `diamonds` stopped with
+`TimeLimitExceeded` (AutoGluon extrapolates the first bagged fold past 3,600 s), and `SDSS17` did in both
+multiclass arms. Fit times were 2x to 6x the Mac's (for example `MIC` 228 s on the Mac, 1,323 s here).
+On every table that completed, the controls reproduce the Mac runs to about 1e-4 in metric error (the
+largest gap, `QSAR-TID-11`, 0.91340 against 0.91391 RMSE), so the device does not confound these pairs.
+
+**Multiclass floor** (`FINTFM_PROB_FLOOR=cv`, the floor chosen on out-of-fold rows, never on test labels),
+log loss, control to floor: anneal 0.221724 to 0.201841 (-8.97%), hiva_agnostic 0.184146 to 0.181462,
+maternal_health_risk 0.643475 to 0.642042, MIC 0.492302 to 0.491623; splice tied (0.122437); worse:
+website_phishing 0.321957 to 0.322851, students_dropout_and_academic_success 0.602486 to 0.602581.
+4 better, 2 worse, 1 tied of 7; sign test p 0.69. anneal moves about three quarters of the way §255's
+post-hoc check predicted (0.1949 there).
+
+**Regression RFF readout** (`FINTFM_REG_READOUT=rff`), RMSE, control to RFF: airfoil_self_noise 2.428067
+to 1.824169 (-24.87%), healthcare_insurance_expenses 4378.73 to 4256.82 (-2.78%), wine_quality 0.669959
+to 0.657300, QSAR-TID-11 0.913907 to 0.900073, QSAR_fish_toxicity 0.966612 to 0.952177,
+Another-Dataset-on-used-Fiat-500 726.51 to 720.33; worse: concrete_compressive_strength 5.600313 to
+6.038981 (+7.83%). 6 better, 1 worse of 7; sign test p 0.13. RFF costs time: QSAR-TID-11 took 3,319 s
+against the control's 1,896 s, the other tables about 10% more.
+
+**Assembled entries** (`merge_fintfm_lite.py`, 51 datasets; binary `fintfm_lp_bin_both_kaggle` as in
+§257; the tables a lever did not reach come from the Mac entry runs without it):
+
+| entry | multiclass | regression | Elo | position | TABFLEX_GPU, same fit |
+| --- | --- | --- | --- | --- | --- |
+| `fintfm_linprobe_all51_1116b` (§257) | bag8 | rawpart4 | 965.6 | 104th of 110 | 978.0 |
+| `fintfm_linprobe_all51_1116c_floor` | floor on 7, SDSS17 without | rawpart4 | 966.1 | 103rd of 110 | 977.7 |
+| `fintfm_linprobe_all51_1116d_rff` | bag8 | RFF on 7, large 6 without | 972.6 | 102nd of 110 | 978.0 |
+| `fintfm_linprobe_all51_1116e_rff_floor` | floor on 7 | RFF on 7 | 973.1 | 102nd of 110 | 977.7 |
+
+These are assembled from partial levers and are not an entry configuration: no single setting produced
+them. Positions from `scripts/lite_positions.py`.
+
+**A 4-bag binary arm is not measurable on the Mac.** `fintfm_lp_bin_scr_xfit_bag4_1115` (cross-fitted
+binary readout, four partition bags) finished 22 of 30 datasets; 8 (airline, hazelnut, heloc,
+in_vehicle_coupon, jm1, online_shoppers, APSFailure, kddcup09_appetency) stopped at the time limit, most
+of it while the machine's load average was 120 to 300 from other work. No result is drawn from it.
+
+**Pre-registration (written 2026-11-16 before the remaining tables run).** The floor on SDSS17 and RFF on
+the six large regression tables run on the Mac at the same fork commit and settings
+(`runs/local_queue/queue.txt`: `mc-floor-sdss17`, `reg-rff-large6`). Each lever is adopted into the
+entry only if every dataset of its problem type then completes with no `TimeLimitExceeded`, and the
+full-coverage merged entry with it scores a higher Elo than the same entry without it, in the same fit.
+If RFF hits the limit on a large table, RFF is not adopted as is; a size-gated variant would be a new,
+separately pre-registered arm. A gain smaller than the Elo interval (about +/-90) is a configuration
+choice on one fold, not evidence of improvement, and is reported as such. Not retuned on the result.

@@ -157,14 +157,14 @@
       noted, since §255 shows a T4 confound), a sign test, the re-merged 51-dataset Elo and
       position from `scripts/lite_positions.py` with the field size, and a stated decision on
       whether the entry adopts either lever.
-- [ ] 49.18 **Multiclass probability floor, then a Lite multiclass paired run.** `anneal` has two
+- [ ] 49.18 **Progress (2026-11-16, FINDINGS §265, MEASURED, Kaggle CPU): paired against a same-machine control, the floor (`FINTFM_PROB_FLOOR=cv`) is better on 4, worse on 2, tied on 1 of 7 multiclass tables (sign test p 0.69; anneal 0.2217 to 0.2018 log loss). SDSS17 hit the time limit on Kaggle CPU and runs on the Mac (`mc-floor-sdss17`); adoption rule pre-registered in §265.** **Multiclass probability floor, then a Lite multiclass paired run.** `anneal` has two
       out-of-fold rows with true-class p about 1e-7; an out-of-fold-chosen floor e=0.003 moves
       test log loss 0.2223 to 0.1949 (post hoc on stored predictions, §255). An option is in
       progress in a fork (2026-11-16). Verify: the option merged with a test, a TabArena-Lite
       multiclass run on the 8 datasets paired against `fintfm_lp_mc_scr_bag8_1113` (874 Elo),
       per-dataset log loss, sign test, Elo and the re-merged overall position, in a FINDINGS
       entry that states how the floor is chosen without test labels.
-- [ ] 49.19 **Regression nonlinear readout (random Fourier features), then a Lite regression
+- [ ] 49.19 **Progress (2026-11-16, FINDINGS §265, MEASURED, Kaggle CPU): paired against a same-machine control, the RFF readout is better on 6 of 7 regression tables, worse on concrete (+7.8% RMSE), sign test p 0.13; airfoil -24.9%. The six large tables hit the time limit on Kaggle CPU and run on the Mac (`reg-rff-large6`); adoption rule pre-registered in §265.** **Regression nonlinear readout (random Fourier features), then a Lite regression
       paired run.** The regression readout is linear; a random-Fourier-feature readout
       prototype is in progress in a fork (2026-11-16). Verify: the prototype merged with a test,
       a TabArena-Lite regression run on the 13 datasets paired against
