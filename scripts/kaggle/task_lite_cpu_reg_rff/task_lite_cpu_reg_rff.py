@@ -32,8 +32,6 @@ import time
 from pathlib import Path
 
 FINTFM_COMMIT = "34fb288"
-FORK_COMMIT = "b8612d7"
-FORK_BRANCH = "fintfm-lite-arms-1116"
 AUTOGLUON = "1.6.4b20260919"
 WORK = Path("/kaggle/working")
 #: Stop starting new datasets after this many seconds (Kaggle's session limit is 12 h).
@@ -98,6 +96,9 @@ PROBLEM = {
 RUN_NAME = "fintfm_lp_reg_rff_cpu"
 PROBLEM_TYPE = "regression"
 LEVER: dict[str, str] = {"FINTFM_REG_READOUT": "rff"}
+FORK_COMMIT = "b8612d7"
+FORK_BRANCH = "fintfm-lite-arms-1116"
+RUN_MODEL_TESTS = False
 # --- ARM ---
 
 
@@ -240,6 +241,22 @@ def main() -> None:
     ).stdout.strip()
     if head != FORK_COMMIT:
         sys.exit(f"fork HEAD {head} != pinned {FORK_COMMIT}")
+    if RUN_MODEL_TESTS:
+        # The model's own tests could not be completed on the development machine; run them here
+        # and fit nothing if any fails.
+        tests = fork_root / "packages/tabarena/src/tabarena/models/fintfm_linprobe/tests"
+        subprocess.run([sys.executable, "-m", "pip", "install", "--quiet", "pytest"], check=True)
+        with (WORK / "model_tests.log").open("w") as log:
+            rc = subprocess.run(
+                [sys.executable, "-P", "-m", "pytest", "-q", "-p", "no:cacheprovider", str(tests)],
+                cwd=fork_root,
+                stdout=log,
+                stderr=subprocess.STDOUT,
+                check=False,
+            ).returncode
+        print(f"model tests exit {rc}", flush=True)
+        if rc != 0:
+            sys.exit("model tests failed; see model_tests.log -- fitting nothing")
     deadline = started + BUDGET_S
     summary = {
         "run": RUN_NAME,

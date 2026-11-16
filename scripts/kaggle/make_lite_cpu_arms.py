@@ -16,32 +16,41 @@ SOURCES = {
     "multiclass": "muhakabartay/fintfm-ts-dr74-mc-s0",
     "regression": "muhakabartay/fintfm-task-48-3-matched-binned-head-control",
 }
+#: The fork pin of the 2026-11-16 arms; an arm may name another (branch, commit) in ``FORKS``.
+DEFAULT_FORK = ("fintfm-lite-arms-1116", "b8612d7")
+#: Arms on another fork commit, with the model tests run in the kernel before fitting.
+FORKS: dict[str, tuple[str, str]] = {"cpu_mc_onehot": ("fintfm-mc-onehot", "229af56")}
 #: Kernel directory -> (run name, problem type, lever variables).
 ARMS: dict[str, tuple[str, str, dict[str, str]]] = {
     "cpu_mc_ctrl": ("fintfm_lp_mc_ctrl_cpu", "multiclass", {}),
     "cpu_mc_floor": ("fintfm_lp_mc_floor_cpu", "multiclass", {"FINTFM_PROB_FLOOR": "cv"}),
     "cpu_reg_ctrl": ("fintfm_lp_reg_ctrl_cpu", "regression", {}),
     "cpu_reg_rff": ("fintfm_lp_reg_rff_cpu", "regression", {"FINTFM_REG_READOUT": "rff"}),
+    "cpu_mc_onehot": ("fintfm_lp_mc_onehot_cpu", "multiclass", {"FINTFM_PROBE_ONEHOT": "on"}),
 }
 MARK = "# --- ARM ---\n"
 
 
-def render(run: str, problem: str, lever: dict[str, str]) -> str:
+def render(run: str, problem: str, lever: dict[str, str], name: str = "") -> str:
     """The template with its arm block replaced.
 
     Args:
         run: The run name.
         problem: ``multiclass`` or ``regression``.
         lever: Extra environment variables of the arm.
+        name: The kernel directory key, which selects a fork pin from ``FORKS``.
 
     Returns:
         The kernel's source.
     """
+    branch, commit = FORKS.get(name, DEFAULT_FORK)
     head, _, rest = TEMPLATE.read_text().partition(MARK)
     _, _, tail = rest.partition(MARK)
     block = (
         f'RUN_NAME = "{run}"\nPROBLEM_TYPE = "{problem}"\n'
         f"LEVER: dict[str, str] = {json.dumps(lever)}\n"
+        f'FORK_COMMIT = "{commit}"\nFORK_BRANCH = "{branch}"\n'
+        f"RUN_MODEL_TESTS = {name in FORKS}\n"
     )
     return head + MARK + block + MARK + tail
 
@@ -52,7 +61,7 @@ def main() -> None:
         d = HERE / f"task_lite_{name}"
         d.mkdir(exist_ok=True)
         code = f"task_lite_{name}.py"
-        (d / code).write_text(render(run, problem, lever))
+        (d / code).write_text(render(run, problem, lever, name))
         slug = f"fintfm-task-lite-{name.replace('_', '-')}"
         meta = {
             "id": f"muhakabartay/{slug}",

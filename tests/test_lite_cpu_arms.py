@@ -22,7 +22,7 @@ def test_generated_kernels_match_template() -> None:
     for name, (run, problem, lever) in gen.ARMS.items():
         path = KAGGLE / f"task_lite_{name}" / f"task_lite_{name}.py"
         text = path.read_text()
-        assert text == gen.render(run, problem, lever)
+        assert text == gen.render(run, problem, lever, name)
         ast.parse(text)
 
 
