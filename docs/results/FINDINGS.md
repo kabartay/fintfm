@@ -15770,3 +15770,28 @@ not what kept retrieval from collapsing further. Why retrieval loses ranking wit
 not isolated. Plain ensembling with a larger context is +0.0133 AP, inside the noise at 44
 positives. Retrieval stays off by default (§194's decision stands); the open question for 38.13 is
 the ranking loss, and folds 1 to 4 are not run.
+
+## §254: cross-fitting the binary readout lifts the TabArena-Lite entry from 931.9 to 952.8 Elo (106th to 104th of 110); one dataset carries most of it (task 49.5)
+
+**MEASURED, TabArena-Lite (repeat 0, fold 0), CPU, 2026-11-16.** Fork `fintfm-audit-fixes` at de27754
+(`probe_crossfit_folds=5`, out-of-fold categorical encoding), binary readout `{"scale": true, "cv": true,
+"raw": true}`, partition `{}`, published binary checkpoint. Run `fintfm_lp_bin_scr_xfit_1115` paired
+against `fintfm_lp_bin_scalecvraw_1114` (§232, the same readout without cross-fitting); log
+`runs/local_queue/bin-xfit.log`, table `runs/fintfm_lp_bin_scr_xfit_1115_vs_scr.md`.
+
+- **Binary only (30 datasets):** Elo 1027 (+149/-140) against 997 (+118/-127). Paired, 10 datasets
+  better and 20 worse (sign test p = 0.10), mean ROC-AUC change +0.00198.
+- **Where it comes from:** `kddcup09_appetency` +0.0760 ROC-AUC (0.7358 to 0.8118); next largest
+  `Diabetes130US` +0.0118, `seismic-bumps` +0.0087, `Amazon_employee_access` +0.0079; largest losses
+  `blood-transfusion-service-center` -0.0079, `Is-this-a-good-customer` -0.0074. The 20 losses are all
+  smaller than 0.008.
+- **Merged entry** `fintfm_linprobe_all51_1116` (this binary run, multiclass `fintfm_lp_mc_scr_bag8_1113`,
+  regression `fintfm_lp_reg_rawpart4_pure_1114`): **952.8 Elo, 104th of 110** (`scripts/lite_positions.py`),
+  against 931.9, 106th of 110 for `fintfm_linprobe_all51_1115`. TABFLEX_GPU (default) is 977.7 in this
+  fit (977.2 in the earlier one), so the gap is about 25 Elo.
+
+**What it says.** Cross-fitting removes the readout reading its own context labels, and on Lite that
+matters for one large, very imbalanced dataset; elsewhere it costs a little. `customer_satisfaction_in_airline`
+is slightly worse (1-AUC 0.0515 against 0.0500 before), which is why the large-table levers run next.
+The Elo gain rests mostly on one dataset at one fold, so it is a single measurement, not a stable
+improvement.
