@@ -15795,3 +15795,35 @@ matters for one large, very imbalanced dataset; elsewhere it costs a little. `cu
 is slightly worse (1-AUC 0.0515 against 0.0500 before), which is why the large-table levers run next.
 The Elo gain rests mostly on one dataset at one fold, so it is a single measurement, not a stable
 improvement.
+
+## §255: cross-fitting does not help multiclass or regression on TabArena-Lite, none of the four regression readout levers helps, and anneal's loss is a few near-zero probabilities (task 49.5)
+
+**MEASURED, TabArena-Lite (repeat 0, fold 0), Kaggle T4, scored locally, 2026-11-16.** Kernel
+`scripts/kaggle/task_lite_xfit_mcreg` (fintfm 03d0270, fork 551259a, cross-fitting on by default,
+regression levers off unless named). Multiclass: `dr74-mc-s0` checkpoint, `{"n_bags": 8}`, readout
+scale/cv/raw. Regression: `v4-binned48_3-control` checkpoint, `{"n_bags": 4}`, readout raw. Baselines
+are the CPU runs in the current entry, so device and cross-fitting change together.
+`QSAR_fish_toxicity` failed on Kaggle on an OpenML server error and was fitted locally on CPU for the
+regression cross-fit run; the blend-cv run stopped with `TimeLimitExceeded` on the three largest
+regression datasets and is scored on the other 10. Scoring script `runs/local_queue/score_xfit_kaggle.sh`.
+
+| run | against | better / worse | Elo (problem type only) |
+| --- | --- | --- | --- |
+| `fintfm_lp_mc_scr_xfit_kaggle` | `fintfm_lp_mc_scr_bag8_1113` (874) | 3 / 5 of 8 | 838 |
+| `fintfm_lp_reg_xfit_kaggle` | `fintfm_lp_reg_rawpart4_pure_1114` (689) | 4 / 9 of 13 | 689 |
+| `..._log1p_kaggle` (`FINTFM_REG_TARGET_TRANSFORM=log1p`) | same | 3 / 10 | 671 |
+| `..._quantile_kaggle` (`=quantile`) | same | 3 / 10 | 544 |
+| `..._wide_kaggle` (`FINTFM_REG_ALPHAS=wide`) | same | 4 / 9 | 689 (identical to the cross-fit run) |
+| `..._blendcv_kaggle` (`FINTFM_REG_BLEND=cv`, 10 datasets) | same | 2 / 8 of 10 | 635 |
+
+**anneal (multiclass, rank 110 of 110).** From the stored predictions of `fintfm_lp_mc_scr_bag8_1113`:
+test log loss 0.2223; on the out-of-fold rows, the ten worst of 598 carry 59% of the loss and two rows
+have a true-class probability near 1e-7 (row losses 15.0 and 16.1). A probability floor chosen on the
+out-of-fold rows only (`(1-e)p + e/K`, e from {0, 1e-4, ..., 3e-2}) gives e = 0.003 and test log loss
+0.1949; the other seven datasets change by at most 0.003. A temperature chosen the same way gives 0.2113.
+This is a post-hoc check on stored predictions, not a fitted model.
+
+**What it says.** The binary gain from cross-fitting (§254) does not carry over: multiclass loses 36 Elo
+(device is a confound) and regression is unchanged. The four regression levers stay off; blend-cv is
+also too slow for the 3,600 s limit on a T4. anneal is partly a calibration problem, but a floor closes
+only about an eighth of its loss, so the entry stays as in §254 for multiclass and regression.
