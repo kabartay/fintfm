@@ -147,7 +147,7 @@
       `runs/lrsweep/eval-published` and against `runs/4824/maj4000`, clustered comparison, in
       a FINDINGS entry that states how much of §241's difference is context size.
 
-- [ ] 49.17 **Airline large-table levers on a GPU, then decide the entry.** On the Mac CPU
+- [x] 49.17 **Done (2026-11-16, FINDINGS §257, MEASURED, Kaggle T4): airline 1-AUC control 0.05165, depth 0.04858, budget 0.02449, both 0.02590; both levers on all 30 binary datasets 15 better / 8 worse / 7 tied against the CPU entry run (sign p 0.21), binary-only Elo 1046 against 1027; merged entry `fintfm_linprobe_all51_1116b` 965.6 Elo, 104th of 110 (TABFLEX_GPU 978.0 in the same fit). Decision: the entry adopts both levers for binary. Device noted (T4 against CPU).** **Airline large-table levers on a GPU, then decide the entry.** On the Mac CPU
       `FINTFM_PARTITION_SCALE_N` and `FINTFM_PROBE_BUDGET=50000` all stopped with AutoGluon
       TimeLimitExceeded (first bagged fold longer than its share of 3,600 s; baseline fold about
       240 s), so they are unmeasured. Kaggle T4 kernel `scripts/kaggle/task_lite_air_levers`

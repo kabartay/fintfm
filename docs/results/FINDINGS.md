@@ -15855,3 +15855,41 @@ it does, and then only with the owner's decision recorded, because a raw-only me
 readout of the squashed raw features with no FinTFM representation. Any dataset over the 3,600 s
 limit counts as a failure for the arm. A miss is recorded as such; the arms are not retuned on
 these results.
+
+## §257: the large-table levers lift the binary arm on a T4; the entry rises to 965.6 Elo, 104th of 110, 12.4 below TABFLEX_GPU (task 49.17), with a pre-registered combined arm
+
+**MEASURED, TabArena-Lite (repeat 0, fold 0), Kaggle T4, 2026-11-16.** Kernel
+`scripts/kaggle/task_lite_air_levers` (fintfm e09fd6f, fork 6981265, cross-fitting on by default,
+binary entry settings, published binary checkpoint). Every run exited 0 and none logged
+`TimeLimitExceeded`. On the Mac CPU the same three airline arms had all stopped with
+`TimeLimitExceeded` (§254's note).
+
+| run (airline only) | lever | 1-AUC | train time |
+| --- | --- | --- | --- |
+| `fintfm_lp_air_ctrl_kaggle` | none | 0.05165 | 1,508 s |
+| `fintfm_lp_air_depth_kaggle` | `FINTFM_PARTITION_SCALE_N=on` | 0.04858 | 1,562 s |
+| `fintfm_lp_air_budget_kaggle` | `FINTFM_PROBE_BUDGET=50000` | 0.02449 | 2,150 s |
+| `fintfm_lp_air_both_kaggle` | both | 0.02590 | 3,008 s |
+
+The leaderboard median on airline is 0.00546, so the probe budget halves the error but airline stays
+far below the median. `fintfm_lp_bin_both_kaggle` (both levers, all 30 binary datasets) against the
+entry's CPU run `fintfm_lp_bin_scr_xfit_1115`: 15 better, 8 worse, 7 tied (tie tolerance 1e-6), sign test
+p 0.21, mean ROC-AUC change +0.00193, binary-only Elo 1046 (+142/-130) against 1027; largest gains airline
+-0.0256 and GiveMeSomeCredit -0.0230 (0.1586 to 0.1356, median 0.1303), then Diabetes130US -0.0063;
+largest loss Amazon_employee_access +0.0018. Device changes with the levers (T4 against CPU).
+
+**Merged entry** `fintfm_linprobe_all51_1116b` (`fintfm_lp_bin_both_kaggle`, `fintfm_lp_mc_scr_bag8_1113`,
+`fintfm_lp_reg_rawpart4_pure_1114`): **965.6 Elo (+88/-90), 104th of 110** (`scripts/lite_positions.py`),
+against 952.8 (§254). TABFLEX_GPU (default) is 978.0 in this fit, so the gap is 12.4 Elo.
+
+**Decision.** The entry adopts both levers (`partition_scale_with_n`, `probe_budget=50000`) for binary:
+it is the best measured binary arm and lifts the merged entry by 12.8 Elo. The single-lever arms ran on
+airline only, so the 30-dataset evidence is for both levers together.
+
+**Pre-registration (written before it runs).** Combined binary arm: §256's primary readout ensemble
+(`xfit,noxfit`) with `FINTFM_PROBE_BUDGET=50000` only, all 30 binary datasets, merged with the same
+multiclass and regression runs. The depth lever is dropped for time, not for its score: with both
+levers airline already took 3,008 s of the 3,600 s limit on a T4 before a second readout is added.
+§256's gate (the reproduction check) still applies first. Adopt if the merged Elo exceeds TABFLEX_GPU
+(default) in the same fit with no dataset failing or hitting the limit; otherwise the entry stays at
+`fintfm_linprobe_all51_1116b`. Not retuned on its result.
