@@ -16369,3 +16369,41 @@ This is the same scale as §258's smoke run (resample Spearman 0.409 there), now
 **What it says.** At this explain-set size, permutation attribution through the classifier is not stable
 across context resamples or seeds by the thresholds set before measuring; the thresholds are not edited.
 Whether larger explain sets or more repeats stabilise it is untested. Task 12.5 stays open.
+
+## §269: the multiclass probability floor on all 8 tables: 4 better, 3 worse, 1 tied; adopted under §265's rule at +0.7 Elo in the same fit, a configuration choice, not a measured improvement (task 49.18)
+
+**MEASURED, TabArena-Lite repeat 0 fold 0, 2026-11-16.** SDSS17, which stopped at the time limit on Kaggle
+CPU (§265), was fitted on the Mac at the same fork commit and settings (b8612d7, `FINTFM_PROB_FLOOR=cv`,
+`FINTFM_PROBE_CROSSFIT_FOLDS=0`, eight bags; run `fintfm_lp_mc_floor_sdss17_mac`, `runs/local_queue/queue.txt`
+`mc-floor-sdss17`): exit 0, no `TimeLimitExceeded`, 3,159 s train time with the machine load average between
+about 20 and 160 from other work (readings during the run). Its log loss is 0.12142 without the floor (`fintfm_lp_mc_scr_bag8_1113`) and
+0.12358 with it (+1.8%, worse). The floor `e` is chosen from {0, 1e-4, ..., 3e-2} by log loss on the
+out-of-fold rows of the readout's training set; test labels are never read.
+
+**Paired, all 8 multiclass tables** (seven against the same-machine Kaggle CPU control of §265, SDSS17
+against the Mac entry run): better on anneal (0.2217 to 0.2018), hiva_agnostic, maternal_health_risk and
+MIC; worse on SDSS17, website_phishing and students_dropout_and_academic_success; splice tied. 4 better,
+3 worse, 1 tied; sign test p 1.00.
+
+**Same fit** (`scripts/lite_same_fit.py`, one Elo fit over the field and both entries, 111 methods):
+
+| entry | Elo | position |
+| --- | --- | --- |
+| RF (default) | 1,000.0 (+66/-66) | 100th of 111 |
+| TABFLEX_GPU (default) | 978.4 (+76/-83) | 101st of 111 |
+| `fintfm_linprobe_all51_1116f_floor8` (floor on all 8 multiclass tables) | 966.1 (+90/-89) | 103rd of 111 |
+| `fintfm_linprobe_all51_1116b` (§257 entry) | 965.4 (+88/-89) | 105th of 111 |
+
+Scored alone (`scripts/lite_positions.py`), `fintfm_linprobe_all51_1116f_floor8` is 966.1, 103rd of 110.
+
+**Decision under §265's pre-registered rule.** Every multiclass table completed with no time-limit hit and
+the full-coverage entry scores higher in the same fit, so the floor is adopted into the entry's multiclass
+configuration (`probe_prob_floor="cv"`). As §265 states, a +0.7 Elo difference against a +/-90 interval on one
+fold is a configuration choice, not evidence of improvement; most of the paired gain is anneal.
+
+**The RFF large-table run did not measure anything.** `reg-rff-large6` (§265's pre-registered completion of
+the RFF arm) started at a load average of about 300 from other work; `miami_housing` stopped with
+`TimeLimitExceeded` after 452 s and the run was stopped. A time limit hit under that load says nothing about
+RFF, so it is not counted against the arm. It is requeued (`reg-rff-large6b`) behind a gate that starts it
+only when the 5-minute load average stays below 30, after the combined binary arm's large tables
+(`bin-ens2-budget-large`, gated the same way). §265's rule is unchanged.
