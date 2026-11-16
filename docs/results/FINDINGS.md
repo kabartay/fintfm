@@ -16407,3 +16407,261 @@ the RFF arm) started at a load average of about 300 from other work; `miami_hous
 RFF, so it is not counted against the arm. It is requeued (`reg-rff-large6b`) behind a gate that starts it
 only when the 5-minute load average stays below 30, after the combined binary arm's large tables
 (`bin-ens2-budget-large`, gated the same way). §265's rule is unchanged.
+
+## §270: against boosting calibrated on a held-out slice, FinTFM's calibration advantage does not carry across three panels: ECE lower in 5 to 7 of 13 scorable cells, one seed (tasks 13.7, 13.8)
+
+**Date:** 2026-11-16. **Status:** MEASURED, one seed per cell, no intervals and no paired tests. Resolves the
+run owed by `sample-efficiency-regime` tasks 13.7 and 13.8 (probe code landed 2026-11-15).
+
+**Result.** Boosting calibrated on a stratified 30% slice of its own training rows (`gboost_platt_holdout`,
+`gboost_isotonic_holdout`) removes most of the calibration gap that §12 measured against raw boosting.
+Counting the cells where the held-out-calibrated arm is not constant-like (13 per arm, across the three
+panels), FinTFM has the lower ECE than Platt-on-holdout in 5 of 13 and than isotonic-on-holdout in 7 of 13; on
+Brier it is lower in 7 and 6 of 13; on average precision it is higher in 7 and 9 of 13. The largest ECE ratio
+against either held-out arm in a scorable cell is 5.6x (Polish 3-year, 4,000 rows), and there the boosting
+arms have the better Brier (0.0368 and 0.0369 against 0.0422) and a much higher average precision (0.3689 and
+0.3593 against 0.1701). The advantage is therefore not a calibration advantage that replicates. Where FinTFM
+leads it is mostly at 100 to 1,000 training rows, and on average precision and Brier on the Taiwanese panel.
+On the V4FinBench pool FinTFM over-predicts at every size (mean predicted 1.97% to 3.40% against an observed
+1.30%) and has the higher ECE than Platt-on-holdout in 4 of 4 scorable cells.
+
+These tallies count single-seed cells. They are descriptive, not a test, and a difference of a few thousandths
+in ECE or Brier in one cell is within what a second seed could reverse (the held-out slices hold 1 to 57
+positives).
+
+### Provenance
+
+- Checkpoint: `v4-cellattn-labels.pt`, the published binary checkpoint (`kabartay/fintfm-binary`), SHA-256
+  `d231b062483c9261aae4c503ad5359db295fc7206fa0183f51763e4953c518d2`. The Kaggle summary records this hash and
+  the local `runs/v4-cellattn-labels.pt` has the same hash. It is not the `mixed` checkpoint of §12 and §16, so
+  FinTFM's own numbers here are not those sections' numbers (Polish 3-year, n = 100: AUC 0.7403 and ECE 0.0112
+  here, 0.6945 and 0.0070 in §16). The raw, cross-fitted-sigmoid and cross-fitted-isotonic boosting rows at
+  Polish n = 100 are identical to §16's.
+- Taiwanese and V4FinBench: Kaggle CPU kernel `scripts/kaggle/task_cpu_13_se/`, fintfm commit `e475151`, 4 CPUs,
+  `--calibration-frac 0.3`, device `cpu`, exit 0 for both panels (349 s and 4,110 s), no problems recorded in
+  `summary.json`. Output read from `runs/kaggle-fintfm-task-cpu-13-se/taiwan/sample_efficiency.json` and
+  `runs/kaggle-fintfm-task-cpu-13-se/v4finbench/sample_efficiency.json`. V4FinBench ran with
+  `--v4-pool-rows 200000`.
+- Polish 3-year: run locally on 2026-11-15, queue entry `h-sampleeff`:
+  `OMP_NUM_THREADS=4 MKL_NUM_THREADS=4 nice -n 10 env -u VIRTUAL_ENV uv run --frozen fintfm-ablate --sample-efficiency runs/v4-cellattn-labels.pt --calibration-frac 0.3 --out runs/sampleeff_1115`.
+  Output `runs/sampleeff_1115/sample_efficiency.json`. The commit it ran from is not recorded in the output.
+- Data: Taiwanese bankruptcy (CC BY 4.0), V4FinBench (CC BY 4.0), Polish bankruptcy 3-year horizon (CC BY 4.0).
+- Panels: Polish 3-year, 10,503 rows, split stratified by rows into a 7,352-row pool and a 3,151-row test set
+  (149 positives; 4.73% observed). Taiwanese, 6,819 rows, 95 features, 4,773-row pool and 2,046-row test set
+  (66 positives; 3.23% observed). V4FinBench, a company-grouped subsample of 200,010 company-year rows from
+  37,631 companies (full panel 1,000,087 rows, 1.35% base rate), 136 features, split company-grouped into a
+  140,586-row pool and a 59,424-row test set (775 positives; 1.30% observed). **The V4FinBench pool is a
+  subsample, so its numbers are not comparable with full-panel V4FinBench figures elsewhere in this file.**
+- Training sets of 100 to 4,000 rows are drawn from the pool. Each cell is one draw. The held-out arms fit
+  boosting on 70% of those rows and calibrate on the remaining 30%, so they see fewer fitting rows than the
+  cross-fitted arms (`calibration_holdout` in the JSON gives `n_fit`, `n_cal` and the positives in each).
+- "constant-like" marks the JSON's `is_degenerate` flag. Such an arm's ECE is low because it predicts close to
+  the base rate for every row (§17); its ECE is not evidence of calibration, and it is left out of every tally
+  above.
+- The per-size winner reported by the probe (`crossover_size`, `leads_at`) is on AUC against raw boosting and is
+  not a statement about the calibrated arms.
+
+### Tables
+
+All values are on the held-out test rows of each panel. AP is average precision; "mean predicted" is the mean
+of the predicted probabilities, to read beside the observed rate in each panel's heading. Boosting arms are
+`gboost` (raw), `gboost_sigmoid` and `gboost_isotonic` (cross-fitted calibration, as in §16), and the two
+held-out-slice arms.
+
+#### Polish 3-year (observed test rate 4.73%, 3151 test rows)
+
+| n train (positives) | arm | AP | ROC-AUC | ECE | Brier | mean predicted |
+| --- | --- | --- | --- | --- | --- | --- |
+| 100 (5) | fintfm | 0.1171 | 0.7403 | 0.0112 | 0.0438 | 5.84% |
+|  | gboost | 0.0723 | 0.6315 | 0.0719 | 0.0686 | 3.48% |
+|  | gboost_sigmoid (constant-like) | 0.0663 | 0.5446 | 0.0149 | 0.0451 | 6.22% |
+|  | gboost_isotonic | 0.0793 | 0.6475 | 0.0127 | 0.0445 | 4.49% |
+|  | gboost_platt_holdout (constant-like) | 0.0446 | 0.4703 | 0.0139 | 0.0455 | 3.34% |
+|  | gboost_isotonic_holdout (constant-like) | 0.0473 | 0.5000 | 0.0140 | 0.0452 | 3.33% |
+| 250 (12) | fintfm | 0.1294 | 0.7354 | 0.0242 | 0.0467 | 5.35% |
+|  | gboost | 0.0924 | 0.6718 | 0.0526 | 0.0554 | 2.81% |
+|  | gboost_sigmoid | 0.0938 | 0.6644 | 0.0117 | 0.0455 | 5.90% |
+|  | gboost_isotonic | 0.0863 | 0.6688 | 0.0330 | 0.0480 | 5.79% |
+|  | gboost_platt_holdout | 0.1013 | 0.6743 | 0.0181 | 0.0474 | 6.54% |
+|  | gboost_isotonic_holdout | 0.0780 | 0.6505 | 0.0140 | 0.0459 | 5.83% |
+| 500 (24) | fintfm | 0.1433 | 0.7570 | 0.0035 | 0.0429 | 4.84% |
+|  | gboost | 0.2088 | 0.7769 | 0.0335 | 0.0433 | 1.92% |
+|  | gboost_sigmoid (constant-like) | 0.0600 | 0.5013 | 0.0019 | 0.0451 | 4.91% |
+|  | gboost_isotonic | 0.1061 | 0.7328 | 0.0015 | 0.0439 | 4.69% |
+|  | gboost_platt_holdout | 0.1241 | 0.7545 | 0.0147 | 0.0448 | 4.53% |
+|  | gboost_isotonic_holdout | 0.1121 | 0.7452 | 0.0186 | 0.0479 | 4.58% |
+| 1,000 (47) | fintfm | 0.1492 | 0.7468 | 0.0166 | 0.0437 | 4.72% |
+|  | gboost | 0.2013 | 0.7965 | 0.0325 | 0.0443 | 2.85% |
+|  | gboost_sigmoid | 0.1600 | 0.7889 | 0.0041 | 0.0431 | 4.54% |
+|  | gboost_isotonic | 0.1659 | 0.7928 | 0.0048 | 0.0424 | 4.42% |
+|  | gboost_platt_holdout | 0.1397 | 0.7626 | 0.0036 | 0.0435 | 4.50% |
+|  | gboost_isotonic_holdout | 0.1132 | 0.7357 | 0.0101 | 0.0437 | 4.74% |
+| 2,000 (94) | fintfm | 0.1667 | 0.7708 | 0.0035 | 0.0424 | 4.71% |
+|  | gboost | 0.3283 | 0.8375 | 0.0131 | 0.0381 | 4.10% |
+|  | gboost_sigmoid | 0.3420 | 0.8302 | 0.0108 | 0.0380 | 4.96% |
+|  | gboost_isotonic | 0.3482 | 0.8295 | 0.0096 | 0.0378 | 5.05% |
+|  | gboost_platt_holdout | 0.2841 | 0.8190 | 0.0104 | 0.0389 | 5.06% |
+|  | gboost_isotonic_holdout | 0.2466 | 0.8169 | 0.0108 | 0.0394 | 4.96% |
+| 4,000 (189) | fintfm | 0.1701 | 0.7806 | 0.0032 | 0.0422 | 4.83% |
+|  | gboost | 0.4308 | 0.8728 | 0.0081 | 0.0341 | 4.12% |
+|  | gboost_sigmoid | 0.4307 | 0.8637 | 0.0077 | 0.0343 | 4.83% |
+|  | gboost_isotonic | 0.4332 | 0.8656 | 0.0110 | 0.0345 | 4.72% |
+|  | gboost_platt_holdout | 0.3689 | 0.8538 | 0.0163 | 0.0368 | 4.70% |
+|  | gboost_isotonic_holdout | 0.3593 | 0.8458 | 0.0182 | 0.0369 | 4.63% |
+
+ECE ratio and Brier gap against the held-out-slice arms, Polish 3-year:
+
+| n train | ECE platt_holdout / fintfm | ECE isotonic_holdout / fintfm | Brier fintfm | Brier platt_holdout | Brier isotonic_holdout | holdout n_fit / n_cal (positives in cal) |
+| --- | --- | --- | --- | --- | --- | --- |
+| 100 | 1.2x* | 1.3x* | 0.0438 | 0.0455 | 0.0452 | 70 / 30 (1) |
+| 250 | 0.7x | 0.6x | 0.0467 | 0.0474 | 0.0459 | 175 / 75 (4) |
+| 500 | 4.2x | 5.3x | 0.0429 | 0.0448 | 0.0479 | 350 / 150 (7) |
+| 1,000 | 0.2x | 0.6x | 0.0437 | 0.0435 | 0.0437 | 700 / 300 (14) |
+| 2,000 | 2.9x | 3.1x | 0.0424 | 0.0389 | 0.0394 | 1400 / 600 (28) |
+| 4,000 | 5.1x | 5.6x | 0.0422 | 0.0368 | 0.0369 | 2800 / 1200 (57) |
+
+#### Taiwanese (observed test rate 3.23%, 2046 test rows)
+
+| n train (positives) | arm | AP | ROC-AUC | ECE | Brier | mean predicted |
+| --- | --- | --- | --- | --- | --- | --- |
+| 100 (3) | fintfm | 0.3370 | 0.9279 | 0.0124 | 0.0271 | 2.10% |
+|  | gboost | 0.1221 | 0.6316 | 0.0595 | 0.0557 | 4.66% |
+|  | gboost_sigmoid | 0.1212 | 0.7115 | 0.0286 | 0.0318 | 6.08% |
+|  | gboost_isotonic | 0.1029 | 0.7013 | 0.0295 | 0.0354 | 4.42% |
+|  | gboost_platt_holdout (constant-like) | 0.0279 | 0.4162 | 0.0010 | 0.0312 | 3.33% |
+|  | gboost_isotonic_holdout (constant-like) | 0.0323 | 0.5000 | 0.0011 | 0.0312 | 3.33% |
+| 250 (8) | fintfm | 0.3228 | 0.9216 | 0.0110 | 0.0271 | 2.89% |
+|  | gboost | 0.1140 | 0.7011 | 0.0477 | 0.0465 | 2.67% |
+|  | gboost_sigmoid | 0.1048 | 0.7177 | 0.0161 | 0.0318 | 4.16% |
+|  | gboost_isotonic | 0.0936 | 0.6905 | 0.0175 | 0.0334 | 3.73% |
+|  | gboost_platt_holdout (constant-like) | 0.0282 | 0.4296 | 0.0059 | 0.0315 | 2.63% |
+|  | gboost_isotonic_holdout (constant-like) | 0.0323 | 0.5000 | 0.0056 | 0.0312 | 2.67% |
+| 500 (16) | fintfm | 0.3268 | 0.9252 | 0.0073 | 0.0256 | 3.11% |
+|  | gboost | 0.2358 | 0.8975 | 0.0310 | 0.0340 | 2.25% |
+|  | gboost_sigmoid | 0.2323 | 0.8973 | 0.0145 | 0.0282 | 4.06% |
+|  | gboost_isotonic | 0.2592 | 0.9054 | 0.0087 | 0.0270 | 3.75% |
+|  | gboost_platt_holdout | 0.2425 | 0.8795 | 0.0104 | 0.0278 | 3.57% |
+|  | gboost_isotonic_holdout | 0.1896 | 0.8709 | 0.0125 | 0.0284 | 3.73% |
+| 1,000 (32) | fintfm | 0.3392 | 0.9264 | 0.0088 | 0.0254 | 2.91% |
+|  | gboost | 0.2488 | 0.9107 | 0.0322 | 0.0346 | 2.42% |
+|  | gboost_sigmoid | 0.3051 | 0.9093 | 0.0077 | 0.0271 | 3.32% |
+|  | gboost_isotonic | 0.2788 | 0.8771 | 0.0125 | 0.0269 | 3.17% |
+|  | gboost_platt_holdout | 0.2568 | 0.8790 | 0.0065 | 0.0280 | 3.52% |
+|  | gboost_isotonic_holdout | 0.1981 | 0.8858 | 0.0098 | 0.0275 | 3.26% |
+| 2,000 (65) | fintfm | 0.3216 | 0.9312 | 0.0116 | 0.0254 | 3.18% |
+|  | gboost | 0.3016 | 0.9276 | 0.0228 | 0.0307 | 3.12% |
+|  | gboost_sigmoid | 0.3626 | 0.9341 | 0.0074 | 0.0255 | 3.32% |
+|  | gboost_isotonic | 0.3736 | 0.9342 | 0.0043 | 0.0248 | 3.29% |
+|  | gboost_platt_holdout | 0.3233 | 0.9233 | 0.0043 | 0.0265 | 3.21% |
+|  | gboost_isotonic_holdout | 0.2472 | 0.9188 | 0.0100 | 0.0270 | 3.31% |
+| 4,000 (129) | fintfm | 0.3338 | 0.9287 | 0.0082 | 0.0253 | 3.23% |
+|  | gboost | 0.3582 | 0.9313 | 0.0190 | 0.0284 | 3.09% |
+|  | gboost_sigmoid | 0.3449 | 0.9299 | 0.0053 | 0.0261 | 3.36% |
+|  | gboost_isotonic | 0.3438 | 0.9290 | 0.0091 | 0.0260 | 3.40% |
+|  | gboost_platt_holdout | 0.2880 | 0.9194 | 0.0104 | 0.0279 | 3.18% |
+|  | gboost_isotonic_holdout | 0.2678 | 0.9177 | 0.0108 | 0.0279 | 3.27% |
+
+ECE ratio and Brier gap against the held-out-slice arms, Taiwanese:
+
+| n train | ECE platt_holdout / fintfm | ECE isotonic_holdout / fintfm | Brier fintfm | Brier platt_holdout | Brier isotonic_holdout | holdout n_fit / n_cal (positives in cal) |
+| --- | --- | --- | --- | --- | --- | --- |
+| 100 | 0.1x* | 0.1x* | 0.0271 | 0.0312 | 0.0312 | 70 / 30 (1) |
+| 250 | 0.5x* | 0.5x* | 0.0271 | 0.0315 | 0.0312 | 175 / 75 (2) |
+| 500 | 1.4x | 1.7x | 0.0256 | 0.0278 | 0.0284 | 350 / 150 (5) |
+| 1,000 | 0.7x | 1.1x | 0.0254 | 0.0280 | 0.0275 | 700 / 300 (10) |
+| 2,000 | 0.4x | 0.9x | 0.0254 | 0.0265 | 0.0270 | 1400 / 600 (19) |
+| 4,000 | 1.3x | 1.3x | 0.0253 | 0.0279 | 0.0279 | 2800 / 1200 (39) |
+
+#### V4FinBench pool (observed test rate 1.30%, 59424 test rows)
+
+| n train (positives) | arm | AP | ROC-AUC | ECE | Brier | mean predicted |
+| --- | --- | --- | --- | --- | --- | --- |
+| 100 (1) | fintfm | 0.0373 | 0.8129 | 0.0209 | 0.0188 | 3.40% |
+|  | gboost | 0.0554 | 0.6086 | 0.0166 | 0.0158 | 0.70% |
+|  | gboost_sigmoid | not scored | | | | |
+|  | gboost_isotonic | not scored | | | | |
+|  | gboost_platt_holdout | not scored | | | | |
+|  | gboost_isotonic_holdout | not scored | | | | |
+| 250 (4) | fintfm | 0.0401 | 0.8088 | 0.0184 | 0.0162 | 3.15% |
+|  | gboost | 0.0388 | 0.6045 | 0.0179 | 0.0172 | 0.76% |
+|  | gboost_sigmoid | 0.0222 | 0.5547 | 0.0099 | 0.0130 | 2.30% |
+|  | gboost_isotonic | 0.0277 | 0.6075 | 0.0039 | 0.0130 | 1.70% |
+|  | gboost_platt_holdout (constant-like) | 0.0113 | 0.4245 | 0.0005 | 0.0129 | 1.36% |
+|  | gboost_isotonic_holdout (constant-like) | 0.0130 | 0.5000 | 0.0003 | 0.0129 | 1.33% |
+| 500 (7) | fintfm | 0.0234 | 0.7146 | 0.0183 | 0.0178 | 2.90% |
+|  | gboost (constant-like) | 0.0153 | 0.5405 | 0.0184 | 0.0175 | 0.68% |
+|  | gboost_sigmoid (constant-like) | 0.0126 | 0.4656 | 0.0028 | 0.0129 | 1.58% |
+|  | gboost_isotonic | 0.0160 | 0.5654 | 0.0011 | 0.0129 | 1.28% |
+|  | gboost_platt_holdout | 0.0190 | 0.5587 | 0.0091 | 0.0136 | 0.98% |
+|  | gboost_isotonic_holdout | 0.0160 | 0.5642 | 0.0096 | 0.0146 | 0.69% |
+| 1,000 (14) | fintfm | 0.0487 | 0.8234 | 0.0140 | 0.0145 | 2.71% |
+|  | gboost | 0.0596 | 0.7976 | 0.0207 | 0.0193 | 1.11% |
+|  | gboost_sigmoid | 0.0581 | 0.7796 | 0.0022 | 0.0127 | 1.52% |
+|  | gboost_isotonic | 0.0554 | 0.7390 | 0.0020 | 0.0131 | 1.51% |
+|  | gboost_platt_holdout | 0.0530 | 0.8021 | 0.0019 | 0.0129 | 1.50% |
+|  | gboost_isotonic_holdout | 0.0401 | 0.7565 | 0.0073 | 0.0129 | 1.68% |
+| 2,000 (28) | fintfm | 0.0601 | 0.8400 | 0.0103 | 0.0138 | 2.33% |
+|  | gboost | 0.0932 | 0.8454 | 0.0163 | 0.0164 | 0.91% |
+|  | gboost_sigmoid | 0.1010 | 0.8540 | 0.0022 | 0.0124 | 1.53% |
+|  | gboost_isotonic | 0.0969 | 0.8516 | 0.0008 | 0.0123 | 1.38% |
+|  | gboost_platt_holdout | 0.0886 | 0.8321 | 0.0055 | 0.0132 | 1.25% |
+|  | gboost_isotonic_holdout | 0.0691 | 0.7982 | 0.0113 | 0.0146 | 1.45% |
+| 4,000 (57) | fintfm | 0.0893 | 0.8520 | 0.0066 | 0.0124 | 1.97% |
+|  | gboost | 0.1168 | 0.8648 | 0.0134 | 0.0163 | 1.27% |
+|  | gboost_sigmoid | 0.1282 | 0.8742 | 0.0016 | 0.0123 | 1.38% |
+|  | gboost_isotonic | 0.1761 | 0.8716 | 0.0049 | 0.0118 | 1.37% |
+|  | gboost_platt_holdout | 0.1168 | 0.8478 | 0.0019 | 0.0127 | 1.23% |
+|  | gboost_isotonic_holdout | 0.1086 | 0.8373 | 0.0006 | 0.0121 | 1.31% |
+
+ECE ratio and Brier gap against the held-out-slice arms, V4FinBench pool:
+
+| n train | ECE platt_holdout / fintfm | ECE isotonic_holdout / fintfm | Brier fintfm | Brier platt_holdout | Brier isotonic_holdout | holdout n_fit / n_cal (positives in cal) |
+| --- | --- | --- | --- | --- | --- | --- |
+| 100 | not run | | | | | skipped: fewer than 2 rows of one class: cannot stratify a calibration slice |
+| 250 | 0.0x* | 0.0x* | 0.0162 | 0.0129 | 0.0129 | 175 / 75 (1) |
+| 500 | 0.5x | 0.5x | 0.0178 | 0.0136 | 0.0146 | 350 / 150 (2) |
+| 1,000 | 0.1x | 0.5x | 0.0145 | 0.0129 | 0.0129 | 700 / 300 (4) |
+| 2,000 | 0.5x | 1.1x | 0.0138 | 0.0132 | 0.0146 | 1400 / 600 (8) |
+| 4,000 | 0.3x | 0.1x | 0.0124 | 0.0127 | 0.0121 | 2800 / 1200 (17) |
+`*` marks a constant-like held-out arm, whose ratio is not meaningful. A ratio above 1.0x means FinTFM's ECE is
+lower; below 1.0x means the boosting arm's is lower. The V4FinBench n = 100 cell has one positive training row,
+so the held-out slice cannot be stratified and the probe records `skipped: fewer than 2 rows of one class`; the
+cross-fitted arms also could not be fitted there (`ValueError`). Those cells are not scored, not zero.
+
+### What it says
+
+- **The 11.7x and 2x calibration advantages do not carry over to held-out calibration.** §16 already cut §12's
+  ratio against cross-fitted calibration; this run measures the same comparison against calibration on a
+  held-out slice, the arrangement a reviewer would ask for. In scorable cells the ECE ratio ranges from 0.2x to
+  5.6x on the Polish panel (below 1.0x at 250 and 1,000 rows, above it at 500, 2,000 and 4,000), 0.4x to 1.7x
+  on the Taiwanese panel and 0.1x to 1.1x on the V4FinBench pool.
+- **The Taiwanese panel is the favourable case, and only there.** FinTFM has the higher average precision than
+  both held-out arms at 100, 250, 500, 1,000 and 4,000 training rows and a lower Brier at every size (0.0253 to
+  0.0271 against 0.0265 to 0.0315, the 100 and 250 row cells being constant-like for the boosting arms). At
+  2,000 rows Platt-on-holdout is ahead on average precision by 0.0017 (0.3233 against 0.3216), a tie at this
+  evidence level. The cross-fitted isotonic arm scores higher AP than FinTFM at 2,000 rows (0.3736).
+- **On the Polish panel boosting takes over by 2,000 rows.** FinTFM has the higher average precision up to
+  1,000 rows (0.1492 at 1,000 against 0.1397 and 0.1132); from 2,000 rows the boosting arms lead, at 4,000 rows
+  by 0.1701 against 0.3689 and 0.3593. The ECE advantage at 500, 2,000 and 4,000 rows coexists with worse
+  ranking and worse Brier from 2,000 rows, which is §17's warning: a low ECE alone does not make a better
+  model.
+- **On the V4FinBench pool FinTFM is not the better calibrated model.** Mean predicted is 2.33% at 2,000 rows
+  and 1.97% at 4,000 against 1.30% observed, while the held-out boosting arms sit at 0.69% to 1.68% from 500
+  rows. Its ROC-AUC is higher than the raw boosting arm at 100 to 1,000 rows (0.8234 against 0.7976 at 1,000),
+  but its average precision is below both held-out arms at 2,000 and 4,000 rows.
+- **Task 13.7's question has an answer, and it is the narrower claim.** Do not quote an ECE ratio against
+  boosting without naming the calibration arm and the panel; against held-out-slice calibration no ratio holds
+  across panels.
+
+### Limits
+
+- One seed per cell; no intervals, no paired tests. §12's five-seed intervals are not reproduced here, so no
+  cell supports "significant" or "better" beyond the descriptive counts.
+- The held-out slices are small: 1 to 57 positives (Polish), 1 to 39 (Taiwanese), 1 to 17 (V4FinBench).
+  Isotonic calibration on a slice with a handful of positives is close to a step function; the constant-like
+  cells show the failure.
+- The held-out arms fit on 70% of the training rows. They are weaker than the cross-fitted arms at large n by
+  construction, so this run tests one calibration protocol, not the best calibrated boosting.
+- Boosting hyperparameters were not tuned and CatBoost (§27) was not in this run.
+- The Polish run's commit is not recorded; the Kaggle runs are at `e475151`.
+- `runs/` is gitignored; the figures above are re-derivable from the three JSON files named in Provenance.

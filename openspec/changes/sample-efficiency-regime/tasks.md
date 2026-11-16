@@ -17,7 +17,13 @@
 - [x] 13.5 Extend the probe to multiple seeds. Verify: crossover reported with a range
       across seeds. **Done 2026-09-08: 5 seeds. AUC win survives only at n=100
       (+0.069 +/- 0.040); calibration advantage stable everywhere.** Taiwan still open below.
-- [ ] 13.7 **Progress (2026-11-15): the probe now carries held-out-slice calibrated boosting arms
+- [ ] 13.7 **Progress (2026-11-16, FINDINGS §270): the probe was run with `--calibration-frac 0.3` on the
+      published binary checkpoint (SHA-256 d231b062...) on Polish 3-year, Taiwanese and a 200,000-row
+      V4FinBench pool, one seed per cell. Against `gboost_platt_holdout` and `gboost_isotonic_holdout`
+      FinTFM has the lower ECE in 5 and 7 of 13 scorable cells respectively, so the ratio is stated per
+      panel in §270 and no single ratio holds. Still owed: the Verify clause also asks that §12 be
+      updated with the ratio; §12 carries no pointer to §270 yet, so the box stays open.**
+      **Progress (2026-11-15): the probe now carries held-out-slice calibrated boosting arms
       `gboost_platt_holdout` and `gboost_isotonic_holdout` (`calibrated_gboost_holdout_arms` in
       src/fintfm/experiments/prior_ablation.py), calibrated on a stratified slice of the training
       rows only (`--calibration-frac`, default 0.3, recorded per size as `calibration_holdout`),
@@ -33,7 +39,12 @@
       must be pre-empted rather than discovered by a reviewer. Verify: the probe reports a
       third arm (`gboost_calibrated`) and `docs/results/FINDINGS.md` §12 is updated with the ratio
       against it, re-derived from the run.
-- [ ] 13.8 **Progress (2026-11-15): the probe takes `--panel {polish3,taiwan,v4finbench}` (default
+- [x] 13.8 **Done (2026-11-16, FINDINGS §270): the probe ran on all three panels (Polish 3-year locally,
+      Taiwanese and a company-grouped 200,000-row V4FinBench pool on a Kaggle CPU kernel at e475151). The
+      calibration comparison is reported per panel and does not replicate: ECE ratio against the
+      held-out-slice arms is 0.2x to 5.6x (Polish), 0.4x to 1.7x (Taiwanese), 0.1x to 1.1x (V4FinBench
+      pool), one seed, no intervals.**
+      **Progress (2026-11-15): the probe takes `--panel {polish3,taiwan,v4finbench}` (default
       `polish3`, as before; `load_probe_panel` in src/fintfm/experiments/prior_ablation.py).
       V4FinBench is subsampled company-grouped to `--v4-pool-rows` company-year rows (default
       200,000) and split company-grouped, so no company has rows on both sides; a panel wider than
