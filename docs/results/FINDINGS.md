@@ -1547,6 +1547,8 @@ a curve that contradicts itself for **two firms in three**. For a regulated PD u
 provisioning that is a poor trade, and the point is that it can now be stated as a trade
 rather than asserted as a win.
 
+> **Corrected verdict, 2026-11-16 (§264, task 11.8):** the paired bootstrap this section lacked has now run (three seeds, 1,200 steps, tasks resampled, Holm across ten cells). Joint against matched total: no horizon differs after Holm. Joint against matched per-model (5x compute): -0.0081 mean AUC, but only horizon 4 is significant (-0.0064, Holm p 0.040). The "no paired bootstrap" limit below is resolved by §264; the other limits stand.
+
 ### What this still does not establish
 - **Synthetic evaluation only.** The term structure cannot be scored on the UCI panels at all
   (no firm identifiers, §7). Real validation needs V4FinBench; the loader and a
@@ -16185,3 +16187,47 @@ two easy tasks, and weakly.
 **Gaps.** The `interaction4` rate confound needs a rate-matched variant before the bits axis can be judged on
 it. The R^2 fits have 16 points and no interval. fin00 and fin10 are the two checkpoints named in 39.13; no
 multiclass, regression or real-data context was tried.
+
+## §264: Holm-corrected term structure, three seeds: at equal compute the joint curve costs no measurable AUC on any horizon; five times the compute buys about 0.008 mean AUC, significant at one horizon of five (task 11.8)
+
+**MEASURED, synthetic held-out survival tasks, Kaggle CPU (4 cores), 2026-11-16.** Kernel
+`scripts/kaggle/task_cpu_11_8` (fintfm e475151): `fintfm.experiments.term_structure --steps 1200
+--seeds 0 1 2 --n-boot 2000`, 9,775 s, exit 0, 15 of 15 arm-horizons scored at every seed. Config as
+recorded in each seed's JSON: batch 16, 128 rows, 32 features, 5 horizons. Outputs in
+`runs/kaggle-fintfm-task-cpu-11-8/` (`term_structure.log`, `term-structure-11-8/term_structure_seeds.json`).
+
+| arm | models x steps | mean AUC (mean +/- std over 3 seeds) | violations | fully monotone |
+| --- | --- | --- | --- | --- |
+| joint | 1 x 1,200 | 0.7441 +/- 0.0021 | 0.00% +/- 0.00% | 100.0% |
+| per-horizon, matched total | 5 x 240 | 0.7444 +/- 0.0002 | 26.31% +/- 13.51% | 26.8% |
+| per-horizon, matched per-model (5x compute) | 5 x 1,200 | 0.7522 +/- 0.0017 | 21.83% +/- 2.38% | 31.8% |
+
+Pooled across the three seeds on the shared held-out rows, tasks resampled (2,000 resamples), Holm
+across all ten cells; delta is joint minus the other arm, in ROC-AUC:
+
+| other arm | horizon | delta | 95% CI | p raw | p Holm |
+| --- | --- | --- | --- | --- | --- |
+| matched per-model | 0 | -0.0255 | [-0.0669, +0.0171] | 0.253 | 1.000 |
+| matched per-model | 1 | -0.0226 | [-0.0465, +0.0011] | 0.063 | 0.504 |
+| matched per-model | 2 | -0.0112 | [-0.0262, +0.0048] | 0.170 | 1.000 |
+| matched per-model | 3 | +0.0020 | [-0.0159, +0.0227] | 0.962 | 1.000 |
+| matched per-model | 4 | -0.0064 | [-0.0110, -0.0022] | 0.004 | **0.040** |
+| matched total | 0 | -0.0149 | [-0.0585, +0.0323] | 0.581 | 1.000 |
+| matched total | 1 | -0.0130 | [-0.0390, +0.0109] | 0.346 | 1.000 |
+| matched total | 2 | +0.0034 | [-0.0127, +0.0207] | 0.654 | 1.000 |
+| matched total | 3 | +0.0200 | [+0.0034, +0.0421] | 0.010 | 0.090 |
+| matched total | 4 | +0.0038 | [-0.0011, +0.0086] | 0.131 | 0.917 |
+
+**What it says.** §21's verdict survives the correction §21 asked for, with one sharpening. At equal
+compute no cell differs after Holm (largest raw effect, horizon 3, +0.0200 in the joint model's favour,
+Holm p 0.090), so coherence costs no measurable discrimination. At five times the compute the
+per-horizon models are better by 0.0081 mean AUC (0.7522 against 0.7441), in line with §21's 0.0084,
+but only horizon 4 survives Holm (-0.0064, p 0.040); the other four intervals include zero. The
+per-horizon arms still contradict themselves on about a quarter of firm-horizon pairs (21.8% and 26.3%
+violations), the joint model on none.
+
+**Limits.** Seeds vary training only; the held-out set is fixed, so the intervals reflect task sampling,
+not training-seed variance (the per-seed std is beside it). Absolute AUCs are about 0.02 below §21's
+three-seed table (0.7441 against 0.7653 for joint) at the same recipe; the code has changed since
+2026-09-09 (fintfm e475151) and this run did not isolate why, so compare arms within a run, not levels
+across runs. Synthetic tasks only, small models, CPU.
