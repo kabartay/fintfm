@@ -108,3 +108,20 @@ context size is nearly flat ([FINDINGS](../results/FINDINGS.md) §83/§84), retr
 low prevalence (§70), and ensembling over column-identity draws is a correctness setting rather
 than a hyperparameter ([DECISIONS](../design/DECISIONS.md) D12). Expect a reviewer to ask, and
 answer with the measurements rather than the precedent.
+
+## Pickle audit (2026-11-16, MEASURED)
+
+`python -P -m tabarena.tools.audit_pickle --model <name>` on the PR branch (`fintfm-pr-2026-11`,
+ecd4ac5) passes for FinTFM and FinTFM-LinProbe (binary) in a fresh environment with the branch's own
+AutoGluon floor (`autogluon.tabular>=1.6.4b20261109,<1.7`; checked with 1.6.4b20261115, fintfm 0.10.1):
+
+| model | `model.pkl` at 200 rows | at 400 rows | growth per row | result |
+| --- | --- | --- | --- | --- |
+| FinTFM | 50,838 B | 78,058 B | 136 B | OK |
+| FinTFM-LinProbe | 70,033 B | 87,643 B | 88 B | OK |
+
+The flag limit is 1,024 B per row; `model_tensors.pt` (the weights, 3,580,115 B) does not grow with
+rows. The earlier crash (`AttributeError: ... no attribute 'model_tensors_file_name'`) came from the
+older nightly in the local development venv (1.6.4b20260919), which predates the tensors-file split
+the audit reads; the wrappers are not involved. Regression cannot be audited by a maintainer until
+the regression checkpoint is published (`CheckpointNotPublishedError` otherwise).

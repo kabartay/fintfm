@@ -176,7 +176,7 @@
       default for the problem types where it was measured (binary), its tests pass, the fork
       fit-tests pass, and the branch reproduces the 952.8 Elo merge with no environment
       variables (the same check as 49.6's).
-- [ ] 49.21 **The pickle audit passes or is documented.** `audit_pickle` crashed on the PR branch
+- [x] 49.21 **Done (2026-11-16, MEASURED): `audit_pickle` passes on the PR branch (ecd4ac5) for FinTFM and FinTFM-LinProbe, binary, in a fresh environment with the branch's own AutoGluon floor (1.6.4b20261115): `model.pkl` grows 136 and 88 B per row against the 1,024 B limit. The crash was the development venv's older nightly (1.6.4b20260919), not the wrappers. Recorded in `docs/competition/SUBMISSION.md` ("Pickle audit"); regression needs the published checkpoint to be audited by a maintainer.** **The pickle audit passes or is documented.** `audit_pickle` crashed on the PR branch
       (needs a newer AutoGluon, 49.6); a crash investigation is in progress (2026-11-16). Verify:
       `audit_pickle` passes on the PR branch, or the crash's cause and the AutoGluon version it
       needs are written into `docs/competition/SUBMISSION.md` with the reason the entry is still
