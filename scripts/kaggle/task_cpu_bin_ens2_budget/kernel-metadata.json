@@ -1,0 +1,15 @@
+{
+  "id": "muhakabartay/fintfm-task-cpu-bin-ens2-budget",
+  "title": "fintfm-task-cpu-bin-ens2-budget",
+  "code_file": "task_cpu_bin_ens2_budget.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": "true",
+  "enable_gpu": "false",
+  "enable_tpu": "false",
+  "enable_internet": "true",
+  "dataset_sources": [],
+  "competition_sources": [],
+  "kernel_sources": [],
+  "model_sources": []
+}
