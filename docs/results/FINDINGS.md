@@ -792,6 +792,8 @@ regression cannot pass unnoticed behind a healthy-looking aggregate.
 
 ## 12. The advantage is calibration, not ranking — and it holds at every dataset size
 
+> **Later evidence, 2026-11-16 (§270, tasks 13.7 and 13.8):** against boosting calibrated on a held-out 30% slice of its own training rows, the advantage does not hold uniformly: FinTFM has the lower ECE in 5 of 13 scorable cells against Platt and 7 of 13 against isotonic (Polish 3-year, Taiwanese, a 200,000-row V4FinBench pool; one seed, published binary checkpoint, not the `mixed` checkpoint behind this section). The ratio is stated per panel and size in §270; the largest is 5.6x (Polish 3-year, 4,000 rows), where boosting has the better Brier and average precision.
+>
 > **Later evidence, 2026-10-15 note:** §56 lists §12 among results measured through the §54 encoder ceiling.
 >
 > **ALSO WEAKENED by §17:** a feature-free constant predictor beats every model here on ECE

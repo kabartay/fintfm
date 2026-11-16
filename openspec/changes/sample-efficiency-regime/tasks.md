@@ -17,7 +17,7 @@
 - [x] 13.5 Extend the probe to multiple seeds. Verify: crossover reported with a range
       across seeds. **Done 2026-09-08: 5 seeds. AUC win survives only at n=100
       (+0.069 +/- 0.040); calibration advantage stable everywhere.** Taiwan still open below.
-- [ ] 13.7 **Progress (2026-11-16, FINDINGS §270): the probe was run with `--calibration-frac 0.3` on the
+- [x] 13.7 **Done (2026-11-16, FINDINGS §270, with a dated note in §12): the ratio is stated per panel and size in §270 and §12 now points to it; no single ratio holds.** **Progress (2026-11-16, FINDINGS §270): the probe was run with `--calibration-frac 0.3` on the
       published binary checkpoint (SHA-256 d231b062...) on Polish 3-year, Taiwanese and a 200,000-row
       V4FinBench pool, one seed per cell. Against `gboost_platt_holdout` and `gboost_isotonic_holdout`
       FinTFM has the lower ECE in 5 and 7 of 13 scorable cells respectively, so the ratio is stated per
