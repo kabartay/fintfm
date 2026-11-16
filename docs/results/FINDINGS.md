@@ -16667,3 +16667,57 @@ cross-fitted arms also could not be fitted there (`ValueError`). Those cells are
 - Boosting hyperparameters were not tuned and CatBoost (§27) was not in this run.
 - The Polish run's commit is not recorded; the Kaggle runs are at `e475151`.
 - `runs/` is gitignored; the figures above are re-derivable from the three JSON files named in Provenance.
+
+## §271: one-hot categorical indicators in the multiclass readout are better on 4 of 7 tables on Kaggle CPU (anneal log loss halved); a one-hot plus floor arm is pre-registered against the floor entry; the combined binary arm's Mac half stopped at the time limit on 6 of its first 7 tables under load (tasks 49.24, 49.22)
+
+**MEASURED, TabArena-Lite repeat 0 fold 0, Kaggle CPU (4 cores), 2026-11-16.** For a multiclass target
+fintfm encodes each categorical column as its level frequency, so the readout's raw block sees a level's
+frequency, not the level. `probe_onehot` (fork `fintfm-mc-onehot` 229af56, merged default-off into the dev
+branch `fintfm-audit-fixes`; env `FINTFM_PROBE_ONEHOT=on`) appends indicator columns of the label-coded levels
+to the raw block: levels with at least 3 training rows, at most 256 columns, most frequent first, a two-level
+column keeping only its rarer level. Run `fintfm_lp_mc_onehot_cpu` (kernel
+`muhakabartay/fintfm-task-lite-cpu-mc-onehot`, fintfm 34fb288, AutoGluon 1.6.4b20260919; 172 model tests
+passed in the kernel before fitting), paired against the same-machine control `fintfm_lp_mc_ctrl_cpu` of
+§265 (log loss, lower is better):
+
+| table | control | one-hot | change |
+| --- | --- | --- | --- |
+| anneal | 0.221724 | 0.110068 | -50.4% |
+| website_phishing | 0.321957 | 0.288454 | -10.4% |
+| splice | 0.122437 | 0.110600 | -9.7% |
+| students_dropout_and_academic_success | 0.602486 | 0.596773 | -0.9% |
+| MIC | 0.492302 | 0.499238 | +1.4% |
+| hiva_agnostic | 0.184146 | 0.184146 | identical |
+| maternal_health_risk | 0.643475 | 0.643475 | identical |
+
+4 better, 1 worse, 2 identical; sign test p 0.375. maternal_health_risk has no categorical column, so the
+option is moot there and the identical value is the expected reproduction; hiva_agnostic's 1,413 categorical
+columns arrive as boolean integers after AutoGluon's preprocessing, so no indicator is added. SDSS17 (two
+categorical columns, `plate` and `fiber_ID`) stopped at the 3,600 s limit on Kaggle CPU, as the control and
+floor arms did (§265), and is not counted.
+
+**This arm ran without the probability floor, which the entry now carries (§269).** The comparison that
+decides adoption is therefore one-hot plus floor against the floor entry, not this one.
+
+**Pre-registered, written before the arm runs.** Arm `fintfm_lp_mc_onehot_floor_cpu` (kernel
+`task_lite_cpu_mc_onehot_floor`, fork a52725c, `FINTFM_PROBE_ONEHOT=on`, `FINTFM_PROB_FLOOR=cv`, the entry's
+multiclass settings otherwise) on the seven tables on Kaggle CPU, and SDSS17 on the Mac at the same commit and
+settings (`runs/local_queue/queue.txt` `mc-onehot-floor-sdss17`, run `fintfm_lp_mc_onehot_floor_sdss17_mac`).
+Rule, as §265's: adopt one-hot into the entry's multiclass configuration only if all 8 multiclass tables
+complete with no time-limit hit, and the entry with this multiclass part scores higher than
+`fintfm_linprobe_all51_1116f_floor8` in one fit (`scripts/lite_same_fit.py`). A time limit hit under a load
+average above 30 is a failed measurement, rerun, not a failed arm.
+
+**The combined binary arm's Mac half (§257, `bin-ens2-budget-large`) measured little.** Its gate passed at a
+5-minute load average of 27.8 (15-minute 62.6); load from other work then rose (15-minute 77.3 at 19:06).
+NATICUSdroid completed (1,505 s); Amazon_employee_access (822 s), HR_Analytics_Job_Change_of_Data_Scientists
+(412 s), Diabetes130US (1,017 s), APSFailure (1,415 s), credit_card_clients_default (569 s) and
+GiveMeSomeCredit (1,686 s) stopped with `TimeLimitExceeded` (times to the stop). On HR_Analytics the first of
+eight bagged folds took 402 s, against 833 s for all eight folds of the single-readout entry
+(`fintfm_linprobe_all51_1116f_floor8`, load not recorded). How much of that is load and how much is the
+two-member ensemble is not separable from this run. Each of the six now runs as its own queued job behind a
+gate requiring both the 5- and 15-minute load averages below 30 for 15 minutes
+(`ens2-large-*`, run `fintfm_lp_bin_ens2_budget_large_mac2`). ESTIMATED from the entry's times at twice the
+cost: five of the six fit under 3,600 s on a quiet Mac, GiveMeSomeCredit is marginal (about 2,650 s), and
+customer_satisfaction_in_airline (3,042 s in the entry, about 6,000 s doubled) is expected to exceed the limit
+however quiet the machine; if it does, §257's rule fails as written unless that table is fitted elsewhere.

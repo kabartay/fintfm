@@ -201,3 +201,12 @@
       fit (`scripts/lite_same_fit.py`). Not a hybrid: no second model, only a wider design matrix
       for the same readout. Verify: the option is merged with tests, the 30-table arm runs, and a
       FINDINGS entry applies the rule (adopt or not) with the merged entry's Elo and position.
+- [ ] 49.24 **Progress (2026-11-16, FINDINGS §271, MEASURED, Kaggle CPU): without the floor, one-hot
+      indicators are better on 4 of 7 multiclass tables, worse on MIC (+1.4%), identical on 2 with no
+      applicable column; anneal log loss 0.2217 to 0.1101; sign test p 0.375. SDSS17 stopped at the time
+      limit. The one-hot plus floor arm and its rule are pre-registered in §271.** **One-hot categorical
+      indicators in the multiclass readout (`probe_onehot`), then a Lite multiclass arm on top of the floor
+      entry.** fintfm encodes a multiclass target's categorical columns as level frequencies, so the
+      readout cannot see a level that is not frequency-distinct. Verify: the one-hot plus floor arm runs on
+      all 8 multiclass tables (SDSS17 on the Mac), and a FINDINGS entry applies §271's rule (adopt or not)
+      with the merged entry's Elo and position in one fit.
