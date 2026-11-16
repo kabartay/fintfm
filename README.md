@@ -96,7 +96,7 @@ numbers its rows from 0, so ranks quoted from it before 2026-11-13 were one plac
 
 | entry | datasets | Elo | position | source |
 | --- | --- | --- | --- | --- |
-| **FinTFM with a trained linear readout** | all 51, none excluded | **952.8** | **104th of 110** | §254 |
+| **FinTFM with a trained linear readout** | all 51, none excluded | **952.8** (+92 / −99) | **104th of 110** | §254 |
 | the published model, zero-shot, own head | 27 binary | 750 (+134 / −186) | 107th of 108 | §225 |
 | RandomForest (default), the resubmission bar | all 51 | 1,000 | 100th of 110 | §224, §225 |
 
