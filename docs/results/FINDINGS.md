@@ -16287,3 +16287,29 @@ full-coverage merged entry with it scores a higher Elo than the same entry witho
 If RFF hits the limit on a large table, RFF is not adopted as is; a size-gated variant would be a new,
 separately pre-registered arm. A gain smaller than the Elo interval (about +/-90) is a configuration
 choice on one fold, not evidence of improvement, and is reported as such. Not retuned on the result.
+
+## §266: §256's reproduction gate passes for the primary ensemble; the secondary's credit-g gap is the stored raw-only run's older categorical encoding (task 49.22)
+
+**MEASURED, TabArena-Lite repeat 0 fold 0, Kaggle CPU, 2026-11-16.** Kernel `scripts/kaggle/task_cpu_ens_gate`
+(fintfm 34fb288, fork 6ca0219). The first launch (fork 169402a) fitted nothing: 2 of 135 model tests failed,
+both test defects (float32 `predict_proba` against a 1e-9 tolerance; a partitioned model scores each leaf in
+its own call), fixed in 6ca0219. On the relaunch all 135 tests pass and every fit exits 0 with no
+`TimeLimitExceeded`. Maximum absolute difference of test-set predicted probabilities:
+
+| dataset | Kaggle xfit vs Mac xfit (drift) | `xfit,noxfit` vs mean of Mac runs | `xfit,noxfit,rawonly` vs mean of Mac runs |
+| --- | --- | --- | --- |
+| blood-transfusion-service-center (250 rows) | 3.78e-06 | 2.06e-06 | 1.37e-06 |
+| credit-g (334 rows) | 1.70e-06 | 1.01e-06 | 1.20e-01 |
+
+Mac runs: `fintfm_lp_bin_scr_xfit_1115` (xfit), `fintfm_lp_bin_scalecvraw_1114` (noxfit),
+`fintfm_lp_bin_rawonly_1115` (rawonly).
+
+**Verdict.** The primary arm's differences are within the machine-to-machine drift of the single readout
+(the same order, 1e-6), so the gate's "within 1e-6, or explained" is met. The secondary arm matches on
+blood-transfusion, which has no categorical columns, and departs on credit-g, which has them: the stored
+`fintfm_lp_bin_rawonly_1115` ran on 2026-11-15 at 13:46 with in-sample categorical encoding (its log has no
+cross-fit lines; cross-fitting and out-of-fold encoding first appear in the 19:30 run), while the in-model
+raw-only member reads the out-of-fold encoding the classifier was fitted on. The difference is therefore
+explained by the encoding, not a defect in the ensemble. The pre-registered combined arm (§257) is launched:
+its 20 small tables on Kaggle CPU (`task_cpu_bin_ens2_budget`) and its 10 large ones on the Mac at the same
+fork pin (`runs/local_queue/queue.txt`, `bin-ens2-budget-large`), merged into one run.
