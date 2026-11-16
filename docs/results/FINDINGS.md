@@ -477,6 +477,8 @@ pretraining scale before treating "always correct" as settled**, and consider fi
 shift on a validation split instead of deriving it analytically, which would absorb whatever
 the model actually does rather than assuming.
 
+> **Re-measured 2026-11-16 (§267, task 4.3), MEASURED at real pretraining scale (`runs/v4-cellattn-labels.pt`, Polish 1y/3y/5y, balanced and uniform context, 3 seeds):** under balanced context the analytic correction lowers ECE from 0.1097 to 0.0074 (1y), 0.2199 to 0.0101 (3y) and 0.1201 to 0.0170 (5y); the 1-year overcorrection above does not recur. A fitted temperature alone is worse than the analytic shift on every balanced horizon, and on top of it trims ECE by at most 0.005, not significantly.
+
 **Consequence for the project.** This is a small worked example of the thesis in
 `docs/competition/LANDSCAPE.md`: the deliverable in regulated credit is the validation evidence, and the
 evidence only exists if the metrics can see the failure. Nothing here was visible in AUC.
@@ -16313,3 +16315,57 @@ raw-only member reads the out-of-fold encoding the classifier was fitted on. The
 explained by the encoding, not a defect in the ensemble. The pre-registered combined arm (§257) is launched:
 its 20 small tables on Kaggle CPU (`task_cpu_bin_ens2_budget`) and its 10 large ones on the Mac at the same
 fork pin (`runs/local_queue/queue.txt`, `bin-ens2-budget-large`), merged into one run.
+
+## §267: a fitted temperature does not replace the analytic base-rate correction: it is worse under balanced context on every horizon; analytic plus fitted trims ECE by at most 0.005, not significantly (task 4.3)
+
+**MEASURED, Polish bankruptcy 1y, 3y and 5y (held-out 30% of each panel), balanced and uniform context, seeds
+0-2, Kaggle CPU, 2026-11-16.** Kernel `scripts/kaggle/task_cpu_fitcal_attr` (fintfm e475151, checkpoint
+`runs/v4-cellattn-labels.pt`, SHA-256 d231b062...c518d2): `fintfm-fitcal --model runs/v4-cellattn-labels.pt
+--out runs/fitted-calibration` with its defaults (max context 1,000, validation fraction 0.25, 1,000 row
+bootstrap resamples), 2,312 s, exit 0. Output `runs/kaggle-fintfm-task-cpu-fitcal-attr/`. The fitted arms
+train on 75% of the training rows, so they draw a different context than the analytic arms.
+
+Seed means, ECE (mean predicted / observed default rate):
+
+| panel | context | uncorrected | analytic | fitted | analytic + fitted |
+| --- | --- | --- | --- | --- | --- |
+| 1y | balanced | 0.1097 (0.1481 / 0.0384) | 0.0074 (0.0346) | 0.0215 (0.0586) | 0.0064 (0.0380) |
+| 1y | uniform | 0.0073 (0.0412) | 0.0071 (0.0399) | 0.0044 (0.0374) | 0.0041 (0.0378) |
+| 3y | balanced | 0.2199 (0.2669 / 0.0470) | 0.0101 (0.0422) | 0.0754 (0.1224) | 0.0061 (0.0488) |
+| 3y | uniform | 0.0067 (0.0474) | 0.0070 (0.0483) | 0.0062 (0.0486) | 0.0067 (0.0485) |
+| 5y | balanced | 0.1201 (0.1894 / 0.0694) | 0.0170 (0.0628) | 0.0459 (0.1150) | 0.0121 (0.0687) |
+| 5y | uniform | 0.0134 (0.0746) | 0.0149 (0.0749) | 0.0135 (0.0732) | 0.0142 (0.0733) |
+
+Paired ECE differences against analytic (seed mean; seeds of 3 whose row-bootstrap interval excludes zero):
+fitted, balanced: +0.0140 (3), +0.0653 (3), +0.0289 (2) for 1y, 3y, 5y; fitted, uniform: -0.0027 (0),
+-0.0008 (0), -0.0014 (0); analytic + fitted, balanced: -0.0011 (0), -0.0039 (1), -0.0048 (0); analytic +
+fitted, uniform: -0.0030 (0), -0.0003 (0), -0.0007 (0). Brier moves by at most 0.0002 for analytic + fitted.
+The harness's pre-stated criterion, fitted ECE below analytic ECE in all six panel/strategy cells, is met in
+3 of 6, so fitted calibration as a replacement is falsified.
+
+**What it says.** Under balanced context the analytic shift does the work (ECE 0.11-0.22 to 0.007-0.017)
+and a fitted temperature alone leaves most of the inflation in place (its fitted T is 0.52-0.70, and it
+cannot move the level as far as the exact shift). On top of the analytic shift, a temperature lowers ECE in
+all six cells, by 0.0003 to 0.0048, with at most one seed of three significant in any cell: not a measured
+improvement. §6's 1-year warning sign does not recur at this checkpoint: analytic lowers 1y balanced ECE from
+0.1097 to 0.0074. The default stays the analytic correction with no fitted temperature (D5, task 4.4).
+
+## §268: at its registered test scale, permutation attribution misses two of its three pre-registered stability thresholds (task 12.5)
+
+**MEASURED at the test's registered configuration, Kaggle CPU, 2026-11-16.** Kernel
+`scripts/kaggle/task_cpu_fitcal_attr` (fintfm e475151): `FINTFM_SLOW_ATTRIBUTION=1 pytest
+tests/test_attribution_stability.py -k thresholds -rx`, 520 s, the strict-xfail test failed as registered
+(XFAIL). Pinned prior task (1,500 rows, 23 features), checkpoint `runs/v4-cellattn-labels.pt`, permutation
+attribution through the public classifier, 400 context and 400 explain rows, 2 seeds x 3 resamples, top-5,
+87 s per attribution. Output `runs/kaggle-fintfm-task-cpu-fitcal-attr/attribution_stability.json`.
+
+| statistic | threshold (recorded 2026-11-15) | observed | met |
+| --- | --- | --- | --- |
+| context-resample Spearman, mean | 0.60 | 0.400 | no |
+| seed-to-seed Spearman, mean | 0.70 | 0.627 | no |
+| seed-to-seed top-5 Jaccard, mean | 0.40 | 0.429 | yes |
+
+This is the same scale as §258's smoke run (resample Spearman 0.409 there), now with all three statistics.
+**What it says.** At this explain-set size, permutation attribution through the classifier is not stable
+across context resamples or seeds by the thresholds set before measuring; the thresholds are not edited.
+Whether larger explain sets or more repeats stabilise it is untested. Task 12.5 stays open.

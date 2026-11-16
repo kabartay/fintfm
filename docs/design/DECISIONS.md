@@ -145,6 +145,15 @@ slice and applied in `predict_proba`). The comparison that would decide the defa
 (`fitted-calibration` task 4.3) is still SMOKE-TEST only (Polish bankruptcy 3-year, one seed),
 so the default and this reversal condition stand.
 
+**Status updated 2026-11-16 (task 4.4), settled by `FINDINGS` §267 (task 4.3; Polish 1y, 3y, 5y, balanced
+and uniform context, 3 seeds, checkpoint `runs/v4-cellattn-labels.pt`):** the analytic correction stays the
+default and `calibration_val_frac` stays 0.0. A fitted temperature alone is worse than the analytic shift on
+every balanced horizon (ECE +0.014 to +0.065), and on top of it lowers ECE by at most 0.005, not
+significantly. The 1-year warning sign above does not recur at this scale (1y balanced ECE 0.1097 to 0.0074).
+**Reversal condition, replacing the one above:** a measured run in which analytic plus fitted lowers ECE
+significantly (row-bootstrap interval excluding zero on most seeds) on a credit panel, or the analytic shift
+over- or under-shoots systematically on a new checkpoint or panel.
+
 ---
 
 ## D6 — Apache-2.0, and no LICENSE while private
