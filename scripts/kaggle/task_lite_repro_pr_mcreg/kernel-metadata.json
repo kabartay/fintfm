@@ -1,0 +1,15 @@
+{
+  "id": "muhakabartay/fintfm-task-lite-repro-pr-mcreg",
+  "title": "fintfm-task-lite-repro-pr-mcreg",
+  "code_file": "task_lite_repro_pr_mcreg.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": "true",
+  "enable_gpu": "true",
+  "enable_tpu": "false",
+  "enable_internet": "true",
+  "dataset_sources": [],
+  "competition_sources": [],
+  "kernel_sources": [],
+  "model_sources": []
+}
