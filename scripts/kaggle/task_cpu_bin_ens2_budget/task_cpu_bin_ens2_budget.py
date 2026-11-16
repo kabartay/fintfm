@@ -1,29 +1,18 @@
-"""Kaggle CPU kernel: FINDINGS §257's pre-registered combined binary arm (task 49.22).
+"""Kaggle CPU kernel: FINDINGS §257's pre-registered combined binary arm (task 49.22), small tables.
 
-All 30 binary TabArena-Lite datasets (airline last) with the readout ensemble ``xfit,noxfit`` and
-``FINTFM_PROBE_BUDGET=50000``. Launch only after the reproduction gate (``task_cpu_ens_gate``) passes.
-The gate kernel's description follows for the shared machinery.
+The arm is the readout ensemble ``xfit,noxfit`` with ``FINTFM_PROBE_BUDGET=50000`` on all 30 binary
+TabArena-Lite datasets (repeat 0, fold 0, binary entry settings). This kernel fits the 20 whose
+cross-fitted entry fit took under 700 s on the Mac (``fintfm_lp_bin_scr_xfit_1115``), smallest first.
+The 2026-11-16 control arms measured Kaggle's 4-core CPU at 2-6x the Mac's fit time, so the other
+10 (``LARGE``) would stop at AutoGluon's 3,600 s limit here; they run on a T4 or the Mac under the
+same fork pin and settings, and the two halves are merged into one run directory. Machine drift
+on stored runs is about 1e-4 in metric error (control arms against the Mac baselines).
 
-
-The fork branch ``fintfm-readout-ensemble`` (``FORK_COMMIT``) adds ``probe_ensemble`` /
-``FINTFM_PROBE_ENSEMBLE``: several readout members fitted inside one FinTFM-LinProbe model and
-averaged. Its tests could not run on the development machine (load 180-410), so this kernel:
-
-1. Runs the fork's ``fintfm_linprobe`` model tests (they include an equality test: the in-model
-   ensemble equals the mean of separately fitted members to 1e-9) and fits nothing if any fails.
-2. On ``blood-transfusion-service-center`` and ``credit-g`` (TabArena-Lite repeat 0 fold 0,
-   binary entry settings), fits ``fintfm_lp_bin_gate_xfit_kaggle`` (the current readout, no
-   ensemble), then ``..._ens3_kaggle`` (``xfit,noxfit,rawonly``) and ``..._ens2_kaggle``
-   (``xfit,noxfit``). The local comparison is against the stored Mac runs
-   (``fintfm_lp_bin_scr_xfit_1115``, ``fintfm_lp_bin_scalecvraw_1114``,
-   ``fintfm_lp_bin_rawonly_1115``); the Kaggle xfit run measures the machine-to-machine drift, so
-   a difference in the ensemble that matches it is explained rather than a defect.
-3. Times ``xfit,noxfit`` on ``customer_satisfaction_in_airline`` (``..._airens2_kaggle``) against
-   AutoGluon's 3,600 s limit (cross-fitting alone took 1,915 s on the Mac CPU).
-
-The published binary checkpoint is fetched by the fork from Hugging Face at a pinned commit and
-SHA-256. One process per dataset; ``summary.json`` records exit code, seconds and whether
-``TimeLimitExceeded`` appeared; results are tarred per run into ``/kaggle/working``.
+Launch only after the reproduction gate (``task_cpu_ens_gate``) passes. Like the gate, it runs the
+fork's ``fintfm_linprobe`` model tests first and fits nothing if any fails. The published binary
+checkpoint is fetched by the fork from Hugging Face at a pinned commit and SHA-256. One process per
+dataset; ``summary.json`` records exit code, seconds and whether ``TimeLimitExceeded`` appeared (a
+dataset with it is not valid even at exit 0); results are tarred into ``/kaggle/working``.
 """
 
 from __future__ import annotations
@@ -37,23 +26,27 @@ import time
 from pathlib import Path
 
 FINTFM_COMMIT = "34fb288"
-FORK_COMMIT = "169402a"
+FORK_COMMIT = "6ca0219"
 FORK_BRANCH = "fintfm-readout-ensemble"
 AUTOGLUON = "1.6.4b20260919"
 WORK = Path("/kaggle/working")
 BUDGET_S = 11 * 3600 + 1800
 DATASET_TIMEOUT_S = 3 * 3600
-AIRLINE = "customer_satisfaction_in_airline"
+#: Smallest first, by the Mac's cross-fitted fit time (fintfm_lp_bin_scr_xfit_1115).
 BINARY = [
-    "Amazon_employee_access", "Bank_Customer_Churn", "Diabetes130US", "E-CommereShippingData",
-    "Fitness_Club", "GiveMeSomeCredit", "HR_Analytics_Job_Change_of_Data_Scientists",
-    "Is-this-a-good-customer", "Marketing_Campaign", "NATICUSdroid", "bank-marketing",
-    "blood-transfusion-service-center", "churn", "coil2000_insurance_policies", "credit-g",
-    "credit_card_clients_default", "diabetes", "hazelnut-spread-contaminant-detection", "heloc",
-    "in_vehicle_coupon_recommendation", "jm1", "online_shoppers_intention",
-    "polish_companies_bankruptcy", "qsar-biodeg", "seismic-bumps", "taiwanese_bankruptcy_prediction",
-    "APSFailure", "Bioresponse", "kddcup09_appetency", AIRLINE,
+    "blood-transfusion-service-center", "qsar-biodeg", "diabetes", "credit-g", "Fitness_Club",
+    "seismic-bumps", "Is-this-a-good-customer", "hazelnut-spread-contaminant-detection",
+    "Marketing_Campaign", "polish_companies_bankruptcy", "taiwanese_bankruptcy_prediction", "churn",
+    "Bioresponse", "heloc", "Bank_Customer_Churn", "jm1", "online_shoppers_intention",
+    "coil2000_insurance_policies", "in_vehicle_coupon_recommendation", "E-CommereShippingData",
 ]
+#: Fitted elsewhere (T4 or Mac): over 700 s on the Mac.
+LARGE = [
+    "NATICUSdroid", "Amazon_employee_access", "HR_Analytics_Job_Change_of_Data_Scientists",
+    "Diabetes130US", "APSFailure", "customer_satisfaction_in_airline", "credit_card_clients_default",
+    "GiveMeSomeCredit", "bank-marketing", "kddcup09_appetency",
+]
+assert len(set(BINARY) | set(LARGE)) == 30
 BASE_ENV = {
     "FINTFM_MODEL": "FinTFM-LinProbe",
     "FINTFM_PROBLEM_TYPES": "binary",

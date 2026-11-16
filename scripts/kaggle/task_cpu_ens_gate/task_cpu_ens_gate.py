@@ -5,7 +5,9 @@ The fork branch ``fintfm-readout-ensemble`` (``FORK_COMMIT``) adds ``probe_ensem
 averaged. Its tests could not run on the development machine (load 180-410), so this kernel:
 
 1. Runs the fork's ``fintfm_linprobe`` model tests (they include an equality test: the in-model
-   ensemble equals the mean of separately fitted members to 1e-9) and fits nothing if any fails.
+   ensemble equals the mean of separately fitted members to float32 resolution, since
+   ``predict_proba`` returns float32) and fits nothing if any fails. The first launch, on fork
+   ``169402a``, stopped here: two tests could not pass as written (``6ca0219`` fixes them).
 2. On ``blood-transfusion-service-center`` and ``credit-g`` (TabArena-Lite repeat 0 fold 0,
    binary entry settings), fits ``fintfm_lp_bin_gate_xfit_kaggle`` (the current readout, no
    ensemble), then ``..._ens3_kaggle`` (``xfit,noxfit,rawonly``) and ``..._ens2_kaggle``
@@ -13,8 +15,10 @@ averaged. Its tests could not run on the development machine (load 180-410), so 
    (``fintfm_lp_bin_scr_xfit_1115``, ``fintfm_lp_bin_scalecvraw_1114``,
    ``fintfm_lp_bin_rawonly_1115``); the Kaggle xfit run measures the machine-to-machine drift, so
    a difference in the ensemble that matches it is explained rather than a defect.
-3. Times ``xfit,noxfit`` on ``customer_satisfaction_in_airline`` (``..._airens2_kaggle``) against
-   AutoGluon's 3,600 s limit (cross-fitting alone took 1,915 s on the Mac CPU).
+
+The airline timing run of the first version is dropped: the 2026-11-16 control arms showed Kaggle's
+4-core CPU 2-6x slower than the Mac, so large tables stop at AutoGluon's 3,600 s limit here and
+the combined arm's large tables run on a T4 or the Mac instead.
 
 The published binary checkpoint is fetched by the fork from Hugging Face at a pinned commit and
 SHA-256. One process per dataset; ``summary.json`` records exit code, seconds and whether
@@ -32,14 +36,13 @@ import time
 from pathlib import Path
 
 FINTFM_COMMIT = "34fb288"
-FORK_COMMIT = "169402a"
+FORK_COMMIT = "6ca0219"
 FORK_BRANCH = "fintfm-readout-ensemble"
 AUTOGLUON = "1.6.4b20260919"
 WORK = Path("/kaggle/working")
 BUDGET_S = 11 * 3600 + 1800
 DATASET_TIMEOUT_S = 3 * 3600
 SMALL = ["blood-transfusion-service-center", "credit-g"]
-AIRLINE = "customer_satisfaction_in_airline"
 BASE_ENV = {
     "FINTFM_MODEL": "FinTFM-LinProbe",
     "FINTFM_PROBLEM_TYPES": "binary",
@@ -52,7 +55,6 @@ RUNS: dict[str, tuple[list[str], dict[str, str]]] = {
     "fintfm_lp_bin_gate_xfit_kaggle": (SMALL, {}),
     "fintfm_lp_bin_gate_ens3_kaggle": (SMALL, {"FINTFM_PROBE_ENSEMBLE": "xfit,noxfit,rawonly"}),
     "fintfm_lp_bin_gate_ens2_kaggle": (SMALL, {"FINTFM_PROBE_ENSEMBLE": "xfit,noxfit"}),
-    "fintfm_lp_bin_gate_airens2_kaggle": ([AIRLINE], {"FINTFM_PROBE_ENSEMBLE": "xfit,noxfit"}),
 }
 
 
