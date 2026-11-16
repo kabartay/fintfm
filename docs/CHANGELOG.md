@@ -6,7 +6,12 @@ not paste one into the other. See `CLAUDE.md`.
 
 ## [Unreleased]
 
-## [0.11.0] - YYYY-MM-DD (unreleased)
+## [0.11.0] — 2026-11-16
+
+A minor release: no new weights. It adds the opt-in classes the TabArena entry's wrappers
+need (`PartitionedTFMRegressor`, `ThresholdTFMRegressor`, partition `missing_classes`) and
+several opt-in prior and harness options. Every default is unchanged, and the published binary
+checkpoint scores as before (pinned bit for bit by `tests/test_golden_outputs.py`).
 
 ### Added
 
@@ -56,8 +61,8 @@ not paste one into the other. See `CLAUDE.md`.
   checkpoint (task 3.3, still open; 3.4 closed).
 - Holm-adjusted paired bootstrap in the term-structure and context-sweep harnesses: per
   comparison deltas, intervals, raw and Holm-adjusted p-values, through the shared
-  `paired_auc_difference` and `holm_adjusted_p`. The measured runs are still owed (tasks 11.8,
-  32.3).
+  `paired_auc_difference` and `holm_adjusted_p`. The term-structure run is in FINDINGS §264
+  (task 11.8); the context-sweep run is still owed (task 32.3).
 - `Coverage` (`fintfm.evaluation.coverage`): `n_attempted`, `n_scored` and `n_skipped` with the
   skip reasons, reported by the synthetic bench, `credit_suite`, `proxy_suite`,
   `openml_breadth` and `prior_score`; extended to the other harnesses under Changed below.
