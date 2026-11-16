@@ -1115,6 +1115,15 @@ binary datasets (§204). The progression of the overall figure was 880 (§221), 
 - **Single fold.** TabArena-Lite runs fold 0; per-dataset statements are single draws. The Elo
   intervals are about ±100 to ±170.
 
+**2026-11-16, §269 (Claim 19; the status stays SINGLE DRAW):**
+
+- **The entry now stands at 966.1 Elo (+90/-89), 103rd of 110** (`fintfm_linprobe_all51_1116f_floor8`),
+  against 965.6 (§257). The change is a multiclass probability floor chosen on out-of-fold rows of the
+  readout's training set (never test labels): 4 of 8 multiclass tables better, 3 worse, 1 tied (sign
+  test p 1.00); +0.7 Elo against §257's entry in one fit (111 methods), against intervals of about
+  ±90. Adopted under §265's pre-registered rule as a configuration choice, not a measured
+  improvement. TABFLEX_GPU (default) is 977.7 in the same standalone fit, 11.6 Elo above.
+
 **2026-11-16, §257 (Claim 19; the status stays SINGLE DRAW):**
 
 - **The entry now stands at 965.6 Elo (+88/-90), 104th of 110** (`fintfm_linprobe_all51_1116b`),
