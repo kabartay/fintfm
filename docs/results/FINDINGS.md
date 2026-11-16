@@ -5349,6 +5349,11 @@ dataset), `colid-fin00` (pure SCM) against `colid-fin07` (70% financial, §73's 
 | Taiwan | **0.3223** | 0.2569 | SCM, by +0.065 |
 | *V4FinBench h0 (§63)* | *0.0918* | *0.1900* | *financial, +0.098, Holm p=0.002* |
 
+> **Corrected 2026-11-16 (note added; the table above is kept as written, see §260).** The V4FinBench row
+> cites 0.1900 for `fin07`. §61 and §63 give 0.1853 for `fin07` and 0.1900 for `finbal`; the +0.098 AP
+> contrast (Holm p 0.002) is `finbal` against `fin00` (§63). `fin07` against `fin00` is +0.0935 AP on the same
+> fold (0.1853 minus 0.0918), not separately bootstrapped.
+
 **Pure SCM beats the financial-content checkpoint on all four external panels** -- the exact
 opposite ordering from V4FinBench, where §63 measured the financial prior's advantage as
 significant and controlled for base rate. AUC shows the same pattern: fin00 reaches 0.9220 on
@@ -15893,3 +15898,290 @@ levers airline already took 3,008 s of the 3,600 s limit on a T4 before a second
 §256's gate (the reproduction check) still applies first. Adopt if the merged Elo exceeds TABFLEX_GPU
 (default) in the same fit with no dataset failing or hitting the limit; otherwise the entry stays at
 `fintfm_linprobe_all51_1116b`. Not retuned on its result.
+
+## §258: permutation attribution through the public classifier misses its pre-registered stability threshold on the pinned prior task: resample Spearman 0.409 against 0.60 (task 12.5)
+
+**SMOKE-TEST, pinned prior task (seed 0, 1,500 rows, 23 features), 2026-11-15; no new run on 2026-11-16.**
+The thresholds were recorded as constants in `src/fintfm/experiments/attribution_stability.py` before any
+measurement: context-resample Spearman mean >= 0.60, seed-to-seed Spearman mean >= 0.70, seed-to-seed top-5
+Jaccard mean >= 0.40. Checkpoint `runs/v4-cellattn-labels.pt`, permutation attribution through the public
+classifier, 400 context and 400 explain rows, 2 seeds x 3 resamples, 2 repeats. This is a smoke-scale run,
+not a MEASURED one. The figures are those already recorded in
+`openspec/changes/zero-shot-attribution/tasks.md` (2026-11-15); the full-scale run was not made because the
+machine load average was above 200 on 2026-11-16 (limit 30 for this job).
+
+| statistic | threshold | observed (SMOKE-TEST) | met |
+| --- | --- | --- | --- |
+| context-resample Spearman, mean | 0.60 | 0.409 | no |
+| seed-to-seed Spearman, mean | 0.70 | not printed (first assertion failed) | not assessed |
+| seed-to-seed top-5 Jaccard, mean | 0.40 | not printed | not assessed |
+
+Polish 3-year smoke (SMOKE-TEST; 200 context and 200 explain rows, 2 seeds x 2 resamples, 1 repeat):
+resample Spearman 0.310, seed Spearman 0.102, top-10 Jaccard 0.213 / 0.176, 53 s per attribution; prior
+ground-truth agreement (12.3) on the one scored task, Spearman -0.027, top-3 Jaccard 0.200. For reference,
+12.2's LightGBM TreeSHAP baseline: seed-to-seed 0.981 / 0.925, fold-to-fold 0.875 / 0.700 on Polish 3-year /
+Taiwan.
+
+**What it says.** On the pinned task the recorded threshold is not met, and the thresholds are not edited
+after measuring. Explain sets this small make permutation importance noisy, so the method is not yet
+judged; a MEASURED run needs larger explain sets and more repeats. The strict-xfail test stays opt-in
+(`FINTFM_SLOW_ATTRIBUTION=1`). Task 12.5 stays open until a test passes, or a revised method (12.4 head) is
+measured against fresh thresholds recorded first.
+
+## §259: widening the model's column cap from 136 to 512 does not measurably lift V4FinBench or three wide TabArena-Lite tables, on a confounded single-seed pair; whether the prior's width was binding is not tested (task 15.5)
+
+**MEASURED, read-only re-analysis of §234's and §236's stored predictions, 2026-11-16.** No new fit. The
+comparison task 15.5 asks for, a wide prior against the old narrow prior at matched compute, has not been
+run. Task 15.5 stays open.
+
+**Two different axes.** Task 15.5 (and the proposal's "Falsified by") asks whether the prior's width (about
+24 exposed columns against 64 to 95 in real panels, §18) was binding: retrain on the wide prior and on the
+old narrow prior at matched compute, compare on real panels. §234 varies the model's column cap
+(`max_features` 136 to 512) on the already-wide prior. No narrow-prior checkpoint comparison exists in §19
+or §30 (§30 compares a 1% floor with a 0.195% floor, a default-rate change, not width), and no narrow-prior
+checkpoint was identified in `runs/`. The `results.json` the Verify names does not exist for either side:
+the width pair stores `predictions_fold{0..4}.npz` and `v4_protocol.json` (control
+`runs/kaggle-ts-e1-v48-s0/e1-v48-s0/score/`, arm `runs/dr83-v4/arm/`) and the paired output
+`runs/dr83-v4/cmp_vs_e1v48s0.txt`.
+
+**The V4FinBench pair (§234, five folds, paired company-level bootstrap, Holm-adjusted).** Mean AP 0.2023
+against 0.1975 (+0.0048 AP, 3 of 5 folds positive); fold 4 is a Holm-significant loss (p 0.048 by
+companies, 0.032 by rows); folds 2 and 3 are significant gains (p 0.048 and 0.002). Re-read from
+`runs/dr83-v4/cmp_vs_e1v48s0.txt` on 2026-11-16: it matches §234's table.
+
+**Why it is not a matched-compute test of width.**
+
+1. Batch and step count differ. Arm: DDP T4x2, per-GPU batch 2, global batch 4, 12,000 steps. Control:
+   global batch 8, 6,000 steps. Same 48,000 tasks, twice the optimiser steps (§234 states this itself).
+2. The prior differs, not only the cap. The arm adds three `feature_ratio_bands` and
+   `pad_to_batch_width: true`; the control draws width U[4, 136]. The arm's widths: median 69, 29% above
+   136 (MEASURED, dr8.3 draft); the control's: a median near 70, none above 136.
+3. V4FinBench cannot test a cap of 136. The panel has 136 numeric features (§22), so the control's cap does
+   not truncate it. A null on V4FinBench is expected whether or not width binds elsewhere.
+4. One seed per side, and the seed noise is larger than the effect. §173's yardstick is 0.0117 mean AP (SD
+   of a five-fold mean difference between two seeds 0.0055); §191 gives `e1-v48-s1` at 0.1878 against
+   `e1-v48-s0` at 0.1975, a 0.0097 seed gap. The +0.0048 sits inside both. Arithmetic only, not a paired
+   test: the arm's 0.2023 is +0.0145 against the seed-1 control's 0.1878, above §173's 0.0117 yardstick, and
+   it does not remove confounds 1 to 3. The paired comparison against the seed-1 control was started
+   (`compare_v4_scores.py --cluster`) but had not finished at load average about 216, so no number from it
+   is quoted.
+
+**TabArena-Lite part (§234, §236).** Three wide binary tables, fold 0 only, no paired test; ranks from the
+stored 107-method leaderboard. ROC-AUC against §220's 136-column run without readout options: APSFailure
+0.9877 to 0.9885 (rank 102 to 101), Bioresponse 0.8462 to 0.8467 (103 to 102), kddcup09_appetency 0.7803 to
+0.7888 (91 to 89), that is +0.0008, +0.0005 and +0.0085. With §232's readout options: 0.9902 to 0.9913 (101
+to 95), 0.8669 to 0.8670 (82 to 81), 0.7358 to 0.7298 (105 to 104).
+
+**What it says.** Gaps first: the prior-width comparison the task asks for is missing, §234's model-cap
+pair is confounded in batch, steps and prior, and the TabArena-Lite part is one fold with no seed replicate
+and no paired test (the earlier Progress note's "paired test on TabArena-Lite" is not supported). What the
+evidence does support, narrowly: on the three wide TabArena-Lite tables, widening the model's cap from 136
+to 512 moved ROC-AUC by +0.0005 to +0.0085 without readout options (single fold), and on V4FinBench it was
+within seed noise with one significant losing fold. That is consistent with the cap not being the main
+limit, and does not show it. The missing runs are listed in `docs/results/drafts/15.5_2026-11-16.md`
+section 4: a narrow-prior run (A), a matched-compute model-cap pair (B), a seed replicate of the 512 arm
+(C), a paired test over the 10 folds of the three wide tables (D) and re-wording of the `results.json`
+Verify (E). Their cost in USD is not measured.
+
+## §260: every transfer gain measured so far, against its credit result: no unrecorded credit loss, the trade stated in one place, and a corrected V4FinBench cell in §75 (task 38.9)
+
+**Read from recorded results only, 2026-11-16; no run.** Sources are the sections cited; each figure keeps the
+label and scale of its section (several are one fold or one split). Rows are V4FinBench AP unless stated
+(D13); TabArena figures are Lite, ROC-AUC or Elo as noted. No silent loss was found: in every case where a
+transfer-improving variant was also scored on credit and lost, the loss is written next to the gain.
+
+| variant | transfer gain | credit result | where recorded |
+| --- | --- | --- | --- |
+| tree prior (`p_tree` 0.3) | TabArena-Lite, 27 binary: +0.0094 mean ROC-AUC over two seeds (§115) | -0.0221 AP, 5 of 5 folds negative, 3 Holm-significant; +0.0119 AP on 4 of 5 folds at matched financial share (§116, §166) | §116, §166 |
+| pure SCM prior (`fin00`) | Polish 1y/3y/5y and Taiwan AP +0.0178, +0.0120, +0.0258, +0.0654 over `fin07`, one 70/30 split each, untuned (§75) | fold 0 (79 positives): 0.0918 against 0.1900 for `finbal`, Holm p 0.002 (§63); 0.0918 against 0.1853 for `fin07` (§61) | §61, §63, §75 |
+| 70/30 mixture (`fin07`) | none found; behind `fin00` on all four panels (§75) | level with `finbal`: 0.1853 against 0.1900 (§61, §63) | §61, §63, §75 |
+| general-trunk priors, four DR2.4 arms | proxy Elo 764, 729, 721, 610 against control 548 (§191) | -0.0546, -0.1262, -0.0358, -0.0212 mean AP, 0 of 5 folds each (§191, §180) | §191 |
+| ten times the tasks (480,000 against 48,000) | proxy +168 and +186 Elo, 14 and 12 of 16 tasks (§188) | -0.0109 and -0.0103 mean AP, null under §171's rule, 9 of 10 folds negative (§188) | §188 |
+| probe per partition leaf plus squash | TabArena-Lite 1,000.2 Elo (§215) | Lite credit tables lose: polish_companies_bankruptcy -0.0226, credit-g -0.0144, GiveMeSomeCredit -0.0127, taiwanese_bankruptcy_prediction -0.0122 ROC-AUC (§215); V4FinBench -0.0570 AP, reversed to +0.0580 by §219's sampler fix (§218, §230) | §215, §218, §230 |
+| 512-column binary checkpoint | three wide Lite tables, ROC-AUC +0.0008, +0.0085, +0.0005 (§234) | +0.0048 mean AP, 3 of 5 folds up, fold 4 a Holm-significant loss (§234) | §234 |
+
+Variants with a gain on both sides and no loss to record: squash and rank member transforms (§211, a
+Lite-only gain, +0.0038 AP null on credit), scale, cv and raw readout options (§232, §230, §238, §239),
+linear probe (§130, §132), two-way cell attention with labels (§78, §80), fine-tuning of 200 steps (§163,
+§192). Out of scope because no transfer gain exists: task-family mixture at 0.3 (§141, §166) and retrieval
+(§210, §253, §194, §70). Rows excluded as credit-only or transfer-only: §144, §145, §147, §173, §189, §213,
+§214, §222 to §226, §231, §235, §240 to §243.
+
+**Correction to §75.** §75's table cites 0.1900 for `fin07` on V4FinBench h0. §61 and §63 give 0.1853 for
+`fin07` and 0.1900 for `finbal`, and the "+0.098, Holm p=0.002" contrast is `finbal` against `fin00` (§63).
+`fin07` against `fin00` is +0.0935 AP on the same fold (0.1853 minus 0.0918; arithmetic, not separately
+bootstrapped). A dated note carrying this correction has been added inside §75, below its table; the original
+text and cell are kept unchanged.
+
+**What it says.**
+
+- **The trade, in one place.** No variant measured so far is second-best on both families at once and still
+  above a credit-only arm on credit. The nearest, `fin07`, is level with the credit-best arm on V4FinBench
+  fold 0 (0.1853 against 0.1900 AP) and 0.0120 to 0.0654 AP behind pure SCM on the four Polish and Taiwan
+  splits (one split each, untuned). On V4FinBench, the benchmark that decides (D8), no recorded off-domain gain
+  survives at no credit cost except the readout changes of §130, §230 and §163, which move both. Until a
+  candidate from 38.4 to 38.6 holds both, the default stays credit first, and any general-tabular checkpoint is
+  named as such, as §191 proposed. This is the owner's decision; this entry records the evidence for it.
+- **Gaps.** The cross-fitted readout (§254) has no V4FinBench row; by D8 it stays Lite-only until one exists,
+  and the credit tables inside its Lite run were not itemised here. The proposal's "non-credit asset-failure
+  panel" has no figure in this log; the sourced equivalents are Polish and Taiwan (§75, credit panels, one
+  split) and the Bayes-ceiling probe (§74, §76). Tasks 38.4 to 38.7 (the new candidate priors) are not built;
+  38.5 has no V4FinBench AP and 38.16 (five-fold Polish and Taiwan) is not run. §75 is one 70/30 split per
+  panel and §63 is fold 0 with 79 positives, so the two sides of the SCM trade are not at the same standard.
+  A matched-financial-share, two-seed DR2.4 re-test of the tree prior (named in §166) was not found in this log.
+
+## §261: the TabArena environment does not leak into fintfm's; the "same count, single skip" baseline has no source, and the full-suite baseline is not yet recorded (task 45.1)
+
+**Isolation: MEASURED by read-only grep and import, 2026-11-16 (re-checked the same day). Test counts: NOT
+measured.** The suite was not run because the machine's 1-minute load average stayed far above the agreed
+ceiling of 30 (221.2, 215.2, 195.1, 187.5 across the polling window).
+
+- `grep -niE "tabarena|autogluon" pyproject.toml`: the only hits are two comment lines (lines 53 and 54, the
+  TabArena overlap report, which names openml-python). No dependency entry; `uv.lock` has no hit.
+- `.venv/bin/python -c "import autogluon"` and `"import tabarena"`: both `ModuleNotFoundError`. The fintfm
+  suite therefore cannot be using the fork.
+- `../tabarena/.venv/lib/python3.12/site-packages/fintfm.pth` exists: the dependency runs one way only (the
+  fork environment imports fintfm, never the reverse).
+
+**The Verify's baseline has no source.** Task 45.1 asks for "the same test count and the same single expected
+skip". No document records a before and after test count for the TabArena install (searched tasks.md,
+FINDINGS.md, TABARENA.md, CHANGELOG.md, README.md, CLAUDE.md, docs/ and git log messages). The single skip is
+the 2026-09-09 suite: CLAUDE.md ("Sync with the extras") records that a bare `uv sync` that day took the skip
+count from 1 to 4. CLAUDE.md now states the current expectation: `uv run pytest -q` gives 5 skips, all
+CUDA-only (2026-11-09), and says to look if more. The nearest recorded figures, each from a different date and
+environment:
+
+| date | figure (as recorded) | source |
+| --- | --- | --- |
+| 2026-09-09 | 72 passed, 2 skipped (clean clone) | ci-and-release-gates 8.x |
+| 2026-10-16 | 450 passed, 8 skipped | audit-2026-10-15 AU1.12 |
+| 2026-11-08 | 30 passed, 0 skipped (tag v0.1.0 only) | ci-and-release-gates 8.5 |
+
+Skips depend on the environment: CUDA-only tests, `importorskip` of lightgbm, schedulefree, pandas, pyarrow
+and torch, a not-fetched V4FinBench, an uncached dataset, and a local queue-script check.
+
+**What it says.** Gaps first: no full-suite run was made, so the passed and skipped counts and the skip
+reasons are not measured, and a before and after count for the TabArena install cannot be rebuilt. What is
+confirmed: fintfm's environment names neither tabarena nor autogluon, and neither imports. The meaningful
+form of the Verify is (1) no tabarena or autogluon dependency in fintfm's environment (met), (2) one full
+`pytest -rs` run on the current commit that passes, with its passed and skipped counts and every skip reason
+recorded as the new baseline (open), (3) that run as the reference for later comparison. Command when load
+allows (not run): `nice -n 15 env OMP_NUM_THREADS=2 env -u VIRTUAL_ENV uv run --frozen pytest -q -rs
+-p no:cacheprovider`. The "single expected skip" wording is stale: the expected count is 5, CUDA-only.
+
+## §262: the 512-column binary checkpoint on the three wide binary tables does not improve the 952.8 Elo entry; swapping it in lowers Elo to 941.2 or 943.5 (task 49.4)
+
+**MEASURED, TabArena-Lite (repeat 0, fold 0), CPU, 2026-11-14 and 15; ranks and Elo re-scored from stored
+results on 2026-11-16, no new fits.**
+
+**What ran.** `runs/local_queue/lite_wide512.sh`, jobs `wide512` and `wide512-scr` (`queue.log`: 75 min, peak
+RSS 29.1 GB, exit 0; 56 min, peak RSS 8.6 GB, exit 0). Checkpoint: DR8.3's 512-column binary checkpoint
+(`runs/kaggle-fintfm-ts-dr83-width512-s0/dr83-width512-s0/dr83-width512-s0.pt`, 48,000 tasks, §234).
+Configuration: FinTFM-LinProbe, binary, `feature_transform` squash, `max_features_strategy` select,
+`FINTFM_PARTITION='{}'`, CPU, no readout options for `fintfm_lp_w512_1114`, and
+`{"scale": true, "cv": true, "raw": true}` for `fintfm_lp_w512_scr_1114`. Both run on APSFailure (170
+columns), Bioresponse (1,776 columns, still selected down to 512) and kddcup09_appetency (212 columns).
+Stored frames: `~/proj/tabarena/eval/fintfm_lp_w512_1114/results_per_split.csv` and
+`.../fintfm_lp_w512_scr_1114/results_per_split.csv` (107 methods each).
+
+**Ranks and ROC-AUC** (one plus the number of other methods with strictly lower error, among the 107 methods
+of the stored subset frame; the entry's rank is also computed on those same 107 methods, its own 110-method
+rank in brackets):
+
+| dataset | cols | §220, 136 cols, no options | 512 cols | 512 cols + scale/cv/raw | entry `fintfm_linprobe_all51_1116` |
+| --- | --- | --- | --- | --- | --- |
+| APSFailure | 170 | 0.9877, 102 | 0.9885, 101 | 0.9913, 95 | 0.9901, 100 (103 of 110) |
+| Bioresponse | 1,776 | 0.8462, 103 | 0.8467, 102 | 0.8670, 81 | 0.8655, 82 (85) |
+| kddcup09_appetency | 212 | 0.7803, 91 | 0.7888, 89 | 0.7298, 104 | 0.8118, 68 (68) |
+
+The first column is as recorded in §234. The entry's binary run is the cross-fitted, readout-option run
+(§254). The 512-column columns (ROC-AUC and rank) were re-read from the stored frames on 2026-11-16 and match.
+
+**Would swapping them into the 952.8 entry change its Elo?** Yes, it lowers it (one rescore each of the
+entry's frame with the entry's method rows replaced on fold 0 of the three datasets, `score()` in
+`scripts/tabarena_subset_elo.py`):
+
+| swapped in | Elo | position of 110 |
+| --- | --- | --- |
+| none (the entry) | 952.8 | 104 |
+| `fintfm_lp_w512_1114` (all three) | 941.2 | 105 |
+| `fintfm_lp_w512_scr_1114` (all three) | 943.5 | 104 |
+| `fintfm_lp_w512_scr_1114`, APSFailure only | 954.2 | 104 |
+| `fintfm_lp_w512_scr_1114`, Bioresponse only | 953.1 | 104 |
+| `fintfm_lp_w512_scr_1114`, kddcup09_appetency only | 941.8 | 104 |
+| `fintfm_lp_w512_1114`, APSFailure / Bioresponse / kddcup09 only | 952.5 / 947.3 / 947.1 | 104 each |
+
+Taking the 512-column run on APSFailure and Bioresponse and keeping the entry's own kddcup09_appetency would
+be worth about +1.4 and +0.3 Elo one at a time; these are within the entry's interval (elo+ 91.9, elo- 99.3)
+and were chosen after seeing test-fold results, so they are not a configuration to adopt. The entry has since
+moved to 965.6 Elo (§257, `fintfm_linprobe_all51_1116b`); that entry was not rescored with these checkpoints.
+
+**What it says.**
+
+- The wider checkpoint is not a lift on the wide binary tables. Without readout options it is 1 to 2 places
+  better on each of the three than §220; with them it gains 6 places on APSFailure and 21 on Bioresponse over
+  the no-options 512 run, but loses 15 on kddcup09_appetency (ROC-AUC 0.7298, against 0.7888 without options).
+- Against the entry's current binary run, the 512-column checkpoint is no better on any of the three: 0.9913
+  against 0.9901 on APSFailure is +0.0012 ROC-AUC (95 against 100 of 107), within noise for one fold;
+  Bioresponse 0.8670 against 0.8655 (81 against 82); kddcup09_appetency is 0.0820 ROC-AUC worse.
+- One fold on three tables, one seed: no interval is available for the per-dataset differences.
+- Gaps. Task 49.4's multiclass half is blocked (§234: the binary 512 checkpoint lost one Holm-significant
+  V4FinBench fold, so `dr75-width512-mc` was not launched). The multiclass wide table and QSAR-TID-11
+  (regression, 1,024 columns) were not rescored with any 512-column checkpoint, because none exists for those
+  problem types. The 512-column regression arm was never planned.
+- Verify not met in full: the wide tables rescored with the 512 checkpoints. Three of five are rescored; two
+  are not.
+
+## §263: AUC against label information in the context: for fin00 the threshold tasks track bits modestly better than rows, the 4-way interaction tracks neither, and fin10 is at chance on it (task 39.8)
+
+**MEASURED, synthetic probes only, CPU, 2026-11-15.** Not a held-out or real-data result. Run: local-queue job
+`h-ctxinfo` (`runs/local_queue/queue.txt` line 100; started 18:34, ended 19:30, exit 0, 56 min, peak RSS 2.6
+GB), `python -m fintfm.experiments.context_information --models
+fin00=runs/dl/v4-cellattn-fin00.pt,fin10=runs/dl/v4-cellattn-fin10.pt --out runs/context_information --seeds
+0,1,2`, fintfm e475151 or earlier (harness 2026-11-15). Outputs: `runs/context_information/context_information.json`
+and the log `runs/local_queue/h-ctxinfo.log`. Tasks are noise-free thresholds on 8 features (`linear1`
+`1[x0>t]`, `and2` `1[x0+x1>t]`, `interaction4` `1[x0*x1*x2*x3>t]`), context 64 to 4,096 rows crossed with
+base rate 0.5, 0.25, 0.1, 0.03 (16 cells per task), 1,000 balanced query rows per cell, 3 seeds averaged.
+Regret is `1 - AUC` because the label is the Bayes rule. Information is `label_bits = n*H(n_pos/n)`. The
+design holds 24 cell pairs at equal rows with different bits, and 3 pairs within 15% of equal bits with
+different rows (64 rows at 0.25 against 256 at 0.03; 256 at 0.25 against 1,024 at 0.03; 1,024 at 0.25
+against 4,096 at 0.03).
+
+**Verify met in part.** The curve against bits is produced for four arms and a seeded untrained control
+(tables in the log). Whether it separates in-context learning from a global prior is answered only for the
+two easy tasks, and weakly.
+
+| arm | task | R^2 of AUC on log10(bits) | on log10(rows) |
+| --- | --- | --- | --- |
+| fin00 | linear1 | 0.59 | 0.30 |
+| fin00 | and2 | 0.67 | 0.59 |
+| fin00 | interaction4 | 0.04 | 0.02 |
+| fin10 | linear1 | 0.66 | 0.58 |
+| fin10 | and2 | 0.59 | 0.58 |
+| fin10 | interaction4 | 0.02 | 0.03 |
+| logistic regression | linear1 / and2 / interaction4 | 0.61 / 0.51 / 0.03 | 0.52 / 0.42 / 0.02 |
+| gradient boosting | linear1 / and2 / interaction4 | 0.48 / 0.54 / 0.42 | 0.35 / 0.45 / 0.69 |
+| untrained control | linear1 / and2 / interaction4 | 0.14 / 0.36 / 0.07 | 0.02 / 0.10 / 0.01 |
+
+**What it says.**
+
+- **Easy tasks.** Both checkpoints score 0.92 to 1.00 AUC on `linear1` and `and2` in every cell, above the
+  untrained control (0.50 to 0.59 on `interaction4`; its `linear1` and `and2` columns are in the log, not
+  quoted here). fin00 at 64 rows and 0.03 base rate (2 positives, 12.8 bits) scores 0.989 on `linear1` and
+  0.924 on `and2`. The R^2 against bits exceeds the R^2 against rows for fin00 (by 0.29 and 0.08), fin10
+  `linear1` (0.08) and barely for fin10 `and2` (0.01). The AUC is within 0.08 of 1.0 throughout, so these are
+  fits to a ceiling-compressed curve of 16 cell means; the difference is small and not tested.
+- **Same-bits pairs.** On `and2`, fin00 scores 0.963 at 64 rows and 0.25 (51.9 bits) and 0.985 at 256 rows and
+  0.03 (51.4 bits), so equal bits do not give equal AUC: rows matter beyond bits.
+- **`interaction4`.** fin00's AUC runs 0.48 to 0.92 and is set by base rate, not by bits or rows: at 4,096
+  rows it is 0.919 at 0.03, 0.856 at 0.1, 0.582 at 0.25 and 0.478 at 0.5. Rate changes the task geometry here
+  (a product above a tail threshold against a sign-symmetric split), so the rate axis is confounded with
+  difficulty for this task and its R^2 is not an information result. fin10 is at chance in all 16 cells (0.45
+  to 0.54), logistic regression likewise (0.48 to 0.52). Gradient boosting learns it (0.50 to 0.97) and tracks
+  rows (R^2 0.69) more than bits (0.42).
+- **Reading.** The checkpoints read the context on the easy tasks, but this run does not show that bits is
+  the better axis than rows, and the hard task is not learned by fin10 at any context size up to 4,096 rows.
+
+**Gaps.** The `interaction4` rate confound needs a rate-matched variant before the bits axis can be judged on
+it. The R^2 fits have 16 points and no interval. fin00 and fin10 are the two checkpoints named in 39.13; no
+multiclass, regression or real-data context was tried.
