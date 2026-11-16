@@ -1,0 +1,15 @@
+{
+  "id": "muhakabartay/fintfm-task-cpu-32-ctx",
+  "title": "fintfm-task-cpu-32-ctx",
+  "code_file": "task_cpu_32_ctx.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": "true",
+  "enable_gpu": "false",
+  "enable_tpu": "false",
+  "enable_internet": "true",
+  "dataset_sources": [],
+  "competition_sources": [],
+  "kernel_sources": [],
+  "model_sources": []
+}
