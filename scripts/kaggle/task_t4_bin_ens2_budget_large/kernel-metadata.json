@@ -1,0 +1,15 @@
+{
+  "id": "muhakabartay/fintfm-task-t4-bin-ens2-budget-large",
+  "title": "fintfm-task-t4-bin-ens2-budget-large",
+  "code_file": "task_t4_bin_ens2_budget_large.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": "true",
+  "enable_gpu": "true",
+  "enable_tpu": "false",
+  "enable_internet": "true",
+  "dataset_sources": [],
+  "competition_sources": [],
+  "kernel_sources": [],
+  "model_sources": []
+}
