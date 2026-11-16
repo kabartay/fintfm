@@ -10,7 +10,7 @@ Status vocabulary:
 - **OPEN** — proposed, not measured.
 
 Statuses last reviewed 2026-11-13 against `docs/results/FINDINGS.md` §1-§224 (dated notes
-for §242-§250 added 2026-11-15, Claims 2, 15 and 19; the statuses themselves were not re-reviewed) (Claim 2 note added
+for §242-§250 added 2026-11-15, Claims 2, 15 and 19; Claim 19 note for §254-§256 added 2026-11-16; the statuses themselves were not re-reviewed) (Claim 2 note added
 2026-11-05). Numbers and section references were also re-checked on 2026-10-15; corrections made
 then carry that date. Claims 16-18 (§157-§164) were added 2026-10-16 and Claim 19 (§204-§224)
 on 2026-11-13. Notes dated 2026-11-13 carry the section that supports them; the original text
@@ -1114,6 +1114,32 @@ binary datasets (§204). The progression of the overall figure was 880 (§221), 
   on binary tasks at all (§223).
 - **Single fold.** TabArena-Lite runs fold 0; per-dataset statements are single draws. The Elo
   intervals are about ±100 to ±170.
+
+**2026-11-16, §254 to §256 (Claim 19; the status stays SINGLE DRAW):**
+
+- **The entry now stands at 952.8 Elo, 104th of 110** (`fintfm_linprobe_all51_1116`), against
+  931.9, 106th of 110 (§235) and 903, 107th of 110 (§224). The change is the binary readout
+  fitted with cross-fitting (5 folds, out-of-fold categorical encoding): binary Elo 1,027
+  against 997 on the 30 binary datasets, 10 datasets better and 20 worse (sign test p = 0.10),
+  mean ROC-AUC +0.00198. `kddcup09_appetency` alone is +0.0760 ROC-AUC (0.7358 to 0.8118); the
+  other 29 datasets move by at most 0.0118 either way. The Elo gain therefore rests mostly on
+  one dataset at one fold and is not shown to be a stable improvement (§254). TABFLEX_GPU
+  (default) is 977.7 in the same fit, about 25 Elo above the entry.
+- **Cross-fitting does not carry over (§255).** Multiclass: 838 Elo against 874, 3 better and
+  5 worse of 8. Regression: 689 against 689, 4 better and 9 worse of 13. Both ran on a Kaggle T4
+  against CPU baselines, so device and cross-fitting change together. None of the four
+  regression readout levers helps (log1p target 671, quantile target 544, wide alphas 689,
+  blend-cv 635 on 10 datasets), and blend-cv exceeded the 3,600 s limit on the three largest
+  regression datasets. The multiclass and regression parts of the entry are unchanged.
+- **anneal (multiclass, last of 110)** is partly calibration: a probability floor chosen on
+  out-of-fold rows lowers its test log loss from 0.2223 to 0.1949, a post-hoc check on stored
+  predictions and not a fitted model.
+- **Pending: §256**, pre-registered 2026-11-16: an in-model ensemble of the binary readouts,
+  with an adoption rule (merged Elo above TABFLEX_GPU in the same fit, no dataset failing or
+  over 3,600 s). No fitted arm has run. The re-scores of stored predictions behind it (965.6
+  and 987.8 Elo) are not fitted models and are not entry results.
+- The conditions above still apply: breadth result, not credit; the Elo interval is about
+  ±100 to ±170; the binary readout has not been scored on V4FinBench with cross-fitting.
 
 **Do not write** that FinTFM "beats" or "matches" random forest on TabArena, or quote 903 Elo
 without "107th of 110", "fold 0 only" and the readout label. DR7.6 leaves open whether this counts

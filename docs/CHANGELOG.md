@@ -188,6 +188,25 @@ not paste one into the other. See `CLAUDE.md`.
   correlation and missingness stay above them; the limit lowers mean held-out LR AUC by
   about 0.02 and moves nothing else. Whether it helps a trained model is unmeasured
   (tasks 15.3, 15.4).
+- Measured results recorded in FINDINGS, no code change (2026-11-16):
+  - §251: on four UCI credit panels the context-size curve is flat from 250 to 2,000 rows
+    (two seeds; three of four panels within about 0.01 ROC-AUC and 0.011 AP). More context is
+    not the lever there; adaptation to domain shift is not tested (task 16.1).
+  - §252: on synthetic probes, the labelled cell block closes §74's capacity cap (Bayes regret
+    0.0015 against 0.2117 without it), labels are necessary, and all-pairs row attention is
+    not (64 inducing points: regret 0.0066). Not a real-data claim (task 44.2).
+  - §253: retrieval's loss on V4FinBench is not a hub effect, so §194's diagnostic is
+    withdrawn. Five zero-IQR flag columns carry 89.8% of the retrieval distance, but fixing
+    the scale made it worse. One fold, 44 test positives; retrieval stays off (task 38.13).
+  - §254: cross-fitting the binary readout moves the TabArena-Lite entry from 931.9 Elo
+    (106th of 110) to 952.8 (104th of 110, `fintfm_linprobe_all51_1116`). One dataset
+    (`kddcup09_appetency`, +0.0760 ROC-AUC) carries most of it; one fold (task 49.5).
+  - §255: cross-fitting does not help multiclass (838 Elo against 874) or regression (689
+    against 689), none of four regression readout levers helps, and blend-cv exceeds the
+    3,600 s limit on the three largest regression datasets. Kaggle T4 runs against CPU
+    baselines (task 49.5).
+  - §256: pre-registration of a binary readout ensemble on TabArena-Lite, written before any
+    fitted arm ran. No result yet (task 49.22).
 
 ### Fixed
 
