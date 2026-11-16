@@ -170,7 +170,7 @@
       a TabArena-Lite regression run on the 13 datasets paired against
       `fintfm_lp_reg_rawpart4_pure_1114` (689 Elo), per-dataset RMSE, sign test, Elo and the
       re-merged overall position, in a FINDINGS entry; a null result is recorded, not dropped.
-- [ ] 49.20 **The PR branch carries cross-fitting as its default.** Branch `fintfm-pr-2026-11` was
+- [ ] 49.20 **Progress (2026-11-16): the premise was wrong; nothing needed porting. On `fintfm-pr-2026-11` (ecd4ac5) the FinTFM model folders and the seven `test_fintfm_*` files are byte-identical to the dev tip 6981265 (`git diff --stat` empty), so the branch already sets `probe_crossfit_folds=5` by default and also carries the default-off regression and large-table levers. Rerun on ecd4ac5: 175 FinTFM tests pass; registry tests (`-k "fintfm or FinTFM or registry or warmup"`) 69 pass; audit_transduction binary OK (max deviation 1.25e-06, K=5 active); audit_warmup ok. Open only for the no-env-var reproduction of the 952.8 merge (49.6).** **The PR branch carries cross-fitting as its default.** Branch `fintfm-pr-2026-11` was
       cut before binary cross-fitting lifted the entry to 952.8 Elo (§254); a refresh onto it is
       in progress (2026-11-16). Verify: the branch's entry sets `probe_crossfit_folds` by
       default for the problem types where it was measured (binary), its tests pass, the fork
