@@ -187,3 +187,17 @@
       model). A fork option `probe_ensemble` that fits the members inside one model is in progress
       (2026-11-16). Verify: the reproduction check of §256 passes, the 30-dataset Lite arm(s) run,
       and a FINDINGS entry applies §256's gate (adopt or not) with the merged entry's Elo and position.
+- [ ] 49.23 **Spline expansion of the readout's raw numeric columns (binary), then a Lite binary
+      arm.** The readout already reads the raw columns beside the representation (`raw: true`); an
+      outside tabular competition (2026-11-16, Kaggle Playground S6E11, a single synthetic dataset)
+      measured +0.00028 CV ROC-AUC, 5 of 5 folds, from splines on the numeric columns of a logistic
+      model. That is a lead, not evidence about TabArena. Add a default-off fork option that
+      replaces each raw numeric column with a natural cubic spline basis (knots at training-row
+      quantiles, fitted on the readout's training rows only, so no test row sets a knot), with
+      tests, and run the 30 binary Lite tables on top of the settled binary entry, after §257's
+      combined arm and 49.19 settle (the Mac is the bottleneck; large tables run one per queued
+      job). Pre-registered rule, the same as §265's: adopt only if every binary table completes
+      without the 3,600 s time limit and the merged entry scores above the entry without it in one
+      fit (`scripts/lite_same_fit.py`). Not a hybrid: no second model, only a wider design matrix
+      for the same readout. Verify: the option is merged with tests, the 30-table arm runs, and a
+      FINDINGS entry applies the rule (adopt or not) with the merged entry's Elo and position.
