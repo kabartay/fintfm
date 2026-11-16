@@ -6,6 +6,8 @@ not paste one into the other. See `CLAUDE.md`.
 
 ## [Unreleased]
 
+## [0.11.0] - YYYY-MM-DD (unreleased)
+
 ### Added
 
 - `PartitionedTFMRegressor` (`fintfm.inference.large_n`): the regression counterpart of
