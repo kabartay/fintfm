@@ -19,7 +19,10 @@ SOURCES = {
 #: The fork pin of the 2026-11-16 arms; an arm may name another (branch, commit) in ``FORKS``.
 DEFAULT_FORK = ("fintfm-lite-arms-1116", "b8612d7")
 #: Arms on another fork commit, with the model tests run in the kernel before fitting.
-FORKS: dict[str, tuple[str, str]] = {"cpu_mc_onehot": ("fintfm-mc-onehot", "229af56")}
+FORKS: dict[str, tuple[str, str]] = {
+    "cpu_mc_onehot": ("fintfm-mc-onehot", "229af56"),
+    "cpu_mc_onehot_floor": ("fintfm-audit-fixes", "a52725c"),
+}
 #: Kernel directory -> (run name, problem type, lever variables).
 ARMS: dict[str, tuple[str, str, dict[str, str]]] = {
     "cpu_mc_ctrl": ("fintfm_lp_mc_ctrl_cpu", "multiclass", {}),
@@ -27,6 +30,11 @@ ARMS: dict[str, tuple[str, str, dict[str, str]]] = {
     "cpu_reg_ctrl": ("fintfm_lp_reg_ctrl_cpu", "regression", {}),
     "cpu_reg_rff": ("fintfm_lp_reg_rff_cpu", "regression", {"FINTFM_REG_READOUT": "rff"}),
     "cpu_mc_onehot": ("fintfm_lp_mc_onehot_cpu", "multiclass", {"FINTFM_PROBE_ONEHOT": "on"}),
+    "cpu_mc_onehot_floor": (
+        "fintfm_lp_mc_onehot_floor_cpu",
+        "multiclass",
+        {"FINTFM_PROBE_ONEHOT": "on", "FINTFM_PROB_FLOOR": "cv"},
+    ),
 }
 MARK = "# --- ARM ---\n"
 
