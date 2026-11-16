@@ -67,7 +67,7 @@ says plainly where it does not yet.
 
 | | |
 | --- | --- |
-| **TabArena-Lite (own run)** | **952.8 Elo, 104th of 110, all 51 datasets, none excluded** (§254). One fold, run in this project's TabArena fork, not on [tabarena.ai](https://tabarena.ai). The entry is "FinTFM with a trained linear readout": a linear model on the network's representation, which also takes the row's own features. By type: binary 1,027 on 30 datasets (§254, readout cross-fitted; most of the gain is one dataset at one fold), multiclass 874 on 8 (§227), regression 689 on 13 (§235). Cross-fitting did not help multiclass or regression (§255). On the same board RandomForest (default), the resubmission bar, scores 1,000 and Linear (tuned) 919. General-tabular results, not credit results |
+| **TabArena-Lite (own run)** | **965.6 Elo, 104th of 110, all 51 datasets, none excluded** (§257). One fold, run in this project's TabArena fork, not on [tabarena.ai](https://tabarena.ai). The entry is "FinTFM with a trained linear readout": a linear model on the network's representation, which also takes the row's own features. By type: binary 1,046 on 30 datasets (§257, readout cross-fitted, partition depth scaled with table size and a 50,000-row readout budget, fitted on a Kaggle T4), multiclass 874 on 8 (§227), regression 689 on 13 (§235). Cross-fitting did not help multiclass or regression (§255). On the same board RandomForest (default), the resubmission bar, scores 1,000 and Linear (tuned) 919. General-tabular results, not credit results |
 | **TabArena submission** | The zero-shot model on 27 binary datasets ranked **94th of 95**; a maintainer confirmed the integration and declined the entry on competitiveness (§122). On today's field it scores 750 Elo, 107th of 108 (§225). No resubmission until the readout entry reaches 1,000 overall Elo (design review DR7.6) |
 | **Real credit panels** | Gradient boosting wins. On V4FinBench's full panel FinTFM scores 0.20 mean AP against 0.40 for untuned CatBoost (§163); LightGBM at 1,000 trees reaches 0.3908 (§167), so the gap is boosting rounds, not one library. On four more credit datasets (SBA 7(a), ULB, FDIC, Estonia) FinTFM is below untuned logistic regression on mean AP (§216). Calibration was best or near-best on four panels for the pre-cell-attention architecture, one split each (Claim 9, a single draw, §73), and is not claimed for the published checkpoint: it over-predicts the default rate 1.2 to 1.7 times on ULB (§174), and 1.9 and 3.2 times on two FDIC splits while under-predicting the third (0.396% against 0.735%; run record behind §216, `docs/results/drafts/dr4.3-runs_2026-11-07.md`) |
 | **Levers on V4FinBench** | Opt-in fine-tuning (`finetune_steps`, 0.7.0): mean AP 0.1986 to 0.2062, better on 5 of 5 folds, 3.8% of the gap to CatBoost (§163). Zero-shot partitioned contexts (`fintfm-v4protocol --large-n partition`): 0.1986 to 0.2362, +0.0375, 5 of 5 folds (§169), and ahead of fine-tuning on 5 of 5 (§205) |
@@ -96,14 +96,14 @@ numbers its rows from 0, so ranks quoted from it before 2026-11-13 were one plac
 
 | entry | datasets | Elo | position | source |
 | --- | --- | --- | --- | --- |
-| **FinTFM with a trained linear readout** | all 51, none excluded | **952.8** (+92 / −99) | **104th of 110** | §254 |
+| **FinTFM with a trained linear readout** | all 51, none excluded | **965.6** (+88 / −90) | **104th of 110** | §257 |
 | the published model, zero-shot, own head | 27 binary | 750 (+134 / −186) | 107th of 108 | §225 |
 | RandomForest (default), the resubmission bar | all 51 | 1,000 | 100th of 110 | §224, §225 |
 
 The zero-shot row re-scores §204's stored predictions against today's field, with no refit.
 **Position moved once, by one place:** Elo rose from 880 to 909 over §221 to §231 with the
 position fixed at 107th of 110, and §232's binary readout options (926) put the entry above
-LR (tuned) at 919.5, 106th of 110; §235's four regression bags took it to 932 (931.9, 106th of 110); §254's cross-fitted binary readout took it to 952.8, 104th of 110, with most of the gain from one dataset at one fold.
+LR (tuned) at 919.5, 106th of 110; §235's four regression bags took it to 932 (931.9, 106th of 110); §254's cross-fitted binary readout took it to 952.8, 104th of 110, with most of the gain from one dataset at one fold; §257's two large-table levers took it to 965.6, still 104th of 110 (binary 15 better, 8 worse, 7 tied of 30, sign test p 0.21; the levers and the device, a T4 against CPU, change together).
 
 ### TabArena-Lite, with a trained linear readout
 
@@ -128,7 +128,8 @@ significant on its own; the cited entries give the paired per-dataset tests.
 | partitioned contexts for regression, a readout per leaf | 51 | 909 | 107th of 110 | §231 |
 | binary readout scaled, C cross-validated, row features appended | 51 | 926 | 106th of 110 | §232 |
 | four partition bags for regression | 51 | 932 (931.9) | 106th of 110 | §235 |
-| binary readout cross-fitted (5 folds, out-of-fold categorical encoding) | 51 | **952.8** | **104th of 110** | §254 |
+| binary readout cross-fitted (5 folds, out-of-fold categorical encoding) | 51 | 952.8 | 104th of 110 | §254 |
+| binary: partition depth scaled with table size, readout budget 50,000 rows (Kaggle T4) | 51 | **965.6** | **104th of 110** | §257 |
 
 **These are breadth results, not credit results.** On V4FinBench a readout per partition leaf
 first scored −0.0570 mean AP, better on 0 of 5 folds (§218). §219 traced that to a sampling

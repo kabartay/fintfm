@@ -1115,6 +1115,17 @@ binary datasets (§204). The progression of the overall figure was 880 (§221), 
 - **Single fold.** TabArena-Lite runs fold 0; per-dataset statements are single draws. The Elo
   intervals are about ±100 to ±170.
 
+**2026-11-16, §257 (Claim 19; the status stays SINGLE DRAW):**
+
+- **The entry now stands at 965.6 Elo (+88/-90), 104th of 110** (`fintfm_linprobe_all51_1116b`),
+  against 952.8 (§254). The change is two large-table levers for the binary readout (partition
+  depth scaled with table size, readout budget 50,000 rows), fitted on a Kaggle T4: binary Elo
+  1,046 against 1,027, 15 datasets better, 8 worse and 7 tied of 30 (sign test p 0.21), mean
+  ROC-AUC +0.00193. The levers and the device (T4 against CPU) change together. TABFLEX_GPU
+  (default) is 978.0 in the same fit, 12.4 Elo above the entry.
+- **Pending:** §257's pre-registered combined arm (§256's readout ensemble plus the readout
+  budget). No fitted arm has run; the stored-prediction re-scores are not entry results.
+
 **2026-11-16, §254 to §256 (Claim 19; the status stays SINGLE DRAW):**
 
 - **The entry now stands at 952.8 Elo, 104th of 110** (`fintfm_linprobe_all51_1116`), against
