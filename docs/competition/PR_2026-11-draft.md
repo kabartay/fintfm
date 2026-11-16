@@ -7,7 +7,21 @@ number in brackets) or from the task notes named beside it, and is TabArena-Lite
 fold 0, run from the tabarena fork on CPU. None of it is the public leaderboard or a full
 TabArena run. The owner's bar for resubmitting is 1,000 overall Elo (DR7.6, owner,
 2026-11-13, `openspec/changes/deferred-work-2026-11/tasks.md` task 49.6). **The entry is
-below that bar at 931.9 Elo, so under the current rule this PR is not to be posted.**
+below that bar, so under the current rule this PR is not to be posted.**
+
+**Update 2026-11-16 (MEASURED, FINDINGS §254; final numbers pending).** The current measured
+entry is `fintfm_linprobe_all51_1116`: 952.8 Elo, 104th of 110, against 931.9, 106th of 110
+in the figures below (which are the earlier entry and are not yet rewritten). Its three runs:
+binary `fintfm_lp_bin_scr_xfit_1115` (cross-fitted readout; binary-only Elo 997 to 1027, 10
+better and 20 worse of 30, sign p 0.10, carried mostly by `kddcup09_appetency`), multiclass
+`fintfm_lp_mc_scr_bag8_1113` (874 Elo), regression `fintfm_lp_reg_rawpart4_pure_1114` (689 Elo).
+TABFLEX_GPU (default) is 977.7 in the same fit, a gap of about 25 Elo, and the entry is 47.2
+Elo below the 1,000 bar. Every figure in the sections below is to be re-read against the 952.8
+entry before posting. Blockers (task 49.6): Elo against 977.7; multiclass and regression
+weights published; fintfm 0.11.0 released; reproduction with no environment variables (49.20);
+`audit_pickle` passing or documented (49.21); the owner's yes. Levers still to be measured and
+possibly added to the entry: airline levers on a GPU (49.17), multiclass probability floor
+(49.18), regression nonlinear readout (49.19).
 
 ## What #616 said, and where this draft answers it
 
@@ -142,7 +156,7 @@ this contribution, under the terms of your choice.
 ## Before posting (all must be true)
 
 - [ ] **Bar decision.** The owner decides whether to post below the 1,000 Elo bar. The entry is
-      at 931.9 Elo. Under DR7.6 as written, the answer is no.
+      at 952.8 Elo, 104th of 110 (2026-11-16; final numbers pending), TABFLEX_GPU at 977.7. Under DR7.6 as written, the answer is no.
 - [ ] **Weights published with a licence.** The multiclass (`dr74-mc-s0`) and regression
       (`v4-binned48_3-control.pt`) checkpoints are public with a stated licence, and the
       binary checkpoint's licence is confirmed. Decision pending with the owner.
