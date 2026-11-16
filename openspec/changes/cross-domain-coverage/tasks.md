@@ -46,7 +46,7 @@
       whatever denser regime §32 measured. Verify: if the mechanism is found and fixable,
       re-measure whether retrieval (fixed) beats `n_ensemble` + `max_context` alone; if not,
       record retrieval as regime-dependent and move on rather than disabling it silently.
-- [ ] 38.9 **Record any regression explicitly.** Verify: if a transfer-improving variant loses
+- [x] 38.9 **Done (2026-11-16, FINDINGS §260): every recorded transfer gain was checked against its credit result: tree prior (§115, §116, §166), pure SCM (§63, §75), general-trunk priors (§191), volume (§188), leaf probe (§215, §218, §230), 512 columns (§234). Each loss was already written with its trade; §260 collects them and states the position. Corrected §75's V4FinBench cell by a dated note (0.1853, not 0.1900, for `fin07`; the original text is kept). Not covered: 38.4 to 38.6 are unbuilt, so any loss they produce must be recorded under 38.7's two-domain rule; §254 has no V4FinBench row. Verify met for the variants that exist.** **Record any regression explicitly.** Verify: if a transfer-improving variant loses
       on credit, the loss is written into `docs/results/FINDINGS.md` with the trade stated. Second-best
       everywhere may still be the right product, but that must be argued rather than silent.
 - [x] 38.10 **Run the crossed design §66 specifies.** Done in §67: SCM features under a
