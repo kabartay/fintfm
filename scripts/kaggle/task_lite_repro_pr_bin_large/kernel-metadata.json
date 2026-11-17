@@ -1,7 +1,7 @@
 {
-  "id": "muhakabartay/fintfm-task-lite-repro-pr-bin-b",
-  "title": "fintfm-task-lite-repro-pr-bin-b",
-  "code_file": "task_lite_repro_pr_bin_b.py",
+  "id": "muhakabartay/fintfm-task-lite-repro-pr-bin-large",
+  "title": "fintfm-task-lite-repro-pr-bin-large",
+  "code_file": "task_lite_repro_pr_bin_large.py",
   "language": "python",
   "kernel_type": "script",
   "is_private": "true",

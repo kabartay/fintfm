@@ -53,9 +53,9 @@ FORK_BRANCH = "fintfm-pr-2026-11"
 #: The registry name of the entry, default configuration (config index 0).
 MODEL = "FinTFM-LinProbe"
 AUTOGLUON = "1.6.4b20260919"
-KERNEL = "task_lite_repro_pr_bin_b"
+KERNEL = "task_lite_repro_pr_bin_small_a"
 #: ``gpu``: refuse to run without CUDA (the binary entry ran on a T4); ``cpu``: run on the CPU.
-DEVICE = "gpu"
+DEVICE = "cpu"
 WORK = Path("/kaggle/working")
 #: Stop starting new datasets after this many seconds (Kaggle's limit is 12 h).
 BUDGET_S = 11 * 3600
@@ -63,22 +63,17 @@ BUDGET_S = 11 * 3600
 DATASET_TIMEOUT_S = 2 * 3600
 
 #: Run name -> (problem type, datasets). The run name is the directory under ``experiments/``.
-RUNS: dict[str, tuple[str, list[str]]] = {'fintfm_pr_repro_bin_b': ('binary',
-                           ['Bank_Customer_Churn',
-                            'Bioresponse',
-                            'blood-transfusion-service-center',
-                            'coil2000_insurance_policies',
-                            'credit-g',
-                            'Diabetes130US',
-                            'GiveMeSomeCredit',
-                            'hazelnut-spread-contaminant-detection',
-                            'Is-this-a-good-customer',
-                            'jm1',
-                            'Marketing_Campaign',
-                            'NATICUSdroid',
-                            'online_shoppers_intention',
-                            'seismic-bumps',
-                            'taiwanese_bankruptcy_prediction'])}
+RUNS: dict[str, tuple[str, list[str]]] = {'fintfm_pr_repro_bin_small_a': ('binary',
+                                 ['Bioresponse',
+                                  'churn',
+                                  'diabetes',
+                                  'E-CommereShippingData',
+                                  'Fitness_Club',
+                                  'hazelnut-spread-contaminant-detection',
+                                  'heloc',
+                                  'NATICUSdroid',
+                                  'seismic-bumps',
+                                  'taiwanese_bankruptcy_prediction'])}
 
 #: The experiment script each dataset's process runs, in the fork root. Upstream-style API only.
 WORKER = '''\

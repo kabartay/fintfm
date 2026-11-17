@@ -34,48 +34,55 @@ REGRESSION = [
     "diamonds",
 ]  # fmt: skip
 
-#: The binary suite in two kernels, balanced by the stored fit times of the §287 entry's binary runs
-#: (about 5.1 h each, 2026-11-17): one kernel needed about 10.3 h against the 11 h budget.
-BINARY_A = [
-    "Amazon_employee_access",
-    "APSFailure",
-    "bank-marketing",
+#: The binary suite by fit size, matching the device each part of the §290 entry was measured on:
+#: the 21 tables of at most 10,000 training rows ran on CPU (Kaggle and the Mac), so they run on
+#: two Kaggle CPU kernels, balanced by stored fit time (about 3.6 h each); the 9 larger tables ran
+#: on a Kaggle T4, so they keep one GPU kernel (2026-11-17).
+BINARY_SMALL_A = [
+    "Bioresponse",
     "churn",
-    "credit_card_clients_default",
-    "customer_satisfaction_in_airline",
     "diabetes",
     "E-CommereShippingData",
     "Fitness_Club",
-    "heloc",
-    "HR_Analytics_Job_Change_of_Data_Scientists",
-    "in_vehicle_coupon_recommendation",
-    "kddcup09_appetency",
-    "polish_companies_bankruptcy",
-    "qsar-biodeg",
-]
-BINARY_B = [
-    "Bank_Customer_Churn",
-    "Bioresponse",
-    "blood-transfusion-service-center",
-    "coil2000_insurance_policies",
-    "credit-g",
-    "Diabetes130US",
-    "GiveMeSomeCredit",
     "hazelnut-spread-contaminant-detection",
-    "Is-this-a-good-customer",
-    "jm1",
-    "Marketing_Campaign",
+    "heloc",
     "NATICUSdroid",
-    "online_shoppers_intention",
     "seismic-bumps",
     "taiwanese_bankruptcy_prediction",
 ]
-assert sorted(BINARY_A + BINARY_B) == sorted(BINARY), "the split must cover the binary suite once"
+BINARY_SMALL_B = [
+    "Bank_Customer_Churn",
+    "blood-transfusion-service-center",
+    "coil2000_insurance_policies",
+    "credit-g",
+    "in_vehicle_coupon_recommendation",
+    "Is-this-a-good-customer",
+    "jm1",
+    "Marketing_Campaign",
+    "online_shoppers_intention",
+    "polish_companies_bankruptcy",
+    "qsar-biodeg",
+]
+BINARY_LARGE = [
+    "Amazon_employee_access",
+    "APSFailure",
+    "bank-marketing",
+    "credit_card_clients_default",
+    "customer_satisfaction_in_airline",
+    "Diabetes130US",
+    "GiveMeSomeCredit",
+    "HR_Analytics_Job_Change_of_Data_Scientists",
+    "kddcup09_appetency",
+]
+assert sorted(BINARY_SMALL_A + BINARY_SMALL_B + BINARY_LARGE) == sorted(BINARY), (
+    "the split must cover the binary suite once"
+)
 
 #: Kernel directory -> {run name: (problem type, datasets)}. Run names are what the merge reads.
 KERNELS = {
-    "task_lite_repro_pr_bin_a": {"fintfm_pr_repro_bin_a": ("binary", BINARY_A)},
-    "task_lite_repro_pr_bin_b": {"fintfm_pr_repro_bin_b": ("binary", BINARY_B)},
+    "task_lite_repro_pr_bin_small_a": {"fintfm_pr_repro_bin_small_a": ("binary", BINARY_SMALL_A)},
+    "task_lite_repro_pr_bin_small_b": {"fintfm_pr_repro_bin_small_b": ("binary", BINARY_SMALL_B)},
+    "task_lite_repro_pr_bin_large": {"fintfm_pr_repro_bin_large": ("binary", BINARY_LARGE)},
     "task_lite_repro_pr_mcreg": {
         "fintfm_pr_repro_mc": ("multiclass", MULTICLASS),
         "fintfm_pr_repro_reg": ("regression", REGRESSION),
@@ -83,10 +90,15 @@ KERNELS = {
 }
 
 
-#: Kernels that run on a Kaggle CPU session. The entry's multiclass and regression runs were
-#: measured on CPU (FINDINGS §255: a T4 repeat changed device and results together), so their
-#: reproduction runs on CPU too; the binary kernels need the T4 the binary entry ran on.
-CPU_KERNELS = {"task_lite_repro_pr_mcreg"}
+#: Kernels that run on a Kaggle CPU session: every part of the entry measured on CPU. The
+#: multiclass and regression runs were (FINDINGS §255: a T4 repeat changed device and results
+#: together), and so were the binary tables of at most 10,000 rows; only the larger binary tables
+#: need the T4 they ran on.
+CPU_KERNELS = {
+    "task_lite_repro_pr_bin_small_a",
+    "task_lite_repro_pr_bin_small_b",
+    "task_lite_repro_pr_mcreg",
+}
 
 
 def render(kernel: str) -> str:

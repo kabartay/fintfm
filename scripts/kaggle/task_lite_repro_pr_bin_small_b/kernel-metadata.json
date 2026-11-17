@@ -1,0 +1,15 @@
+{
+  "id": "muhakabartay/fintfm-task-lite-repro-pr-bin-small-b",
+  "title": "fintfm-task-lite-repro-pr-bin-small-b",
+  "code_file": "task_lite_repro_pr_bin_small_b.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": "true",
+  "enable_gpu": "false",
+  "enable_tpu": "false",
+  "enable_internet": "true",
+  "dataset_sources": [],
+  "competition_sources": [],
+  "kernel_sources": [],
+  "model_sources": []
+}

@@ -53,7 +53,7 @@ FORK_BRANCH = "fintfm-pr-2026-11"
 #: The registry name of the entry, default configuration (config index 0).
 MODEL = "FinTFM-LinProbe"
 AUTOGLUON = "1.6.4b20260919"
-KERNEL = "task_lite_repro_pr_bin_a"
+KERNEL = "task_lite_repro_pr_bin_large"
 #: ``gpu``: refuse to run without CUDA (the binary entry ran on a T4); ``cpu``: run on the CPU.
 DEVICE = "gpu"
 WORK = Path("/kaggle/working")
@@ -63,22 +63,16 @@ BUDGET_S = 11 * 3600
 DATASET_TIMEOUT_S = 2 * 3600
 
 #: Run name -> (problem type, datasets). The run name is the directory under ``experiments/``.
-RUNS: dict[str, tuple[str, list[str]]] = {'fintfm_pr_repro_bin_a': ('binary',
-                           ['Amazon_employee_access',
-                            'APSFailure',
-                            'bank-marketing',
-                            'churn',
-                            'credit_card_clients_default',
-                            'customer_satisfaction_in_airline',
-                            'diabetes',
-                            'E-CommereShippingData',
-                            'Fitness_Club',
-                            'heloc',
-                            'HR_Analytics_Job_Change_of_Data_Scientists',
-                            'in_vehicle_coupon_recommendation',
-                            'kddcup09_appetency',
-                            'polish_companies_bankruptcy',
-                            'qsar-biodeg'])}
+RUNS: dict[str, tuple[str, list[str]]] = {'fintfm_pr_repro_bin_large': ('binary',
+                               ['Amazon_employee_access',
+                                'APSFailure',
+                                'bank-marketing',
+                                'credit_card_clients_default',
+                                'customer_satisfaction_in_airline',
+                                'Diabetes130US',
+                                'GiveMeSomeCredit',
+                                'HR_Analytics_Job_Change_of_Data_Scientists',
+                                'kddcup09_appetency'])}
 
 #: The experiment script each dataset's process runs, in the fork root. Upstream-style API only.
 WORKER = '''\
