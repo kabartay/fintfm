@@ -17016,3 +17016,31 @@ of §279 holds for both, and E-both is the candidate entry. Every one of these d
 interval: by §279's own wording this is a configuration choice on one fold, not evidence of improvement, and E-both's
 2.1 Elo over TABFLEX_GPU is a lead within noise, not a measured win. Condition (2), the confirmation runs at the gated
 commit (SDSS17 and miami_housing on the Mac), has not run yet, so the adoption is **provisional**.
+
+## §281: pre-registration: four readout bags for binary fits of at most 5,000 rows, against §280's E-both in one fit
+
+**Written 2026-11-17, before the arm runs.** An Elo-gap analysis of `floor8` (ESTIMATED counterfactuals: one stored error
+replaced at a time, one leaderboard fit each) found the small binary tables the most Elo-sensitive: matching TABFLEX_GPU
+on diabetes alone gives +19.8 Elo, on qsar-biodeg +17.8, on Fitness_Club +12.0. A stored four-bag binary run at an older
+configuration (`fintfm_lp_bin_scr_xfit_bag4_1115`, Mac, no depth scaling, default readout budget; MEASURED) was lower in
+error than the binary entry on 15 of the 22 tables it completed, among them diabetes -10.9%, qsar-biodeg -8.2%,
+Is-this-a-good-customer -6.0%, and higher on 6 (GiveMeSomeCredit +15.2%, seismic-bumps +10.2%, churn +7.8%). That run is a
+lead, not this arm: its configuration differs from the entry's.
+
+**Arm.** The binary entry's settings (§257: `partition_scale_with_n` on, `probe_budget` 50,000, cross-fit 5) plus
+`FINTFM_PARTITION={"n_bags": 4}`, on the 14 binary tables with at most 5,000 training rows (Lite fold 0: blood-transfusion
+499 rows to NATICUSdroid 4,994). The 5,000-row line is §279's RFF gate, reused, not tuned: the larger tables' single-bag
+fits already use much of the per-fold time, and a four-bag arm on them timed out before (§265). Not blind: the stored run
+above was seen before the line was chosen. The 9 smallest tables run on Kaggle CPU (kernel `task_cpu_bin_bag4_small`, fork
+d9f1358, run `fintfm_lp_bin_bag4_small_cpu`); churn, polish_companies_bankruptcy, taiwanese_bankruptcy_prediction,
+Bioresponse and NATICUSdroid run on the Mac (fork `gated-levers` dbc4690, whose gates are default-off, so the model is
+d9f1358's; run `fintfm_lp_bin_bag4_small_mac`), where single-bag fits leave room for four bags. A table that hits the
+time limit on Kaggle CPU is rerun on the Mac, and the Mac's result decides.
+
+**Rule.** Adopt four bags for binary fits of at most 5,000 rows only if all 14 tables complete with no
+`TimeLimitExceeded`, and E-both with these 14 tables replaced (`fintfm_g281_bag4`) scores a higher Elo than E-both
+(`fintfm_g279_both`) in one fit (`scripts/lite_same_fit.py`). Per-table changes are reported against the same-machine
+control where one exists (`fintfm_lp_bin_spline_ctrl_cpu`, Kaggle CPU, same commit and settings without bags) and
+against the entry's T4 run otherwise. A gain smaller than the Elo interval (about +/-90) is a configuration choice on one
+fold, not evidence of improvement. A time-limit hit at a Mac load average above 30 is a failed measurement and is rerun.
+If adopted, the gate becomes a default-off fork option before it can enter the PR branch. Not retuned on the result.

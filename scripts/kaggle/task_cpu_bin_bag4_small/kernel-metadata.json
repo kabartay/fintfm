@@ -1,0 +1,15 @@
+{
+  "id": "muhakabartay/fintfm-task-cpu-bin-bag4-small",
+  "title": "fintfm-task-cpu-bin-bag4-small",
+  "code_file": "task_cpu_bin_bag4_small.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": "true",
+  "enable_gpu": "false",
+  "enable_tpu": "false",
+  "enable_internet": "true",
+  "dataset_sources": [],
+  "competition_sources": [],
+  "kernel_sources": [],
+  "model_sources": []
+}
