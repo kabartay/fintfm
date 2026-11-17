@@ -16924,3 +16924,28 @@ high-cardinality ones.
 **Not tested, and would need its own pre-registration:** a per-column level cap (indicators only for columns with
 at most K levels), which would leave anneal, splice and website_phishing expanded and SDSS17 nearly unchanged. This
 is a new arm, not a rerun of this one.
+
+## §278: the regression RFF readout fails §265's rule: miami_housing hit the time limit on the Mac at a load average below 30; RFF stays out of the entry (task 49.19)
+
+**Result (MEASURED, 2026-11-17).** Run `fintfm_lp_reg_rff_large_mac2` (queue job `rff-large-miami-housing`, fork
+b8612d7, the entry's regression settings plus the random-Fourier-feature readout) stopped on miami_housing with
+AutoGluon's `TimeLimitExceeded` after 2,357.8 s. Its load gate passed with 1-, 5- and 15-minute load averages of
+8.1, 14.0 and 16.2; at 08:05, shortly after it stopped, they were 11.1, 22.4 and 27.3. §265's rule adopts RFF only
+if every regression table completes with no time-limit hit, and says that a hit on a large table means "RFF is not
+adopted as is". This hit came on a machine below the load of 30 used elsewhere as the line between a failed
+measurement and a failed arm, so **RFF is not adopted** and the entry's regression part stays as in
+`fintfm_linprobe_all51_1116f_floor8`. No merged entry exists to score, so no Elo is reported.
+
+**Earlier attempts, for the record.** `reg-rff-large6` (2026-11-16) stopped on miami_housing after 452 s and
+`reg-rff-large6b` on miami_housing, houses and superconductivity after 807, 604 and 1,081 s, both while other work
+held the 15-minute load average above 30 (31.6 at the second's gate, higher later). Neither was counted under the
+rule; this run is the one at low load.
+
+**Stopped early, on purpose.** Once miami_housing failed, the rule's outcome was fixed, so the five remaining large
+tables (houses, superconductivity, food_delivery_time, physiochemical_protein, diamonds) were removed from the queue
+to give the quiet hours to §257's binary retries. Whether RFF fits within the limit on those five is therefore
+unmeasured.
+
+**What the seven Kaggle CPU tables showed (§265, unchanged).** Paired against a same-machine control, RFF was better
+on 6 of 7, worse on concrete (+7.8% RMSE), sign test p 0.13; airfoil -24.9%. A size-gated variant (RFF only below a
+row or column count) is the route §265 names; it would be a new, separately pre-registered arm.
