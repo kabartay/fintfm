@@ -1,9 +1,21 @@
+---
+license: apache-2.0
+library_name: pytorch
+tags:
+  - tabular
+  - tabular-classification
+  - in-context-learning
+  - foundation-model
+  - synthetic-data
+pipeline_tag: tabular-classification
+---
+
 # FinTFM (synthetic-only) multiclass checkpoint: `dr74-mc-s0.pt`
 
 LICENCE: Apache-2.0 (owner decision 2026-11-16, matching the code and the public binary checkpoint)
 
-Status: **not public** (`kabartay/fintfm-multiclass` returns no model to the public API,
-2026-11-15). Nothing here uploads anything.
+Status: **public** since 2026-11-17 at [`kabartay/fintfm-multiclass`](https://huggingface.co/kabartay/fintfm-multiclass),
+Apache-2.0. Code: [github.com/kabartay/fintfm](https://github.com/kabartay/fintfm).
 
 | | |
 | --- | --- |
@@ -44,6 +56,5 @@ field is empty). Recipe copy: `runs/kaggle-ts-dr74-mc-s0/dr74-mc-s0/recipe.yaml`
 - Eight datasets, one repeat, one fold; the Elo interval for the control is +151 / -344.
 - Digit-feature tables (`mfeat-*`) stay far behind linear and boosted models (§186).
 - More than 10 classes or 136 features is out of range.
-- Weights licence is not decided in this card.
 
 LICENCE: Apache-2.0 (owner decision 2026-11-16, matching the code and the public binary checkpoint)

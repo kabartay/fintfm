@@ -75,7 +75,7 @@ says plainly where it does not yet.
 | **Checkpoint** | [kabartay/fintfm-binary](https://huggingface.co/kabartay/fintfm-binary): 885K parameters, binary, up to 136 features |
 | **Tests** | about 1,350 (2026-11-13), plus `ruff`, the openspec validator, a dependency-licence check and a documentation-link check, all in CI |
 | **Measurement log** | 287 numbered entries, each stating how its numbers were produced; pre-registrations are written before their arms run |
-| **Problem types** | Binary is declared and is the only published checkpoint. Multiclass and regression run on TabArena-Lite with unpublished checkpoints (§221-§224) and are **not** declared (§121) |
+| **Problem types** | Binary is declared. The multiclass and regression checkpoints the TabArena-Lite entry uses are published too (Apache-2.0, 2026-11-17: [`kabartay/fintfm-multiclass`](https://huggingface.co/kabartay/fintfm-multiclass), [`kabartay/fintfm-regression`](https://huggingface.co/kabartay/fintfm-regression)), but those problem types are **not** declared (§121) |
 
 **Read [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md) before anything else.** It tags every
 claim the project could make as SURVIVES, SINGLE DRAW, SUPERSEDED, RETRACTED or OPEN against
@@ -354,9 +354,10 @@ clf = FinancialTFMClassifier(ckpt, device="mps")   # ckpt from hf_hub_download, 
 clf.fit(X_train, y_train)          # stores context; no training happens
 proba = clf.predict_proba(X_test)[:, 1]
 
-# Regression needs a checkpoint trained for it (--max-classes >= n_bins). None is published:
-# the only public checkpoint is binary, so this line needs one you trained yourself.
-reg = FinancialTFMRegressor("runs/v4-regression.pt", n_bins=10)
+# Regression needs a checkpoint trained for it (--max-classes >= n_bins). The published one
+# (kabartay/fintfm-regression, max_classes 10) is the TabArena entry's regression checkpoint.
+reg_ckpt = hf_hub_download("kabartay/fintfm-regression", "v4-binned48_3-control.pt")
+reg = FinancialTFMRegressor(reg_ckpt, n_bins=10)
 reg.fit(X_train, y_cont)
 point = reg.predict(X_test)                     # distribution mean
 lo, hi = reg.predict_interval(X_test, 0.8)      # 80% interval, from the same head

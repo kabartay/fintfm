@@ -1,9 +1,21 @@
+---
+license: apache-2.0
+library_name: pytorch
+tags:
+  - tabular
+  - tabular-regression
+  - in-context-learning
+  - foundation-model
+  - synthetic-data
+pipeline_tag: tabular-regression
+---
+
 # FinTFM (synthetic-only) pure-regression checkpoint: `v4-binned48_3-control.pt`
 
 LICENCE: Apache-2.0 (owner decision 2026-11-16, matching the code and the public binary checkpoint)
 
-Status: **not public** (`kabartay/fintfm-regression` returns no model to the public API,
-2026-11-15). Nothing here uploads anything.
+Status: **public** since 2026-11-17 at [`kabartay/fintfm-regression`](https://huggingface.co/kabartay/fintfm-regression),
+Apache-2.0. Code: [github.com/kabartay/fintfm](https://github.com/kabartay/fintfm).
 
 The file name says "control" because it began as the matched binned-head control for the
 pinball-quantile experiment (§148). It is the checkpoint the entry uses for regression.
@@ -46,6 +58,5 @@ real data.
   by under 1%.
 - A 480,000-task pure-regression checkpoint did not lift regression (§233); the 48,000-task one
   is what the entry uses. One seed per arm, one fold.
-- Weights licence is not decided in this card.
 
 LICENCE: Apache-2.0 (owner decision 2026-11-16, matching the code and the public binary checkpoint)
