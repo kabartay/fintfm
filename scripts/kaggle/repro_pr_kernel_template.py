@@ -42,8 +42,9 @@ from pathlib import Path
 # ---- PLACEHOLDERS: the owner fills these in before pushing the kernel ----------------------------
 #: Full or 7+ character SHA of the pull-request branch head in the fork. PLACEHOLDER until set.
 FORK_COMMIT = "<FORK_COMMIT>"
-#: The fintfm release the fork's extra pins. Not released yet when this was written.
-FINTFM_VERSION = "0.11.0"
+#: The fintfm release the fork's extra pins: 0.12.0 publishes the multiclass and regression
+#: checkpoints. The preflight refuses to run until it is on PyPI.
+FINTFM_VERSION = "0.12.0"
 # --------------------------------------------------------------------------------------------------
 
 FORK_URL = "https://github.com/kabartay/tabarena.git"

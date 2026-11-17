@@ -34,9 +34,48 @@ REGRESSION = [
     "diamonds",
 ]  # fmt: skip
 
+#: The binary suite in two kernels, balanced by the stored fit times of the §287 entry's binary runs
+#: (about 5.1 h each, 2026-11-17): one kernel needed about 10.3 h against the 11 h budget.
+BINARY_A = [
+    "Amazon_employee_access",
+    "APSFailure",
+    "bank-marketing",
+    "churn",
+    "credit_card_clients_default",
+    "customer_satisfaction_in_airline",
+    "diabetes",
+    "E-CommereShippingData",
+    "Fitness_Club",
+    "heloc",
+    "HR_Analytics_Job_Change_of_Data_Scientists",
+    "in_vehicle_coupon_recommendation",
+    "kddcup09_appetency",
+    "polish_companies_bankruptcy",
+    "qsar-biodeg",
+]
+BINARY_B = [
+    "Bank_Customer_Churn",
+    "Bioresponse",
+    "blood-transfusion-service-center",
+    "coil2000_insurance_policies",
+    "credit-g",
+    "Diabetes130US",
+    "GiveMeSomeCredit",
+    "hazelnut-spread-contaminant-detection",
+    "Is-this-a-good-customer",
+    "jm1",
+    "Marketing_Campaign",
+    "NATICUSdroid",
+    "online_shoppers_intention",
+    "seismic-bumps",
+    "taiwanese_bankruptcy_prediction",
+]
+assert sorted(BINARY_A + BINARY_B) == sorted(BINARY), "the split must cover the binary suite once"
+
 #: Kernel directory -> {run name: (problem type, datasets)}. Run names are what the merge reads.
 KERNELS = {
-    "task_lite_repro_pr_bin": {"fintfm_pr_repro_bin": ("binary", BINARY)},
+    "task_lite_repro_pr_bin_a": {"fintfm_pr_repro_bin_a": ("binary", BINARY_A)},
+    "task_lite_repro_pr_bin_b": {"fintfm_pr_repro_bin_b": ("binary", BINARY_B)},
     "task_lite_repro_pr_mcreg": {
         "fintfm_pr_repro_mc": ("multiclass", MULTICLASS),
         "fintfm_pr_repro_reg": ("regression", REGRESSION),

@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 KAGGLE = Path(__file__).resolve().parents[1] / "scripts" / "kaggle"
-KERNELS = ["task_lite_repro_pr_bin", "task_lite_repro_pr_mcreg"]
+KERNELS = ["task_lite_repro_pr_bin_a", "task_lite_repro_pr_bin_b", "task_lite_repro_pr_mcreg"]
 
 PUBLISHED = """
 BINARY_CHECKPOINT = {"repo_id": "a/b", "filename": "f", "revision": "r", "sha256": "s"}
@@ -61,7 +61,8 @@ def test_unpublished_checkpoints_by_problem_type():
 
 
 def test_each_kernel_checks_only_its_own_problem_types():
-    bin_mod, mcreg = load(KERNELS[0]), load(KERNELS[1])
+    bin_mod, mcreg = load(KERNELS[0]), load(KERNELS[2])
+    assert load(KERNELS[1]).problem_types() == ("binary",)
     assert bin_mod.problem_types() == ("binary",)
     assert mcreg.problem_types() == ("multiclass", "regression")
     # Multiclass and regression are still placeholders: only the binary kernel passes.

@@ -42,8 +42,9 @@ from pathlib import Path
 # ---- PLACEHOLDERS: the owner fills these in before pushing the kernel ----------------------------
 #: Full or 7+ character SHA of the pull-request branch head in the fork. PLACEHOLDER until set.
 FORK_COMMIT = "<FORK_COMMIT>"
-#: The fintfm release the fork's extra pins. Not released yet when this was written.
-FINTFM_VERSION = "0.11.0"
+#: The fintfm release the fork's extra pins: 0.12.0 publishes the multiclass and regression
+#: checkpoints. The preflight refuses to run until it is on PyPI.
+FINTFM_VERSION = "0.12.0"
 # --------------------------------------------------------------------------------------------------
 
 FORK_URL = "https://github.com/kabartay/tabarena.git"
@@ -51,7 +52,7 @@ FORK_BRANCH = "fintfm-pr-2026-11"
 #: The registry name of the entry, default configuration (config index 0).
 MODEL = "FinTFM-LinProbe"
 AUTOGLUON = "1.6.4b20260919"
-KERNEL = "task_lite_repro_pr_bin"
+KERNEL = "task_lite_repro_pr_bin_a"
 WORK = Path("/kaggle/working")
 #: Stop starting new datasets after this many seconds (Kaggle's limit is 12 h).
 BUDGET_S = 11 * 3600
@@ -59,37 +60,22 @@ BUDGET_S = 11 * 3600
 DATASET_TIMEOUT_S = 2 * 3600
 
 #: Run name -> (problem type, datasets). The run name is the directory under ``experiments/``.
-RUNS: dict[str, tuple[str, list[str]]] = {'fintfm_pr_repro_bin': ('binary',
-                         ['Amazon_employee_access',
-                          'Bank_Customer_Churn',
-                          'Diabetes130US',
-                          'E-CommereShippingData',
-                          'Fitness_Club',
-                          'GiveMeSomeCredit',
-                          'HR_Analytics_Job_Change_of_Data_Scientists',
-                          'Is-this-a-good-customer',
-                          'Marketing_Campaign',
-                          'NATICUSdroid',
-                          'bank-marketing',
-                          'blood-transfusion-service-center',
-                          'churn',
-                          'coil2000_insurance_policies',
-                          'credit-g',
-                          'credit_card_clients_default',
-                          'diabetes',
-                          'hazelnut-spread-contaminant-detection',
-                          'heloc',
-                          'in_vehicle_coupon_recommendation',
-                          'jm1',
-                          'online_shoppers_intention',
-                          'polish_companies_bankruptcy',
-                          'qsar-biodeg',
-                          'seismic-bumps',
-                          'taiwanese_bankruptcy_prediction',
-                          'APSFailure',
-                          'Bioresponse',
-                          'kddcup09_appetency',
-                          'customer_satisfaction_in_airline'])}
+RUNS: dict[str, tuple[str, list[str]]] = {'fintfm_pr_repro_bin_a': ('binary',
+                           ['Amazon_employee_access',
+                            'APSFailure',
+                            'bank-marketing',
+                            'churn',
+                            'credit_card_clients_default',
+                            'customer_satisfaction_in_airline',
+                            'diabetes',
+                            'E-CommereShippingData',
+                            'Fitness_Club',
+                            'heloc',
+                            'HR_Analytics_Job_Change_of_Data_Scientists',
+                            'in_vehicle_coupon_recommendation',
+                            'kddcup09_appetency',
+                            'polish_companies_bankruptcy',
+                            'qsar-biodeg'])}
 
 #: The experiment script each dataset's process runs, in the fork root. Upstream-style API only.
 WORKER = '''\
