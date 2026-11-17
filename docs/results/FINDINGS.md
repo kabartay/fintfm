@@ -17044,3 +17044,25 @@ control where one exists (`fintfm_lp_bin_spline_ctrl_cpu`, Kaggle CPU, same comm
 against the entry's T4 run otherwise. A gain smaller than the Elo interval (about +/-90) is a configuration choice on one
 fold, not evidence of improvement. A time-limit hit at a Mac load average above 30 is a failed measurement and is rerun.
 If adopted, the gate becomes a default-off fork option before it can enter the PR branch. Not retuned on the result.
+
+## §282: spline expansion of the raw numeric columns is better on 14 of 20 small binary tables on Kaggle CPU (sign test p 0.12); adding them to §280's E-both gives +4.4 Elo in one fit, partial: the 10 large tables are not run (task 49.23)
+
+**MEASURED, TabArena-Lite repeat 0 fold 0, Kaggle CPU, 2026-11-17.** Kernels `task_cpu_bin_spline` and
+`task_cpu_bin_spline_ctrl` (fintfm 34fb288, fork d9f1358), the binary entry's settings (§257) with and without
+`FINTFM_PROBE_SPLINE=on` (5 quantile knots, degree 3, at most 64 columns), on the 20 binary tables whose entry fit is
+small enough for Kaggle CPU. Both kernels completed all 20 with no `TimeLimitExceeded`. The control reproduces the
+binary entry's T4 run to within 0.31% on every table (exactly on 11), so the pair is read table by table.
+
+| change in 1-AUC, spline against control | tables |
+| --- | --- |
+| better | 14: heloc -3.47%, polish_companies_bankruptcy -2.93%, online_shoppers_intention -2.75%, blood-transfusion -2.45%, Bioresponse -2.16%, credit-g -1.79%, Fitness_Club -1.74%, qsar-biodeg -1.48%, Marketing_Campaign -1.16%, churn -0.85%, coil2000 -0.61%, seismic-bumps -0.55%, Bank_Customer_Churn -0.45%, in_vehicle_coupon -0.13% |
+| worse | 6: taiwanese +0.12%, diabetes +0.22%, jm1 +0.98%, E-CommereShippingData +1.28%, Is-this-a-good-customer +4.28%, hazelnut-spread-contaminant-detection +31.98% (0.03715 to 0.04903) |
+
+Sign test p 0.12; mean relative change +0.8%, carried by hazelnut. Fit time is not raised: the spline kernel's total
+was 19,073 s against the control's 20,718 s (per-table ratio 0.76 to 1.08, different sessions).
+
+**Partial Elo, ESTIMATED as an entry.** §280's E-both with its 20 small binary tables replaced by the spline run and its
+10 large binary tables unchanged (`fintfm_x_spline20`), one fit with E-both (111 methods): 982.7 (+81/-86), 101st of
+111, against E-both's 978.3 (102nd) and TABFLEX_GPU's 977.4 (103rd). This is not an entry under 49.23's rule, which
+needs all 30 binary tables run with splines; the 10 large ones are unmeasured, so it is a planning figure for whether
+they are worth running.
