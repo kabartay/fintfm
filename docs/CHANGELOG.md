@@ -6,6 +6,34 @@ not paste one into the other. See `CLAUDE.md`.
 
 ## [Unreleased]
 
+The multiclass and regression checkpoints that the TabArena entry loads are public on
+Hugging Face under Apache-2.0, beside the binary one. No new weights are trained, and every
+library default is unchanged.
+
+### Added
+
+- Published checkpoints: `kabartay/fintfm-multiclass` (`dr74-mc-s0.pt`) and
+  `kabartay/fintfm-regression` (`v4-binned48_3-control.pt`), Apache-2.0, with model cards
+  in `docs/models/`. `scripts/publish_weights.py` checks each file against its recorded
+  SHA-256 and uploads only with `--yes-publish`, `--licence` and `HF_TOKEN`; it now skips all
+  three as already public.
+- `binary_context_sweep --merge`: merges per-panel records written by separate runs into one
+  record, refusing a configuration mismatch or a duplicate cell, and recomputes the Holm
+  correction over every merged comparison (task 32.6).
+- `binary_context_sweep` prints a warning when the bootstrap's resolution makes significance
+  unreachable: with `n_boot` resamples the smallest p is `1/(n_boot+1)`, so Holm over a large
+  family cannot reach 0.05 (`holm_floor`; FINDINGS §288).
+- `scripts/lite_same_fit.py`: scores several TabArena-Lite entries in one Elo fit beside the
+  field, each under its own method identity, so their positions are comparable.
+
+### Changed
+
+- Release archives stay under Zenodo's 1,000-entry preview limit: Kaggle kernel metadata and
+  `docs/results/drafts/` are `export-ignore` in `.gitattributes`, and
+  `tests/test_release_archive.py` fails if `git archive` reaches 1,000 entries.
+- README: the TabArena-Lite standing is 989.4 Elo, 101st of 110 (FINDINGS §286), and the
+  regression quickstart loads the published regression checkpoint.
+
 ## [0.11.0] — 2026-11-16
 
 A minor release: no new weights. It adds the opt-in classes the TabArena entry's wrappers
