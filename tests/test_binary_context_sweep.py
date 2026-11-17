@@ -45,7 +45,7 @@ def test_comparisons_holm_per_metric_and_pairs():
         ("p", 100, 0, "balanced"): (y, b),
         ("p", 100, 0, "hybrid"): (y, a.copy()),
     }
-    rows = bcs.paired_cell_comparisons(scores, n_boot=200)
+    rows = bcs.paired_cell_comparisons(scores, n_boot=200, allow_coarse=True)
     assert len(rows) == 3 * 2  # three pairs x (auc, ap)
     for r in rows:
         assert r["n_family"] == 3
@@ -67,7 +67,7 @@ def test_comparisons_refuse_different_rows():
     y2[0] = 1 - y2[0]
     with pytest.raises(ValueError, match="other rows"):
         bcs.paired_cell_comparisons(
-            {("p", 1, 0, "a"): (y, a), ("p", 1, 0, "b"): (y2, b)}, n_boot=10
+            {("p", 1, 0, "a"): (y, a), ("p", 1, 0, "b"): (y2, b)}, n_boot=10, allow_coarse=True
         )
 
 
@@ -82,6 +82,7 @@ def test_run_sweep_records_cells_rates_and_skips(tmp_path):
         n_boot=120,
         n_ensemble=1,
         out_dir=tmp_path,
+        allow_coarse_bootstrap=True,
     )
     assert len(rec["cells"]) == 2 * 2 * 3  # panels x seeds x strategies at size 60
     assert rec["coverage"]["n_attempted"] == 2 * 2 * 3 * 2
@@ -344,3 +345,181 @@ def test_summary_warns_when_the_holm_floor_blocks_significance():
     assert "WARNING: n_boot=2000" in bcs.summarise(rec)
     rec["comparisons"] = [dict(row) for _ in range(10)]
     assert "WARNING" not in bcs.summarise(rec)
+
+
+def _small_run(**kw):
+    """Two tiny panels, three strategies, two seeds, coarse bootstrap (the tests' own)."""
+    args = dict(
+        strategies=("uniform", "balanced", "prototype"),
+        sizes=(60,),
+        seeds=(0, 1),
+        n_boot=120,
+        n_ensemble=1,
+        allow_coarse_bootstrap=True,
+    )
+    args.update(kw)
+    panels = [_panel("low", 0.1, seed=1), _panel("high", 0.3, seed=2)]
+    return bcs.run_sweep(_tiny_model(), panels, **args)
+
+
+def test_predictions_are_kept_and_survive_merge(tmp_path):
+    rec = _small_run(out_dir=tmp_path / "r")
+    assert set(rec["labels"]) == {"low|0", "low|1", "high|0", "high|1"}
+    for c in rec["cells"]:
+        y = rec["labels"][f"{c['panel']}|{c['seed']}"]
+        assert len(c["p"]) == len(y) == c["n_test"]
+        assert all(abs(round(v, 6) - v) < 1e-12 for v in c["p"])
+    saved = json.loads((tmp_path / "r" / bcs.OUT_FILE).read_text())
+    assert saved["cells"][0]["p"] == rec["cells"][0]["p"]
+    assert saved["labels"] == rec["labels"]
+    # a list of numbers is one line, not one line per probability
+    lines = (tmp_path / "r" / bcs.OUT_FILE).read_text().splitlines()
+    assert not any(line.strip().rstrip(",").replace(".", "", 1).isdigit() for line in lines)
+    a = bcs.run_sweep(
+        _tiny_model(),
+        [_panel("low", 0.1, seed=1)],
+        strategies=("uniform", "balanced"),
+        sizes=(60,),
+        seeds=(0,),
+        n_boot=120,
+        n_ensemble=1,
+        allow_coarse_bootstrap=True,
+    )
+    b = bcs.run_sweep(
+        _tiny_model(),
+        [_panel("low", 0.1, seed=1)],
+        strategies=("uniform", "balanced"),
+        sizes=(60,),
+        seeds=(1,),
+        n_boot=120,
+        n_ensemble=1,
+        allow_coarse_bootstrap=True,
+    )
+    merged = bcs.merge_records([a, b])
+    assert set(merged["labels"]) == {"low|0", "low|1"}
+    assert all("p" in c for c in merged["cells"])
+    bad = json.loads(json.dumps(b))
+    bad["config"]["seeds"] = [0]
+    bad["cells"] = []
+    bad["comparisons"] = []
+    bad["labels"] = {"low|0": [1 - v for v in a["labels"]["low|0"]]}
+    with pytest.raises(ValueError, match="labels"):
+        bcs.merge_records([a, bad])
+
+
+def test_recompare_reproduces_the_original_comparisons(tmp_path):
+    rec = _small_run(compare_against=["uniform"], out_dir=tmp_path / "r")
+    again = bcs.recompare_file(
+        tmp_path / "r" / bcs.OUT_FILE, tmp_path / "again", allow_coarse_bootstrap=True
+    )
+    assert again["comparisons"] == rec["comparisons"]
+    assert again["cells"] == rec["cells"]
+    assert (tmp_path / "again" / bcs.OUT_FILE).exists()
+    # a different family and n_boot, no scoring involved
+    other = bcs.recompare_record(
+        rec, n_boot=200, compare_against=["prototype"], allow_coarse_bootstrap=True
+    )
+    assert {(r["a"], r["b"]) for r in other["comparisons"]} == {
+        ("prototype", "uniform"),
+        ("prototype", "balanced"),
+    }
+    assert other["config"]["n_boot"] == 200 and "n_boot=200" in other["comparison_method"]
+    assert "Holm" in bcs.summarise(other)
+
+
+def test_compare_against_limits_pairs():
+    rec = _small_run(compare_against=["uniform"])
+    assert {(r["a"], r["b"]) for r in rec["comparisons"]} == {
+        ("uniform", "balanced"),
+        ("uniform", "prototype"),
+    }
+    assert len(rec["comparisons"]) == 2 * 2 * 2 * 2  # panels x seeds x pairs x metrics
+    assert all(r["n_family"] == 8 for r in rec["comparisons"])
+    assert rec["config"]["compare_against"] == ["uniform"]
+    assert "pairs against uniform" in rec["comparison_method"]
+    assert bcs.comparison_pairs(["a", "b", "c"], ["c"]) == [("c", "a"), ("c", "b")]
+    with pytest.raises(ValueError, match="not among strategies"):
+        _small_run(compare_against=["retrieval"])
+
+
+def test_coarse_bootstrap_is_refused_before_scoring_unless_allowed():
+    with pytest.raises(ValueError, match=r"n_boot >= 1200\b"):
+        # 6 comparisons per metric (2 seeds x 3 pairs, one panel, one size) at 100 resamples
+        bcs.run_sweep(
+            _tiny_model(),
+            [_panel("low", 0.1, seed=1)],
+            strategies=("uniform", "balanced", "prototype"),
+            sizes=(60,),
+            seeds=(0, 1),
+            n_boot=100,
+            n_ensemble=1,
+        )
+    # the per-kernel check uses the merged family the kernel belongs to
+    with pytest.raises(ValueError, match="n_boot >= 14400"):
+        bcs.run_sweep(
+            _tiny_model(),
+            [_panel("low", 0.1, seed=1)],
+            strategies=("uniform", "balanced"),
+            sizes=(60,),
+            seeds=(0,),
+            n_boot=5000,
+            n_ensemble=1,
+            family_size=72,
+        )
+    assert bcs.check_bootstrap_resolution(14400, 72) is None
+    with pytest.raises(ValueError, match="n_boot >= 14400"):
+        bcs.check_bootstrap_resolution(14399, 72)
+    assert bcs.check_bootstrap_resolution(100, 72, allow_coarse=True) == 14400
+    assert bcs.DEFAULT_N_BOOT >= 14400
+
+
+def test_old_records_merge_but_refuse_recompare(tmp_path, monkeypatch):
+    recs = [_slice_record("p1", 0, [0.01, 0.02]), _slice_record("p1", 1, [0.01, 0.02])]
+    merged = bcs.merge_records(recs)
+    assert "labels" not in merged
+    with pytest.raises(ValueError, match="no stored predictions"):
+        bcs.recompare_record(merged)
+    f = tmp_path / "old.json"
+    f.write_text(json.dumps(merged))
+    monkeypatch.setattr(
+        "sys.argv", ["fintfm-binctx", "--recompare", str(f), "--out", str(tmp_path / "o")]
+    )
+    with pytest.raises(SystemExit):
+        bcs.main()
+
+
+def test_recompare_cli_writes_record_and_summary(tmp_path, capsys, monkeypatch):
+    _small_run(out_dir=tmp_path / "r")
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "fintfm-binctx",
+            "--recompare",
+            str(tmp_path / "r" / bcs.OUT_FILE),
+            "--out",
+            str(tmp_path / "o"),
+            "--n-boot",
+            "150",
+            "--compare-against",
+            "uniform",
+            "--allow-coarse-bootstrap",
+        ],
+    )
+    bcs.main()
+    new = json.loads((tmp_path / "o" / bcs.OUT_FILE).read_text())
+    assert new["config"]["n_boot"] == 150 and new["config"]["compare_against"] == ["uniform"]
+    assert "paired AP comparisons" in capsys.readouterr().out
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "fintfm-binctx",
+            "--recompare",
+            str(tmp_path / "r" / bcs.OUT_FILE),
+            "--out",
+            str(tmp_path / "o2"),
+            "--n-boot",
+            "150",
+        ],
+    )
+    with pytest.raises(SystemExit):  # refused: coarse for the family, no override
+        bcs.main()
