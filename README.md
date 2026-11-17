@@ -74,7 +74,7 @@ says plainly where it does not yet.
 | **Licence** | Apache-2.0 for **code and weights**, each chosen separately (see [Licensing](#licensing--provenance)) |
 | **Checkpoint** | [kabartay/fintfm-binary](https://huggingface.co/kabartay/fintfm-binary): 885K parameters, binary, up to 136 features |
 | **Tests** | about 1,350 (2026-11-13), plus `ruff`, the openspec validator, a dependency-licence check and a documentation-link check, all in CI |
-| **Measurement log** | 287 numbered entries, each stating how its numbers were produced; pre-registrations are written before their arms run |
+| **Measurement log** | 288 numbered entries, each stating how its numbers were produced; pre-registrations are written before their arms run |
 | **Problem types** | Binary is declared. The multiclass and regression checkpoints the TabArena-Lite entry uses are published too (Apache-2.0, 2026-11-17: [`kabartay/fintfm-multiclass`](https://huggingface.co/kabartay/fintfm-multiclass), [`kabartay/fintfm-regression`](https://huggingface.co/kabartay/fintfm-regression)), but those problem types are **not** declared (§121) |
 
 **Read [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md) before anything else.** It tags every

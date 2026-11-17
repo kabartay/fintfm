@@ -454,6 +454,27 @@ def merge_records(records: Sequence[dict], sources: Sequence[str] | None = None)
     }
 
 
+def holm_floor(n_boot: int | None, n_family: int) -> float:
+    """Smallest Holm-adjusted p a bootstrap of ``n_boot`` resamples can produce.
+
+    :func:`~fintfm.evaluation.metrics.paired_auc_difference` never returns a p below
+    ``1 / (n_boot + 1)``, and Holm multiplies the smallest raw p by the family size, so a
+    family larger than about ``0.05 * (n_boot + 1)`` can never show a significant pair however
+    large the differences are. FINDINGS §288 is the run that hit this.
+
+    Args:
+        n_boot: Bootstrap resamples per comparison; ``None`` or 0 when none were drawn.
+        n_family: Comparisons in the Holm family.
+
+    Returns:
+        The floor, capped at 1.0; 0.0 when ``n_boot`` is unknown, so no warning is raised on
+        a record that does not say.
+    """
+    if not n_boot or n_family <= 0:
+        return 0.0
+    return min(1.0, n_family / (n_boot + 1))
+
+
 def summarise(record: dict) -> str:
     """Seed-mean table per panel, size and strategy, then the Holm table, AP first.
 
@@ -487,6 +508,14 @@ def summarise(record: dict) -> str:
         if not cmps:
             continue
         lines += ["", f"paired {metric.upper()} comparisons ({len(cmps)} in the Holm family):"]
+        floor = holm_floor(record["config"].get("n_boot"), len(cmps))
+        if floor >= 0.05:
+            lines.append(
+                f"WARNING: n_boot={record['config'].get('n_boot')} resolves p no lower than "
+                f"1/(n_boot+1), so Holm over {len(cmps)} comparisons cannot go below "
+                f"{floor:.4f}: no comparison can reach 0.05, and 'not significant' here is the "
+                f"test's resolution, not evidence of no difference (FINDINGS §288)"
+            )
         lines.append(
             f"{'panel':>12} {'ctx':>5} {'a - b':>22} {'seeds':>5} {'mean delta':>10} "
             f"{'min Holm p':>11} {'Holm<.05':>9}"

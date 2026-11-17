@@ -17215,3 +17215,46 @@ entry lands, not as part of the rule. A gain smaller than the Elo interval (abou
 fold. A time-limit hit at a Mac load average above 30 is a failed measurement and is rerun. If adopted, the gate becomes
 a default-off fork option and the PR branch's binary default before the reproduction without overrides. Not retuned on
 the result.
+
+## §288: the binary context-strategy sweep completes, 180 of 180 cells; no pair survives Holm, but the test could not have found one (Holm floor 0.18); `retrieval` has the highest mean AP in all 12 panel-size cells and `uniform` the best ECE in 11; the class default stays `uniform` (task 32.6)
+
+**MEASURED, Kaggle CPU, 2026-11-17.** Twelve kernels, one per panel and seed (`scripts/kaggle/task_cpu_32_ctx_*`,
+fintfm `e475151`, synthetic-only checkpoint `v4-cellattn-labels.pt`, SHA-256 checked in each kernel), each exited 0 and
+wrote its record in 7,419 to 11,837 s; merged with `fintfm.experiments.binary_context_sweep --merge` into
+`runs/binary-context-sweep-merged/` (log `runs/binary-context-sweep-merged.log`). Five strategies, contexts 500, 1,000
+and 2,000, seeds 0 to 2, `--n-ensemble 8`, Polish 1y/3y/5y and Taiwan: 180 cells, 31.6 h of scoring. This completes
+§273's run.
+
+**Seed means, best per panel and context size** (12 panel-size cells): highest AP `retrieval` 12 of 12; highest AUC
+`retrieval` 11, `prototype` 1; lowest ECE `uniform` 11, `hybrid` 1. Mean AP, `uniform` / `prototype` / `retrieval`:
+
+| panel | ctx 500 | ctx 1,000 | ctx 2,000 |
+| --- | --- | --- | --- |
+| Polish 1y | 0.1924 / 0.2379 / 0.2970 | 0.2004 / 0.2383 / 0.2734 | 0.1958 / 0.2330 / 0.2498 |
+| Polish 3y | 0.1379 / 0.1551 / 0.2292 | 0.1390 / 0.1527 / 0.2154 | 0.1382 / 0.1494 / 0.1872 |
+| Polish 5y | 0.3725 / 0.3759 / 0.4136 | 0.3713 / 0.3798 / 0.4075 | 0.3740 / 0.3801 / 0.3883 |
+| Taiwan | 0.3973 / 0.3829 / 0.4002 | 0.3999 / 0.3837 / 0.4127 | 0.3948 / 0.3876 / 0.4128 |
+
+`prototype` beats `uniform` on AP on all three Polish panels and loses on Taiwan at every size (-0.0071 to -0.0162).
+
+**The pre-registered test cannot reject.** The paired row bootstrap uses 2,000 resamples, so its smallest p is
+1/2,001; Holm over the 360 comparisons per metric multiplies the smallest raw p by 360, so **no adjusted p can fall
+below 0.1799**, whatever the effect. The smallest adjusted p in both families is exactly that floor; 46 raw AP p-values
+and more AUC ones sit at the resolution limit. "No pair significant after Holm" is therefore the test's resolution, not
+evidence of no difference. Each kernel alone (90 comparisons per metric, floor 0.045) could just have rejected; the merge
+that 32.6's Verify asks for could not. The sweep's summary now prints a warning when the floor reaches 0.05
+(`holm_floor`, `tests/test_binary_context_sweep.py`).
+
+**Uncorrected per-seed 95% intervals**, `uniform` minus the other strategy, 27 Polish and 9 Taiwan slices per metric
+(no multiplicity correction, so descriptive only): `retrieval` better with the interval excluding zero on AP in 22 of 27
+Polish and 1 of 9 Taiwan slices, on AUC in 25 of 27 and 3 of 9; `prototype` better on AP in 17 of 27 Polish and 0 of 9
+Taiwan, on AUC in 19 of 27 and 5 of 9. `uniform` is better with the interval excluding zero in no slice.
+
+**Cost.** Mean seconds per cell: `uniform` 215, `prototype` 254, `retrieval` 2,268 (largest 5,820): retrieval costs
+about 10x uniform here, against D10's 2.5x.
+
+**Decision (task 32.6 Verify).** The class default stays `uniform`, recorded in `docs/design/DECISIONS.md` D10.
+`retrieval` stays opt-in for D10's reasons (batch dependence, cost), which this run strengthens on cost. `prototype` does
+not replace `uniform`: it loses AP on Taiwan at every size, and its Polish gain is uncorrected. A rerun able to reject,
+with more resamples or a smaller pre-registered family and with predictions kept in the record so tests can be redone
+without scoring, is filed as task 32.7.

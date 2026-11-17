@@ -309,6 +309,14 @@ general-tabular only); the member-transform version produced no candidate on the
 Retrieval stays opt-in, and per-class retrieval is harmful on V4FinBench (§213). A positive floor
 or cap on the uniform context is null (§200).
 
+**Status 2026-11-17 (task 32.6, §288): the class default stays `uniform`, explicitly.** The
+binary sweep of five strategies over Polish 1y/3y/5y and Taiwan (three seeds, contexts 500 to
+2,000) gave `retrieval` the highest mean AP in all 12 panel-size cells and `uniform` the best
+ECE in 11. Its Holm-corrected bootstrap could not reject anything: at 2,000 resamples and 360
+comparisons the adjusted p cannot go below 0.18. `prototype` lost AP to `uniform` on Taiwan at
+every size, so it is not a default candidate; `retrieval` stays opt-in, and it cost about 10x
+uniform's scoring time there, against the 2.5x above.
+
 ---
 
 ## D11 — A head that was never trained is not reachable

@@ -30,10 +30,18 @@ Task 32.3's Holm-corrected bootstrap was run for the retrieval-versus-balanced c
 open. 32.4's explicit gap-against-base-rate regression also stays open — §35 establishes the
 direction from two panels rather than fitting the relationship.
 
-- [ ] 32.6 **Progress (2026-11-17, FINDINGS §273): the Kaggle sweep stopped at its 11 h limit after 69 of 180 cells with no JSON, so no bootstrap or Holm result; on Polish 1y `prototype` beats `uniform` on AP in 3 of 3 seeds at every size (point values). Rerun as one kernel per panel.** **Progress (2026-11-15): command ready, measurement not run.** `env OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 nice -n 15 env -u VIRTUAL_ENV uv run --frozen fintfm-binctx --model <checkpoint with at least 95 features> --out runs/binary-context-sweep > run.log 2>&1` runs `prototype` beside uniform, balanced, hybrid and retrieval on Polish 1y/3y/5y and Taiwan, three seeds, and prints mean AP, AUC and ECE per strategy plus Holm-adjusted paired bootstrap tables for AP and AUC; ECE is a per-cell mean, not bootstrapped. The `docs/design/DECISIONS.md` entry on the class default is still owed after the run. Measure `prototype` on the **binary** path across Polish and Taiwan, three seeds,
+- [x] 32.6 **Done (2026-11-17, FINDINGS §288): all 180 cells scored on Kaggle CPU in 12 kernels and merged; `retrieval` has the highest mean AP in 12 of 12 panel-size cells and `uniform` the best ECE in 11; the Holm-corrected paired bootstrap ran but cannot reject (2,000 resamples, 360 comparisons, floor 0.18); the class default is explicitly left `uniform` in DECISIONS D10. A rerun able to reject is 32.7.** **Progress (2026-11-17, FINDINGS §273): the Kaggle sweep stopped at its 11 h limit after 69 of 180 cells with no JSON, so no bootstrap or Holm result; on Polish 1y `prototype` beats `uniform` on AP in 3 of 3 seeds at every size (point values). Rerun as one kernel per panel.** **Progress (2026-11-15): command ready, measurement not run.** `env OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 nice -n 15 env -u VIRTUAL_ENV uv run --frozen fintfm-binctx --model <checkpoint with at least 95 features> --out runs/binary-context-sweep > run.log 2>&1` runs `prototype` beside uniform, balanced, hybrid and retrieval on Polish 1y/3y/5y and Taiwan, three seeds, and prints mean AP, AUC and ECE per strategy plus Holm-adjusted paired bootstrap tables for AP and AUC; ECE is a per-cell mean, not bootstrapped. The `docs/design/DECISIONS.md` entry on the class default is still owed after the run. Measure `prototype` on the **binary** path across Polish and Taiwan, three seeds,
       before it becomes the class default. §38 establishes it as best on the V4FinBench
       survival path only, and D9's lesson was that a context result on one path does not
       transfer to the other — §35 found the blind strategies nearly tied on the binary panels
       because "balanced" there cannot reach 50/50. Verify: AUC and ECE against `uniform` and
       `retrieval` with a Holm-corrected paired bootstrap, and the class default changed or
       explicitly left alone in `docs/design/DECISIONS.md`.
+
+- [ ] 32.7 Rerun the binary context comparison so its test can reject (FINDINGS §288). §288's
+      merged Holm family of 360 comparisons per metric at 2,000 resamples has an adjusted-p floor
+      of 0.18. Pre-register a smaller family (`uniform` against `prototype` and `retrieval` only,
+      AP and AUC) and size `n_boot` so the floor is below 0.005; keep each cell's held-out
+      labels and predictions in the record so tests can be redone without scoring again.
+      Verify: a merged record whose summary prints no Holm-floor warning, and D10 updated with
+      the corrected result.

@@ -315,3 +315,32 @@ def test_merge_cli_writes_record_and_prints_summary(tmp_path, capsys, monkeypatc
     assert all(r["n_family"] == 2 for r in merged["comparisons"])
     assert [p["source"] for p in merged["provenance"]] == paths
     assert "paired AP comparisons" in capsys.readouterr().out
+
+
+def test_holm_floor_is_family_over_resolution():
+    """The floor is ``n_family / (n_boot + 1)``, capped at 1, and 0 when ``n_boot`` is unknown."""
+    assert bcs.holm_floor(2000, 360) == pytest.approx(360 / 2001)
+    assert bcs.holm_floor(10, 360) == 1.0
+    assert bcs.holm_floor(None, 360) == 0.0
+    assert bcs.holm_floor(2000, 0) == 0.0
+
+
+def test_summary_warns_when_the_holm_floor_blocks_significance():
+    """A family too large for the resamples gets a warning; a small one does not (FINDINGS §288)."""
+    row = {
+        "panel": "p",
+        "max_context": 500,
+        "seed": 0,
+        "a": "uniform",
+        "b": "retrieval",
+        "metric": "ap",
+        "delta": -0.01,
+        "ci_lo": -0.02,
+        "ci_hi": -0.001,
+        "p_raw": 0.0005,
+        "p_holm": 0.18,
+    }
+    rec = {"config": {"n_boot": 2000}, "cells": [], "comparisons": [dict(row) for _ in range(360)]}
+    assert "WARNING: n_boot=2000" in bcs.summarise(rec)
+    rec["comparisons"] = [dict(row) for _ in range(10)]
+    assert "WARNING" not in bcs.summarise(rec)
