@@ -16898,3 +16898,29 @@ Caveats: the in-context arms see at most 1,000 labelled rows while the boosters 
 ten datasets are capped at 30,000 rows; categorical columns are scored as integer codes for every arm; one seed and
 three folds. Each kernel's own `report.md` covers only its last dataset; the per-dataset JSON files are the record.
 Task 37.5 (this suite as the standing gate for prior and architecture changes) is left for the owner.
+
+## §277: one-hot plus floor fails §271's rule: SDSS17 hit the time limit on the Mac at a load average below 30; one-hot stays out of the entry (task 49.24)
+
+**Result (MEASURED, 2026-11-17).** Run `fintfm_lp_mc_onehot_floor_sdss17_mac` (fork a52725c, the entry's multiclass
+settings plus `FINTFM_PROBE_ONEHOT=on`, `FINTFM_PROB_FLOOR=cv`) stopped on SDSS17 with AutoGluon's
+`TimeLimitExceeded` after 525.6 s: the first of 8 bagged folds took longer than 3,600 s / 8 = 450 s. Its load gate
+passed at 07:02 with 1-, 5- and 15-minute load averages of 16.4, 12.5 and 17.8; at 07:13 they were 8.4, 12.5 and
+16.2. The load was below 30 at both samples, so under §271's own clause this is a failed arm, not a failed
+measurement. §271's rule needs all 8 multiclass tables to complete with no time-limit hit, so **one-hot is not
+adopted** and the entry's multiclass part stays as in `fintfm_linprobe_all51_1116f_floor8`. No merged entry
+exists to score, so no Elo is reported.
+
+**Why one-hot is slower here.** SDSS17 has two categorical columns, `plate` and `fiber_ID`, with many levels;
+`probe_onehot=on` adds up to `ONEHOT_MAX_COLUMNS` = 256 indicator columns to an 11-column table. The floor arm
+without one-hot (`fintfm_lp_mc_floor_sdss17_mac`, same Mac, 2026-11-16) completed with 3,158 s training runtime over
+8 folds, a mean of 395 s per fold, so it was already within 15% of the per-fold limit. The per-fold time of the
+one-hot run is not logged; that its first fold exceeded 450 s follows from the exception.
+
+**What the seven Kaggle CPU tables showed (§271, unchanged).** Against the floor arm: anneal -49.7%, website_phishing
+-10.4%, splice -9.7%, students_dropout_and_academic_success -0.9%, MIC +0.01%, hiva_agnostic and
+maternal_health_risk tied (log loss). The gain is real on tables with few-level categorical columns; the cost is on
+high-cardinality ones.
+
+**Not tested, and would need its own pre-registration:** a per-column level cap (indicators only for columns with
+at most K levels), which would leave anneal, splice and website_phishing expanded and SDSS17 nearly unchanged. This
+is a new arm, not a rerun of this one.

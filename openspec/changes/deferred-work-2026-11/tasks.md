@@ -201,7 +201,7 @@
       fit (`scripts/lite_same_fit.py`). Not a hybrid: no second model, only a wider design matrix
       for the same readout. Verify: the option is merged with tests, the 30-table arm runs, and a
       FINDINGS entry applies the rule (adopt or not) with the merged entry's Elo and position.
-- [ ] 49.24 **Progress (2026-11-16, FINDINGS §271, MEASURED, Kaggle CPU): without the floor, one-hot
+- [ ] 49.24 **Progress (2026-11-17, FINDINGS §277, MEASURED): the one-hot plus floor arm fails §271's rule: SDSS17 hit the time limit on the Mac (first fold over 450 s at a load average below 30), so one-hot is not adopted and no merged entry exists to score. Left open: Verify asks for the merged entry's Elo, which a failed arm cannot give; closing it is the owner's call, or a per-column level cap arm (new pre-registration) could replace it.** **Progress (2026-11-16, FINDINGS §271, MEASURED, Kaggle CPU): without the floor, one-hot
       indicators are better on 4 of 7 multiclass tables, worse on MIC (+1.4%), identical on 2 with no
       applicable column; anneal log loss 0.2217 to 0.1101; sign test p 0.375. SDSS17 stopped at the time
       limit. The one-hot plus floor arm and its rule are pre-registered in §271.** **One-hot categorical
