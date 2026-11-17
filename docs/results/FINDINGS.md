@@ -5344,6 +5344,8 @@ like" thread reduces to.
 
 ## 75. The financial prior's benefit does not generalize past V4FinBench: pure SCM wins on Polish and Taiwan
 
+**Narrowed 2026-11-17 (§274):** at five folds with a paired bootstrap the pure-SCM advantage holds on Taiwan only (AP +0.1165, Holm p ≤ 0.002); on the three Polish panels no interval excludes zero. The text below is kept as written.
+
 **Date:** 2026-09-14. **MEASURED**, same harness as §73 (`run_credit`, single 70/30 split per
 dataset), `colid-fin00` (pure SCM) against `colid-fin07` (70% financial, §73's checkpoint).
 
@@ -16791,3 +16793,31 @@ decision on the class default follows and `docs/design/DECISIONS.md` is unchange
 2,000 on Polish 1y seed 0, against 123 to 357 s for the other strategies; one seed of one panel cost about
 3 h of the 11. The rerun is one kernel per panel, each writing its own JSON, merged through the sweep's
 comparison code so the Holm family spans all four panels.
+
+## §274: §75 at five folds: the pure-SCM prior is ahead of the 70/30 mixture on Taiwan (AP +0.1165, Holm p ≤ 0.002), not separable from it on the three Polish panels (task 38.16)
+
+**MEASURED, local CPU, 2026-11-17.** FinTFM (synthetic-only): `v4-colid-fin00` (pure SCM prior) against
+`v4-colid-fin07` (70% financial, 30% SCM), both 6,000 steps at batch 8 (48,000 tasks), one seed each,
+`n_ensemble` 8. `fintfm-bench --credit --folds 5 --compare runs/dl/v4-colid-fin00.pt,runs/dl/v4-colid-fin07.pt
+--out runs/credit_compare_fin00_fin07_1115.json` (queue job `h-credit-compare`, exit 0, 1,935 s): five
+disjoint stratified folds per panel, seed 0. The difference is `fin00` minus `fin07` on the pooled
+out-of-fold predictions (not the difference of the per-fold means), with 2,000 paired row resamples and
+Holm across the four panels per metric; 0.002 is the floor at 2,000 resamples and four tests. Drafted in
+`docs/results/drafts/38.16_2026-11-17.md`.
+
+| panel | rows | default rate | mean AP `fin00` / `fin07` | pooled AP difference [95% interval] | Holm p | mean ROC-AUC `fin00` / `fin07` |
+| --- | --- | --- | --- | --- | --- | --- |
+| Polish 1y | 7,027 | 3.857% | 0.1175 / 0.1116 | -0.0022 [-0.0172, +0.0102] | 0.846 | 0.7234 / 0.7319 |
+| Polish 3y | 10,503 | 4.713% | 0.1089 / 0.1058 | +0.0042 [-0.0058, +0.0151] | 0.846 | 0.7203 / 0.7148 |
+| Polish 5y | 5,910 | 6.937% | 0.3719 / 0.3556 | +0.0235 [-0.0013, +0.0432] | 0.177 | 0.8415 / 0.8432 |
+| Taiwan | 6,819 | 3.226% | 0.3762 / 0.2710 | +0.1165 [+0.0783, +0.1466] | ≤ 0.002 | 0.9207 / 0.8876 |
+
+On Taiwan `fin00` is ahead on all five folds on AP and on ROC-AUC (pooled ROC-AUC difference +0.0343,
+Holm p ≤ 0.002; the record stores no interval for it). On Polish 1y the mean of the per-fold AP
+differences (+0.0060) and the pooled difference (-0.0022) disagree in sign, which is what a null looks like.
+
+**§75 narrows.** Its single-split result, "pure SCM wins on Polish and Taiwan" (AP +0.0178, +0.0120, +0.0258
+and +0.0654 over `fin07`, one 70/30 split each, untuned), holds at five folds for Taiwan only, where the gap
+is larger (+0.1165); on the three Polish panels no interval excludes zero. Not re-run here: §73's boosters,
+logistic regression and ECE, and no `--tune`, so task 38.16's Verify is met for the checkpoint pair and not
+for the booster comparison. No pre-registered rule existed for this rerun.
