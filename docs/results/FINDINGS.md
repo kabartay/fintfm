@@ -16821,3 +16821,34 @@ and +0.0654 over `fin07`, one 70/30 split each, untuned), holds at five folds fo
 is larger (+0.1165); on the three Polish panels no interval excludes zero. Not re-run here: §73's boosters,
 logistic regression and ECE, and no `--tune`, so task 38.16's Verify is met for the checkpoint pair and not
 for the booster comparison. No pre-registered rule existed for this rerun.
+
+## §275: on a linear-Gaussian SCM with a hidden confounder, fin00's interventional predictions sit between the interventional and observational truths and lean towards either depending on confounding strength; this does not show causal structure (task 39.15)
+
+**MEASURED, local CPU, 2026-11-17, synthetic data with closed-form truths.** `fintfm.experiments.causal_interventional`
+(queue job `h-causal`, exit 0, 33 min; record `runs/causal_interventional/causal_interventional.json`, 28 rows,
+coverage 12 of 12, none skipped). SCM `Z -> X1`, `Z -> X2`, `X1 -> Y` with `Z` hidden and a hidden `Z -> Y` of
+strength g in {0, 0.5, 1, 2}; per seed 2,000 rows, 1,000 as context and 1,000 as interventional queries; three
+seeds (0, 1, 2), means only. FinTFM (synthetic-only) checkpoints `v4-cellattn-fin00` and `v4-cellattn-fin10`
+(§78), with logistic regression, gradient boosting, an untrained control and two closed-form oracles
+(interventional `oracle_do`, observational `oracle_obs`). Drafted in
+`docs/results/drafts/cell-attention-and-task-inference_39.15_2026-11-17.md`; the figures below are recomputed
+from the record.
+
+| g | fin00 ROC-AUC loss, interventional vs observational queries | `oracle_do` loss | `oracle_obs` loss | fin00 error against the interventional / observational truth (mean absolute) |
+| --- | --- | --- | --- | --- |
+| 0 | 0.0273 | 0.0115 | 0.0115 | 0.080 / 0.080 (the truths coincide) |
+| 0.5 | 0.0414 | 0.0375 | 0.0405 | 0.050 / 0.071 |
+| 1 | 0.0552 | 0.0558 | 0.0676 | 0.047 / 0.062 |
+| 2 | 0.0892 | 0.0782 | 0.1091 | 0.089 / 0.058 |
+
+fin00 is closer to the interventional truth at g = 0.5 and 1 and to the observational truth at g = 2. Its
+ROC-AUC loss lies between the two oracles' at every g > 0, so it neither tracks the interventional answer nor
+behaves as a plain associational predictor. fin10's error is 0.155 to 0.196 against either truth, too far from
+both for its lean to mean anything. At g = 0.5 fin00's error against the interventional truth (0.050) is still
+worse than logistic regression's (0.028); at g = 1 it is better (0.047 against 0.059).
+
+**What this does and does not show.** Task 39.15's Verify, a direct comparison on held-out interventional data
+against closed-form truths, is met. Whether the prior teaches causal structure or only association is not
+settled by a single SCM parameter set, three seeds and means with no spread or test; the lean changing
+sides with g is consistent with an associational fit that happens to sit nearer one truth or the other. The
+run's commit is not recorded. No pre-registered rule existed.
