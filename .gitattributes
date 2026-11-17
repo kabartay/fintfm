@@ -1,0 +1,7 @@
+# Paths left out of `git archive` and so out of GitHub's release zips, which Zenodo archives.
+# Zenodo's previewer lists at most 1,000 zip entries (files plus folders); v0.11.0 had 1,010
+# and showed "Too many files inside the ZIP file". Everything here stays in the repository.
+# tests/test_release_archive.py keeps the count under the limit.
+scripts/kaggle/**/kernel-metadata.json export-ignore
+docs/results/drafts export-ignore
+docs/results/drafts/** export-ignore
