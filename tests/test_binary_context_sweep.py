@@ -163,3 +163,155 @@ def test_gap_script_reads_the_sweep_record(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "Spearman ap gap vs rate -1.00 (n=3)" in out
     assert mod.binary_table(path, "uniform", "retrieval") == []
+
+
+def _slice_record(panel: str, seed: int, p_raws: list[float], **cfg_over) -> dict:
+    """A synthetic one-(panel, seed) record with stale per-record Holm fields."""
+    strategies = ["uniform", "balanced"]
+    cells = [
+        {
+            "panel": panel,
+            "max_context": 100,
+            "seed": seed,
+            "strategy": s,
+            "n_train": 300,
+            "n_test": 100,
+            "slice_default_rate": 0.1,
+            "train_default_rate": 0.1,
+            "context_rate": 0.1,
+            "n_context": 100,
+            "n_context_positive": 10,
+            "auc": 0.7,
+            "ap": 0.3,
+            "ece": 0.05,
+            "brier": 0.1,
+            "mean_predicted": 0.1,
+            "seconds": 1.0,
+        }
+        for s in strategies
+    ]
+    rows = [
+        {
+            "panel": panel,
+            "max_context": 100,
+            "seed": seed,
+            "a": "uniform",
+            "b": "balanced",
+            "metric": m,
+            "delta": 0.01,
+            "ci_lo": -0.01,
+            "ci_hi": 0.03,
+            "p_raw": p,
+        }
+        for m, p in zip(bcs.METRICS, p_raws, strict=True)
+    ]
+    bcs.apply_holm(rows)  # per-record family, as each Kaggle kernel wrote it
+    cfg = {
+        "model": "ckpt.pt",
+        "panels": [panel],
+        "strategies": strategies,
+        "sizes": [100],
+        "seeds": [seed],
+        "n_boot": 200,
+        "n_ensemble": 8,
+        "test_size": 0.3,
+        "max_rows": None,
+        "feature_transform": "rank",
+        "correct_prior": True,
+    }
+    cfg.update(cfg_over)
+    cov = {"n_attempted": 2, "n_scored": 2, "n_skipped": 0, "coverage": 1.0, "skipped": {}}
+    ccov = {"n_attempted": 2, "n_scored": 2, "n_skipped": 0, "coverage": 1.0, "skipped": {}}
+    return {
+        "config": cfg,
+        "cells": cells,
+        "coverage": cov,
+        "comparisons": rows,
+        "comparisons_coverage": ccov,
+        "comparison_method": "m",
+    }
+
+
+def test_merge_unions_and_recomputes_holm_over_all_rows():
+    recs = [
+        _slice_record("p1", 0, [0.001, 0.2]),
+        _slice_record("p1", 1, [0.01, 0.04]),
+        _slice_record("p3", 0, [0.03, 0.5]),
+    ]
+    merged = bcs.merge_records(recs, sources=["a.json", "b.json", "c.json"])
+    assert merged["config"]["panels"] == ["p1", "p3"]
+    assert merged["config"]["seeds"] == [0, 1]
+    assert len(merged["cells"]) == 6 and len(merged["comparisons"]) == 6
+    for metric in bcs.METRICS:
+        rows = [r for r in merged["comparisons"] if r["metric"] == metric]
+        expect = bcs.holm_adjusted_p([r["p_raw"] for r in rows])
+        assert [r["p_holm"] for r in rows] == pytest.approx(expect)
+        assert all(r["n_family"] == 3 for r in rows)
+        assert all(r["significant"] == (r["p_holm"] < 0.05) for r in rows)
+    # a per-record family of 1 would have left p_holm == p_raw; the union is stricter
+    first = merged["comparisons"][0]
+    assert first["p_holm"] == pytest.approx(3 * 0.001)
+    assert merged["coverage"]["n_attempted"] == 6
+    assert merged["comparisons_coverage"]["n_scored"] == 6
+    assert [p["source"] for p in merged["provenance"]] == ["a.json", "b.json", "c.json"]
+    assert "Holm" in bcs.summarise(merged)
+
+
+def test_merge_refuses_config_mismatch_naming_the_field():
+    a = _slice_record("p1", 0, [0.01, 0.02])
+    b = _slice_record("p1", 1, [0.01, 0.02], model="other.pt")
+    with pytest.raises(ValueError, match="'model'"):
+        bcs.merge_records([a, b])
+    c = _slice_record("p1", 1, [0.01, 0.02], n_ensemble=4)
+    with pytest.raises(ValueError, match="'n_ensemble'"):
+        bcs.merge_records([a, c])
+
+
+def test_merge_refuses_duplicate_cells():
+    a = _slice_record("p1", 0, [0.01, 0.02])
+    with pytest.raises(ValueError, match="duplicate cell"):
+        bcs.merge_records([a, _slice_record("p1", 0, [0.01, 0.02])])
+
+
+def test_merge_refuses_empty_input_and_source_mismatch():
+    with pytest.raises(ValueError, match="no records"):
+        bcs.merge_records([])
+    with pytest.raises(ValueError, match="sources"):
+        bcs.merge_records([_slice_record("p1", 0, [0.1, 0.2])], sources=["a", "b"])
+
+
+def test_merge_of_one_record_keeps_its_holm():
+    rec = _slice_record("p1", 0, [0.01, 0.2])
+    merged = bcs.merge_records([rec])
+    assert merged["comparisons"] == rec["comparisons"]
+    assert merged["cells"] == rec["cells"]
+    assert merged["coverage"] == rec["coverage"]
+    assert bcs.summarise(merged) == bcs.summarise(rec)
+
+
+def test_merge_merges_skip_coverage_and_rejects_double_skips():
+    a = _slice_record("p1", 0, [0.01, 0.02])
+    b = _slice_record("p1", 1, [0.01, 0.02])
+    a["coverage"] = {**a["coverage"], "n_attempted": 3, "n_skipped": 1, "skipped": {"u": "r"}}
+    merged = bcs.merge_records([a, b])
+    assert merged["coverage"]["skipped"] == {"u": "r"}
+    assert merged["coverage"]["coverage"] == pytest.approx(4 / 5)
+    b["coverage"] = {**b["coverage"], "n_attempted": 3, "n_skipped": 1, "skipped": {"u": "r"}}
+    with pytest.raises(ValueError, match="duplicate cell unit"):
+        bcs.merge_records([a, b])
+
+
+def test_merge_cli_writes_record_and_prints_summary(tmp_path, capsys, monkeypatch):
+    paths = []
+    for i, seed in enumerate((0, 1)):
+        f = tmp_path / f"r{i}.json"
+        f.write_text(json.dumps(_slice_record("p1", seed, [0.01, 0.02])))
+        paths.append(str(f))
+    out = tmp_path / "merged"
+    monkeypatch.setattr("sys.argv", ["fintfm-binctx", "--merge", *paths, "--out", str(out)])
+    bcs.main()
+    merged = json.loads((out / bcs.OUT_FILE).read_text())
+    assert merged["config"]["seeds"] == [0, 1]
+    assert all(r["n_family"] == 2 for r in merged["comparisons"])
+    assert [p["source"] for p in merged["provenance"]] == paths
+    assert "paired AP comparisons" in capsys.readouterr().out

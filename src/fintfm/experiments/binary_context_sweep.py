@@ -147,6 +147,19 @@ def paired_cell_comparisons(
                         "p_raw": p,
                     }
                 )
+    apply_holm(rows)
+    return rows
+
+
+def apply_holm(rows: list[dict]) -> None:
+    """Set ``p_holm``, ``n_family`` and ``significant`` on every row, one family per metric.
+
+    Any value already in those keys is overwritten, so this is also how stale adjustments are
+    dropped when records are merged.
+
+    Args:
+        rows: Comparison rows with ``metric`` and ``p_raw``; modified in place.
+    """
     for metric in METRICS:
         idx = [i for i, r in enumerate(rows) if r["metric"] == metric]
         adj = holm_adjusted_p([rows[i]["p_raw"] for i in idx])
@@ -154,7 +167,6 @@ def paired_cell_comparisons(
             rows[i]["p_holm"] = p_holm
             rows[i]["n_family"] = len(idx)
             rows[i]["significant"] = bool(np.isfinite(p_holm) and p_holm < 0.05)
-    return rows
 
 
 def run_sweep(
@@ -312,6 +324,136 @@ def run_sweep(
     return record
 
 
+#: Config keys that may differ between slices of one sweep; every other key must match.
+SLICE_KEYS = ("panels", "seeds")
+
+
+def _cell_key(c: dict) -> tuple[str, int, int, str]:
+    """The identity of a cell: ``(panel, max_context, seed, strategy)``."""
+    return (c["panel"], c["max_context"], c["seed"], c["strategy"])
+
+
+def _merge_coverage(parts: Sequence[dict], what: str) -> dict:
+    """Add up coverage dicts of disjoint slices.
+
+    Args:
+        parts: ``Coverage.to_dict()`` outputs, one per slice.
+        what: Name of the coverage block, for the error message.
+
+    Returns:
+        One coverage dict over the union.
+
+    Raises:
+        ValueError: If one unit is skipped in more than one slice.
+    """
+    skipped: dict[str, str] = {}
+    for part in parts:
+        for unit, reason in part["skipped"].items():
+            if unit in skipped:
+                raise ValueError(f"duplicate {what} unit {unit!r} skipped in more than one record")
+            skipped[unit] = reason
+    n_att = sum(p["n_attempted"] for p in parts)
+    n_sco = sum(p["n_scored"] for p in parts)
+    return {
+        "n_attempted": n_att,
+        "n_scored": n_sco,
+        "n_skipped": len(skipped),
+        "coverage": n_sco / n_att if n_att else None,
+        "skipped": skipped,
+    }
+
+
+def merge_records(records: Sequence[dict], sources: Sequence[str] | None = None) -> dict:
+    """Merge sweep records of disjoint (panel, seed) slices into one record.
+
+    The Holm family must span every slice (FINDINGS §273), so ``p_holm``, ``n_family`` and
+    ``significant`` of the inputs are discarded and recomputed per metric from ``p_raw`` over
+    the union of the comparison rows.
+
+    Args:
+        records: Records written by :func:`run_sweep`, each for a slice of the same sweep.
+        sources: Optional label per record (file path, kernel name or commit), kept in
+            ``provenance``. Defaults to ``"record <i>"``.
+
+    Returns:
+        A record that :func:`summarise` accepts. ``config`` has the union of ``panels`` and
+        ``seeds`` (first-seen order); ``provenance`` lists each source with its own panels and
+        seeds, and keeps the provenance of records that were themselves merged.
+
+    Raises:
+        ValueError: If no record is given, ``sources`` has another length, configs differ in
+            any key other than ``panels`` and ``seeds`` (the error names the key), two records
+            hold the same (panel, max_context, seed, strategy) cell, or two comparison rows
+            share a (panel, max_context, seed, a, b, metric) key.
+    """
+    if not records:
+        raise ValueError("no records to merge")
+    if sources is not None and len(sources) != len(records):
+        raise ValueError(f"{len(sources)} sources for {len(records)} records")
+    labels = list(sources) if sources is not None else [f"record {i}" for i in range(len(records))]
+    base = records[0]["config"]
+    for label, rec in zip(labels, records, strict=True):
+        cfg = rec["config"]
+        for key in sorted((set(base) | set(cfg)) - set(SLICE_KEYS)):
+            if base.get(key, "<missing>") != cfg.get(key, "<missing>"):
+                raise ValueError(
+                    f"config field {key!r} differs: {base.get(key, '<missing>')!r} in "
+                    f"{labels[0]} but {cfg.get(key, '<missing>')!r} in {label}"
+                )
+    config = dict(base)
+    for key in SLICE_KEYS:
+        config[key] = list(dict.fromkeys(v for r in records for v in r["config"].get(key, [])))
+    cells: list[dict] = []
+    seen_cells: dict[tuple, str] = {}
+    comparisons: list[dict] = []
+    seen_rows: dict[tuple, str] = {}
+    provenance: list[dict] = []
+    for label, rec in zip(labels, records, strict=True):
+        for c in rec["cells"]:
+            key = _cell_key(c)
+            if key in seen_cells:
+                raise ValueError(f"duplicate cell {key} in {label} (already in {seen_cells[key]})")
+            seen_cells[key] = label
+            cells.append(dict(c))
+        for r in rec["comparisons"]:
+            rkey = (r["panel"], r["max_context"], r["seed"], r["a"], r["b"], r["metric"])
+            if rkey in seen_rows:
+                raise ValueError(
+                    f"duplicate comparison {rkey} in {label} (already in {seen_rows[rkey]})"
+                )
+            seen_rows[rkey] = label
+            row = {k: v for k, v in r.items() if k not in ("p_holm", "n_family", "significant")}
+            comparisons.append(row)
+        inherited = rec.get("provenance")
+        if inherited:
+            provenance.extend(inherited)
+        else:
+            provenance.append(
+                {
+                    "source": label,
+                    "panels": list(rec["config"].get("panels", [])),
+                    "seeds": list(rec["config"].get("seeds", [])),
+                }
+            )
+    apply_holm(comparisons)
+    n_boot = config.get("n_boot")
+    return {
+        "config": config,
+        "cells": cells,
+        "coverage": _merge_coverage([r["coverage"] for r in records], "cell"),
+        "comparisons": comparisons,
+        "comparisons_coverage": _merge_coverage(
+            [r["comparisons_coverage"] for r in records], "comparison"
+        ),
+        "comparison_method": (
+            f"paired row bootstrap on the shared held-out rows, n_boot={n_boot}; "
+            f"Holm-adjusted across every comparison in this merged record "
+            f"({len(records)} slices), separately for AUC and AP"
+        ),
+        "provenance": provenance,
+    }
+
+
 def summarise(record: dict) -> str:
     """Seed-mean table per panel, size and strategy, then the Holm table, AP first.
 
@@ -366,10 +508,33 @@ def summarise(record: dict) -> str:
     return "\n".join(lines)
 
 
+def merge_files(paths: Sequence[Path], out_dir: Path) -> dict:
+    """Merge sweep record files and write the merged record.
+
+    Args:
+        paths: ``binary_context_sweep.json`` files of the slices.
+        out_dir: Directory that receives the merged ``binary_context_sweep.json``.
+
+    Returns:
+        The merged record (see :func:`merge_records`); sources are the given paths.
+    """
+    records = [json.loads(Path(p).read_text()) for p in paths]
+    merged = merge_records(records, sources=[str(p) for p in paths])
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / OUT_FILE).write_text(json.dumps(merged, indent=2))
+    return merged
+
+
 def main() -> None:
-    """Command-line entry point (``fintfm-binctx``)."""
+    """Command-line entry point (``fintfm-binctx``).
+
+    Two modes. Without ``--merge`` it runs the sweep and needs ``--model``. With
+    ``--merge a.json b.json ...`` it merges those slice records, recomputing the Holm family
+    over all of them, writes ``binary_context_sweep.json`` to ``--out`` and prints the summary.
+    """
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--model", required=True)
+    p.add_argument("--merge", nargs="+", metavar="JSON", help="merge these slice records")
+    p.add_argument("--model")
     p.add_argument("--out", type=str, default="runs/binary-context-sweep")
     p.add_argument("--panels", type=str, default=",".join(PANEL_NAMES), help="comma-separated")
     p.add_argument("--strategies", type=str, default=",".join(DEFAULT_STRATEGIES))
@@ -380,6 +545,12 @@ def main() -> None:
     p.add_argument("--max-rows", type=int, default=None, help="subsample each panel (smoke only)")
     p.add_argument("--retrieval-groups", type=int, default=64)
     a = p.parse_args()
+    if a.merge:
+        merged = merge_files([Path(f) for f in a.merge], Path(a.out))
+        print(summarise(merged))
+        return
+    if not a.model:
+        p.error("--model is required unless --merge is given")
     record = run_sweep(
         a.model,
         load_panels([s for s in a.panels.split(",") if s]),
