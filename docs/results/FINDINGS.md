@@ -17086,3 +17086,19 @@ interval of about +/-85: a configuration choice on one fold that puts the entry 
 measured improvement over it. Entry configuration, by problem type: binary as §257; multiclass the probability floor
 plus one-hot indicators for categorical columns of at most 64 levels; regression the RFF readout for fits of at most
 5,000 rows, ridge above. Both options remain default-off on the fork's dev branch; the PR branch does not carry them yet.
+
+## §284: pre-registration: four bags and splines together on the small binary tables, for the case where both are adopted (§281, task 49.23)
+
+**Written 2026-11-17, before the arm runs and before §281's or 49.23's decision.** §281 (four bags for binary fits of at
+most 5,000 rows) and task 49.23 (spline expansion of the raw numeric columns, all binary tables) are measured one at a
+time. If both pass their own rules, the entry would carry both on the 14 tables of at most 5,000 rows, a configuration
+neither arm measured. This arm measures it: the binary entry's settings plus `FINTFM_PARTITION={"n_bags": 4}` and
+`FINTFM_PROBE_SPLINE=on`, on the 9 smallest tables on Kaggle CPU (kernel `task_cpu_bin_bag4_spline_small`, fork d9f1358,
+run `fintfm_lp_bin_bag4_spline_small_cpu`) and on churn, polish_companies_bankruptcy, taiwanese_bankruptcy_prediction,
+Bioresponse and NATICUSdroid on the Mac (run `fintfm_lp_bin_bag4_spline_small_mac`, queued after the large spline tables).
+
+**Rule.** Used only if both §281 and 49.23 are adopted. Then the entry takes the combination on the 14 tables only if all
+14 complete with no `TimeLimitExceeded` and the entry with it scores a higher Elo than the better of the two single-lever
+entries in one fit; otherwise it takes the better single-lever entry. If only one lever is adopted, this arm is reported
+as a measurement and does not enter the entry. A gain smaller than the Elo interval (about +/-90) is a configuration
+choice on one fold. Not retuned on the result.
