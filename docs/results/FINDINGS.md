@@ -16949,3 +16949,46 @@ unmeasured.
 **What the seven Kaggle CPU tables showed (§265, unchanged).** Paired against a same-machine control, RFF was better
 on 6 of 7, worse on concrete (+7.8% RMSE), sign test p 0.13; airfoil -24.9%. A size-gated variant (RFF only below a
 row or column count) is the route §265 names; it would be a new, separately pre-registered arm.
+
+## §279: pre-registration: size-gated one-hot (multiclass) and size-gated RFF (regression), each against `fintfm_linprobe_all51_1116f_floor8` in one fit (tasks 49.24, 49.19)
+
+**Written 2026-11-17, before any merged entry below is built or scored.** One-hot (§271, §277) and the RFF regression
+readout (§265, §278) each improved most small tables and failed their rule only by a time-limit hit on one large table on
+the Mac. Each gets a default-off gate on the fork (branch `gated-levers`, from d9f1358) so that it applies only where it
+fitted in time; where the gate fires, the readout falls back to the entry's own configuration.
+
+**Gates, fixed from table sizes and level counts, not from any metric.**
+
+- **One-hot, `max_levels` = 64:** a categorical column with more than 64 distinct levels in the readout's training rows
+  gets no indicator columns. Level counts on the full tables (label-free): the most-levelled column in anneal,
+  hiva_agnostic, maternal_health_risk, MIC, splice, students_dropout_and_academic_success and website_phishing has 46
+  levels (`Fathers_occupation`); SDSS17's `plate` has 6,264 and `fiber_ID` 1,000. Training rows hold at most the full
+  table's levels, so the gate fires on SDSS17's two columns and on no column of the other seven. With both SDSS17
+  columns gated, SDSS17's configuration is the floor entry's (`fintfm_lp_mc_floor_sdss17_mac`).
+- **RFF, `reg_rff_max_rows` = 5,000 fit rows:** RFF is used only when the fit sees at most 5,000 rows, else ridge. Lite
+  training sizes (fold 0): the seven small regression tables have 605 to 4,331 rows (wine_quality largest), the six
+  large ones 9,184 (miami_housing) to 35,960 (diamonds); a bagged child sees about 7/8 of them (wine_quality about
+  3,790, miami_housing about 8,036). The gate fires on the six large tables only, where the configuration is then the
+  entry's (`fintfm_lp_reg_rawpart4_pure_1114`).
+
+**Not blind.** The thresholds were chosen after the small-table results of §265 and §271 were known and after seeing which
+tables timed out. They come from row and level counts, and the per-table metrics were not consulted in choosing them,
+but this is a configuration choice on one fold, not an independent test.
+
+**Entries (built from stored runs; the gate's identity argument above says which run supplies which table):**
+
+- E-onehot: `floor8` with its multiclass part replaced by `fintfm_lp_mc_onehot_floor_cpu` (seven tables, Kaggle CPU)
+  plus `fintfm_lp_mc_floor_sdss17_mac` (SDSS17).
+- E-rff: `floor8` with its regression part replaced by `fintfm_lp_reg_rff_cpu` (seven small tables, Kaggle CPU) plus
+  `fintfm_lp_reg_rawpart4_pure_1114` (six large tables).
+- E-both: both replacements.
+
+**Rule.** All four (floor8, E-onehot, E-rff, E-both) are scored in one fit (`scripts/lite_same_fit.py`). A gate is adopted
+only if (1) its entry scores a higher Elo than floor8 in that fit, and (2) one confirmation run at the gated commit
+completes on the Mac with no `TimeLimitExceeded` and reproduces the stored run where the gate fires: SDSS17 with
+`FINTFM_PROBE_ONEHOT={"min_count": 3, "max_columns": 256, "max_levels": 64}` against `fintfm_lp_mc_floor_sdss17_mac`,
+and miami_housing with `FINTFM_REG_READOUT=rff` and the row cap against `fintfm_lp_reg_rawpart4_pure_1114`, each to
+within 1e-4 relative in metric error. If (1) holds and (2) is still running, the adoption is provisional and stated so.
+If both gates are adopted, the entry is E-both. A gain smaller than the Elo interval (about +/-90) is a configuration
+choice on one fold, not evidence of improvement, and is reported as such. A time-limit hit in a confirmation run at a
+load average above 30 is a failed measurement and is rerun. Not retuned on the result.
