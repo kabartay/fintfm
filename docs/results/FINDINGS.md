@@ -17188,3 +17188,30 @@ configuration choice on one fold, and the 5,000-row line was chosen after an old
 **Still to do for the PR branch.** Four bags for small binary fits is today an environment setting applied to a chosen
 list of tables; it becomes a default-off fork option gated on the fit's row count, then the PR branch's binary entry
 default, before the entry can be reproduced without overrides.
+
+## §287: pre-registration: splines for binary fits of at most 10,000 rows, with §286's four bags, against §286's entry in one fit (task 49.23, §284)
+
+**Written 2026-11-17, before the five remaining Mac tables of §284 run.** Owner decision, 2026-11-17: splines enter the
+binary entry gated on size, like one-hot, RFF and four bags, instead of under 49.23's all-30-tables rule. 49.23 as
+written needs splines on the 10 large binary tables on the Mac, hours each with a real risk of time-limit hits; on the
+one large table measured, NATICUSdroid, splines changed 1-AUC by +0.01% (§285). The large-table runs are withdrawn from
+the queue (HR_Analytics was stopped at its load gate, before fitting anything).
+
+**Gate.** `probe_spline` on (5 quantile knots, degree 3, at most 64 columns) only for binary fits of at most 10,000
+training rows. Lite fold-0 binary training sizes: the 20 tables where splines were measured run from 499 rows
+(blood-transfusion) to 8,456 (in_vehicle_coupon_recommendation); the next is HR_Analytics at 12,772, so the line falls in
+that gap, and a bagged child (about 7/8 of the rows) lands on the same side. **Not blind:** the line and the decision to
+gate were made after §282's and §285's results were seen; this is a configuration choice on one fold.
+
+**Entry `fintfm_g287_bag4_spline`.** Binary: four bags and splines on the 14 tables of at most 5,000 rows (nine on Kaggle
+CPU, `fintfm_lp_bin_bag4_spline_small_cpu`; churn, polish_companies_bankruptcy, taiwanese_bankruptcy_prediction,
+Bioresponse and NATICUSdroid on the Mac, `fintfm_lp_bin_bag4_spline_small_mac`, fork dbc4690); splines alone on the 7
+tables of 5,001 to 10,000 rows (`fintfm_lp_bin_spline_cpu`); the entry's runs on the 9 tables above 10,000 rows.
+Multiclass and regression as §283.
+
+**Rule.** Adopt only if all 21 gated tables complete with no `TimeLimitExceeded` and `fintfm_g287_bag4_spline` scores a
+higher Elo than `fintfm_g281_bag4` in one fit (`scripts/lite_same_fit.py`). Reaching 1,000 is reported as where the
+entry lands, not as part of the rule. A gain smaller than the Elo interval (about +/-90) is a configuration choice on one
+fold. A time-limit hit at a Mac load average above 30 is a failed measurement and is rerun. If adopted, the gate becomes
+a default-off fork option and the PR branch's binary default before the reproduction without overrides. Not retuned on
+the result.
