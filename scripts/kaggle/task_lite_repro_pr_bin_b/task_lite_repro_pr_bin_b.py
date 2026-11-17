@@ -54,6 +54,8 @@ FORK_BRANCH = "fintfm-pr-2026-11"
 MODEL = "FinTFM-LinProbe"
 AUTOGLUON = "1.6.4b20260919"
 KERNEL = "task_lite_repro_pr_bin_b"
+#: ``gpu``: refuse to run without CUDA (the binary entry ran on a T4); ``cpu``: run on the CPU.
+DEVICE = "gpu"
 WORK = Path("/kaggle/working")
 #: Stop starting new datasets after this many seconds (Kaggle's limit is 12 h).
 BUDGET_S = 11 * 3600
@@ -326,7 +328,7 @@ def tar_results(fork_root: Path, run: str, dest: Path) -> None:
 
 
 def main(preflight_only: bool) -> None:
-    """Preflight, install, check the GPU, run every dataset of every run, tar, summarise.
+    """Preflight, install, check the device, run every dataset of every run, tar, summarise.
 
     Args:
         preflight_only: Stop after the preflight (clone included, no install, no fits).
@@ -356,7 +358,7 @@ def main(preflight_only: bool) -> None:
     import torch
 
     print(f"torch {torch.__version__}, CUDA available: {torch.cuda.is_available()}", flush=True)
-    if not torch.cuda.is_available():
+    if DEVICE == "gpu" and not torch.cuda.is_available():
         sys.exit("no GPU in this session (quota exhausted?) -- refusing a CPU run")
     (WORK / "repro_worker.py").write_text(WORKER)
     env, removed = child_env()
@@ -367,7 +369,8 @@ def main(preflight_only: bool) -> None:
         "fintfm": FINTFM_VERSION,
         "model": MODEL,
         "autogluon": AUTOGLUON,
-        "gpu": torch.cuda.get_device_name(0),
+        "device": DEVICE,
+        "gpu": torch.cuda.get_device_name(0) if torch.cuda.is_available() else None,
         "removed_fintfm_env": removed,
         "runs": {},
     }

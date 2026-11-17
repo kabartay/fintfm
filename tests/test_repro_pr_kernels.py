@@ -99,5 +99,6 @@ def test_generated_files_are_current(kernel):
     meta = json.loads((KAGGLE / kernel / "kernel-metadata.json").read_text())
     assert meta == gen.metadata(kernel)
     assert meta["is_private"] == "true"
-    assert meta["enable_gpu"] == "true"
+    assert meta["enable_gpu"] == ("false" if kernel in gen.CPU_KERNELS else "true")
+    assert f'DEVICE = "{"cpu" if kernel in gen.CPU_KERNELS else "gpu"}"' in gen.render(kernel)
     assert meta["enable_internet"] == "true"

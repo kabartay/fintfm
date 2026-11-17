@@ -83,6 +83,12 @@ KERNELS = {
 }
 
 
+#: Kernels that run on a Kaggle CPU session. The entry's multiclass and regression runs were
+#: measured on CPU (FINDINGS §255: a T4 repeat changed device and results together), so their
+#: reproduction runs on CPU too; the binary kernels need the T4 the binary entry ran on.
+CPU_KERNELS = {"task_lite_repro_pr_mcreg"}
+
+
 def render(kernel: str) -> str:
     """The kernel script text for ``kernel``.
 
@@ -97,7 +103,8 @@ def render(kernel: str) -> str:
         if "@@RUNS@@" in line:
             body = pprint.pformat(KERNELS[kernel], width=100, sort_dicts=False)
             line = "RUNS: dict[str, tuple[str, list[str]]] = " + body
-        out.append(line.replace("@@KERNEL@@", kernel))
+        line = line.replace("@@KERNEL@@", kernel)
+        out.append(line.replace("@@DEVICE@@", "cpu" if kernel in CPU_KERNELS else "gpu"))
     return "\n".join(out) + "\n"
 
 
@@ -111,7 +118,7 @@ def metadata(kernel: str) -> dict:
         "language": "python",
         "kernel_type": "script",
         "is_private": "true",
-        "enable_gpu": "true",
+        "enable_gpu": "false" if kernel in CPU_KERNELS else "true",
         "enable_tpu": "false",
         "enable_internet": "true",
         "dataset_sources": [],
