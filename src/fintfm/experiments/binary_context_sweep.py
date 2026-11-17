@@ -111,9 +111,7 @@ def comparison_pairs(
     """
     pairs = []
     for a, b in itertools.combinations(strategies, 2):
-        if compare_against is None:
-            pairs.append((a, b))
-        elif a in compare_against:
+        if compare_against is None or a in compare_against:
             pairs.append((a, b))
         elif b in compare_against:
             pairs.append((b, a))
@@ -140,7 +138,7 @@ def check_bootstrap_resolution(
     """
     if n_boot <= 0 or family_size <= 0 or holm_floor(n_boot, family_size) < MAX_HOLM_FLOOR:
         return None
-    need = int(round(family_size / MAX_HOLM_FLOOR))
+    need = round(family_size / MAX_HOLM_FLOOR)
     while holm_floor(need, family_size) >= MAX_HOLM_FLOOR:
         need += 1
     if allow_coarse:

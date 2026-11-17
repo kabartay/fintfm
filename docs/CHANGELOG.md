@@ -23,6 +23,13 @@ library default is unchanged.
 - `binary_context_sweep` prints a warning when the bootstrap's resolution makes significance
   unreachable: with `n_boot` resamples the smallest p is `1/(n_boot+1)`, so Holm over a large
   family cannot reach 0.05 (`holm_floor`; FINDINGS §288).
+- `binary_context_sweep` keeps each cell's held-out probabilities and each split's labels in
+  the record, so `--recompare RECORD` reruns the bootstrap without scoring;
+  `--compare-against STRATEGY` restricts the comparison family to pairs with a baseline; and
+  a bootstrap too coarse for its family (Holm floor at or above 0.005) is refused before any
+  cell is scored, naming the `n_boot` needed (`--allow-coarse-bootstrap` overrides,
+  `--family-size` gives a per-panel run the merged family's size). The default `n_boot` is
+  now 20,000, from 2,000 (task 32.7).
 - `scripts/lite_same_fit.py`: scores several TabArena-Lite entries in one Elo fit beside the
   field, each under its own method identity, so their positions are comparable.
 

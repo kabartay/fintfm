@@ -349,14 +349,14 @@ def test_summary_warns_when_the_holm_floor_blocks_significance():
 
 def _small_run(**kw):
     """Two tiny panels, three strategies, two seeds, coarse bootstrap (the tests' own)."""
-    args = dict(
-        strategies=("uniform", "balanced", "prototype"),
-        sizes=(60,),
-        seeds=(0, 1),
-        n_boot=120,
-        n_ensemble=1,
-        allow_coarse_bootstrap=True,
-    )
+    args = {
+        "strategies": ("uniform", "balanced", "prototype"),
+        "sizes": (60,),
+        "seeds": (0, 1),
+        "n_boot": 120,
+        "n_ensemble": 1,
+        "allow_coarse_bootstrap": True,
+    }
     args.update(kw)
     panels = [_panel("low", 0.1, seed=1), _panel("high", 0.3, seed=2)]
     return bcs.run_sweep(_tiny_model(), panels, **args)

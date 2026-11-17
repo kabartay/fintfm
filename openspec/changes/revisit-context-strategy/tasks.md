@@ -38,7 +38,7 @@ direction from two panels rather than fitting the relationship.
       `retrieval` with a Holm-corrected paired bootstrap, and the class default changed or
       explicitly left alone in `docs/design/DECISIONS.md`.
 
-- [ ] 32.7 Rerun the binary context comparison so its test can reject (FINDINGS §288). §288's
+- [ ] 32.7 **Progress (2026-11-17): code ready, measurement not run.** The sweep stores per-cell probabilities and per-split labels, restricts the family with `--compare-against uniform`, recomputes from a record with `--recompare`, and refuses a bootstrap whose Holm floor is at or above 0.005 (default `n_boot` 20,000; `--family-size 72` for per-panel kernels). The Kaggle rerun and its pre-registration are next. Rerun the binary context comparison so its test can reject (FINDINGS §288). §288's
       merged Holm family of 360 comparisons per metric at 2,000 resamples has an adjusted-p floor
       of 0.18. Pre-register a smaller family (`uniform` against `prototype` and `retrieval` only,
       AP and AUC) and size `n_boot` so the floor is below 0.005; keep each cell's held-out
