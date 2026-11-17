@@ -17102,3 +17102,64 @@ Bioresponse and NATICUSdroid on the Mac (run `fintfm_lp_bin_bag4_spline_small_ma
 entries in one fit; otherwise it takes the better single-lever entry. If only one lever is adopted, this arm is reported
 as a measurement and does not enter the entry. A gain smaller than the Elo interval (about +/-90) is a configuration
 choice on one fold. Not retuned on the result.
+
+## §285: four bags and splines on the small binary tables: per-table results, methods, and preview Elos; four bags plus splines previews at 1,007.7, above RF (default), before either lever's rule is complete (§281, §284, task 49.23)
+
+**Methods, in one place.** All arms use the binary entry's settings (§257: FinTFM-LinProbe, `squash` features,
+`select` feature strategy, readout options `scale`, `cv`, `raw`; `partition_scale_with_n` on; readout budget 50,000
+rows; readout cross-fitted over 5 folds), TabArena-Lite repeat 0 fold 0, AutoGluon bagging with 8 folds and the
+3,600 s limit. Each arm changes one or two options:
+
+- **Four bags** (`FINTFM_PARTITION={"n_bags": 4}`): the partitioned classifier is fitted four times on bootstrap
+  draws of the training rows, each with its own partition tree, leaf contexts and per-leaf readouts; test
+  probabilities are averaged over the four. Applied to the 14 binary tables of at most 5,000 training rows (§281).
+- **Splines** (`FINTFM_PROBE_SPLINE=on`): each raw numeric column the readout reads (at most 64, chosen by distinct
+  training values) is replaced by a cubic B-spline basis with 5 knots at training-row quantiles and linear
+  extrapolation; knots read the training rows' features only, never labels (task 49.23, §282).
+- **Both**: the two together (§284).
+
+Each arm is paired with the same-machine control `fintfm_lp_bin_spline_ctrl_cpu` (Kaggle CPU, same commit and settings,
+neither option), which reproduces the entry's T4 run to within 0.31% on every table. Kernels: `task_cpu_bin_bag4_small`,
+`task_cpu_bin_spline`, `task_cpu_bin_bag4_spline_small` (fork d9f1358); Mac runs at fork dbc4690, whose added options
+are default-off.
+
+**Per-table results, MEASURED, change in 1-AUC against the control (negative is better).** Nine tables on Kaggle CPU,
+all completed with no `TimeLimitExceeded`:
+
+| table | four bags | splines | both |
+| --- | --- | --- | --- |
+| diabetes | -10.94% | +0.22% | -13.01% |
+| qsar-biodeg | -8.18% | -1.48% | -11.63% |
+| credit-g | -2.76% | -1.79% | -4.26% |
+| Fitness_Club | -2.75% | -1.74% | -3.21% |
+| blood-transfusion-service-center | -0.17% | -2.45% | -2.32% |
+| Marketing_Campaign | -1.69% | -1.16% | -1.37% |
+| Is-this-a-good-customer | -6.01% | +4.28% | +0.54% |
+| seismic-bumps | +10.26% | -0.55% | +3.36% |
+| hazelnut-spread-contaminant-detection | -5.52% | +31.98% | +8.33% |
+
+Four bags on the Mac (§281, against the same control): polish_companies_bankruptcy -42.6%, taiwanese_bankruptcy_prediction
+-18.6%, Bioresponse (completed in 997 s), churn +7.6%. The nine Kaggle four-bag values equal the older four-bag run
+`fintfm_lp_bin_scr_xfit_bag4_1115` on the same tables, so on tables this small the two configurations coincide.
+NATICUSdroid's four-bag fit stopped twice at the time limit while other work held the Mac's load average far above 30
+(5-minute 90, then about 185 to 260): failed measurements, rerun on the Mac and, in parallel, on Kaggle CPU (kernel
+`task_cpu_bin_bag4_naticus`); the first run to complete with no time-limit hit counts.
+
+**Preview Elos, ESTIMATED: not entries under any rule yet.** One fit, 113 methods (`scripts/lite_same_fit.py`); every
+candidate keeps §283's multiclass and regression parts, and a binary table not covered by a lever keeps the entry's run:
+
+| candidate | binary part | Elo | position |
+| --- | --- | --- | --- |
+| `fintfm_p_bag4_spline` | both on the 9 smallest; four bags on churn, polish, taiwanese, Bioresponse; splines on the 7 tables of 6,500 to 8,500 rows; entry on the 10 largest (NATICUSdroid included) | **1,007.7 (+73/-90)** | **99th of 113** |
+| RF (default) | | 1,000.0 (+66/-66) | 101st of 113 |
+| `fintfm_p_bag4` | four bags on 13 of §281's 14 (NATICUSdroid from the entry) | 988.5 (+77/-84) | 102nd of 113 |
+| `fintfm_x_spline20` | splines on the 20 small tables (§282) | 982.7 (+80/-84) | 103rd of 113 |
+| TABFLEX_GPU (default) | | 978.4 (+76/-85) | 104th of 113 |
+| `fintfm_g279_both` (the entry, §283) | | 977.9 (+82/-84) | 105th of 113 |
+
+**What may be concluded.** The direction is consistent: each lever alone moves the entry up, and the two together move
+it past RF (default), the 1,000 bar of DR7.6. None of it is adopted yet, and all of it sits inside the Elo interval.
+§281 needs NATICUSdroid; task 49.23 needs splines on the 10 large binary tables (1 of 10 done: NATICUSdroid +0.01%);
+§284's combination needs both, plus its own five Mac tables. The thresholds and the combination were chosen after
+these small-table results were partly known (§281, §284 say so), so a final entry built this way is a configuration
+choice on one fold, not evidence of a gain on other folds.
