@@ -16852,3 +16852,49 @@ against closed-form truths, is met. Whether the prior teaches causal structure o
 settled by a single SCM parameter set, three seeds and means with no spread or test; the lean changing
 sides with g is consistent with an associational fit that happens to sit nearer one truth or the other. The
 run's commit is not recorded. No pre-registered rule existed.
+
+## §276: on ten licence-cleared public tabular datasets the published binary checkpoint is below CatBoost on all ten (mean AP 0.7478 against 0.8496) and above its untrained control on all ten; its spread across datasets is no wider than the boosters' (tasks 37.3, 37.4)
+
+**MEASURED, Kaggle CPU, 2026-11-17.** `v4-cellattn-labels` (FinTFM, synthetic-only; SHA-256 `d231b062...c518d2`)
+beside an untrained control, logistic regression, LightGBM, CatBoost and XGBoost on the ten files of
+`inria-soda/tabular-benchmark` cleared for commercial use (task 37.1), three stratified folds, seed 0, a cap of
+30,000 rows per dataset, `max_context` 1,000, `n_ensemble` 8; fintfm `e475151` (contains
+`fintfm.experiments.suite_scoring`); kernels `muhakabartay/fintfm-task-cpu-37-suite-{a,b,c,d}`, 180 of 180 units
+scored, none skipped, no time limit hit. Every dataset has a base rate of 0.500, so AP and ROC-AUC order the
+arms alike and the suite says nothing about imbalanced data. Mean AP over three folds (recomputed from the
+per-dataset records; drafted in `docs/results/drafts/37_suite_2026-11-17.md` with ROC-AUC and fold ranges):
+
+| dataset | rows used (of) | FinTFM | untrained control | logreg | LightGBM | CatBoost | XGBoost |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `clf_cat/covertype` | 30,000 (423,680) | 0.7990 | 0.5445 | 0.8405 | 0.9255 | 0.9374 | 0.9374 |
+| `clf_num/bank-marketing` | 10,578 (10,578) | 0.8248 | 0.7006 | 0.8161 | 0.8661 | 0.8710 | 0.8561 |
+| `clf_num/MagicTelescope` | 13,376 (13,376) | 0.8329 | 0.7221 | 0.8545 | 0.9398 | 0.9453 | 0.9391 |
+| `clf_num/MiniBooNE` | 30,000 (72,998) | 0.9174 | 0.5283 | 0.9285 | 0.9783 | 0.9807 | 0.9777 |
+| `clf_cat/road-safety` | 30,000 (111,762) | 0.7330 | 0.4957 | 0.7324 | 0.8552 | 0.8592 | 0.8479 |
+| `clf_num/Higgs` | 30,000 (940,160) | 0.5662 | 0.5456 | 0.6838 | 0.7875 | 0.7906 | 0.7728 |
+| `clf_cat/default-of-credit-card-clients` | 13,272 (13,272) | 0.7492 | 0.5586 | 0.7491 | 0.7833 | 0.7870 | 0.7654 |
+| `clf_num/Diabetes130US` | 30,000 (71,090) | 0.6340 | 0.6129 | 0.6421 | 0.6400 | 0.6425 | 0.6274 |
+| `clf_num/covertype` | 30,000 (566,602) | 0.6732 | 0.4980 | 0.6333 | 0.8820 | 0.8954 | 0.8940 |
+| `clf_num/default-of-credit-card-clients` | 13,272 (13,272) | 0.7478 | 0.5775 | 0.7487 | 0.7833 | 0.7869 | 0.7596 |
+
+| over the ten datasets | FinTFM | untrained control | logreg | LightGBM | CatBoost | XGBoost |
+| --- | --- | --- | --- | --- | --- | --- |
+| mean AP | 0.7478 | 0.5784 | 0.7629 | 0.8441 | 0.8496 | 0.8377 |
+| standard deviation of per-dataset AP | 0.1034 | 0.0783 | 0.0964 | 0.0989 | 0.1005 | 0.1071 |
+| range | 0.5662 (Higgs) to 0.9174 (MiniBooNE) | | | | | |
+
+**The checkpoint is below CatBoost on all ten**, by 0.0085 AP (Diabetes130US, where every arm sits between
+0.6129 and 0.6425) to 0.2244 (Higgs; 0.2222 on `clf_num/covertype`). Against logistic regression it is above on
+four and below on six, and several of those margins are inside a fold range. It is above the untrained control
+on all ten, narrowly on Higgs (0.0206), and the control alone is well above chance on MagicTelescope, bank-marketing
+and Diabetes130US, so "above control" is a per-dataset statement.
+
+**§44's prediction is not supported here.** It expected the checkpoint's spread across datasets to be wide where
+the boosters' is narrow; on these ten the standard deviation is 0.1034 against 0.0989 to 0.1071 for the boosters.
+An early read of four datasets (0.151 against about 0.09) reversed once the other six arrived. What varies is the
+level gap to the boosters (its standard deviation against CatBoost is 0.0767 AP).
+
+Caveats: the in-context arms see at most 1,000 labelled rows while the boosters fit whole training folds; six of
+ten datasets are capped at 30,000 rows; categorical columns are scored as integer codes for every arm; one seed and
+three folds. Each kernel's own `report.md` covers only its last dataset; the per-dataset JSON files are the record.
+Task 37.5 (this suite as the standing gate for prior and architecture changes) is left for the owner.
