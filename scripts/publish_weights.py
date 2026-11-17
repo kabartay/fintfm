@@ -45,7 +45,7 @@ class Checkpoint:
         sha256: Expected SHA-256 of the file (computed 2026-11-15).
         size: Expected size in bytes.
         card: Model card under ``docs/models/``.
-        published: True if the file is already public (verified read-only on 2026-11-15).
+        published: True if the file is already public (binary verified 2026-11-15; multiclass and regression published 2026-11-17).
     """
 
     key: str
@@ -77,7 +77,7 @@ CHECKPOINTS: tuple[Checkpoint, ...] = (
         sha256="14d5b4d561fbea6e35c7a30dc2644cb8f64f437c25d62da087ee960717cc8f4d",
         size=3598528,
         card="docs/models/fintfm-multiclass.md",
-        published=False,
+        published=True,
     ),
     Checkpoint(
         key="regression",
@@ -87,7 +87,7 @@ CHECKPOINTS: tuple[Checkpoint, ...] = (
         sha256="31d5b3ef49e89bbe405fc85ab1d746a9fd6c3a1c5282e1770111902cc4af526c",
         size=3595783,
         card="docs/models/fintfm-regression.md",
-        published=False,
+        published=True,
     ),
 )
 
