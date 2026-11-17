@@ -1115,6 +1115,19 @@ binary datasets (§204). The progression of the overall figure was 880 (§221), 
 - **Single fold.** TabArena-Lite runs fold 0; per-dataset statements are single draws. The Elo
   intervals are about ±100 to ±170.
 
+**2026-11-17, §283, §286, §290 (Claim 19; the status stays SINGLE DRAW):**
+
+- **The entry now stands at 1,009.8 Elo (+74/-92), 99th of 110** (`fintfm_g287_bag4_spline`), above
+  RandomForest (default) at 1,000.0, 100th. Three size-gated readout levers, each adopted under a
+  rule written before its arms ran: one-hot indicators for multiclass and a random-Fourier-feature
+  regression readout (979.8, §283), four readout bags for binary fits of at most 5,000 rows (989.4,
+  §286), and spline features for binary fits of at most 10,000 rows (+22.0 Elo against §286's entry
+  in one fit, 14 of 20 changed tables better, sign test p 0.12, §290). Every step and the margin over
+  RandomForest are inside the interval, and each size line was drawn after earlier results were
+  seen: configuration choices on one fold, not measured improvements. The number is assembled from
+  stored runs on a Kaggle T4, Kaggle CPU and the Mac; it is replaced by the reproduction from the
+  pull-request branch with no overrides once that runs. General-tabular only, not a credit result.
+
 **2026-11-16, §269 (Claim 19; the status stays SINGLE DRAW):**
 
 - **The entry now stands at 966.1 Elo (+90/-89), 103rd of 110** (`fintfm_linprobe_all51_1116f_floor8`),

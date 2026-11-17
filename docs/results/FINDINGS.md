@@ -17282,3 +17282,35 @@ prediction depends on its query group-mates; about 10x uniform's scoring time, �
 on. AUC is reported beside AP and does not decide. **Reproduction check:** the `uniform`, `prototype` and `retrieval`
 cells are the same configuration as §288's; their AP is compared cell by cell with §288's records and any difference
 above 1e-4 is reported. Not retuned on the result.
+
+## §290: §287's rule passes: splines for binary fits of at most 10,000 rows are adopted with four bags; the entry becomes `fintfm_g287_bag4_spline`, 1,009.8 Elo alone, 99th of 110, above RandomForest (default) at 1,000.0 (task 49.23)
+
+**MEASURED, TabArena-Lite repeat 0 fold 0, 2026-11-17.** All 21 gated tables completed with no `TimeLimitExceeded`: nine
+with four bags and splines on Kaggle CPU (`fintfm_lp_bin_bag4_spline_small_cpu`, §285), five with four bags and splines on
+the Mac (`fintfm_lp_bin_bag4_spline_small_mac`, fork dbc4690; each gated at a 15-minute load average below 30, longest
+3,262 s wall time, polish_companies_bankruptcy), and seven with splines alone on Kaggle CPU (`fintfm_lp_bin_spline_cpu`,
+§282). The Mac's load reached 167 between two of the fits, from other work; no fit ran under it.
+
+**Entry `fintfm_g287_bag4_spline`** (`merge_fintfm_lite.py --expect 51`, log `runs/merge_g287.log`): those 21 tables;
+the entry's runs on the 9 binary tables above 10,000 rows (`fintfm_g287_bin_rest9`, copied from
+`fintfm_g281_bin_rest16`); the 7 mid tables from `fintfm_g287_bin_spline_mid7` (copied from `fintfm_lp_bin_spline_cpu`);
+multiclass and regression as §283.
+
+**Per table against §286's entry** (change in 1-AUC; NATICUSdroid unchanged to five decimals): better on 14 of 20,
+worse on 6, two-sided sign test p 0.12. Better: seismic-bumps -6.26%, polish_companies_bankruptcy -4.43%, Bioresponse
+-3.91%, qsar-biodeg -3.76%, heloc -3.47%, online_shoppers_intention -2.75%, diabetes -2.33%, blood-transfusion -2.16%,
+credit-g -1.54%, coil2000 -0.61%, taiwanese_bankruptcy_prediction -0.51%, Fitness_Club -0.47%, Bank_Customer_Churn
+-0.44%, in_vehicle_coupon_recommendation -0.13%. Worse: hazelnut +14.65%, Is-this-a-good-customer +6.97%, churn
++5.25%, E-CommereShippingData +1.28%, jm1 +0.98%, Marketing_Campaign +0.32%.
+
+**Rule applied.** One fit over the field and both entries (`scripts/lite_same_fit.py`, 111 methods, log
+`runs/samefit_g287.log`): `fintfm_g287_bag4_spline` 1,010.7 (+74/-91), 99th of 111; RF (default) 1,000.0, 101st;
+`fintfm_g281_bag4` 988.7 (+77/-85), 102nd; TABFLEX_GPU 978.3, 103rd. +22.0 Elo, so **splines are adopted** for binary
+fits of at most 10,000 training rows, with four bags at most 5,000. Scored alone with the field (110 methods,
+`scripts/lite_positions.py`): **1,009.8 (+74/-92), 99th of 110**; RandomForest (default) 1,000.0, 100th; TABFLEX_GPU
+977.7. The gain and the margin over RandomForest are both well inside the Elo interval: by §287's wording a
+configuration choice on one fold, and the 10,000-row line was drawn after §282's and §285's results were seen.
+
+**Next, as §287 states.** The gate is a default-off fork option (`spline_max_rows`, fork bc99785); it becomes the PR
+branch's binary default before the reproduction without overrides, whose result replaces these stored-run numbers as
+the entry's standing.

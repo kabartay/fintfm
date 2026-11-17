@@ -39,7 +39,7 @@ model and inference default is unchanged; one experiment-harness default changes
 - Release archives stay under Zenodo's 1,000-entry preview limit: Kaggle kernel metadata and
   `docs/results/drafts/` are `export-ignore` in `.gitattributes`, and
   `tests/test_release_archive.py` fails if `git archive` reaches 1,000 entries.
-- README: the TabArena-Lite standing is 989.4 Elo, 101st of 110 (FINDINGS §286), and the
+- README: the TabArena-Lite standing is 1,009.8 Elo, 99th of 110 (FINDINGS §290), and the
   regression quickstart loads the published regression checkpoint.
 
 ## [0.11.0] — 2026-11-16
