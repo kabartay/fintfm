@@ -6,6 +6,8 @@ not paste one into the other. See `CLAUDE.md`.
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-11-17
+
 The multiclass and regression checkpoints that the TabArena entry loads are public on
 Hugging Face under Apache-2.0, beside the binary one. No new weights are trained, and every
 model and inference default is unchanged; one experiment-harness default changes

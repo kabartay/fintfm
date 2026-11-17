@@ -678,7 +678,7 @@ BibTeX and APA. The same entry, to copy:
   title     = {{FinTFM: a tabular foundation model for corporate credit risk,
                pretrained only on synthetic data}},
   year      = {2026},
-  version   = {0.11.0},
+  version   = {0.12.0},
   doi       = {10.5281/zenodo.22949759},
   url       = {https://github.com/kabartay/fintfm},
   publisher = {Zenodo},
