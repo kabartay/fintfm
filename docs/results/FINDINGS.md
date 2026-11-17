@@ -16992,3 +16992,27 @@ within 1e-4 relative in metric error. If (1) holds and (2) is still running, the
 If both gates are adopted, the entry is E-both. A gain smaller than the Elo interval (about +/-90) is a configuration
 choice on one fold, not evidence of improvement, and is reported as such. A time-limit hit in a confirmation run at a
 load average above 30 is a failed measurement and is rerun. Not retuned on the result.
+
+## §280: under §279's rule both size gates pass the Elo half: the entry with both scores 979.8 against TABFLEX_GPU's 977.7, alone in the field; adoption provisional until the two confirmation runs finish (tasks 49.24, 49.19)
+
+**MEASURED from stored runs, TabArena-Lite repeat 0 fold 0, 2026-11-17.** Entries built as §279 lists
+(`merge_fintfm_lite.py`, 51 datasets each; subset runs `fintfm_g279_mc_onehot7`, `fintfm_g279_reg_rff_small7`,
+`fintfm_g279_reg_large6` copy the named tables' cached results unchanged). One fit over the field and all four
+(`scripts/lite_same_fit.py`, 113 methods):
+
+| entry | Elo | position |
+| --- | --- | --- |
+| RF (default) | 1,000.0 (+65/-66) | 100th of 113 |
+| E-both `fintfm_g279_both` | 980.7 (+82/-85) | 101st of 113 |
+| TABFLEX_GPU (default) | 978.9 (+75/-85) | 102nd of 113 |
+| E-rff `fintfm_g279_rff` | 973.5 (+86/-89) | 103rd of 113 |
+| E-onehot `fintfm_g279_onehot` | 971.8 (+88/-86) | 105th of 113 |
+| `fintfm_linprobe_all51_1116f_floor8` | 964.4 (+89/-88) | 107th of 113 |
+
+E-both alone with the field (110 methods): **979.8 (+83/-86), 101st of 110; TABFLEX_GPU 977.7 (+77/-85), 102nd.**
+
+**Reading.** Each gate scores above floor8 in the same fit (one-hot +7.4, RFF +9.1, both +16.3 Elo), so condition (1)
+of §279 holds for both, and E-both is the candidate entry. Every one of these differences is far inside the Elo
+interval: by §279's own wording this is a configuration choice on one fold, not evidence of improvement, and E-both's
+2.1 Elo over TABFLEX_GPU is a lead within noise, not a measured win. Condition (2), the confirmation runs at the gated
+commit (SDSS17 and miami_housing on the Mac), has not run yet, so the adoption is **provisional**.
