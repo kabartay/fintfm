@@ -17066,3 +17066,23 @@ was 19,073 s against the control's 20,718 s (per-table ratio 0.76 to 1.08, diffe
 111, against E-both's 978.3 (102nd) and TABFLEX_GPU's 977.4 (103rd). This is not an entry under 49.23's rule, which
 needs all 30 binary tables run with splines; the 10 large ones are unmeasured, so it is a planning figure for whether
 they are worth running.
+
+## §283: §279's confirmation runs pass and reproduce the stored runs exactly; size-gated one-hot and size-gated RFF are adopted, and the entry becomes `fintfm_g279_both` (979.8 Elo alone; tasks 49.24, 49.19)
+
+**MEASURED, Mac CPU, 2026-11-17, fork `gated-levers` dbc4690 (now the tip of `fintfm-audit-fixes`).**
+
+| run | gate log | exit, time | metric error | stored run | relative difference |
+| --- | --- | --- | --- | --- | --- |
+| `fintfm_g279_conf_sdss17_mac` (`FINTFM_PROBE_ONEHOT` with `max_levels` 64) | `plate` (5,712 to 5,720 levels across the bagged fits) and `fiber_ID` (1,000) skipped in every fit | 0, 3,282 s; gate at load 6.3/7.8/11.7 | log loss 0.12357937 | `fintfm_lp_mc_floor_sdss17_mac` 0.12357937 | 0.0 |
+| `fintfm_g279_conf_miami_mac` (`FINTFM_REG_READOUT=rff`, `FINTFM_REG_RFF_MAX_ROWS=5000`) | rff to ridge in the 8 bagged fits (8,036 rows) and the refit (9,184 rows) | 0, 2,711 s; gate at load 8.7/8.5/17.0 | RMSE 106,093.7997 | `fintfm_lp_reg_rawpart4_pure_1114` 106,093.7997 | 0.0 |
+
+Neither run hit `TimeLimitExceeded`. The miami log also shows one fit of 96 rows that kept rff; that is AutoGluon's
+small internal fit before the bagged ones, not a scored model.
+
+**Rule applied.** §279's condition (1) held in §280 (each gate's entry above `floor8` in one fit) and condition (2) holds
+here, so **both gates are adopted** and the entry is E-both, `fintfm_g279_both`: **979.8 Elo (+83/-86), 101st of 110,
+against TABFLEX_GPU (default)'s 977.7, 102nd**, scored alone with the field (§280). The lead is 2.1 Elo inside an
+interval of about +/-85: a configuration choice on one fold that puts the entry above TABFLEX_GPU in this fit, not a
+measured improvement over it. Entry configuration, by problem type: binary as §257; multiclass the probability floor
+plus one-hot indicators for categorical columns of at most 64 levels; regression the RFF readout for fits of at most
+5,000 rows, ridge above. Both options remain default-off on the fork's dev branch; the PR branch does not carry them yet.
