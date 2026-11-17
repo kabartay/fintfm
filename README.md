@@ -367,6 +367,12 @@ number, and label encoding is measurably worse than no order at all (§100). Use
 `fintfm.inference.categorical.CategoricalTargetEncoder`, which is out-of-fold on the context
 rows for reasons that are **not** optional (see [How it works](#how-it-works)).
 
+**A worked example on Kaggle.** The notebook
+[FinTFM starter: Playground Series S6E11](https://www.kaggle.com/code/muhakabartay/fintfm-starter-playground-series-s6e11)
+runs FinTFM end to end on a Kaggle Playground competition (a synthetic credit-card fraud
+table), including how much context to give it. It is a usage example, not a result: on that
+dataset gradient-boosted trees score higher.
+
 ### Training a checkpoint
 
 ```bash
