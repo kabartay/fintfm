@@ -52,7 +52,11 @@ FORK_URL = "https://github.com/kabartay/tabarena.git"
 FORK_BRANCH = "fintfm-pr-2026-11"
 #: The registry name of the entry, default configuration (config index 0).
 MODEL = "FinTFM-LinProbe"
-AUTOGLUON = "1.6.4b20260919"
+#: The floor the pull-request branch's ``packages/tabarena/pyproject.toml`` requires
+#: (``autogluon.tabular>=1.6.4b20261109``; upstream raised it for autogluon/autogluon#6057). The stored
+#: entry runs used 1.6.4b20260919, which that branch no longer installs (pip: ResolutionImpossible,
+#: 2026-11-17), so this reproduction also changes the AutoGluon nightly.
+AUTOGLUON = "1.6.4b20261109"
 KERNEL = "task_lite_repro_pr_bin_large"
 #: ``gpu``: refuse to run without CUDA (the binary entry ran on a T4); ``cpu``: run on the CPU.
 DEVICE = "gpu"
