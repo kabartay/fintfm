@@ -31,11 +31,12 @@ def load(kernel: str):
 
 
 @pytest.mark.parametrize("kernel", KERNELS)
-def test_shipped_placeholder_commit_is_refused(kernel):
+def test_shipped_commit_is_set_and_a_placeholder_is_refused(kernel):
     mod = load(kernel)
-    assert mod.commit_problem(mod.FORK_COMMIT) is not None
+    assert mod.commit_problem(mod.FORK_COMMIT) is None
+    assert mod.commit_problem("<FORK_COMMIT>") is not None
     with pytest.raises(SystemExit) as exc:
-        mod.refuse([mod.commit_problem(mod.FORK_COMMIT)])
+        mod.refuse([mod.commit_problem("<FORK_COMMIT>")])
     assert "FORK_COMMIT" in str(exc.value)
 
 

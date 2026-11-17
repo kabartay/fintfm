@@ -40,8 +40,9 @@ from collections.abc import Callable
 from pathlib import Path
 
 # ---- PLACEHOLDERS: the owner fills these in before pushing the kernel ----------------------------
-#: Full or 7+ character SHA of the pull-request branch head in the fork. PLACEHOLDER until set.
-FORK_COMMIT = "<FORK_COMMIT>"
+#: Full SHA of the pull-request branch head in the fork: e5cb05b, the binary entry with four bags up
+#: to 5,000 fit rows and splines up to 10,000 (FINDINGS §290), pushed 2026-11-17.
+FORK_COMMIT = "e5cb05b11c0fe0d72dcc1df03750e22b8068d15d"
 #: The fintfm release the fork's extra pins: 0.12.0 publishes the multiclass and regression
 #: checkpoints. The preflight refuses to run until it is on PyPI.
 FINTFM_VERSION = "0.12.0"
