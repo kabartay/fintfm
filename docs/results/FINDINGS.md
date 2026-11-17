@@ -17163,3 +17163,28 @@ it past RF (default), the 1,000 bar of DR7.6. None of it is adopted yet, and all
 §284's combination needs both, plus its own five Mac tables. The thresholds and the combination were chosen after
 these small-table results were partly known (§281, §284 say so), so a final entry built this way is a configuration
 choice on one fold, not evidence of a gain on other folds.
+
+## §286: §281's rule passes: four readout bags for binary fits of at most 5,000 rows are adopted; the entry becomes `fintfm_g281_bag4`, 989.4 Elo alone, 101st of 110 (TABFLEX_GPU 977.9)
+
+**MEASURED, TabArena-Lite repeat 0 fold 0, 2026-11-17.** All 14 tables of §281 completed with no `TimeLimitExceeded`:
+nine on Kaggle CPU (`fintfm_lp_bin_bag4_small_cpu`), five on the Mac (`fintfm_lp_bin_bag4_small_mac`, fork dbc4690).
+NATICUSdroid's first two Mac fits stopped at the time limit while other work held the load average far above 30
+(§285: failed measurements); its third, gated at a 15-minute load of 17.8, completed in 2,139 s. The Kaggle CPU copy of
+NATICUSdroid never obtained a session and was withdrawn before it ran, so no second result exists to choose between.
+
+**Per table, change in 1-AUC** against the same-machine Kaggle CPU control (against the entry's T4 run for NATICUSdroid,
+which the control does not cover): better on 11 of 14, worse on 3, sign test p 0.057. polish_companies_bankruptcy
+-42.64%, taiwanese_bankruptcy_prediction -18.60%, diabetes -10.94%, qsar-biodeg -8.18%, Is-this-a-good-customer -6.01%,
+hazelnut -5.52%, NATICUSdroid -3.87%, credit-g -2.76%, Fitness_Club -2.75%, Marketing_Campaign -1.69%,
+blood-transfusion -0.17%; worse: seismic-bumps +10.26%, churn +7.59%, Bioresponse +5.04%. Longest fit: NATICUSdroid,
+2,063 s training on the Mac.
+
+**Rule applied.** One fit over the field, §283's entry and this one (111 methods): `fintfm_g281_bag4` 989.9 (+76/-85),
+101st of 111; `fintfm_g279_both` 979.5 (+83/-86), 102nd; TABFLEX_GPU 978.3, 103rd. +10.4 Elo, so **four bags are adopted**
+for binary fits of at most 5,000 training rows. Scored alone with the field (110 methods): **989.4 (+77/-86), 101st of
+110**; TABFLEX_GPU 977.9, 102nd; RF (default) 1,000.0, 100th. The gain is inside the Elo interval: by §281's wording a
+configuration choice on one fold, and the 5,000-row line was chosen after an older four-bag run was seen (§281).
+
+**Still to do for the PR branch.** Four bags for small binary fits is today an environment setting applied to a chosen
+list of tables; it becomes a default-off fork option gated on the fit's row count, then the PR branch's binary entry
+default, before the entry can be reproduced without overrides.
