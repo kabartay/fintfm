@@ -17258,3 +17258,27 @@ about 10x uniform here, against D10's 2.5x.
 not replace `uniform`: it loses AP on Taiwan at every size, and its Polish gain is uncorrected. A rerun able to reject,
 with more resamples or a smaller pre-registered family and with predictions kept in the record so tests can be redone
 without scoring, is filed as task 32.7.
+
+## §289: pre-registration: `prototype` and `retrieval` against `uniform` on the binary path, a Holm family that can reject (task 32.7, §288)
+
+**Written 2026-11-17, before any cell of this run is scored.** **Not blind:** §288's point estimates for the same panels,
+seeds and sizes are known (`retrieval` highest mean AP in 12 of 12 panel-size cells, `prototype` behind `uniform` on
+Taiwan); this run exists because §288's test could not reject (Holm floor 0.18), not to search for a new effect.
+
+**Run.** Twelve Kaggle CPU kernels, one per panel and seed (`scripts/kaggle/task_cpu_327_ctx_*`), fintfm `d6a72de`,
+synthetic-only checkpoint `v4-cellattn-labels.pt` (SHA-256 checked in each kernel): `fintfm.experiments.binary_context_sweep`
+with strategies `uniform`, `prototype`, `retrieval`, context sizes 500, 1,000 and 2,000, `--n-ensemble 8`,
+`--compare-against uniform --n-boot 20000 --family-size 72`. Every other setting as §288. Records keep each cell's
+held-out probabilities, so the test can be recomputed without scoring. Merged with `--merge`.
+
+**Family and test.** Per metric (AP, AUC) 72 comparisons: `uniform` against `prototype` and against `retrieval`, 4
+panels x 3 sizes x 3 seeds. Paired row bootstrap, 20,000 resamples, Holm across the 72 (floor 0.0036). The merged
+summary must print no Holm-floor warning, or the run has failed its own check.
+
+**Rule (decides only D10's class default).** `prototype` replaces `uniform` as the class default only if, on AP, it is
+better with Holm p < 0.05 in at least 2 of 3 seeds at every context size on at least 3 of the 4 panels, and worse with
+Holm p < 0.05 in no comparison. `retrieval` stays opt-in whatever the result, for D10's non-statistical reasons (a
+prediction depends on its query group-mates; about 10x uniform's scoring time, §288); its result is reported, not acted
+on. AUC is reported beside AP and does not decide. **Reproduction check:** the `uniform`, `prototype` and `retrieval`
+cells are the same configuration as §288's; their AP is compared cell by cell with §288's records and any difference
+above 1e-4 is reported. Not retuned on the result.

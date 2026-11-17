@@ -1,0 +1,15 @@
+{
+  "id": "muhakabartay/fintfm-task-cpu-327-ctx-polish3-s1",
+  "title": "fintfm-task-cpu-327-ctx-polish3-s1",
+  "code_file": "task_cpu_327_ctx_polish3_s1.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": "true",
+  "enable_gpu": "false",
+  "enable_tpu": "false",
+  "enable_internet": "true",
+  "dataset_sources": [],
+  "competition_sources": [],
+  "kernel_sources": [],
+  "model_sources": []
+}
