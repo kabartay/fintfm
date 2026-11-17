@@ -16,7 +16,7 @@
       `experiments/v4_out_of_time.py:76 time_split`, checks year windows only and lets a firm
       sit on both sides, so it was not equivalent; it is left in place. `SurvivalDataset`
       gained an optional `groups` field (V4FinBench `emis_id`).**
-- [ ] 3.3 **Progress (2026-11-15, run made ready, still open): the Verify's `--credit` panels are
+- [ ] 3.3 **Progress (2026-11-17, FINDINGS §272, MEASURED, one seed, one cut): on a 100,000-row V4FinBench sample the later window scores higher for six of seven models by AP and all seven by ROC-AUC; test base rates differ (1.467% random, 0.988% time), so the AP gap is not like-for-like. The `--credit` unit timed out at 5 h; the gap comes from the `--time-split` fallback. Open: the literal Verify command, and more than one cut or seed before a gap is quoted with an interval.** **Progress (2026-11-15, run made ready, still open): the Verify's `--credit` panels are
       the UCI sets, so the V4FinBench numbers come from `--time-split` (also accepted with
       `--credit`). The side-by-side block now prints average precision first (random AP, time AP,
       gap), then ROC-AUC, beside the train/test row counts, the companies in both windows, the

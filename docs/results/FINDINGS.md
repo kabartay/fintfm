@@ -16721,3 +16721,73 @@ gate requiring both the 5- and 15-minute load averages below 30 for 15 minutes
 cost: five of the six fit under 3,600 s on a quiet Mac, GiveMeSomeCredit is marginal (about 2,650 s), and
 customer_satisfaction_in_airline (3,042 s in the entry, about 6,000 s doubled) is expected to exceed the limit
 however quiet the machine; if it does, §257's rule fails as written unless that table is fitted elsewhere.
+
+## §272: on a V4FinBench sample the time-based split shows no random-split optimism: six of seven models score higher on the later window by average precision, all seven by ROC-AUC; FinTFM is last on AP in both windows (task 3.3)
+
+**MEASURED, one seed (0), one cut, Kaggle CPU, 2026-11-17.** Kernel `muhakabartay/fintfm-task-cpu-3-3`
+(`scripts/kaggle/task_cpu_3_3/`, fintfm `e475151`), checkpoint `v4-cellattn-labels.pt` (SHA-256 pinned in
+the kernel's `summary.json`), seven arms. V4FinBench company-grouped sample of 100,000 of 1,000,087 rows,
+train up to 2016, test from 2017: 47,185 training and 39,478 test rows; 9,605 companies fall in both windows
+and their 13,337 training rows were dropped from the time window (whether the random window drops the same
+rows was not checked). Source: `runs/kaggle-fintfm-task-cpu-3-3/ts100k_fallback.log` and `.json`; drafted
+in `docs/results/drafts/3.3_2026-11-17.md`.
+
+| model | random AP | time AP | random ROC-AUC | time ROC-AUC |
+| --- | --- | --- | --- | --- |
+| logreg | 0.1709 | 0.1838 | 0.8900 | 0.9243 |
+| random_forest | 0.2386 | 0.3110 | 0.8757 | 0.9259 |
+| gboost | 0.2093 | 0.2502 | 0.9090 | 0.9405 |
+| lightgbm | 0.2158 | 0.2450 | 0.9022 | 0.9330 |
+| catboost | 0.2619 | 0.3035 | 0.9116 | 0.9398 |
+| xgboost | 0.2094 | 0.2466 | 0.8836 | 0.9123 |
+| FinTFM | 0.0754 | 0.0698 | 0.8520 | 0.9024 |
+
+**The AP comparison across windows is not like-for-like.** The test default rate is 1.467% in the random
+window (579 of 39,478) and 0.988% in the time window (390 of 39,478), against 1.867% in the time window's
+training rows; AP moves with the base rate, ROC-AUC does not, and ROC-AUC also rises on the later window
+for every model (+0.028 to +0.050). So this sample shows no random-split optimism, and it cannot separate
+the split's effect from the base-rate shift.
+
+**FinTFM is last on AP in both windows** (0.0754 and 0.0698, against 0.17 to 0.31 for the six baselines),
+and on the time window it predicts a mean 2.684% against an observed 0.988% (Brier skill -5.80%; catboost
+1.023% against 0.988%, +17.83%). Part of that is the base-rate shift between the training and test windows,
+which some baselines carry too (random_forest predicts 2.212%), but FinTFM also overpredicts in the random
+window (2.194% against 1.467%), so the shift is not its only source. The checkpoint is the synthetic-only
+FinTFM family.
+
+**What did not run.** The Verify's command with `--credit` stopped at its 5 h limit inside the FinTFM
+time arm and wrote no record; the fallback unit (the same `--time-split` block without `--credit`) exited 0
+after 12,295 s. Its random-window scores match the timed-out unit's on all seven arms to four decimals. The
+UCI credit panels have no period column and print random-split numbers only. The 200,000-row run was not
+started. One seed and one cut, so no interval is placed on any difference.
+
+## §273: the binary context-strategy sweep stopped at its 11 h limit after 69 of 180 cells with no record; on Polish 1y `prototype` beats `uniform` on AP in 3 of 3 seeds at every size, untested for significance (task 32.6)
+
+**MEASURED from the console log only, Kaggle CPU, 2026-11-17.** Kernel `muhakabartay/fintfm-task-cpu-32-ctx`
+(`scripts/kaggle/task_cpu_32_ctx/`, fintfm `e475151`) ran `fintfm.experiments.binary_context_sweep` with
+the synthetic-only checkpoint `v4-cellattn-labels.pt` (SHA-256 verified in the kernel): five strategies,
+context sizes 500, 1,000 and 2,000, seeds 0 to 2, `--n-ensemble 8`, four panels, 180 cells planned. It
+stopped at its own limit (`summary.json`: `exit_code` "timeout", 39,625 s, `record_written` false). The sweep
+writes its JSON only at the end, so there is **no record, no paired bootstrap and no Holm correction**, and
+task 32.6's Verify is not met. Scored: Polish 1y 45 of 45 cells, Polish 3y 24 of 45; Polish 5y and Taiwan
+not reached. Drafted in `docs/results/drafts/32_ctx_2026-11-17.md`.
+
+**Polish 1y, mean of 3 seeds** (7,027 rows, 70/30 split per seed, so a pool of about 4,919 and about 2,108
+held-out rows with about 81 defaults; row counts derived from the logged totals, not from a record). Context
+sizes are 10% to 41% of the pool.
+
+| context | `uniform` AP / ECE | `prototype` AP / ECE | `retrieval` AP / ECE | `prototype` minus `uniform`, AP (seeds positive) |
+| --- | --- | --- | --- | --- |
+| 500 | 0.1924 / 0.0044 | 0.2379 / 0.0093 | 0.2970 / 0.0176 | +0.0454 (3 of 3) |
+| 1,000 | 0.2004 / 0.0043 | 0.2384 / 0.0087 | 0.2734 / 0.0161 | +0.0379 (3 of 3) |
+| 2,000 | 0.1958 / 0.0037 | 0.2330 / 0.0060 | 0.2498 / 0.0154 | +0.0372 (3 of 3) |
+
+`retrieval` has the highest mean AP at every context size on Polish 1y (above `prototype` in 3 of 3 seeds) and the worst ECE in every logged cell; `prototype` sits between it and
+`uniform` on both. Polish 3y points the same way on one to two seeds. With about 81 defaults per held-out
+slice, a three-seed point difference of a few hundredths of AP may sit inside a bootstrap interval, so no
+decision on the class default follows and `docs/design/DECISIONS.md` is unchanged.
+
+**Why it ran out of time.** `retrieval` took 484, 1,378 and 4,650 s per cell at contexts 500, 1,000 and
+2,000 on Polish 1y seed 0, against 123 to 357 s for the other strategies; one seed of one panel cost about
+3 h of the 11. The rerun is one kernel per panel, each writing its own JSON, merged through the sweep's
+comparison code so the Holm family spans all four panels.
