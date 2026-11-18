@@ -17415,5 +17415,15 @@ its plain-ridge candidate, so the RFF-cap tests now fit with splines off.
   fork's venv has AutoGluon 0919), one at a time behind the load gate. The 9 large binary tables run on a Kaggle T4
   once the weekly GPU quota resets: an HF Jobs t4-medium measured about 3x slower (Amazon_employee_access
   1,821 s against 610 s) with the GPU in use, which would push tables into the 3,600 s limit.
+- **Regression at c0a4680, Kaggle CPU (MEASURED):** all 6 tables (QSAR_fish_toxicity, concrete, healthcare,
+  airfoil, Fiat 500, wine_quality) equal the stored entry exactly.
+- **The first Mac pass failed on every table, and that is a defect of the PR branch, not of the machine.** With no
+  `FINTFM_*` variable the adapter chose Apple's MPS automatically, and all 9 Mac tables stopped with "MPS backend
+  out of memory" (requests above 80 GiB on a 64 GB machine, the process itself near 1 GB resident, the system 89%
+  free), under torch 2.15.0 and again under 2.14.0 (taiwanese, 80 s). The stored Mac runs had all forced
+  `FINTFM_DEVICE=cpu` through `lite_fork_arm.sh`, so no stored number used MPS. Fork **65c21d5** makes the
+  automatic choice CUDA when AutoGluon grants a GPU, else CPU; `FINTFM_DEVICE=mps` still selects MPS (FinTFM tests
+  404 passed). On Kaggle CPU and T4 the choice is the same as at c0a4680, so the Kaggle results there stand. The
+  repro kernels now pin 65c21d5 and the 9 Mac tables are requeued at it.
 - The Kaggle image's torch, numpy and scikit-learn versions were not recorded. The Mac venv has torch 2.15.0,
   numpy 2.5.5 and scikit-learn 1.9.1.

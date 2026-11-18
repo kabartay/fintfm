@@ -166,8 +166,9 @@ Decision pending: declare "no search space" (`can_hpo=False`, as is) or run a sa
 - `time_limit`: accepted and forwarded to the parent, which ignores it. There is no early stop.
   A fit near the limit can still be killed by AutoGluon; the stored runs recorded `TimeLimitExceeded`
   only on busy Mac sessions (§286), and the kernels give each dataset its own 2-hour timeout.
-- `num_cpus` / `num_gpus`: `num_gpus` selects `cuda` when available, else `mps`, else CPU
-  (`fintfm/model.py` `_fit`); `_forced_device` honours an override variable. `num_cpus` is passed to
+- `num_cpus` / `num_gpus`: a granted GPU selects `cuda` when available, else CPU
+  (`fintfm/model.py` `_choose_device`); MPS is never chosen automatically, and `_forced_device`
+  honours an override variable. `num_cpus` is passed to
   the parent and not otherwise used. `info.py` declares `compute="cpu"`; the nine binary tables above
   10,000 rows ran on a T4 in the stored runs, so the hardware statement below must say so.
 - Seed: `seed_name = "random_state"`; `self.random_seed` seeds the row draws, bagging, the cross-fit

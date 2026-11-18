@@ -1,53 +1,60 @@
 # Reproduction kernels for the TabArena-Lite entry
 
-Two Kaggle kernels rerun the 51 TabArena-Lite datasets (30 binary, 8 multiclass, 13
-regression; repeat 0, fold 0) from the fork's pull-request branch the way a maintainer would:
-no `FINTFM_*` variable, no local checkpoint, `fintfm` from PyPI, checkpoints fetched by the
-fork's `fintfm/checkpoints.py` from Hugging Face. Each fits the registry entry
-`FinTFM-LinProbe`, default config, through `TabArenaV0pt1ExperimentBundle` and
+Five Kaggle kernels and one Mac script rerun the 51 TabArena-Lite datasets (30 binary,
+8 multiclass, 13 regression; repeat 0, fold 0) from the fork's pull-request branch the way a
+maintainer would: no `FINTFM_*` variable, no local checkpoint, `fintfm` from PyPI (0.12.0),
+checkpoints fetched by the fork's `fintfm/checkpoints.py` from Hugging Face. Each fits the
+registry entry `FinTFM-LinProbe`, default config, through `TabArenaV0pt1ExperimentBundle` and
 `TabArenaContext.build_and_run_jobs(subset="lite")`, one process per dataset.
 
-| kernel | runs (result names) | local CPU time for comparison |
+| kernel | run (result name) | machine |
 | --- | --- | --- |
-| `task_lite_repro_pr_bin` | `fintfm_pr_repro_bin` (30 binary) | about 6.7 h |
-| `task_lite_repro_pr_mcreg` | `fintfm_pr_repro_mc` (8), `fintfm_pr_repro_reg` (13) | about 1.1 h + 4.5 h |
+| `task_lite_repro_pr_bin_small_a` | `fintfm_pr_repro_bin_small_a` (binary) | Kaggle CPU |
+| `task_lite_repro_pr_bin_small_b` | `fintfm_pr_repro_bin_small_b` (binary) | Kaggle CPU |
+| `task_lite_repro_pr_bin_large` | `fintfm_pr_repro_bin_large` (9 binary) | Kaggle T4 |
+| `task_lite_repro_pr_mc` | `fintfm_pr_repro_mc` (7 multiclass) | Kaggle CPU |
+| `task_lite_repro_pr_reg` | `fintfm_pr_repro_reg` (6 regression) | Kaggle CPU |
+| Mac (`MAC_MULTICLASS`, `MAC_REGRESSION`) | `fintfm_pr_repro_mac_mc` (SDSS17), `fintfm_pr_repro_mac_reg` (7) | Mac CPU, 4 threads |
 
-Kaggle time is not measured; the readout is CPU-bound, so the T4 is not assumed faster. Each
-kernel stops starting datasets after 11 h.
+Each table runs where its stored entry run ran. The 8 Mac tables were fitted on the Mac's CPU
+(`FINTFM_DEVICE=cpu`, 4 threads); on Kaggle's 4-core CPU their first bagging fold exceeds
+AutoGluon's per-fold budget and the fit stops with `TimeLimitExceeded` (2026-11-18, FINDINGS
+§293). The large binary tables need a T4
+for the same reason; an HF Jobs `t4-medium` measured about 3x slower than Kaggle's T4 on
+`Amazon_employee_access` and is not a substitute.
 
-Both scripts are generated: edit `scripts/kaggle/repro_pr_kernel_template.py` or
+The Kaggle scripts are generated: edit `scripts/kaggle/repro_pr_kernel_template.py` or
 `make_repro_pr_kernels.py`, run `.venv/bin/python scripts/kaggle/make_repro_pr_kernels.py`
-(`tests/test_repro_pr_kernels.py` fails when they are out of date).
+(`tests/test_repro_pr_kernels.py` fails when they are out of date, and checks that the kernels
+and the Mac lists together cover the 51 datasets once).
 
 ## Preflight (the kernel exits non-zero and says why)
 
-1. `FORK_COMMIT` is not a 7-40 digit hex SHA (shipped as `<FORK_COMMIT>`).
-2. `fintfm==FINTFM_VERSION` cannot be downloaded from PyPI (0.11.0 is unreleased).
+1. `FORK_COMMIT` is not a 7-40 digit hex SHA.
+2. `fintfm==FINTFM_VERSION` cannot be downloaded from PyPI.
 3. After cloning the fork at `FORK_COMMIT`: `checkpoints.py` still has an `"unpublished"`
-   reference, or no reference, for a problem type the kernel runs. The binary kernel needs only
-   binary; the mcreg kernel needs multiclass and regression.
+   reference, or no reference, for a problem type the kernel runs.
 
-## Steps, after the weights are published and 0.11.0 is released
+## Steps
 
-1. Publish multiclass and regression weights (`scripts/publish_weights.py`), and release fintfm
-   0.11.0 (see the Releases section of `CLAUDE.md`).
-2. In the fork, replace the two placeholder references in `checkpoints.py` with published ones
-   (repo, filename, commit, SHA-256) and update the PR branch. Note its head SHA.
-3. In both kernel scripts set `FORK_COMMIT` (or edit `make_repro_pr_kernels.py`'s template and
-   regenerate). Check `FINTFM_VERSION` equals the release.
-4. Dry-run the preflight anywhere with internet (clones the fork, fits nothing):
-   `.venv/bin/python scripts/kaggle/task_lite_repro_pr_bin/task_lite_repro_pr_bin.py --preflight-only`
-   and the same for `..._mcreg`. Both must print `preflight ok`.
-5. Launch with the lane launcher, two lanes, one kernel each, from the repository root:
-   `nohup scripts/kaggle/launch_queue.sh lane1 task_lite_repro_pr_bin:- > /dev/null 2>&1 &`
-   `nohup scripts/kaggle/launch_queue.sh lane2 task_lite_repro_pr_mcreg:- > /dev/null 2>&1 &`
+1. Update the PR branch and note its head SHA; set `FORK_COMMIT` in the template, check
+   `FINTFM_VERSION` equals the release, regenerate.
+2. Dry-run any kernel's preflight with internet (clones the fork, fits nothing):
+   `.venv/bin/python scripts/kaggle/<kernel>/<kernel>.py --preflight-only`.
+3. Launch one lane per kernel from the repository root, CPU kernels with
+   `scripts/kaggle/launch_queue_cpu.sh`, the T4 kernel with `scripts/kaggle/launch_queue.sh`:
+   `nohup scripts/kaggle/launch_queue_cpu.sh lane-mc task_lite_repro_pr_mc:- > /dev/null 2>&1 &`
    (`-` fetches outputs and scores nothing locally). Outputs land in
-   `runs/kaggle-fintfm-task-lite-repro-pr-bin/` and `...-mcreg/`.
-6. Check each `summary.json`: every dataset `exit` is 0, `removed_fintfm_env` is `[]`, `fork`
-   equals the PR head, `fintfm` is 0.11.0.
-7. Untar the three `fintfm_pr_repro_*.tar.gz` into `~/proj/tabarena/experiments/`, then merge:
-   `.venv/bin/python -P merge_fintfm_lite.py --name fintfm_pr_repro_all51 fintfm_pr_repro_bin fintfm_pr_repro_mc fintfm_pr_repro_reg --expect 51`
-   and compare with the entry's recorded Elo using `scripts/lite_positions.py`.
+   `runs/kaggle-fintfm-task-lite-repro-pr-<kernel suffix>/`.
+4. Run the Mac tables one at a time in a clean environment at the same fork commit, with no
+   `FINTFM_*` variable. The adapter fits on CPU unless CUDA is granted (fork 65c21d5). Before
+   that commit it chose Apple's MPS automatically, and every Mac table ran out of Metal memory
+   within minutes under torch 2.15.0 and 2.14.0 alike (2026-11-18).
+5. Check each `summary.json`: every dataset `exit` is 0, `removed_fintfm_env` is `[]`, `fork`
+   equals the PR head, `fintfm` is the release.
+6. Untar the `fintfm_pr_repro_*.tar.gz` into `~/proj/tabarena/experiments/`, merge the seven
+   runs with `merge_fintfm_lite.py --name fintfm_pr_repro_all51 ... --expect 51`, and score
+   against the stored entry with `scripts/lite_same_fit.py` and `scripts/lite_positions.py`.
 
 Not covered: the kernels do not test that the PR branch's `FinTFM-LinProbe` defaults equal the
 settings behind the recorded numbers. That is the point of the run; a difference is a finding.
