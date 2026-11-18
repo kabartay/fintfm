@@ -10,7 +10,12 @@ wrapper changes nothing in the kernel except its working directory:
    ``/kaggle`` does not exist);
 3. run it with a deadline shorter than the job's timeout, so step 4 always runs;
 4. upload every file in ``/work`` except the worker script to the private dataset repo
-   ``REPO_ID`` under ``<kernel>/``, whether the kernel succeeded or not.
+   ``REPO_ID`` under ``<kernel>/`` (``<kernel>-<OUT_SUFFIX>/`` when ``OUT_SUFFIX`` is set), whether
+   the kernel succeeded or not.
+
+``DATASETS`` (comma-separated), when set, keeps only those datasets of the kernel's ``RUNS`` and
+refuses a name the kernel does not list, so one kernel can be split across parallel jobs. The
+datasets' order and every fit setting stay the kernel's.
 
 Launch (the token is passed as a job secret from the caller's environment, never printed)::
 
@@ -57,17 +62,33 @@ def fetch_kernel(kernel: str, ref: str) -> Path:
     old = 'WORK = Path("/kaggle/working")'
     if text.count(old) != 1:
         sys.exit(f"{url}: expected exactly one {old!r}")
+    text = text.replace(old, f'WORK = Path("{WORK}")')
+    keep = [d for d in os.environ.get("DATASETS", "").split(",") if d]
+    if keep:
+        main_guard = '\nif __name__ == "__main__":\n'
+        if text.count(main_guard) != 1:
+            sys.exit(f"{url}: expected exactly one main guard")
+        subset = (
+            f"\n_KEEP = {keep!r}\n"
+            "_LISTED = {d for _, ds in RUNS.values() for d in ds}\n"
+            "if set(_KEEP) - _LISTED:\n"
+            "    sys.exit(f'DATASETS not in the kernel: {sorted(set(_KEEP) - _LISTED)}')\n"
+            "RUNS = {r: (t, [d for d in ds if d in _KEEP]) for r, (t, ds) in RUNS.items()}\n"
+        )
+        text = text.replace(main_guard, subset + main_guard)
     path = Path("/tmp") / f"{kernel}.py"
-    path.write_text(text.replace(old, f'WORK = Path("{WORK}")'))
+    path.write_text(text)
     return path
 
 
 def upload(kernel: str) -> None:
-    """Upload ``/work``'s outputs to ``REPO_ID`` under ``<kernel>/``.
+    """Upload ``/work``'s outputs to ``REPO_ID`` under ``<kernel>/`` or ``<kernel>-<OUT_SUFFIX>/``.
 
     Args:
         kernel: Kernel directory name, used as the folder in the repository.
     """
+    suffix = os.environ.get("OUT_SUFFIX", "")
+    folder = f"{kernel}-{suffix}" if suffix else kernel
     from huggingface_hub import HfApi
 
     api = HfApi()  # reads HF_TOKEN from the environment
@@ -76,11 +97,11 @@ def upload(kernel: str) -> None:
         folder_path=str(WORK),
         repo_id=REPO_ID,
         repo_type="dataset",
-        path_in_repo=kernel,
+        path_in_repo=folder,
         ignore_patterns=["repro_worker.py"],
-        commit_message=f"{kernel}: outputs of the HF Jobs run",
+        commit_message=f"{folder}: outputs of the HF Jobs run",
     )
-    print(f"uploaded {WORK} to datasets/{REPO_ID}/{kernel}", flush=True)
+    print(f"uploaded {WORK} to datasets/{REPO_ID}/{folder}", flush=True)
 
 
 def main() -> int:
