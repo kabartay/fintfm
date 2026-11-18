@@ -96,6 +96,7 @@ PROBLEM = {
 RUN_NAME = "fintfm_lp_mc_onehot_cpu"
 PROBLEM_TYPE = "multiclass"
 LEVER: dict[str, str] = {"FINTFM_PROBE_ONEHOT": "on"}
+DATASETS_ONLY: list[str] | None = None
 FORK_COMMIT = "229af56"
 FORK_BRANCH = "fintfm-mc-onehot"
 RUN_MODEL_TESTS = True
@@ -271,7 +272,7 @@ def main() -> None:
         "datasets": [],
     }
     log_path = WORK / f"{RUN_NAME}.log"
-    for ds in PROBLEM[PROBLEM_TYPE]["datasets"]:
+    for ds in DATASETS_ONLY or PROBLEM[PROBLEM_TYPE]["datasets"]:
         if time.time() > deadline:
             summary["datasets"].append({"dataset": ds, "exit": None, "seconds": 0})
             print(f"{ds}: skipped, session budget spent", flush=True)

@@ -17330,3 +17330,34 @@ so the three are not on one scale with each other or with §290's overall 1,009.
 
 RandomForest (default) is 1,000.0 on each board. Earlier per-type figures for comparison: binary 974 (§220), multiclass
 874 (§227), regression 689 (§235). Written for the GitHub Pages leaderboard, which had not been regenerated since §227.
+
+## §292: pre-registration: spline features in the multiclass and regression readouts, against §290's entry in one fit
+
+**Written 2026-11-18, before any arm runs.** §291 puts multiclass at 931.0 and regression at 767.4 Elo on their own
+boards. Splines (5 quantile knots, degree 3, at most 64 columns; §282, §290) are measured on binary only; the
+regression target transforms are not repeated (§255: log1p and quantile worse on 10 of 13), and the RFF readout on
+large tables is not retried (§278, time limit). **Not blind:** the arms were chosen after §291's per-table gaps were
+seen (worst against RandomForest: regression diamonds, superconductivity, physiochemical_protein, houses, all above
+10,000 training rows; multiclass anneal, maternal_health_risk, SDSS17).
+
+**Arms**, each the entry's settings for its problem type plus `FINTFM_PROBE_SPLINE=on`:
+
+| arm | tables | where | run |
+| --- | --- | --- | --- |
+| M-spl | the 7 multiclass tables of at most 10,000 training rows (SDSS17 excluded) | Kaggle CPU | `fintfm_lp_mc_spline_small_cpu` |
+| R-spl-small | the 7 regression tables of at most 10,000 training rows | Kaggle CPU | `fintfm_lp_reg_spline_small_cpu` |
+| R-spl-large | the 6 regression tables above 10,000 rows, no size gate | Mac, load-gated | `fintfm_lp_reg_spline_large_mac` |
+
+Entry settings: multiclass `dr74-mc-s0`, eight partition bags, readout scale/cv/raw, one-hot at most 64 levels, the
+out-of-fold probability floor; regression `v4-binned48_3-control`, four bags, readout raw, RFF at most 5,000 rows;
+cross-fitting off, CPU. Fork `fintfm-audit-fixes` at bc99785 (Kaggle) and dbc4690 (Mac; same spline code, no gate,
+which R-spl-large does not use).
+
+**Rule.** Each of three candidate entries replaces the matching tables of `fintfm_g287_bag4_spline` with an arm's
+results: E-M (M-spl), E-R (R-spl-small and R-spl-large), E-MR (all three). A candidate is adopted only if every one of
+its tables completes with no `TimeLimitExceeded` and it scores a higher Elo than `fintfm_g287_bag4_spline` in one fit
+with the field (`scripts/lite_same_fit.py`); if more than one passes, the highest. A regression arm's large half may
+be adopted alone (E-R with R-spl-large only, or only R-spl-small) under the same rule, and that is written as a
+separate result, not a retune. A time-limit hit at a Mac load average above 30 is a failed measurement and is rerun.
+Gains inside the Elo interval are configuration choices on one fold. An adopted lever becomes a PR-branch default
+gated by row count, and the reproduction without overrides is rerun.

@@ -96,6 +96,7 @@ PROBLEM = {
 RUN_NAME = "fintfm_lp_reg_ctrl_cpu"
 PROBLEM_TYPE = "regression"
 LEVER: dict[str, str] = {}
+DATASETS_ONLY: list[str] | None = None
 FORK_COMMIT = "b8612d7"
 FORK_BRANCH = "fintfm-lite-arms-1116"
 RUN_MODEL_TESTS = False
@@ -271,7 +272,7 @@ def main() -> None:
         "datasets": [],
     }
     log_path = WORK / f"{RUN_NAME}.log"
-    for ds in PROBLEM[PROBLEM_TYPE]["datasets"]:
+    for ds in DATASETS_ONLY or PROBLEM[PROBLEM_TYPE]["datasets"]:
         if time.time() > deadline:
             summary["datasets"].append({"dataset": ds, "exit": None, "seconds": 0})
             print(f"{ds}: skipped, session budget spent", flush=True)

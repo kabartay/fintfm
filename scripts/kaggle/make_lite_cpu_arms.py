@@ -22,6 +22,8 @@ DEFAULT_FORK = ("fintfm-lite-arms-1116", "b8612d7")
 FORKS: dict[str, tuple[str, str]] = {
     "cpu_mc_onehot": ("fintfm-mc-onehot", "229af56"),
     "cpu_mc_onehot_floor": ("fintfm-audit-fixes", "a52725c"),
+    "cpu_mc_spline_small": ("fintfm-audit-fixes", "bc99785"),
+    "cpu_reg_spline_small": ("fintfm-audit-fixes", "bc99785"),
 }
 #: Kernel directory -> (run name, problem type, lever variables).
 ARMS: dict[str, tuple[str, str, dict[str, str]]] = {
@@ -35,6 +37,46 @@ ARMS: dict[str, tuple[str, str, dict[str, str]]] = {
         "multiclass",
         {"FINTFM_PROBE_ONEHOT": "on", "FINTFM_PROB_FLOOR": "cv"},
     ),
+    # FINDINGS §292: the entry's settings for the problem type plus spline features.
+    "cpu_mc_spline_small": (
+        "fintfm_lp_mc_spline_small_cpu",
+        "multiclass",
+        {
+            "FINTFM_PROBE_ONEHOT": '{"min_count": 3, "max_columns": 256, "max_levels": 64}',
+            "FINTFM_PROB_FLOOR": "cv",
+            "FINTFM_PROBE_SPLINE": "on",
+        },
+    ),
+    "cpu_reg_spline_small": (
+        "fintfm_lp_reg_spline_small_cpu",
+        "regression",
+        {
+            "FINTFM_REG_READOUT": "rff",
+            "FINTFM_REG_RFF_MAX_ROWS": "5000",
+            "FINTFM_PROBE_SPLINE": "on",
+        },
+    ),
+}
+#: Arms that run a subset of their problem type's tables (FINDINGS §292); the others run all.
+ONLY: dict[str, list[str]] = {
+    "cpu_mc_spline_small": [
+        "anneal",
+        "hiva_agnostic",
+        "maternal_health_risk",
+        "MIC",
+        "splice",
+        "students_dropout_and_academic_success",
+        "website_phishing",
+    ],
+    "cpu_reg_spline_small": [
+        "QSAR_fish_toxicity",
+        "concrete_compressive_strength",
+        "healthcare_insurance_expenses",
+        "airfoil_self_noise",
+        "Another-Dataset-on-used-Fiat-500",
+        "QSAR-TID-11",
+        "wine_quality",
+    ],
 }
 MARK = "# --- ARM ---\n"
 
@@ -54,9 +96,11 @@ def render(run: str, problem: str, lever: dict[str, str], name: str = "") -> str
     branch, commit = FORKS.get(name, DEFAULT_FORK)
     head, _, rest = TEMPLATE.read_text().partition(MARK)
     _, _, tail = rest.partition(MARK)
+    only = ONLY.get(name)
     block = (
         f'RUN_NAME = "{run}"\nPROBLEM_TYPE = "{problem}"\n'
         f"LEVER: dict[str, str] = {json.dumps(lever)}\n"
+        f"DATASETS_ONLY: list[str] | None = {json.dumps(only) if only else None}\n"
         f'FORK_COMMIT = "{commit}"\nFORK_BRANCH = "{branch}"\n'
         f"RUN_MODEL_TESTS = {name in FORKS}\n"
     )

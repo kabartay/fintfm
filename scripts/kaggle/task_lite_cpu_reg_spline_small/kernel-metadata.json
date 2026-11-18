@@ -1,0 +1,17 @@
+{
+  "id": "muhakabartay/fintfm-task-lite-cpu-reg-spline-small",
+  "title": "fintfm-task-lite-cpu-reg-spline-small",
+  "code_file": "task_lite_cpu_reg_spline_small.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": "true",
+  "enable_gpu": "false",
+  "enable_tpu": "false",
+  "enable_internet": "true",
+  "dataset_sources": [],
+  "competition_sources": [],
+  "kernel_sources": [
+    "muhakabartay/fintfm-task-48-3-matched-binned-head-control"
+  ],
+  "model_sources": []
+}

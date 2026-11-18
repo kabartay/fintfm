@@ -1,0 +1,17 @@
+{
+  "id": "muhakabartay/fintfm-task-lite-cpu-mc-spline-small",
+  "title": "fintfm-task-lite-cpu-mc-spline-small",
+  "code_file": "task_lite_cpu_mc_spline_small.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": "true",
+  "enable_gpu": "false",
+  "enable_tpu": "false",
+  "enable_internet": "true",
+  "dataset_sources": [],
+  "competition_sources": [],
+  "kernel_sources": [
+    "muhakabartay/fintfm-ts-dr74-mc-s0"
+  ],
+  "model_sources": []
+}
