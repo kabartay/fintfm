@@ -17614,3 +17614,27 @@ All three completed and each equals the capped §297 run exactly (relative diffe
 fast-forwarded to d915c57. Without it the first two stopped at the time limit on the same machine (§293, §296).
 On machines where BLAS already used at most 4 threads (Kaggle sessions, the Mac runs) nothing changes, and on this
 Mac numpy uses Apple Accelerate, which `threadpoolctl` does not see, so the limit is a no-op there.
+
+## §300: §295's QSAR-TID-11 ran on the wrong machine and is rerun where the entry fitted it; RunPod replaces HF Jobs for GPU kernels, and an A40 matches HF's T4 to 2e-6 (task 49.25)
+
+**§295's runs (MEASURED, 2026-11-18).** All 13 regression tables exited 0: the 6 Kaggle CPU tables
+(`fintfm_lp_reg_clip_cpu`) and the 7 Mac tables (`fintfm_lp_reg_clip_mac`). Against `fintfm_g292_emr`'s source runs:
+diamonds 249,744 -> 956.7 (-99.62%), superconductivity 15.717 -> 12.572 (-20.01%), physiochemical_protein
+4.590 -> 4.531 (-1.30%), Food_Delivery_Time -0.03%, the other eight exact or within 0.003%, and **QSAR-TID-11
+0.900073 -> 0.901176 (+0.12%), past the rule's 0.1%.**
+
+**That one is the machine, not the arm.** The entry's QSAR-TID-11 comes from Kaggle CPU
+(`fintfm_lp_reg_spline_small_cpu`); §295's run text put it in the Mac half by mistake. On the Mac the clipped
+fit and the unclipped reproduction (`fintfm_pr_repro_mac_reg`, §297) are bit-identical (0.9011755281540276 both),
+so the clip changes no QSAR-TID-11 prediction there, and the +0.12% is the Mac-versus-Kaggle drift §297 already
+recorded. **Correction, written before its number exists:** QSAR-TID-11 is refitted with the clip on Kaggle CPU
+(`scripts/kaggle/task_lite_clip_qsar`, run `fintfm_lp_reg_clip_cpu_qsar`, same fork commit fe2b072), and §295's
+rule is applied with that run in place of the Mac one. Nothing else in the rule, margin or tables changes.
+
+**RunPod (MEASURED).** GPU kernels now run on RunPod instead of HF Jobs (`scripts/runpod/run_kernel_on_pod.py`:
+one A40, Secure Cloud, $0.59/h, host CUDA 13.2; it runs the HF wrapper with `UPLOAD=0`, polls and copies `/work`
+back over SSH, and always deletes the pod). The API's `exec` endpoint refuses a key scoped to Pods read/write,
+hence SSH. Parity check: `task_lite_threads_bin` on credit_card_clients_default at fork d915c57 scored
+**0.2161331571 on the A40 against 0.2161326927 on HF's T4 (§299), 2.1e-6 relative**, train time 178 s against
+309 s; the whole pod run took 7 minutes, about $0.07. A40 and T4 results are close, not bit-identical, so a run
+says which GPU it used.
