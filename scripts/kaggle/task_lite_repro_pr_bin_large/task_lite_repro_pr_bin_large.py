@@ -70,15 +70,11 @@ DATASET_TIMEOUT_S = 2 * 3600
 
 #: Run name -> (problem type, datasets). The run name is the directory under ``experiments/``.
 RUNS: dict[str, tuple[str, list[str]]] = {'fintfm_pr_repro_bin_large': ('binary',
-                               ['Amazon_employee_access',
-                                'APSFailure',
-                                'bank-marketing',
+                               ['bank-marketing',
                                 'credit_card_clients_default',
                                 'customer_satisfaction_in_airline',
-                                'Diabetes130US',
                                 'GiveMeSomeCredit',
-                                'HR_Analytics_Job_Change_of_Data_Scientists',
-                                'kddcup09_appetency'])}
+                                'HR_Analytics_Job_Change_of_Data_Scientists'])}
 
 #: The experiment script each dataset's process runs, in the fork root. Upstream-style API only.
 WORKER = '''\

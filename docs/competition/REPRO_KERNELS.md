@@ -11,7 +11,8 @@ registry entry `FinTFM-LinProbe`, default config, through `TabArenaV0pt1Experime
 | --- | --- | --- |
 | `task_lite_repro_pr_bin_small_a` | `fintfm_pr_repro_bin_small_a` (binary) | Kaggle CPU |
 | `task_lite_repro_pr_bin_small_b` | `fintfm_pr_repro_bin_small_b` (binary) | Kaggle CPU |
-| `task_lite_repro_pr_bin_large` | `fintfm_pr_repro_bin_large` (9 binary) | Kaggle T4 |
+| `task_lite_repro_pr_bin_large` | `fintfm_pr_repro_bin_large` (5 binary) | Kaggle T4 |
+| HF Jobs (`HF_BINARY_LARGE`) | `fintfm_pr_repro_bin_large_hf` (4 binary) | HF `t4-medium` |
 | `task_lite_repro_pr_mc` | `fintfm_pr_repro_mc` (7 multiclass) | Kaggle CPU |
 | `task_lite_repro_pr_reg` | `fintfm_pr_repro_reg` (6 regression) | Kaggle CPU |
 | Mac (`MAC_MULTICLASS`, `MAC_REGRESSION`) | `fintfm_pr_repro_mac_mc` (SDSS17), `fintfm_pr_repro_mac_reg` (7) | Mac CPU, 4 threads |
@@ -20,8 +21,11 @@ Each table runs where its stored entry run ran. The 8 Mac tables were fitted on 
 (`FINTFM_DEVICE=cpu`, 4 threads); on Kaggle's 4-core CPU their first bagging fold exceeds
 AutoGluon's per-fold budget and the fit stops with `TimeLimitExceeded` (2026-11-18, FINDINGS
 §293). The large binary tables need a T4
-for the same reason; an HF Jobs `t4-medium` measured about 3x slower than Kaggle's T4 on
-`Amazon_employee_access` and is not a substitute.
+for the same reason. On HF Jobs `t4-medium` fits took 1.8 to 3.3x as long as on Kaggle's T4:
+4 large tables completed there and equal the stored runs within 0.01% (`HF_BINARY_LARGE`,
+`scripts/hf/repro_kernel_on_hf_job.py` with `DATASETS`); bank-marketing, credit_card_clients_default
+and HR_Analytics stopped with `TimeLimitExceeded` (credit_card also on `a10g-large`), and
+GiveMeSomeCredit and airline were not tried, so those 5 stay in the T4 kernel.
 
 The Kaggle scripts are generated: edit `scripts/kaggle/repro_pr_kernel_template.py` or
 `make_repro_pr_kernels.py`, run `.venv/bin/python scripts/kaggle/make_repro_pr_kernels.py`

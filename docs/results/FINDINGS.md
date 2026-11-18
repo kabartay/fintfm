@@ -17425,6 +17425,17 @@ its plain-ridge candidate, so the RFF-cap tests now fit with splines off.
   automatic choice CUDA when AutoGluon grants a GPU, else CPU; `FINTFM_DEVICE=mps` still selects MPS (FinTFM tests
   404 passed). On Kaggle CPU and T4 the choice is the same as at c0a4680, so the Kaggle results there stand. The
   repro kernels now pin 65c21d5 and the 9 Mac tables are requeued at it.
+- **Status 2026-11-18, evening (MEASURED, fork 65c21d5 for the Mac and HF tables, c0a4680 for Kaggle CPU):**
+  multiclass on Kaggle CPU, 7 tables: 4 exact, MIC -0.02%, maternal_health_risk -0.01%, anneal -0.56%. Mac, CPU, no
+  `FINTFM_*` variable: SDSS17 +0.22%, QSAR-TID-11 +0.12%, houses, miami_housing, superconductivity, Food_Delivery_Time
+  and physiochemical_protein exact, diamonds running. **taiwanese_bankruptcy_prediction on the Mac: 0.05753 against
+  the stored 0.05756 (+0.01%)**, so its +22.2% on Kaggle CPU is the machine, not the code. Large binary on HF Jobs
+  `t4-medium` (Kaggle's GPU quota spent): Amazon_employee_access +0.01%, APSFailure +0.01%, Diabetes130US and
+  kddcup09_appetency exact, with training 1.8 to 3.3x as long as the stored Kaggle T4 runs (Amazon 582 -> 1,912 s,
+  kddcup09 1,068 -> 3,353 s). bank-marketing (508 s), HR_Analytics (426 s) and credit_card_clients_default (839 s;
+  995 s on `a10g-large`) stopped with `TimeLimitExceeded` there: the first fold projected past the per-fold budget.
+  These three, GiveMeSomeCredit and airline wait for Kaggle's T4. **For the PR this is a hardware risk:** on a machine
+  as slow as HF's for this model, 3 of 7 large binary tables tried did not finish inside TabArena's 3,600 s.
 - The Kaggle image's torch, numpy and scikit-learn versions were not recorded. The Mac venv has torch 2.15.0,
   numpy 2.5.5 and scikit-learn 1.9.1.
 

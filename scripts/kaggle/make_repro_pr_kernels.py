@@ -88,6 +88,14 @@ MAC_REGRESSION = [
     "QSAR-TID-11", "miami_housing", "houses", "superconductivity", "Food_Delivery_Time",
     "physiochemical_protein", "diamonds",
 ]  # fmt: skip
+#: Large binary tables reproduced on an HF Jobs ``t4-medium`` (``scripts/hf/repro_kernel_on_hf_job.py``
+#: with ``DATASETS``, 2026-11-18) while Kaggle's weekly GPU quota was spent: all four completed and
+#: equal the stored T4 runs within 0.01%. The other five ran past AutoGluon's per-fold budget there
+#: (HF fits were 1.8-3.3x slower than Kaggle's T4) and stay in the T4 kernel.
+HF_BINARY_LARGE = [
+    "Amazon_employee_access", "APSFailure", "Diabetes130US", "kddcup09_appetency",
+]  # fmt: skip
+BINARY_LARGE_KAGGLE = [d for d in BINARY_LARGE if d not in HF_BINARY_LARGE]
 MULTICLASS_KAGGLE = [d for d in MULTICLASS if d not in MAC_MULTICLASS]
 REGRESSION_KAGGLE = [d for d in REGRESSION if d not in MAC_REGRESSION]
 
@@ -95,7 +103,7 @@ REGRESSION_KAGGLE = [d for d in REGRESSION if d not in MAC_REGRESSION]
 KERNELS = {
     "task_lite_repro_pr_bin_small_a": {"fintfm_pr_repro_bin_small_a": ("binary", BINARY_SMALL_A)},
     "task_lite_repro_pr_bin_small_b": {"fintfm_pr_repro_bin_small_b": ("binary", BINARY_SMALL_B)},
-    "task_lite_repro_pr_bin_large": {"fintfm_pr_repro_bin_large": ("binary", BINARY_LARGE)},
+    "task_lite_repro_pr_bin_large": {"fintfm_pr_repro_bin_large": ("binary", BINARY_LARGE_KAGGLE)},
     "task_lite_repro_pr_mc": {"fintfm_pr_repro_mc": ("multiclass", MULTICLASS_KAGGLE)},
     "task_lite_repro_pr_reg": {"fintfm_pr_repro_reg": ("regression", REGRESSION_KAGGLE)},
 }

@@ -80,12 +80,16 @@ def test_each_kernel_checks_only_its_own_problem_types():
     assert len(reg.unpublished_checkpoints(PLACEHOLDERS, reg.problem_types())) == 1
 
 
-def test_runs_and_mac_tables_cover_the_51_lite_datasets_once():
+def test_runs_mac_and_hf_tables_cover_the_51_lite_datasets_once():
     spec = importlib.util.spec_from_file_location("gen", KAGGLE / "make_repro_pr_kernels.py")
     gen = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(gen)
-    names = gen.MAC_MULTICLASS + gen.MAC_REGRESSION
-    counts = {"multiclass": len(gen.MAC_MULTICLASS), "regression": len(gen.MAC_REGRESSION)}
+    names = gen.MAC_MULTICLASS + gen.MAC_REGRESSION + gen.HF_BINARY_LARGE
+    counts = {
+        "binary": len(gen.HF_BINARY_LARGE),
+        "multiclass": len(gen.MAC_MULTICLASS),
+        "regression": len(gen.MAC_REGRESSION),
+    }
     for kernel in KERNELS:
         for run, (ptype, datasets) in load(kernel).RUNS.items():
             names += datasets
