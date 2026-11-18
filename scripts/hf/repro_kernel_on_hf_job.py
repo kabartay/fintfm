@@ -14,7 +14,8 @@ wrapper changes nothing in the kernel except its working directory:
    the kernel succeeded or not.
 
 ``DATASETS`` (comma-separated), when set, keeps only those datasets of the kernel's ``RUNS`` and
-refuses a name the kernel does not list, so one kernel can be split across parallel jobs. The
+refuses a name the kernel does not list, so one kernel can be split across parallel jobs. Both
+``RUNS`` shapes are handled: ``(problem_type, datasets)`` and ``(datasets, extra_env)``. The
 datasets' order and every fit setting stay the kernel's.
 
 ``UPLOAD=0`` skips step 4 and leaves the outputs in ``/work``, for hosts whose caller copies them
@@ -73,10 +74,14 @@ def fetch_kernel(kernel: str, ref: str) -> Path:
             sys.exit(f"{url}: expected exactly one main guard")
         subset = (
             f"\n_KEEP = {keep!r}\n"
-            "_LISTED = {d for _, ds in RUNS.values() for d in ds}\n"
+            # RUNS values are (problem_type, datasets) in the generated repro kernels and
+            # (datasets, extra_env) in the hand-written arm kernels; keep whichever is the list.
+            "_I = {r: 0 if isinstance(v[0], list) else 1 for r, v in RUNS.items()}\n"
+            "_LISTED = {d for r, v in RUNS.items() for d in v[_I[r]]}\n"
             "if set(_KEEP) - _LISTED:\n"
             "    sys.exit(f'DATASETS not in the kernel: {sorted(set(_KEEP) - _LISTED)}')\n"
-            "RUNS = {r: (t, [d for d in ds if d in _KEEP]) for r, (t, ds) in RUNS.items()}\n"
+            "RUNS = {r: tuple([d for d in x if d in _KEEP] if i == _I[r] else x\n"
+            "                 for i, x in enumerate(v)) for r, v in RUNS.items()}\n"
         )
         text = text.replace(main_guard, subset + main_guard)
     path = Path("/tmp") / f"{kernel}.py"

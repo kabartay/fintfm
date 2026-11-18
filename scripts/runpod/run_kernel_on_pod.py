@@ -136,6 +136,11 @@ def create_pod(api: RunPod, args: argparse.Namespace) -> dict:
     }
     if args.datasets:
         env["DATASETS"] = args.datasets
+    for item in args.env:
+        name, sep, value = item.partition("=")
+        if not sep or not name:
+            raise SystemExit(f"--env expects NAME=VALUE, got {item!r}")
+        env[name] = value
     body = {
         "name": args.name,
         "image": args.image,
@@ -296,6 +301,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--kernel", required=True, help="kernel directory under scripts/kaggle/")
     p.add_argument("--ref", required=True, help="fintfm commit holding the kernel and the wrapper")
     p.add_argument("--datasets", default="", help="comma-separated subset of the kernel's datasets")
+    p.add_argument(
+        "--env",
+        action="append",
+        default=[],
+        metavar="NAME=VALUE",
+        help="extra pod environment variable (repeatable), e.g. OPENBLAS_NUM_THREADS=4",
+    )
     p.add_argument("--out", required=True, help="local directory for the outputs")
     p.add_argument("--gpu", default="NVIDIA A40", help="RunPod GPU type ID")
     p.add_argument("--cloud", default="SECURE", choices=["SECURE", "COMMUNITY"])
