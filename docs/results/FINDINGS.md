@@ -17533,3 +17533,42 @@ tables can run past TabArena's 3,600 s limit. A thread limit around the probe fi
 would remove the dependence on the machine; it is a code change to the entry and gets its own pre-registration and
 check against the stored runs. Until then, the 5 remaining large tables run on HF with `OPENBLAS_NUM_THREADS=4` set on
 the job (a machine setting; the kernel's config and `FINTFM_*` handling are unchanged).
+
+## §297: the reproduction from the PR branch completes 51 of 51 datasets: 1,018.7 Elo alone, 99th of 110, against the stored 1,023.0
+
+**MEASURED, TabArena-Lite repeat 0 fold 0, 2026-11-18.** Every dataset was refitted from the fork's PR branch with the
+registry default config and no `FINTFM_*` variable, fintfm 0.12.0 from PyPI, AutoGluon 1.6.4b20261109, each on the kind
+of machine its stored run used:
+
+| part | where | fork | runs |
+| --- | --- | --- | --- |
+| 21 binary tables of at most 10,000 rows | Kaggle CPU | e5cb05b (binary unchanged since) | `fintfm_pr_repro_bin_small_{a,b}` |
+| 9 larger binary tables | HF Jobs `t4-medium` (4 at default threads; 5 with `OPENBLAS_NUM_THREADS=4`, §296) | 65c21d5 | `fintfm_pr_repro_bin_large_hf`, `fintfm_pr_repro_bin_large` |
+| 7 multiclass, 6 regression | Kaggle CPU | c0a4680 (65c21d5 changes only the device choice on Apple Silicon) | `fintfm_pr_repro_mc`, `fintfm_pr_repro_reg` |
+| SDSS17 and 7 regression tables | Mac CPU, 4 threads | 65c21d5 | `fintfm_pr_repro_mac_{mc,reg}` |
+
+Merged as `fintfm_pr_repro_all51` (`merge_fintfm_lite.py --expect 51`, log `runs/merge_pr_repro_all51.log`).
+
+**Per dataset against the stored entry `fintfm_g292_emr`.** 49 of 51 within 0.3% (most exact; largest: airline -0.285%,
+Bioresponse -0.25%, SDSS17 +0.22%, churn +0.12%, QSAR-TID-11 +0.12%). anneal -0.56%. **taiwanese_bankruptcy_prediction
++22.2% on Kaggle CPU** (0.07034 against 0.05755); the same code on the Mac, where the stored run was fitted, gives
+0.05753 (+0.01%, run `fintfm_pr_repro_mac_bin`, not merged), so the difference is the machine. diamonds reproduces its
+defect exactly (RMSE 249,750; §295).
+
+**Scores (positions from `scripts/lite_positions.py`).**
+
+| board | stored entry | reproduction |
+| --- | --- | --- |
+| overall, alone | 1,023.0 (+70 / -80), 99th of 110 | **1,018.7 (+73 / -79), 99th of 110** |
+| overall, one fit with both (`scripts/lite_same_fit.py`, 111 methods) | 1,023.3 (+69 / -80), 99th | 1,018.9 (+71 / -78), 100th |
+| binary only, 30 datasets | 1,090.3, 92nd of 108 | 1,083.4 (+109 / -100), 92nd of 108 |
+| multiclass only, 8 | 947.1, 98th of 108 | 947.1 (+100 / -253), 98th of 108 |
+| regression only, 13 | 845.1, 97th of 103 | 845.1 (+127 / -219), 97th of 103 |
+
+RandomForest (default) is 1,000.0, 100th, on the reproduction's board; TABFLEX_GPU 978.0. The reproduction's -4.3 Elo is
+inside the interval and comes almost entirely from taiwanese on Kaggle CPU; it stays above RandomForest (default) by
+18.7, also inside the interval. **The reproduction's figures are the entry's standing** (§290): 1,018.7 Elo, 99th of 110.
+
+**Two defects found on the way, both outside the stored numbers:** the adapter chose Apple's MPS automatically and ran
+out of Metal memory on every Mac table (fixed, fork 65c21d5, §293); and on a machine with many vCPUs OpenBLAS
+oversubscription made 3 large binary tables run past the time limit (§296; a thread limit in the adapter is next).

@@ -12,9 +12,9 @@ excluded or imputed: **1,023.0 Elo (+70 / -80), 99th of 110**. RandomForest (def
 TABFLEX_GPU 977.7. The owner's bar for resubmitting is 1,000 Elo (DR7.6). The entry clears it by 23.0
 Elo, which is inside the interval, and the 10,000-row and 5,000-row gate lines were drawn after
 results were seen (§286, §287, §290, §292), so this is a configuration choice on one fold. These are
-stored-run figures. The reproduction from the PR branch with no `FINTFM_*` variables is running on
-Kaggle and must confirm them: `<REPRO: overall Elo, position of N>`. It uses AutoGluon 1.6.4b20261109
-(the PR branch's floor); the stored runs used 1.6.4b20260919.
+stored-run figures. The reproduction from the PR branch with no `FINTFM_*` variables completed 51 of
+51 datasets and scores 1,018.7 Elo (+73 / -79), 99th of 110 (FINDINGS §297). It uses AutoGluon
+1.6.4b20261109 (the PR branch's floor); the stored runs used 1.6.4b20260919.
 
 ## What #616 said, and where this draft answers it
 
@@ -40,7 +40,7 @@ FinTFM is a tabular foundation model pretrained on a synthetic prior only. This 
 multiclass, 13 regression). It is not zero-shot: it fits a linear readout (logistic regression, ridge
 or random-Fourier-feature ridge for regression) on training rows inside each partition leaf. On
 TabArena-Lite (repeat 0, fold 0) the stored runs score 1,023.0 Elo, 99th of 110 (§293); the
-reproduction from this branch scores `<REPRO: overall Elo, position>`. The wrapper does not follow
+reproduction from this branch scores 1,018.7 Elo, 99th of 110. The wrapper does not follow
 the template's rule on `X_val` / `y_val` and internal cross-validation; the deviations are declared in
 Details.
 
@@ -72,13 +72,13 @@ Details.
 
 | quantity | stored runs | reproduction from this branch | source |
 | --- | --- | --- | --- |
-| Overall, 51 of 51 datasets | 1,023.0 Elo (+70 / -80), 99th of 110 | `<REPRO: overall Elo, position>` | §293 |
-| RandomForest (default), same board | 1,000.0, 100th | `<REPRO>` | §293 |
-| TABFLEX_GPU, same board | 977.7 | `<REPRO>` | §293 |
-| Binary, 30 datasets, problem-type Elo | 1,090.3 (+110 / -104), 92nd of 108 | `<REPRO: binary Elo>` | §291 |
-| Multiclass, 8 datasets | 947.1 (+100 / -253), 98th of 108 | `<REPRO: multiclass Elo>` | §293 |
-| Regression, 13 datasets | 845.1 (+127 / -219), 97th of 103 | `<REPRO: regression Elo>` | §293 |
-| Coverage | 51 of 51, none imputed | `<REPRO: completed of 51>` | §293 |
+| Overall, 51 of 51 datasets | 1,023.0 Elo (+70 / -80), 99th of 110 | 1,018.7 (+73 / -79), 99th of 110 | §293, §297 |
+| RandomForest (default), same board | 1,000.0, 100th | 1,000.0, 100th | §293, §297 |
+| TABFLEX_GPU, same board | 977.7 | 978.0 | §293, §297 |
+| Binary, 30 datasets, problem-type Elo | 1,090.3 (+110 / -104), 92nd of 108 | 1,083.4 (+109 / -100), 92nd of 108 | §291, §297 |
+| Multiclass, 8 datasets | 947.1 (+100 / -253), 98th of 108 | 947.1 (+100 / -253), 98th of 108 | §293, §297 |
+| Regression, 13 datasets | 845.1 (+127 / -219), 97th of 103 | 845.1 (+127 / -219), 97th of 103 | §293, §297 |
+| Coverage | 51 of 51, none imputed | 51 of 51, none imputed | §293, §297 |
 
 The per-type stored figures for the current entry must be re-read with `scripts/lite_positions.py`
 before posting; the values above are the earlier entries and are marked so.
@@ -86,8 +86,11 @@ before posting; the values above are the earlier entries and are marked so.
 **Stored runs are what the reproduction must confirm.** The stored entry was assembled from runs on
 different machines (Kaggle CPU, Kaggle T4, a Mac) and different AutoGluon nightlies. §283 shows two
 Mac reruns reproducing stored metrics exactly (relative difference 0.0). The PR-branch reproduction
-(four Kaggle kernels, no `FINTFM_*` variables) is the check a maintainer could make. Its result
-replaces the stored-run figures as the entry's standing (§290).
+(no `FINTFM_*` variables; each table on the kind of machine its stored run used) is the check a
+maintainer could make. Its result replaces the stored-run figures as the entry's standing (§290):
+49 of 51 datasets within 0.3% of the stored metric, anneal -0.56%, and
+taiwanese_bankruptcy_prediction +22.2% on Kaggle CPU, which reproduces exactly on the Mac where it was
+stored (+0.01%), so that difference is the machine (§297).
 
 **What changed since #616** (the withdrawn entry was binary only, zero-shot head, 94th of 95, mean
 ROC-AUC 0.7823 over 27 datasets, `docs/competition/SUBMISSION.md`, §122). The README's change table
