@@ -1115,6 +1115,15 @@ binary datasets (§204). The progression of the overall figure was 880 (§221), 
 - **Single fold.** TabArena-Lite runs fold 0; per-dataset statements are single draws. The Elo
   intervals are about ±100 to ±170.
 
+**2026-11-18, §293 (Claim 19; the status stays SINGLE DRAW):**
+
+- **The entry now stands at 1,023.0 Elo (+70/-80), 99th of 110** (`fintfm_g292_emr`): spline features
+  for multiclass fits of at most 10,000 rows and for regression, adopted under §292's rule (+14.4 Elo
+  against §290's entry in one fit, inside the interval). diamonds regresses from RMSE 918 to 249,744, a
+  readout failure the rule does not see. The figures are stored runs. The reproduction from the PR branch
+  is in progress, and taiwanese_bankruptcy_prediction's stored Mac value (0.0576) did not reproduce on
+  Kaggle CPU (0.0703).
+
 **2026-11-17, §283, §286, §290 (Claim 19; the status stays SINGLE DRAW):**
 
 - **The entry now stands at 1,009.8 Elo (+74/-92), 99th of 110** (`fintfm_g287_bag4_spline`), above

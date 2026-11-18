@@ -67,14 +67,14 @@ says plainly where it does not yet.
 
 | | |
 | --- | --- |
-| **TabArena-Lite (own run)** | **1,009.8 Elo, 99th of 110, all 51 datasets, none excluded** (§290); RandomForest (default) 1,000.0, 100th, in the same fit, a lead well inside the ±90 interval. Assembled from stored runs; the reproduction from the pull-request branch with no overrides is still to come. One fold, run in this project's TabArena fork, not on [tabarena.ai](https://tabarena.ai). The entry is "FinTFM with a trained linear readout": a linear model on the network's representation, which also takes the row's own features. By type: binary 1,046 on 30 datasets (§257, readout cross-fitted, partition depth scaled with table size and a 50,000-row readout budget, fitted on a Kaggle T4), multiclass 874 on 8 (§227), regression 689 on 13 (§235), each before the later levers (§269, §283, §286, §290). Cross-fitting did not help multiclass or regression (§255). On the same board RandomForest (default), the resubmission bar, scores 1,000 and Linear (tuned) 919. General-tabular results, not credit results |
+| **TabArena-Lite (own run)** | **1,023.0 Elo, 99th of 110, all 51 datasets, none excluded** (§293); RandomForest (default) 1,000.0, 100th, in the same fit, a lead inside the ±80 interval. Assembled from stored runs; the reproduction from the pull-request branch with no overrides is still to come. One fold, run in this project's TabArena fork, not on [tabarena.ai](https://tabarena.ai). The entry is "FinTFM with a trained linear readout": a linear model on the network's representation, which also takes the row's own features. By type: binary 1,046 on 30 datasets (§257, readout cross-fitted, partition depth scaled with table size and a 50,000-row readout budget, fitted on a Kaggle T4), multiclass 874 on 8 (§227), regression 689 on 13 (§235), each before the later levers (§269, §283, §286, §290, §293). Cross-fitting did not help multiclass or regression (§255). On the same board RandomForest (default), the resubmission bar, scores 1,000 and Linear (tuned) 919. General-tabular results, not credit results |
 | **TabArena submission** | The zero-shot model on 27 binary datasets ranked **94th of 95**; a maintainer confirmed the integration and declined the entry on competitiveness (§122). On today's field it scores 750 Elo, 107th of 108 (§225). No resubmission until the readout entry reaches 1,000 overall Elo (design review DR7.6) |
 | **Real credit panels** | Gradient boosting wins. On V4FinBench's full panel FinTFM scores 0.20 mean AP against 0.40 for untuned CatBoost (§163); LightGBM at 1,000 trees reaches 0.3908 (§167), so the gap is boosting rounds, not one library. On four more credit datasets (SBA 7(a), ULB, FDIC, Estonia) FinTFM is below untuned logistic regression on mean AP (§216). Calibration was best or near-best on four panels for the pre-cell-attention architecture, one split each (Claim 9, a single draw, §73), and is not claimed for the published checkpoint: it over-predicts the default rate 1.2 to 1.7 times on ULB (§174), and 1.9 and 3.2 times on two FDIC splits while under-predicting the third (0.396% against 0.735%; run record behind §216, `docs/results/drafts/dr4.3-runs_2026-11-07.md`) |
 | **Levers on V4FinBench** | Opt-in fine-tuning (`finetune_steps`, 0.7.0): mean AP 0.1986 to 0.2062, better on 5 of 5 folds, 3.8% of the gap to CatBoost (§163). Zero-shot partitioned contexts (`fintfm-v4protocol --large-n partition`): 0.1986 to 0.2362, +0.0375, 5 of 5 folds (§169), and ahead of fine-tuning on 5 of 5 (§205) |
 | **Licence** | Apache-2.0 for **code and weights**, each chosen separately (see [Licensing](#licensing--provenance)) |
 | **Checkpoint** | [kabartay/fintfm-binary](https://huggingface.co/kabartay/fintfm-binary): 885K parameters, binary, up to 136 features |
 | **Tests** | about 1,350 (2026-11-13), plus `ruff`, the openspec validator, a dependency-licence check and a documentation-link check, all in CI |
-| **Measurement log** | 291 numbered entries, each stating how its numbers were produced; pre-registrations are written before their arms run |
+| **Measurement log** | 293 numbered entries, each stating how its numbers were produced; pre-registrations are written before their arms run |
 | **Problem types** | Binary is declared. The multiclass and regression checkpoints the TabArena-Lite entry uses are published too (Apache-2.0, 2026-11-17: [`kabartay/fintfm-multiclass`](https://huggingface.co/kabartay/fintfm-multiclass), [`kabartay/fintfm-regression`](https://huggingface.co/kabartay/fintfm-regression)), but those problem types are **not** declared (§121) |
 
 **Read [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md) before anything else.** It tags every
@@ -92,11 +92,11 @@ TabArena-Lite, one fold per dataset, scored against TabArena's cached results fo
 method. Positions come from each run's stored leaderboard (§225). TabArena's printed table
 numbers its rows from 0, so ranks quoted from it before 2026-11-13 were one place too high.
 
-**Standing on 2026-11-17:**
+**Standing on 2026-11-18:**
 
 | entry | datasets | Elo | position | source |
 | --- | --- | --- | --- | --- |
-| **FinTFM with a trained linear readout** | all 51, none excluded | **1,009.8** (+74 / −92) | **99th of 110** | §290 |
+| **FinTFM with a trained linear readout** | all 51, none excluded | **1,023.0** (+70 / −80) | **99th of 110** | §293 |
 | the published model, zero-shot, own head | 27 binary | 750 (+134 / −186) | 107th of 108 | §225 |
 | RandomForest (default), the resubmission bar | all 51 | 1,000 | 100th of 110 | §224, §225 |
 
@@ -133,7 +133,8 @@ significant on its own; the cited entries give the paired per-dataset tests.
 | multiclass: probability floor chosen on out-of-fold rows (a configuration choice: +0.7 Elo in one fit) | 51 | 966.1 | 103rd of 110 | §269 |
 | one-hot indicators for categorical columns of at most 64 levels (multiclass) and a random-Fourier-feature readout for fits of at most 5,000 rows (regression); a configuration choice inside the interval | 51 | 979.8 | 101st of 110 | §280, §283 |
 | binary: four readout bags for fits of at most 5,000 rows; a configuration choice inside the interval | 51 | 989.4 | 101st of 110 | §286 |
-| binary: spline features in the readout for fits of at most 10,000 rows; a configuration choice inside the interval | 51 | **1,009.8** | **99th of 110** | §290 |
+| binary: spline features in the readout for fits of at most 10,000 rows; a configuration choice inside the interval | 51 | 1,009.8 | 99th of 110 | §290 |
+| multiclass (fits of at most 10,000 rows) and regression: spline features in the readout; a configuration choice inside the interval, and diamonds regresses badly (§293) | 51 | **1,023.0** | **99th of 110** | §293 |
 
 **These are breadth results, not credit results.** On V4FinBench a readout per partition leaf
 first scored −0.0570 mean AP, better on 0 of 5 folds (§218). §219 traced that to a sampling

@@ -1,11 +1,11 @@
 {
   "date": "2026-11-18",
-  "finding": "FINDINGS &sect;290",
+  "finding": "FINDINGS &sect;293",
   "self_method": "[New] TA-FINTFM-LINPROBE (default)",
   "self_label": "FinTFM with a trained linear readout",
   "n_datasets": 51,
-  "bar_text": "RandomForest (default), at 1,000 Elo, is the bar for resubmitting to TabArena (design review DR7.6, owner decision 2026-11-13). The entry is 9.8 Elo above it, well inside the Elo interval of about &plusmn;90 (FINDINGS &sect;290).",
-  "entry_text": "It is not the zero-shot model. A linear model (logistic regression for classification, ridge or random-Fourier-feature ridge for regression) is fitted on the network's representation of each training split, one per partition leaf, and also takes the row's own features. Size-gated levers: four readout bags and spline features for small binary tables, one-hot indicators for multiclass, a random-Fourier-feature readout for small regression tables (FINDINGS &sect;283, &sect;286, &sect;290). The binary, multiclass and regression checkpoints are all public under Apache-2.0 (fintfm 0.12.0). The figures are assembled from stored runs; a reproduction from the pull-request branch with no environment overrides is running. These are general-tabular results, not credit results: on real credit panels FinTFM currently loses to gradient boosting (FINDINGS &sect;216).",
+  "bar_text": "RandomForest (default), at 1,000 Elo, is the bar for resubmitting to TabArena (design review DR7.6, owner decision 2026-11-13). The entry is 23.0 Elo above it, inside the Elo interval of about &plusmn;80 (FINDINGS &sect;293).",
+  "entry_text": "It is not the zero-shot model. A linear model (logistic regression for classification, ridge or random-Fourier-feature ridge for regression) is fitted on the network's representation of each training split, one per partition leaf, and also takes the row's own features. Size-gated levers: four readout bags and spline features for small binary tables, one-hot indicators and spline features for multiclass, a random-Fourier-feature readout for small regression tables and spline features for all regression tables (FINDINGS &sect;283, &sect;286, &sect;290, &sect;293). The binary, multiclass and regression checkpoints are all public under Apache-2.0 (fintfm 0.12.0). The figures are assembled from stored runs; a reproduction from the pull-request branch with no environment overrides is running. These are general-tabular results, not credit results: on real credit panels FinTFM currently loses to gradient boosting (FINDINGS &sect;216).",
   "types_note": "Each figure comes from a leaderboard over that problem type's datasets only, so the four are not on one scale with each other or with the headline.",
   "types": [
     {
@@ -15,15 +15,15 @@
       "self": true
     },
     {
-      "elo": "931",
+      "elo": "947",
       "name": "Multiclass, 8 datasets",
-      "sub": "linear readout, one-hot categories, probability floor, 100th of 108 &middot; &sect;291",
+      "sub": "linear readout, one-hot categories, splines, probability floor, 98th of 108 &middot; &sect;293",
       "self": true
     },
     {
-      "elo": "767",
+      "elo": "845",
       "name": "Regression, 13 datasets",
-      "sub": "ridge or random-Fourier-feature readout, 98th of 103 &middot; &sect;291",
+      "sub": "ridge or random-Fourier-feature readout with splines, 97th of 103 &middot; &sect;293",
       "self": true
     },
     {
@@ -58,7 +58,7 @@
   ],
   "board": {
     "csv": "tabarena_lite_51_2026-11-18.csv",
-    "source_run": "fintfm_g287_bag4_spline",
+    "source_run": "fintfm_g292_emr",
     "n_total": 110,
     "n_omitted": 2
   }

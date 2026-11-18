@@ -6,6 +6,12 @@ not paste one into the other. See `CLAUDE.md`.
 
 ## [Unreleased]
 
+- README: the TabArena-Lite standing is 1,023.0 Elo, 99th of 110 (FINDINGS §293): spline
+  features in the multiclass and regression readouts, adopted under §292's rule.
+- The reproduction kernels pin the pull-request branch at c0a4680. The multiclass and
+  regression kernel is split in two, and the eight tables whose stored runs were fitted on the
+  Mac are reproduced there.
+
 ## [0.12.0] — 2026-11-17
 
 The multiclass and regression checkpoints that the TabArena entry loads are public on

@@ -1,7 +1,7 @@
 {
-  "id": "muhakabartay/fintfm-task-lite-repro-pr-mcreg",
-  "title": "fintfm-task-lite-repro-pr-mcreg",
-  "code_file": "task_lite_repro_pr_mcreg.py",
+  "id": "muhakabartay/fintfm-task-lite-repro-pr-mc",
+  "title": "fintfm-task-lite-repro-pr-mc",
+  "code_file": "task_lite_repro_pr_mc.py",
   "language": "python",
   "kernel_type": "script",
   "is_private": "true",

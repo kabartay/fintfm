@@ -1,4 +1,4 @@
-"""Write the two TabArena-Lite reproduction kernels from ``repro_pr_kernel_template.py``.
+"""Write the TabArena-Lite reproduction kernels from ``repro_pr_kernel_template.py``.
 
 Run from the repository root: ``.venv/bin/python scripts/kaggle/make_repro_pr_kernels.py``. The
 dataset lists are the Lite suite's 51 datasets (30 binary, 8 multiclass, 13 regression), the same
@@ -78,15 +78,26 @@ assert sorted(BINARY_SMALL_A + BINARY_SMALL_B + BINARY_LARGE) == sorted(BINARY),
     "the split must cover the binary suite once"
 )
 
+#: Multiclass and regression tables whose stored runs were fitted on the Mac and take 1,500-3,300 s
+#: there: on a 4-core Kaggle CPU their first bagged fold runs past AutoGluon's per-fold budget
+#: (3,600 s / 8), so the bag stops with TimeLimitExceeded (the e5cb05b repro kernel, 2026-11-18).
+#: They are reproduced on the Mac with the same worker, commit and pins
+#: (``scratchpad repro_mac.sh``; FINDINGS §293), not in a kernel.
+MAC_MULTICLASS = ["SDSS17"]
+MAC_REGRESSION = [
+    "QSAR-TID-11", "miami_housing", "houses", "superconductivity", "Food_Delivery_Time",
+    "physiochemical_protein", "diamonds",
+]  # fmt: skip
+MULTICLASS_KAGGLE = [d for d in MULTICLASS if d not in MAC_MULTICLASS]
+REGRESSION_KAGGLE = [d for d in REGRESSION if d not in MAC_REGRESSION]
+
 #: Kernel directory -> {run name: (problem type, datasets)}. Run names are what the merge reads.
 KERNELS = {
     "task_lite_repro_pr_bin_small_a": {"fintfm_pr_repro_bin_small_a": ("binary", BINARY_SMALL_A)},
     "task_lite_repro_pr_bin_small_b": {"fintfm_pr_repro_bin_small_b": ("binary", BINARY_SMALL_B)},
     "task_lite_repro_pr_bin_large": {"fintfm_pr_repro_bin_large": ("binary", BINARY_LARGE)},
-    "task_lite_repro_pr_mcreg": {
-        "fintfm_pr_repro_mc": ("multiclass", MULTICLASS),
-        "fintfm_pr_repro_reg": ("regression", REGRESSION),
-    },
+    "task_lite_repro_pr_mc": {"fintfm_pr_repro_mc": ("multiclass", MULTICLASS_KAGGLE)},
+    "task_lite_repro_pr_reg": {"fintfm_pr_repro_reg": ("regression", REGRESSION_KAGGLE)},
 }
 
 
@@ -97,7 +108,8 @@ KERNELS = {
 CPU_KERNELS = {
     "task_lite_repro_pr_bin_small_a",
     "task_lite_repro_pr_bin_small_b",
-    "task_lite_repro_pr_mcreg",
+    "task_lite_repro_pr_mc",
+    "task_lite_repro_pr_reg",
 }
 
 

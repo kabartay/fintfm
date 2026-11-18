@@ -44,7 +44,7 @@ from pathlib import Path
 #: to 5,000 fit rows and splines up to 10,000 (FINDINGS §290), and one GPU requested when CUDA is
 #: available (2026-11-18). The CPU kernels first pushed at e5cb05b run identically: the GPU request
 #: changes nothing where CUDA is absent.
-FORK_COMMIT = "2e5019e2142244b6131e00c56384c0bd2e348881"
+FORK_COMMIT = "c0a4680414fc6b10082dd4a027dce4de5cb6b11e"
 #: The fintfm release the fork's extra pins: 0.12.0 publishes the multiclass and regression
 #: checkpoints. The preflight refuses to run until it is on PyPI.
 FINTFM_VERSION = "0.12.0"
@@ -59,7 +59,7 @@ MODEL = "FinTFM-LinProbe"
 #: entry runs used 1.6.4b20260919, which that branch no longer installs (pip: ResolutionImpossible,
 #: 2026-11-17), so this reproduction also changes the AutoGluon nightly.
 AUTOGLUON = "1.6.4b20261109"
-KERNEL = "task_lite_repro_pr_mcreg"
+KERNEL = "task_lite_repro_pr_reg"
 #: ``gpu``: refuse to run without CUDA (the binary entry ran on a T4); ``cpu``: run on the CPU.
 DEVICE = "cpu"
 WORK = Path("/kaggle/working")
@@ -69,29 +69,13 @@ BUDGET_S = 11 * 3600
 DATASET_TIMEOUT_S = 2 * 3600
 
 #: Run name -> (problem type, datasets). The run name is the directory under ``experiments/``.
-RUNS: dict[str, tuple[str, list[str]]] = {'fintfm_pr_repro_mc': ('multiclass',
-                        ['anneal',
-                         'hiva_agnostic',
-                         'maternal_health_risk',
-                         'MIC',
-                         'SDSS17',
-                         'splice',
-                         'students_dropout_and_academic_success',
-                         'website_phishing']),
- 'fintfm_pr_repro_reg': ('regression',
+RUNS: dict[str, tuple[str, list[str]]] = {'fintfm_pr_repro_reg': ('regression',
                          ['QSAR_fish_toxicity',
                           'concrete_compressive_strength',
                           'healthcare_insurance_expenses',
                           'airfoil_self_noise',
                           'Another-Dataset-on-used-Fiat-500',
-                          'QSAR-TID-11',
-                          'wine_quality',
-                          'miami_housing',
-                          'houses',
-                          'superconductivity',
-                          'Food_Delivery_Time',
-                          'physiochemical_protein',
-                          'diamonds'])}
+                          'wine_quality'])}
 
 #: The experiment script each dataset's process runs, in the fork root. Upstream-style API only.
 WORKER = '''\

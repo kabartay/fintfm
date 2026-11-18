@@ -17361,3 +17361,59 @@ be adopted alone (E-R with R-spl-large only, or only R-spl-small) under the same
 separate result, not a retune. A time-limit hit at a Mac load average above 30 is a failed measurement and is rerun.
 Gains inside the Elo interval are configuration choices on one fold. An adopted lever becomes a PR-branch default
 gated by row count, and the reproduction without overrides is rerun.
+
+## §293: §292's rule passes: spline features are adopted for multiclass (fits of at most 10,000 rows) and regression (every size); the entry becomes `fintfm_g292_emr`, 1,023.0 Elo alone, 99th of 110 (MEASURED, stored runs)
+
+**Arms** (all completed, no `TimeLimitExceeded`): M-spl `fintfm_lp_mc_spline_small_cpu` (7 tables, Kaggle CPU),
+R-spl-small `fintfm_lp_reg_spline_small_cpu` (7, Kaggle CPU), R-spl-large `fintfm_lp_reg_spline_large_mac` (6, Mac,
+each gated at a load average below 30; 25 to 51 minutes per table).
+
+**Per table against `fintfm_g287_bag4_spline`** (change in the Lite metric; negative is better):
+
+| arm | better | worse | unchanged | largest changes |
+| --- | --- | --- | --- | --- |
+| M-spl | 2 | 2 | 3 | anneal -16.45%, MIC -1.27%; maternal_health_risk +0.68%, students_dropout +0.03% |
+| R-spl-small | 5 | 1 | 1 | concrete -9.13%, airfoil -8.82%, wine -1.73%, QSAR_fish -0.97%; Fiat-500 +1.48% |
+| R-spl-large | 3 | 3 | 0 | miami -4.42%, Food_Delivery -4.29%, houses -1.32%; physiochemical +1.98%, superconductivity +22.69%, **diamonds RMSE 249,743.5 against 918.2** |
+
+**diamonds is a defect, not noise.** Its out-of-fold validation RMSE is as bad (110,804.8), so the readout fails on
+training-distribution rows, not only by extrapolating at test time. Elo counts it as one loss whatever its size.
+The rule below does not see magnitude, so the entry carries this failure; diagnosing it is open work.
+
+**Same fit** (`runs/samefit_g292.log`, field of 115): E-MR `fintfm_g292_emr` **1,024.0 (+68/-76), 99th**; E-R 1,022.3;
+E-R large only 1,016.7; E-R small only 1,015.2; E-M 1,011.3; `fintfm_g287_bag4_spline` 1,009.6 (+72/-91), 104th.
+Every candidate scores above the entry, and E-MR scores highest, so **E-MR is adopted** under §292's rule. +14.4 Elo is inside the
+interval: a configuration choice on one fold.
+
+**Alone** (`runs/merge_fintfm_g292_emr.log`, `scripts/lite_positions.py`): **1,023.0 Elo (+70/-80), 99th of 110**;
+RandomForest (default) 1,000.0, 100th. By problem type (each on its own board, as §291): multiclass **947.1 (+100/-253), 98th of 108**
+(`fintfm_g292_types_mc`; §291 931.0, 100th); regression **845.1 (+127/-219), 97th of 103** (`fintfm_g292_types_reg`;
+§291 767.4, 98th). Binary is unchanged at 1,090.3.
+
+**PR branch.** `fintfm-pr-2026-11` c0a4680 makes the adopted levers defaults: `probe_spline` on for multiclass with
+`spline_max_rows` 10,000 (M-spl measured only fits of at most 10,000 rows; SDSS17 stays without splines) and on for
+regression with no gate. Fork tests 333 pass. On the tests' toy regression target the splines make `RFFRidgeCV` choose
+its plain-ridge candidate, so the RFF-cap tests now fit with splines off.
+
+**Reproduction so far** (PR branch, no `FINTFM_*` variables, AutoGluon 1.6.4b20261109, fintfm 0.12.0):
+
+- **Binary, 21 tables of at most 10,000 rows, Kaggle CPU, e5cb05b** (binary defaults unchanged at c0a4680):
+  17 exact, three within 0.25% (Bioresponse -0.25%, churn +0.12%, NATICUSdroid -0.02%), polish_companies_bankruptcy
+  +0.01%, and **taiwanese_bankruptcy_prediction 0.07034 against 0.05755 (+22.2%)**. The gates acted the same way in both runs
+  (four bags kept at 3,977 to 4,546 rows, the same 64 of 92 columns splined). The stored value was fitted on the Mac.
+  The Kaggle rerun lands near §286's Kaggle CPU control (0.07106), so most of taiwanese's measured four-bag gain
+  may be a Mac-against-Kaggle difference. A Mac rerun of taiwanese on the PR branch is queued to separate the
+  machine from the code.
+- **Multiclass and regression at e5cb05b** (before this adoption): the 13 tables whose stored runs were on Kaggle CPU
+  reproduce exactly. The 8 whose stored runs were on the Mac (SDSS17, QSAR-TID-11 and the six large regression
+  tables) stop with `TimeLimitExceeded` on Kaggle's 4-core CPU: AutoGluon's sequential bagging stops when the first
+  fold projects past 3,600 s for 8 folds (about 450 s per fold), and these take 1,500 to 3,300 s on the Mac.
+  QSAR-TID-11 sits at the edge: 3,346 s in R-spl-small on Kaggle, stopped after its first fold in the repro.
+  These results are superseded by c0a4680's defaults and kept as `fintfm_pr_repro_{mc,reg}_e5cb05b`.
+- **Next:** at c0a4680, `task_lite_repro_pr_mc` (7 tables) and `task_lite_repro_pr_reg` (6) on Kaggle CPU. The 8 Mac
+  tables plus taiwanese run on the Mac with the kernel's own worker and the same pins (a separate venv, since the
+  fork's venv has AutoGluon 0919), one at a time behind the load gate. The 9 large binary tables run on a Kaggle T4
+  once the weekly GPU quota resets: an HF Jobs t4-medium measured about 3x slower (Amazon_employee_access
+  1,821 s against 610 s) with the GPU in use, which would push tables into the 3,600 s limit.
+- The Kaggle image's torch, numpy and scikit-learn versions were not recorded. The Mac venv has torch 2.15.0,
+  numpy 2.5.5 and scikit-learn 1.9.1.

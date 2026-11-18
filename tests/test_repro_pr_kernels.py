@@ -11,7 +11,8 @@ KERNELS = [
     "task_lite_repro_pr_bin_small_a",
     "task_lite_repro_pr_bin_small_b",
     "task_lite_repro_pr_bin_large",
-    "task_lite_repro_pr_mcreg",
+    "task_lite_repro_pr_mc",
+    "task_lite_repro_pr_reg",
 ]
 
 PUBLISHED = """
@@ -67,18 +68,24 @@ def test_unpublished_checkpoints_by_problem_type():
 
 
 def test_each_kernel_checks_only_its_own_problem_types():
-    bin_mod, mcreg = load(KERNELS[0]), load(KERNELS[3])
+    bin_mod, mc, reg = load(KERNELS[0]), load(KERNELS[3]), load(KERNELS[4])
     for k in KERNELS[1:3]:
         assert load(k).problem_types() == ("binary",)
     assert bin_mod.problem_types() == ("binary",)
-    assert mcreg.problem_types() == ("multiclass", "regression")
-    # Multiclass and regression are still placeholders: only the binary kernel passes.
+    assert mc.problem_types() == ("multiclass",)
+    assert reg.problem_types() == ("regression",)
+    # Multiclass and regression are placeholders here: only the binary kernel passes.
     assert bin_mod.unpublished_checkpoints(PLACEHOLDERS, bin_mod.problem_types()) == []
-    assert len(mcreg.unpublished_checkpoints(PLACEHOLDERS, mcreg.problem_types())) == 2
+    assert len(mc.unpublished_checkpoints(PLACEHOLDERS, mc.problem_types())) == 1
+    assert len(reg.unpublished_checkpoints(PLACEHOLDERS, reg.problem_types())) == 1
 
 
-def test_runs_cover_the_51_lite_datasets_once():
-    names, counts = [], {}
+def test_runs_and_mac_tables_cover_the_51_lite_datasets_once():
+    spec = importlib.util.spec_from_file_location("gen", KAGGLE / "make_repro_pr_kernels.py")
+    gen = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(gen)
+    names = gen.MAC_MULTICLASS + gen.MAC_REGRESSION
+    counts = {"multiclass": len(gen.MAC_MULTICLASS), "regression": len(gen.MAC_REGRESSION)}
     for kernel in KERNELS:
         for run, (ptype, datasets) in load(kernel).RUNS.items():
             names += datasets

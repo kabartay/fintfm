@@ -44,7 +44,7 @@ from pathlib import Path
 #: to 5,000 fit rows and splines up to 10,000 (FINDINGS §290), and one GPU requested when CUDA is
 #: available (2026-11-18). The CPU kernels first pushed at e5cb05b run identically: the GPU request
 #: changes nothing where CUDA is absent.
-FORK_COMMIT = "2e5019e2142244b6131e00c56384c0bd2e348881"
+FORK_COMMIT = "c0a4680414fc6b10082dd4a027dce4de5cb6b11e"
 #: The fintfm release the fork's extra pins: 0.12.0 publishes the multiclass and regression
 #: checkpoints. The preflight refuses to run until it is on PyPI.
 FINTFM_VERSION = "0.12.0"

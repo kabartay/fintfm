@@ -7,11 +7,11 @@ TabArena-Lite, repeat 0, fold 0, run from the tabarena fork. None of it is the p
 full TabArena run. Code statements are read from the PR branch `fintfm-pr-2026-11` (fork commit
 e5cb05b), folder `packages/tabarena/src/tabarena/models/fintfm_linprobe/` unless another path is given.
 
-**Standing from stored runs (§290).** Entry `fintfm_g287_bag4_spline`, all 51 Lite datasets, none
-excluded or imputed: **1,009.8 Elo (+74 / -92), 99th of 110**. RandomForest (default) 1,000.0, 100th.
-TABFLEX_GPU 977.7. The owner's bar for resubmitting is 1,000 Elo (DR7.6). The entry clears it by 9.8
-Elo, which is well inside the interval, and the 10,000-row and 5,000-row gate lines were drawn after
-results were seen (§286, §287, §290), so this is a configuration choice on one fold. These are
+**Standing from stored runs (§293).** Entry `fintfm_g292_emr`, all 51 Lite datasets, none
+excluded or imputed: **1,023.0 Elo (+70 / -80), 99th of 110**. RandomForest (default) 1,000.0, 100th.
+TABFLEX_GPU 977.7. The owner's bar for resubmitting is 1,000 Elo (DR7.6). The entry clears it by 23.0
+Elo, which is inside the interval, and the 10,000-row and 5,000-row gate lines were drawn after
+results were seen (§286, §287, §290, §292), so this is a configuration choice on one fold. These are
 stored-run figures. The reproduction from the PR branch with no `FINTFM_*` variables is running on
 Kaggle and must confirm them: `<REPRO: overall Elo, position of N>`. It uses AutoGluon 1.6.4b20261109
 (the PR branch's floor); the stored runs used 1.6.4b20260919.
@@ -26,7 +26,7 @@ finding.
 | --- | --- | --- |
 | 1 | The entry declared binary only. Excluding datasets or problem types because the model does worse there is cherry-picking and is not eligible. | Answered. The entry declares binary, multiclass and regression and covers every Lite dataset. No exclusion. Per-type figures are reported below. |
 | 2 | Datasets were missing, and "there are failures that should be fixed". The reviewer asked that "new submissions ... cover all datasets". | Answered on the stored runs: 51 of 51 datasets, none excluded, none imputed (§290, §221). Wide tables run through `max_features_strategy: select`, not a new checkpoint. Reproduction coverage: `<REPRO: datasets completed of 51, failed splits>`. |
-| 3 | The model does not beat a tuned KNN or other simple baselines, so it does not meet the competitiveness bar. | Partly answered. Stored entry: 1,009.8 Elo, 99th of 110, above RandomForest (default) at 1,000.0 and above TABFLEX_GPU at 977.7. The tuned-and-ensembled KNN figure is from the older 110-method board (965.3 on 2026-11-15, `../tabarena/eval/fintfm_linprobe_all51_1115/tabarena_leaderboard.csv`); it is not re-read against the 1,009.8 board, so re-read it before posting. It remains far below tuned tree ensembles (`GBM (tuned + ensemble)` 1379.3 on the 2026-11-15 board, `openspec/changes/tabarena-integration/tasks.md` 45.4). The margin over RandomForest is inside the interval. |
+| 3 | The model does not beat a tuned KNN or other simple baselines, so it does not meet the competitiveness bar. | Partly answered. Stored entry: 1,023.0 Elo, 99th of 110, above RandomForest (default) at 1,000.0 and above TABFLEX_GPU at 977.7. The tuned-and-ensembled KNN figure is from the older 110-method board (965.3 on 2026-11-15, `../tabarena/eval/fintfm_linprobe_all51_1115/tabarena_leaderboard.csv`); it is not re-read against the 1,009.8 board, so re-read it before posting. It remains far below tuned tree ensembles (`GBM (tuned + ensemble)` 1379.3 on the 2026-11-15 board, `openspec/changes/tabarena-integration/tasks.md` 45.4). The margin over RandomForest is inside the interval. |
 | 4 | Positive: "Based on the submission's code and numbers you shared, I think everything is correct." | The wrapper has changed a lot since that review (partitioning, readout, cross-fitting, per-type checkpoints, size gates). The changes are listed below so the reviewer can see what needs a fresh read. |
 
 In #616 we wrote that we would "come back with full coverage from the start". That is now true.
@@ -39,7 +39,7 @@ FinTFM is a tabular foundation model pretrained on a synthetic prior only. This 
 "FinTFM with a trained linear readout", covers all 51 TabArena-Lite datasets (30 binary, 8
 multiclass, 13 regression). It is not zero-shot: it fits a linear readout (logistic regression, ridge
 or random-Fourier-feature ridge for regression) on training rows inside each partition leaf. On
-TabArena-Lite (repeat 0, fold 0) the stored runs score 1,009.8 Elo, 99th of 110 (§290); the
+TabArena-Lite (repeat 0, fold 0) the stored runs score 1,023.0 Elo, 99th of 110 (§293); the
 reproduction from this branch scores `<REPRO: overall Elo, position>`. The wrapper does not follow
 the template's rule on `X_val` / `y_val` and internal cross-validation; the deviations are declared in
 Details.
@@ -72,13 +72,13 @@ Details.
 
 | quantity | stored runs | reproduction from this branch | source |
 | --- | --- | --- | --- |
-| Overall, 51 of 51 datasets | 1,009.8 Elo (+74 / -92), 99th of 110 | `<REPRO: overall Elo, position>` | §290 |
-| RandomForest (default), same board | 1,000.0, 100th | `<REPRO>` | §290 |
-| TABFLEX_GPU, same board | 977.7 | `<REPRO>` | §290 |
-| Binary, 30 datasets, problem-type Elo | not re-read for the current entry; the earlier binary entry was 997 (+118 / -127) | `<REPRO: binary Elo>` | §232 (earlier entry) |
-| Multiclass, 8 datasets | 874 for the earlier entry; current entry not logged by type | `<REPRO: multiclass Elo>` | §227, §283 |
-| Regression, 13 datasets | 689 for the earlier entry; current entry not logged by type | `<REPRO: regression Elo>` | §235, §283 |
-| Coverage | 51 of 51, none imputed | `<REPRO: completed of 51>` | §290 |
+| Overall, 51 of 51 datasets | 1,023.0 Elo (+70 / -80), 99th of 110 | `<REPRO: overall Elo, position>` | §293 |
+| RandomForest (default), same board | 1,000.0, 100th | `<REPRO>` | §293 |
+| TABFLEX_GPU, same board | 977.7 | `<REPRO>` | §293 |
+| Binary, 30 datasets, problem-type Elo | 1,090.3 (+110 / -104), 92nd of 108 | `<REPRO: binary Elo>` | §291 |
+| Multiclass, 8 datasets | 947.1 (+100 / -253), 98th of 108 | `<REPRO: multiclass Elo>` | §293 |
+| Regression, 13 datasets | 845.1 (+127 / -219), 97th of 103 | `<REPRO: regression Elo>` | §293 |
+| Coverage | 51 of 51, none imputed | `<REPRO: completed of 51>` | §293 |
 
 The per-type stored figures for the current entry must be re-read with `scripts/lite_positions.py`
 before posting; the values above are the earlier entries and are marked so.
@@ -100,7 +100,8 @@ ROC-AUC 0.7823 over 27 datasets, `docs/competition/SUBMISSION.md`, §122). The R
 - cross-fitted readout for binary (§254), binary depth scaling and a 50,000-row readout budget
   (§257), a multiclass probability floor (§269), one-hot indicators for multiclass and an RFF readout
   for regression fits of at most 5,000 rows (§283), four readout bags for binary fits of at most
-  5,000 rows (§286), spline features for binary fits of at most 10,000 rows (§290).
+  5,000 rows (§286), spline features for binary fits of at most 10,000 rows (§290), spline features for
+  multiclass fits of at most 10,000 rows and for every regression fit (§293).
 
 Each step after §254 is a configuration choice on one fold inside the Elo interval, and the size lines
 were drawn after results were seen.
@@ -258,7 +259,7 @@ Done:
 - [x] Entry defaults on the PR branch (`fintfm-pr-2026-11`, e5cb05b): every lever is a per-type default;
       no environment variable is needed.
 - [x] Coverage: 51 of 51 datasets on the stored runs, none excluded or imputed.
-- [x] Stored entry at 1,009.8 Elo, 99th of 110, clears the owner's 1,000 bar (DR7.6) by 9.8, inside the
+- [x] Stored entry at 1,023.0 Elo, 99th of 110, clears the owner's 1,000 bar (DR7.6) by 23.0, inside the
       interval.
 
 Remaining:
