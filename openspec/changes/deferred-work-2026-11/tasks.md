@@ -216,7 +216,7 @@
       have out-of-range predictions too. Verify: the 13 regression tables refitted at the PR branch
       with the option on, and a FINDINGS entry that applies §295's rule (adopt or not) with
       `fintfm_g295_clip`'s Elo and position in one fit.
-- [ ] 49.26 **Limit BLAS threads in the FinTFM-LinProbe adapter (`blas_threads`, FINDINGS
+- [x] 49.26 **Done (2026-11-18, FINDINGS §299): all three HF fits completed with the limit and no thread variable, each equal to the capped run exactly; adopted, PR branch d915c57.** **Limit BLAS threads in the FinTFM-LinProbe adapter (`blas_threads`, FINDINGS
       §298).** On an 8-vCPU HF machine OpenBLAS's default 8 threads beside torch's made the readout's
       `LogisticRegressionCV` so slow that 3 large binary tables ran past TabArena's time limit
       (§296). Verify: the three HF fits of §298 at the PR branch with the change and no thread

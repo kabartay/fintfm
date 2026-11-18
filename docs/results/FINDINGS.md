@@ -17596,3 +17596,21 @@ tables; bank-marketing and credit_card stopped at the time limit there without a
 complete with no `TimeLimitExceeded` and each test metric equals §297's `OPENBLAS_NUM_THREADS=4` result within 1e-6
 relative (the same thread count should give the same arithmetic). Otherwise the change is not adopted and the PR
 states the hardware dependence instead. Not retuned on the result.
+
+## §299: §298's rule passes: the BLAS thread limit is adopted; the PR branch becomes d915c57 (task 49.26)
+
+**MEASURED, HF Jobs `t4-medium`, 2026-11-18.** Kernel `task_lite_threads_bin` (fork `fintfm-pr-threads` d915c57, no
+`OPENBLAS_NUM_THREADS` and no `FINTFM_*` variable reaching the fits; the wrapper's own `FINTFM_REF` is stripped from
+the child processes as every kernel strips `FINTFM_*`), run `fintfm_lp_bin_threads_hf`:
+
+| table | fit, wall | test metric | §297 with `OPENBLAS_NUM_THREADS=4` | stored |
+| --- | --- | --- | --- | --- |
+| credit_card_clients_default | 340 s | 0.216132693 | 0.216132693 | 0.216144 |
+| bank-marketing | 408 s | 0.236189607 | 0.236189607 | 0.236161 |
+| customer_satisfaction_in_airline | 947 s | 0.025830059 | 0.025830059 | 0.025904 |
+
+All three completed and each equals the capped §297 run exactly (relative difference 0), so **the limit is adopted**:
+`blas_threads="auto"` (`min(4, num_cpus)`) is the PR branch's default for every problem type, fork `fintfm-pr-2026-11`
+fast-forwarded to d915c57. Without it the first two stopped at the time limit on the same machine (§293, §296).
+On machines where BLAS already used at most 4 threads (Kaggle sessions, the Mac runs) nothing changes, and on this
+Mac numpy uses Apple Accelerate, which `threadpoolctl` does not see, so the limit is a no-op there.
