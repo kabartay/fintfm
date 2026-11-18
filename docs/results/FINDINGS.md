@@ -17427,3 +17427,39 @@ its plain-ridge candidate, so the RFF-cap tests now fit with splines off.
   repro kernels now pin 65c21d5 and the 9 Mac tables are requeued at it.
 - The Kaggle image's torch, numpy and scikit-learn versions were not recorded. The Mac venv has torch 2.15.0,
   numpy 2.5.5 and scikit-learn 1.9.1.
+
+## §294: §289's rule fails: `prototype` does not replace `uniform` as the binary context default; `retrieval` beats `uniform` on AP on Polish 1y and 3y with Holm p < 0.05 (task 32.7)
+
+**MEASURED, Kaggle CPU, 2026-11-18.** The twelve kernels of §289 (`scripts/kaggle/task_cpu_327_ctx_*`, fintfm `d6a72de`,
+synthetic-only checkpoint `v4-cellattn-labels.pt`, SHA-256 checked in each kernel) each exited 0 after 6,648 to 9,549 s.
+Merged with `fintfm-binctx --merge` into `runs/binctx_327_merged/` (log `runs/binctx_327_merge.log`): 108 cells
+(3 strategies x 4 panels x 3 sizes x 3 seeds), 72 comparisons per metric, 20,000 resamples. **The merged summary prints
+no Holm-floor warning**; the smallest adjusted p is 0.0036, the floor §289 computed, so the test could reject this time.
+
+**Reproduction check (§289):** all 108 cells' AP equal §288's records within 1e-4 (largest difference below that), so
+the two runs measured the same thing and §288's point estimates stand.
+
+**Count of the 36 comparisons per strategy and metric with Holm p < 0.05** (`uniform` against the strategy; "better"
+means the strategy beats `uniform`):
+
+| strategy | AP better | AP worse | AUC better | AUC worse |
+| --- | --- | --- | --- | --- |
+| `prototype` | 6 | 0 | 12 | 0 |
+| `retrieval` | 12 | 0 | 19 | 0 |
+
+Per panel and size, seeds with AP Holm p < 0.05 for `prototype`: Polish 1y 1 / 2 / 3 (contexts 500 / 1,000 / 2,000),
+Polish 3y 0 / 0 / 0, Polish 5y 0 / 0 / 0, Taiwan 0 / 0 / 0 (Taiwan's mean AP difference favours `uniform` at every size,
++0.0071 to +0.0162, none significant). For `retrieval`: Polish 1y 1 / 1 / 2, Polish 3y 3 / 3 / 2, Polish 5y 0 / 0 / 0,
+Taiwan 0 / 0 / 0.
+
+**Rule applied.** `prototype` needed AP better with Holm p < 0.05 in at least 2 of 3 seeds at every context size on at
+least 3 of the 4 panels. It meets that at two sizes of one panel (Polish 1y, 1,000 and 2,000). **The rule fails: the
+class default stays `uniform`** (D10). No comparison of either strategy is significantly worse than `uniform`.
+
+**`retrieval`, reported and not acted on (§289):** better than `uniform` on AP with Holm p < 0.05 in 12 of 36
+comparisons, all on Polish 1y and 3y, where its mean AP gain is +0.05 to +0.10; on Polish 5y and Taiwan no comparison
+rejects. It stays opt-in, for D10's reasons (batch dependence, about 10x uniform's scoring time, §288).
+
+**What this settles.** §288's 12-of-12 "retrieval highest mean AP" was real on the two Polish panels with the lowest base
+rates (3.8% and 4.7% held out) and not shown on the other two. `prototype`'s Polish gains are mostly within noise at
+three seeds. Task 32.7 is closed.

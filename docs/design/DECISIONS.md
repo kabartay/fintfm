@@ -317,6 +317,14 @@ comparisons the adjusted p cannot go below 0.18. `prototype` lost AP to `uniform
 every size, so it is not a default candidate; `retrieval` stays opt-in, and it cost about 10x
 uniform's scoring time there, against the 2.5x above.
 
+**Status 2026-11-18 (task 32.7, §294): `uniform` stays the default, now on a test that could
+reject.** The pre-registered rerun (`uniform` against `prototype` and `retrieval` only, 20,000
+resamples, Holm floor 0.0036) reproduced §288's cells within 1e-4. `prototype` failed §289's rule
+(AP better in at least 2 of 3 seeds at every size on 3 of 4 panels): it met it at two sizes of
+Polish 1y only. `retrieval` beat `uniform` on AP with Holm p < 0.05 in 12 of 36 comparisons, all
+on Polish 1y and 3y, and in none on Polish 5y or Taiwan; it stays opt-in. Neither strategy was
+significantly worse than `uniform` anywhere.
+
 ---
 
 ## D11 — A head that was never trained is not reachable
