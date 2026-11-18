@@ -1,39 +1,39 @@
 {
-  "date": "2026-11-13",
-  "finding": "FINDINGS &sect;227",
+  "date": "2026-11-18",
+  "finding": "FINDINGS &sect;290",
   "self_method": "[New] TA-FINTFM-LINPROBE (default)",
   "self_label": "FinTFM with a trained linear readout",
   "n_datasets": 51,
-  "bar_text": "RandomForest (default), at 1,000 Elo, is the bar for resubmitting to TabArena: 1,000 overall Elo (design review DR7.6, owner decision 2026-11-13).",
-  "entry_text": "It is not the zero-shot model. A logistic regression (ridge for regression) is fitted on the network's representation of each training split, one per partition leaf for classification; for multiclass and regression it also takes the row's own features. Binary runs on the published checkpoint, multiclass and regression on unpublished checkpoints. These are general-tabular results, not credit results: on real credit panels FinTFM currently loses to gradient boosting (FINDINGS &sect;216).",
+  "bar_text": "RandomForest (default), at 1,000 Elo, is the bar for resubmitting to TabArena (design review DR7.6, owner decision 2026-11-13). The entry is 9.8 Elo above it, well inside the Elo interval of about &plusmn;90 (FINDINGS &sect;290).",
+  "entry_text": "It is not the zero-shot model. A linear model (logistic regression for classification, ridge or random-Fourier-feature ridge for regression) is fitted on the network's representation of each training split, one per partition leaf, and also takes the row's own features. Size-gated levers: four readout bags and spline features for small binary tables, one-hot indicators for multiclass, a random-Fourier-feature readout for small regression tables (FINDINGS &sect;283, &sect;286, &sect;290). The binary, multiclass and regression checkpoints are all public under Apache-2.0 (fintfm 0.12.0). The figures are assembled from stored runs; a reproduction from the pull-request branch with no environment overrides is running. These are general-tabular results, not credit results: on real credit panels FinTFM currently loses to gradient boosting (FINDINGS &sect;216).",
   "types_note": "Each figure comes from a leaderboard over that problem type's datasets only, so the four are not on one scale with each other or with the headline.",
   "types": [
     {
-      "elo": "974",
+      "elo": "1,090",
       "name": "Binary, 30 datasets",
-      "sub": "linear readout, published checkpoint &middot; &sect;220",
+      "sub": "linear readout, four bags and splines on small tables, 92nd of 108 &middot; &sect;291",
       "self": true
     },
     {
-      "elo": "874",
+      "elo": "931",
       "name": "Multiclass, 8 datasets",
-      "sub": "linear readout, eight partition bags, unpublished checkpoint &middot; &sect;227",
+      "sub": "linear readout, one-hot categories, probability floor, 100th of 108 &middot; &sect;291",
       "self": true
     },
     {
-      "elo": "582",
+      "elo": "767",
       "name": "Regression, 13 datasets",
-      "sub": "ridge readout, pure-regression checkpoint, unpublished &middot; &sect;227",
+      "sub": "ridge or random-Fourier-feature readout, 98th of 103 &middot; &sect;291",
       "self": true
     },
     {
       "elo": "750",
       "name": "Zero-shot published model",
-      "sub": "own classification head, 27 binary datasets, today's field: 107th of 108 &middot; &sect;225",
+      "sub": "own classification head, 27 binary datasets, 107th of 108 &middot; &sect;225",
       "self": false
     }
   ],
-  "history_text": "The entry submitted to TabArena used the zero-shot head on 27 binary datasets, ranked 94th of 95 and was <a href=\"https://github.com/autogluon/tabarena/pull/616\">declined on competitiveness</a> (FINDINGS &sect;122); a resubmission is on hold until the bar is met.",
+  "history_text": "The entry submitted to TabArena used the zero-shot head on 27 binary datasets, ranked 94th of 95 and was <a href=\"https://github.com/autogluon/tabarena/pull/616\">declined on competitiveness</a> (FINDINGS &sect;122). The resubmission waits for the reproduction from the pull-request branch and the owner's decision.",
   "anchors": [
     {
       "label": "KNN",
@@ -57,8 +57,8 @@
     }
   ],
   "board": {
-    "csv": "tabarena_lite_51_2026-11-13b.csv",
-    "source_run": "fintfm_linprobe_all51_1113b",
+    "csv": "tabarena_lite_51_2026-11-18.csv",
+    "source_run": "fintfm_g287_bag4_spline",
     "n_total": 110,
     "n_omitted": 2
   }

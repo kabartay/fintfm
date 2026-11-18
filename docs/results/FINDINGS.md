@@ -17314,3 +17314,19 @@ configuration choice on one fold, and the 10,000-row line was drawn after §282'
 **Next, as §287 states.** The gate is a default-off fork option (`spline_max_rows`, fork bc99785); it becomes the PR
 branch's binary default before the reproduction without overrides, whose result replaces these stored-run numbers as
 the entry's standing.
+
+## §291: the §290 entry by problem type: binary 1,090.3 Elo, multiclass 931.0, regression 767.4
+
+**MEASURED from stored runs, TabArena-Lite repeat 0 fold 0, 2026-11-18.** Each figure is a separate leaderboard over that
+problem type's datasets only (`merge_fintfm_lite.py` on the §290 entry's parts; logs `runs/merge_g287_{bin,mc,reg}.log`),
+so the three are not on one scale with each other or with §290's overall 1,009.8. Positions from
+`scripts/lite_positions.py`.
+
+| problem type | runs | Elo | position |
+| --- | --- | --- | --- |
+| binary, 30 datasets | `fintfm_g287_types_bin` | 1,090.3 (+110 / -104) | 92nd of 108 |
+| multiclass, 8 datasets | `fintfm_g287_types_mc` | 931.0 (+101 / -252) | 100th of 108 |
+| regression, 13 datasets | `fintfm_g287_types_reg` | 767.4 (+106 / -191) | 98th of 103 |
+
+RandomForest (default) is 1,000.0 on each board. Earlier per-type figures for comparison: binary 974 (§220), multiclass
+874 (§227), regression 689 (§235). Written for the GitHub Pages leaderboard, which had not been regenerated since §227.
