@@ -17474,3 +17474,37 @@ rejects. It stays opt-in, for D10's reasons (batch dependence, about 10x uniform
 **What this settles.** §288's 12-of-12 "retrieval highest mean AP" was real on the two Polish panels with the lowest base
 rates (3.8% and 4.7% held out) and not shown on the other two. `prototype`'s Polish gains are mostly within noise at
 three seeds. Task 32.7 is closed.
+
+## §295: pre-registration: clip regression predictions to the training target range widened by 10% (diamonds, superconductivity; task 49.25)
+
+**Written 2026-11-18, before any test number of this change exists.** **Not blind on validation:** the effect below
+was computed on the stored out-of-fold predictions while diagnosing diamonds, and the 10% margin was chosen after
+seeing it. No test RMSE of the change has been computed.
+
+**Diagnosis (MEASURED from `fintfm_pr_repro_{reg,mac_reg}`, which reproduce §293's entry).** diamonds' test RMSE
+249,750 (918 before splines, §293) comes from a handful of rows: 16 of 35,960 out-of-fold predictions and 6 of 17,980
+test predictions fall outside the training price range widened by 10%, the worst at -19.3 million against prices of 326
+to 18,806. Without its 10 worst rows the out-of-fold RMSE is 961. Seven of the eleven worst rows are the table's known
+bad records (`x`, `y` or `z` equal to 0, `y` 58.9, `z` 31.8, linear spline extrapolation); the three worst are not
+extreme in any single column but break the near-identity of `x` and `y` (`x`/`y` 1.60 and 1.51, where 99.8% of rows
+lie in 0.975 to 1.036): the ridge on spline features of near-collinear columns predicts far off the training manifold.
+The same check on the other twelve regression tables: superconductivity (11 out-of-fold, 9 test predictions out of
+range; out-of-fold RMSE 20.52, 12.76 clipped; it was §293's one large-table loss, +22.69%), physiochemical_protein
+(18 and 4; 4.510 to 4.482) and Food_Delivery_Time (4 and 5; 7.527 to 7.510); the other nine have no prediction out
+of range in either split, so a clip of the bagged prediction would leave them unchanged.
+
+**Arm.** Fork option `reg_clip_margin` (float or `None`): at fit, the regression readout records the training target's
+minimum and maximum (original scale, after any inverse target transform); every prediction is clipped to
+`[min - m * (max - min), max + m * (max - min)]`. Entry default `m = 0.1` for regression, `None` (off) for binary and
+multiclass, which it does not touch. AutoGluon averages the eight fold models, each clipped to its own fold's range,
+so the effect is measured by refitting, not by clipping the stored bagged predictions.
+
+**Run.** The 13 regression tables at the PR branch with the option on and nothing else changed, where §293's entry
+ran them: the 6 Kaggle CPU tables in `task_lite_repro_pr_reg`, the 7 Mac tables on the Mac CPU (no `FINTFM_*`
+variable). Entry `fintfm_g295_clip`: §293's `fintfm_g292_emr` with its 13 regression tables replaced.
+
+**Rule.** Adopt (the PR branch keeps `reg_clip_margin = 0.1` for regression) only if no regression table's test RMSE
+is worse than in `fintfm_g292_emr` by more than 0.1% relative, and `fintfm_g295_clip` scores at least
+`fintfm_g292_emr`'s Elo in one fit (`scripts/lite_same_fit.py`). Report per-table test RMSE, the entry alone with its
+position and field size (`scripts/lite_positions.py`), and the regression-only board. A gain inside the Elo interval
+is a configuration choice on one fold. Not retuned on the result: no other margin is tried.

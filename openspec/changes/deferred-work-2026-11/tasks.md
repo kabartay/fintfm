@@ -210,3 +210,9 @@
       readout cannot see a level that is not frequency-distinct. Verify: the one-hot plus floor arm runs on
       all 8 multiclass tables (SDSS17 on the Mac), and a FINDINGS entry applies §271's rule (adopt or not)
       with the merged entry's Elo and position in one fit.
+- [ ] 49.25 **Clip regression predictions to the training target range widened by 10%
+      (`reg_clip_margin`, FINDINGS §295).** diamonds' spline readout predicts as far as -19 million
+      on a few off-manifold rows, and superconductivity, physiochemical_protein and Food_Delivery_Time
+      have out-of-range predictions too. Verify: the 13 regression tables refitted at the PR branch
+      with the option on, and a FINDINGS entry that applies §295's rule (adopt or not) with
+      `fintfm_g295_clip`'s Elo and position in one fit.
