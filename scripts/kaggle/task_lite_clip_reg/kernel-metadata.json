@@ -1,0 +1,15 @@
+{
+  "id": "muhakabartay/fintfm-task-lite-clip-reg",
+  "title": "fintfm-task-lite-clip-reg",
+  "code_file": "task_lite_clip_reg.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": "true",
+  "enable_gpu": "false",
+  "enable_tpu": "false",
+  "enable_internet": "true",
+  "dataset_sources": [],
+  "competition_sources": [],
+  "kernel_sources": [],
+  "model_sources": []
+}

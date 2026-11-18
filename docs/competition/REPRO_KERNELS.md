@@ -44,7 +44,7 @@ and the Mac lists together cover the 51 datasets once).
 1. Update the PR branch and note its head SHA; set `FORK_COMMIT` in the template, check
    `FINTFM_VERSION` equals the release, regenerate.
 2. Dry-run any kernel's preflight with internet (clones the fork, fits nothing):
-   `.venv/bin/python scripts/kaggle/<kernel>/<kernel>.py --preflight-only`.
+   `python3 scripts/kaggle/<kernel>/<kernel>.py --preflight-only` (a Python with pip; the uv venv has none).
 3. Launch one lane per kernel from the repository root, CPU kernels with
    `scripts/kaggle/launch_queue_cpu.sh`, the T4 kernel with `scripts/kaggle/launch_queue.sh`:
    `nohup scripts/kaggle/launch_queue_cpu.sh lane-mc task_lite_repro_pr_mc:- > /dev/null 2>&1 &`
