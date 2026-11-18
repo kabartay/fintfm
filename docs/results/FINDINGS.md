@@ -17638,3 +17638,32 @@ hence SSH. Parity check: `task_lite_threads_bin` on credit_card_clients_default 
 **0.2161331571 on the A40 against 0.2161326927 on HF's T4 (§299), 2.1e-6 relative**, train time 178 s against
 309 s; the whole pod run took 7 minutes, about $0.07. A40 and T4 results are close, not bit-identical, so a run
 says which GPU it used.
+
+## §301: §295's rule passes: the regression clip is adopted, Elo 1,024.8 against 1,022.6 in one fit; the PR branch becomes 1aa50af (task 49.25)
+
+**MEASURED, 2026-11-19.** §300's correction could not be carried out: `task_lite_clip_qsar` stopped with
+`TimeLimitExceeded` on Kaggle CPU twice (435 s and 426 s; the first of eight folds took 412 s and 408 s, so
+AutoGluon projected past 3,600 s). The entry's own Kaggle fit of QSAR-TID-11 took 3,346 s, so on Kaggle's 4 CPUs the
+table now sits at the limit. **Deviation from §300, decided by the owner before any merge with it:** the clip is
+treated as a no-op on QSAR-TID-11, and `fintfm_g295_clip` carries the entry's stored Kaggle value
+(`fintfm_g295_qsar_stored`, copied from `fintfm_lp_reg_spline_small_cpu`). The evidence: the Mac's clipped and
+unclipped fits are bit-identical (§300), and none of the stored out-of-fold or test predictions lies outside the
+widened range (§295's diagnosis).
+
+**Rule.** No regression table is worse than in `fintfm_g292_emr` by more than 0.1% relative: the 6 Kaggle CPU tables
+are within 0.003%, houses and miami_housing exact, Food_Delivery_Time -0.03%, physiochemical_protein -1.30%,
+superconductivity -20.01%, diamonds -99.62% (249,744 -> 956.7). One fit (`scripts/lite_same_fit.py`, 111 methods):
+
+| entry | Elo | position |
+| --- | --- | --- |
+| `fintfm_g295_clip` | **1,024.8 (+69/-76)** | 99th of 111 |
+| `fintfm_g292_emr` | 1,022.6 (+69/-80) | 100th of 111 |
+
+Alone (`scripts/lite_positions.py`): `fintfm_g295_clip` 1,024.0, 99th of 110. Regression-only board, one fit (104
+methods): `fintfm_g295_clip_reg` 858.6 (+116/-215), 97th; `fintfm_g292_emr_reg` 839.8 (+127/-222), 99th. **Adopted.**
+The gain is inside the interval, so it is a configuration choice on one fold, not a measured improvement.
+The diagnostic merge with the Mac's QSAR-TID-11 (`fintfm_g295_clip_macqsar`) scores 1,024.7 in the same fit.
+
+The clip commit was cherry-picked onto d915c57 without conflict (`_clip_bounds` is recorded in `_fit_readout` and
+applied in `_predict_proba_readout`); FinTFM tests 511 passed, 1 skipped; ruff 0.14.0 clean. Fork
+`fintfm-pr-2026-11` fast-forwarded to **1aa50af**. Logs: `runs/merge_g295_clip*.log`, `runs/samefit_g295_clip*.log`.
