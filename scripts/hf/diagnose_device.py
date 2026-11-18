@@ -12,7 +12,9 @@ checkpoint load uses:
    the device explains the slowdown).
 
 Launch like ``repro_kernel_on_hf_job.py`` (``KERNEL`` and ``FINTFM_REF`` in the environment), on
-``t4-small`` with a short timeout. Prints only; uploads nothing.
+``t4-small`` with a short timeout. Prints only; uploads nothing. ``DIAG_DATASETS`` (comma-separated)
+replaces the two fits with default-config fits of those tables, and ``AG_OVERRIDE`` reinstalls the
+four AutoGluon packages at that version after the kernel's install, for an A/B on the nightly.
 """
 
 from __future__ import annotations
@@ -85,13 +87,25 @@ def main() -> int:
     fork = Path("/tmp/tabarena")
     k.clone_fork(fork)
     k.install(fork)
+    ag = os.environ.get("AG_OVERRIDE")
+    if ag:  # the A/B on the AutoGluon nightly: replace the four packages, dependencies untouched
+        pkgs = [f"autogluon.{p}=={ag}" for p in ("tabular", "core", "common", "features")]
+        subprocess.run(
+            [sys.executable, "-m", "pip", "install", "-q", "--no-deps", *pkgs], check=True
+        )
+        print(f"DIAG AutoGluon overridden to {ag}", flush=True)
     worker = Path("/tmp/diag_worker.py")
     worker.write_text(WORKER)
     base = {n: v for n, v in os.environ.items() if not n.startswith("FINTFM_")}
-    for dataset, extra in (
-        ("blood-transfusion-service-center", {}),
-        ("Amazon_employee_access", {"FINTFM_DEVICE": "cuda"}),
-    ):
+    runs = (
+        [(d, {}) for d in os.environ["DIAG_DATASETS"].split(",")]
+        if os.environ.get("DIAG_DATASETS")
+        else [
+            ("blood-transfusion-service-center", {}),
+            ("Amazon_employee_access", {"FINTFM_DEVICE": "cuda"}),
+        ]
+    )
+    for dataset, extra in runs:
         print(f"DIAG start {dataset} {extra}", flush=True)
         t0 = time.time()
         code = subprocess.run(
