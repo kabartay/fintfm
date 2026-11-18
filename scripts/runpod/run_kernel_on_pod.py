@@ -7,11 +7,14 @@ identical to an HF Jobs run. Only the transport differs:
 1. create a pod (default: one ``NVIDIA A40``, Secure Cloud, host CUDA >= 13.2 for the cu132 torch
    wheels) whose container fetches the wrapper at ``--ref`` and runs it, writing ``/work/EXIT``
    when it ends;
-2. poll the pod through the REST API's ``exec`` endpoint (no SSH, no public port, no secret in the
-   pod: the HF token is not needed because nothing is uploaded from the pod);
-3. tar ``/work`` inside the pod and copy it back in base64 chunks (each ``exec`` reply is capped at
-   1 MiB), checking the SHA-256;
+2. poll it over SSH, straight to the pod's published ``22/tcp`` port, authenticated by the account's
+   registered SSH public key (the container installs ``openssh-server`` itself; no secret enters
+   the pod, and the HF token is not needed because nothing is uploaded from it);
+3. stream ``/work`` back as a tar archive over the same SSH connection;
 4. delete the pod, always: on success, on failure, on Ctrl-C, and when ``--max-hours`` passes.
+
+The REST API's ``exec`` endpoint was the first transport, and a key restricted to Pods read/write
+is refused there (``403 This API key cannot run commands on pods``, 2026-11-18), hence SSH.
 
 The API key is read from ``RUNPOD_API_KEY`` (``set -a; . ./.env; set +a`` in the calling command)
 and is never printed or sent to the pod. It needs only Pods read/write, Catalog read and Billing
@@ -30,16 +33,15 @@ code, ``2`` on a usage error.
 from __future__ import annotations
 
 import argparse
-import base64
-import hashlib
 import json
 import os
 import shlex
+import signal
+import subprocess
 import sys
 import tarfile
 import time
 import urllib.error
-import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -47,8 +49,8 @@ from pathlib import Path
 API = "https://api.runpod.io/v2"
 #: Wrapper that fetches and runs the kernel; the same file HF Jobs runs.
 WRAPPER = "scripts/hf/repro_kernel_on_hf_job.py"
-#: Bytes per copied chunk; base64 makes it 4/3 larger, which stays under the 1 MiB exec cap.
-CHUNK = 512 * 1024
+#: Private half of the SSH key registered in the RunPod console.
+SSH_KEY = Path.home() / ".ssh" / "id_ed25519"
 #: Seconds between status polls.
 POLL_S = 60
 
@@ -90,26 +92,13 @@ class RunPod:
             ) from None
         return json.loads(text) if text.strip() else {}
 
-    def exec(self, pod_id: str, script: str, timeout_s: int = 25) -> dict:
-        """Run ``sh -c script`` in the pod's container.
-
-        Args:
-            pod_id: Pod ID.
-            script: Shell script.
-            timeout_s: How long the API waits for it (1-25 s).
-
-        Returns:
-            The API's reply: ``exitCode``, ``stdout``, ``stderr``, ``timedOut``, ``truncated``.
-        """
-        body = {"command": ["sh", "-c", script], "timeoutSeconds": timeout_s}
-        return self.call("POST", f"/pods/{pod_id}/exec", body, timeout=timeout_s + 30)
-
 
 def container_command(ref: str) -> str:
-    """The pod's entrypoint script: run the wrapper, record its exit code, then idle.
+    """The pod's entrypoint script: start sshd, run the wrapper, record its exit code, then idle.
 
-    The container idles after the run instead of exiting, so that the outputs survive until they
-    are copied back; the launcher deletes the pod afterwards.
+    ``PUBLIC_KEY`` is injected by RunPod when the pod is created with ``startSsh``. The container
+    idles after the run instead of exiting, so that the outputs survive until they are copied
+    back; the launcher deletes the pod afterwards.
 
     Args:
         ref: fintfm commit to fetch the wrapper from.
@@ -119,8 +108,12 @@ def container_command(ref: str) -> str:
     """
     url = f"https://raw.githubusercontent.com/kabartay/fintfm/{ref}/{WRAPPER}"
     return (
-        "mkdir -p /work; "
-        f"(curl -sfL {shlex.quote(url)} -o /tmp/wrapper.py && python /tmp/wrapper.py) > /work/pod.log 2>&1; "
+        "mkdir -p /work /root/.ssh /run/sshd && chmod 700 /root/.ssh && "
+        'echo "$PUBLIC_KEY" > /root/.ssh/authorized_keys && chmod 600 /root/.ssh/authorized_keys; '
+        "(apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq openssh-server"
+        " && /usr/sbin/sshd) > /work/sshd.log 2>&1; "
+        f"(curl -sfL {shlex.quote(url)} -o /tmp/wrapper.py && python /tmp/wrapper.py)"
+        " > /work/pod.log 2>&1; "
         "echo $? > /work/EXIT; sleep infinity"
     )
 
@@ -150,6 +143,8 @@ def create_pod(api: RunPod, args: argparse.Namespace) -> dict:
         "env": env,
         "disk": args.disk_gb,
         "cloud": args.cloud,
+        "ports": ["22/tcp"],
+        "startSsh": True,
         "gpu": {
             "id": args.gpu,
             "count": 1,
@@ -161,44 +156,63 @@ def create_pod(api: RunPod, args: argparse.Namespace) -> dict:
     return api.call("POST", "/pods", body)
 
 
-def fetch_outputs(api: RunPod, pod_id: str, out: Path) -> None:
-    """Copy the pod's ``/work`` to ``out`` and unpack it there.
+def ssh_args(direct: dict) -> list[str]:
+    """The ``ssh`` command prefix for the pod's direct endpoint.
+
+    Host keys are not checked: each pod is new and short-lived, and its key is unknown in advance.
 
     Args:
-        api: Client.
-        pod_id: Pod ID.
+        direct: The pod's ``ssh.direct`` block (``host``, ``port``, ``username``).
+
+    Returns:
+        ``ssh`` and its options, ready for a remote command to be appended.
+    """
+    return [
+        "ssh", "-i", str(SSH_KEY), "-p", str(direct["port"]),
+        "-o", "IdentitiesOnly=yes", "-o", "BatchMode=yes", "-o", "ConnectTimeout=15",
+        "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "-o", "LogLevel=ERROR",
+        f"{direct['username']}@{direct['host']}",
+    ]  # fmt: skip
+
+
+def remote(direct: dict, script: str, timeout: int = 60) -> subprocess.CompletedProcess:
+    """Run ``script`` in the pod over SSH and capture its output as text.
+
+    Args:
+        direct: The pod's ``ssh.direct`` block.
+        script: Remote shell command.
+        timeout: Seconds before giving up.
+
+    Returns:
+        The completed process; ``returncode`` 255 means SSH itself failed.
+    """
+    return subprocess.run(
+        [*ssh_args(direct), script], capture_output=True, text=True, timeout=timeout, check=False
+    )
+
+
+def fetch_outputs(direct: dict, out: Path) -> None:
+    """Stream the pod's ``/work`` to ``out`` as a tar archive and unpack it there.
+
+    Args:
+        direct: The pod's ``ssh.direct`` block.
         out: Local directory; created if missing.
 
     Raises:
-        RuntimeError: The archive could not be made, or its checksum does not match.
+        RuntimeError: The remote ``tar`` or the connection failed.
     """
-    made = api.exec(
-        pod_id,
-        "cd /work && tar czf /tmp/out.tgz --exclude=repro_worker.py . && "
-        "wc -c < /tmp/out.tgz && sha256sum /tmp/out.tgz | cut -d' ' -f1",
-    )
-    if made.get("exitCode") != 0:
-        raise RuntimeError(f"tar in the pod failed: {made.get('stderr', '')[:500]}")
-    size_text, digest = made["stdout"].split()
-    size = int(size_text)
-    blob = bytearray()
-    for i in range((size + CHUNK - 1) // CHUNK):
-        part = api.exec(
-            pod_id, f"dd if=/tmp/out.tgz bs={CHUNK} skip={i} count=1 2>/dev/null | base64 -w0"
-        )
-        if part.get("exitCode") != 0 or part.get("truncated"):
-            raise RuntimeError(f"chunk {i} failed: {part.get('stderr', '')[:300]}")
-        blob += base64.b64decode(part["stdout"])
-    if len(blob) != size or hashlib.sha256(blob).hexdigest() != digest:
-        raise RuntimeError(
-            f"archive mismatch: got {len(blob)} of {size} bytes or a different SHA-256"
-        )
     out.mkdir(parents=True, exist_ok=True)
     archive = out / "pod_outputs.tgz"
-    archive.write_bytes(blob)
+    with archive.open("wb") as fh:
+        proc = subprocess.run(
+            [*ssh_args(direct), "cd /work && tar czf - --exclude=repro_worker.py ."],
+            stdout=fh, stderr=subprocess.PIPE, timeout=600, check=False,
+        )  # fmt: skip
+    if proc.returncode != 0:
+        raise RuntimeError(f"tar over SSH exited {proc.returncode}: {proc.stderr.decode()[:300]}")
     with tarfile.open(archive) as tar:
         tar.extractall(out, filter="data")
-    print(f"copied {size} bytes to {out}", flush=True)
+    print(f"copied {archive.stat().st_size} bytes to {out}", flush=True)
 
 
 def log(msg: str) -> None:
@@ -222,6 +236,8 @@ def run(api: RunPod, args: argparse.Namespace) -> int:
     started = time.monotonic()
     code: int | None = None
     last_line = ""
+    direct: dict | None = None
+    running_since: float | None = None
     try:
         while time.monotonic() - started < args.max_hours * 3600:
             time.sleep(POLL_S)
@@ -233,15 +249,21 @@ def run(api: RunPod, args: argparse.Namespace) -> int:
             if status != "RUNNING":
                 log(f"pod status {status}")
                 continue
-            try:
-                probe = api.exec(
-                    pod_id,
-                    "cat /work/EXIT 2>/dev/null; echo ---; tail -n 1 /work/pod.log 2>/dev/null",
-                )
-            except RuntimeError as err:  # container still starting (409) or exec not ready (503)
-                log(f"exec not ready: {str(err)[:120]}")
+            running_since = running_since or time.monotonic()
+            direct = (info.get("ssh") or {}).get("direct") or direct
+            probe = (
+                remote(direct, "cat /work/EXIT 2>/dev/null; echo ---; tail -n 1 /work/pod.log")
+                if direct
+                else None
+            )
+            if probe is None or probe.returncode == 255:
+                waited = (time.monotonic() - running_since) / 60
+                log(f"SSH not ready after {waited:.0f} min of RUNNING")
+                if waited > args.connect_minutes:
+                    log(f"no SSH within --connect-minutes {args.connect_minutes}; giving up")
+                    break
                 continue
-            head, _, tail = probe.get("stdout", "").partition("---")
+            head, _, tail = probe.stdout.partition("---")
             line = tail.strip()
             if line and line != last_line:
                 log(f"pod: {line[:200]}")
@@ -252,10 +274,10 @@ def run(api: RunPod, args: argparse.Namespace) -> int:
                 break
         else:
             log(f"--max-hours {args.max_hours} passed; deleting the pod")
-        if code is not None or args.fetch_on_failure:
+        if direct and (code is not None or args.fetch_on_failure):
             try:
-                fetch_outputs(api, pod_id, Path(args.out))
-            except RuntimeError as err:
+                fetch_outputs(direct, Path(args.out))
+            except (RuntimeError, subprocess.TimeoutExpired) as err:
                 log(f"copy failed: {err}")
     finally:
         hours = (time.monotonic() - started) / 3600
@@ -294,6 +316,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="delete the pod after this long, whatever happens",
     )
     p.add_argument(
+        "--connect-minutes",
+        type=float,
+        default=15.0,
+        help="give up when SSH is still unreachable this long after the pod is RUNNING",
+    )
+    p.add_argument(
         "--fetch-on-failure",
         action="store_true",
         help="copy outputs back even without an exit code",
@@ -311,6 +339,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.max_hours * 3600 < args.deadline_s + 900:
         print("--max-hours must leave 15 min after --deadline-s for the copy", file=sys.stderr)
         return 2
+    if not SSH_KEY.exists():
+        print(
+            f"{SSH_KEY} is missing; the pod is reached with its registered public half",
+            file=sys.stderr,
+        )
+        return 2
+    # A plain kill must still reach the ``finally`` that deletes the pod.
+    signal.signal(signal.SIGTERM, signal.default_int_handler)
     return run(RunPod(key), args)
 
 
