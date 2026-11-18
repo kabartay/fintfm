@@ -17667,3 +17667,26 @@ The diagnostic merge with the Mac's QSAR-TID-11 (`fintfm_g295_clip_macqsar`) sco
 The clip commit was cherry-picked onto d915c57 without conflict (`_clip_bounds` is recorded in `_fit_readout` and
 applied in `_predict_proba_readout`); FinTFM tests 511 passed, 1 skipped; ruff 0.14.0 clean. Fork
 `fintfm-pr-2026-11` fast-forwarded to **1aa50af**. Logs: `runs/merge_g295_clip*.log`, `runs/samefit_g295_clip*.log`.
+
+## §302: pre-registration: §257's combined binary arm is completed on RunPod and judged against the current entry, not TABFLEX_GPU (task 49.22)
+
+**Written 2026-11-19, before the four missing tables run.** §257's combined binary arm (readout ensemble `xfit,noxfit`
+with `FINTFM_PROBE_BUDGET=50000`, fork 6ca0219, no splines) has 26 of its 30 binary tables: 19 small ones
+(`fintfm_lp_bin_ens2_budget_cpu`, `_small_mac`), NATICUSdroid (`_large_mac`), APSFailure, credit_card_clients_default,
+bank-marketing and kddcup09_appetency (`_large_mac2`), and **GiveMeSomeCredit (738 s) and
+customer_satisfaction_in_airline (888 s) on a RunPod A40** (MEASURED 2026-11-18, `task_t4_bin_ens2_budget_large` with
+`DATASETS`, BLAS capped at 4 threads, run `fintfm_lp_bin_ens2_budget_t4`, both exit 0 without the time limit). Missing:
+Amazon_employee_access, Diabetes130US and HR_Analytics_Job_Change_of_Data_Scientists (time limit on the Mac, §271), and
+in_vehicle_coupon_recommendation (time limit on Kaggle CPU at 542 s; its Mac job was stopped).
+
+**Run.** The three large tables with the same T4 kernel on a RunPod A40; coupon with the arm's CPU kernel
+(`task_cpu_bin_ens2_budget`, `DATASETS`) on a second A40 pod. Same fork pin and settings; BLAS capped at 4 threads.
+
+**Why the rule changes.** §257's rule (adopt if the merged Elo exceeds TABFLEX_GPU, else stay at
+`fintfm_linprobe_all51_1116b`) predates the spline entry: the current entry `fintfm_g295_clip` (§301) is already 1,024.8
+against TABFLEX_GPU's 978.1, so §257's rule as written could adopt an arm below the current entry. **New rule, set by
+the owner before the four tables run:** merge `fintfm_g302_ens2` = the arm's 30 binary tables + `fintfm_g295_clip`'s
+multiclass and regression runs. Adopt (the entry's binary readout becomes this arm's) only if all 30 binary tables exit
+0 without the time limit **and** `fintfm_g302_ens2` scores above `fintfm_g295_clip` in one fit
+(`scripts/lite_same_fit.py`); report position with field size and the binary-only board. Otherwise the arm is
+closed and the entry stays at `fintfm_g295_clip`. Not retuned on its result.
