@@ -17572,3 +17572,27 @@ inside the interval and comes almost entirely from taiwanese on Kaggle CPU; it s
 **Two defects found on the way, both outside the stored numbers:** the adapter chose Apple's MPS automatically and ran
 out of Metal memory on every Mac table (fixed, fork 65c21d5, §293); and on a machine with many vCPUs OpenBLAS
 oversubscription made 3 large binary tables run past the time limit (§296; a thread limit in the adapter is next).
+
+## §298: pre-registration: limit BLAS threads in the FinTFM-LinProbe adapter to min(4, the fit's CPUs) (task 49.26, §296)
+
+**Written 2026-11-18, before the change is run anywhere.** **Not blind:** §296 measured `OPENBLAS_NUM_THREADS=4` on HF
+`t4-medium` (credit_card_clients_default 412 s against a `TimeLimitExceeded` at 882 s), and §297's 5 large tables ran
+under that setting within 0.3% of the stored runs.
+
+**Arm.** Fork option `blas_threads` (`None` or an int >= 1; the entry default `"auto"` means `min(4, num_cpus)`, with
+`num_cpus` the CPUs AutoGluon gives the fit): `_fit` and `_predict_proba` run inside
+`threadpoolctl.threadpool_limits(limits=n, user_api="blas")`, so numpy's and scipy's BLAS (the readout's
+`LogisticRegressionCV`, ridge and spline fits) use at most `n` threads; torch's own threads are untouched. The limit
+chosen at fit is stored and reused at predict. `None` leaves BLAS as the machine sets it. The 4 is §296's measured
+setting, not tuned further. On a machine with at most 4 CPUs for the fit (Kaggle CPU and T4 sessions) and on the Mac
+runs (`OMP_NUM_THREADS=4`) BLAS already used at most 4 threads, so the stored and reproduced numbers there are not
+expected to move.
+
+**Run.** HF Jobs `t4-medium`, the PR branch plus this change only, no `OPENBLAS_NUM_THREADS` or `FINTFM_*` variable:
+credit_card_clients_default, bank-marketing and customer_satisfaction_in_airline (the three slowest of §297's capped
+tables; bank-marketing and credit_card stopped at the time limit there without a cap).
+
+**Rule.** Adopt (`blas_threads="auto"` becomes the PR branch's default for every problem type) only if all three fits
+complete with no `TimeLimitExceeded` and each test metric equals §297's `OPENBLAS_NUM_THREADS=4` result within 1e-6
+relative (the same thread count should give the same arithmetic). Otherwise the change is not adopted and the PR
+states the hardware dependence instead. Not retuned on the result.
