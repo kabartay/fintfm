@@ -17690,3 +17690,26 @@ multiclass and regression runs. Adopt (the entry's binary readout becomes this a
 0 without the time limit **and** `fintfm_g302_ens2` scores above `fintfm_g295_clip` in one fit
 (`scripts/lite_same_fit.py`); report position with field size and the binary-only board. Otherwise the arm is
 closed and the entry stays at `fintfm_g295_clip`. Not retuned on its result.
+
+## §303: §302's rule fails: §257's combined binary arm completes all 30 tables but scores 1,006.5 against the current entry's 1,023.7; the arm is closed (task 49.22)
+
+**MEASURED, 2026-11-19.** The four missing tables ran on RunPod at fork 6ca0219 with §257's settings, BLAS capped at
+4 threads: Amazon_employee_access (264 s), HR_Analytics_Job_Change_of_Data_Scientists (235 s) and Diabetes130US
+(533 s) with `task_t4_bin_ens2_budget_large` on an **RTX A6000** (the A40 was out of stock; run directory
+`fintfm_lp_bin_ens2_budget_a6000`), and in_vehicle_coupon_recommendation (984 s) with `task_cpu_bin_ens2_budget` on an
+A40 pod (`fintfm_lp_bin_ens2_budget_cpu_a40`); GiveMeSomeCredit and airline from §302 are `fintfm_lp_bin_ens2_budget_a40`.
+All exit 0 without `TimeLimitExceeded`, so **all 30 binary tables completed**. The arm's binary half therefore mixes
+Kaggle CPU, the Mac, an A40 and an A6000.
+
+`fintfm_g302_ens2` (the arm's 30 binary tables + `fintfm_g295_clip`'s multiclass and regression runs) in one fit with
+`fintfm_g295_clip` (111 methods): **1,006.5 (+81/-86), 101st, against 1,023.7 (+69/-77), 99th.** Alone: 1,006.0, 100th
+of 110. Binary-only board, one fit (109 methods): `fintfm_g302_ens2_bin` 1,064.2 (+132/-118), 94th, against
+`fintfm_g295_clip_bin` 1,090.0 (+109/-104), 92nd. **Not adopted:** the spline binary readout of the current entry beats
+the two-member readout ensemble with the probe budget. The entry stays at `fintfm_g295_clip`, PR branch 1aa50af.
+RunPod spend for §302-§303: about $0.33 (A40, GiveMeSomeCredit and airline), $0.23 (A6000) and $0.30 (A40, coupon),
+ESTIMATED from pod hours. Logs: `runs/merge_g302_*.log`, `runs/samefit_g302_*.log`, `runs/runpod/ens2-*.log`.
+
+**PR head reproduction (MEASURED).** The entry the PR branch 1aa50af defines, assembled from the reproduction's binary
+and multiclass runs (§297) and §295's thirteen clipped regression fits (same code: the BLAS limit is a no-op on Kaggle
+and the Mac), `fintfm_pr_head_repro`: **1,019.6 Elo, 99th of 110** alone; 1,020.3 against the unclipped reproduction's
+1,018.5 in one fit (111 methods). This is the figure the PR quotes.
