@@ -17508,3 +17508,28 @@ is worse than in `fintfm_g292_emr` by more than 0.1% relative, and `fintfm_g295_
 `fintfm_g292_emr`'s Elo in one fit (`scripts/lite_same_fit.py`). Report per-table test RMSE, the entry alone with its
 position and field size (`scripts/lite_positions.py`), and the regression-only board. A gain inside the Elo interval
 is a configuration choice on one fold. Not retuned on the result: no other margin is tried.
+
+## §296: the HF Jobs slowdown is OpenBLAS oversubscription in the readout's `LogisticRegressionCV`, not the GPU; four BLAS threads make credit_card_clients_default fit in 412 s
+
+**MEASURED, HF Jobs `t4-medium` (8 vCPU, Tesla T4), PR branch 65c21d5, registry default config, 2026-11-18.**
+`scripts/hf/profile_fit.py` installs what the reproduction kernel installs and fits one table in-process under
+`cProfile`, sampling `nvidia-smi` every 5 s.
+
+| run | outcome | GPU utilisation | BLAS threads |
+| --- | --- | --- | --- |
+| default (`fintfm-profile-cc`) | `TimeLimitExceeded` after 882 s, inside the first fold | mean 4.6%, above 50% in 5% of samples | OpenBLAS 8, torch OpenMP 4 |
+| `OPENBLAS_NUM_THREADS=4` (`fintfm-profile-cc-blas4`) | **all 8 folds in 412 s** | mean 36.4%, above 50% in 39% | OpenBLAS 4, torch OpenMP 4 |
+
+In the default run 793 of 882 s are scikit-learn's `LogisticRegressionCV` fitting the readout probes (lbfgs; the
+time is in `loss_gradient`, `weight_intercept_raw` and `setulb`, that is numpy matrix products of a few milliseconds
+each), and about 32 s the network's forward passes. The stored Kaggle T4 run took 1,022 s for the whole fit; Kaggle's
+GPU session has fewer vCPUs, so its OpenBLAS never ran 8 threads. The capped run's validation AUC is 0.7749 against the
+stored run's 0.77475, so the cap changes the time, not the fit, to four decimals. This explains the earlier HF failures
+(bank-marketing, HR_Analytics, credit_card_clients_default; credit_card also on `a10g-large`, 12 vCPU) and the 1.8 to
+3.3x slower fits that did finish.
+
+**Consequence for the PR.** On any machine where OpenBLAS defaults to many threads beside torch's, the large binary
+tables can run past TabArena's 3,600 s limit. A thread limit around the probe fits in the adapter (`threadpoolctl`)
+would remove the dependence on the machine; it is a code change to the entry and gets its own pre-registration and
+check against the stored runs. Until then, the 5 remaining large tables run on HF with `OPENBLAS_NUM_THREADS=4` set on
+the job (a machine setting; the kernel's config and `FINTFM_*` handling are unchanged).
