@@ -17,6 +17,9 @@ wrapper changes nothing in the kernel except its working directory:
 refuses a name the kernel does not list, so one kernel can be split across parallel jobs. The
 datasets' order and every fit setting stay the kernel's.
 
+``UPLOAD=0`` skips step 4 and leaves the outputs in ``/work``, for hosts whose caller copies them
+back itself (``scripts/runpod/run_kernel_on_pod.py``); no ``HF_TOKEN`` is needed then.
+
 Launch (the token is passed as a job secret from the caller's environment, never printed)::
 
     hf jobs run --detach --flavor t4-medium --timeout 6h --secrets HF_TOKEN \\
@@ -118,7 +121,8 @@ def main() -> int:
         print("deadline reached; uploading what exists", flush=True)
         code = 124
     finally:
-        upload(kernel)
+        if os.environ.get("UPLOAD", "1") != "0":
+            upload(kernel)
     return code
 
 
