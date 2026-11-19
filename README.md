@@ -15,7 +15,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-green.svg" alt="License"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/python-3.12%20%7C%203.13-blue.svg" alt="Python"></a>
   <a href="https://huggingface.co/kabartay/fintfm-binary"><img src="https://img.shields.io/badge/%F0%9F%A4%97%20weights-fintfm--binary-yellow" alt="Checkpoint"></a>
-  <a href="#status-stated-plainly"><img src="https://img.shields.io/badge/TabArena--Lite-104th%20of%20110-critical" alt="TabArena-Lite"></a>
+  <a href="#status-stated-plainly"><img src="https://img.shields.io/badge/TabArena--Lite-99th%20of%20110-critical" alt="TabArena-Lite"></a>
   <a href="https://kabartay.github.io/fintfm/leaderboard/"><img src="https://img.shields.io/badge/leaderboard-live-8957e5" alt="Leaderboard"></a>
 </p>
 
@@ -101,7 +101,7 @@ numbers its rows from 0, so ranks quoted from it before 2026-11-13 were one plac
 | RandomForest (default), the resubmission bar | all 51 | 1,000 | 100th of 110 | §224, §225 |
 
 The zero-shot row re-scores §204's stored predictions against today's field, with no refit.
-**Position moved once, by one place:** Elo rose from 880 to 909 over §221 to §231 with the
+**Position moved slowly:** Elo rose from 880 to 909 over §221 to §231 with the
 position fixed at 107th of 110, and §232's binary readout options (926) put the entry above
 LR (tuned) at 919.5, 106th of 110; §235's four regression bags took it to 932 (931.9, 106th of 110); §254's cross-fitted binary readout took it to 952.8, 104th of 110, with most of the gain from one dataset at one fold; §257's two large-table levers took it to 965.6, still 104th of 110 (binary 15 better, 8 worse, 7 tied of 30, sign test p 0.21; the levers and the device, a T4 against CPU, change together). §269's multiclass probability floor took it to 966.1, 103rd of 110: +0.7 Elo against the previous entry in one fit, against intervals of about ±90, so a configuration choice, not a measured improvement. §283's size-gated one-hot (multiclass) and random-Fourier-feature readout (regression) took it to 979.8, 101st of 110, above TABFLEX_GPU (default) at 977.7 in the same fit: again a configuration choice inside the interval. §286's four readout bags for binary fits of at most 5,000 rows took it to 989.4, still 101st of 110, 10.6 Elo below RandomForest (default). §290's splines for binary fits of at most 10,000 rows took it to 1,009.8, 99th of 110, above RandomForest (default) at 1,000.0: +22.0 Elo against the previous entry in one fit, again inside the interval.
 
@@ -480,7 +480,7 @@ OpenML's `Public` label is not a licence and was not accepted as one.
 - *Commercial use allowed* (CC BY 4.0 on the UCI dataset pages, attribution owed): covertype
   (both folders), MagicTelescope, bank-marketing, MiniBooNE, Higgs, Diabetes130US, and
   default-of-credit-card-clients (both folders). OpenML says CC0 for MiniBooNE and the credit-card
-  data, the stricter UCI statement is the one recorded. road-safety is under the UK Open
+  data; the stricter UCI statement is the one recorded. road-safety is under the UK Open
   Government Licence v3.0 (Department for Transport), also with attribution.
 - *Unknown: excluded*: pol, house_16H, Bioresponse, credit (Give Me Some Credit), heloc,
   california, jannis, albert, electricity (both folders), eye_movements (both folders) and

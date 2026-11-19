@@ -1,9 +1,9 @@
 # GPU pretraining on Hugging Face Jobs
 
-**Status: the recipe below has been executed.** Following the recipe of a private
-sibling project, every line here was run rather than inferred, and the
-failures are kept because each one cost a probe and would otherwise be rediscovered. Six probes
-established the working configuration. **Status 2026-10-15:** the scaling runs described
+**Status: the recipe below has been executed.** It follows the recipe of a private
+sibling project, and every line here was run rather than inferred. The failures are kept
+because each one cost a probe and would otherwise be rediscovered. Six probes established the
+working configuration. **Status 2026-10-15:** the scaling runs described
 below have completed; their results are `docs/results/FINDINGS.md` §108 and §114.
 
 > **Note (2026-11-13).** The launch command, memory tables and step costs below are for the
@@ -90,7 +90,7 @@ see the secrets section for why the distinction matters.
 
 ## Memory scales with batch × rows × features², not with parameters
 
-The column-attention stage reshapes to ``(B·N, F, d_cell)`` and attends across **features**, so
+The column-attention stage reshapes to `(B·N, F, d_cell)` and attends across **features**, so
 a task of 1,024 rows at batch 8 is 8,192 sequences of 136 tokens. That, not parameter count, is
 what fills the card:
 

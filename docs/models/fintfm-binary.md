@@ -3,9 +3,10 @@
 LICENCE: Apache-2.0 (owner decision 2026-11-16, matching the code and the public binary checkpoint)
 
 Status: **already public** at `kabartay/fintfm-binary` (checked read-only on 2026-11-15; the
-repository's metadata declares `apache-2.0`). `CLAUDE.md` still says trained weights are not
-published, so the licence on that repository is the first thing the owner should reconcile
-(see `docs/models/WEIGHTS_LICENCE_OPTIONS.md`). Nothing here uploads anything.
+repository's metadata declares `apache-2.0`). `CLAUDE.md` said at the time that trained
+weights are not published, so the licence on that repository was the first thing for the owner
+to reconcile (see `docs/models/WEIGHTS_LICENCE_OPTIONS.md`); the owner decided on 2026-11-16,
+as the licence line above records. Nothing here uploads anything.
 
 | | |
 | --- | --- |
@@ -49,6 +50,7 @@ the record. No real data at any stage of pretraining.
 - Binary only, at most 136 features. One seed, 48,000 tasks.
 - Discrimination loses to tuned gradient boosting on real corporate-default panels; the
   repository's claims ledger (`docs/paper/CLAIMS.md`) records what holds.
-- Weights licence is not decided in this card.
+- Weights licence: this card records the owner's decision of 2026-11-16 (Apache-2.0); it does
+  not reopen it.
 
 LICENCE: Apache-2.0 (owner decision 2026-11-16, matching the code and the public binary checkpoint)

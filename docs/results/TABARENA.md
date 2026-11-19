@@ -112,7 +112,7 @@ OpenML instead (`openml.tasks.get_task(tid).get_dataset().get_data()`), as §100
 
 ## Coverage, which must be reported with any score
 
-The suite is 30 binary, 13 regression and 8 multiclass. Coverage has moved twice:
+The suite is 30 binary, 13 regression and 8 multiclass. Coverage has changed more than once (the rows below are in chronological order):
 
 | declared | eligible | why the rest are excluded |
 | --- | --- | --- |
@@ -567,7 +567,7 @@ run scored each dataset. None of the 51 datasets is imputed for FinTFM (§221).
 **What was tried on multiclass and did not help** (§222, §224): the 480,000-task checkpoint
 (+11 Elo, 5 of 8 better, p 0.73), the head's log probabilities (825 to 825, 8 times slower), and
 a 4,000-row context (820). Four partition bags give +40 Elo and are noisy: three datasets are
-worse, website_phishing by 4.3%. `mc-bag8` is queued (§224); no result yet.
+worse, website_phishing by 4.3%. `mc-bag8` was queued at the time of writing (§224); §227 has since run it (see the note below).
 
 **Gaps to state first.** (1) Overall is 97 Elo below `RF (default)`. (2) Regression (578) is the
 weakest type; the remaining lever is a regression checkpoint on the current recipe, which needs
@@ -575,3 +575,9 @@ a GPU (§223). (3) The readout options are untested on binary, and under the V4F
 rule they are scored there before any binary Lite run (§223). (4) The multiclass checkpoint
 `dr74-mc-s0` and `v4-regression.pt` are private, so a PR would need both published, or the
 entry could not be reproduced.
+
+**Later (2026-11-19).** Two statements in this section have been overtaken. `mc-bag8` ran
+and tied four bags on multiclass (874 Elo against 865, §227). The regression arm now uses
+`v4-binned48_3-control.pt` rather than `v4-regression.pt` (§227), and the multiclass and
+regression checkpoints are public since 2026-11-17 (see `docs/models/`), so gap (4) no longer
+applies.

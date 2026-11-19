@@ -13,7 +13,8 @@
   TabFM and TimesFM 3.0 ship Apache-2.0 code with non-commercial weights).
 - Reality check (public API, 2026-11-15): `kabartay/fintfm-binary` is public and declares
   `apache-2.0` in its metadata, with the binary file's SHA-256 identical to the local one. The
-  multiclass and regression repositories are not publicly visible. The binary grant is therefore
+  multiclass and regression repositories were not publicly visible on that date (both are public
+  since 2026-11-17, per their model cards). The binary grant is therefore
   already out, and `CLAUDE.md`'s "not published" sentence is stale on that point.
 - A TabArena resubmission needs all three checkpoints public with a licence.
 
@@ -37,5 +38,6 @@
 
 ## Open for the owner
 
-- Which licence for multiclass and regression, and whether binary's stays as it is.
+- Which licence for multiclass and regression, and whether binary's stays as it is (decided on
+  2026-11-16: Apache-2.0 for all three).
 - Attribution wording and any CLA are not covered here.

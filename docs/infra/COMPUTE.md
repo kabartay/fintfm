@@ -7,9 +7,9 @@ clears the bound and is 18x too slow. Time the device idle: the same probe read 
 while an evaluation held the GPU.
 
 Measured throughput, what a real run costs, and where to run it. Every number here was
-measured on this machine on the date given unless it is marked ESTIMATED or stated as a
-range ("perhaps 5-15x"). Re-measure rather than
-trusting these after an architecture change, because they will move.
+measured on this machine on the date given, unless it is marked ESTIMATED or stated as a
+range ("perhaps 5-15x"). Re-measure rather than trust these after an architecture change,
+because they will move.
 
 ## The machine
 
@@ -75,14 +75,14 @@ Added 2026-09-09, on Hugging Face Jobs. Full recipe and the six probes behind it
 that fits, the cheaper card is also the faster one to actually start.
 
 **Memory scales with batch × rows × features², not with parameters.** The column stage attends
-across features on ``B·N`` sequences, so a 1,024-row task at batch 8 is 8,192 sequences of 136
+across features on `B·N` sequences, so a 1,024-row task at batch 8 is 8,192 sequences of 136
 tokens. That is what fills a card, and it means wide tables here are memory-bound before they
 are compute-bound. Two consequences learned the expensive way:
 
-- **Probe the worst case explicitly.** ``--n-rows-choices 256,512,1024`` samples per batch, so
+- **Probe the worst case explicitly.** `--n-rows-choices 256,512,1024` samples per batch, so
   a 200-step probe never drew 1,024 and passed, while the 6,000-step run at identical settings
-  OOMed six minutes in. Pin ``--n-rows-choices 1024`` for the memory probe.
-- **Set ``PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True``.** The failing run had 5.38 GiB
+  OOMed six minutes in. Pin `--n-rows-choices 1024` for the memory probe.
+- **Set `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`.** The failing run had 5.38 GiB
   "reserved but unallocated"; with the flag every previously failing configuration fits.
 
 ## The published recipe, measured per step (added 2026-11-13)

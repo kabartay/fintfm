@@ -15,7 +15,7 @@ release.
 | --- | --- |
 | [FINDINGS.md](results/FINDINGS.md) | The measurement log, numbered and dated, each entry labelled by how it was produced. **§N** anywhere in this repository refers to an entry here. |
 | [TABARENA.md](results/TABARENA.md) | External evaluation under someone else's protocol: the reproduction recipe, the coverage fraction any score must carry, and four silent failure modes — including a results cache that returns stale numbers after a preprocessing change. |
-| [POSTMORTEM.md](results/POSTMORTEM.md) | Wrong diagnoses, each caught by measurement rather than review, kept on the record deliberately. Three chains: the first week's seven diagnoses, a cheap proxy standing in for an expensive measurement, and harness defects read as model results (§219, §220). |
+| [POSTMORTEM.md](results/POSTMORTEM.md) | Wrong diagnoses, each caught by measurement rather than review, kept on the record deliberately. Three chains: the first three days' seven diagnoses, a cheap proxy standing in for an expensive measurement, and harness defects read as model results (§219, §220). |
 | [drafts/](results/drafts/) | Working drafts and pre-registrations (`dr*`, `au*`, `48.*`, `preregs_2026-11.md`, `path-to-bar_2026-11-08.md` and others), named by task id and month. Not findings: a result becomes one only when it has a section in FINDINGS.md. Grouped here rather than listed, because the folder grows with every audit round. |
 
 ## design/ — how it works, and why it is built this way
