@@ -6,14 +6,21 @@ not paste one into the other. See `CLAUDE.md`.
 
 ## [Unreleased]
 
+## [0.13.0] — 2026-11-19
+
+The TabArena entry's linear readout moves into the package as `fintfm.readout`, so the TabArena
+wrapper becomes a thin adapter. No new weights, and every model and inference default is
+unchanged.
+
 - New subpackage `fintfm.readout`: the TabArena entry's linear readout, moved out of the
   TabArena fork's wrapper so the wrapper is a thin AutoGluon adapter. `LinearReadoutModel`
   (`fit`, `predict_proba`, `predict`) takes the float32 feature matrix and owns categorical
   encoding, the checkpoint, the partition and the readout; `entry_defaults(problem_type)` is
   the measured entry; `fintfm.readout.checkpoints` holds the three pinned checkpoints and
   downloads them with a SHA-256 check (`huggingface_hub`, imported only when a checkpoint is
-  fetched). Moved without numerical change: the wrapper plus this package reproduce the
-  previous wrapper's predictions bit for bit on six synthetic tasks that cross every size gate.
+  fetched). Moved without numerical change: the thin wrapper plus this package reproduce the
+  previous wrapper's predictions bit for bit on six synthetic tasks that cross every size gate
+  and on four TabArena-Lite tables, one fold each (FINDINGS §305).
   The `FINTFM_MINORITY_POSITIVE` and `FINTFM_REG_THRESHOLDS` switches are now the settings
   `minority_positive` and `reg_thresholds` (both off by default); no other `FINTFM_*` variable
   is read by the package.
@@ -21,8 +28,9 @@ not paste one into the other. See `CLAUDE.md`.
   reject. `uniform` stays the default (`prototype` fails §289's rule); `retrieval` beats it on
   average precision on Polish 1y and 3y only, and stays opt-in. D10 updated.
 - README and the leaderboard page: the TabArena-Lite standing is the reproduction from the
-  pull-request branch, 1,019.6 Elo, 99th of 110 (FINDINGS §297, §303). The stored runs it
-  reproduces score 1,024.0 (§301).
+  pull-request branch, scored against the 119 methods of TabArena's collection at upstream
+  main: 1,022.6 Elo, 108th of 119 (FINDINGS §304); the same runs are 1,019.6 Elo, 99th of 110,
+  on the fork's older collection (§303). The resubmission is autogluon/tabarena#736.
 - The TabArena fork's entry clips regression predictions to the training target's range
   widened by 10% (FINDINGS §295, §301; diamonds RMSE 249,744 to 957), limits BLAS to
   min(4, CPUs) threads (§296-§299), and never selects Apple's MPS on its own (§297). The

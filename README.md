@@ -67,8 +67,8 @@ says plainly where it does not yet.
 
 | | |
 | --- | --- |
-| **TabArena-Lite (own run)** | **1,019.6 Elo, 99th of 110, all 51 datasets, none excluded**, reproduced from the pull-request branch (fork 1aa50af) with no environment overrides (§297, §303); RandomForest (default) 1,000.0, a lead inside the ±75 interval. The stored runs it reproduces score 1,024.0 (§301). One fold, run in this project's TabArena fork, not on [tabarena.ai](https://tabarena.ai). The entry is "FinTFM with a trained linear readout": a linear model on the network's representation, which also takes the row's own features. By type, from the reproduction: binary 1,083 on 30 datasets (92nd of 108), multiclass 947 on 8 (98th of 108), regression 853 on 13 (97th of 103), each on a board of its own type only (§297, §303). Cross-fitting did not help multiclass or regression (§255). On the same board RandomForest (default), the resubmission bar, scores 1,000. General-tabular results, not credit results |
-| **TabArena submission** | The zero-shot model on 27 binary datasets ranked **94th of 95**; a maintainer confirmed the integration and declined the entry on competitiveness (§122). On today's field it scores 750 Elo, 107th of 108 (§225). No resubmission until the readout entry reaches 1,000 overall Elo (design review DR7.6) |
+| **TabArena-Lite (own run)** | **1,022.6 Elo, 108th of 119, all 51 datasets, none excluded**, reproduced from the pull-request branch (fork 1aa50af) with no environment overrides and scored against the 119 methods of TabArena's collection at upstream main (§297, §304); RandomForest (default) 1,000.0, a lead inside the +75 / −87 interval. On the fork's older collection the same runs are 1,019.6 Elo, 99th of 110 (§303). One fold, run in this project's TabArena fork, not on [tabarena.ai](https://tabarena.ai). The entry is "FinTFM with a trained linear readout": a linear model on the network's representation, which also takes the row's own features. By type, from the reproduction: binary 1,084.2 on 30 datasets (101st of 117), multiclass 940.8 on 8 (107th of 117), regression 859.5 on 13 (109th of 115), each on a board of its own type only (§304). Cross-fitting did not help multiclass or regression (§255). On the same board RandomForest (default), the resubmission bar, scores 1,000. General-tabular results, not credit results |
+| **TabArena submission** | The zero-shot model on 27 binary datasets ranked **94th of 95**; a maintainer confirmed the integration and declined the entry on competitiveness (§122). On today's field it scores 750 Elo, 107th of 108 (§225). The readout entry on all 51 datasets is resubmitted as [autogluon/tabarena#736](https://github.com/autogluon/tabarena/pull/736) (2026-11-19), awaiting review; the bar was 1,000 overall Elo (design review DR7.6) |
 | **Real credit panels** | Gradient boosting wins. On V4FinBench's full panel FinTFM scores 0.20 mean AP against 0.40 for untuned CatBoost (§163); LightGBM at 1,000 trees reaches 0.3908 (§167), so the gap is boosting rounds, not one library. On four more credit datasets (SBA 7(a), ULB, FDIC, Estonia) FinTFM is below untuned logistic regression on mean AP (§216). Calibration was best or near-best on four panels for the pre-cell-attention architecture, one split each (Claim 9, a single draw, §73), and is not claimed for the published checkpoint: it over-predicts the default rate 1.2 to 1.7 times on ULB (§174), and 1.9 and 3.2 times on two FDIC splits while under-predicting the third (0.396% against 0.735%; run record behind §216, `docs/results/drafts/dr4.3-runs_2026-11-07.md`) |
 | **Levers on V4FinBench** | Opt-in fine-tuning (`finetune_steps`, 0.7.0): mean AP 0.1986 to 0.2062, better on 5 of 5 folds, 3.8% of the gap to CatBoost (§163). Zero-shot partitioned contexts (`fintfm-v4protocol --large-n partition`): 0.1986 to 0.2362, +0.0375, 5 of 5 folds (§169), and ahead of fine-tuning on 5 of 5 (§205) |
 | **Licence** | Apache-2.0 for **code and weights**, each chosen separately (see [Licensing](#licensing--provenance)) |
@@ -96,9 +96,10 @@ numbers its rows from 0, so ranks quoted from it before 2026-11-13 were one plac
 
 | entry | datasets | Elo | position | source |
 | --- | --- | --- | --- | --- |
-| **FinTFM with a trained linear readout**, reproduced from the pull-request branch | all 51, none excluded | **1,019.6** | **99th of 110** | §303 |
+| **FinTFM with a trained linear readout**, reproduced from the pull-request branch, on the 119-method collection at upstream main | all 51, none excluded | **1,022.6** | **108th of 119** | §304 |
+| the same runs on the fork's older collection | all 51, none excluded | 1,019.6 | 99th of 110 | §303 |
 | the published model, zero-shot, own head | 27 binary | 750 (+134 / −186) | 107th of 108 | §225 |
-| RandomForest (default), the resubmission bar | all 51 | 1,000 | 100th of 110 | §224, §225 |
+| RandomForest (default), the resubmission bar | all 51 | 1,000 | 110th of 119 | §304 |
 
 The zero-shot row re-scores §204's stored predictions against today's field, with no refit.
 **Position moved slowly, from 107th to 99th of 110:** Elo rose from 880 to 909 over §221 to §231 with the
@@ -681,7 +682,7 @@ BibTeX and APA. The same entry, to copy:
   title     = {{FinTFM: a tabular foundation model for corporate credit risk,
                pretrained only on synthetic data}},
   year      = {2026},
-  version   = {0.12.0},
+  version   = {0.13.0},
   doi       = {10.5281/zenodo.22949759},
   url       = {https://github.com/kabartay/fintfm},
   publisher = {Zenodo},

@@ -17734,3 +17734,25 @@ Neighbours on the 51-dataset board: NN_TORCH (default) 1,033.8 (106th), XRFM_GPU
 967.3 (113th); GBM (tuned + ensemble) 1,389.1 (43rd). The entry stays 22.6 Elo above RandomForest (default), inside the
 interval. The scores of the 51 runs did not change; only the field did. §303's 99th of 110 is the same entry on the
 fork's older collection. The pull request quotes this board, the one the maintainers' `main` produces.
+
+## §305: the readout moved into `fintfm.readout` reproduces the PR wrapper's predictions bit for bit
+
+**MEASURED, 2026-11-19.** The TabArena wrapper of PR autogluon/tabarena#736 (fork 6f353cf, +7,212 lines) carried the
+whole readout. It now lives in the package as `fintfm.readout` (`LinearReadoutModel`, `entry_defaults`, the pinned
+checkpoints), and the wrapper on fork branch `fintfm-pr-thin` (9d99144) is a thin AutoGluon adapter: +782 lines in 12
+files against upstream `main`. The zero-shot `FinTFM` registry entry is dropped from the PR. The acceptance rule, set
+before the move: every prediction equal under `np.array_equal`, not within a tolerance.
+
+| check | result |
+| --- | --- |
+| oracle: six synthetic tasks crossing every size gate (binary 3,000, 2,500 with two categorical columns, 12,000 rows; multiclass 2,500 with two categorical columns; regression 2,000 with one categorical column, 7,000), 500 held-out rows each, default entry | identical on all six, from the worktree source and again from the built wheel (imports resolved to the wheel) |
+| reference repeatability | two runs of the old wrapper identical on all six |
+| TabArena-Lite, repeat 0 fold 0, old (6f353cf + fintfm 0.12.0) against new (thin wrapper + this package), same Mac CPU | metric error and validation and test predictions identical: credit-g 0.22376, anneal 0.08400, healthcare_insurance_expenses 4,255.94, Bioresponse 0.13275 |
+| default hyperparameters per problem type | every setting, checkpoint revision and SHA-256 equal; the new wrapper omits the other problem types' keys, which the old one ignored |
+| function bodies (AST, docstrings ignored) | 43 identical; 17 changed mechanically: the seed is passed in as `random_state`, the `_check_*` methods became module functions, and `FINTFM_MINORITY_POSITIVE` and `FINTFM_REG_THRESHOLDS` became the settings `minority_positive` and `reg_thresholds` (off by default) |
+| tests | 285 `tests/test_readout_*.py` pass; wrapper 42 pass, 1 skipped (BLAS library not visible to threadpoolctl) |
+
+Bioresponse is the case where AutoGluon drops columns before the model's own preprocessing (2026-11-11); the new wrapper
+reads both training and query rows through AutoGluon's public `preprocess`, and its predictions match. Only the
+`FINTFM_*` overrides other than `FINTFM_DEVICE` are dropped, with the tests of those overrides. Evidence:
+`runs/readout_refactor_0130/` (oracle arrays and logs, the per-table results and `real_tables_compare.txt`).
