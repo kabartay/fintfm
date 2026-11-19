@@ -166,7 +166,7 @@ win 88.4% of the 189 datasets and the six non-TFM models 6.4% (p. 12). The annou
 - Mean rank across five models: vendor model 2.21, XGBoost 2.27, LightGBM 3.27, TabICL v2 3.55,
   TabPFN v3 3.71 (p. 16). Outright wins within the three TFMs: 50%, 18% (TabPFN v3), 9% (TabICL v2),
   23% ties (Fig. 3, p. 15).
-- The report's own text says tuned trees lead on retail, behavioural and equity sectors (p. 16-17).
+- The report's own text says tuned trees lead on retail, behavioural and equity sectors (pp. 16-17).
 - The vendor's authors wrote the report, own the model and built the benchmark. These are
   vendor-reported figures, not independent ones.
 

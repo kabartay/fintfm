@@ -124,8 +124,8 @@ checkpoint) is now closed too (§136); Phase A' is done and the next real lever 
    +0.0214), 5/5 folds win (against 4/5), 3/5 significant after Holm. Not a quirk of one
    training run.
 5. ~~**Check whether this transfers to TabArena's Lite protocol.**~~ **Done (§132): it does.**
-   +145 Elo, 93rd of 95 [§225: one place lower] against 94th, 26 of 27 datasets used the linear probe cleanly. Still
-   below every real method -- 910 sits a whisker under `Linear (default)` at 936 (the
+   +145 Elo, 93rd of 95 [§225: one place lower] against 94th, 26 of 27 datasets used the
+   linear probe cleanly. Still below every real method -- 910 sits a whisker under `Linear (default)` at 936 (the
    resubmission bar is about 1,010, corrected 2026-10-16; see Phase E), the next
    milestone this file already named. Timed one dataset first (249s), confirming the discipline
    `docs/results/POSTMORTEM.md`'s second chapter records paying for in the other direction.
@@ -141,7 +141,8 @@ Each is days not weeks, and each has external or internal evidence behind it. Ru
 committing to any architectural rewrite. **Exit condition for the phase: at least one arm moves
 rank by 3 or more positions.** If none does, the deficit is structural and Phase B is the only
 remaining move. (None did; Phase A' and Phase C were then worked ahead of Phase B, which is
-still entirely open: see Phase A' above and the stop rule below.)
+still mostly open, only its cost model, item 8, being done: see Phase A' above and the stop
+rule below.)
 
 1. ~~**Depth at constant width.**~~ **Done, null.** §123 priced it, §124 ran it, §126 confirmed
    it at a matched learning rate: depth contributes **+0.0010 AP** and the two tuned arms are

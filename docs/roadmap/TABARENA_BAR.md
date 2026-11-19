@@ -14,6 +14,10 @@ The PR is held (owner decision DR7.6, 2026-11-11) until multiclass and regressio
 recipe is in the last section of [the TabArena recipe](../results/TABARENA.md); the dated notes below
 update this file's statements and leave the originals in place.
 
+(2026-11-19, §303): standing now. The entry, reproduced from the pull-request branch, stands at
+1,019.6 Elo, 99th of 110. The 903 Elo and 107th of 110 above are the earlier standing, kept as
+written.
+
 Two requirements were stated, and only one of them is mechanical.
 
 ## Requirement 1: all 51 datasets
@@ -76,7 +80,8 @@ defensible bar is parity with `RF (default)`, at 1000.0 by construction, which w
 `KNN (tuned + ensembled)` at 1008.5 means about 1,010. The added rows come from the run that
 scored FinTFM at 764.6, the TabArena fork's `eval/fintfm_lite_tafintfm/tabarena_leaderboard.csv`
 (one decimal there: 966.5, 983.6, 1008.5; Linear is `LR` in that file). Their Elo intervals
-in that file (`elo+` plus `elo-`) run 154 to 262 Elo wide, so a pass is decided on paired per-dataset differences.
+in that file (`elo+` plus `elo-`) run 154 to 262 Elo wide, so a pass is decided on paired
+per-dataset differences.
 
 (2026-11-13, §215: the "about 1,010" figure does not carry over. It came from this fork file's
 leaderboard, where `KNN (tuned + ensemble)` scored 1008.5. In the run that scored the

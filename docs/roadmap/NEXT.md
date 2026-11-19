@@ -29,14 +29,15 @@ tiers below are history, with a dated status line under each where the task file
 [`ROADMAP.md`](ROADMAP.md) is the ordering now. TabArena reviewed the submission, confirmed the
 integration correct, and declined it on competitiveness (§122), which replaced the guess about
 what matters with a stated bar. Items 1 and 3 below have since landed (§101, §121),
-item 2 was closed by §104 (the curve peaks at 16), and item 4 survives as ROADMAP items 8-13. The tier reasoning is kept because it records why the
-order was what it was.
+item 2 was closed by §104 (the curve peaks at 16), and item 4 survives as ROADMAP items 8-13.
+The tier reasoning is kept because it records why the order was what it was.
 
 ## Tier 0 — reordered 2026-09-20, after the first external measurement
 
-§98 placed the project 93rd of 95 [§225: read from a table numbered from 0; §98's own leaderboard is not stored] on TabArena and §100 decomposed that result. The queue now
-follows the decomposition rather than intuition, because for the first time there is a
-measured share attached to each candidate.
+§98 placed the project 93rd of 95 [§225: read from a table numbered from 0; §98's own
+leaderboard is not stored] on TabArena and §100 decomposed that result. The queue now follows
+the decomposition rather than intuition, because for the first time there is a measured share
+attached to each candidate.
 
 1. **`native-categoricals` (47.x)** — **82% of the gap to the method ranked #89 sits on
    datasets with categorical columns**, and the per-dataset gap correlates −0.668 with log
@@ -160,8 +161,8 @@ certificate exists; `zero-shot-attribution` 12.2 to 12.5 are open.)
 12. **`temporal-financial-prior`** — largest known gap between prior and task; needs
     V4FinBench.
 13. **`scaling-curve`** — **demoted.** (2026-11-13: tasks 9.1 to 9.5 are open; scale was closed
-    by measurement instead, §114, §188, §195, §202.) Beyond IID says scale does not fix the non-IID regime,
-    so this no longer justifies renting NVIDIA and is not on the critical path.
+    by measurement instead, §114, §188, §195, §202.) Beyond IID says scale does not fix the
+    non-IID regime, so this no longer justifies renting NVIDIA and is not on the critical path.
 
 ---
 
