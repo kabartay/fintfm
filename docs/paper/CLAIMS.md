@@ -77,8 +77,10 @@ one and no monotonicity penalty is needed.
 
 **What weakens it as a *contribution*:** discrete-time hazard models are decades old, and a
 competent engineer adds this head in an afternoon. The contribution is not the mathematics — it
-is measuring that the field's standard construction is incoherent 39% of the time on real
-data, and that IFRS 9 lifetime ECL consumes exactly the curve being broken. Frame it as a
+is measuring that the field's standard construction breaks monotonicity on real data out of
+time: per-horizon logistic regression violates 40.3% of horizon steps and leaves 98.7% of firms
+non-monotone on V4FinBench, with no firm on both sides of the split and a six-year label
+embargo (§229), and that IFRS 9 lifetime ECL consumes exactly the curve being broken. Frame it as a
 measurement of a live defect, never as a new method.
 
 ---
