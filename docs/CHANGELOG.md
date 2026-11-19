@@ -6,6 +6,17 @@ not paste one into the other. See `CLAUDE.md`.
 
 ## [Unreleased]
 
+- New subpackage `fintfm.readout`: the TabArena entry's linear readout, moved out of the
+  TabArena fork's wrapper so the wrapper is a thin AutoGluon adapter. `LinearReadoutModel`
+  (`fit`, `predict_proba`, `predict`) takes the float32 feature matrix and owns categorical
+  encoding, the checkpoint, the partition and the readout; `entry_defaults(problem_type)` is
+  the measured entry; `fintfm.readout.checkpoints` holds the three pinned checkpoints and
+  downloads them with a SHA-256 check (`huggingface_hub`, imported only when a checkpoint is
+  fetched). Moved without numerical change: the wrapper plus this package reproduce the
+  previous wrapper's predictions bit for bit on six synthetic tasks that cross every size gate.
+  The `FINTFM_MINORITY_POSITIVE` and `FINTFM_REG_THRESHOLDS` switches are now the settings
+  `minority_positive` and `reg_thresholds` (both off by default); no other `FINTFM_*` variable
+  is read by the package.
 - Task 32.7 (FINDINGS §294): the binary context comparison rerun with a Holm family that can
   reject. `uniform` stays the default (`prototype` fails §289's rule); `retrieval` beats it on
   average precision on Polish 1y and 3y only, and stays opt-in. D10 updated.
