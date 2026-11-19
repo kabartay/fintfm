@@ -17713,3 +17713,24 @@ ESTIMATED from pod hours. Logs: `runs/merge_g302_*.log`, `runs/samefit_g302_*.lo
 and multiclass runs (§297) and §295's thirteen clipped regression fits (same code: the BLAS limit is a no-op on Kaggle
 and the Mac), `fintfm_pr_head_repro`: **1,019.6 Elo, 99th of 110** alone; 1,020.3 against the unclipped reproduction's
 1,018.5 in one fit (111 methods). This is the figure the PR quotes.
+
+## §304: on the TabArena collection at upstream main (119 methods), the reproduced entry scores 1,022.6 Elo, 108th of 119
+
+**MEASURED, 2026-11-19.** The PR branch merged upstream `main` (fork eee00bb), which registers models added upstream
+since the fork's own evaluation code (among them Inpriora and TabPack), so the field grows from 110 to 119 methods.
+`fintfm_pr_head_repro` (§303: the same 51 runs) was re-scored with the merged branch's code on the PYTHONPATH
+(`merge_fintfm_lite.py --name fintfm_pr_head_repro_f112 ... --expect 51`, log `runs/merge_pr_head_repro_f112*.log`),
+positions from `scripts/lite_positions.py`:
+
+| board | Elo | position |
+| --- | --- | --- |
+| all 51 datasets | **1,022.6 (+75 / -87)** | **108th of 119** |
+| binary, 30 | 1,084.2 (+111 / -103) | 101st of 117 |
+| multiclass, 8 | 940.8 (+96 / -259) | 107th of 117 |
+| regression, 13 | 859.5 (+127 / -229) | 109th of 115 |
+
+Neighbours on the 51-dataset board: NN_TORCH (default) 1,033.8 (106th), XRFM_GPU (default) 1,031.9 (107th), XT (default)
+1,009.6 (109th), RandomForest (default) 1,000.0 (110th), TABFLEX_GPU (default) 977.2 (111th), KNN (tuned + ensemble)
+967.3 (113th); GBM (tuned + ensemble) 1,389.1 (43rd). The entry stays 22.6 Elo above RandomForest (default), inside the
+interval. The scores of the 51 runs did not change; only the field did. §303's 99th of 110 is the same entry on the
+fork's older collection. The pull request quotes this board, the one the maintainers' `main` produces.

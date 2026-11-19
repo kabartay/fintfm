@@ -7,9 +7,10 @@ figure is from `docs/results/FINDINGS.md` (section in brackets) and is TabArena-
 fold 0, run from the tabarena fork; none of it is the public leaderboard or a full TabArena run. The
 PR branch is `fintfm-pr-2026-11` at fork commit 6f353cf (upstream `main` merged in at eee00bb).
 
-**Standing (§303).** Reproduced from the PR branch with no `FINTFM_*` variable, 51 of 51 datasets:
-**1,019.6 Elo (+72 / -75), 99th of 110**, 19.6 above RandomForest (default) and the owner's
-resubmission bar (DR7.6), inside the interval. The stored runs it reproduces score 1,024.0 (§301).
+**Standing (§304).** Reproduced from the PR branch with no `FINTFM_*` variable, 51 of 51 datasets, on
+the collection at upstream `main` (119 methods): **1,022.6 Elo (+75 / -87), 108th of 119**, 22.6 above
+RandomForest (default) and the owner's resubmission bar (DR7.6), inside the interval. On the fork's
+older 110-method collection the same runs were 1,019.6, 99th of 110 (§303); the stored runs 1,024.0 (§301).
 
 **Owner decisions, 2026-11-19.** Post with the internal-CV deviation declared (no wrapper change);
 default config only (`can_hpo=False`); report taiwanese_bankruptcy_prediction with both machines'
@@ -25,7 +26,7 @@ run; record in [`PR_2026-09.md`](PR_2026-09.md)) received three concerns and one
 | --- | --- | --- |
 | 1 | Binary only; excluding problem types where the model does worse is cherry-picking. | Answered: binary, multiclass and regression, every Lite dataset, no exclusion. |
 | 2 | Datasets missing; "failures that should be fixed"; new submissions should "cover all datasets". | Answered: 51 of 51 reproduced from the branch, no failed split, none imputed (§297, §303). |
-| 3 | Does not beat a tuned KNN or other simple baselines. | Partly: above KNN (tuned + ensemble) 965.5, TABFLEX_GPU 978.0 and RandomForest (default) 1,000.0 on the same board, but inside the interval for RF, and far below tuned tree ensembles (GBM (tuned + ensemble) 1,380.1) (§303). |
+| 3 | Does not beat a tuned KNN or other simple baselines. | Partly: above KNN (tuned + ensemble) 967.3, TABFLEX_GPU 977.2 and RandomForest (default) 1,000.0 on the same board, but inside the interval for RF, and far below tuned tree ensembles (GBM (tuned + ensemble) 1,389.1) (§304). |
 | 4 | Positive: "I think everything is correct." | The wrapper has changed a lot since; the body lists what needs a fresh read. |
 
 ## Pull request body
@@ -41,7 +42,7 @@ synthetic prior only. It is not zero-shot: a linear readout (logistic regression
 classification, ridge or random-Fourier-feature ridge for regression) is fitted on the network's
 representation of the training rows, one per partition leaf, and also reads the row's own features.
 It covers all 51 TabArena-Lite datasets with one public checkpoint per problem type and the default
-config only. Reproduced from this branch on TabArena-Lite it scores **1,019.6 Elo, 99th of 110**.
+config only. Reproduced from this branch on TabArena-Lite it scores **1,022.6 Elo, 108th of 119**.
 This follows #616 (zero-shot, binary only, declined on competitiveness and coverage).
 
 **Benchmark exposure.** The checkpoints were trained on synthetic tables only. The readout's
@@ -113,14 +114,14 @@ as the class docstring states.
 - Checkpoints are referenced by pinned dict, not loaded objects; optional imports stay inside the
   wrapper; nothing is patched globally.
 
-**Results** (reproduction from this branch, §297, §303)
+**Results** (reproduction from this branch, scored on the collection at `main`, §304)
 
 | | Elo | position |
 | --- | --- | --- |
-| all 51 datasets | 1,019.6 (+72 / -75) | 99th of 110 |
-| binary, 30 datasets (binary-only board) | 1,083.4 (+109 / -100) | 92nd of 108 |
-| multiclass, 8 datasets (multiclass-only board) | 947.1 (+100 / -253) | 98th of 108 |
-| regression, 13 datasets (regression-only board) | 852.6 (+119 / -221) | 97th of 103 |
+| all 51 datasets | 1,022.6 (+75 / -87) | 108th of 119 |
+| binary, 30 datasets (binary-only board) | 1,084.2 (+111 / -103) | 101st of 117 |
+| multiclass, 8 datasets (multiclass-only board) | 940.8 (+96 / -259) | 107th of 117 |
+| regression, 13 datasets (regression-only board) | 859.5 (+127 / -229) | 109th of 115 |
 
 Against the stored development runs, 49 of 51 datasets are within 0.3%. anneal is -0.56%.
 taiwanese_bankruptcy_prediction is +22.2% worse on Kaggle CPU and within 0.01% on the Mac where it
@@ -212,12 +213,12 @@ run).
 
 | position | method | Elo |
 | --- | --- | --- |
-| 97 | NN_TORCH (default) | 1,037.1 |
-| 98 | XRFM_GPU (default) | 1,031.7 |
-| **99** | **[New] TA-FINTFM-LINPROBE (default)** | **1,019.6** |
-| 100 | XT (default) | 1,008.8 |
-| 101 | RF (default) | 1,000.0 |
-| 102 | TABFLEX_GPU (default) | 978.0 |
+| 106 | NN_TORCH (default) | 1,033.8 |
+| 107 | XRFM_GPU (default) | 1,031.9 |
+| **108** | **[New] TA-FINTFM-LINPROBE (default)** | **1,022.6** |
+| 109 | XT (default) | 1,009.6 |
+| 110 | RF (default) | 1,000.0 |
+| 111 | TABFLEX_GPU (default) | 977.2 |
 
 By submitting this pull request, I confirm that you can use, modify, copy, and redistribute this
 contribution, under the terms of your choice.
@@ -231,8 +232,8 @@ Done:
 - [x] Weights public, Apache-2.0, ungated, pinned by full revision and SHA-256.
 - [x] `fintfm` 0.12.0 on PyPI and pinned on the PR branch; no package change since (2026-11-19).
 - [x] Every lever a per-type default; no environment variable needed.
-- [x] Reproduction: 51 of 51, 1,019.6 Elo, 99th of 110, above the 1,000 bar (DR7.6), inside the
-      interval (§303).
+- [x] Reproduction: 51 of 51, 1,022.6 Elo, 108th of 119 on the collection at `main`, above the 1,000
+      bar (DR7.6), inside the interval (§304).
 - [x] Owner decisions recorded above (2026-11-19).
 - [x] Registration files, smoke override, tests moved next to the models (fork 81e94d1, 8b3ea4b).
 - [x] Upstream `main` merged into the PR branch without conflict (eee00bb); class docstring states
@@ -245,7 +246,7 @@ Done:
 
 Remaining:
 
-- [ ] Numbers re-read from the board current at posting (110 methods on 2026-11-19).
+- [x] Numbers re-read from the board at upstream `main` on 2026-11-19: 119 methods (§304).
 - [ ] No confidential or peer-product names in the posted text (checked 2026-11-19; re-check after
       any edit).
 - [ ] When opening the PR: from `kabartay/tabarena:fintfm-pr-2026-11`, with **"Allow edits by
