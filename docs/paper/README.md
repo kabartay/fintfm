@@ -20,7 +20,7 @@ ledger rather than from memory at writing time.
 are `docs/results/FINDINGS.md` sections.
 
 - **Placement.** FinTFM with a trained linear readout scores 952.8 Elo on all 51 TabArena-Lite
-  datasets, 104th of 110 (§254; 903, 107th of 110 at §224, 931.9, 106th of 110 at §235); binary 1,027 on 30 (§254),
+  datasets, 104th of 110 (§254; 903, 107th of 110 at §224; 931.9, 106th of 110 at §235); binary 1,027 on 30 (§254),
   multiclass 874 on 8 (§227), regression 689 on 13 (§235). One fold; most of §254's gain is one dataset. RandomForest (default) is 1,000. §98's 94th of 95 is the earlier zero-shot rank.
 - **Credit.** FinTFM is below untuned logistic regression on mean AP on all four admitted credit
   datasets (§216). On V4FinBench no lever tested since §211 clears the bar, and 480,000-task

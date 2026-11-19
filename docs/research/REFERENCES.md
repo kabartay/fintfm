@@ -315,7 +315,7 @@ head-on.
 ### TabArena's nearer neighbours — the four methods immediately above us
 
 Opened 2026-09-21 because §107 needs the competitive context, and because these four sit in
-the band fintfm is trying to leave rather than at the top of the board. Entries from MITRA
+the band fintfm is trying to leave rather than at the top of the board. Entries from Mitra
 onwards were added later and include methods at the top of the board. **Ideas only.**
 `CLAUDE.md`'s prohibition on ingesting code or weights from tabular-foundation-model products
 applies to every one of them, and a weights licence is checked separately from a code licence,
@@ -343,8 +343,8 @@ not obviously the lever for us.
 **Bouadi, Seth, Tanna & Sankarapu (2025).** *Orion-MSP: Multi-Scale Sparse Attention for
 Tabular In-Context Learning.* [arXiv:2511.02818](https://arxiv.org/abs/2511.02818). Code at
 `github.com/Lexsi-Labs/Orion-MSP`. Multi-scale **sparse** attention over tabular structure.
-Our two-way cell attention (§78) is dense in both directions, and `openspec/changes/
-factorized-attention` (44.x) is the remaining architectural candidate for the uniform residual
+Our two-way cell attention (§78) is dense in both directions, and `openspec/changes/factorized-attention`
+(44.x) is the remaining architectural candidate for the uniform residual
 — this is prior art on the same axis.
 
 **Bonet, Comajoan Cara, Calafell, Mas Montserrat & Ioannidis (2025).** *iLTM: Integrated Large
@@ -400,8 +400,8 @@ Models.* [arXiv:2511.08667](https://arxiv.org/abs/2511.08667). Purely synthetic-
 (§110's frontier); a separately released real-data variant (Real-TabPFN-2.5) is fine-tuned on
 43 OpenML/Kaggle datasets **deduplicated against the full TabArena suite** — the contamination
 discipline §109 argues for. Depth 12→18/24 layers, feature group size 2→3, 64 learned "thinking"
-rows acting partly as attention sinks (third independent relative of `explicit-task-
-representation`'s task token, after TabSwift's register tokens), and a surrogate-model
+rows acting partly as attention sinks (third independent relative of
+`explicit-task-representation`'s task token, after TabSwift's register tokens), and a surrogate-model
 hyperparameter search using TabPFNv2 itself to score 10,000 configurations from 100 real runs.
 Ships a distillation engine converting a fitted model to a dataset-specific MLP or tree
 ensemble for low-latency deployment. See `docs/paper/RELATED_WORK.md`.
@@ -410,11 +410,11 @@ ensemble for low-latency deployment. See `docs/paper/RELATED_WORK.md`.
 Model.* [arXiv:2602.11139](https://arxiv.org/abs/2602.11139). Code BSD-3-Clause (a subdirectory
 derived from TabPFN-TS separately Apache-2.0); weights BSD-3-Clause, checked independently via
 the HF API. **Untuned TabICLv2 beats hyperparameter-tuned, ensembled, real-data-fine-tuned
-RealTabPFN-2.5** on TabArena and TALENT — the sharpest single data point for §110's synthetic-
-top-14 finding. New synthetic-prior engine for pretraining diversity, a "scalable softmax" for
+RealTabPFN-2.5** on TabArena and TALENT — the sharpest single data point for §110's
+synthetic-top-14 finding. New synthetic-prior engine for pretraining diversity, a "scalable softmax" for
 generalising to larger datasets without long-sequence pretraining, Muon replacing AdamW, and
 million-row datasets under 50 GB GPU memory. Its own related-work section is a current,
-citable taxonomy of prior families across TabPFN/TabICL/MITRA/TabPFNv2/LimiX/Drift-Resilient
+citable taxonomy of prior families across TabPFN/TabICL/Mitra/TabPFNv2/LimiX/Drift-Resilient
 TabPFN. See `docs/paper/RELATED_WORK.md`.
 
 **LG AI Research (2026).** *EXAONE Tabular*, `github.com/LGAI-Research/EXAONE-Tabular`,
@@ -446,8 +446,8 @@ full technical report has not been opened. See `docs/paper/RELATED_WORK.md` for 
 including two architectural ideas (length-aware attention temperature; a non-imputation
 missing-value mechanism) flagged as worth tracking but not yet measured against this project.
 (Updated 2026-10-16: 1950 is NVIDIA's own run. TabArena's own run gives 1947, 95% CI +161/−98,
-still 1st on the v0.1.9.7 default models-only board, with LimiX-2 2nd at 1940; Kumo-Tabular-
-Medium and -Small are 3rd at 1889 and 5th at 1792.)
+still 1st on the v0.1.9.7 default models-only board, with LimiX-2 2nd at 1940; Kumo-Tabular-Medium
+and -Small are 3rd at 1889 and 5th at 1792.)
 
 **Entries added 2026-10-16 (task AU3.9).** Each was read from its arXiv PDF or, for LightPFN,
 the report PDF on the Hugging Face Hub, converted to text and located by page; no summariser
@@ -541,7 +541,7 @@ repository `LICENSE` or README and the model card, separately. Figures and quote
 2026-11-02". Ideas only.
 
 **Qu, Holzmüller, Varoquaux & Le Morvan (2025).** *TabICL: A Tabular Foundation Model for
-In-Context Learning on Large Data.* Venue not checked (arXiv v2, 24 May 2025). [arXiv:2502.05564](https://arxiv.org/abs/2502.05564).
+In-Context Learning on Large Data.* ICML 2025, PMLR 267 (as in the entry above; arXiv v2, 24 May 2025). [arXiv:2502.05564](https://arxiv.org/abs/2502.05564).
 Code `github.com/soda-inria/tabicl`, **BSD-3-Clause; weights BSD-3-Clause** (Hub card of
 `jingang/TabICL`). The predecessor of TabICLv2, entered for its row curriculum (1,024 rows for
 160K steps, then 1K to 40K, then 40K to 60K), its 70% MLP-SCM and 30% XGBoost-tree-SCM prior, and

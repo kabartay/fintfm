@@ -73,8 +73,8 @@ over uniform. **We measured the reverse** on the survival path, by three times t
 (§29), and §35 explains why both can hold: "balanced" is not one operation, and the harm
 scales with how extreme the rebalancing actually is.
 
-**Meyer et al.** Leakage and contamination in time-series foundation-model benchmarking, up to 32 points of MAPE
-(§1). The basis of the synthetic-only provenance argument.
+**Meyer et al.** Leakage and contamination in time-series foundation-model benchmarking, up to 32
+points of MAPE (§1). The basis of the synthetic-only provenance argument.
 
 ## Commercial context, cited as context only
 
@@ -82,7 +82,7 @@ Kumo (KumoRFM), Google TabFM, Feedzai RiskFM, Prior Labs, The Forecasting Compan
 papers and posts are legitimate to read and cite; none is a source of code, weights or data
 (`CLAUDE.md`). One commercial peer's published industrial result beats *linear regression*
 rather than gradient boosting (§2), which is the evidence that the accuracy bar in regulated
-domains is lower than the validation bar. (2026-11-13: two commercial peers, a tabular model
+domains is lower than the validation bar. (2026-11-13: two commercial peers, a tabular-model
 vendor and an industrial-AI vendor, were removed from this file by owner decision; ideas taken
 from their public material are kept below without attribution.)
 
@@ -115,11 +115,11 @@ future draft or conversation:
    larger earlier gain, cell attention's +0.0486 AP on V4FinBench (§80), is confounded
    with the prior mix (confirmed 2026-10-16, audit task AU2.8; resolved 2026-10-18, §172: at a
    matched prior the block and its labels are worth +0.0520 mean AP, 5 of 5 folds, so that gain
-   is architectural). MITRA's entire contribution — rank 8 (updated
+   is architectural). Mitra's entire contribution — rank 8 (updated
    2026-10-16: Mitra-v2 is 9th at Elo 1754 on TabArena v0.1.9.7's default board),
    synthetic-only — is prior design (performance/diversity/distinctiveness) plus a tree-based
    prior this project's mixture lacks. `learn-from-peers` (48.x) is the resulting task list,
-   led by 48.13 (tree prior) and 48.14 (score our own mixture against MITRA's criteria).
+   led by 48.13 (tree prior) and 48.14 (score our own mixture against Mitra's criteria).
    (Updated 2026-10-15: 48.14 was measured in §111/§112, and 48.13's tree prior in §115/§116,
    +0.0094 mean ROC-AUC on TabArena and −0.0221 AP on V4FinBench, so it is not shipped.)
    (§166, 2026-10-16: the V4FinBench figure is confounded with a lower financial share, 0.49
@@ -212,16 +212,16 @@ rather than by the length of their list (task 48.4's own verification clause).
 and tree priors -- five of Nori's nine families (dense linear, sparse linear, interactions,
 random MLP, random tree) and three of eight edge types (MLP, decision tree, piecewise-linear)
 were already
-addressed by work already in this repository before this list was made, which is a useful sanity
+addressed by work in this repository before this list was made, which is a useful sanity
 check that `mechanism-diverse-prior` was not chasing a gap that did not exist. The six genuinely
 missing mechanisms (GAM, radial/RBF, chained trigonometric, polynomial, log/exp, conv1d) are a
 concrete, published-sourced backlog for any future family work -- narrower and better-justified
 than "widen the prior" would have been without this list, and this task adds none of them: task
 48.4's own verify clause asks only that the gap be named, not closed.
 
-### MITRA is the paper this project should have written, and it names our gap
+### Mitra is the paper this project should have written, and it names our gap
 
-**Amazon Science (2025).** *MITRA: Mixed Synthetic Priors for Enhancing Tabular Foundation
+**Amazon Science (2025).** *Mitra: Mixed Synthetic Priors for Enhancing Tabular Foundation
 Models*, arXiv:2510.21204. **Rank 8 on TabArena, Elo 1729** (Mitra-v2 default). (Updated
 2026-10-16: 9th at Elo 1754, 95% CI +97/−70, on TabArena v0.1.9.7's default models-only board;
 Mitra-v2 now has its own report, arXiv 2609.04540, read in the checked sweep at the end of this
@@ -252,7 +252,7 @@ TFMs "do not always generalize well to all types of data generated from TBPs".
 **This project has no tree prior.** `PriorConfig` is `p_financial=0.7`, SCM for the remainder,
 with `p_trivial`/`p_crossed` diagnostic-only and `p_regression` new. Every baseline we lose to
 is a tree ensemble, real tabular data is full of threshold structure, and our prior generates
-none of it. `mechanism-diverse-prior` asked this question; MITRA answers it with a measurement.
+none of it. `mechanism-diverse-prior` asked this question; Mitra answers it with a measurement.
 (Superseded 2026-10-15: `prior/tree.py` now exists, task 48.13, behind `p_tree`, which
 defaults to 0.0. §115/§116 measured it at +0.0094 mean ROC-AUC on TabArena at two seeds and
 −0.0221 AP on V4FinBench, so it is not shipped.) (§166, 2026-10-16: the V4FinBench figure is
@@ -265,9 +265,9 @@ this project is memory-bound by (§79, §94, §108), which makes it cheaper than
 `factorized-attention` and testable on the existing checkpoint pipeline.
 
 **The uncomfortable read.** §104 closed an architectural lever, §102/§103 found no axis, §108
-lost on parameters, §93 lost on volume. MITRA's thesis is that the lever is the prior, and this
+lost on parameters, §93 lost on volume. Mitra's thesis is that the lever is the prior, and this
 project's one genuinely distinctive asset *is* a prior — which has never been evaluated against
-performance, diversity or distinctiveness, and is missing the one family MITRA singles out.
+performance, diversity or distinctiveness, and is missing the one family Mitra singles out.
 (Superseded 2026-10-15: §111/§112 have since scored the mixture on all three criteria, and
 the tree family was added and measured, §115/§116.)
 
@@ -347,7 +347,7 @@ worth citing; it is not a contribution either of us can claim.
 **They are the third data point against our 2D architecture.** TabSwift treats each row as a
 single token — the `(B, N, d)` form — rather than embedding cells individually. With TabDPT's
 Bitter Lessons and TabFlex's linear attention, three independent groups have chosen the cheap
-form. TabPFN and this project use element-level 2D attention; MITRA reports its priors
+form. TabPFN and this project use element-level 2D attention; Mitra reports its priors
 improve both 1D row attention and 2D element attention, so it is not counted in either camp
 (corrected 2026-10-15). The split is not random:
 TabDPT's own hypothesis is that synthetic-versus-real changes which architecture wins, and the
@@ -423,7 +423,7 @@ four target shapes for regression. That is the whole generative vocabulary.
   ratio of expected gain to implementation cost in this entire sweep.
 - **`RandomTreeFunction`**: ensembles of oblivious (CatBoost-style) trees as a node function,
   split dimension chosen proportional to feature standard deviation. This is a from-scratch,
-  citable implementation route for **task 48.13's tree-based prior** — MITRA names tree priors
+  citable implementation route for **task 48.13's tree-based prior** — Mitra names tree priors
   as necessary on distinctiveness grounds; TabICLv2 publishes exactly how to build one without
   needing an actual gradient-boosting library in the generation loop.
   **They note explicitly that TabPFNv2 uses single trees; they moved to ensembles because
@@ -441,7 +441,7 @@ four target shapes for regression. That is the whole generative vocabulary.
   one synthetic dataset covary the way real datasets' properties do. Cheap and orthogonal to
   everything else here.
 - **A filtering mechanism** (Appendix E.14, "similar to Dong et al. 2025") that rejects sampled
-  graphs. Independent confirmation of the MITRA/Nori learnability-filter idea already filed at
+  graphs. Independent confirmation of the Mitra/Nori learnability-filter idea already filed at
   task 48.5 — a third group has now converged on filtering the prior rather than only widening
   it.
 
@@ -471,10 +471,10 @@ and TALENT. This is not "synthetic ties real"; it is synthetic-only-and-untuned 
 real-adapted-and-tuned outright. §110's rank ordering already showed the top 14 are
 synthetic-pretrained; this is the same fact stated as a head-to-head.
 
-**Three engineering pillars, useful independent of the accuracy result:**
+**Four engineering points, useful independent of the accuracy result:**
 
 - **A new synthetic-prior engine "designed for high pretraining diversity."** Cited by the
-  paper's own related-work section alongside MITRA's prior-mixture work and LimiX's
+  paper's own related-work section alongside Mitra's prior-mixture work and LimiX's
   hierarchical SCMs, so this is now the third independent group treating prior *diversity*, not
   scale, as the lever — directly reinforcing task 48.14, which asks whether this project's
   prior has ever been measured on that axis at all.
@@ -493,7 +493,7 @@ synthetic-pretrained; this is the same fact stated as a head-to-head.
 
 **Their own related-work paragraph is a ready-made citation for this project's prior-family
 taxonomy**, more current than anything already in `RELATED_WORK.md`: TabPFN uses SCMs;
-TabICL/TabForestPFN mix in tree priors; MITRA studies prior-design principles and proposes
+TabICL/TabForestPFN mix in tree priors; Mitra studies prior-design principles and proposes
 mixed SCM+tree priors; TabPFNv2 enriches DAG construction; **LimiX introduces hierarchical SCMs
 with controllable difficulty** — a mechanism this project's own prior does not have and
 `prior-width-and-fidelity` should read against; Drift-Resilient TabPFN modulates SCM parameters
@@ -512,7 +512,7 @@ different leaderboard snapshot, a different subset, a self-selected framing of "
 — and this project has no basis to adjudicate which.
 
 **Fourth confirmed instance of the licence-split trap** (after Google TabFM/TimesFM at §24,
-and EXAONE above): code Apache-2.0, verified from the repository's own `LICENSE` file. Weights
+and EXAONE below): code Apache-2.0, verified from the repository's own `LICENSE` file. Weights
 under a **separate "Causilo License v1.0"**, verified from the README's explicit statement
 rather than assumed from the permissive code licence — "Non-commercial research and free
 research redistribution are permitted... Commercial or production use, and hosted/API/SaaS
@@ -577,8 +577,8 @@ is a **fourth** independent group building a compressed cross-axis summary mecha
 TabSwift's register tokens and TabPFN-2.5's "thinking" rows — `explicit-task-representation`
 (41.2) now has four published implementations to design against rather than one.
 
-**"SSMax" attention normalisation** is named but not documented in what was read; a primary-
-source detail worth chasing only if 41.2 is actually scoped, not before.
+**"SSMax" attention normalisation** is named but not documented in what was read; a primary-source
+detail worth chasing only if 41.2 is actually scoped, not before.
 
 **Native support for only 10 classes**, with larger label spaces needing ECOC decomposition —
 the same ceiling our own multiclass checkpoint has (`--max-classes 10`, §99), independently
@@ -769,7 +769,7 @@ synthetic-only-plus-permissive positioning, now from a better-resourced lab. (Co
 weights-licence check in `docs/research/REFERENCES.md`.)
 
 **The number that matters for this project's own claims.** TabArena Elo **1950, rank 1** --
-ahead of the LimiX-2 entry two days ago sold as "117 points above the runner-up" (Elo 1935).
+ahead of the LimiX-2 entry, which two days earlier was sold as "117 points above the runner-up" (Elo 1935).
 (Updated 2026-10-16: 1950 is NVIDIA's own run, quoted from the blog. TabArena's own run, added
 in v0.1.9.5, gives Kumo-Tabular **1947** (95% CI +161/−98) and LimiX-2 **1940** (+127/−84) on
 the v0.1.9.7 default models-only board, still 1st and 2nd but not separable. LimiX-2's 1935 and
@@ -1006,9 +1006,8 @@ most 240,000 (§93).
 - **TabFM** (Kong et al., Google, arXiv 2609.37959): 400M parameters (abstract; its 24-layer
   in-context predictor alone is given as 402.7M, p5), "pretrained entirely on synthetic tables
   drawn from structural causal models", with a four-stage context curriculum from 2,048 to
-  16,384 rows (§3.2, p6). TabFM+ (frozen weights,
-  32 transformed views, non-negative least-squares ensembling, Platt scaling) "adds +69.4 Elo on
-  classification and +134.0 Elo on regression" on its own TabArena run (§4, p9). Code Apache-2.0
+  16,384 rows (§3.2, p6). TabFM+ (frozen weights, 32 transformed views, non-negative
+  least-squares ensembling, Platt scaling) "adds +69.4 Elo on classification and +134.0 Elo on regression" on its own TabArena run (§4, p9). Code Apache-2.0
   (GitHub licence API for `google-research/tabfm`); weights `tabfm-non-commercial-v1.0` (Hub card
   of `google/tabfm-1.1.0-pytorch`).
 - **Mitra-v2** (Tao et al., Amazon, arXiv 2609.04540): weights, fine-tuning code and evaluation
@@ -1161,7 +1160,7 @@ WebFetch summary was used first for some pages and is not the basis of any numbe
 read (Space v0.1.9.7): Kumo-Tabular 1931 (was 1947), LimiX-2 1922 (1940), Kumo-Medium 1870 (1889),
 TabPFN-3.5 1833 (1853), TabFM 1763 (1774), Causilo 1756 (1777), Mitra-v2 1740 (1754), EXAONE-Tabular
 1721 (1738). Elo is relative to the entrant pool, so a uniform drop of 10-20 is new entrants, not
-regression. New rows: **TabAbax 1651** (rank 10), Xiaomi-TabLDM 1571, TabPFN-3 1611, FTFM 1477. TabICLv2 1550; Nori and Nori-30M
+regression. New rows: **TabAbax 1651** (rank 10), Xiaomi-TabLDM 1571, TabPFN-3 1611, FTFM 1477. TabICLv2 is 1550; Nori and Nori-30M
 sit at 1152 and 1162. Order of the top three is unchanged.
 
 **1. LimiX-2, the #2 entry, carries an open contamination report** (TabArena issue #648,
@@ -1381,8 +1380,8 @@ openspec task filed.
 `docs/research/REFERENCES.md`, "Fonseca & Stoyanovich (2026)". Closes openspec task 12.1.
 
 **Finding for the field: the one zero-shot attribution model we have read does not emit
-attributions and predictions from one pass (no wider survey made).** ExplainerPFN labels synthetic structural-causal-model tasks with SHAP computed on a small
-network fitted to each task, then explains an existing model from its inputs and predictions. On its
+attributions and predictions from one pass (no wider survey made).** ExplainerPFN labels
+synthetic structural-causal-model tasks with SHAP computed on a small network fitted to each task, then explains an existing model from its inputs and predictions. On its
 only credit-scoring set (German Credit, RF base) zero-shot Pearson correlation with SHAP is 0.160
 (Table 1). Its quality falls with feature count, and it misestimates scale across features. The
 gap it leaves open is ours: ground-truth attributions from the prior's known weights, in the same
