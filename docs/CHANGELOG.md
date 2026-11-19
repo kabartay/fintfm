@@ -31,6 +31,9 @@ unchanged.
   pull-request branch, scored against the 119 methods of TabArena's collection at upstream
   main: 1,022.6 Elo, 108th of 119 (FINDINGS §304); the same runs are 1,019.6 Elo, 99th of 110,
   on the fork's older collection (§303). The resubmission is autogluon/tabarena#736.
+- Support status (README, `.zenodo.json`): development is limited to the TabArena submission
+  (autogluon/tabarena#736); no further model training is planned. It replaces "no longer
+  actively supported", written on 2026-11-13.
 - The TabArena fork's entry clips regression predictions to the training target's range
   widened by 10% (FINDINGS §295, §301; diamonds RMSE 249,744 to 957), limits BLAS to
   min(4, CPUs) threads (§296-§299), and never selects Apple's MPS on its own (§297). The
