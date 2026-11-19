@@ -162,7 +162,7 @@ readout", so it is **not** the zero-shot model; label it so (§204, §215, §224
 TabArena entry lives in the fork.
 
 **Elo (TabArena-Lite).** The leaderboard rating, with RandomForest (default) anchored at 1,000.
-A figure carries its interval and its dataset set: all 51 Lite datasets give 903 Elo, 106th of
+A figure carries its interval and its dataset set: all 51 Lite datasets give 903 Elo, 107th of
 110, for the trained-readout entry (§224, MEASURED, repeat 0, fold 0); the binary-only figure
 (§215, 1,000.2) uses 27 datasets and is not comparable.
 

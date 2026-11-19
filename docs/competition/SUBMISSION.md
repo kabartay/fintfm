@@ -11,6 +11,8 @@
 
 > **Support status, 2026-11-13.** The project states it is no longer actively supported from
 > mid-November 2026, so a resubmission is unlikely to be made by this project.
+> As of 2026-11-19 the owner (GitHub handle kabartay) will answer the reviewers of the
+> 2026-11 TabArena pull request himself.
 
 > **Update, 2026-11-13.** Nothing has been resubmitted. The owner holds the PR (DR7.6,
 > 2026-11-11) until multiclass and regression improve. The entry that would be submitted is no
@@ -58,12 +60,12 @@ verified at stage 3.
 **For a 51-dataset resubmission** (2026-11-13; sources §221 to §224): the entry declares three
 problem types, each with its own checkpoint (binary: `kabartay/fintfm-binary`; multiclass:
 `dr74-mc-s0`; regression: `v4-regression.pt`), and the last two are private today, so the owner
-would have to publish both first. In the fork the measured runs set their configuration through environment variables
-(`FINTFM_PARTITION`, `FINTFM_PROBE`, `FINTFM_PARAMS` with `max_features_strategy: select`);
+would have to publish both first. In the fork the measured runs set their configuration through environment
+variables (`FINTFM_PARTITION`, `FINTFM_PROBE`, `FINTFM_PARAMS` with `max_features_strategy: select`);
 a submission would need that configuration fixed in the entry itself, which has not been done.
 The readout takes the row's own features for multiclass and regression, which the entry must
-state. Whether the search space stays empty is undecided. Its maintainer
-sanity range would be the §224 figures by type (binary 974, multiclass 865, regression 578
+state. Whether the search space stays empty is undecided. The sanity range for a
+maintainer would be the §224 figures by type (binary 974, multiclass 865, regression 578
 Elo), not 0.78 ROC-AUC. A dataset near the time limit (Amazon_employee_access, §215) is a risk
 on the maintainers' hardware.
 
