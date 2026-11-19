@@ -4,7 +4,7 @@
   "self_method": "[New] TA-FINTFM-LINPROBE (default)",
   "self_label": "FinTFM with a trained linear readout",
   "n_datasets": 51,
-  "bar_text": "RandomForest (default), at 1,000 Elo, is the bar for resubmitting to TabArena (design review DR7.6, owner decision 2026-11-13). The reproduced entry is 22.6 Elo above it, inside the Elo interval of about +75 / &minus;87 (FINDINGS &sect;304).",
+  "bar_text": "RandomForest (default), at 1,000 Elo, was this project's own bar for resubmitting to TabArena (design review DR7.6). The reproduced entry is 22.6 Elo above it, inside the Elo interval of about +75 / &minus;87 (FINDINGS &sect;304); TabArena closed the resubmission, finding an entry at that level would not add information (&sect;306).",
   "entry_text": "It is not the zero-shot model. A linear model (logistic regression for classification, ridge or random-Fourier-feature ridge for regression) is fitted on the network's representation of each training split, one per partition leaf, and also takes the row's own features. Size-gated levers: four readout bags and spline features for small binary tables, one-hot indicators and spline features for multiclass, a random-Fourier-feature readout for small regression tables and spline features for all regression tables, with regression predictions clipped to the training target's range widened by 10% (FINDINGS &sect;283, &sect;286, &sect;290, &sect;293, &sect;301). The board is the reproduction from the pull-request branch (fork 1aa50af) with no environment overrides, on Kaggle CPU, Kaggle and Hugging Face T4 GPUs and a Mac CPU, scored against the 119 methods of TabArena&rsquo;s collection at upstream main; the same runs are 1,019.6 Elo, 99th of 110, on the fork&rsquo;s older collection (FINDINGS &sect;297, &sect;303, &sect;304). The binary, multiclass and regression checkpoints are all public under Apache-2.0 (fintfm 0.12.0). These are general-tabular results, not credit results: on real credit panels FinTFM currently loses to gradient boosting (FINDINGS &sect;216).",
   "types_note": "Each figure comes from a leaderboard over that problem type's datasets only, so the four are not on one scale with each other or with the headline.",
   "types": [
@@ -44,7 +44,7 @@
       "match": "LR (default)"
     },
     {
-      "label": "RF (bar)",
+      "label": "RF",
       "match": "RF (default)"
     },
     {

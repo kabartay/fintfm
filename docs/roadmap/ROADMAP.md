@@ -1,8 +1,8 @@
 # Roadmap: from 94th of 95 to listable
 
-> **Support status, 2026-11-13.** The project states it is no longer actively supported from
-> mid-November 2026. Steps below that are not yet done will not be carried out by this project;
-> they are a record of intent.
+> **Development ended on 2026-11-19 with v1.0.0.** The all-51-dataset entry reached 1,022.6 Elo,
+> 108th of 119 (FINDINGS §304), and TabArena closed its resubmission the same day (§306). Steps
+> below that are not done will not be carried out; they are a record of intent.
 
 The ordered execution list for one goal: **make FinTFM good enough to be listed on TabArena.**
 [`TABARENA_BAR.md`](TABARENA_BAR.md) says what the bar is, [`NEXT.md`](NEXT.md) is the standing

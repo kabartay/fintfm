@@ -15,7 +15,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-green.svg" alt="License"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/python-3.12%20%7C%203.13-blue.svg" alt="Python"></a>
   <a href="https://huggingface.co/kabartay/fintfm-binary"><img src="https://img.shields.io/badge/%F0%9F%A4%97%20weights-fintfm--binary-yellow" alt="Checkpoint"></a>
-  <a href="#status-stated-plainly"><img src="https://img.shields.io/badge/TabArena--Lite-99th%20of%20110-critical" alt="TabArena-Lite"></a>
+  <a href="#status-stated-plainly"><img src="https://img.shields.io/badge/TabArena--Lite-108th%20of%20119-critical" alt="TabArena-Lite"></a>
   <a href="https://kabartay.github.io/fintfm/leaderboard/"><img src="https://img.shields.io/badge/leaderboard-live-8957e5" alt="Leaderboard"></a>
 </p>
 
@@ -61,9 +61,10 @@ Hugging Face, has 885K parameters, takes binary targets with up to 136 features,
 
 ## Status, stated plainly
 
-**FinTFM is a research codebase with a public claims ledger, not a product.** It asks whether
-in-context tabular learning can compete with gradient-boosted trees on financial tables, and
-says plainly where it does not yet.
+**FinTFM is a finished research codebase with a public claims ledger, not a product.** It asked
+whether in-context tabular learning can compete with gradient-boosted trees on financial tables,
+and records plainly where it does not. Development ended on 2026-11-19 with v1.0.0, after TabArena
+closed the resubmission (§306); the code, the checkpoints and the measurement log stay public.
 
 | | |
 | --- | --- |
@@ -73,8 +74,8 @@ says plainly where it does not yet.
 | **Levers on V4FinBench** | Opt-in fine-tuning (`finetune_steps`, 0.7.0): mean AP 0.1986 to 0.2062, better on 5 of 5 folds, 3.8% of the gap to CatBoost (§163). Zero-shot partitioned contexts (`fintfm-v4protocol --large-n partition`): 0.1986 to 0.2362, +0.0375, 5 of 5 folds (§169), and ahead of fine-tuning on 5 of 5 (§205) |
 | **Licence** | Apache-2.0 for **code and weights**, each chosen separately (see [Licensing](#licensing--provenance)) |
 | **Checkpoint** | [kabartay/fintfm-binary](https://huggingface.co/kabartay/fintfm-binary): 885K parameters, binary, up to 136 features |
-| **Tests** | about 1,350 (2026-11-13), plus `ruff`, the openspec validator, a dependency-licence check and a documentation-link check, all in CI |
-| **Measurement log** | 303 numbered entries (§1 to §303 on 2026-11-19), each stating how its numbers were produced; pre-registrations are written before their arms run |
+| **Tests** | 2,145 (2026-11-19), plus `ruff`, the openspec validator, a dependency-licence check and a documentation-link check, all in CI |
+| **Measurement log** | 306 numbered entries (§1 to §306, the last on 2026-11-19), each stating how its numbers were produced; pre-registrations are written before their arms run |
 | **Problem types** | Binary is declared. The multiclass and regression checkpoints the TabArena-Lite entry uses are published too (Apache-2.0, 2026-11-17: [`kabartay/fintfm-multiclass`](https://huggingface.co/kabartay/fintfm-multiclass), [`kabartay/fintfm-regression`](https://huggingface.co/kabartay/fintfm-regression)), but those problem types are **not** declared (§121) |
 
 **Read [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md) before anything else.** It tags every
@@ -99,7 +100,7 @@ numbers its rows from 0, so ranks quoted from it before 2026-11-13 were one plac
 | **FinTFM with a trained linear readout**, reproduced from the pull-request branch, on the 119-method collection at upstream main | all 51, none excluded | **1,022.6** | **108th of 119** | §304 |
 | the same runs on the fork's older collection | all 51, none excluded | 1,019.6 | 99th of 110 | §303 |
 | the published model, zero-shot, own head | 27 binary | 750 (+134 / −186) | 107th of 108 | §225 |
-| RandomForest (default), the resubmission bar | all 51 | 1,000 | 110th of 119 | §304 |
+| RandomForest (default), this project's own resubmission bar (DR7.6) | all 51 | 1,000 | 110th of 119 | §304 |
 
 The zero-shot row re-scores §204's stored predictions against today's field, with no refit.
 **Position moved slowly, from 107th to 99th of 110:** Elo rose from 880 to 909 over §221 to §231 with the
@@ -576,7 +577,7 @@ conclusion is not reached twice.
 - [`docs/paper/CLAIMS.md`](docs/paper/CLAIMS.md): **start here.** Every claim the project could
   make, tagged by status; the newest evidence wins.
 - [`docs/results/FINDINGS.md`](docs/results/FINDINGS.md): the measurement log, numbered in
-  order (253 entries on 2026-11-15), each stating how its numbers were produced.
+  order (306 entries, the last on 2026-11-19), each stating how its numbers were produced.
 - [`docs/paper/NEGATIVE_RESULTS.md`](docs/paper/NEGATIVE_RESULTS.md): every null and harmful
   result in one place, so a lever already ruled out is not tried again by accident.
 - [`docs/paper/LIMITATIONS.md`](docs/paper/LIMITATIONS.md): what the model and the evidence
@@ -585,7 +586,7 @@ conclusion is not reached twice.
   and what would reverse each choice.
 - [`docs/design/ARCHITECTURE.md`](docs/design/ARCHITECTURE.md): how the model works, in more
   depth than this file.
-- [`docs/roadmap/STRATEGY.md`](docs/roadmap/STRATEGY.md): the plan of record.
+- [`docs/roadmap/STRATEGY.md`](docs/roadmap/STRATEGY.md): the plan of record when development ended.
 - [`docs/results/TABARENA.md`](docs/results/TABARENA.md): the external-evaluation recipe, the
   coverage any score must state, and the silent failure modes found so far, including a results
   cache that returns stale numbers after a preprocessing change.
@@ -594,8 +595,8 @@ conclusion is not reached twice.
   summary of why the remaining lever is the prior.
 - [`docs/results/POSTMORTEM.md`](docs/results/POSTMORTEM.md): wrong diagnoses, each caught by
   measurement rather than review, kept on the record.
-- [`openspec/changes/`](openspec/changes/): the live roadmap, as proposals with verifiable
-  tasks. `uv run python openspec/tools/validate.py` checks that every proposal is well formed
+- [`openspec/changes/`](openspec/changes/): the roadmap as proposals with verifiable tasks; the
+  tasks still open stay open as a record of what was not done. `uv run python openspec/tools/validate.py` checks that every proposal is well formed
   and every finding states its provenance.
 
 In short: the mechanism claims ("no training on your data", "no feature engineering") already
@@ -624,7 +625,7 @@ docs/
                  RELATED_WORK.md, LIMITATIONS.md, OUTLINE.md, FIGURES.md
   design/        ARCHITECTURE.md, DECISIONS.md, GLOSSARY.md, DESIGN_REVIEW_2026-10-16.md,
                  attention_cost_model.md
-  roadmap/       ROADMAP.md (what to do next), STRATEGY.md, NEXT.md, TABARENA_BAR.md
+  roadmap/       ROADMAP.md (the plan when work stopped), STRATEGY.md, NEXT.md, TABARENA_BAR.md
   competition/   LANDSCAPE.md, SUBMISSION.md, PR_2026-09.md, PR_2026-11.md, REPRO_KERNELS.md
   infra/         COMPUTE.md, HF_JOBS.md
   research/      REFERENCES.md, RESEARCH_NOTES.md, IMPROVEMENT_PLAN_2026-11.md
@@ -682,7 +683,7 @@ BibTeX and APA. The same entry, to copy:
   title     = {{FinTFM: a tabular foundation model for corporate credit risk,
                pretrained only on synthetic data}},
   year      = {2026},
-  version   = {0.13.0},
+  version   = {1.0.0},
   doi       = {10.5281/zenodo.22949759},
   url       = {https://github.com/kabartay/fintfm},
   publisher = {Zenodo},

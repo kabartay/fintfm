@@ -14,7 +14,8 @@ System](https://github.com/autogluon/tabarena#contributing-a-model-or-system).
 
 > **Support status.** 2026-11-13: the project states it is no longer actively supported from
 > mid-November 2026. 2026-11-19: the owner (GitHub handle kabartay) answers the reviewers of
-> the 2026-11 pull request directly. 2026-11-19, later: development is limited to that submission.
+> the 2026-11 pull request directly. 2026-11-19, later: development is limited to that submission. 2026-11-19, later still: TabArena closed it the same day (FINDINGS §306), the owner posted
+> no reply, and development ended with v1.0.0. The stages below were never reached for it.
 
 ## The five stages
 
@@ -43,9 +44,9 @@ GitHub notifies the pull request author, so there is nothing to watch.
 
 **What to check**, against what they posted (values for the 2026-11 entry):
 
-1. **Version** is what `pip_extra` pins: `fintfm==0.12.0`.
-2. **Checkpoints** are the three revisions pinned by SHA-256 in the fork's
-   `models/fintfm/checkpoints.py`, not `main` and not local files.
+1. **Version** is what `pip_extra` pins: `fintfm==0.13.0`.
+2. **Checkpoints** are the three revisions pinned by SHA-256 in
+   `fintfm.readout.checkpoints`, not `main` and not local files.
 3. **Configuration** is the default alone. If tuned or ensembled variants appear, the empty
    search space was not honoured and the numbers describe something else.
 4. **The numbers are in the right region.** Our Lite reproduction is about 1,020 Elo overall
@@ -56,8 +57,8 @@ GitHub notifies the pull request author, so there is nothing to watch.
 
 **What to write.** A comment, roughly:
 
-> Confirmed on behalf of the authors. The run used `fintfm==0.12.0` and the three checkpoints
-> pinned in `checkpoints.py`, default configuration only, which is the method as intended. The
+> Confirmed on behalf of the authors. The run used `fintfm==0.13.0` and the three checkpoints
+> pinned in `fintfm.readout.checkpoints`, default configuration only, which is the method as intended. The
 > position matches what we measured on Lite.
 >
 > [Note anything that differs, or say "no discrepancies".]

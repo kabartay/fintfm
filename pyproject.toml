@@ -1,6 +1,6 @@
 [project]
 name = "fintfm"
-version = "0.13.0"
+version = "1.0.0"
 description = "A tabular foundation model for financial risk, pretrained on synthetic company financials, so it predicts credit default with no training on your data by default; dataset-specific fine-tuning is opt-in (finetune_steps)"
 readme = "README.md"
 authors = [
@@ -14,7 +14,7 @@ license-files = ["LICENSE"]
 # Python". A library aimed at banks should not demand an interpreter released last year.
 requires-python = ">=3.12"
 classifiers = [
-    "Development Status :: 2 - Pre-Alpha",
+    "Development Status :: 7 - Inactive",
     "Intended Audience :: Financial and Insurance Industry",
     "Intended Audience :: Science/Research",
     "Programming Language :: Python :: 3.12",

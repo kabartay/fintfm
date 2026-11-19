@@ -191,7 +191,7 @@
   <figure class="strip">
     <div class="strip-scale" id="strip"></div>
     <figcaption>
-      Every listed method's Elo on one axis. The marked rule is FinTFM. RandomForest (default), at 1,000 Elo, is the bar for resubmitting to TabArena (design review DR7.6, owner decision 2026-11-13). The reproduced entry is 22.6 Elo above it, inside the Elo interval of about +75 / &minus;87 (FINDINGS &sect;304). The leaders are a
+      Every listed method's Elo on one axis. The marked rule is FinTFM. RandomForest (default), at 1,000 Elo, was this project's own bar for resubmitting to TabArena (design review DR7.6). The reproduced entry is 22.6 Elo above it, inside the Elo interval of about +75 / &minus;87 (FINDINGS &sect;304); TabArena closed the resubmission, finding an entry at that level would not add information (&sect;306). The leaders are a
       long way right.
     </figcaption>
   </figure>
@@ -291,7 +291,7 @@ const parts = [];
 for (const r of data) {
   parts.push(`<span class="tick${r.new ? ' is-self' : ''}" style="left:${pct(r.elo)}%"></span>`);
 }
-const anchors = [{"label": "KNN", "match": "KNN (default)"}, {"label": "LogReg", "match": "LR (default)"}, {"label": "RF (bar)", "match": "RF (default)"}, {"label": "CatBoost", "match": "CAT (default)"}, {"label": "TabPFN 3.5", "match": "TA-TABPFN-3.5 (default)"}];
+const anchors = [{"label": "KNN", "match": "KNN (default)"}, {"label": "LogReg", "match": "LR (default)"}, {"label": "RF", "match": "RF (default)"}, {"label": "CatBoost", "match": "CAT (default)"}, {"label": "TabPFN 3.5", "match": "TA-TABPFN-3.5 (default)"}];
 for (const a of anchors) {
   const row = data.find(r => r.method === a.match);
   if (row) parts.push(`<span class="anchor" style="left:${pct(row.elo)}%">${a.label}</span>`);

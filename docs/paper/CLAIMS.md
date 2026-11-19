@@ -1147,6 +1147,16 @@ binary datasets (§204). The progression of the overall figure was 880 (§221), 
 - **Single fold.** TabArena-Lite runs fold 0; per-dataset statements are single draws. The Elo
   intervals are about ±100 to ±170.
 
+**2026-11-19, §304, §306 (Claim 19; the status stays SINGLE DRAW):**
+
+- **On the 119-method collection at TabArena's upstream main the reproduced entry is 1,022.6 Elo
+  (+75 / -87), 108th of 119** (§304), 22.6 above RandomForest (default) and inside its interval.
+  The 51 runs are the same as §303's; only the field changed.
+- **TabArena closed the resubmission (autogluon/tabarena#736) the day it was posted** (§306): an
+  entry at the level of RandomForest (default) would not add information to the leaderboard, and
+  the readout selects its settings by cross-validation on the training rows instead of on
+  `X_val`. The figure stays an own run under the official protocol, not a listed entry.
+
 **2026-11-19, §297, §301, §303 (Claim 19; the status stays SINGLE DRAW):**
 
 - **The entry is reproduced from the pull-request branch at 1,019.6 Elo, 99th of 110**
