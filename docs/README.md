@@ -42,7 +42,10 @@ release.
 | file | what it is for |
 | --- | --- |
 | [LANDSCAPE.md](competition/LANDSCAPE.md) | Competitors and what each claims about itself — positioning intelligence, not verified fact — plus how the open projects present themselves and what is worth copying. |
-| [SUBMISSION.md](competition/SUBMISSION.md) | The TabArena submission procedure and its stages. The review's outcome is not recorded there: the entry was confirmed correct, declined on competitiveness and withdrawn ([`FINDINGS`](results/FINDINGS.md) §122). |
+| [SUBMISSION.md](competition/SUBMISSION.md) | The TabArena submission procedure: its stages, the sign-off checks, the search-space answer and the pickle audits. |
+| [PR_2026-09.md](competition/PR_2026-09.md) | The first submission, autogluon/tabarena#616 (`fintfm==0.5.5`, 27 binary datasets): confirmed correct, declined on competitiveness and withdrawn ([`FINDINGS`](results/FINDINGS.md) §122). |
+| [PR_2026-11-draft.md](competition/PR_2026-11-draft.md) | The resubmission's pull-request text, all 51 datasets, 1,019.6 Elo reproduced from the PR branch (§303); not posted. |
+| [REPRO_KERNELS.md](competition/REPRO_KERNELS.md) | How to rerun the reproduction from the PR branch: the generated Kaggle kernels, the Mac tables and the merge. |
 
 ## leaderboard/ — public standing, own comparison
 

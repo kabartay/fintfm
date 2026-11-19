@@ -91,7 +91,7 @@ its stored run was fitted, it reproduces to +0.01%, so that difference is the ma
 above keep the Kaggle CPU value.
 
 **What changed since #616** (the withdrawn entry was binary only, zero-shot head, 94th of 95, mean
-ROC-AUC 0.7823 over 27 datasets, `docs/competition/SUBMISSION.md`, §122). The README's change table
+ROC-AUC 0.7823 over 27 datasets, `docs/competition/PR_2026-09.md`, §122). The README's change table
 (§225 to §303) lists each step with its Elo. In short:
 
 - partitioned contexts (a tree routes rows to leaves, each leaf has its own context, with bags);
