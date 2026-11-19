@@ -13,8 +13,8 @@ Upstream reference: [Contributing a Model or
 System](https://github.com/autogluon/tabarena#contributing-a-model-or-system).
 
 > **Support status.** 2026-11-13: the project states it is no longer actively supported from
-> mid-November 2026. 2026-11-19: the owner (GitHub handle kabartay) will answer the reviewers of
-> the 2026-11 pull request himself.
+> mid-November 2026. 2026-11-19: the owner (GitHub handle kabartay) answers the reviewers of
+> the 2026-11 pull request directly. 2026-11-19, later: development is limited to that submission.
 
 ## The five stages
 

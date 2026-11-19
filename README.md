@@ -705,8 +705,10 @@ version. The difference matters here because this repository retracts and supers
 
 ## Contributing, and what cannot come in
 
-**From mid-November 2026 this project is no longer actively supported.** The code, the
-checkpoint and the measurement log stay public, but issues and pull requests may go unanswered.
+**Development is limited to the TabArena submission
+([autogluon/tabarena#736](https://github.com/autogluon/tabarena/pull/736)); no further model
+training is planned.** The code, the checkpoints and the measurement log stay public, but issues
+and pull requests other than that review may go unanswered.
 
 Two hard limits protect the one claim this project has that competitors do not:
 
