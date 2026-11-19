@@ -66,7 +66,8 @@ XGBoost by 0.204 to 0.236 AP. These AP values are not comparable with §69-§71'
 development cap, 0.1658 against 0.1442 AP on fold 0. On the full 1,000,087-row panel, five
 folds, FinTFM zero-shot scores 0.1986 mean AP against untuned logistic regression's 0.1614, ahead
 on every fold, and untuned CatBoost scores 0.4005. See "The gap to an untuned CatBoost" below.)
-(§167, 2026-10-16: on V4FinBench's published features, which keep `operational_status`, LightGBM at 1,000 trees scores 0.3908.)
+(§167, 2026-10-16: on V4FinBench's published features, which keep `operational_status`,
+LightGBM at 1,000 trees scores 0.3908.)
 
 ## The comparison to the published benchmark does not exist yet
 
