@@ -6,6 +6,14 @@ not paste one into the other. See `CLAUDE.md`.
 
 ## [Unreleased]
 
+- TabArena closed the resubmission autogluon/tabarena#736 on 2026-11-19, the day it was
+  posted: at 1,022.6 Elo the entry is at the level of RandomForest (default), and the
+  readout selects its settings by cross-validation on the training rows instead of on
+  TabArena's validation split (FINDINGS §306). README, the leaderboard page, the competition
+  records and the next release's `.zenodo.json` say so; no further model training is planned.
+- `CITATION.cff`: the abstract matches the 0.13.0 Zenodo description (1,022.6 Elo, 108th of
+  119; calibration no longer claimed for the published checkpoint).
+
 ## [0.13.0] — 2026-11-19
 
 The TabArena entry's linear readout moves into the package as `fintfm.readout`, so the TabArena

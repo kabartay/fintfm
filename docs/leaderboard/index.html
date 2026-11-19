@@ -268,7 +268,7 @@
   <code>docs/leaderboard/data/fintfm_pr_head_repro_f112.csv</code>, which holds the run <code>fintfm_pr_head_repro_f112</code>
   (2026-11-19). Rank is the position by Elo among all 119 methods. Every other method's
   results come from TabArena's cached results in the
-  <a href="https://github.com/autogluon/tabarena">TabArena repository</a> (Apache-2.0). The entry submitted to TabArena used the zero-shot head on 27 binary datasets, ranked 94th of 95 and was <a href="https://github.com/autogluon/tabarena/pull/616">declined on competitiveness</a> (FINDINGS &sect;122). The resubmission, the trained linear readout on all 51 datasets, is <a href="https://github.com/autogluon/tabarena/pull/736">autogluon/tabarena#736</a>, posted on 2026-11-19 and awaiting review. Data,
+  <a href="https://github.com/autogluon/tabarena">TabArena repository</a> (Apache-2.0). The entry submitted to TabArena used the zero-shot head on 27 binary datasets, ranked 94th of 95 and was <a href="https://github.com/autogluon/tabarena/pull/616">declined on competitiveness</a> (FINDINGS &sect;122). The resubmission, the trained linear readout on all 51 datasets, is <a href="https://github.com/autogluon/tabarena/pull/736">autogluon/tabarena#736</a>, posted and closed by the maintainers on 2026-11-19 (FINDINGS &sect;306): an entry at the level of RandomForest (default) would not add information to the leaderboard, and the readout selects its settings by cross-validation on the training rows instead of on TabArena's validation split. Data,
   methodology and every retraction live in
   <a href="https://github.com/kabartay/fintfm/blob/main/docs/results/FINDINGS.md">FINDINGS.md</a>;
   the model is at <a href="https://github.com/kabartay/fintfm">github.com/kabartay/fintfm</a>.

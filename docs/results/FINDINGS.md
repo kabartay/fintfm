@@ -17756,3 +17756,37 @@ Bioresponse is the case where AutoGluon drops columns before the model's own pre
 reads both training and query rows through AutoGluon's public `preprocess`, and its predictions match. Only the
 `FINTFM_*` overrides other than `FINTFM_DEVICE` are dropped, with the tests of those overrides. Evidence:
 `runs/readout_refactor_0130/` (oracle arrays and logs, the per-table results and `real_tables_compare.txt`).
+
+## §306: TabArena closed the resubmission (#736): at the level of RandomForest (default), and selection runs on the training rows instead of `X_val`
+
+**EXTERNALLY REVIEWED, 2026-11-19.** autogluon/tabarena#736 (§304, §305; fork `fintfm-pr-2026-11` at 9d99144,
+`fintfm==0.13.0`) was closed by a TabArena collaborator at 17:28 UTC the same day, with one comment, no review and no
+maintainer run. The comment acknowledged that coverage of all problem types and all 51 datasets answers what #616 asked
+for (§122), then gave two grounds, either of which suffices:
+
+1. **Competitiveness.** The leaderboard tracks the state of the art, and the TabArena paper asks new models to show
+   promising results on TabArena-Lite (its Appendix E.2). The entry's 1,022.6 Elo (+75 / -87) is inside the interval of
+   RandomForest (default) at 1,000.0, below every tuned tree ensemble and MLP, and about 320 Elo below CatBoost (default)
+   (1,340.5, 54th of 119 on §304's board: 317.9). The matched control shows the representation does not beat a tree
+   with a linear readout on the raw features on binary tasks (1,009 against 997, §239, §240, §243), and because the
+   defaults were chosen on the Lite fold-0 test splits, the full run would likely land lower. An entry at the level of
+   the default random forest "would not add information to the leaderboard".
+2. **Protocol.** The readout selects its regularisation, the random-Fourier-feature ridge alpha and the multiclass
+   probability floor by cross-validation on the training rows. A model submission has to make such choices on the
+   `X_val` / `y_val` that TabArena passes (autogluon/tabarena#637), so a resubmission would need that selection moved
+   onto `X_val`, which would be a new measurement.
+
+The comment adds that a resubmission is welcome if the method is accepted at a peer-reviewed venue, that the Lite numbers
+remain a valid comparison under the official protocol and may be reported, and that the `audit_pickle` crash on SciPy
+splines reported in the PR will be fixed upstream separately.
+
+**Both grounds are correct, and both were disclosed in the PR.** The internal cross-validation was declared as the one
+deviation, with the checklist item marked "Not met"; the fold-0 exposure and the binary control were stated in the
+body. The 1,000 bar that the entry cleared (DR7.6) was this project's own estimate of what TabArena would accept, not
+a threshold TabArena stated; the stated criterion is "promising results", and an entry inside RandomForest's interval
+does not meet it.
+
+**What this changes.** No resubmission is planned: it would need both the selection moved onto `X_val` (a new
+measurement) and a peer-reviewed method. §304's board stays the entry's standing, quoted as an own run under the
+official protocol, not a listed entry. The owner posted no reply. Fork branch `fintfm-pr-2026-11` stays, because the
+closed PR links to it.
