@@ -2,19 +2,22 @@ DRAFT, not posted. Do not open a TabArena pull request from this text until ever
 
 # Draft text: TabArena resubmission of FinTFM (follows autogluon/tabarena#616)
 
-Rewritten 2026-11-17. Every figure is from `docs/results/FINDINGS.md` (section in brackets) and is
+Rewritten 2026-11-19. Every figure is from `docs/results/FINDINGS.md` (section in brackets) and is
 TabArena-Lite, repeat 0, fold 0, run from the tabarena fork. None of it is the public leaderboard or a
 full TabArena run. Code statements are read from the PR branch `fintfm-pr-2026-11` (fork commit
-e5cb05b), folder `packages/tabarena/src/tabarena/models/fintfm_linprobe/` unless another path is given.
+8b3ea4b), folder `packages/tabarena/src/tabarena/models/fintfm_linprobe/` unless another path is given.
 
-**Standing from stored runs (§293).** Entry `fintfm_g292_emr`, all 51 Lite datasets, none
-excluded or imputed: **1,023.0 Elo (+70 / -80), 99th of 110**. RandomForest (default) 1,000.0, 100th.
-TABFLEX_GPU 977.7. The owner's bar for resubmitting is 1,000 Elo (DR7.6). The entry clears it by 23.0
-Elo, which is inside the interval, and the 10,000-row and 5,000-row gate lines were drawn after
-results were seen (§286, §287, §290, §292), so this is a configuration choice on one fold. These are
-stored-run figures. The reproduction from the PR branch with no `FINTFM_*` variables completed 51 of
-51 datasets and scores 1,018.7 Elo (+73 / -79), 99th of 110 (FINDINGS §297). It uses AutoGluon
-1.6.4b20261109 (the PR branch's floor); the stored runs used 1.6.4b20260919.
+**Standing (§303).** The entry reproduced from the PR branch with no `FINTFM_*` variable, all 51 Lite
+datasets, none excluded or imputed: **1,019.6 Elo (+72 / -75), 99th of 110**. RandomForest (default)
+1,000.0, 101st; TABFLEX_GPU 978.0, 102nd. The owner's bar for resubmitting is 1,000 Elo (DR7.6). The
+entry clears it by 19.6 Elo, which is inside the interval, and the 10,000-row and 5,000-row gate lines
+were drawn after results were seen (§286, §287, §290, §292), so this is a configuration choice on one
+fold. The stored runs it reproduces score 1,024.0 (§301). AutoGluon 1.6.4b20261109 (the PR branch's
+floor); the stored runs used 1.6.4b20260919.
+
+**Owner decisions, 2026-11-19.** Post with the internal-CV deviations declared (no wrapper change);
+default config only (`can_hpo=False`), the search space stays a proposal; report taiwanese_bankruptcy_prediction
+with both machines' values; the owner signs off as `kabartay` and answers the review himself.
 
 ## What #616 said, and where this draft answers it
 
@@ -25,8 +28,8 @@ finding.
 | # | Reviewer concern in #616 | State now |
 | --- | --- | --- |
 | 1 | The entry declared binary only. Excluding datasets or problem types because the model does worse there is cherry-picking and is not eligible. | Answered. The entry declares binary, multiclass and regression and covers every Lite dataset. No exclusion. Per-type figures are reported below. |
-| 2 | Datasets were missing, and "there are failures that should be fixed". The reviewer asked that "new submissions ... cover all datasets". | Answered on the stored runs: 51 of 51 datasets, none excluded, none imputed (§290, §221). Wide tables run through `max_features_strategy: select`, not a new checkpoint. Reproduction coverage: `<REPRO: datasets completed of 51, failed splits>`. |
-| 3 | The model does not beat a tuned KNN or other simple baselines, so it does not meet the competitiveness bar. | Partly answered. Stored entry: 1,023.0 Elo, 99th of 110, above RandomForest (default) at 1,000.0 and above TABFLEX_GPU at 977.7. The tuned-and-ensembled KNN figure is from the older 110-method board (965.3 on 2026-11-15, `../tabarena/eval/fintfm_linprobe_all51_1115/tabarena_leaderboard.csv`); it is not re-read against the 1,009.8 board, so re-read it before posting. It remains far below tuned tree ensembles (`GBM (tuned + ensemble)` 1379.3 on the 2026-11-15 board, `openspec/changes/tabarena-integration/tasks.md` 45.4). The margin over RandomForest is inside the interval. |
+| 2 | Datasets were missing, and "there are failures that should be fixed". The reviewer asked that "new submissions ... cover all datasets". | Answered: the reproduction from the PR branch completed 51 of 51 datasets with no failed split, none imputed (§297, §303). Wide tables run through `max_features_strategy: select`, not a new checkpoint. |
+| 3 | The model does not beat a tuned KNN or other simple baselines, so it does not meet the competitiveness bar. | Partly answered. 1,019.6 Elo, above RandomForest (default) at 1,000.0, TABFLEX_GPU at 978.0 and KNN (tuned + ensemble) at 965.5 on the same board (§303). It remains far below tuned tree ensembles (`GBM (tuned + ensemble)` 1,380.1). The margin over RandomForest is inside the interval. |
 | 4 | Positive: "Based on the submission's code and numbers you shared, I think everything is correct." | The wrapper has changed a lot since that review (partitioning, readout, cross-fitting, per-type checkpoints, size gates). The changes are listed below so the reviewer can see what needs a fresh read. |
 
 In #616 we wrote that we would "come back with full coverage from the start". That is now true.
@@ -39,10 +42,9 @@ FinTFM is a tabular foundation model pretrained on a synthetic prior only. This 
 "FinTFM with a trained linear readout", covers all 51 TabArena-Lite datasets (30 binary, 8
 multiclass, 13 regression). It is not zero-shot: it fits a linear readout (logistic regression, ridge
 or random-Fourier-feature ridge for regression) on training rows inside each partition leaf. On
-TabArena-Lite (repeat 0, fold 0) the stored runs score 1,023.0 Elo, 99th of 110 (§293); the
-reproduction from this branch scores 1,018.7 Elo, 99th of 110. The wrapper does not follow
-the template's rule on `X_val` / `y_val` and internal cross-validation; the deviations are declared in
-Details.
+TabArena-Lite (repeat 0, fold 0), reproduced from this branch with no environment overrides, it scores
+1,019.6 Elo, 99th of 110. The wrapper does not follow the template's rule on `X_val` / `y_val` and
+internal cross-validation; the deviations are declared in Details.
 
 <details>
 <summary>Details</summary>
@@ -56,45 +58,41 @@ Details.
   - binary: `kabartay/fintfm-binary`, `v4-cellattn-labels.pt`, revision `f116bfd4...`;
   - multiclass: `kabartay/fintfm-multiclass`, `dr74-mc-s0.pt`, revision `b292efa8...`;
   - regression: `kabartay/fintfm-regression`, `v4-binned48_3-control.pt`, revision `787a3446...`.
-- **Package.** `fintfm` 0.12.0 is on PyPI (released 2026-11-17, Zenodo DOI 10.5281/zenodo.24325794),
-  Apache-2.0. Problem types: binary, multiclass, regression. Paper and docs: https://github.com/kabartay/fintfm.
-  The PR branch's `info.py` and `pyproject.toml` still pin `fintfm==0.11.0`; they must be changed to
-  0.12.0 (the 0.11.0 release does not hold the multiclass and regression checkpoints), see "Before
-  posting".
+- **Package.** `fintfm==0.12.0` on PyPI (released 2026-11-17, Zenodo DOI 10.5281/zenodo.24325794),
+  Apache-2.0, pinned in `info.py` (`pip_extra`) and in the `fintfm` and `fintfm_linprobe` extras.
+  Problem types: binary, multiclass, regression. Paper and docs: https://github.com/kabartay/fintfm.
 - **No environment variables.** Every lever is an entry default per problem type in `model.py`
   (`_entry_checkpoint`, `_entry_partition`, `_entry_bags_max_rows`, `_entry_probe`,
   `_entry_probe_spline`, `_entry_spline_max_rows`, `_entry_probe_onehot`, `_entry_reg_readout`,
-  `_entry_reg_rff_max_rows`, `_entry_prob_floor`, `_entry_crossfit_folds`). `FINTFM_*` variables still
-  exist as optional overrides (`_env_entry_overrides`); the reproduction removes them.
+  `_entry_reg_rff_max_rows`, `_entry_prob_floor`, `_entry_crossfit_folds`, `_entry_reg_clip_margin`).
+  `FINTFM_*` variables still exist as optional overrides (`_env_entry_overrides`); the reproduction
+  removes them.
 - **Numbers are TabArena-Lite, repeat 0, fold 0.** Not a full TabArena run, not the public leaderboard.
 
-**Results**
+**Results** (reproduction from this branch; each per-type figure is from a leaderboard over that
+problem type's datasets only)
 
-| quantity | stored runs | reproduction from this branch | source |
-| --- | --- | --- | --- |
-| Overall, 51 of 51 datasets | 1,023.0 Elo (+70 / -80), 99th of 110 | 1,018.7 (+73 / -79), 99th of 110 | §293, §297 |
-| RandomForest (default), same board | 1,000.0, 100th | 1,000.0, 100th | §293, §297 |
-| TABFLEX_GPU, same board | 977.7 | 978.0 | §293, §297 |
-| Binary, 30 datasets, problem-type Elo | 1,090.3 (+110 / -104), 92nd of 108 | 1,083.4 (+109 / -100), 92nd of 108 | §291, §297 |
-| Multiclass, 8 datasets | 947.1 (+100 / -253), 98th of 108 | 947.1 (+100 / -253), 98th of 108 | §293, §297 |
-| Regression, 13 datasets | 845.1 (+127 / -219), 97th of 103 | 845.1 (+127 / -219), 97th of 103 | §293, §297 |
-| Coverage | 51 of 51, none imputed | 51 of 51, none imputed | §293, §297 |
+| quantity | value | source |
+| --- | --- | --- |
+| Overall, 51 of 51 datasets | 1,019.6 Elo (+72 / -75), 99th of 110 | §303 |
+| RandomForest (default), same board | 1,000.0, 101st | §303 |
+| TABFLEX_GPU (default), same board | 978.0, 102nd | §303 |
+| KNN (tuned + ensemble), same board | 965.5, 104th | §303 |
+| Binary, 30 datasets | 1,083.4 (+109 / -100), 92nd of 108 | §297 |
+| Multiclass, 8 datasets | 947.1 (+100 / -253), 98th of 108 | §297 |
+| Regression, 13 datasets | 852.6 (+119 / -221), 97th of 103 | §303 |
+| Coverage | 51 of 51, no failed split, none imputed | §297, §303 |
 
-The per-type stored figures for the current entry must be re-read with `scripts/lite_positions.py`
-before posting; the values above are the earlier entries and are marked so.
-
-**Stored runs are what the reproduction must confirm.** The stored entry was assembled from runs on
-different machines (Kaggle CPU, Kaggle T4, a Mac) and different AutoGluon nightlies. §283 shows two
-Mac reruns reproducing stored metrics exactly (relative difference 0.0). The PR-branch reproduction
-(no `FINTFM_*` variables; each table on the kind of machine its stored run used) is the check a
-maintainer could make. Its result replaces the stored-run figures as the entry's standing (§290):
-49 of 51 datasets within 0.3% of the stored metric, anneal -0.56%, and
-taiwanese_bankruptcy_prediction +22.2% on Kaggle CPU, which reproduces exactly on the Mac where it was
-stored (+0.01%), so that difference is the machine (§297).
+**How the reproduction matches the stored runs.** The stored entry was assembled from runs on
+different machines (Kaggle CPU, Kaggle T4, a Mac) and AutoGluon nightlies. The reproduction from the
+PR branch (no `FINTFM_*` variable) gives 49 of 51 datasets within 0.3% of the stored metric (§297).
+anneal is -0.56%. taiwanese_bankruptcy_prediction is +22.2% worse on Kaggle CPU, and on the Mac, where
+its stored run was fitted, it reproduces to +0.01%, so that difference is the machine. The figures
+above keep the Kaggle CPU value.
 
 **What changed since #616** (the withdrawn entry was binary only, zero-shot head, 94th of 95, mean
 ROC-AUC 0.7823 over 27 datasets, `docs/competition/SUBMISSION.md`, §122). The README's change table
-(§225 to §290) lists each step with its Elo. In short:
+(§225 to §303) lists each step with its Elo. In short:
 
 - partitioned contexts (a tree routes rows to leaves, each leaf has its own context, with bags);
 - a linear readout per leaf, with the row's own squashed features appended;
@@ -104,10 +102,13 @@ ROC-AUC 0.7823 over 27 datasets, `docs/competition/SUBMISSION.md`, §122). The R
   (§257), a multiclass probability floor (§269), one-hot indicators for multiclass and an RFF readout
   for regression fits of at most 5,000 rows (§283), four readout bags for binary fits of at most
   5,000 rows (§286), spline features for binary fits of at most 10,000 rows (§290), spline features for
-  multiclass fits of at most 10,000 rows and for every regression fit (§293).
+  multiclass fits of at most 10,000 rows and for every regression fit (§293), and regression
+  predictions clipped to the training target's range widened by 10% (§295, §301).
 
 Each step after §254 is a configuration choice on one fold inside the Elo interval, and the size lines
-were drawn after results were seen.
+were drawn after results were seen. The clip removes a failure, not a tuning gain: on diamonds the
+spline readout predicted as far as -19 million for a few off-manifold rows, and the clip takes its
+test RMSE from 249,744 to 957; no regression table got worse by more than 0.1% (§301).
 
 **Controls the reviewers should read beside the Elo values.** Each problem type has a matched control
 in which the readout sees only the squashed raw features, with no FinTFM representation (`no_rep`): a
@@ -124,9 +125,10 @@ one.
 and no FinTFM representation scored 1009 against 997 (§239). The representation is supported on
 multiclass and regression, not on binary Elo. This is TabArena breadth only, not a credit result.
 
-**Deviation from the template's implementation rule (`X_val` / `y_val`, no internal CV).** The template
-says `_fit` uses the `X_val` / `y_val` that TabArena passes, with no internal cross-validation,
-hold-out split or tuning on training data. This wrapper does not meet that. What the code does:
+**Declared deviation from the template's implementation rule (`X_val` / `y_val`, no internal CV).**
+The template says `_fit` uses the `X_val` / `y_val` that TabArena passes, with no internal
+cross-validation, hold-out split or tuning on training data. This wrapper does not meet that, and we
+submit it as measured rather than change the method. What the code does:
 
 1. `FinTFMLinearProbeModel._fit` accepts `X_val` and `y_val` and passes them to the parent
    `FinTFMModel._fit` (`model.py`), which ignores them (docstring: "`X_val`/`y_val` and `time_limit` are
@@ -147,50 +149,67 @@ hold-out split or tuning on training data. This wrapper does not meet that. What
    but is off in the entry.
 6. Training matrix: AutoGluon's own preprocessing runs with out-of-fold categorical encoding when
    cross-fitting is on (`preprocess`).
+7. The regression clip records the training target's minimum and maximum at fit (`_clip_bounds`).
 
 All of these use training rows only. None uses the validation split. They are part of the measured
-method: removing them changes the entry. Options for the owner: change the wrapper to select `C` and
-the floor on the `X_val` / `y_val` TabArena passes (a new measurement, not the entry measured here), or
-post with this declaration and let the maintainers decide. Decision pending.
+method: removing them changes the entry. If the maintainers prefer, `C` and the floor could be
+selected on the `X_val` / `y_val` TabArena passes instead; that would be a new measurement, not the
+entry reported here.
 
-**Search space.** `hpo.py` declares five categorical hyperparameters (`probe_binary`,
-`probe_multiclass`, `probe_regression`, `partition_binary`, `partition_multiclass`) with 3, 3, 2, 2
-and 3 values. The product of the options is at most 3 x 3 x 2 x 2 x 3 = 108 combinations, and a
-problem type samples only its own keys, so fewer. This is under the template's "about 200
-configurations", no sampled config has been run on TabArena, and the file calls the space "PROPOSED,
-not a tuned one". `info.py` sets `can_hpo=False`; the raw results hold the default config only
-(`manual_configs=[{}]`). `hpo.py` also still says the 932 Elo entry was made with cross-fitting off,
-which is outdated. The proposed `probe_crossfit_folds` space (5 or 0) is in
-`proposed_search_space_additions`, not in `search_space`. The template's own Results item asks for the
-default plus about 25 random configurations "where the method has a search space"; none were run.
-Decision pending: declare "no search space" (`can_hpo=False`, as is) or run a sampled set.
+**Search space: none submitted.** `info.py` sets `can_hpo=False` and the results hold the default
+config only (`manual_configs=[{}]`). `hpo.py` keeps a PROPOSED space, not a tuned one: five
+categorical hyperparameters (`probe_binary`, `probe_multiclass`, `probe_regression`,
+`partition_binary`, `partition_multiclass`) with 3, 3, 2, 2 and 3 values, at most 108 combinations, and
+a further proposal (`probe_crossfit_folds`, 5 or 0) in `proposed_search_space_additions`. No sampled
+config has been run on TabArena.
 
-**Wiring (`time_limit`, resources, seed, pickling).**
+**Wiring (`time_limit`, resources, seed, classes, pickling).**
 - `time_limit`: accepted and forwarded to the parent, which ignores it. There is no early stop.
-  A fit near the limit can still be killed by AutoGluon; the stored runs recorded `TimeLimitExceeded`
-  only on busy Mac sessions (§286), and the kernels give each dataset its own 2-hour timeout.
+  AutoGluon's own per-fold projection can still stop a fit near the limit; on Kaggle's 4-CPU sessions
+  QSAR-TID-11 now sits at it (§301).
 - `num_cpus` / `num_gpus`: a granted GPU selects `cuda` when available, else CPU
-  (`fintfm/model.py` `_choose_device`); MPS is never chosen automatically, and `_forced_device`
-  honours an override variable. `num_cpus` is passed to
-  the parent and not otherwise used. `info.py` declares `compute="cpu"`; the nine binary tables above
-  10,000 rows ran on a T4 in the stored runs, so the hardware statement below must say so.
+  (`fintfm/model.py` `_choose_device`); MPS is never chosen automatically, and `FINTFM_DEVICE` forces a
+  device. `info.py` declares `compute="gpu"`: the nine binary tables above 10,000 training rows were
+  fitted on a T4, the rest on CPU. The readout's BLAS calls run under `threadpoolctl` at
+  `min(4, num_cpus)` threads (`blas_threads="auto"`): without it, OpenBLAS on an 8-vCPU host
+  oversubscribed and three large tables hit the time limit (§296-§299).
+- Classes: the multiclass checkpoint represents at most 10 classes, declared as `ag.max_classes = 10`.
 - Seed: `seed_name = "random_state"`; `self.random_seed` seeds the row draws, bagging, the cross-fit
   and floor folds.
-- Pickling: the entry references checkpoints by pinned dict, not by loaded object. The audit below was
-  run on an earlier commit and must be re-run.
+- Pickling: the entry references checkpoints by pinned dict, not by loaded object. The audit passes on
+  all three problem types (see Tests).
 - Optional imports (`fintfm`, `torch`, `sklearn`) are inside methods. No global monkey-patching was
   found in the files read.
 
-**Cost.** `<REPRO: summary.json per-dataset wall times, total>`. Stored runs: longest single fit 3,262 s
-on a Mac (`polish_companies_bankruptcy`, §290), regression 269 min for 13 datasets on a loaded CPU
-(§235).
+**Cost** (fit plus inference time recorded in the 51 `results.pkl` files, §303): 18.8 hours in total.
+Kaggle CPU, 34 tables: 11.4 h of training, longest hiva_agnostic 2,829 s. Hugging Face T4, 9 tables:
+3.4 h, longest kddcup09_appetency 3,353 s. Mac CPU, 8 tables: 3.4 h, longest diamonds 2,591 s.
+Inference: 38 minutes in total.
 
-**Hardware and entry-point script.** Stored runs: Kaggle CPU, Kaggle T4 (nine binary tables above
-10,000 rows) and a Mac, from the fork. Reproduction: four Kaggle kernels from
-`scripts/kaggle/repro_pr_kernel_template.py` (two CPU binary kernels for the 21 tables of at most
-10,000 rows, one T4 binary kernel for the 9 larger tables, one CPU multiclass and regression kernel).
-`<REPRO: CPU model, RAM, GPU, command, kernel versions>`. Optional: link to the `results.pkl`
-directory, `<REPRO: link>`.
+**Hardware and entry-point script.** The reproduction used the kernels generated from
+`scripts/kaggle/repro_pr_kernel_template.py` (fintfm repository). Each installs the fork at the PR
+branch and `fintfm==0.12.0`, removes every `FINTFM_*` variable, and fits one dataset per process with
+the registry entry's default config:
+
+```python
+experiments = TabArenaV0pt1ExperimentBundle(models=[("FinTFM-LinProbe", 0)]).build_experiments()
+TabArenaContext().build_and_run_jobs(experiments, expname=..., subset="lite",
+    build_kwargs={"dataset_names": [dataset]}, new_result_prefix="[New] ", debug_mode=True)
+```
+
+The arena's default validation protocol was used (no `official_validation_protocol` override).
+Machines:
+- Kaggle CPU sessions (4 CPUs, 31 GB RAM): 21 binary tables of at most 10,000 rows, 7 multiclass and
+  6 regression tables.
+- Hugging Face Jobs `t4-medium` (8 vCPU, 30 GB RAM, Tesla T4, torch 2.15.0+cu132): the 9 binary tables
+  above 10,000 rows. Five of them ran with `OPENBLAS_NUM_THREADS=4` set in the job, before the
+  adapter's own limit existed; with the adapter's limit and no variable set, three of them were rerun
+  and matched exactly (§299).
+- A Mac (Apple M3 Max, 16 cores, 64 GB, CPU only; torch 2.15.0, numpy 2.5.5, scikit-learn 1.9.1):
+  SDSS17 and 7 regression tables, where the stored runs were fitted.
+
+The regression tables were fitted at the clip commit (fork fe2b072, the same model code as this
+branch), the others at 65c21d5 (§297, §301). The `results.pkl` files are available on request.
 
 **Licences.** `fintfm` and all three checkpoints are Apache-2.0. `info.py` records `license="Apache-2.0"`,
 `commercial_use=True`, `verified=False`.
@@ -199,13 +218,22 @@ directory, `<REPRO: link>`.
 
 ### Tests
 
-Not run yet on this branch for the resubmission; to be filled with the commands actually run:
-`ruff check . && ruff format --check .`; `pytest -m models -k FinTFM`;
-`python -P -m tabarena.tools.audit_pickle --model FinTFM-LinProbe`; the model's own tests in
-`models/fintfm_linprobe/tests/`. Earlier pickle audit (2026-11-16, commit ecd4ac5, fintfm 0.10.1,
-AutoGluon 1.6.4b20261115, binary only) passed: `model.pkl` growth 88 B per row against the 1,024 B flag
-limit (`docs/competition/SUBMISSION.md`). Regression could not be audited then because its checkpoint
-was not public; it is now. Not claimed for the current commit.
+Run on the PR branch on 2026-11-19 (fork 9c7db11 to 8b3ea4b; outputs kept):
+
+- `ruff check` and `ruff format --check` (ruff 0.14.0) on `models/fintfm`, `models/fintfm_linprobe`
+  and `tests/tabarena/models`: clean.
+- The model's own tests (`models/fintfm/tests/`, `models/fintfm_linprobe/tests/`): 414 passed,
+  1 skipped.
+- `pytest -m models -k FinTFM`: passes. On a machine without CUDA the FinTFM-LinProbe smoke fit is
+  skipped because `info.py` declares `compute="gpu"`; run with `compute="cpu"` it passes on binary,
+  multiclass and regression. `test_model_many_class` skips it on its declared 10-class limit.
+- `python -P -m tabarena.tools.audit_pickle --model FinTFM-LinProbe --problem-type {binary,multiclass,regression}`:
+  "OK: nothing that scales with the training rows sits in model.pkl" on all three. **Note for the
+  maintainers:** the unpatched tool crashes on this model. scipy's `BSpline` (inside the spline
+  readout) keeps the array namespace module in `_xp`, `tensor_nbytes` walks into that module and on
+  through `sys.modules`, and stops on a `urllib3` mapping that refuses iteration. We ran it with
+  module objects skipped in the walk (`isinstance(value, types.ModuleType)`); the same one-line guard
+  would fix the tool for any model holding scipy splines.
 
 ### Model or system submission
 
@@ -214,39 +242,42 @@ any run).
 
 **Files**
 
-- [ ] Model: `models/fintfm_linprobe/{__init__,model,hpo,info}.py` exist (plus `rff.py`,
-  `target_transform.py`, and tests in `models/fintfm_linprobe/tests/`). Not met: the lazy entry in
-  `models/__init__.py` has `FinTFMModel` only, not `FinTFMLinearProbeModel`; the extra
-  `fintfm_linprobe` is not in `extended` (only `tabarena[fintfm]` is); `website/website_format.py` lists
-  `"FINTFM"` only; `tests/tabarena/models/smoke_configs.py` has `"FinTFM-LinProbe": ModelSmokeTest(problem_types=("binary",))`
-  (binary only, but the entry declares three types). Also `tests/tabarena/models/test_fintfm_*.py` sit
-  under `tests/`, where the template says model tests must not go: check whether these are ours.
-- [ ] Logo: none prepared. `info.py` names organization from `reference_url` only; check whether the
-  leaderboard shows a logo for it, else attach a square SVG or PNG of at least 128 px.
+- [x] Model: `models/fintfm_linprobe/{__init__,model,hpo,info}.py` (plus `rff.py`,
+  `target_transform.py`), tests in `models/fintfm_linprobe/tests/` and `models/fintfm/tests/`. Lazy
+  entry in `models/__init__.py`, the `fintfm_linprobe` extra in `extended`, the family in
+  `website/website_format.py`, and a smoke override covering all three problem types.
+- [ ] Logo: none prepared. `info.py` names the organization from `reference_url` only; attach a square
+  SVG or PNG of at least 128 px if the leaderboard shows none.
 
 **Implementation**
 
 - [ ] `_fit` uses the `X_val` / `y_val` TabArena passes, no internal cross-validation, and about 200
-  configurations. **Not ticked.** See the declared deviations and the search-space paragraph above.
-- [ ] `time_limit`, `num_cpus` / `num_gpus` and the seed wired through; optional imports inside the
-  wrapper; the model pickles. Partly: see "Wiring". `time_limit` is accepted and ignored; the pickle
-  audit must be re-run.
-- [ ] Exact pin, extra matches `pip_extra`, checkpoints pinned by revision, licence and problem types
-  stated. Partly: `fintfm==0.12.0` is released but the PR branch still pins `0.11.0` in `info.py`
-  (`pip_extra`) and `pyproject.toml`. Checkpoints are pinned by revision and SHA-256 and are ungated.
+  configurations. **Not ticked.** See the declared deviations and "Search space: none submitted".
+- [x] `time_limit`, `num_cpus` / `num_gpus` and the seed wired through; optional imports inside the
+  wrapper; the model pickles. `time_limit` is accepted and ignored (see Wiring).
+- [x] Exact pin (`fintfm==0.12.0`), extra matches `pip_extra`, checkpoints pinned by revision and
+  SHA-256 and ungated, licence and problem types stated.
 - [ ] Hosted API: not applicable.
-- [ ] `ruff` clean and `pytest -m models -k FinTFM` passes. Not run for this PR.
+- [x] `ruff` clean and `pytest -m models -k FinTFM` passes (see Tests).
 
 **Results**
 
-- [ ] TabArena-Lite with the official pipeline: the default config only; no sampled configs were run
-  (no search space measured). Validation protocol: the arena default. `<REPRO: confirm official
-  validation protocol was used, official_validation_protocol not set to False>`.
-- [ ] Hardware and entry-point script stated: see Details, `<REPRO>` placeholders.
-- [ ] Optional: link to the run's `expname` folder with `results.pkl` files.
-- [ ] Sign-off on the maintainer re-run: `<GitHub handle, owner to supply>`.
+- [x] TabArena-Lite with the official pipeline and the default validation protocol: the default config
+  only; no sampled configs (no search space submitted).
+- [x] Hardware and entry-point script stated: see Details.
+- [ ] Optional: link to the run's `expname` folder with `results.pkl` files (available on request).
+- [x] Sign-off on the maintainer re-run: kabartay.
 
-`<REPRO: leaderboard table printed by the run, hardware, command>`
+Leaderboard rows around the entry, as printed by the reproduction (TabArena-Lite, 110 methods; §303):
+
+| position | method | Elo |
+| --- | --- | --- |
+| 97 | NN_TORCH (default) | 1,037.1 |
+| 98 | XRFM_GPU (default) | 1,031.7 |
+| **99** | **[New] TA-FINTFM-LINPROBE (default)** | **1,019.6** |
+| 100 | XT (default) | 1,008.8 |
+| 101 | RF (default) | 1,000.0 |
+| 102 | TABFLEX_GPU (default) | 978.0 |
 
 ---
 
@@ -259,42 +290,23 @@ Done:
 
 - [x] Weights public: binary, multiclass and regression checkpoints are Apache-2.0, ungated, pinned by
       revision and SHA-256 in the fork's `checkpoints.py`.
-- [x] `fintfm` 0.12.0 released on PyPI (2026-11-17, DOI 10.5281/zenodo.24325794).
-- [x] Entry defaults on the PR branch (`fintfm-pr-2026-11`, e5cb05b): every lever is a per-type default;
-      no environment variable is needed.
-- [x] Coverage: 51 of 51 datasets on the stored runs, none excluded or imputed.
-- [x] Stored entry at 1,023.0 Elo, 99th of 110, clears the owner's 1,000 bar (DR7.6) by 23.0, inside the
-      interval.
+- [x] `fintfm` 0.12.0 released on PyPI (2026-11-17, DOI 10.5281/zenodo.24325794) and pinned on the
+      PR branch.
+- [x] Entry defaults on the PR branch: every lever is a per-type default; no environment variable is
+      needed.
+- [x] Reproduction: 51 of 51, 1,019.6 Elo, 99th of 110, above the 1,000 bar (DR7.6) by 19.6, inside
+      the interval (§303).
+- [x] Owner decisions (2026-11-19): declare the internal CV; default config only; taiwanese with both
+      machines' values; sign-off and review by kabartay.
+- [x] Registration files, test placement and the smoke override (fork 81e94d1, 8b3ea4b).
+- [x] Tests and `audit_pickle` on all three problem types, outputs kept (`runs/pr_checks_9c7db11/`).
+- [x] Hardware, script and cost filled in.
+- [x] Support status: `docs/competition/SUBMISSION.md` records that the owner answers this review.
 
 Remaining:
 
-- [ ] **Reproduction numbers.** The four Kaggle kernels finish (the T4 kernel waits for weekly GPU
-      quota), the results are merged with `merge_fintfm_lite.py --expect 51`, and the Elo and position
-      are scored with `scripts/lite_positions.py`. Fill every `<REPRO: ...>`. If the reproduction falls
-      below 1,000 Elo, the owner decides again under DR7.6. The AutoGluon nightly differs from the
-      stored runs.
-- [ ] **`X_val` / internal-CV question.** Owner decision: change the wrapper to use the validation
-      split TabArena passes, or post with the declared deviations (internal `LogisticRegressionCV`,
-      5-fold cross-fit for binary, multiclass probability floor on out-of-fold rows, `RFFRidgeCV`).
-      Do not tick the template box either way unless the wrapper changes.
-- [ ] **Search space.** Decide: keep `can_hpo=False` with the 108-combination proposed space, or run a
-      sampled set (the template asks about 200 configs and the Lite default plus about 25 configs).
-      Fix the stale comment in `hpo.py`.
-- [ ] **Pin.** `info.py` `pip_extra` and `pyproject.toml` (`fintfm`, `fintfm_linprobe`) from
-      `fintfm==0.11.0` to `0.12.0`, and the PR-branch commit used by the kernels re-checked against it.
-- [ ] **Registration files.** Lazy entry for `FinTFMLinearProbeModel` in `models/__init__.py`, the
-      `fintfm_linprobe` extra in `extended`, the family in `website/website_format.py`, the smoke
-      override covering multiclass and regression, and the `tests/` placement checked.
-- [ ] **Tests run on the PR branch.** `ruff check`, `ruff format --check`, `pytest -m models -k FinTFM`,
-      and the model's own tests, with output kept.
-- [ ] **`audit_pickle`** re-run on the PR-branch head for binary, multiclass and regression
-      (the 2026-11-16 audit was binary only, commit ecd4ac5).
-- [ ] **Hardware and script** filled in from the kernels' `summary.json`; the nine large binary tables
-      ran on a T4 and `info.py` says `compute="cpu"`.
-- [ ] **Sign-off handle** and, if the leaderboard shows none, a logo.
-- [ ] **Numbers re-read.** Per-type Elo and the KNN and tree-ensemble rows re-read from the board
-      current at posting (the field was 110 methods on 2026-11-17).
-- [ ] **Support status.** `docs/competition/SUBMISSION.md` says the project is no longer actively
-      supported from mid-November 2026. Decide who answers the reviewers.
-- [ ] **No confidential or peer-product names** in the posted text.
+- [ ] **Logo**, only if the leaderboard shows none for the organization.
+- [ ] **Numbers re-read** from the board current at posting (the field was 110 methods on 2026-11-19).
+- [ ] **No confidential or peer-product names** in the posted text (checked 2026-11-19; re-check after
+      any edit).
 - [ ] **The owner's yes.**
