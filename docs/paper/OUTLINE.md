@@ -53,9 +53,10 @@ encoder is provably incapable of representing a rule as simple as `x₀ − x₁
 an exactly-known Bayes-optimal AUC shows the resulting cap is severe and independent of task
 difficulty; seven content-side explanations are eliminated one at a time; two-way cell
 attention with per-cell label injection closes the regret to 0.001–0.005 and transfers to one
-real credit panel, V4FinBench, at +0.042 AP best-vs-best on 5 of 5 folds; **and the fixed model
-still places 94th of 95 on TabArena (§122; 2026-11-13: the readout entry on all 51 datasets is 107th of 110, §224). Native categorical handling recovered 34% of the gap
-to tuned logistic regression (§101), leaving a uniform deficit of about 0.035 ROC-AUC.**
+real credit panel, V4FinBench, at +0.042 AP best-vs-best on 5 of 5 folds; **and the fixed
+model still places 94th of 95 on TabArena (§122; 2026-11-13: the readout entry on all 51
+datasets is 107th of 110, §224). Native categorical handling recovered 34% of the gap to tuned
+logistic regression (§101), leaving a uniform deficit of about 0.035 ROC-AUC.**
 
 That last clause is not self-flagellation — it is what makes the diagnosis credible. A paper
 that fixes a defect and then claims the field is solved invites exactly the scrutiny it cannot
@@ -187,7 +188,8 @@ direction (§93/§97) — this project misread it once and the correction belong
 
 See [LIMITATIONS.md](LIMITATIONS.md). Written first, cited here. The TabArena placement and
 the absence of any LGD or EAD panel both belong in the paper's own text (a regression head now
-exists, §106, and ranks near last on TabArena regression, mean rank 93.1, §121; with a ridge readout it scores 578 Elo, §223), not only in this repository. (2026-11-13: the limitations
+exists, §106, and ranks near last on TabArena regression, mean rank 93.1, §121; with a ridge
+readout it scores 578 Elo, §223), not only in this repository. (2026-11-13: the limitations
 list also needs the wide-table result, §220, and the credit gap, §216.)
 
 ## 7. Conclusion
@@ -208,8 +210,9 @@ transfers; and the resulting model is still far from competitive, in a way that 
 
 ## What a second paper would be
 
-Claim 1, alone: per-horizon PD construction is incoherent for 98.7% of firms out of time on V4FinBench (§229) while the
-portfolio aggregate hides it; a discrete-time hazard parameterisation makes that impossible by
-construction at zero accuracy cost, holding at 0.00% violations out of time. Structural rather
-than statistical, decades-old mathematics, and a live defect in something IFRS 9 consumes
-directly. Small, clean, and independent of whether B's residual ever closes.
+Claim 1, alone: per-horizon PD construction is incoherent for 98.7% of firms out of time on
+V4FinBench (§229) while the portfolio aggregate hides it; a discrete-time hazard
+parameterisation makes that impossible by construction at zero accuracy cost, holding at 0.00%
+violations out of time. Structural rather than statistical, decades-old mathematics, and a
+live defect in something IFRS 9 consumes directly. Small, clean, and independent of whether
+B's residual ever closes.

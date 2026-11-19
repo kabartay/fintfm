@@ -13,8 +13,8 @@ Cite theirs; do not re-derive.
 
 Cumulative PD curves from per-horizon models that *decrease* with horizon, against hazard-head
 curves that cannot. Per-firm, with the portfolio aggregate overlaid to show it hiding the
-violations. **The paper's most important figure**, because it makes a failure rate of 98.7% of firms out of time on V4FinBench (§229) visible
-that a portfolio-level view conceals.
+violations. **The paper's most important figure**, because it makes a failure rate of 98.7% of
+firms out of time on V4FinBench (§229) visible that a portfolio-level view conceals.
 
 Data exists (§11, §26, §32); the plot does not. Needs a small plotting script over
 `runs/v4-oot-*/v4_out_of_time.json`.
@@ -91,9 +91,10 @@ to produce and disproportionately persuasive to the model-risk reader this proje
 
 ## Not a figure: the failure log
 
-`docs/results/POSTMORTEM.md`. Consider an appendix. Five wrong diagnoses in one day (POSTMORTEM
-now records seven in three days), each caught by measurement — unusual to publish, and the strongest available evidence that the numbers were
-checked adversarially rather than defended.
+`docs/results/POSTMORTEM.md`. Consider an appendix. Five wrong diagnoses in one day
+(POSTMORTEM now records seven in three days), each caught by measurement — unusual to publish,
+and the strongest available evidence that the numbers were checked adversarially rather than
+defended.
 
 ## Figure 5 — The Bayes-ceiling curve (new, 2026-09-14)
 

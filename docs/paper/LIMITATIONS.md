@@ -5,8 +5,8 @@ it, so none of this is hedging language — every entry is a measured fact.
 
 ## Standing of the current release, 2026-11-13
 
-(Added 2026-11-13; sources are the sections cited.) The limitations below date from the
-dates they carry. The current measured position is:
+(Added 2026-11-13; sources are the sections cited.) Each limitation below is as of the
+date it carries. The current measured position is:
 
 - **TabArena-Lite, all 51 datasets, none excluded: 903 Elo, 107th of 110** (§224, MEASURED,
   repeat 0, fold 0, CPU). By problem type: binary 974 on 30 datasets (§220), multiclass 865 on
@@ -44,8 +44,9 @@ horizon differences were significant after Holm correction at the previous best 
 (Corrected 2026-10-15: this entry previously quoted 0.8209, a single-seed draw that §38
 retracted, and an ECE of 0.0095 that has no FINDINGS source.)
 
-The gap closed from 0.142 to 0.047 mean AUC (FINDINGS scorecard; §35, §38) in one day of inference-time changes with no retraining,
-which is the reason to think it is closable — and it is not closed.
+The gap closed from 0.142 to 0.047 mean AUC (FINDINGS scorecard; §35, §38) in one day of
+inference-time changes with no retraining, which is the reason to think it is closable — and
+it is not closed.
 
 **A second, more rigorous measurement (§60/§69/§71, 2026-09-13/14, on a 10x subsample of
 105,900 test rows, §82) says the same thing more precisely and less favourably.** On
@@ -155,8 +156,8 @@ the time (§77) — a structural property of averaging bounded driver weights, n
 ## No LGD, no EAD, therefore no ECL
 
 The project produces PD only. Expected credit loss requires PD × LGD × EAD, so this supplies
-one of three inputs (`docs/design/GLOSSARY.md`). Any claim about IFRS 9 provisioning is a claim about
-an *input* to provisioning.
+one of three inputs (`docs/design/GLOSSARY.md`). Any claim about IFRS 9 provisioning is a
+claim about an *input* to provisioning.
 
 **No regression head exists**, which is the binding constraint here rather than an oversight:
 LGD and EAD are continuous targets, and every checkpoint this project has trained is a
@@ -232,10 +233,11 @@ entry further down.)
 
 The reported experiment also deviated from the protocol it was meant to replicate exactly:
 `--batch-size 4 --n-rows-choices 256,512` rather than `--batch-size 8 --n-rows-choices
-256,512,1024`, forced by a CUDA OOM on the first attempt. **Closed 2026-09-17 (§86)**: the full protocol trains on
-the same T4 and passes the step-500 evaluation where the original OOM landed, so the deviation
-no longer applies. (§94 corrected the attribution: the fix was §79's hardcoded evaluation batch
-size, not feature chunking, which §94 measured as having no effect on training memory.)
+256,512,1024`, forced by a CUDA OOM on the first attempt. **Closed 2026-09-17 (§86)**: the
+full protocol trains on the same T4 and passes the step-500 evaluation where the original OOM
+landed, so the deviation no longer applies. (§94 corrected the attribution: the fix was §79's
+hardcoded evaluation batch size, not feature chunking, which §94 measured as having no effect
+on training memory.)
 
 ## The financial prior's real-data benefit is narrower than the project's own framing assumed
 
@@ -288,25 +290,25 @@ on comparable data. The full-panel context effect measured directly is **+0.0069
 context 1000 to 2000 — an order of magnitude below the -0.066 previously inferred — so the
 suggestion that the architecture change might be a net real-data loss is withdrawn.
 
-
 ## Training volume is not the explanation for the accuracy gap, at least not at 5x
 
-The most-cited untested explanation for this project's 0.20-0.24 AP deficit (§80: 0.204-0.236, full panel, five folds) to tuned gradient
-boosting has been training volume: every checkpoint has come from 48,000 synthetic tasks
-against a field norm near 10^7, a ~200x shortfall recorded in `CLAUDE.md` since 2026-09-10.
+The most-cited untested explanation for this project's 0.20-0.24 AP deficit (§80: 0.204-0.236,
+full panel, five folds) to tuned gradient boosting has been training volume: every checkpoint
+has come from 48,000 synthetic tasks against a field norm near 10^7, a ~200x shortfall
+recorded in `CLAUDE.md` since 2026-09-10.
 
 **Tested at 5x and rejected (§93).** A 240,000-task checkpoint differing from its baseline in
 nothing but volume scores **-0.0012 AP** across five folds, 3 of 5 nominally positive, with the
 only individually-significant fold favouring the *smaller* run.
 
 (2026-11-13, §188: the step was then taken at 480,000 tasks, 10x the 48,000 baseline, and it
-is null on V4FinBench at two seeds, -0.0109 and -0.0103 mean AP. The 2,000,000-task run (AU5.15) is deferred and not launched.)
+is null on V4FinBench at two seeds, -0.0109 and -0.0103 mean AP. The 2,000,000-task run
+(AU5.15) is deferred and not launched.)
 
 This does not establish that scale never helps — 5x is a small step on a 200x shortfall, and
 it measures the local slope rather than the asymptote. What it does establish is that the cheap
 version of the scale argument is dead, and that a large scale run must now be justified by
 something other than "we are obviously under-trained."
-
 
 ## The accuracy deficit is not specific to credit, to imbalance, or to the prior's domain
 
@@ -314,9 +316,9 @@ Every real-data number this project had was corporate default data, so the ~0.22
 tuned gradient boosting had never been separated from the kind of data it was measured on.
 
 **§96 separated it.** On 15 public OpenML binary tasks spanning 2.3%-44.5% prevalence and 4-72
-features, fintfm is behind the best baseline on **14 of 15**, mean deficit **-0.134** AP for the SCM-prior checkpoint (-0.144 for the financial-prior
-one), and wins
-outright on one. It reproduces on ecology, speech, software defects, medicine and astronomy.
+features, fintfm is behind the best baseline on **14 of 15**, mean deficit **-0.134** AP for
+the SCM-prior checkpoint (-0.144 for the financial-prior one), and wins outright on one. It
+reproduces on ecology, speech, software defects, medicine and astronomy.
 
 Three candidate explanations are ruled out by that same experiment. It is not credit-specific,
 since it travels across five unrelated domains. It is not purely imbalance, since it persists
@@ -327,7 +329,6 @@ the entire prior from financial to generic structural-causal moves the mean defi
 The baselines in that suite are untuned, so the honest reading is that the deficit is probably
 understated: §69 measured tuning as roughly doubling a booster's lead.
 
-
 ## Placed 94th of 95 on TabArena, the field's own benchmark
 
 Every accuracy claim in this ledger before 2026-09-20 was measured against baselines this
@@ -335,10 +336,11 @@ project ran itself. §98 is the first placement against the field: `fintfm-0.3` 
 model in TabArena and run under TabArena's protocol — their preprocessing, their splits, 8
 bagged child models per dataset — against a cached leaderboard of 95 methods.
 
-**Rank 93 of 95 [§225: read from a table numbered from 0; §98's own leaderboard is not stored] at §98. Mean ROC-AUC 0.7642 against leaders at ~0.90.** Below every linear
-baseline; above only `KNN (default)`. 26 of 27 eligible datasets, zero failures. **On the later
-board snapshot used for the submission the rank is 94 of 95** at mean ROC-AUC 0.7823, over 27
-of 27 datasets (§122), unchanged against a refreshed baseline cache (§150). Quote 94 of 95.
+**Rank 93 of 95 [§225: read from a table numbered from 0; §98's own leaderboard is not stored]
+at §98. Mean ROC-AUC 0.7642 against leaders at ~0.90.** Below every linear baseline; above
+only `KNN (default)`. 26 of 27 eligible datasets, zero failures. **On the later board snapshot
+used for the submission the rank is 94 of 95** at mean ROC-AUC 0.7823, over 27 of 27 datasets
+(§122), unchanged against a refreshed baseline cache (§150). Quote 94 of 95.
 
 (2026-11-13, §204, §215, §224: the board has since changed to 110 methods and the entry is a
 different one. The zero-shot default scored 756 Elo on the 27 binary datasets (§204). The
@@ -370,11 +372,11 @@ and declined it on competitiveness, §122.)
 
 **Fixed, and the rank still did not move (§101).** Out-of-fold target statistics lifted the
 mean to 0.7823 and destroyed the cardinality correlation (−0.668 → −0.025), with the eight
-numeric-only datasets unchanged to four decimals. Rank: **93 of 95 [§225: one place lower], unchanged** (94 of 95 on the later board snapshot, §122). The residual
-is now uniform at ~0.035 across every bucket, so the deficit is one population rather than
-two — sharper to attack, and no smaller where it counts. **The project's stated target,
-untuned trees < fintfm < tuned trees, is not reached:** default random forest leads on 21 of
-27 datasets.
+numeric-only datasets unchanged to four decimals. Rank: **93 of 95 [§225: one place lower],
+unchanged** (94 of 95 on the later board snapshot, §122). The residual is now uniform at
+~0.035 across every bucket, so the deficit is one population rather than two — sharper to
+attack, and no smaller where it counts. **The project's stated target, untuned trees < fintfm
+< tuned trees, is not reached:** default random forest leads on 21 of 27 datasets.
 
 **Retracted (§107; pointer added 2026-10-15).** This paragraph used to say two of the three
 best datasets were the corporate bankruptcy panels (`taiwanese_bankruptcy_prediction` 0.9291,
@@ -388,8 +390,8 @@ nothing. By rank among the 95 methods they are 83rd and 91st, `GiveMeSomeCredit`
 weakened the mechanism it proposed, leaving **scale** as the only standing explanation. §108's
 first attempt at it lost 0.0077 on TabArena binary — on a confounded design, since the larger
 model ran at batch 4 against the baseline's batch 8 and therefore saw **half the tasks** at
-matched steps. A matched-task rerun is in flight and a confounded negative is not a negative. (Done: §114,
-reported below.)
+matched steps. A matched-task rerun is in flight and a confounded negative is not a negative.
+(Done: §114, reported below.)
 
 **But the hypothesis was already capped by evidence we did not generate.** Synthefy's Nori
 publishes a clean scaling curve for a synthetic-prior in-context model: 6M → 100M parameters,
@@ -469,10 +471,10 @@ statement is that D2 costs the adaptation step, not the foundation.
 
 **State this, because "the model is small" is the explanation a reader will reach for.** It is
 the explanation this project reached for too, for weeks, and it is quantitatively insufficient
-by roughly an order of magnitude. `openspec/changes/learn-from-peers` task 48.1 (done: §114, the deep-narrow arm could not
-complete the benchmark) tests the
-cheapest remaining candidate — that §108 scaled the wrong *dimension*, since Nori-6M is 16
-layers at width 128 where our scale-up went wide rather than deep.
+by roughly an order of magnitude. `openspec/changes/learn-from-peers` task 48.1 (done: §114,
+the deep-narrow arm could not complete the benchmark) tests the cheapest remaining candidate —
+that §108 scaled the wrong *dimension*, since Nori-6M is 16 layers at width 128 where our
+scale-up went wide rather than deep.
 
 The limitation is broader than the finding. **This project spent GPU budget on a hypothesis
 that a competitor's public README had already bounded**, and the cost of reading the field was
@@ -596,10 +598,11 @@ other four lie between 0.0577 and 0.0625. What remains open: one training seed p
 arms scored on different devices (CPU and GPU) over identical test rows, and §84's best-vs-best
 context comparison not repeated at a matched prior. The original entry follows as history.
 
-(Original entry, 2026-10-16.) §80's +0.0486 mean AP and §84's +0.0417 compare `v4-cellattn-fin10` (`p_financial` 1.0) with
-`v4-colid-fin07` (`p_financial` 0.7), and §91's reference pair is the same two checkpoints (§80's
-confound note; confirmed 2026-10-16 in audit task AU2.8, which found no `colid-fin10` or
-`cellattn-fin07` was ever trained). The architecture-only effect on real data is unmeasured. A
-matched pair needs one training run. Until then, the V4FinBench gain belongs to "cell attention
-plus a change of prior mix"; the synthetic result (§78, identical prior) is unaffected.
+(Original entry, 2026-10-16.) §80's +0.0486 mean AP and §84's +0.0417 compare
+`v4-cellattn-fin10` (`p_financial` 1.0) with `v4-colid-fin07` (`p_financial` 0.7), and §91's
+reference pair is the same two checkpoints (§80's confound note; confirmed 2026-10-16 in audit
+task AU2.8, which found no `colid-fin10` or `cellattn-fin07` was ever trained). The
+architecture-only effect on real data is unmeasured. A matched pair needs one training run.
+Until then, the V4FinBench gain belongs to "cell attention plus a change of prior mix"; the
+synthetic result (§78, identical prior) is unaffected.
 
