@@ -9,11 +9,18 @@ not paste one into the other. See `CLAUDE.md`.
 - Task 32.7 (FINDINGS §294): the binary context comparison rerun with a Holm family that can
   reject. `uniform` stays the default (`prototype` fails §289's rule); `retrieval` beats it on
   average precision on Polish 1y and 3y only, and stays opt-in. D10 updated.
-- README: the TabArena-Lite standing is 1,023.0 Elo, 99th of 110 (FINDINGS §293): spline
-  features in the multiclass and regression readouts, adopted under §292's rule.
-- The reproduction kernels pin the pull-request branch at c0a4680. The multiclass and
-  regression kernel is split in two, and the eight tables whose stored runs were fitted on the
-  Mac are reproduced there.
+- README and the leaderboard page: the TabArena-Lite standing is the reproduction from the
+  pull-request branch, 1,019.6 Elo, 99th of 110 (FINDINGS §297, §303). The stored runs it
+  reproduces score 1,024.0 (§301).
+- The TabArena fork's entry clips regression predictions to the training target's range
+  widened by 10% (FINDINGS §295, §301; diamonds RMSE 249,744 to 957), limits BLAS to
+  min(4, CPUs) threads (§296-§299), and never selects Apple's MPS on its own (§297). The
+  reproduction kernels pin the pull-request branch at 1aa50af.
+- `scripts/runpod/run_kernel_on_pod.py`: run a TabArena-Lite kernel on a RunPod GPU pod over
+  SSH and always delete the pod (FINDINGS §300). The HF Jobs wrapper gains `UPLOAD=0` and
+  splits kernels of either `RUNS` shape with `DATASETS`.
+- §257's combined binary arm is closed: complete on 30 tables but below the current entry in
+  one fit (FINDINGS §302, §303).
 
 ## [0.12.0] — 2026-11-17
 

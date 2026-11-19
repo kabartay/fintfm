@@ -1115,6 +1115,19 @@ binary datasets (§204). The progression of the overall figure was 880 (§221), 
 - **Single fold.** TabArena-Lite runs fold 0; per-dataset statements are single draws. The Elo
   intervals are about ±100 to ±170.
 
+**2026-11-19, §297, §301, §303 (Claim 19; the status stays SINGLE DRAW):**
+
+- **The entry is reproduced from the pull-request branch at 1,019.6 Elo, 99th of 110**
+  (`fintfm_pr_head_repro`, fork 1aa50af, no environment overrides; §303). This replaces the stored-run
+  figures as the entry's standing. 49 of 51 tables reproduce within 0.3% (§297); taiwanese_bankruptcy_prediction
+  is +22.2% on Kaggle CPU and exact on the Mac, so that difference is the machine.
+- §293's diamonds failure is fixed by clipping regression predictions to the training target's range
+  widened by 10% (RMSE 249,744 to 957), adopted under §295's rule: 1,024.8 against 1,022.6 in one fit,
+  inside the interval (§301). QSAR-TID-11 keeps its stored value by the owner's decision, because it hit
+  the time limit twice on Kaggle CPU.
+- §257's combined binary arm (readout ensemble with the probe budget) completed all 30 tables and scored
+  1,006.5 against the current entry's 1,023.7 in one fit; not adopted (§303).
+
 **2026-11-18, §293 (Claim 19; the status stays SINGLE DRAW):**
 
 - **The entry now stands at 1,023.0 Elo (+70/-80), 99th of 110** (`fintfm_g292_emr`): spline features
