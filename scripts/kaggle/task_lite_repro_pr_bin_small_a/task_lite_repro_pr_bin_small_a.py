@@ -40,12 +40,13 @@ from collections.abc import Callable
 from pathlib import Path
 
 # ---- PLACEHOLDERS: the owner fills these in before pushing the kernel ----------------------------
-#: Full SHA of the pull-request branch head in the fork: 8b3ea4b (1aa50af plus ag.max_classes = 10, the
-#: smoke override and the tests moved next to the models; same fitted code). 1aa50af is the entry of FINDINGS §301 (2e5019e's
+#: Full SHA of the pull-request branch head in the fork: 6f353cf (1aa50af plus ag.max_classes = 10, the
+#: smoke override, the tests moved next to the models, upstream main merged and a docstring; same fitted
+#: code). 1aa50af is the entry of FINDINGS §301 (2e5019e's
 #: binary settings, CPU unless CUDA is granted (65c21d5), BLAS limited to min(4, CPUs) (d915c57), regression
 #: predictions clipped to the widened training range (1aa50af)). The kernels last run at 65c21d5 and the
 #: §295 clip runs measured this code; the BLAS limit is a no-op on Kaggle sessions.
-FORK_COMMIT = "8b3ea4b8527c3a6448b104a14e1b81bc68f09b24"
+FORK_COMMIT = "6f353cf938166fb01d888d42a6ac8f8eaef9f75c"
 #: The fintfm release the fork's extra pins: 0.12.0 publishes the multiclass and regression
 #: checkpoints. The preflight refuses to run until it is on PyPI.
 FINTFM_VERSION = "0.12.0"
