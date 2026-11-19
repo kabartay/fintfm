@@ -624,7 +624,7 @@ docs/
   design/        ARCHITECTURE.md, DECISIONS.md, GLOSSARY.md, DESIGN_REVIEW_2026-10-16.md,
                  attention_cost_model.md
   roadmap/       ROADMAP.md (what to do next), STRATEGY.md, NEXT.md, TABARENA_BAR.md
-  competition/   LANDSCAPE.md, SUBMISSION.md, PR_2026-09.md, PR_2026-11-draft.md, REPRO_KERNELS.md
+  competition/   LANDSCAPE.md, SUBMISSION.md, PR_2026-09.md, PR_2026-11.md, REPRO_KERNELS.md
   infra/         COMPUTE.md, HF_JOBS.md
   research/      REFERENCES.md, RESEARCH_NOTES.md, IMPROVEMENT_PLAN_2026-11.md
   leaderboard/   the generated Pages leaderboard, its template and data

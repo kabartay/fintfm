@@ -7,7 +7,7 @@ head.
 | record | state |
 | --- | --- |
 | [`PR_2026-09.md`](PR_2026-09.md) | autogluon/tabarena#616, `fintfm==0.5.5`, 27 binary datasets: declined on competitiveness and withdrawn, 2026-09-25 |
-| [`PR_2026-11-draft.md`](PR_2026-11-draft.md) | the resubmission, "FinTFM with a trained linear readout", all 51 datasets, fork 8b3ea4b: drafted, not posted |
+| [`PR_2026-11.md`](PR_2026-11.md) | the resubmission, [autogluon/tabarena#736](https://github.com/autogluon/tabarena/pull/736), "FinTFM with a trained linear readout", all 51 datasets, fork 6f353cf: posted 2026-11-19, awaiting the maintainers' run |
 
 Upstream reference: [Contributing a Model or
 System](https://github.com/autogluon/tabarena#contributing-a-model-or-system).
