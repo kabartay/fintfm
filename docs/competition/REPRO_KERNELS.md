@@ -51,7 +51,7 @@ and the Mac lists together cover the 51 datasets once).
    (`-` fetches outputs and scores nothing locally). Outputs land in
    `runs/kaggle-fintfm-task-lite-repro-pr-<kernel suffix>/`.
 4. Run the Mac tables one at a time in a clean environment at the same fork commit, with no
-   `FINTFM_*` variable. The adapter fits on CPU unless CUDA is granted (fork 65c21d5). Before
+   `FINTFM_*` variable. The adapter fits on CPU unless CUDA is granted (fork 65c21d5); the kernels pin the PR head 1aa50af. Before
    that commit it chose Apple's MPS automatically, and every Mac table ran out of Metal memory
    within minutes under torch 2.15.0 and 2.14.0 alike (2026-11-18).
 5. Check each `summary.json`: every dataset `exit` is 0, `removed_fintfm_env` is `[]`, `fork`

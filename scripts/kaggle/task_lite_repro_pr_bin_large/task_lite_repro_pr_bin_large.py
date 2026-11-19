@@ -40,11 +40,11 @@ from collections.abc import Callable
 from pathlib import Path
 
 # ---- PLACEHOLDERS: the owner fills these in before pushing the kernel ----------------------------
-#: Full SHA of the pull-request branch head in the fork: 2e5019e, the binary entry with four bags up
-#: to 5,000 fit rows and splines up to 10,000 (FINDINGS §290), and one GPU requested when CUDA is
-#: available (2026-11-18). The CPU kernels first pushed at e5cb05b run identically: the GPU request
-#: changes nothing where CUDA is absent.
-FORK_COMMIT = "65c21d5f994b01af3912c26eb3562aa4c0bf5d2b"
+#: Full SHA of the pull-request branch head in the fork: 1aa50af, the entry of FINDINGS §301 (2e5019e's
+#: binary settings, CPU unless CUDA is granted (65c21d5), BLAS limited to min(4, CPUs) (d915c57), regression
+#: predictions clipped to the widened training range (1aa50af)). The kernels last run at 65c21d5 and the
+#: §295 clip runs measured this code; the BLAS limit is a no-op on Kaggle sessions.
+FORK_COMMIT = "1aa50af0ce276e9505464eba5e3d49182ab37759"
 #: The fintfm release the fork's extra pins: 0.12.0 publishes the multiclass and regression
 #: checkpoints. The preflight refuses to run until it is on PyPI.
 FINTFM_VERSION = "0.12.0"
