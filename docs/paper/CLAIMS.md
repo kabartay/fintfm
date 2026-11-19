@@ -284,8 +284,7 @@ is better than ours.
 
 **Do not write this claim in any form.** The residue worth keeping is a negative result: on a
 low-default portfolio, conditioning the context on the query does **not** improve on selecting
-a structurally representative context once, and it costs batch independence to find out. That
-is worth one paragraph in §5.4 of the outline, not a contribution.
+a structurally representative context once, and it costs batch independence to find out. That is worth one paragraph in section 5.5 of [OUTLINE.md](OUTLINE.md), not a contribution.
 
 **Regime-dependence found 2026-09-13/14 (§70), sharpening the negative result further.** On
 V4FinBench's published protocol, on §70's single fold of the 10x subsample (20,917 test rows,
@@ -616,8 +615,7 @@ magnitude.
 each number carries its own. The categorical path was knowingly degraded at §98, which §100
 quantifies and §101 fixes. One earlier run died of `TimeLimitExceeded` from a CUDA-only device
 check on Apple Silicon — an integration defect, not evidence about deployability. And
-**TabArena-Lite runs fold 0 only**: any per-dataset statement from it is a single draw and must
-be labelled as one.
+**TabArena-Lite runs fold 0 only**: any per-dataset statement from it is a single draw and must be labelled as one. 2026-11-19: Claim 19's entry covers all 51 datasets (§221, §303).
 
 **Superseded 2026-10-15 (§122):** the binary-only submission described below was made as
 autogluon/tabarena#616 and declined on competitiveness. A TabArena maintainer confirmed the
@@ -946,7 +944,7 @@ that partition is null against the partition alone (+0.0049 mean AP, 4 of 5 fold
 dropping `operational_status` costs the fine-tuned model -0.0023 mean AP (§202), so the gain is
 not carried by that column. On general tabular data, 200 fine-tuning steps per fit beat the
 default on 16 of 16 proxy binary tasks (§192, one split per task, A10G; a proxy result, not a
-TabArena or credit claim). The "Write it as" sentence above is unchanged.
+TabArena or credit claim). The "Write it as" sentence below is unchanged.
 
 **Write it as:** "opt-in fine-tuning per dataset raised mean AP from 0.1986 to 0.2062 on five
 full-panel V4FinBench folds, 5 of 5 positive, at one fine-tuning seed; the fine-tuned model has
@@ -1034,8 +1032,7 @@ and fine-tuning (Claim 16), the one lever since D16 to move AP, closes 3.8% of i
 
 **Extended 2026-11-13 (§188, §195, §202, §211; family FinTFM, synthetic-only).** The negative
 result now covers more levers, each on V4FinBench's five full-panel folds with the +0.0117 mean
-AP yardstick (§173) and at least 4 of 5 folds positive as the bar. The last sentence above is
-out of date: fine-tuning is no longer the only lever to have moved AP, because partitioned
+AP yardstick (§173) and at least 4 of 5 folds positive as the bar. The last sentence of the previous paragraph is out of date: fine-tuning is no longer the only lever to have moved AP, because partitioned
 contexts did (Claim 6, §169).
 
 | lever | result | verdict |

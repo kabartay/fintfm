@@ -57,7 +57,7 @@ configuration fix ties logistic regression (dAP +0.018, Holm p = 0.204; at libra
 AP, all Holm p < 0.001. Reading ROC-AUC with untuned baselines instead
 would have placed fintfm second of five; AP with tuned baselines places it third. **Neither
 measurement has been re-run on the architecture that closed the synthetic capacity cap**
-(§78) — see the new limitation below. (Superseded 2026-10-15: §80 re-ran the published
+(§78); see "The architecture fix that closed the synthetic capacity cap" below. (Superseded 2026-10-15: §80 re-ran the published
 protocol with cell attention on the full 1,000,087-row panel, five folds. fintfm now leads
 logistic regression by +0.0307 AP, Holm p < 0.001, and trails tuned LightGBM, CatBoost and
 XGBoost by 0.204 to 0.236 AP. These AP values are not comparable with §69-§71's subsample.)
@@ -66,8 +66,7 @@ XGBoost by 0.204 to 0.236 AP. These AP values are not comparable with §69-§71'
 development cap, 0.1658 against 0.1442 AP on fold 0. On the full 1,000,087-row panel, five
 folds, FinTFM zero-shot scores 0.1986 mean AP against untuned logistic regression's 0.1614, ahead
 on every fold, and untuned CatBoost scores 0.4005. See "The gap to an untuned CatBoost" below.)
-(§167, 2026-10-16: on V4FinBench's published features, which keep `operational_status`;
-LightGBM at 1,000 trees scores 0.3908 on the same features.)
+(§167, 2026-10-16: on V4FinBench's published features, which keep `operational_status`, LightGBM at 1,000 trees scores 0.3908.)
 
 ## The comparison to the published benchmark does not exist yet
 
@@ -228,8 +227,7 @@ real-data standing is better" is not, and the two must not be conflated.
 
 (Superseded 2026-10-15: §82 retracted this comparison, because 0.2116 is §71's fold 0 on a 10x
 subsample of 105,900 test rows, and §84 then measured cell attention ahead of the old
-architecture by +0.0417 AP best-vs-best on the full panel, 5 of 5 folds. See the corrected
-entry further down.)
+architecture by +0.0417 AP best-vs-best on the full panel, 5 of 5 folds. See "The architecture that fixed the capacity cap made the best-known inference configuration unaffordable" below.)
 
 The reported experiment also deviated from the protocol it was meant to replicate exactly:
 `--batch-size 4 --n-rows-choices 256,512` rather than `--batch-size 8 --n-rows-choices
@@ -278,8 +276,7 @@ were re-scored across the context range on the full panel. Each at its own best 
 context, identical rows: cell attention leads by **+0.0417 AP, 5 folds of 5**. The architecture
 effect is 6-7x the entire context effect. The concern that the architecture change might be a
 net real-data loss is closed, not merely unsupported. (Qualified 2026-10-16: the two arms also
-differ in prior mix, so "architecture effect" here means architecture plus prior mix; see the
-confound section below. Resolved 2026-10-18 (§172): at a matched prior the default-context gain
+differ in prior mix, so "architecture effect" here means architecture plus prior mix; see "Resolved 2026-10-18: cell attention's real-data gain was confounded with the prior mix" below. Resolved 2026-10-18 (§172): at a matched prior the default-context gain
 is +0.0520 mean AP, 5 of 5 folds; this best-vs-best comparison itself was not repeated.)
 
 **Corrected 2026-09-16 (§82).** This section previously framed that open question as "whether
@@ -292,8 +289,7 @@ suggestion that the architecture change might be a net real-data loss is withdra
 
 ## Training volume is not the explanation for the accuracy gap, at least not at 5x
 
-The most-cited untested explanation for this project's 0.20-0.24 AP deficit (§80: 0.204-0.236,
-full panel, five folds) to tuned gradient boosting has been training volume: every checkpoint
+The most-cited untested explanation for this project's 0.20-0.24 AP deficit to tuned gradient boosting (§80: 0.204-0.236, full panel, five folds) has been training volume: every checkpoint
 has come from 48,000 synthetic tasks against a field norm near 10^7, a ~200x shortfall
 recorded in `CLAUDE.md` since 2026-09-10.
 
@@ -454,8 +450,7 @@ property of the domain.
 
 (Superseded 2026-10-15: §111/§112 scored the mixture on MITRA's three criteria with
 `fintfm-priorscore`, and §115/§116 trained and scored a tree prior: +0.0094 mean ROC-AUC on
-TabArena at two seeds, −0.0221 AP on V4FinBench, so `p_tree` stays 0.0 by default. See the
-last section of this file and CLAIMS.md, Claim 15.) (§166, 2026-10-16: the V4FinBench figure is
+TabArena at two seeds, −0.0221 AP on V4FinBench, so `p_tree` stays 0.0 by default. See CLAIMS.md, Claim 15.) (§166, 2026-10-16: the V4FinBench figure is
 confounded. §116's tree arm trained on financial 0.49 against its control's 0.70, because the
 prior draws the tree source first; at a matched financial share the tree arm is +0.0119 mean
 AP, 4 of 5 folds, one seed per arm. Whether a tree prior helps credit is not settled until the
@@ -476,7 +471,7 @@ the deep-narrow arm could not complete the benchmark) tests the cheapest remaini
 that §108 scaled the wrong *dimension*, since Nori-6M is 16 layers at width 128 where our
 scale-up went wide rather than deep.
 
-The limitation is broader than the finding. **This project spent GPU budget on a hypothesis
+The limitation is broader than the scaling finding. **This project spent GPU budget on a hypothesis
 that a competitor's public README had already bounded**, and the cost of reading the field was
 one afternoon. That is now a standing instruction in `CLAUDE.md`.
 
