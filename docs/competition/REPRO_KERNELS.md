@@ -56,7 +56,7 @@ and the Mac lists together cover the 51 datasets once).
    within minutes under torch 2.15.0 and 2.14.0 alike (2026-11-18).
 5. Check each `summary.json`: every dataset `exit` is 0, `removed_fintfm_env` is `[]`, `fork`
    equals the PR head, `fintfm` is the release.
-6. Untar the `fintfm_pr_repro_*.tar.gz` into `~/proj/tabarena/experiments/`, merge the seven
+6. Untar the `fintfm_pr_repro_*.tar.gz` into `~/proj/tabarena/experiments/`, merge the eight
    runs with `merge_fintfm_lite.py --name fintfm_pr_repro_all51 ... --expect 51`, and score
    against the stored entry with `scripts/lite_same_fit.py` and `scripts/lite_positions.py`.
 

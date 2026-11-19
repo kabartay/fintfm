@@ -243,8 +243,8 @@ linear readout, all 51 Lite datasets give 903 Elo, 107th of 110 (§224, MEASURED
 These are general-tabular numbers for "FinTFM with a trained linear readout", not zero-shot
 results and not credit results. DR7.5 and DR7.6 remain open.
 
-**Update to the review's own text.** The sentence in 1.3 that every closed architecture verdict was measured at 48,000 tasks is no longer
-complete: depth and width were also tested at 480,000 tasks and were null (§195, §199, §202).
+**Update to the review's own text.** The sentence in 1.3 that every closed architecture
+verdict was measured at 48,000 tasks is no longer complete: depth and width were also tested at 480,000 tasks and were null (§195, §199, §202).
 
 **Open items (tasks.md, `[ ]`):** DR3.11 (fine-tuning per leaf; §208 reports +0.0049 mean AP, 4 of
 5 folds, while the task records the bag-4 arm as not run), DR6.4, DR7.5, DR7.6, DR8.3

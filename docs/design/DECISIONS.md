@@ -58,7 +58,7 @@ an auditable property, not a marketing line.
 The stronger half of the decision: **the prior samples a macro regime as a parameter rather
 than learning real crisis history.** Fitting the generator to real panels to make it more
 realistic would improve benchmarks while silently destroying the auditability claim, and
-nothing would fail to warn us.
+nothing would warn us.
 
 **Reversed if:** Phase 1 shows the synthetic prior cannot transfer at all, at which point the
 choice is not "add real data" but "abandon the model and keep the validation layer" (D3).
@@ -79,7 +79,7 @@ funding figure was removed.)
 
 **Chose the validation layer.** Credit scorecards are logistic regression *because*
 regulators demand interpretability, which is why the commercial comparison is linear or
-logistic regression rather than gradient boosting (`FINDINGS` §2). The accuracy bar is low; the barrier is model risk management. Calibrated PD, stability across regimes,
+logistic regression rather than gradient boosting (`FINDINGS` §2). The accuracy bar is low; the barrier is model risk management: calibrated PD, stability across regimes,
 documented out-of-time backtesting, evidence a validation committee accepts. Vendors whose
 product is the prediction cannot ship that as an afterthought.
 
@@ -816,6 +816,8 @@ best lever: zero-shot partitioned contexts beat §163's fine-tuned arm by +0.029
 folds (§205), and fine-tuning per partition leaf adds +0.0049, 4 of 5 folds (§208). Default
 stays off.
 
+---
+
 ## D19 — LendingClub is retired as a training source: no benchmark dataset trains a model here
 
 **Date:** 2026-10-20. **Status:** active. Closes `openspec/changes/audit-2026-10-15` task AU0.1.
@@ -897,6 +899,8 @@ checkpoint (the `mixed` one is under-trained, §16) changes the ordering.
 
 **Not yet measured:** the spread fields were added on 2026-11-08, so no existing result carries
 them except §13's 3-year panel table; re-run before quoting spread for any other panel.
+
+---
 
 ## D21 — No learned categorical path for now: the inference-time encoder left no cardinality axis (task 47.4)
 

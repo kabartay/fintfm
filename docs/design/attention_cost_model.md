@@ -35,7 +35,8 @@ is not modelled here; it has no result yet.
 
 ## 1. What the encoder does (read from `src/fintfm/modeling/model.py`)
 
-`encode_rows` (L1399-1565 in the file as of 2026-11-13; the line numbers below were re-read on that date, and the 2026-11-11 draft's L1440-1530 had drifted). With `n_cell_blocks=K > 0` and
+`encode_rows` (L1399-1565 in the file as of 2026-11-13; the line numbers below were re-read
+on that date, and the 2026-11-11 draft's L1440-1530 had drifted). With `n_cell_blocks=K > 0` and
 `cell_labels=True`, per block:
 
 1. **Row-attention within feature**: cells reshaped to `(B*F, N, d_cell)`, attention across the
